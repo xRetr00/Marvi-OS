@@ -1,0 +1,1 @@
+"""Marvi Gateway local service."""
