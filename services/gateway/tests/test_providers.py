@@ -45,6 +45,7 @@ def test_only_finished_providers_are_registered() -> None:
         "ollama", "lmstudio", "llamacpp",
         "opencode-zen", "opencode-go",
         "openai", "openai-responses", "anthropic",
+        "openrouter", "deepinfra", "deepseek",
         "codex", "claude-code",
     }
 
@@ -286,6 +287,30 @@ def test_caching_is_visibly_cheaper() -> None:
 def test_usage_adds_up() -> None:
     total = Usage(input=10, output=5) + Usage(input=3, output=2, cached_input=1)
     assert (total.input, total.output, total.cached_input) == (13, 7, 1)
+
+
+def test_deepseeks_own_cache_counters_are_understood() -> None:
+    # DeepSeek publishes no prompt_tokens_details. Reading only the OpenAI
+    # shape would bill every cached token as fresh on the provider that caches
+    # hardest, which is exactly backwards.
+    usage = get("deepseek").read_usage(
+        {
+            "usage": {
+                "prompt_tokens": 1000,
+                "completion_tokens": 50,
+                "prompt_cache_hit_tokens": 900,
+                "prompt_cache_miss_tokens": 100,
+            }
+        }
+    )
+
+    assert usage.cached_input == 900
+    assert usage.billable == 150
+
+
+def test_openrouter_is_the_one_provider_whose_balance_is_readable() -> None:
+    assert get("openrouter").limits.readable is True
+    assert get("deepseek").limits.readable is False
 
 
 def test_missing_usage_is_zero_not_a_crash() -> None:

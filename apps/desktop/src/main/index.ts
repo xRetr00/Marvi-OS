@@ -80,6 +80,7 @@ function normaliseProviderPage(body: unknown): ProviderPage | null {
         },
         usage: usage(row.usage as Record<string, number> | undefined),
         cooldown: (row.cooldown ?? null) as ProviderRow['cooldown'],
+        oauth: (row.oauth ?? null) as ProviderRow['oauth'],
         warning: (row.warning ?? null) as string | null
       }
     }),
@@ -605,6 +606,48 @@ app.whenReady().then(() => {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ values }),
+        signal: AbortSignal.timeout(8_000)
+      })
+      return response.ok ? normaliseProviderPage(await response.json()) : null
+    } catch {
+      return null
+    }
+  })
+  ipcMain.handle('marvi:start-oauth', async (_event, name) => {
+    if (typeof name !== 'string') return { ok: false, detail: 'no provider' }
+    try {
+      const response = await fetch(`${GATEWAY_BASE_URL}/providers/${name}/oauth/start`, {
+        method: 'POST',
+        signal: AbortSignal.timeout(8_000)
+      })
+      const body = (await response.json()) as { url?: string; detail?: string }
+      if (!response.ok || !body.url) {
+        return { ok: false, detail: body.detail ?? 'could not start sign-in' }
+      }
+      // The provider's own login page, in the user's own browser. Marvi never
+      // renders it and never sees what is typed into it.
+      void shell.openExternal(body.url)
+      return { ok: true, detail: '' }
+    } catch {
+      return { ok: false, detail: 'Marvi Gateway is unavailable' }
+    }
+  })
+  ipcMain.handle('marvi:poll-oauth', async (_event, name) => {
+    if (typeof name !== 'string') return null
+    try {
+      const response = await fetch(`${GATEWAY_BASE_URL}/providers/${name}/oauth/status`, {
+        signal: AbortSignal.timeout(5_000)
+      })
+      return response.ok ? await response.json() : null
+    } catch {
+      return null
+    }
+  })
+  ipcMain.handle('marvi:disconnect-provider', async (_event, name) => {
+    if (typeof name !== 'string') return null
+    try {
+      const response = await fetch(`${GATEWAY_BASE_URL}/providers/${name}/disconnect`, {
+        method: 'POST',
         signal: AbortSignal.timeout(8_000)
       })
       return response.ok ? normaliseProviderPage(await response.json()) : null

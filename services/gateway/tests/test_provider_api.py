@@ -20,6 +20,8 @@ from marvi_gateway.tools import ToolRegistry
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv("MARVI_PROVIDER_CONFIG", str(tmp_path / "providers.env"))
     monkeypatch.setenv("MARVI_IDENTITY_DIR", str(tmp_path / "identity"))
+    monkeypatch.setenv("MARVI_TOKEN_STORE", str(tmp_path / "tokens.bin"))
+    monkeypatch.delenv("MARVI_CODEX_CLIENT_ID", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("MARVI_PROVIDER", raising=False)
@@ -134,6 +136,47 @@ def test_credentials_are_never_written_to_the_audit_log(client) -> None:
 
     assert "sk-secret" not in audit
     assert "OPENAI_API_KEY" in audit  # that it changed is worth recording
+
+
+# -- OAuth ------------------------------------------------------------------
+
+
+def test_oauth_state_is_reported_only_for_oauth_providers(client) -> None:
+    rows = {p["name"]: p for p in client.get("/providers").json()["providers"]}
+
+    assert rows["codex"]["oauth"]["connected"] is False
+    assert rows["codex"]["oauth"]["client_id_env"] == "MARVI_CODEX_CLIENT_ID"
+    assert rows["openai"]["oauth"] is None
+
+
+def test_connecting_a_plan_without_its_client_id_explains_itself(client) -> None:
+    response = client.post("/providers/codex/oauth/start")
+
+    assert response.status_code == 400
+    assert "MARVI_CODEX_CLIENT_ID" in response.json()["detail"]
+
+
+def test_starting_a_flow_returns_a_url_to_open_and_never_a_secret(
+    client, monkeypatch
+) -> None:
+    monkeypatch.setenv("MARVI_CODEX_CLIENT_ID", "client-abc")
+    body = client.post("/providers/codex/oauth/start").json()
+
+    try:
+        assert body["url"].startswith("https://auth.openai.com/oauth/authorize?")
+        # Marvi hands over a URL; the user signs in on OpenAI's own page.
+        assert "code_challenge=" in body["url"]
+        assert "code_verifier" not in body["url"]
+    finally:
+        client.post("/providers/codex/disconnect")
+
+
+def test_disconnect_clears_a_key_provider_too(client) -> None:
+    client.put("/providers/settings", json={"values": {"OPENAI_API_KEY": "sk-x"}})
+    body = client.post("/providers/openai/disconnect").json()
+    rows = {p["name"]: p for p in body["providers"]}
+
+    assert rows["openai"]["configured"] is False
 
 
 # -- the voice path ---------------------------------------------------------

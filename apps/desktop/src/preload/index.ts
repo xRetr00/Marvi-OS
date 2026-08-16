@@ -76,6 +76,12 @@ const marvi = {
   getProviders: (): Promise<ProviderPage | null> => ipcRenderer.invoke('marvi:get-providers'),
   setProviderSettings: (values: Record<string, string>): Promise<ProviderPage | null> =>
     ipcRenderer.invoke('marvi:set-provider-settings', values),
+  startOauth: (name: string): Promise<{ ok: boolean; detail: string }> =>
+    ipcRenderer.invoke('marvi:start-oauth', name),
+  pollOauth: (name: string): Promise<Record<string, unknown> | null> =>
+    ipcRenderer.invoke('marvi:poll-oauth', name),
+  disconnectProvider: (name: string): Promise<ProviderPage | null> =>
+    ipcRenderer.invoke('marvi:disconnect-provider', name),
   getIdentity: (): Promise<IdentityStatus | null> => ipcRenderer.invoke('marvi:get-identity'),
   setIdentity: (update: { soul?: string; user?: string }): Promise<IdentityStatus | null> =>
     ipcRenderer.invoke('marvi:set-identity', update),

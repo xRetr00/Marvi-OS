@@ -1,6 +1,6 @@
 # Phase 9 — Providers, Auxiliary Models, and Identity
 
-**Status:** in progress — steps 1, 2, 3, 3b, 7, 8, 9 done; OAuth and more providers remain
+**Status:** feature-complete — every step done except Step 5, which needs live credentials
 **Depends on:** Phase 6 (the deliberation seam), Phase 5 (memory)
 
 Marvi currently speaks to one model through one hardcoded HTTP call, and has no
@@ -197,15 +197,23 @@ usage, cools providers down on 429 with `Retry-After`, and fails over. Identity
 files with an enforced token budget, and the plan-terms warning. 26 client
 tests.
 
-**Step 4 — more API providers.** OpenRouter, DeepInfra, DeepSeek: profiles only,
-no new machinery now that the client exists.
+**Step 4 — more API providers. Done.** OpenRouter, DeepInfra and DeepSeek,
+profiles only — which was the point of building the client first. DeepSeek
+needed one change: it publishes `prompt_cache_hit_tokens` rather than
+`prompt_tokens_details`, and reading only the OpenAI shape would have billed
+every cached token as fresh on the provider that caches hardest.
 
-**Step 5 — live calls.** Prove Responses and Anthropic against the real
-endpoints. The shapes are built and unit-tested; this needs keys.
+**Step 5 — live calls. Blocked on credentials.** The Responses and Anthropic
+shapes are built and unit-tested against recorded payloads. Proving them against
+the real endpoints needs keys that are not in this repo, by design.
 
-**Step 6 — OAuth.** One plan provider end to end — acquisition, refresh ahead of
-expiry, an explicit expired state, and a storage decision for refresh tokens.
-Then the rest.
+**Step 6 — OAuth. Done.** Authorization code with PKCE for Codex and Claude
+Code: verified `state`, a single-use loopback listener, refresh ahead of expiry,
+and an explicit expired-versus-never-connected distinction. Refresh tokens are
+stored under Windows DPAPI scoped to the user account rather than in a JSON
+file, and never in `providers.env` beside the API keys. The vendors' client IDs
+are configuration, not literals — Marvi says which variable is missing instead
+of showing a button that cannot work. 22 tests.
 
 **Step 7 — limits and cooldown. Done.** `GET /providers` reports each provider's
 limit structure, its rolling windows where it has them, and whether they are

@@ -24,6 +24,7 @@ providers differ in four ways that change the request itself:
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from typing import Any, Literal
 
@@ -173,6 +174,14 @@ class ProviderProfile:
         return self.default_base_url.rstrip("/")
 
     def api_key(self) -> str | None:
+        # An OAuth provider's credential is a token Marvi obtained and keeps
+        # fresh, not something typed into a settings file. The hook is set by
+        # `oauth.py` on import; keeping it a hook is what stops this module
+        # from knowing anything about OAuth.
+        if self.auth_type.startswith("oauth") and _token_hook is not None:
+            token = _token_hook(self.name)
+            if token:
+                return token
         for name in self.key_env:
             value = os.environ.get(name, "").strip()
             if value:
@@ -183,7 +192,14 @@ class ProviderProfile:
         """Local providers need only an endpoint; the rest need a credential."""
         if not self.base_url():
             return False
-        return True if self.auth_type == "none" else bool(self.api_key())
+        if self.auth_type == "none":
+            return True
+        try:
+            return bool(self.api_key())
+        except Exception:
+            # An expired OAuth session is "connected but broken", which the
+            # page reports separately. It is not configured for calling.
+            return False
 
     def model_for(self, job: Literal["main", "aux", "vision"] = "main") -> str:
         if job == "aux" and self.default_aux_model:
@@ -302,10 +318,16 @@ class ProviderProfile:
             )
         details = raw.get("prompt_tokens_details") or {}
         completion_details = raw.get("completion_tokens_details") or {}
+        # DeepSeek publishes no prompt_tokens_details; it splits input into hit
+        # and miss counters instead. Reading only the OpenAI shape would bill
+        # every cached token as fresh on the provider that caches hardest.
+        cached = int(
+            details.get("cached_tokens", raw.get("prompt_cache_hit_tokens", 0)) or 0
+        )
         return Usage(
             input=int(raw.get("prompt_tokens", raw.get("input_tokens", 0)) or 0),
             output=int(raw.get("completion_tokens", raw.get("output_tokens", 0)) or 0),
-            cached_input=int(details.get("cached_tokens", 0) or 0),
+            cached_input=cached,
             reasoning=int(completion_details.get("reasoning_tokens", 0) or 0),
         )
 
@@ -355,6 +377,16 @@ def get(name: str) -> ProviderProfile:
     if resolved not in _REGISTRY:
         raise ProviderError(f"unknown provider: {name}")
     return _REGISTRY[resolved]
+
+
+# Set by `oauth.py` when it is imported, so `api_key()` can resolve a live
+# access token without `base` importing the OAuth machinery.
+_token_hook: Callable[[str], str | None] | None = None
+
+
+def set_token_hook(hook: Callable[[str], str | None] | None) -> None:
+    global _token_hook
+    _token_hook = hook
 
 
 def all_profiles() -> list[ProviderProfile]:

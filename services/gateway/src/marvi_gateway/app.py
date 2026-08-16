@@ -27,6 +27,7 @@ from .mind import Mind
 from .policy import InitiativeSettings
 from .providers import ProviderClient, all_profiles
 from .providers import config as provider_config
+from .providers.oauth import OAuthError, broker
 from .room import RoomSidecar, register_room_tools
 from .runtime import (
     ArgumentsMutatedError,
@@ -137,6 +138,8 @@ class ProviderRow(BaseModel):
     limits: dict[str, Any]
     usage: dict[str, int]
     cooldown: dict[str, Any] | None
+    # Sign-in state for OAuth providers; None for everything else.
+    oauth: dict[str, Any] | None
     warning: str | None
 
 
@@ -145,6 +148,13 @@ class ProviderPage(BaseModel):
     selected: str | None
     settings: dict[str, str]
     totals: dict[str, int]
+
+
+class OAuthStart(BaseModel):
+    """Where to send the user. Marvi never renders the provider's login itself."""
+
+    url: str
+    redirect_uri: str
 
 
 class ProviderSettingsUpdate(BaseModel):
@@ -658,6 +668,7 @@ def create_app(
                 },
                 usage=usage.get(p.name, {"input": 0, "output": 0, "cached_input": 0, "billable": 0}),
                 cooldown=cooling.get(p.name),
+                oauth=broker().status(p),
                 # Shown before connecting, not after. See docs/PROVIDERS.md.
                 warning=plan_warning(p),
             )
@@ -688,6 +699,30 @@ def create_app(
             # Never audit the values; several of them are credentials.
             {"changed": sorted(update.values)},
         )
+        return await providers()
+
+    @app.post("/providers/{name}/oauth/start", response_model=OAuthStart)
+    async def start_oauth(name: str) -> OAuthStart:
+        try:
+            started = broker().start(name)
+        except OAuthError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        runtime_store.audit("providers", "oauth-start", {"provider": name})
+        return OAuthStart(url=started["url"], redirect_uri=started["redirect_uri"])
+
+    @app.get("/providers/{name}/oauth/status")
+    async def oauth_status(name: str) -> dict[str, Any]:
+        """Poll the flow. Never blocks, and never returns the token itself."""
+        return broker().poll(name)
+
+    @app.post("/providers/{name}/disconnect", response_model=ProviderPage)
+    async def disconnect_provider(name: str) -> ProviderPage:
+        removed = broker().disconnect(name)
+        # A key provider disconnects by clearing its credential instead.
+        profile = next((p for p in all_profiles() if p.name == name), None)
+        if profile is not None and profile.key_env:
+            provider_config.update({profile.key_env[0]: ""})
+        runtime_store.audit("providers", "disconnect", {"provider": name, "token": removed})
         return await providers()
 
     @app.get("/providers/voice", response_model=VoiceProvider)

@@ -125,6 +125,16 @@ export interface ProviderRow {
   limits: { style: string; windows: string[][]; readable: boolean; note: string }
   usage: { input: number; output: number; cachedInput: number; billable: number }
   cooldown: { seconds_remaining: number; reason: string } | null
+  /** Sign-in state for OAuth providers; null for everything else. */
+  oauth: {
+    connected: boolean
+    state: string
+    account?: string
+    refreshable?: boolean
+    encrypted_at_rest?: boolean
+    client_id_env: string
+    client_id_set: boolean
+  } | null
   /** Present only on subscription plans: the terms warning shown before connecting. */
   warning: string | null
 }

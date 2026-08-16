@@ -20,11 +20,11 @@ from the control center without a rebuild.
 | OpenAI | api | api key | chat completions | **implemented** |
 | OpenAI (Responses) | api | api key | responses | **implemented** |
 | Anthropic | api | api key | messages | **implemented** |
-| Codex | plan | `oauth_external` | responses | **profile ready, OAuth pending** |
-| Claude Code | plan | `oauth_external` | messages | **profile ready, OAuth pending** |
-| OpenRouter | api | api key | chat completions | planned |
-| DeepInfra | api | api key | chat completions | planned |
-| DeepSeek | api | api key | chat completions | planned |
+| Codex | plan | `oauth_external` | responses | **implemented, needs a client ID** |
+| Claude Code | plan | `oauth_external` | messages | **implemented, needs a client ID** |
+| OpenRouter | api | api key | chat completions | **implemented** |
+| DeepInfra | api | api key | chat completions | **implemented** |
+| DeepSeek | api | api key | chat completions | **implemented** |
 | GitHub Copilot | plan | token exchange | chat completions | planned |
 | Qwen | plan | `oauth_external` | chat completions | planned |
 | xAI, Nous | api/plan | `oauth_device_code` | chat completions | planned |
@@ -84,11 +84,68 @@ asked** — a prefix is only cached if marked with a `cache_control` breakpoint,
 and forgetting the mark costs full price silently on every turn. Marvi marks it
 by default.
 
-### Codex and Claude Code — profiles ready, OAuth pending
+### OpenRouter, DeepInfra, DeepSeek
 
-Both profiles exist with the right API shape, models, and window structure. They
-cannot be used until the OAuth flow lands; the access token env vars are
-placeholders that the flow will populate rather than values to type in.
+Three metered, OpenAI-compatible APIs that needed no new machinery — with the
+client in place, a provider is now genuinely just a profile.
+
+`OPENROUTER_API_KEY`, `DEEPINFRA_API_KEY`, `DEEPSEEK_API_KEY`.
+
+Two are worth knowing about. **OpenRouter is the only provider Marvi can read a
+balance from** (`GET /credits`), so its card can show a real number rather than
+"check your dashboard". **DeepSeek reports its cache differently**: no
+`prompt_tokens_details`, but `prompt_cache_hit_tokens` and
+`prompt_cache_miss_tokens` instead. Reading only the OpenAI shape would bill
+every cached token as fresh on the provider that caches hardest, so `read_usage`
+understands both.
+
+### Codex and Claude Code — OAuth
+
+Both work, and both need one thing from you first: **the vendor's client ID**,
+in `MARVI_CODEX_CLIENT_ID` or `MARVI_CLAUDE_CODE_CLIENT_ID`.
+
+Marvi does not ship those values. They belong to OpenAI and Anthropic, they are
+rotated at the vendor's discretion, and a hardcoded one would fail silently
+months later with no clue why. The Providers page says which variable is missing
+rather than offering a Sign In button that cannot work.
+
+## How the OAuth flow works
+
+Authorization code with PKCE, and the reason for each piece:
+
+- **Marvi never sees your password.** You sign in on the provider's own page, in
+  your own browser. Marvi hands the desktop app a URL and receives only the
+  redirect. There is no field in Marvi to type a provider password into, by
+  design and not by omission.
+- **PKCE always.** The redirect lands on `http://localhost:<port>`, which any
+  local process could try to race for. The verifier never leaves the Gateway, so
+  a stolen authorization code is worth nothing on its own.
+- **`state` is verified, not merely sent.** Without that check, another page in
+  your browser could hand Marvi a code for an account you did not choose.
+- **The listener answers one request and dies.** A loopback server left running
+  is a way in.
+- **Refresh happens ahead of expiry**, not after a failure — a token that dies
+  mid-call is a lost turn, and on the voice path that is an audible stall. A
+  refresh response that omits the refresh token means "keep the one you have",
+  and dropping it would quietly turn a lasting connection into a one-hour one.
+
+### Where tokens are stored
+
+**Windows: DPAPI, scoped to your user account.** `CryptProtectData` encrypts
+with a key derived from the logged-in account, so `tokens.bin` is useless to
+another account on the machine and useless if copied off it. No password prompt,
+no keyring service, no new dependency.
+
+On other platforms the file falls back to owner-only permissions, and Marvi says
+so rather than implying encryption. Marvi is Windows-first; that path exists for
+development.
+
+Tokens deliberately do **not** go into `providers.env` beside the API keys. That
+file is read and written by the settings GUI; a refresh token is not a setting.
+
+A store that cannot be read — written by a different Windows account, or
+truncated — reports "reconnect" rather than preventing the Gateway from
+starting.
 
 ## Calling, accounting, and cooldown
 

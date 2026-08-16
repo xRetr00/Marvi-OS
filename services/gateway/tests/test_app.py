@@ -6,20 +6,35 @@ from marvi_gateway.runtime import RuntimeStore
 from marvi_gateway.tools import ToolRegistry, ToolSpec
 
 
-@pytest.mark.asyncio
-async def test_health_exposes_branding_version_and_component_readiness() -> None:
+async def health(monkeypatch, livekit_running: bool) -> dict:
+    # Pin the probe. Reading the real port asserts a fact about the developer's
+    # machine rather than about the code, and passes or fails depending on
+    # whether LiveKit happens to be up.
+    monkeypatch.setattr("marvi_gateway.app.livekit_is_ready", lambda *a, **k: livekit_running)
     transport = ASGITransport(app=create_app(version="0.1.0-test"))
     async with AsyncClient(transport=transport, base_url="http://marvi.local") as client:
         response = await client.get("/health")
-
     assert response.status_code == 200
-    payload = response.json()
+    return response.json()
+
+
+@pytest.mark.asyncio
+async def test_health_exposes_branding_version_and_component_readiness(monkeypatch) -> None:
+    payload = await health(monkeypatch, livekit_running=False)
+
     assert payload["product"] == "Marvi OS"
     assert payload["version"] == "0.1.0-test"
     assert payload["components"]["gateway"]["state"] == "ready"
     assert payload["components"]["livekit"]["state"] == "pending"
     assert payload["components"]["voice"]["state"] == "starting"
     assert payload["assistant"]["phase"] == "ready"
+
+
+@pytest.mark.asyncio
+async def test_a_running_livekit_server_reports_ready(monkeypatch) -> None:
+    payload = await health(monkeypatch, livekit_running=True)
+
+    assert payload["components"]["livekit"]["state"] == "ready"
 
 
 @pytest.mark.asyncio

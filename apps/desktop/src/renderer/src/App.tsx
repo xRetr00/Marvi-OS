@@ -1,5 +1,5 @@
 import { useStore } from '@nanostores/react'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import appIcon from './assets/app-icon.png'
 import { BootFailureOverlay } from './components/BootFailureOverlay'
@@ -769,20 +769,24 @@ const ACCESS_LABEL: Record<string, string> = {
 
 function ProviderCard({
   provider,
-  onSave
+  onSave,
+  onRefresh
 }: {
   provider: ProviderRow
   onSave: (values: Record<string, string>) => Promise<void>
+  onRefresh: () => Promise<void>
 }): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const [secret, setSecret] = useState('')
   const [model, setModel] = useState(provider.models.main)
   const [acknowledged, setAcknowledged] = useState(provider.configured)
   const [busy, setBusy] = useState(false)
+  const [signIn, setSignIn] = useState('')
 
   const keyEnv = provider.env.key
   const modelEnv = provider.env.model
-  const needsKey = provider.authType !== 'none' && keyEnv !== ''
+  const oauth = provider.oauth
+  const needsKey = provider.authType !== 'none' && keyEnv !== '' && oauth === null
   // A plan cannot be connected until its terms warning has actually been read.
   const blocked = provider.warning !== null && !acknowledged
 
@@ -796,15 +800,58 @@ function ProviderCard({
     }
   }
 
+  // Poll while a browser sign-in is in flight. The Gateway holds the flow; this
+  // only asks whether the user has come back yet.
+  useEffect(() => {
+    if (signIn !== 'waiting') return undefined
+    const timer = setInterval(async () => {
+      const status = (await window.marvi?.pollOauth(provider.name)) as {
+        state?: string
+        detail?: string
+      } | null
+      if (!status) return
+      if (status.state === 'connected') {
+        setSignIn('')
+        await onRefresh()
+      } else if (status.state === 'failed' || status.state === 'timed out') {
+        setSignIn(status.detail ?? status.state)
+      }
+    }, 1_500)
+    return () => clearInterval(timer)
+  }, [signIn, provider.name, onRefresh])
+
+  const connectPlan = async (): Promise<void> => {
+    setBusy(true)
+    try {
+      const started = await window.marvi?.startOauth(provider.name)
+      setSignIn(started?.ok ? 'waiting' : (started?.detail ?? 'could not start sign-in'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const disconnect = async (): Promise<void> => {
+    setBusy(true)
+    try {
+      await window.marvi?.disconnectProvider(provider.name)
+      setSignIn('')
+      await onRefresh()
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="service-row provider-row">
       <span className="service-name">{provider.label.toUpperCase()}</span>
       <span className={`service-state state-${provider.configured ? 'ready' : 'pending'}`}>
         {provider.cooldown
           ? `COOLING DOWN ${Math.round(provider.cooldown.seconds_remaining)}S`
-          : provider.configured
-            ? 'CONNECTED'
-            : 'NOT CONNECTED'}
+          : oauth
+            ? oauth.state.toUpperCase()
+            : provider.configured
+              ? 'CONNECTED'
+              : 'NOT CONNECTED'}
       </span>
       <small>
         {ACCESS_LABEL[provider.accessPath]} / {provider.apiMode.replace(/_/g, ' ').toUpperCase()} /{' '}
@@ -847,7 +894,49 @@ function ProviderCard({
             </label>
           ) : null}
 
-          {needsKey ? (
+          {oauth ? (
+            <>
+              <small>
+                Marvi never sees your password. Sign-in happens on the provider&apos;s own page in
+                your browser; Marvi only receives the result
+                {oauth.encrypted_at_rest ? ', encrypted to this Windows account' : ''}.
+              </small>
+              {oauth.client_id_set ? null : (
+                <small className="provider-cooldown">
+                  Set {oauth.client_id_env} first — Marvi does not ship vendor client IDs.
+                </small>
+              )}
+              <div className="provider-actions">
+                <button
+                  className="phase"
+                  type="button"
+                  disabled={busy || blocked || !oauth.client_id_set || signIn === 'waiting'}
+                  onClick={() => void connectPlan()}
+                >
+                  {blocked
+                    ? 'READ THE WARNING FIRST'
+                    : signIn === 'waiting'
+                      ? 'WAITING FOR SIGN-IN'
+                      : oauth.connected
+                        ? 'SIGN IN AGAIN'
+                        : 'SIGN IN'}
+                </button>
+                {oauth.connected ? (
+                  <button
+                    className="phase danger"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void disconnect()}
+                  >
+                    DISCONNECT
+                  </button>
+                ) : null}
+              </div>
+              {signIn && signIn !== 'waiting' ? (
+                <small className="provider-cooldown">{signIn}</small>
+              ) : null}
+            </>
+          ) : needsKey ? (
             <input
               type="password"
               placeholder={provider.configured ? 'Replace the saved key' : keyEnv}
@@ -900,20 +989,24 @@ function ProvidersPanel(): React.JSX.Element {
   const [page, setPage] = useState<ProviderPage | null>(null)
   const [error, setError] = useState('')
 
+  // Used by a card after a sign-in completes, so the page reflects it at once
+  // rather than on the next poll.
+  const load = useCallback(async (): Promise<void> => {
+    const next = await window.marvi?.getProviders()
+    setPage(next ?? null)
+    setError(next ? '' : 'Marvi Gateway is unavailable')
+  }, [])
+
   useEffect(() => {
     let disposed = false
-    const load = async (): Promise<void> => {
+    const poll = async (): Promise<void> => {
       const next = await window.marvi?.getProviders()
       if (disposed) return
-      if (next) {
-        setPage(next)
-        setError('')
-      } else {
-        setError('Marvi Gateway is unavailable')
-      }
+      setPage(next ?? null)
+      setError(next ? '' : 'Marvi Gateway is unavailable')
     }
-    void load()
-    const timer = setInterval(() => void load(), 20_000)
+    const timer = setInterval(() => void poll(), 20_000)
+    void poll()
     return () => {
       disposed = true
       clearInterval(timer)
@@ -966,7 +1059,12 @@ function ProvidersPanel(): React.JSX.Element {
             <div className="panel-label">{`// ${label}`}</div>
             <div className="service-list">
               {rows.map((provider) => (
-                <ProviderCard key={provider.name} provider={provider} onSave={save} />
+                <ProviderCard
+                  key={provider.name}
+                  provider={provider}
+                  onSave={save}
+                  onRefresh={load}
+                />
               ))}
             </div>
           </div>

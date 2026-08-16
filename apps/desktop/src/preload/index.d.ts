@@ -42,6 +42,9 @@ export interface MarviDesktopApi {
   }>
   getProviders: () => Promise<ProviderPage | null>
   setProviderSettings: (values: Record<string, string>) => Promise<ProviderPage | null>
+  startOauth: (name: string) => Promise<{ ok: boolean; detail: string }>
+  pollOauth: (name: string) => Promise<Record<string, unknown> | null>
+  disconnectProvider: (name: string) => Promise<ProviderPage | null>
   getIdentity: () => Promise<IdentityStatus | null>
   setIdentity: (update: { soul?: string; user?: string }) => Promise<IdentityStatus | null>
   getRoomState: () => Promise<{
