@@ -134,3 +134,28 @@ Validation evidence and the resulting commit are recorded in
   [`phases/04-tools-room.md`](phases/04-tools-room.md).
 - 24 Gateway tests, 9 voice-tool tests against the real Gateway app, 16 desktop
   tests, ruff, ESLint, and typecheck all pass.
+
+## 2026-08-16 — Phase 4 room events and Island micro-events
+
+- Added room event history by tailing the sidecar's JSONL log; it exposes no
+  events RPC. Only the tail is read, so cost does not grow with the log.
+- Filtered the log against an explicit notable-event allowlist after measuring
+  the real distribution: 446 of a 500-event sample were ambient
+  `vision_identity_state`. Allowlisting means an unrecognised new type is missed
+  rather than repeated at the user every second, which is the right failure for
+  an always-on surface. Dropped `vision_gesture` after live output showed it
+  bursting three times in fifteen seconds while carrying no useful text.
+- Rebuilt event lines from the payload after finding the sidecar's `summary` is
+  only a type label — `mode_changed` reports "mode changed" without the mode.
+- Gave background events a dedicated `room_event` channel on the assistant state
+  instead of reusing `phase`, so they cannot overwrite a live voice turn or a
+  pending confirmation. The Island renders one only while idle, without
+  controls, politely announced, expiring after 25 seconds.
+- Made the first observation after startup establish a baseline only, after live
+  output showed a fresh Gateway surfacing an event from hours earlier.
+- Verified against the real event log through a `uvicorn` process: 147 ambient
+  events suppressed, lines rendered as `Light on at 100% 6500K (manual)` and
+  `Unverified entry: stale_owntracks`, `phase` and `caption` untouched while
+  the event rode its own channel, and no stale flash on a fresh start.
+- Phase 4 marked complete: 53 Python tests, 22 desktop tests, ruff, ESLint,
+  typecheck, and the production build all pass.

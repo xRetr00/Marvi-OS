@@ -12,7 +12,7 @@ import {
   type VoicePhase,
   type VoiceState
 } from './store/voice-state'
-import type { AuditEvent, RuntimeStatus } from '../../shared/runtime'
+import type { AuditEvent, RoomEvent, RuntimeStatus } from '../../shared/runtime'
 import type { IslandAlignment, IslandPlacement } from '../../main/island-window'
 import { connectVoiceRoom } from './lib/livekit-room'
 
@@ -245,13 +245,18 @@ function readRecord(source: Record<string, unknown>, key: string): Record<string
 
 function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
   const [snapshot, setSnapshot] = useState<RoomSnapshot | null>(null)
+  const [events, setEvents] = useState<RoomEvent[]>([])
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let disposed = false
     const load = async (): Promise<void> => {
-      const response = await window.marvi?.getRoomState()
+      const [response, history] = await Promise.all([
+        window.marvi?.getRoomState(),
+        window.marvi?.getRoomEvents()
+      ])
       if (disposed) return
+      if (history) setEvents(history)
       if (!response || response.status !== 'executed' || !response.result) {
         setSnapshot(null)
         setError(response?.error ?? 'Marvi Gateway is unavailable')
@@ -320,6 +325,21 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
             <strong>{value}</strong>
           </div>
         ))
+      )}
+
+      <div className="panel-label">{'// ROOM EVENTS'}</div>
+      {events.length === 0 ? (
+        <span className="construction">NO NOTABLE ROOM EVENTS RECORDED</span>
+      ) : (
+        <div className="service-list">
+          {events.map((event) => (
+            <div className="service-row" key={event.id}>
+              <span className="service-name">{event.type.toUpperCase()}</span>
+              <span className="service-state">{event.at.slice(11, 19)}</span>
+              <small>{event.summary}</small>
+            </div>
+          ))}
+        </div>
       )}
     </section>
   )

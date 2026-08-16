@@ -1,6 +1,6 @@
 # Phase 4 — Tools, Confirmation, and Smart Room
 
-**Status:** in progress
+**Status:** complete
 **Depends on:** Phase 3
 
 ## Scope
@@ -42,8 +42,23 @@
   the same token and the same arguments the Island resolves. Verified against
   livekit-agents 1.6.10 — `RunContext` and the token never enter the
   LLM-visible schema.
-- Room and Activity control-center pages read live sidecar state and the real
-  audit timeline instead of placeholder copy.
+- Room and Activity control-center pages read live sidecar state, room event
+  history, and the real audit timeline instead of placeholder copy.
+- Room events read from the sidecar's JSONL log by tail, with an explicit
+  notable-event allowlist. In a 500-event sample, 446 were ambient
+  `vision_identity_state`; an always-on surface allowlists so an unrecognised
+  new type is missed rather than blasted at the user every second.
+  `vision_gesture` is excluded because it fires in bursts and any gesture that
+  does something already surfaces as the `light_changed` it caused.
+- Event lines are rebuilt from the payload. The sidecar's own `summary` is a
+  type label — `mode_changed` reports "mode changed" with no mode — so it is
+  only the fallback.
+- Island micro-events ride a dedicated `room_event` channel on the assistant
+  state rather than the `phase`, so a background event cannot overwrite a live
+  voice turn or a pending confirmation. It expands the seed for 25 seconds,
+  never becomes interactive, and never pulls focus. The first observation after
+  startup only establishes a baseline, so a stale backlog entry cannot flash on
+  launch.
 
 ## Evidence
 
@@ -62,15 +77,24 @@ not an in-process transport.
 | YOLO | flag persists across polls; sensitive tools execute with no token and are still audited |
 | Sidecar unreachable | room component `error`, reads served from the stale snapshot, writes fail cleanly, Gateway and assistant phase unaffected |
 | Sidecar returns with a rotated token | room component back to `ready` and reads live again, with no Gateway restart |
+| Room event filtering | 147 ambient `vision_identity_state` suppressed from a live tail; only real transitions served |
+| Rebuilt event lines | `Light on at 100% 6500K (manual)`, `Mode changed to focus (manual)`, `Unverified entry: stale_owntracks` |
+| Micro-event isolation | `phase` stayed `ready` and `caption` unchanged while `room_event` carried the event |
+| Fresh start | no stale backlog entry surfaced on the Island; history endpoint still served it |
 
-Automated coverage: 24 Gateway tests, 9 voice-tool tests driving the real
-Gateway app, and 16 desktop tests.
+Automated coverage: 37 Gateway tests, 9 voice-tool tests driving the real
+Gateway app, and 22 desktop tests.
 
-## Still required before this phase can be marked complete
+## Method note
 
-- Composio and other non-room tools are not registered yet; the router carries
-  only the room surface.
-- Room events and history are not streamed into the Island as micro-events.
-- The live loss-aware reconnect was proven by pointing the Gateway at a dead
-  port and bringing a sidecar back on it. Killing the production runtime itself
-  was deliberately not done while it was in use.
+The loss-aware reconnect was proven by pointing the Gateway at a dead port and
+bringing a real sidecar back on it with a rotated token — real sockets and real
+processes, but not the production room runtime, which was deliberately left
+running while in use.
+
+## Follow-on work (not Phase 4)
+
+- Composio and other non-room tools belong to Phase 5; the router intentionally
+  carries only the room surface today.
+- Room event history is not yet exposed as a voice tool. Add it when the agent
+  is actually asked to reason over it.

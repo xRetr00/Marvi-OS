@@ -24,6 +24,7 @@ AssistantPhase = Literal[
 
 CONFIRMATION_TTL_SECONDS = 120.0
 AUDIT_TAIL_LIMIT = 200
+ROOM_EVENT_TTL_SECONDS = 25.0
 
 
 def default_audit_path() -> Path:
@@ -47,6 +48,13 @@ class ConfirmationRequest(BaseModel):
     arguments: dict[str, Any] = Field(default_factory=dict)
 
 
+class RoomEvent(BaseModel):
+    id: int
+    at: str
+    type: str
+    summary: str
+
+
 class AssistantState(BaseModel):
     phase: AssistantPhase = "ready"
     caption: str = "Say Marvi"
@@ -56,6 +64,9 @@ class AssistantState(BaseModel):
     microphone: bool = True
     camera: bool = True
     confirmation: ConfirmationRequest | None = None
+    # A background room event rides its own channel so it can never take over a
+    # live voice phase. The Island shows it only while idle.
+    room_event: RoomEvent | None = None
 
 
 class RuntimeStatus(BaseModel):
@@ -116,6 +127,8 @@ class RuntimeStore:
         self.assistant = AssistantState()
         self.audit_path = audit_path or default_audit_path()
         self._pending: dict[str, PendingConfirmation] = {}
+        self._last_room_event_id: int | None = None
+        self._room_event_at: float | None = None
 
     # -- mode ---------------------------------------------------------------
 
@@ -168,6 +181,50 @@ class RuntimeStore:
             except ValueError:
                 continue
         return events
+
+    # -- background room events ---------------------------------------------
+
+    def observe_room_event(self, event: dict[str, Any] | None, now: float | None = None) -> None:
+        """Surface a new background event briefly, then let it expire.
+
+        Never touches `phase`: a room event must not interrupt or overwrite a
+        live voice turn, and it must not pull focus.
+        """
+        moment = now if now is not None else time.monotonic()
+
+        if event is not None:
+            try:
+                identifier = int(event["id"])
+            except (KeyError, TypeError, ValueError):
+                identifier = None
+            if identifier is not None and self._last_room_event_id is None:
+                # First observation only establishes a baseline. Whatever was
+                # already in the log happened before we were running, and must
+                # not flash on the Island at startup.
+                self._last_room_event_id = identifier
+                return
+            if identifier is not None and identifier != self._last_room_event_id:
+                self._last_room_event_id = identifier
+                self._room_event_at = moment
+                self.assistant = self.assistant.model_copy(
+                    update={
+                        "room_event": RoomEvent(
+                            id=identifier,
+                            at=str(event.get("at", "")),
+                            type=str(event.get("type", "")),
+                            summary=str(event.get("summary") or event.get("type") or "room event"),
+                        )
+                    }
+                )
+                return
+
+        if (
+            self.assistant.room_event is not None
+            and self._room_event_at is not None
+            and moment - self._room_event_at >= ROOM_EVENT_TTL_SECONDS
+        ):
+            self._room_event_at = None
+            self.assistant = self.assistant.model_copy(update={"room_event": None})
 
     # -- confirmation tokens ------------------------------------------------
 

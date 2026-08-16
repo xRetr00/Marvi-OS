@@ -21,6 +21,73 @@ describe('DynamicIsland', () => {
     expect(html).not.toContain('island-seed-line')
   })
 
+  const ROOM_EVENT = {
+    id: 7,
+    at: '2026-08-16T03:41:00Z',
+    type: 'room_presence_unverified',
+    summary: 'unverified entry'
+  }
+
+  it('expands the seed for a background room event without becoming interactive', () => {
+    const html = renderToStaticMarkup(
+      <DynamicIsland state={{ ...DEFAULT_ASSISTANT_STATE, roomEvent: ROOM_EVENT }} />
+    )
+
+    expect(html).toContain('island-room-event')
+    expect(html).toContain('unverified entry')
+    expect(html).toContain('aria-live="polite"')
+    // No controls: a background event must never invite or capture a click.
+    expect(html).not.toContain('<button')
+  })
+
+  it('lets a live voice phase win over a background room event', () => {
+    const html = renderToStaticMarkup(
+      <DynamicIsland
+        state={{
+          ...DEFAULT_ASSISTANT_STATE,
+          phase: 'listening',
+          caption: 'Listening',
+          roomEvent: ROOM_EVENT
+        }}
+      />
+    )
+
+    expect(html).not.toContain('island-room-event')
+    expect(html).toContain('Listening')
+  })
+
+  it('lets a confirmation win over a background room event', () => {
+    const html = renderToStaticMarkup(
+      <DynamicIsland
+        state={{
+          ...DEFAULT_ASSISTANT_STATE,
+          phase: 'confirmation',
+          caption: 'Confirm action',
+          roomEvent: ROOM_EVENT,
+          confirmation: {
+            token: 'token-1',
+            action: 'Change the room light',
+            detail: 'brightness=30',
+            tool: 'room_set_light',
+            arguments: { on: true, brightness: 30 }
+          }
+        }}
+      />
+    )
+
+    expect(html).not.toContain('island-room-event')
+    expect(html).toContain('APPROVE')
+  })
+
+  it('keeps the persistent YOLO marker visible during a room event', () => {
+    const html = renderToStaticMarkup(
+      <DynamicIsland state={{ ...DEFAULT_ASSISTANT_STATE, yolo: true, roomEvent: ROOM_EVENT }} />
+    )
+
+    expect(html).toContain('island-room-event')
+    expect(html).toContain('YOLO')
+  })
+
   it('renders exact action details and both confirmation paths', () => {
     const html = renderToStaticMarkup(
       <DynamicIsland

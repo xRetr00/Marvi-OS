@@ -30,6 +30,66 @@ PROBE_CACHE_SECONDS = 5.0
 COLOR_TEMP_RANGE = (2700, 6500)
 ROOM_MODES = {"normal", "reading", "focus", "relax", "night", "sleep", "alarm", "off"}
 
+EVENT_TAIL_BYTES = 64 * 1024
+
+# The sidecar's event log is dominated by ambient vision state churn — in a
+# 500-event sample, 446 were `vision_identity_state`. An always-on surface must
+# allowlist rather than denylist: an unrecognised new type is better missed than
+# blasted at the user every second. Add types here deliberately.
+NOTABLE_EVENTS = frozenset(
+    {
+        "mode_changed",
+        "light_changed",
+        "presence_detected",
+        "presence_cleared",
+        "he20_occupied",
+        "he20_cleared",
+        "room_presence_unverified",
+        "alarm_started",
+        "alarm_acknowledged",
+        "alarm_cancelled",
+    }
+)
+# Deliberately excluded: `vision_gesture` fires in bursts (three inside fifteen
+# seconds in the sampled log), and a gesture that actually does something
+# already surfaces as the `light_changed` / `mode_changed` it caused.
+
+
+def summarize_event(event: dict[str, Any]) -> str:
+    """Build a line worth showing.
+
+    The sidecar's own `summary` is a type label — `mode_changed` reports
+    "mode changed" without the mode — so the detail is rebuilt from the payload
+    and `summary` is only the fallback.
+    """
+    kind = event.get("type")
+    source = event.get("source") or event.get("reason")
+    suffix = f" ({source})" if source else ""
+
+    if kind == "mode_changed":
+        return f"Mode changed to {event.get('mode', 'unknown')}{suffix}"
+    if kind == "light_changed":
+        if not event.get("on"):
+            return f"Light off{suffix}"
+        parts = [f"{event['brightness']}%"] if event.get("brightness") is not None else []
+        if event.get("color_temp"):
+            parts.append(f"{event['color_temp']}K")
+        detail = " ".join(parts)
+        return f"Light on{' at ' + detail if detail else ''}{suffix}"
+    if kind == "presence_cleared":
+        return f"Presence cleared{suffix}"
+    if kind == "presence_detected":
+        return f"Presence detected{suffix}"
+    if kind == "he20_occupied":
+        return "Room occupancy confirmed"
+    if kind == "he20_cleared":
+        return "Room reported clear"
+    if kind == "room_presence_unverified":
+        return f"Unverified entry: {event.get('identity_reason', 'unknown reason')}"
+
+    fallback = str(event.get("summary") or kind or "room event")
+    return fallback[:1].upper() + fallback[1:]
+
 
 class RoomUnavailableError(Exception):
     """The sidecar is not reachable. Conversation continues without it."""
@@ -133,6 +193,41 @@ class RoomSidecar:
             if stale is None:
                 raise
             return {"live": False, "stale": True, "state": stale}
+
+    def events(self, limit: int = 50, notable_only: bool = True) -> list[dict[str, Any]]:
+        """Newest-first tail of the sidecar's event log.
+
+        The sidecar has no events RPC; it appends JSONL. Only the tail is read,
+        so this stays cheap as the log grows.
+        """
+        path = self.home / "events.jsonl"
+        try:
+            with path.open("rb") as handle:
+                handle.seek(0, os.SEEK_END)
+                handle.seek(max(0, handle.tell() - EVENT_TAIL_BYTES))
+                chunk = handle.read()
+        except OSError:
+            return []
+
+        events: list[dict[str, Any]] = []
+        # A partial first line is expected when seeking into the middle of the file.
+        for line in reversed(chunk.decode("utf-8", "ignore").splitlines()):
+            if len(events) >= limit:
+                break
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(event, dict):
+                continue
+            if notable_only and event.get("type") not in NOTABLE_EVENTS:
+                continue
+            events.append({**event, "summary": summarize_event(event)})
+        return events
+
+    def latest_notable_event(self) -> dict[str, Any] | None:
+        found = self.events(limit=1)
+        return found[0] if found else None
 
     def reachable(self) -> bool:
         try:

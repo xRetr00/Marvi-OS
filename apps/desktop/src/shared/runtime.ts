@@ -22,6 +22,13 @@ export interface ConfirmationRequest {
   arguments: Record<string, unknown>
 }
 
+export interface RoomEvent {
+  id: number
+  at: string
+  type: string
+  summary: string
+}
+
 export interface AuditEvent {
   at: string
   event: string
@@ -40,6 +47,8 @@ export interface AssistantState {
   microphone: boolean
   camera: boolean
   confirmation: ConfirmationRequest | null
+  /** Background room event. Rendered only while idle; never steals focus. */
+  roomEvent: RoomEvent | null
 }
 
 export interface ComponentStatus {
@@ -63,7 +72,8 @@ export const DEFAULT_ASSISTANT_STATE: AssistantState = {
   yolo: false,
   microphone: true,
   camera: true,
-  confirmation: null
+  confirmation: null,
+  roomEvent: null
 }
 
 export const OFFLINE_RUNTIME: RuntimeStatus = {

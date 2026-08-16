@@ -87,6 +87,25 @@ export function normalizeRuntimeStatus(value: unknown): RuntimeStatus | null {
     }
   }
 
+  let roomEvent: AssistantState['roomEvent'] = null
+  if (assistant.room_event !== null && assistant.room_event !== undefined) {
+    if (
+      !isRecord(assistant.room_event) ||
+      typeof assistant.room_event.id !== 'number' ||
+      typeof assistant.room_event.at !== 'string' ||
+      typeof assistant.room_event.type !== 'string' ||
+      typeof assistant.room_event.summary !== 'string'
+    ) {
+      return null
+    }
+    roomEvent = {
+      id: assistant.room_event.id,
+      at: assistant.room_event.at,
+      type: assistant.room_event.type,
+      summary: assistant.room_event.summary
+    }
+  }
+
   return {
     product: 'Marvi OS',
     version: value.version,
@@ -100,7 +119,8 @@ export function normalizeRuntimeStatus(value: unknown): RuntimeStatus | null {
       yolo: assistant.yolo,
       microphone: assistant.microphone,
       camera: assistant.camera,
-      confirmation
+      confirmation,
+      roomEvent
     }
   }
 }

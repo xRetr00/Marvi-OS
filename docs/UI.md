@@ -121,13 +121,29 @@ always present and shows compact authoritative health:
 Status items open the relevant view; they do not create nested popovers with
 duplicated settings.
 
+## Island micro-events
+
+Background room events ride a channel of their own on the assistant state, not
+the voice `phase`. A room event therefore cannot overwrite a live voice turn or
+a pending confirmation — a live phase and a confirmation both outrank it.
+
+A micro-event expands the seed into a two-column pill for a few seconds and
+collapses on its own. It carries no controls, never becomes interactive, and is
+announced politely rather than assertively, so it cannot pull focus. The
+persistent YOLO marker stays visible while one is showing.
+
+Only meaningful transitions qualify. Ambient sensor churn and bursty detections
+are filtered out at the Gateway, and event text is rebuilt from the event
+payload so a line always names what actually changed. A backlog that already
+existed when Marvi started is never surfaced as a micro-event.
+
 ## Room and Activity views
 
 Room shows the sidecar connection state and the live room reading: mode, light,
 presence, and phone location. When the sidecar is unreachable the view keeps
 serving its last known state and says so explicitly rather than showing an empty
-or stale-looking panel. Room is read-only; device authority stays in the
-sidecar.
+or stale-looking panel. It also lists recent notable room events, newest first.
+Room is read-only; device authority stays in the sidecar.
 
 Activity is the append-only local tool audit, newest first. Each row shows the
 tool, the lifecycle event, the time, the active mode, and the exact arguments.

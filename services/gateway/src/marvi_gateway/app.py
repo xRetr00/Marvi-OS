@@ -57,6 +57,10 @@ class ToolCatalog(BaseModel):
     tools: list[ToolDescription]
 
 
+class RoomEventPage(BaseModel):
+    events: list[dict[str, Any]]
+
+
 def livekit_is_ready(host: str = "127.0.0.1", port: int = 7880) -> bool:
     try:
         with socket.create_connection((host, port), timeout=0.05):
@@ -92,6 +96,8 @@ def create_app(
         return ComponentStatus(state=state, detail=detail)  # type: ignore[arg-type]
 
     def current_status() -> RuntimeStatus:
+        if sidecar is not None:
+            runtime_store.observe_room_event(sidecar.latest_notable_event())
         livekit_ready = livekit_is_ready()
         return RuntimeStatus(
             product="Marvi OS",
@@ -229,6 +235,14 @@ def create_app(
             token, caption="Action approved", action=spec.description
         )
         return run_tool(spec, pending.arguments)
+
+    @app.get("/room/events", response_model=RoomEventPage)
+    async def room_events(limit: int = 50, notable_only: bool = True) -> RoomEventPage:
+        if sidecar is None:
+            return RoomEventPage(events=[])
+        return RoomEventPage(
+            events=sidecar.events(limit=max(1, min(limit, 200)), notable_only=notable_only)
+        )
 
     @app.get("/audit", response_model=AuditPage)
     async def audit_tail(limit: int = 100) -> AuditPage:

@@ -203,7 +203,8 @@ async function refreshGatewayRuntime(): Promise<RuntimeStatus> {
         yolo: gateway.assistant.yolo,
         microphone: gateway.assistant.microphone,
         camera: gateway.assistant.camera,
-        confirmation: gateway.assistant.confirmation ?? runtimeStatus.assistant.confirmation
+        confirmation: gateway.assistant.confirmation ?? runtimeStatus.assistant.confirmation,
+        roomEvent: gateway.assistant.roomEvent
       }
     })
   } catch {
@@ -337,6 +338,18 @@ app.whenReady().then(() => {
   ipcMain.handle('marvi:get-audit', async () => {
     try {
       const response = await fetch(`${GATEWAY_BASE_URL}/audit?limit=100`, {
+        signal: AbortSignal.timeout(1_500)
+      })
+      if (!response.ok) return []
+      const body = (await response.json()) as { events?: unknown }
+      return Array.isArray(body.events) ? body.events : []
+    } catch {
+      return []
+    }
+  })
+  ipcMain.handle('marvi:get-room-events', async () => {
+    try {
+      const response = await fetch(`${GATEWAY_BASE_URL}/room/events?limit=40`, {
         signal: AbortSignal.timeout(1_500)
       })
       if (!response.ok) return []

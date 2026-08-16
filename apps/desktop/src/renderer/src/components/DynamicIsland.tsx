@@ -13,6 +13,29 @@ export function DynamicIsland({
 }): React.JSX.Element {
   const voiceActive = ['wake', 'listening', 'thinking', 'speaking'].includes(state.phase)
 
+  // A background room event expands the seed briefly and collapses on its own.
+  // It is announced politely and never becomes interactive, so it cannot pull
+  // focus away from whatever the user is doing.
+  if (state.phase === 'ready' && state.roomEvent && !compact) {
+    return (
+      <div
+        className="dynamic-island island-room-event"
+        data-phase="ready"
+        data-event={state.roomEvent.type}
+        role="status"
+        aria-live="polite"
+      >
+        <span className="island-orb" aria-hidden="true">
+          ◦
+        </span>
+        <div className="island-copy">
+          <small>{state.yolo ? '⚡ YOLO / ROOM' : 'ROOM'}</small>
+          <strong>{state.roomEvent.summary}</strong>
+        </div>
+      </div>
+    )
+  }
+
   if (state.phase === 'ready' && !compact && !state.yolo) {
     return (
       <div className="dynamic-island island-seed" data-phase="ready" role="status">

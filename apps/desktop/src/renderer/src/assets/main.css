@@ -636,6 +636,18 @@ nav {
   width: 250px;
   height: 42px;
 }
+/* Background room event: two columns only, no signals block, no controls. */
+.dynamic-island.island-room-event {
+  grid-template-columns: 18px 1fr;
+  width: 232px;
+  height: 28px;
+  border-color: rgb(255 255 255 / 12%);
+}
+.dynamic-island.island-room-event .island-copy strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .island-orb {
   display: grid;
   width: 18px;
