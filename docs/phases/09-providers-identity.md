@@ -1,6 +1,6 @@
 # Phase 9 — Providers, Auxiliary Models, and Identity
 
-**Status:** planned
+**Status:** in progress — foundation shipped
 **Depends on:** Phase 6 (the deliberation seam), Phase 5 (memory)
 
 Marvi currently speaks to one model through one hardcoded HTTP call, and has no
@@ -169,22 +169,37 @@ keeps its envelope (ADR-015).
 
 ## Work breakdown
 
-1. **`providers/` package** — profile dataclass, registry, lookup by name and
-   alias, capability flags. Own module, no new dependency.
-2. **Profiles** — at least one per access path to start: OpenRouter or DeepInfra
-   (API), OpenCode Go (plan), Ollama or LM Studio (local). Zen and Go as
-   separate profiles.
-3. **Auth strategies** — `api_key`, then `oauth_external` and device code, with
-   refresh ahead of expiry, an explicit expired state, and token storage decided
-   deliberately (Windows DPAPI or the provider's own CLI).
-4. **Token accounting** — count real usage per call, store it, and make the
-   `REAL-AGENCY.md` budget bind on tokens across every path.
-5. **Limit display** — credit for APIs, window state for plans, "not published"
-   where that is the truth. 429 + `Retry-After` drives cooldown.
-6. **Move both callers onto the registry**, deleting the hardcoded base URLs.
-7. **Providers page** — connect, disconnect, reconnect; pick the model per job;
-   show credit, window, and token usage. Everything editable, nothing in code.
-8. **Identity files and composer**, with the editor surface.
+**Step 1 — foundation. Done.** `providers/` package with the profile dataclass,
+registry, alias lookup, and the four things that actually differ between
+providers: API shape (`chat_completions` / `responses` / `anthropic`),
+streaming, reasoning effort, and prompt caching. Cache-aware `Usage` separates
+`cached_input` so the budget can see what caching saves. Local providers
+(Ollama, LM Studio, llama.cpp/vLLM) and both OpenCode providers are registered;
+Zen and Go are separate profiles. 36 tests. See `docs/PROVIDERS.md`.
+
+**Step 2 — move the callers.** `session.py` and `deliberate.py` resolve through
+the registry; their hardcoded base URLs are deleted. This is the step that makes
+every later provider work everywhere at once.
+
+**Step 3 — token accounting.** Record `Usage` per call, make the
+`REAL-AGENCY.md` budget bind on `billable` tokens, and prove caching reduces it.
+
+**Step 4 — more API providers.** OpenRouter, DeepInfra, DeepSeek: profiles only,
+no new machinery.
+
+**Step 5 — the other API shapes.** OpenAI Responses and Anthropic Messages, with
+a live call against each. The shapes are built and tested; this proves them.
+
+**Step 6 — OAuth.** One plan provider end to end — acquisition, refresh ahead of
+expiry, an explicit expired state, and a storage decision for refresh tokens.
+Then the rest.
+
+**Step 7 — limits and cooldown.** Display credit and window state; treat 429 +
+`Retry-After` as window exhaustion and fail over.
+**Step 8 — providers page.** Connect, disconnect, reconnect; model per job;
+credit, window and token usage. Everything editable, nothing in code.
+
+**Step 9 — identity files and composer**, with the editor surface.
 
 ## Acceptance evidence required
 

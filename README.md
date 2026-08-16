@@ -155,6 +155,7 @@ Marvi OS adopts upstream projects before writing custom infrastructure. See
 - [`docs/research/MIND-CORTEX-SOURCES.md`](docs/research/MIND-CORTEX-SOURCES.md) — reviewed proactivity and memory research.
 - [`docs/REAL-AGENCY.md`](docs/REAL-AGENCY.md) — proactive mind and repository reuse contract.
 - [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md) — detected target hardware and toolchain.
+- [`docs/PROVIDERS.md`](docs/PROVIDERS.md) — model providers, API shapes, caching, and budget.
 - [`docs/UPSTREAM.md`](docs/UPSTREAM.md) — adopted repositories, licenses, and update policy.
 - [`docs/DECISIONS.md`](docs/DECISIONS.md) — durable architectural decisions.
 
