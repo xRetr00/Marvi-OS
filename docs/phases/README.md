@@ -16,7 +16,9 @@ gates still apply.
 | 6 | [`06-proactive-mind.md`](06-proactive-mind.md) | complete |
 | 7 | [`07-release.md`](07-release.md) | in progress |
 | 8 | [`08-vision.md`](08-vision.md) | complete |
-| 9 | [`09-providers-identity.md`](09-providers-identity.md) | planned |
+| 9 | [`09-providers-identity.md`](09-providers-identity.md) | feature-complete |
+| 10 | [`10-resilience.md`](10-resilience.md) | planned |
+| 11 | [`11-setup.md`](11-setup.md) | planned |
 
 Status vocabulary: `planned`, `scaffolded`, `in progress`, `blocked`, and
 `complete`. Only mark a phase complete when every acceptance gate has named

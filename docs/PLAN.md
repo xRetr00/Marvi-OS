@@ -140,3 +140,34 @@ The durable job bridge to Marvi Agent was dropped from this phase; see
 4. `SOUL.md` and `USER.md`, composed into the prompt under a token budget.
 
 Full plan and research in `phases/09-providers-identity.md`.
+
+## Phase 10 — logging, Doctor, and staying up
+
+1. One log file per subsystem — gateway, providers, voice, vision, room,
+   desktop, setup — plus `errors.log` collecting warnings and above from all of
+   them. The split exists because a merged log is unreadable within a day, and
+   `errors.log` is the file that answers the question people actually have.
+2. Doctor lives **inside** Marvi, as a Gateway module and a page — not a script
+   beside it. A separate script is a second implementation of the same
+   knowledge, and the second implementation always drifts.
+3. Every finding carries a remedy of one of three kinds: automatic, one click,
+   or yours to do. The line: anything that spends money, takes real time,
+   downloads at scale, or touches another process is a decision, not a repair.
+4. Retry is bounded, jittered, and never applied to an external write.
+
+Full plan in `phases/10-resilience.md`.
+
+## Phase 11 — setup
+
+1. One engine in `marvi_gateway/setup/`, two thin front ends: the desktop app
+   over HTTP and a `marvi` CLI in-process. A CLI over a shared module is not a
+   second product; a PowerShell script would be a second implementation.
+2. A CLI is necessary because the desktop app cannot fix the desktop app —
+   which is exactly the failure that started Phase 10.
+3. Every component is a manifest entry with a hash, generalising
+   `config/voice-models.json`. Installs are verified, resumable, idempotent and
+   reversible.
+4. Models are data; skills and MCP servers are not. Adding an MCP server names
+   the command that will run, and a skill cannot grant itself tools.
+
+Full plan in `phases/11-setup.md`.
