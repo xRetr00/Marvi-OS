@@ -8,9 +8,10 @@ describe('voice state', () => {
   it('exposes the barge-in affordance while speaking', () => {
     cycleVoicePhase('speaking')
 
-    expect($voiceState.get()).toEqual({
+    expect($voiceState.get()).toMatchObject({
       phase: 'speaking',
-      caption: 'Speaking · talk to interrupt',
+      caption: 'Speaking',
+      detail: 'Talk to interrupt',
       level: 0.58
     })
   })
@@ -21,5 +22,15 @@ describe('voice state', () => {
 
     expect($voiceState.get().phase).toBe('ready')
     expect($voiceState.get().caption).toBe('Say Marvi')
+  })
+
+  it('creates an exact preview confirmation request', () => {
+    cycleVoicePhase('confirmation')
+
+    expect($voiceState.get().confirmation).toEqual({
+      token: 'preview-confirmation',
+      action: 'Send email reply',
+      detail: 'To Alex · Re: Project update'
+    })
   })
 })

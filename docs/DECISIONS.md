@@ -86,3 +86,17 @@ not merely low isolated STT/TTS latency.
 **Decision:** Marvi OS exposes the Dynamic Island, desktop control center, tray,
 and voice—not an end-user command-line interface. `lk` is allowed only as a
 developer tool and is never bundled as product UX.
+
+## ADR-013 — Gateway-authoritative, event-driven agency
+
+**Decision:** Marvi Gateway owns assistant state, proactive trigger policy,
+confirmation tokens, and the durable event journal. LiveKit owns foreground
+duplex conversation. Letta is the primary persistent-mind candidate;
+APScheduler supplies time triggers; Composio and MCP supply external actions.
+
+**Reason:** A UI timer or continuous LLM loop can imitate activity but cannot
+provide accountable agency. Event-driven cognition is cheaper, testable,
+interruptible, and can explain why Marvi spoke or acted.
+
+LangGraph and Temporal are deferred until a concrete durable workflow proves
+that Gateway jobs plus LiveKit tasks are insufficient.

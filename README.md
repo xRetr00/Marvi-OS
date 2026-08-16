@@ -13,9 +13,10 @@ the desktop application. The desktop icon source is
 
 ## Status
 
-Phase 2 desktop implementation is in progress. The Electron control center,
-recessed always-on Island, purpose-sized Windows icons, Marvi Gateway health
-facade, and LiveKit worker configuration have runnable scaffolds and tests.
+Phase 2 desktop implementation is complete. The Electron control center,
+recessed always-on Island, purpose-sized Windows icons, authoritative Marvi
+Gateway runtime bridge, and LiveKit worker configuration have runnable
+scaffolds and tests.
 They are not yet a complete voice assistant. The next hard gate remains a
 native-Windows streaming STT/TTS bakeoff on an NVIDIA RTX 3060 with 12 GB VRAM.
 
@@ -26,6 +27,8 @@ Current implemented desktop surfaces:
 - Collapse + JetBrains Mono monochrome design system;
 - passive `76×8` top-edge Island seed that expands for active voice states;
 - canonical app icon rendered in the app, tray, taskbar/package, sidebar, and About.
+- action, notification, error, confirmation, and persistent YOLO Island states;
+- Gateway-backed confirmation mode plus monitor/alignment placement controls.
 
 ## Developer start
 
@@ -63,6 +66,7 @@ Marvi OS adopts upstream projects before writing custom infrastructure. See
 - [`docs/IMPLEMENTATION-LOG.md`](docs/IMPLEMENTATION-LOG.md) — chronological work record.
 - [`docs/UI.md`](docs/UI.md) — Dynamic Island and main-window design contract.
 - [`docs/VOICE-MODEL-EVALUATION.md`](docs/VOICE-MODEL-EVALUATION.md) — native voice bakeoff.
+- [`docs/REAL-AGENCY.md`](docs/REAL-AGENCY.md) — proactive mind and repository reuse contract.
 - [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md) — detected target hardware and toolchain.
 - [`docs/UPSTREAM.md`](docs/UPSTREAM.md) — adopted repositories, licenses, and update policy.
 - [`docs/DECISIONS.md`](docs/DECISIONS.md) — durable architectural decisions.

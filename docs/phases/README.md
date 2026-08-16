@@ -9,7 +9,7 @@ gates still apply.
 |---:|---|---|
 | 0 | [`00-foundations-hardware.md`](00-foundations-hardware.md) | in progress |
 | 1 | [`01-gateway-livekit.md`](01-gateway-livekit.md) | scaffolded |
-| 2 | [`02-desktop-island.md`](02-desktop-island.md) | in progress |
+| 2 | [`02-desktop-island.md`](02-desktop-island.md) | complete |
 | 3 | [`03-full-duplex-voice.md`](03-full-duplex-voice.md) | planned |
 | 4 | [`04-tools-room.md`](04-tools-room.md) | planned |
 | 5 | [`05-world-memory.md`](05-world-memory.md) | planned |

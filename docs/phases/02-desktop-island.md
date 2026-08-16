@@ -1,6 +1,6 @@
 # Phase 2 — Desktop Shell and Dynamic Island
 
-**Status:** in progress
+**Status:** complete
 **Depends on:** Phase 1 status contracts for live data
 
 This phase started early because the Dynamic Island is the product's primary
@@ -27,6 +27,14 @@ surface and its native-window behavior can be proven without the voice engine.
   entries, 32 px tray PNG, 256 px runtime/renderer PNG, and 512 px package PNG.
 - About surface exposes version, commit, build time, target architecture,
   update channel, and current Gateway/LiveKit/voice component status.
+- Gateway-authoritative projection for all passive, voice, action,
+  notification, confirmation, and error states.
+- Exact-token Island approvals and denials; pointer/focus is enabled only while
+  an actionable confirmation is visible. YOLO remains visibly persistent.
+- Settings for Confirm/YOLO mode and explicit display plus left/center/right
+  Island placement, with accessible switch/pressed semantics.
+- Real Gateway/component, microphone, camera, phase, mode, and version data in
+  the persistent status bar.
 
 ## Design-source review
 
@@ -41,13 +49,14 @@ dimensions change at state boundaries; CSS does not tween the Island's geometry.
 This satisfies content-sized native bounds without resizing every animation
 frame.
 
-## Remaining
+## Deferred to delivery phases
 
-- Add action, notification, confirmation, YOLO, device-state, and error views.
-- Enable pointer/focus only while an actionable confirmation is visible.
-- Connect authoritative Gateway health instead of scaffold labels.
-- Complete About metadata, Settings, Updates, accessibility, multi-monitor
-  placement, display-scale, idle-cost, and visual-regression checks.
+- Update execution is Phase 7; Phase 2 exposes complete build/update-channel
+  metadata and an honest pending action rather than a fake updater.
+- Voice device selection and model versions arrive with native adapters in
+  Phases 3–4. Settings currently reports authoritative device state.
+- Placement is session-scoped until the Phase 7 settings persistence schema;
+  it already uses per-display work areas and Windows display scale.
 
 ## Acceptance evidence
 
@@ -68,3 +77,15 @@ frame.
   geometry on 2026-08-16; artifacts remain local under ignored `output/`.
 - Commits: `24ca7af` (initial shell), `fb2178b` (design/dynamic bounds), and
   current milestone subject `feat: add recessed island and app identity`.
+- `npm run typecheck`: passed on 2026-08-16 after the runtime bridge.
+- `npm test`: 4 files / 14 tests passed on 2026-08-16, including malformed
+  Gateway snapshots, confirmation states, YOLO, and three alignments.
+- `uv run pytest -q`: 6 Gateway/agent tests passed on 2026-08-16, including
+  Gateway-owned mode and exact-token confirmation behavior.
+- Playwright visual inspection passed for Overview and Settings at the target
+  renderer geometry; local artifacts are under ignored `output/playwright/`.
+- Development Electron upper-bound (main + Island): 536.3 MB aggregate working
+  set and 1.562 CPU-seconds over 5 seconds. No dedicated CUDA allocation was
+  reported; release idle profiling remains a Phase 7 optimization gate.
+- Native close verification: the Electron root stayed alive and renderer count
+  changed from two to one (Island only), with no rejected polling promises.

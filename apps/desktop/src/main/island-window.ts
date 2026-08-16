@@ -5,6 +5,13 @@ export interface IslandContentSize {
   height: number
 }
 
+export type IslandAlignment = 'left' | 'center' | 'right'
+
+export interface IslandPlacement {
+  displayId: number | null
+  alignment: IslandAlignment
+}
+
 export const ISLAND_WINDOW_INSET = 12
 export const ISLAND_MIN_CONTENT_SIZE: IslandContentSize = { width: 76, height: 8 }
 export const ISLAND_MAX_CONTENT_SIZE: IslandContentSize = { width: 360, height: 92 }
@@ -30,13 +37,20 @@ export function normalizeIslandContentSize(value: unknown): IslandContentSize | 
 export function islandWindowBounds(
   workArea: Rectangle,
   contentSize: IslandContentSize,
-  topOffset = 6
+  topOffset = 6,
+  alignment: IslandAlignment = 'center'
 ): Rectangle {
   const width = contentSize.width + ISLAND_WINDOW_INSET * 2
   const height = contentSize.height + ISLAND_WINDOW_INSET * 2
+  const edgeInset = 18
+  const xByAlignment = {
+    left: workArea.x + edgeInset,
+    center: workArea.x + (workArea.width - width) / 2,
+    right: workArea.x + workArea.width - width - edgeInset
+  }
 
   return {
-    x: Math.round(workArea.x + (workArea.width - width) / 2),
+    x: Math.round(xByAlignment[alignment]),
     y: Math.round(
       workArea.y +
         (contentSize.width === ISLAND_MIN_CONTENT_SIZE.width &&

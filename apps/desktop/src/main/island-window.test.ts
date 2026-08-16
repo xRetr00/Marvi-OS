@@ -37,4 +37,11 @@ describe('islandWindowBounds', () => {
       islandWindowBounds({ x: 100, y: 40, width: 1200, height: 800 }, ISLAND_MIN_CONTENT_SIZE)
     ).toEqual({ x: 650, y: 40, width: 100, height: 32 })
   })
+
+  it('supports explicit left and right placement', () => {
+    const workArea = { x: 100, y: 40, width: 1200, height: 800 }
+    const size = { width: 150, height: 30 }
+    expect(islandWindowBounds(workArea, size, 6, 'left').x).toBe(118)
+    expect(islandWindowBounds(workArea, size, 6, 'right').x).toBe(1108)
+  })
 })

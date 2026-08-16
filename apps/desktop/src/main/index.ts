@@ -3,15 +3,24 @@ import { is } from '@electron-toolkit/utils'
 import { join } from 'path'
 import icon from '../../resources/icon.png?asset'
 import trayIcon from '../../resources/tray-icon.png?asset'
+import { offlineRuntime, normalizeRuntimeStatus } from './gateway-runtime'
 import {
   islandWindowBounds,
   normalizeIslandContentSize,
-  type IslandContentSize
+  type IslandContentSize,
+  type IslandPlacement
 } from './island-window'
+import type { AssistantState, RuntimeStatus } from '../shared/runtime'
 
 let mainWindow: BrowserWindow | null = null
 let islandWindow: BrowserWindow | null = null
 let tray: Tray | null = null
+let gatewayPoll: NodeJS.Timeout | null = null
+let runtimeStatus: RuntimeStatus = offlineRuntime('unknown')
+let islandPlacement: IslandPlacement = { displayId: null, alignment: 'center' }
+let islandContentSize: IslandContentSize = { width: 76, height: 8 }
+let isQuitting = false
+const GATEWAY_BASE_URL = 'http://127.0.0.1:8765'
 
 function rendererUrl(surface: 'main' | 'island'): string {
   return `${process.env['ELECTRON_RENDERER_URL']}?surface=${surface}`
@@ -47,6 +56,11 @@ function createMainWindow(): BrowserWindow {
   })
 
   window.once('ready-to-show', () => window.show())
+  window.on('close', (event) => {
+    if (isQuitting) return
+    event.preventDefault()
+    window.hide()
+  })
   window.on('closed', () => {
     mainWindow = null
   })
@@ -59,11 +73,18 @@ function createMainWindow(): BrowserWindow {
 }
 
 function sizeAndPositionIsland(window: BrowserWindow, contentSize: IslandContentSize): void {
-  const currentDisplay = screen.getDisplayMatching(window.getBounds())
+  islandContentSize = contentSize
+  const selectedDisplay = screen
+    .getAllDisplays()
+    .find((display) => display.id === islandPlacement.displayId)
+  const currentDisplay = selectedDisplay ?? screen.getDisplayMatching(window.getBounds())
   const display = currentDisplay.bounds.width
     ? currentDisplay
     : screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
-  window.setBounds(islandWindowBounds(display.workArea, contentSize), false)
+  window.setBounds(
+    islandWindowBounds(display.workArea, contentSize, 6, islandPlacement.alignment),
+    false
+  )
 }
 
 function createIslandWindow(): BrowserWindow {
@@ -109,6 +130,48 @@ function showMainWindow(): void {
   mainWindow.focus()
 }
 
+function publishRuntime(next: RuntimeStatus): RuntimeStatus {
+  runtimeStatus = next
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('marvi:runtime-state', next)
+  }
+  if (islandWindow && !islandWindow.isDestroyed()) {
+    islandWindow.webContents.send('marvi:runtime-state', next)
+  }
+  return next
+}
+
+async function gatewayRequest(path: string, init?: RequestInit): Promise<RuntimeStatus> {
+  const response = await fetch(`${GATEWAY_BASE_URL}${path}`, {
+    ...init,
+    headers: { 'content-type': 'application/json', ...init?.headers },
+    signal: AbortSignal.timeout(1_200)
+  })
+  if (!response.ok) throw new Error(`Gateway returned HTTP ${response.status}`)
+  const normalized = normalizeRuntimeStatus(await response.json())
+  if (!normalized) throw new Error('Gateway returned an invalid runtime snapshot')
+  return normalized
+}
+
+async function refreshGatewayRuntime(): Promise<RuntimeStatus> {
+  try {
+    return publishRuntime(await gatewayRequest('/runtime'))
+  } catch {
+    return publishRuntime(offlineRuntime(app.getVersion()))
+  }
+}
+
+function startGatewayPolling(): void {
+  void refreshGatewayRuntime()
+  gatewayPoll = setInterval(() => void refreshGatewayRuntime(), 2_000)
+}
+
+function previewAssistantState(state: AssistantState): void {
+  if (!is.dev) return
+  const normalized = normalizeRuntimeStatus({ ...runtimeStatus, assistant: state })
+  if (normalized) publishRuntime(normalized)
+}
+
 function createTray(): Tray {
   const instance = new Tray(nativeImage.createFromPath(trayIcon))
   instance.setToolTip('Marvi OS')
@@ -135,10 +198,69 @@ app.whenReady().then(() => {
     arch: process.arch,
     updateChannel: process.env['MARVI_UPDATE_CHANNEL'] ?? 'local'
   }))
+  ipcMain.handle('marvi:get-runtime', () => runtimeStatus)
+  ipcMain.handle('marvi:get-displays', () =>
+    screen.getAllDisplays().map((display, index) => ({
+      id: display.id,
+      label: display.label || `Display ${index + 1}`,
+      primary: display.id === screen.getPrimaryDisplay().id
+    }))
+  )
+  ipcMain.handle('marvi:get-island-placement', () => islandPlacement)
+  ipcMain.handle('marvi:set-island-placement', (_event, value) => {
+    if (!value || typeof value !== 'object') return islandPlacement
+    const candidate = value as Partial<IslandPlacement>
+    const displayExists =
+      candidate.displayId === null ||
+      (typeof candidate.displayId === 'number' &&
+        screen.getAllDisplays().some((display) => display.id === candidate.displayId))
+    const alignmentIsValid =
+      candidate.alignment === 'left' ||
+      candidate.alignment === 'center' ||
+      candidate.alignment === 'right'
+    if (!displayExists || !alignmentIsValid) return islandPlacement
+    if (!alignmentIsValid) return islandPlacement
+    islandPlacement = {
+      displayId: candidate.displayId ?? null,
+      alignment: candidate.alignment as IslandPlacement['alignment']
+    }
+    if (islandWindow && !islandWindow.isDestroyed()) {
+      sizeAndPositionIsland(islandWindow, islandContentSize)
+    }
+    return islandPlacement
+  })
+  ipcMain.handle('marvi:set-yolo', async (_event, yolo) => {
+    if (typeof yolo !== 'boolean') return runtimeStatus
+    try {
+      return publishRuntime(
+        await gatewayRequest('/runtime/mode', {
+          method: 'PUT',
+          body: JSON.stringify({ yolo })
+        })
+      )
+    } catch {
+      return publishRuntime(offlineRuntime(app.getVersion()))
+    }
+  })
+  ipcMain.handle('marvi:resolve-confirmation', async (_event, token, decision) => {
+    if (typeof token !== 'string' || (decision !== 'approve' && decision !== 'deny')) {
+      return runtimeStatus
+    }
+    try {
+      return publishRuntime(
+        await gatewayRequest(`/confirmations/${encodeURIComponent(token)}`, {
+          method: 'POST',
+          body: JSON.stringify({ decision })
+        })
+      )
+    } catch {
+      return runtimeStatus
+    }
+  })
   ipcMain.on('marvi:show-main', showMainWindow)
-  ipcMain.on('marvi:island-state', (event, state) => {
+  ipcMain.on('marvi:preview-assistant-state', (event, state) => {
     if (!mainWindow || event.sender !== mainWindow.webContents) return
-    islandWindow?.webContents.send('marvi:island-state', state)
+    previewAssistantState(state)
   })
   ipcMain.on('marvi:island-size', (event, value) => {
     if (!islandWindow || event.sender !== islandWindow.webContents) return
@@ -158,6 +280,7 @@ app.whenReady().then(() => {
   tray = createTray()
   islandWindow = createIslandWindow()
   mainWindow = createMainWindow()
+  startGatewayPolling()
 
   app.on('activate', showMainWindow)
 })
@@ -167,6 +290,9 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  isQuitting = true
+  if (gatewayPoll) clearInterval(gatewayPoll)
+  gatewayPoll = null
   tray?.destroy()
   tray = null
   islandWindow = null

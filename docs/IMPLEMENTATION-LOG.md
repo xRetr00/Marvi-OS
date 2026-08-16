@@ -53,3 +53,31 @@ Validation evidence and the resulting commit are recorded in
 - Added the canonical icon to the sidebar and a real About surface with build
   and component information.
 - Added README-maintenance and milestone-commit rules to `AGENTS.md`.
+
+## 2026-08-16 — Phase 2 authoritative Island and settings
+
+- Replaced preview-only Island IPC with a validated, Gateway-authoritative
+  runtime snapshot shared by the control center and independent Island renderer.
+- Added action, notification, confirmation, error, device-state, and persistent
+  YOLO presentations without turning the overlay into a visible window.
+- Bound approval and denial to the exact Gateway confirmation token and enabled
+  pointer/focus only while that actionable prompt exists.
+- Added real Gateway/component status, Confirm/YOLO settings, and display plus
+  left/center/right Island placement controls.
+- Added malformed-boundary, state, confirmation, YOLO, placement, and Gateway
+  policy tests. Typecheck, 14 desktop tests, 6 Python tests, lint, and production
+  build passed.
+- Visually checked Overview and Settings at the target renderer geometry. The
+  only browser-console entry was a harmless dev-only missing favicon; Electron
+  uses its native window icon.
+- Measured one development Electron instance (main window plus Island) at
+  536.3 MB aggregate working set and 1.562 CPU-seconds over 5 seconds. This is a
+  debug/Vite upper-bound, not a release performance claim. NVIDIA's process
+  query showed the shared Electron GPU process but no dedicated CUDA allocation.
+- Native close verification left the Electron root and one Island renderer
+  alive, removed the control-center renderer, and produced no polling errors.
+  Runtime broadcasts now guard destroyed windows; tray Open recreates a window
+  if Windows destroys it and ordinary title-bar Close hides it.
+- Documented event-driven agency and upstream selection: LiveKit foreground,
+  Letta mind bakeoff, APScheduler initiative, and Composio/MCP actions. Deferred
+  LangGraph and Temporal until a measured workflow needs them.

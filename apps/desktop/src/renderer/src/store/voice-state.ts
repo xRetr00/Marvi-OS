@@ -1,33 +1,54 @@
 import { atom } from 'nanostores'
 
-export const VOICE_PHASES = ['ready', 'wake', 'listening', 'thinking', 'speaking'] as const
-export type VoicePhase = (typeof VOICE_PHASES)[number]
+import {
+  ASSISTANT_PHASES,
+  DEFAULT_ASSISTANT_STATE,
+  OFFLINE_RUNTIME,
+  type AssistantPhase,
+  type AssistantState,
+  type RuntimeStatus
+} from '../../../shared/runtime'
 
-export interface VoiceState {
-  phase: VoicePhase
-  caption: string
-  level: number
+export const VOICE_PHASES = ASSISTANT_PHASES
+export type VoicePhase = AssistantPhase
+export type VoiceState = AssistantState
+
+const PHASE_COPY: Record<AssistantPhase, { caption: string; detail: string | null }> = {
+  ready: { caption: 'Say Marvi', detail: null },
+  wake: { caption: 'I am here', detail: 'Wake word accepted' },
+  listening: { caption: 'Listening', detail: 'Talk naturally' },
+  thinking: { caption: 'Thinking', detail: 'Connecting context' },
+  speaking: { caption: 'Speaking', detail: 'Talk to interrupt' },
+  action: { caption: 'Turning on the room light', detail: 'Smart Room' },
+  notification: { caption: 'New message from Alex', detail: 'World context' },
+  confirmation: { caption: 'Confirm action', detail: 'Send the drafted reply?' },
+  error: { caption: 'Gateway unavailable', detail: 'Retrying locally' }
 }
 
-const PHASE_COPY: Record<VoicePhase, string> = {
-  ready: 'Say Marvi',
-  wake: 'I am here',
-  listening: 'Listening',
-  thinking: 'Thinking',
-  speaking: 'Speaking · talk to interrupt'
+export const $runtimeState = atom<RuntimeStatus>(OFFLINE_RUNTIME)
+export const $voiceState = atom<AssistantState>(DEFAULT_ASSISTANT_STATE)
+
+export function applyRuntimeState(runtime: RuntimeStatus): void {
+  $runtimeState.set(runtime)
+  $voiceState.set(runtime.assistant)
 }
 
-export const $voiceState = atom<VoiceState>({
-  phase: 'ready',
-  caption: PHASE_COPY.ready,
-  level: 0.18
-})
-
-export function cycleVoicePhase(phase: VoicePhase): void {
+export function cycleVoicePhase(phase: AssistantPhase): void {
+  const copy = PHASE_COPY[phase]
   $voiceState.set({
+    ...$voiceState.get(),
     phase,
-    caption: PHASE_COPY[phase],
+    caption: copy.caption,
+    detail: copy.detail,
     level:
-      phase === 'listening' ? 0.72 : phase === 'speaking' ? 0.58 : phase === 'wake' ? 0.9 : 0.22
+      phase === 'listening' ? 0.72 : phase === 'speaking' ? 0.58 : phase === 'wake' ? 0.9 : 0.22,
+    confirmation:
+      phase === 'confirmation'
+        ? {
+            token: 'preview-confirmation',
+            action: 'Send email reply',
+            detail: 'To Alex · Re: Project update'
+          }
+        : null
   })
 }
