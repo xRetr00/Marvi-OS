@@ -1,4 +1,4 @@
-import type { AssistantState, RuntimeStatus } from '../shared/runtime'
+import type { AssistantState, AuditEvent, RuntimeStatus } from '../shared/runtime'
 import type { IslandPlacement } from '../main/island-window'
 
 export interface MarviDesktopApi {
@@ -12,6 +12,12 @@ export interface MarviDesktopApi {
   setIslandPlacement: (placement: IslandPlacement) => Promise<IslandPlacement>
   onRuntime: (listener: (state: RuntimeStatus) => void) => () => void
   setYolo: (yolo: boolean) => Promise<RuntimeStatus>
+  getAudit: () => Promise<AuditEvent[]>
+  getRoomState: () => Promise<{
+    status: string
+    result: { live: boolean; stale?: boolean; state: Record<string, unknown> } | null
+    error: string | null
+  } | null>
   resolveConfirmation: (token: string, decision: 'approve' | 'deny') => Promise<RuntimeStatus>
   previewAssistantState: (state: AssistantState) => void
   publishVoiceState: (state: AssistantState) => void

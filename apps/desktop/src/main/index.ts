@@ -313,15 +313,51 @@ app.whenReady().then(() => {
     if (typeof token !== 'string' || (decision !== 'approve' && decision !== 'deny')) {
       return runtimeStatus
     }
+    // The approval is bound to the arguments the Island actually displayed. Anything
+    // else and the Gateway burns the token rather than executing a different action.
+    const pending = runtimeStatus.assistant.confirmation
+    if (!pending || pending.token !== token) return runtimeStatus
     try {
-      return publishRuntime(
-        await gatewayRequest(`/confirmations/${encodeURIComponent(token)}`, {
+      const response = await fetch(
+        `${GATEWAY_BASE_URL}/confirmations/${encodeURIComponent(token)}`,
+        {
           method: 'POST',
-          body: JSON.stringify({ decision })
-        })
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ decision, arguments: pending.arguments }),
+          signal: AbortSignal.timeout(10_000)
+        }
       )
+      const body = (await response.json()) as { runtime?: unknown }
+      const normalized = normalizeRuntimeStatus(body.runtime)
+      return normalized ? publishRuntime(normalized) : await refreshGatewayRuntime()
     } catch {
       return runtimeStatus
+    }
+  })
+  ipcMain.handle('marvi:get-audit', async () => {
+    try {
+      const response = await fetch(`${GATEWAY_BASE_URL}/audit?limit=100`, {
+        signal: AbortSignal.timeout(1_500)
+      })
+      if (!response.ok) return []
+      const body = (await response.json()) as { events?: unknown }
+      return Array.isArray(body.events) ? body.events : []
+    } catch {
+      return []
+    }
+  })
+  ipcMain.handle('marvi:get-room-state', async () => {
+    try {
+      const response = await fetch(`${GATEWAY_BASE_URL}/tools/room_state`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ arguments: {} }),
+        signal: AbortSignal.timeout(3_000)
+      })
+      if (!response.ok) return null
+      return await response.json()
+    } catch {
+      return null
     }
   })
   ipcMain.on('marvi:show-main', showMainWindow)

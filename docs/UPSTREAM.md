@@ -31,7 +31,7 @@ be updated with the exact version/commit and local modification path.
 | Proactive scheduler | [agronholm/apscheduler](https://github.com/agronholm/apscheduler) | MIT | pin stable 3.x behind Gateway; avoid 4.x pre-release | selected |
 | Durable agent graph | [langchain-ai/langgraph](https://github.com/langchain-ai/langgraph) | MIT | revisit only after a measured workflow outgrows Gateway jobs + LiveKit tasks | deferred |
 | Durable execution | [temporalio/sdk-python](https://github.com/temporalio/sdk-python) | MIT | operationally excessive for initial single-PC product | deferred |
-| Smart Room | `D:\smart-room-plugin` | internal | independent sidecar; reuse bridge/event bus first | selected |
+| Smart Room | `D:\smart-room-plugin` (running copy `D:\hermes-agent\plugins\smart_room` 0.6.0) | internal | independent sidecar; Marvi OS is a client of its authenticated loopback JSON-RPC and never holds device credentials | adopted |
 | Dynamic Island source | `D:\hermes-agent\apps\desktop\src\app\voice-island` | internal | extract focused visual/state pieces with provenance; no voice transport | selected |
 | Desktop brand font | `@nous-research/ui` 0.18.2 `Collapse-Bold.woff2` via `D:\hermes-agent` | MIT package | copied font asset; update from the pinned package when Marvi typography changes | adopted |
 | Desktop mono font | JetBrains Mono faces via `D:\hermes-agent\apps\desktop\src\fonts` | Apache-2.0 | copied Regular/Bold/Italic WOFF2 assets; preserve metrics and license | adopted |

@@ -100,3 +100,37 @@ Validation evidence and the resulting commit are recorded in
   0.735 s first TTS audio, 0.994 TTS RTF, 0.567 STT RTF, and 4.245 GiB combined
   post-run GPU use. Physical speaker double-talk and the 60-minute soak remain
   the acceptance gate, so Phase 3 is deliberately not marked complete.
+
+## 2026-08-16 — Phase 4 tool router, confirmation tokens, and Smart Room
+
+- Added a narrow structured tool router to Marvi Gateway. Tools declare exact
+  argument names and types; unknown tools, missing/extra arguments, and wrong
+  types are refused before a handler runs.
+- Replaced the placeholder confirmation with exact-argument tokens: single-use,
+  120-second TTL, bound to a canonical fingerprint of the issued arguments. A
+  mutated approval burns the token rather than executing a different action.
+  The Island now echoes back the arguments it displayed, so what the user saw is
+  what executes.
+- Added an append-only JSONL audit covering the full lifecycle including
+  `argument_mismatch` and `expired`. YOLO executions are audited identically to
+  confirmed ones.
+- Connected the smart-room sidecar as a client of its existing authenticated
+  loopback JSON-RPC. Device authority, credentials, and automations stay in the
+  sidecar. Reads fall back to its on-disk snapshot while it is unreachable, and
+  the auth token is re-read per call so a sidecar restart needs no Gateway
+  restart.
+- Registered five voice tools on the `AgentSession`, including spoken approval
+  and denial that resolve the same Gateway token as the Island. Verified against
+  livekit-agents 1.6.10 that `RunContext` and the token stay out of the
+  LLM-visible schema.
+- Corrected the light tool after a live failure: the sidecar's `set_light`
+  accepts `color_temp`, not `scene` — `scene` is a label it derives.
+- Wired the Room and Activity pages to live sidecar state and the real audit
+  timeline.
+- Verified against a live room runtime through a real `uvicorn` process: an
+  approved token physically dimmed the bulb 100% → 30%, mutation returned 409,
+  replay and forged tokens returned 404, and an unreachable sidecar degraded to
+  stale reads without disturbing the Gateway or assistant phase. Evidence is in
+  [`phases/04-tools-room.md`](phases/04-tools-room.md).
+- 24 Gateway tests, 9 voice-tool tests against the real Gateway app, 16 desktop
+  tests, ruff, ESLint, and typecheck all pass.

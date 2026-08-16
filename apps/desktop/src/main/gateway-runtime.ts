@@ -72,14 +72,18 @@ export function normalizeRuntimeStatus(value: unknown): RuntimeStatus | null {
       !isRecord(assistant.confirmation) ||
       typeof assistant.confirmation.token !== 'string' ||
       typeof assistant.confirmation.action !== 'string' ||
-      typeof assistant.confirmation.detail !== 'string'
+      typeof assistant.confirmation.detail !== 'string' ||
+      typeof assistant.confirmation.tool !== 'string' ||
+      !isRecord(assistant.confirmation.arguments)
     ) {
       return null
     }
     confirmation = {
       token: assistant.confirmation.token,
       action: assistant.confirmation.action,
-      detail: assistant.confirmation.detail
+      detail: assistant.confirmation.detail,
+      tool: assistant.confirmation.tool,
+      arguments: assistant.confirmation.arguments
     }
   }
 

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AssistantState, RuntimeStatus } from '../shared/runtime'
+import type { AssistantState, AuditEvent, RuntimeStatus } from '../shared/runtime'
 import type { IslandPlacement } from '../main/island-window'
 
 const marvi = {
@@ -29,12 +29,17 @@ const marvi = {
     return () => ipcRenderer.removeListener('marvi:runtime-state', wrapped)
   },
   setYolo: (yolo: boolean): Promise<RuntimeStatus> => ipcRenderer.invoke('marvi:set-yolo', yolo),
+  getAudit: (): Promise<AuditEvent[]> => ipcRenderer.invoke('marvi:get-audit'),
+  getRoomState: (): Promise<{
+    status: string
+    result: { live: boolean; stale?: boolean; state: Record<string, unknown> } | null
+    error: string | null
+  } | null> => ipcRenderer.invoke('marvi:get-room-state'),
   resolveConfirmation: (token: string, decision: 'approve' | 'deny'): Promise<RuntimeStatus> =>
     ipcRenderer.invoke('marvi:resolve-confirmation', token, decision),
   previewAssistantState: (state: AssistantState): void =>
     ipcRenderer.send('marvi:preview-assistant-state', state),
-  publishVoiceState: (state: AssistantState): void =>
-    ipcRenderer.send('marvi:voice-state', state),
+  publishVoiceState: (state: AssistantState): void => ipcRenderer.send('marvi:voice-state', state),
   setIslandSize: (size: { width: number; height: number }): void =>
     ipcRenderer.send('marvi:island-size', size),
   setIslandInteractive: (interactive: boolean): void =>

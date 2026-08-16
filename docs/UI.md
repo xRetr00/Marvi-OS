@@ -121,6 +121,19 @@ always present and shows compact authoritative health:
 Status items open the relevant view; they do not create nested popovers with
 duplicated settings.
 
+## Room and Activity views
+
+Room shows the sidecar connection state and the live room reading: mode, light,
+presence, and phone location. When the sidecar is unreachable the view keeps
+serving its last known state and says so explicitly rather than showing an empty
+or stale-looking panel. Room is read-only; device authority stays in the
+sidecar.
+
+Activity is the append-only local tool audit, newest first. Each row shows the
+tool, the lifecycle event, the time, the active mode, and the exact arguments.
+YOLO executions appear identically to confirmed ones — the mode is a column, not
+a reason to hide a record. Nothing on this view is sent anywhere.
+
 ## About view
 
 About uses the app icon, not the repository banner. It contains:

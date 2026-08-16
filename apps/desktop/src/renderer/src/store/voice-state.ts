@@ -47,7 +47,9 @@ export function cycleVoicePhase(phase: AssistantPhase): void {
         ? {
             token: 'preview-confirmation',
             action: 'Send email reply',
-            detail: 'To Alex · Re: Project update'
+            detail: 'To Alex · Re: Project update',
+            tool: 'preview',
+            arguments: {}
           }
         : null
   })

@@ -17,6 +17,18 @@ export interface ConfirmationRequest {
   token: string
   action: string
   detail: string
+  tool: string
+  /** The exact arguments the approval is bound to. Echoed back to the Gateway verbatim. */
+  arguments: Record<string, unknown>
+}
+
+export interface AuditEvent {
+  at: string
+  event: string
+  tool: string
+  arguments: Record<string, unknown>
+  mode: 'confirm' | 'yolo'
+  detail: string | null
 }
 
 export interface AssistantState {

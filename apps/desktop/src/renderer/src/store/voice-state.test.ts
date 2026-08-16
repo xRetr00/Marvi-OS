@@ -30,7 +30,9 @@ describe('voice state', () => {
     expect($voiceState.get().confirmation).toEqual({
       token: 'preview-confirmation',
       action: 'Send email reply',
-      detail: 'To Alex · Re: Project update'
+      detail: 'To Alex · Re: Project update',
+      tool: 'preview',
+      arguments: {}
     })
   })
 })

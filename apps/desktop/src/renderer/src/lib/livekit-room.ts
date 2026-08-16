@@ -4,8 +4,7 @@ import {
   Room,
   RoomEvent,
   Track,
-  type RemoteTrack,
-  type RemoteTrackPublication
+  type RemoteTrack
 } from 'livekit-client'
 
 import { $voiceState, cycleVoicePhase } from '../store/voice-state'
@@ -53,12 +52,9 @@ export async function connectVoiceRoom(): Promise<Room> {
       channelCount: 1
     }
   })
-  room.on(
-    RoomEvent.TrackSubscribed,
-    (track: RemoteTrack, _publication: RemoteTrackPublication) => {
-      if (track.kind === Track.Kind.Audio) track.attach()
-    }
-  )
+  room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack) => {
+    if (track.kind === Track.Kind.Audio) track.attach()
+  })
   room.on(RoomEvent.ParticipantAttributesChanged, (_changed, participant) => {
     if (participant instanceof RemoteParticipant) applyAgentState(participant)
   })

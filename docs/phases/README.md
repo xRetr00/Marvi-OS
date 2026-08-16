@@ -11,7 +11,7 @@ gates still apply.
 | 1 | [`01-gateway-livekit.md`](01-gateway-livekit.md) | scaffolded |
 | 2 | [`02-desktop-island.md`](02-desktop-island.md) | complete |
 | 3 | [`03-full-duplex-voice.md`](03-full-duplex-voice.md) | in progress |
-| 4 | [`04-tools-room.md`](04-tools-room.md) | planned |
+| 4 | [`04-tools-room.md`](04-tools-room.md) | in progress |
 | 5 | [`05-world-memory.md`](05-world-memory.md) | planned |
 | 6 | [`06-vision-proactive.md`](06-vision-proactive.md) | planned |
 | 7 | [`07-delegation-release.md`](07-delegation-release.md) | planned |

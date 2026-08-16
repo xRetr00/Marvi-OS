@@ -31,7 +31,9 @@ describe('DynamicIsland', () => {
           confirmation: {
             token: 'token-1',
             action: 'Send email reply',
-            detail: 'To Alex · Re: Project update'
+            detail: 'To Alex · Re: Project update',
+            tool: 'email_reply',
+            arguments: { to: 'Alex' }
           }
         }}
       />

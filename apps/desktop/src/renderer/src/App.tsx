@@ -12,7 +12,7 @@ import {
   type VoicePhase,
   type VoiceState
 } from './store/voice-state'
-import type { RuntimeStatus } from '../../shared/runtime'
+import type { AuditEvent, RuntimeStatus } from '../../shared/runtime'
 import type { IslandAlignment, IslandPlacement } from '../../main/island-window'
 import { connectVoiceRoom } from './lib/livekit-room'
 
@@ -118,6 +118,10 @@ function MainSurface(): React.JSX.Element {
           <SettingsPanel runtime={runtime} />
         ) : page === 'About' ? (
           <AboutPanel fallbackVersion={version} runtime={runtime} />
+        ) : page === 'Room' ? (
+          <RoomPanel runtime={runtime} />
+        ) : page === 'Activity' ? (
+          <ActivityPanel />
         ) : (
           <PagePanel page={page} version={version} />
         )}
@@ -222,6 +226,153 @@ function Overview({
           <strong>FOUNDATION PENDING</strong>
         </div>
       </article>
+    </section>
+  )
+}
+
+interface RoomSnapshot {
+  live: boolean
+  stale?: boolean
+  state: Record<string, unknown>
+}
+
+function readRecord(source: Record<string, unknown>, key: string): Record<string, unknown> {
+  const value = source[key]
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {}
+}
+
+function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
+  const [snapshot, setSnapshot] = useState<RoomSnapshot | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let disposed = false
+    const load = async (): Promise<void> => {
+      const response = await window.marvi?.getRoomState()
+      if (disposed) return
+      if (!response || response.status !== 'executed' || !response.result) {
+        setSnapshot(null)
+        setError(response?.error ?? 'Marvi Gateway is unavailable')
+        return
+      }
+      setSnapshot(response.result)
+      setError(null)
+    }
+    void load()
+    const timer = setInterval(() => void load(), 4_000)
+    return () => {
+      disposed = true
+      clearInterval(timer)
+    }
+  }, [])
+
+  const state = snapshot?.state ?? {}
+  const light = readRecord(state, 'light')
+  const presence = readRecord(state, 'presence')
+  const modes = readRecord(state, 'modes')
+  const location = readRecord(state, 'location')
+
+  const rows: Array<[string, string]> = [
+    ['MODE', String(modes.active_mode ?? 'unknown').toUpperCase()],
+    [
+      'LIGHT',
+      light.on
+        ? `ON ${String(light.brightness ?? '?')}% ${String(light.scene ?? 'custom').toUpperCase()}`
+        : 'OFF'
+    ],
+    ['PRESENCE', presence.detected ? 'IN ROOM' : 'AWAY'],
+    ['PHONE', location.home ? 'HOME' : String(location.zone ?? 'unknown').toUpperCase()]
+  ]
+
+  return (
+    <section className="single-page panel">
+      <div className="panel-label">{'// ROOM'}</div>
+      <h2>Room</h2>
+      <p>
+        Live state from the smart-room sidecar. Marvi OS reads and requests; the sidecar keeps every
+        device, automation, and history record.
+      </p>
+
+      <div className="context-line">
+        <span>SIDECAR</span>
+        <strong className={`service-state state-${runtime.components.room?.state ?? 'offline'}`}>
+          {(runtime.components.room?.state ?? 'offline').toUpperCase()}
+        </strong>
+      </div>
+
+      {snapshot?.stale ? (
+        <div className="context-line">
+          <span>FEED</span>
+          <strong>STALE SNAPSHOT — SIDECAR UNREACHABLE</strong>
+        </div>
+      ) : null}
+
+      <div className="ascii-divider">+------------------------------+</div>
+
+      {error ? (
+        <span className="construction">{error.toUpperCase()}</span>
+      ) : (
+        rows.map(([label, value]) => (
+          <div className="context-line" key={label}>
+            <span>{label}</span>
+            <strong>{value}</strong>
+          </div>
+        ))
+      )}
+    </section>
+  )
+}
+
+function ActivityPanel(): React.JSX.Element {
+  const [events, setEvents] = useState<AuditEvent[]>([])
+
+  useEffect(() => {
+    let disposed = false
+    const load = async (): Promise<void> => {
+      const next = await window.marvi?.getAudit()
+      if (!disposed && next) setEvents(next)
+    }
+    void load()
+    const timer = setInterval(() => void load(), 3_000)
+    return () => {
+      disposed = true
+      clearInterval(timer)
+    }
+  }, [])
+
+  return (
+    <section className="single-page panel">
+      <div className="panel-label">{'// ACTIVITY'}</div>
+      <h2>Activity</h2>
+      <p>
+        Append-only local audit of every tool decision. Nothing here is sent anywhere; YOLO
+        executions are recorded exactly like confirmed ones.
+      </p>
+      <div className="ascii-divider">+------------------------------+</div>
+
+      {events.length === 0 ? (
+        <span className="construction">NO TOOL ACTIVITY RECORDED YET</span>
+      ) : (
+        <div className="service-list">
+          {events.map((event, index) => (
+            <div className="service-row" key={`${event.at}-${index}`}>
+              <span className="service-name">{event.tool.toUpperCase()}</span>
+              <span className={`service-state audit-${event.event}`}>
+                {event.event.toUpperCase()}
+              </span>
+              <small>
+                {event.at.slice(11, 19)} / {event.mode.toUpperCase()}
+                {Object.keys(event.arguments).length > 0
+                  ? ` / ${JSON.stringify(event.arguments)}`
+                  : ''}
+                {event.detail ? ` / ${event.detail}` : ''}
+              </small>
+            </div>
+          ))}
+        </div>
+      )}
     </section>
   )
 }

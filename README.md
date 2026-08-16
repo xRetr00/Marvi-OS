@@ -13,11 +13,13 @@ the desktop application. The desktop icon source is
 
 ## Status
 
-Phase 2 desktop implementation is complete and Phase 3 is in hardware
-acceptance. The native-Windows stack now runs Nemotron 3.5 streaming ASR through
-`parakeet-rs`, VibeVoice Realtime 0.5B, an official LiveKit `AgentSession`, and
-an Electron LiveKit microphone/playout participant. The remaining Phase 3 gate
-is a real loudspeaker double-talk test plus the 60-minute duplex soak.
+Phase 2 desktop implementation is complete, Phase 3 is in hardware acceptance,
+and Phase 4 is in progress. The native-Windows stack runs Nemotron 3.5 streaming
+ASR through `parakeet-rs`, VibeVoice Realtime 0.5B, an official LiveKit
+`AgentSession`, and an Electron LiveKit microphone/playout participant. The
+remaining Phase 3 gate is a real loudspeaker double-talk test plus the 60-minute
+duplex soak. Phase 4 has landed the tool router, exact-argument confirmation
+tokens, the audit trail, and the Smart Room sidecar connection.
 
 Current implemented desktop surfaces:
 
@@ -31,7 +33,12 @@ Current implemented desktop surfaces:
 - pinned model downloads, integrity checks, 25 TTS voices, and repeatable RTX
   3060 latency/VRAM evidence;
 - local LiveKit room credentials, hidden development lifecycle, WebRTC AEC,
-  streamed STT/TTS, local wake gating, and authoritative Island voice states.
+  streamed STT/TTS, local wake gating, and authoritative Island voice states;
+- a structured tool router with exact-argument, single-use confirmation tokens
+  that reject replay and argument mutation, plus an append-only local audit that
+  records YOLO executions identically to confirmed ones;
+- spoken and Island approval resolving the same token, and a Smart Room sidecar
+  connection that degrades to stale reads without disturbing conversation.
 
 ## Developer start
 

@@ -34,4 +34,30 @@ describe('normalizeRuntimeStatus', () => {
       normalizeRuntimeStatus({ ...valid, components: { gateway: { state: 'magic' } } })
     ).toBeNull()
   })
+
+  it('keeps the exact arguments an approval will be bound to', () => {
+    const confirmation = {
+      token: 'token-1',
+      action: 'Change the room light',
+      detail: 'Change the room light (brightness=55, on=True)',
+      tool: 'room_set_light',
+      arguments: { on: true, brightness: 55 }
+    }
+
+    expect(
+      normalizeRuntimeStatus({ ...valid, assistant: { ...valid.assistant, confirmation } })
+    ).toMatchObject({ assistant: { confirmation } })
+  })
+
+  it('rejects a confirmation that arrives without its bound arguments', () => {
+    expect(
+      normalizeRuntimeStatus({
+        ...valid,
+        assistant: {
+          ...valid.assistant,
+          confirmation: { token: 't', action: 'a', detail: 'd', tool: 'room_set_light' }
+        }
+      })
+    ).toBeNull()
+  })
 })

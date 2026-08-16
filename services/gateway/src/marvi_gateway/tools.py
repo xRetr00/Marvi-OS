@@ -1,0 +1,95 @@
+"""Narrow structured tool router.
+
+Every action Marvi can take on the world passes through this registry. A tool
+declares its exact argument names and types up front; anything else is refused
+before a handler ever runs. Handlers are plain callables, so sidecars stay
+behind adapters instead of leaking transport details into the router.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable, Iterator
+from dataclasses import dataclass, field
+from typing import Any
+
+
+class ToolRouterError(Exception):
+    """A tool was named or called in a way the registry refuses."""
+
+
+class UnknownToolError(ToolRouterError):
+    pass
+
+
+class InvalidArgumentsError(ToolRouterError):
+    pass
+
+
+@dataclass(frozen=True)
+class ToolSpec:
+    name: str
+    description: str
+    arguments: dict[str, type]
+    sensitive: bool
+    handler: Callable[..., Any]
+    optional: dict[str, type] = field(default_factory=dict)
+
+    def summary(self, arguments: dict[str, Any]) -> str:
+        """One short human line for the Island and the audit trail."""
+        if not arguments:
+            return self.description
+        rendered = ", ".join(f"{key}={value}" for key, value in sorted(arguments.items()))
+        return f"{self.description} ({rendered})"
+
+
+def _type_matches(value: Any, expected: type) -> bool:
+    # ponytail: bool is an int subclass in Python; a checkbox is never a brightness.
+    if expected is not bool and isinstance(value, bool):
+        return False
+    if expected is float:
+        return isinstance(value, (int, float))
+    return isinstance(value, expected)
+
+
+class ToolRegistry:
+    def __init__(self) -> None:
+        self._tools: dict[str, ToolSpec] = {}
+
+    def register(self, spec: ToolSpec) -> None:
+        self._tools[spec.name] = spec
+
+    def __iter__(self) -> Iterator[ToolSpec]:
+        return iter(self._tools.values())
+
+    def __len__(self) -> int:
+        return len(self._tools)
+
+    def get(self, name: str) -> ToolSpec:
+        try:
+            return self._tools[name]
+        except KeyError:
+            raise UnknownToolError(f"unknown tool: {name}") from None
+
+    def validate(self, spec: ToolSpec, arguments: dict[str, Any]) -> dict[str, Any]:
+        """Return the accepted arguments, or refuse the call outright."""
+        if not isinstance(arguments, dict):
+            raise InvalidArgumentsError("arguments must be an object")
+
+        allowed = {**spec.arguments, **spec.optional}
+        unexpected = sorted(set(arguments) - set(allowed))
+        if unexpected:
+            raise InvalidArgumentsError(f"unexpected arguments: {', '.join(unexpected)}")
+
+        missing = sorted(set(spec.arguments) - set(arguments))
+        if missing:
+            raise InvalidArgumentsError(f"missing arguments: {', '.join(missing)}")
+
+        for key, value in arguments.items():
+            if not _type_matches(value, allowed[key]):
+                raise InvalidArgumentsError(
+                    f"argument {key} must be {allowed[key].__name__}"
+                )
+        return dict(arguments)
+
+    def execute(self, spec: ToolSpec, arguments: dict[str, Any]) -> Any:
+        return spec.handler(**arguments)

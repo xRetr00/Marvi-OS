@@ -1,0 +1,203 @@
+"""Voice tool tests.
+
+These drive the real Marvi Gateway ASGI app over an httpx transport, so the
+agent's tools exercise the same router, tokens, and audit trail the Island
+uses. Only the smart-room sidecar itself is substituted.
+"""
+
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+import httpx
+import pytest
+from livekit.agents import ToolError
+from livekit.agents.llm.utils import build_legacy_openai_schema
+
+GATEWAY_SRC = Path(__file__).resolve().parents[2] / "gateway" / "src"
+if str(GATEWAY_SRC) not in sys.path:
+    sys.path.insert(0, str(GATEWAY_SRC))
+
+from marvi_gateway.app import create_app  # noqa: E402
+from marvi_gateway.runtime import RuntimeStore  # noqa: E402
+from marvi_gateway.tools import ToolRegistry, ToolSpec  # noqa: E402
+
+from marvi_agent.tools import GatewayTools  # noqa: E402
+
+
+@pytest.fixture
+def gateway(tmp_path):
+    executed: list[tuple[str, dict]] = []
+    registry = ToolRegistry()
+    registry.register(
+        ToolSpec(
+            name="room_state",
+            description="Read the current room state",
+            arguments={},
+            sensitive=False,
+            handler=lambda: {
+                "live": True,
+                "state": {
+                    "light": {"on": True, "brightness": 40},
+                    "modes": {"active_mode": "focus"},
+                    "presence": {"detected": True},
+                },
+            },
+        )
+    )
+    registry.register(
+        ToolSpec(
+            name="room_set_light",
+            description="Change the room light",
+            arguments={"on": bool},
+            optional={"brightness": int},
+            sensitive=True,
+            handler=lambda **args: executed.append(("room_set_light", args)) or {"ok": True},
+        )
+    )
+    registry.register(
+        ToolSpec(
+            name="room_set_mode",
+            description="Change the room mode",
+            arguments={"mode": str},
+            sensitive=True,
+            handler=lambda **args: executed.append(("room_set_mode", args)) or {"ok": True},
+        )
+    )
+    runtime = RuntimeStore(audit_path=tmp_path / "audit.jsonl")
+    app = create_app(version="0.1.0-test", runtime=runtime, tools=registry)
+    client = httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://marvi.local"
+    )
+    return client, runtime, executed
+
+
+@pytest.fixture
+def voice(gateway):
+    client, _, _ = gateway
+    return GatewayTools(base_url="http://marvi.local", client=client)
+
+
+def test_tool_schemas_are_voice_sized_and_hide_transport(voice) -> None:
+    schemas = {
+        schema["function"]["name"]: schema["function"]
+        for schema in (build_legacy_openai_schema(tool) for tool in voice.as_list())
+    }
+
+    assert set(schemas) == {
+        "room_state",
+        "room_light",
+        "room_mode",
+        "approve_pending_action",
+        "deny_pending_action",
+    }
+    # RunContext and the gateway token never appear in the LLM-visible schema.
+    assert schemas["room_light"]["parameters"]["required"] == ["on"]
+    assert set(schemas["room_light"]["parameters"]["properties"]) == {
+        "on",
+        "brightness",
+        "color_temp",
+    }
+    assert schemas["approve_pending_action"]["parameters"]["properties"] == {}
+
+
+@pytest.mark.asyncio
+async def test_reading_room_state_needs_no_confirmation(voice, gateway) -> None:
+    client, _, _ = gateway
+    async with client:
+        spoken = await voice.room_state(None)
+
+    assert "light on at 40 percent" in spoken
+    assert "mode focus" in spoken
+    assert voice.pending_token is None
+
+
+@pytest.mark.asyncio
+async def test_write_asks_first_then_spoken_approval_executes_it(voice, gateway) -> None:
+    client, _, executed = gateway
+    async with client:
+        asked = await voice.room_light(None, on=True, brightness=30)
+        token = voice.pending_token
+        approved = await voice.approve_pending_action(None)
+
+    assert "needs confirmation" in asked
+    assert token
+    assert executed == [("room_set_light", {"on": True, "brightness": 30})]
+    assert approved == "Done."
+    assert voice.pending_token is None
+
+
+@pytest.mark.asyncio
+async def test_spoken_denial_never_executes(voice, gateway) -> None:
+    client, _, executed = gateway
+    async with client:
+        await voice.room_mode(None, mode="sleep")
+        denied = await voice.deny_pending_action(None)
+
+    assert denied == "Cancelled."
+    assert executed == []
+
+
+@pytest.mark.asyncio
+async def test_spoken_approval_and_island_share_one_token(voice, gateway) -> None:
+    """The Island resolving first must leave nothing for the voice path to approve."""
+    client, _, executed = gateway
+    async with client:
+        await voice.room_light(None, on=False)
+        token = voice.pending_token
+        island = await client.post(
+            f"/confirmations/{token}",
+            json={"decision": "approve", "arguments": {"on": False}},
+        )
+        with pytest.raises(ToolError, match="already"):
+            await voice.approve_pending_action(None)
+
+    assert island.json()["status"] == "executed"
+    assert executed == [("room_set_light", {"on": False})]
+
+
+@pytest.mark.asyncio
+async def test_approving_with_nothing_pending_is_refused(voice, gateway) -> None:
+    client, _, executed = gateway
+    async with client:
+        with pytest.raises(ToolError, match="no action waiting"):
+            await voice.approve_pending_action(None)
+
+    assert executed == []
+
+
+@pytest.mark.asyncio
+async def test_yolo_skips_confirmation_for_the_voice_path_too(voice, gateway) -> None:
+    client, runtime, executed = gateway
+    runtime.set_yolo(True)
+    async with client:
+        spoken = await voice.room_mode(None, mode="relax")
+
+    assert spoken == "Done."
+    assert voice.pending_token is None
+    assert executed == [("room_set_mode", {"mode": "relax"})]
+
+    records = [json.loads(line) for line in runtime.audit_path.read_text().splitlines()]
+    assert [record["event"] for record in records] == ["requested", "executed"]
+    assert records[-1]["mode"] == "yolo"
+
+
+@pytest.mark.asyncio
+async def test_invalid_arguments_are_reported_to_the_llm_not_raised_as_a_crash(
+    voice, gateway
+) -> None:
+    client, _, executed = gateway
+    async with client:
+        with pytest.raises(ToolError):
+            await voice.room_mode(None, mode=42)
+
+    assert executed == []
+
+
+@pytest.mark.asyncio
+async def test_unreachable_gateway_is_a_tool_error_not_a_session_failure() -> None:
+    offline = GatewayTools(base_url="http://127.0.0.1:1")
+    with pytest.raises(ToolError, match="unreachable"):
+        await offline.room_state(None)
