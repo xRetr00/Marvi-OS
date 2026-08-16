@@ -260,7 +260,9 @@ def test_a_visitor_report_is_allowed_to_be_spoken(stack) -> None:
     initiative._was_home = False
     initiative.run_homecoming(present=True)
 
-    result = mind.tick()
+    # Pin the clock: quiet hours legitimately downgrade speech, so a test that
+    # reads the wall clock passes by day and fails at night.
+    result = mind.tick(now=datetime(2026, 8, 17, 12, 0, tzinfo=UTC))
 
     assert result["decisions"][0]["surface"] == "speak"
 

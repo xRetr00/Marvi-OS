@@ -12,7 +12,9 @@ needs before it can be used.
 from __future__ import annotations
 
 # Registration happens on import; the modules are the registry.
+from . import anthropic as _anthropic  # noqa: F401
 from . import local as _local  # noqa: F401
+from . import openai as _openai  # noqa: F401
 from . import opencode as _opencode  # noqa: F401
 from .base import (
     ApiMode,
@@ -29,11 +31,21 @@ from .base import (
     register,
     select,
 )
+from .client import (
+    AllProvidersExhaustedError,
+    Completion,
+    ProviderCallError,
+    ProviderClient,
+)
 
 __all__ = [
+    "AllProvidersExhaustedError",
     "ApiMode",
     "CachePolicy",
+    "Completion",
     "LimitPolicy",
+    "ProviderCallError",
+    "ProviderClient",
     "ProviderError",
     "ProviderNotConfiguredError",
     "ProviderProfile",

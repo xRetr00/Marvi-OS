@@ -17,13 +17,14 @@ from the control center without a rebuild.
 | llama.cpp / vLLM | local | none | chat completions | **implemented** |
 | OpenCode Zen | api | api key | chat completions | **implemented** |
 | OpenCode Go | plan | api key | chat completions | **implemented** |
+| OpenAI | api | api key | chat completions | **implemented** |
+| OpenAI (Responses) | api | api key | responses | **implemented** |
+| Anthropic | api | api key | messages | **implemented** |
+| Codex | plan | `oauth_external` | responses | **profile ready, OAuth pending** |
+| Claude Code | plan | `oauth_external` | messages | **profile ready, OAuth pending** |
 | OpenRouter | api | api key | chat completions | planned |
 | DeepInfra | api | api key | chat completions | planned |
 | DeepSeek | api | api key | chat completions | planned |
-| OpenAI | api | api key | chat completions / responses | planned |
-| Anthropic | api | api key | messages | planned |
-| Codex | plan | `oauth_external` | responses | planned |
-| Claude Code | plan | `oauth_external` | messages | planned |
 | GitHub Copilot | plan | token exchange | chat completions | planned |
 | Qwen | plan | `oauth_external` | chat completions | planned |
 | xAI, Nous | api/plan | `oauth_device_code` | chat completions | planned |
@@ -69,6 +70,53 @@ unable to say which limit you are about to hit.
 
 Neither publishes usage over the API, so Marvi shows its own token count and
 says so.
+
+### OpenAI and Anthropic
+
+`OPENAI_API_KEY` and `ANTHROPIC_API_KEY`. OpenAI is registered twice — once for
+chat completions and once for the Responses API — because they are different
+wire formats and the reasoning path wants Responses.
+
+Their caching differs in a way that matters. **OpenAI caches automatically**
+above a minimum prefix length; `prompt_cache_key` only makes routing sticky so
+the same prefix lands on the same backend. **Anthropic caches nothing unless
+asked** — a prefix is only cached if marked with a `cache_control` breakpoint,
+and forgetting the mark costs full price silently on every turn. Marvi marks it
+by default.
+
+### Codex and Claude Code — profiles ready, OAuth pending
+
+Both profiles exist with the right API shape, models, and window structure. They
+cannot be used until the OAuth flow lands; the access token env vars are
+placeholders that the flow will populate rather than values to type in.
+
+## Calling, accounting, and cooldown
+
+One client (`providers/client.py`) executes every call, which is why three
+things fall out of one implementation:
+
+- **Token accounting** — usage recorded per provider in its own shape and
+  normalised, so the budget binds identically on an API, a plan, and a local
+  model. `usage_by_provider()` is what the page displays.
+- **Cooldown** — a 429 with `Retry-After` stands the provider down until its
+  window resets. Retrying into an exhausted plan is how one bad afternoon turns
+  into a quota-burning loop. A rejected credential cools down for six hours,
+  because a dead key will not fix itself.
+- **Failover** — `call_with_fallback` walks configured providers, local first.
+  Anything that fails is already resting, so the next attempt does not return
+  to it.
+
+Streaming is deliberately not implemented here: the voice path streams through
+LiveKit's client, which already owns interruption and playout. This client
+serves the background mind, where nobody is waiting on a first token.
+
+## Plan terms
+
+Subscription plans are sold for interactive use, and driving one from an
+always-on assistant may fall outside their terms. Marvi does **not** block this —
+it is the user's account and their decision, and other agent tools work the same
+way — but it shows a warning once before connecting a plan provider, naming the
+real risk: account suspension, not a warning email.
 
 ## Planned, and what each one needs
 

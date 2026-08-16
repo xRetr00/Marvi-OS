@@ -184,11 +184,17 @@ every later provider work everywhere at once.
 **Step 3 — token accounting.** Record `Usage` per call, make the
 `REAL-AGENCY.md` budget bind on `billable` tokens, and prove caching reduces it.
 
-**Step 4 — more API providers.** OpenRouter, DeepInfra, DeepSeek: profiles only,
-no new machinery.
+**Step 3b — OpenAI and Anthropic. Done.** Both metered APIs plus the Codex and
+Claude Code plan profiles, covering all three wire shapes. A client that records
+usage, cools providers down on 429 with `Retry-After`, and fails over. Identity
+files with an enforced token budget, and the plan-terms warning. 26 client
+tests.
 
-**Step 5 — the other API shapes.** OpenAI Responses and Anthropic Messages, with
-a live call against each. The shapes are built and tested; this proves them.
+**Step 4 — more API providers.** OpenRouter, DeepInfra, DeepSeek: profiles only,
+no new machinery now that the client exists.
+
+**Step 5 — live calls.** Prove Responses and Anthropic against the real
+endpoints. The shapes are built and unit-tested; this needs keys.
 
 **Step 6 — OAuth.** One plan provider end to end — acquisition, refresh ahead of
 expiry, an explicit expired state, and a storage decision for refresh tokens.

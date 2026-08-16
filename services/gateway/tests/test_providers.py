@@ -41,7 +41,12 @@ def profile(**changes) -> ProviderProfile:
 
 def test_only_finished_providers_are_registered() -> None:
     names = {p.name for p in all_profiles()}
-    assert names == {"ollama", "lmstudio", "llamacpp", "opencode-zen", "opencode-go"}
+    assert names == {
+        "ollama", "lmstudio", "llamacpp",
+        "opencode-zen", "opencode-go",
+        "openai", "openai-responses", "anthropic",
+        "codex", "claude-code",
+    }
 
 
 def test_zen_and_go_are_separate_providers() -> None:
