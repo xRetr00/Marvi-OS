@@ -146,3 +146,22 @@ contained.
 Memory is part of this boundary. An untrusted memory is stored with
 `trusted = 0` and re-enveloped on recall, so an injection cannot launder itself
 into instruction position by taking a detour through storage.
+## ADR-014 — Frameless shell with renderer-painted chrome
+
+**Decision:** The control center window is frameless and paints its own title
+bar (brand, page, window controls). The Hermes hidden-titlebar pattern is
+adapted, not the native WCO overlay, because the Marvi OS brand chrome (mono
+Collapse type, drag region, custom hover states) is the product surface.
+
+**Reason:** A native title bar breaks the monochrome shell and cannot carry
+the brand. The renderer-painted bar keeps one design system; window verbs stay
+native via IPC (minimize/maximize/close handled in main with sender checks).
+
+## ADR-015 — Local-only backdrop and chrome assets
+
+**Decision:** Electric Gaze and all Hermes-adapted chrome ship as vendored
+local assets or MIT npm dependencies. No runtime CDN fetch; source URLs and
+licenses live in the UPSTREAM ledger.
+
+**Reason:** The product contract is local-first and fail-closed. A backdrop
+that needs the network violates the always-on promise and the UI contract.

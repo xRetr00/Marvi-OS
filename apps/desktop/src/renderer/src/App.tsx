@@ -2,7 +2,13 @@ import { useStore } from '@nanostores/react'
 import { useEffect, useRef, useState } from 'react'
 
 import appIcon from './assets/app-icon.png'
+import { BootFailureOverlay } from './components/BootFailureOverlay'
+import { ConnectingOverlay } from './components/ConnectingOverlay'
 import { DynamicIsland } from './components/DynamicIsland'
+import { ElectricGazeBackground } from './components/ElectricGazeBackground'
+import { HapticsProvider } from './components/HapticsProvider'
+import { TitleBar } from './components/TitleBar'
+import { ShellContextMenu } from './components/ui/shell-context-menu'
 import {
   $runtimeState,
   $voiceState,
@@ -12,6 +18,14 @@ import {
   type VoicePhase,
   type VoiceState
 } from './store/voice-state'
+import {
+  $backgroundMode,
+  setBackgroundMode,
+  setBackgroundOpacity,
+  $backgroundOpacity
+} from './store/background'
+import { $translucency, setTranslucency } from './store/translucency'
+import { haptic } from './lib/haptics'
 import type {
   AuditEvent,
   ConnectedAccount,
@@ -48,6 +62,7 @@ interface BuildInfo {
 function MainSurface(): React.JSX.Element {
   const voice = useStore($voiceState)
   const runtime = useStore($runtimeState)
+  const translucency = useStore($translucency)
   const [page, setPage] = useState<Page>('Overview')
   const [version, setVersion] = useState('0.1.0-dev.0')
 
@@ -72,86 +87,139 @@ function MainSurface(): React.JSX.Element {
     }
   }, [])
 
+  useEffect(() => {
+    // Mirror the persisted translucency lever to the main process on boot.
+    window.marvi?.setTranslucency(translucency)
+  }, [translucency])
+
   const previewPhase = (phase: VoicePhase): void => {
+    haptic('selection')
     cycleVoicePhase(phase)
     window.marvi?.previewAssistantState($voiceState.get())
   }
 
+  const navigate = (item: Page): void => {
+    if (item !== page) haptic('tap')
+    setPage(item)
+  }
+
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <header className="brand-block">
-          <BrandIcon className="brand-icon-sidebar" />
-          <div>
-            <strong>MARVI OS</strong>
-            <span>VOICE + VISION</span>
-          </div>
-        </header>
+    <ShellContextMenu
+      actions={[
+        { label: 'Overview', onSelect: () => navigate('Overview') },
+        { label: 'Settings', onSelect: () => navigate('Settings') },
+        { label: 'About', onSelect: () => navigate('About') },
+        { label: 'Reload Shell', onSelect: () => window.location.reload() },
+        {
+          label: voice.yolo ? 'Switch to Confirm mode' : 'Switch to YOLO mode',
+          onSelect: () => void window.marvi?.setYolo(!voice.yolo).then(applyRuntimeState)
+        }
+      ]}
+    >
+      <div className="app-shell">
+        <TitleBar page={page} />
 
-        <nav aria-label="Main navigation">
-          {NAV_ITEMS.map((item, index) => (
-            <button
-              className={page === item ? 'nav-item active' : 'nav-item'}
-              key={item}
-              onClick={() => setPage(item)}
-            >
-              <span>{String(index + 1).padStart(2, '0')}</span>
-              {item.toUpperCase()}
-            </button>
-          ))}
-        </nav>
+        <div className="app-body">
+          <ElectricGazeBackground />
 
-        <div className="sidebar-foot">
-          <span className="pulse-dot" /> ALWAYS ON
-          <small>MIC + CAMERA LOCAL</small>
+          <aside className="sidebar">
+            <header className="brand-block">
+              <BrandIcon className="brand-icon-sidebar" />
+              <div>
+                <strong>MARVI OS</strong>
+                <span>VOICE + VISION</span>
+              </div>
+            </header>
+
+            <nav aria-label="Main navigation">
+              {NAV_ITEMS.map((item, index) => (
+                <button
+                  className={page === item ? 'nav-item active' : 'nav-item'}
+                  key={item}
+                  onClick={() => navigate(item)}
+                >
+                  <span>{String(index + 1).padStart(2, '0')}</span>
+                  {item.toUpperCase()}
+                </button>
+              ))}
+            </nav>
+
+            <div className="sidebar-foot">
+              <span className="pulse-dot" /> ALWAYS ON
+              <small>MIC + CAMERA LOCAL</small>
+            </div>
+          </aside>
+
+          <main className="content">
+            <header className="topbar">
+              <div>
+                <span className="eyebrow">{'// CONTROL CENTER'}</span>
+                <h1>{page}</h1>
+              </div>
+              <div className="top-island-preview">
+                <DynamicIsland compact state={voice} />
+              </div>
+            </header>
+
+            {page === 'Overview' ? (
+              <Overview onPreviewPhase={previewPhase} runtime={runtime} voice={voice} />
+            ) : page === 'Settings' ? (
+              <SettingsPanel runtime={runtime} />
+            ) : page === 'About' ? (
+              <AboutPanel fallbackVersion={version} runtime={runtime} />
+            ) : page === 'Room' ? (
+              <RoomPanel runtime={runtime} />
+            ) : page === 'Activity' ? (
+              <ActivityPanel />
+            ) : page === 'Accounts' ? (
+              <AccountsPanel />
+            ) : page === 'Memory' ? (
+              <MemoryPanel />
+            ) : (
+              <PagePanel page={page} version={version} />
+            )}
+
+            <footer className="statusbar">
+              <span>
+                <i className={`status-${runtime.state}`} /> GATEWAY{' '}
+                {runtime.state.toUpperCase()}
+              </span>
+              <span>
+                LIVEKIT {runtime.components.livekit?.state.toUpperCase() ?? 'UNKNOWN'}
+              </span>
+              <span>VOICE {voice.phase.toUpperCase()}</span>
+              <VoiceLevelMeter level={voice.level} />
+              <span>
+                MIC {voice.microphone ? 'ON' : 'OFF'} / CAM {voice.camera ? 'ON' : 'OFF'}
+              </span>
+              <span className={voice.yolo ? 'status-yolo' : ''}>
+                {voice.yolo ? '⚡ YOLO' : 'CONFIRM'}
+              </span>
+              <span className="status-version">MARVI OS {version}</span>
+            </footer>
+          </main>
         </div>
-      </aside>
 
-      <main className="content">
-        <header className="topbar">
-          <div>
-            <span className="eyebrow">{'// CONTROL CENTER'}</span>
-            <h1>{page}</h1>
-          </div>
-          <div className="top-island-preview">
-            <DynamicIsland state={voice} compact />
-          </div>
-        </header>
+        <ConnectingOverlay />
+        <BootFailureOverlay />
+      </div>
+    </ShellContextMenu>
+  )
+}
 
-        {page === 'Overview' ? (
-          <Overview runtime={runtime} voice={voice} onPreviewPhase={previewPhase} />
-        ) : page === 'Settings' ? (
-          <SettingsPanel runtime={runtime} />
-        ) : page === 'About' ? (
-          <AboutPanel fallbackVersion={version} runtime={runtime} />
-        ) : page === 'Room' ? (
-          <RoomPanel runtime={runtime} />
-        ) : page === 'Activity' ? (
-          <ActivityPanel />
-        ) : page === 'Accounts' ? (
-          <AccountsPanel />
-        ) : page === 'Memory' ? (
-          <MemoryPanel />
-        ) : (
-          <PagePanel page={page} version={version} />
-        )}
-
-        <footer className="statusbar">
-          <span>
-            <i className={`status-${runtime.state}`} /> GATEWAY {runtime.state.toUpperCase()}
-          </span>
-          <span>LIVEKIT {runtime.components.livekit?.state.toUpperCase() ?? 'UNKNOWN'}</span>
-          <span>VOICE {voice.phase.toUpperCase()}</span>
-          <span>
-            MIC {voice.microphone ? 'ON' : 'OFF'} / CAM {voice.camera ? 'ON' : 'OFF'}
-          </span>
-          <span className={voice.yolo ? 'status-yolo' : ''}>
-            {voice.yolo ? '⚡ YOLO' : 'CONFIRM'}
-          </span>
-          <span className="status-version">MARVI OS {version}</span>
-        </footer>
-      </main>
-    </div>
+/**
+ * Live voice-level meter in the status bar — the Hermes-style context meter
+ * adapted to the always-on voice loop: 8 ASCII cells filling with the current
+ * assistant audio level so the shell reads "alive" at a glance.
+ */
+function VoiceLevelMeter({ level }: { level: number }): React.JSX.Element {
+  const cells = 8
+  const filled = Math.round(Math.min(1, Math.max(0, level)) * cells)
+  return (
+    <span aria-label={`Voice level ${filled} of ${cells}`} className="voice-level-meter">
+      {'▮'.repeat(filled)}
+      {'▯'.repeat(cells - filled)}
+    </span>
   )
 }
 
@@ -589,6 +657,9 @@ function BrandIcon({ className = '' }: { className?: string }): React.JSX.Elemen
 }
 
 function SettingsPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
+  const translucency = useStore($translucency)
+  const backgroundMode = useStore($backgroundMode)
+  const backgroundOpacity = useStore($backgroundOpacity)
   const [displays, setDisplays] = useState<Array<{ id: number; label: string; primary: boolean }>>(
     []
   )
@@ -630,6 +701,50 @@ function SettingsPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Eleme
         >
           {runtime.assistant.yolo ? '⚡ YOLO / AUTO ACCEPT' : 'CONFIRM / ASK ME'}
         </button>
+      </div>
+
+      <div className="settings-section">
+        <div>
+          <span className="eyebrow">{'// APPEARANCE'}</span>
+          <h2>WINDOW + BACKDROP</h2>
+          <p>Translucency shows the desktop through the window. The backdrop stays local.</p>
+        </div>
+        <div className="appearance-controls">
+          <label>
+            TRANSLUCENCY {translucency}
+            <input
+              aria-label="Window translucency"
+              max={100}
+              min={0}
+              onChange={(event) => setTranslucency(Number(event.target.value))}
+              type="range"
+              value={translucency}
+            />
+          </label>
+          <label>
+            BACKDROP
+            <select
+              aria-label="Backdrop mode"
+              onChange={(event) => setBackgroundMode(event.target.value as typeof backgroundMode)}
+              value={backgroundMode}
+            >
+              <option value="electricGaze">ELECTRIC GAZE</option>
+              <option value="none">OFF</option>
+            </select>
+          </label>
+          <label>
+            BACKDROP OPACITY {backgroundOpacity}
+            <input
+              aria-label="Backdrop opacity"
+              disabled={backgroundMode !== 'electricGaze'}
+              max={100}
+              min={0}
+              onChange={(event) => setBackgroundOpacity(Number(event.target.value))}
+              type="range"
+              value={backgroundOpacity}
+            />
+          </label>
+        </div>
       </div>
 
       <div className="settings-section">
@@ -811,5 +926,11 @@ function IslandSurface(): React.JSX.Element {
 
 export default function App(): React.JSX.Element {
   const surface = new URLSearchParams(window.location.search).get('surface')
-  return surface === 'island' ? <IslandSurface /> : <MainSurface />
+  return surface === 'island' ? (
+    <IslandSurface />
+  ) : (
+    <HapticsProvider>
+      <MainSurface />
+    </HapticsProvider>
+  )
 }

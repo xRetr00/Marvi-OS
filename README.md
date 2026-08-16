@@ -45,6 +45,11 @@ Current implemented desktop surfaces:
 - local SQLite episodic and semantic memory with search, forget, and verbatim
   export, storing externally sourced entries as untrusted and re-wrapping them
   whenever they are recalled.
+  streamed STT/TTS, local wake gating, and authoritative Island voice states.
+- frameless control center with a renderer-painted title bar (brand, page,
+  window controls), Electric Gaze local backdrop, translucency lever,
+  haptics, shell context menu, connecting and boot-failure overlays, and a
+  voice-level meter in the status bar (see `feat/desktop-shell-ui`).
 
 ## Developer start
 

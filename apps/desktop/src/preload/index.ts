@@ -20,6 +20,21 @@ const marvi = {
     updateChannel: string
   }> => ipcRenderer.invoke('marvi:get-build-info'),
   showMain: (): void => ipcRenderer.send('marvi:show-main'),
+  minimizeWindow: (): void => ipcRenderer.send('marvi:window-minimize'),
+  toggleMaximizeWindow: (): void => ipcRenderer.send('marvi:window-toggle-maximize'),
+  closeWindow: (): void => ipcRenderer.send('marvi:window-close'),
+  getWindowState: (): Promise<{ isMaximized: boolean }> =>
+    ipcRenderer.invoke('marvi:get-window-state'),
+  onWindowState: (listener: (state: { isMaximized: boolean }) => void): (() => void) => {
+    const wrapped = (
+      _event: Electron.IpcRendererEvent,
+      state: { isMaximized: boolean }
+    ): void => listener(state)
+    ipcRenderer.on('marvi:window-state', wrapped)
+    return () => ipcRenderer.removeListener('marvi:window-state', wrapped)
+  },
+  setTranslucency: (intensity: number): Promise<number> =>
+    ipcRenderer.invoke('marvi:set-translucency', intensity),
   getRuntime: (): Promise<RuntimeStatus> => ipcRenderer.invoke('marvi:get-runtime'),
   getVoiceSession: (): Promise<{ url: string; room: string; token: string }> =>
     ipcRenderer.invoke('marvi:get-voice-session'),

@@ -37,6 +37,12 @@ be updated with the exact version/commit and local modification path.
 | Desktop brand font | `@nous-research/ui` 0.18.2 `Collapse-Bold.woff2` via `D:\hermes-agent` | MIT package | copied font asset; update from the pinned package when Marvi typography changes | adopted |
 | Desktop mono font | JetBrains Mono faces via `D:\hermes-agent\apps\desktop\src\fonts` | Apache-2.0 | copied Regular/Bold/Italic WOFF2 assets; preserve metrics and license | adopted |
 | Update mechanism source | `D:\hermes-agent\apps\desktop\electron\updater-process.ts` and `D:\hermes-agent\scripts\desktop-update` | internal | extract/adapt tested repo-owned Windows handoff | selected |
+| Frameless title bar pattern | `D:\hermes-agent\apps\desktop\electron\main.ts` (`titleBarStyle:'hidden'`, overlay options) | internal | adapt hidden-titlebar shell to renderer-painted chrome | adopted |
+| Glyph spinner | [unicode-animations](https://www.npmjs.com/package/unicode-animations) 1.0.3 | MIT | dependency; braille/orbit frames for CONNECTING and busy states | adopted |
+| Web haptics | [web-haptics](https://github.com/lochie/web-haptics) 0.0.6 | MIT | dependency; audio-transducer tap/selection/success/error feedback | adopted |
+| Context menu primitive | [radix-ui](https://github.com/radix-ui/primitives) 1.6.7 | MIT | dependency; ContextMenu only (shell context menu) | adopted |
+| Shell chrome adaptation | `D:\hermes-agent\apps\desktop\src\components\` (decode-text, glyph-spinner, gateway-connecting-overlay, boot-failure-overlay, haptics-provider, translucency, background store, shell-context-menu) | internal | adapt with provenance; local-only, no remote fetches | adopted |
+| Electric Gaze backdrop | 21st.dev ascii-recipe render `assets.21st.dev/ascii-recipes/.../c458eb38-....mp4` (412 KB) + poster webp | verify at re-fetch | vendored local asset; never fetched at runtime | adopted |
 
 ## Update procedure
 
