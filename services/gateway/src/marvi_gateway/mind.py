@@ -33,6 +33,7 @@ class Mind:
         memory: Any = None,
         settings: InitiativeSettings | None = None,
         deliberate: Any = None,
+        announcer: Any = None,
     ) -> None:
         self.journal = journal
         self.memory = memory
@@ -40,6 +41,9 @@ class Mind:
         # `deliberate(event, verdict) -> (surface, detail, cost)` is the seam
         # for an LLM pass. Left unset, the mind is fully deterministic.
         self.deliberate = deliberate
+        # Speaks proactive sentences. Left unset, `speak` still records a
+        # decision but stays silent.
+        self.announcer = announcer
 
     # -- world ---------------------------------------------------------------
 
@@ -88,6 +92,9 @@ class Mind:
             )
 
             surface, detail, cost, provider = verdict.surface, verdict.detail, 0.0, "deterministic"
+            # `detail` is diagnostic text about the rule. What Marvi would
+            # actually say is separate, and only deliberation can phrase it.
+            sentence = event["summary"]
             if self.deliberate is not None and verdict.allow and verdict.surface != "silent":
                 # An LLM may only make a decision quieter, never louder: the
                 # policy ceiling is not something a model gets to argue with.
@@ -96,6 +103,8 @@ class Mind:
 
                 if SURFACES.index(proposed) <= SURFACES.index(verdict.surface):
                     surface, detail = proposed, proposed_detail
+                    if proposed_detail:
+                        sentence = proposed_detail
                 provider = "llm"
 
             if surface == "remember" and self.memory is not None:
@@ -108,6 +117,17 @@ class Mind:
                         event["summary"], body, source=event["source"]
                     )
 
+            spoken = ""
+            if surface == "speak" and self.announcer is not None:
+                outcome = self.announcer.speak(sentence)
+                if outcome.get("published"):
+                    spoken = sentence
+                else:
+                    # Losing a voice is not losing the decision; drop to the
+                    # Island so the user still sees it.
+                    surface = "island"
+                    detail = f"{detail} (speech unavailable)".strip()
+
             latency = (time.perf_counter() - started) * 1000
             decision_id = self.journal.record_decision(
                 trigger=event["summary"],
@@ -118,7 +138,8 @@ class Mind:
                 provider=provider,
                 latency_ms=latency,
                 cost=cost,
-                outcome="surfaced" if surface not in ("silent", "remember") else surface,
+                outcome=("spoke: " + spoken) if spoken
+                else ("surfaced" if surface not in ("silent", "remember") else surface),
                 now=moment,
             )
             self.journal.mark_processed(event["id"], decision_id)

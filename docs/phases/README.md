@@ -13,8 +13,9 @@ gates still apply.
 | 3 | [`03-full-duplex-voice.md`](03-full-duplex-voice.md) | in progress |
 | 4 | [`04-tools-room.md`](04-tools-room.md) | complete |
 | 5 | [`05-world-memory.md`](05-world-memory.md) | complete |
-| 6 | [`06-vision-proactive.md`](06-vision-proactive.md) | in progress |
-| 7 | [`07-delegation-release.md`](07-delegation-release.md) | planned |
+| 6 | [`06-proactive-mind.md`](06-proactive-mind.md) | complete |
+| 7 | [`07-release.md`](07-release.md) | in progress |
+| 8 | [`08-vision.md`](08-vision.md) | planned |
 
 Status vocabulary: `planned`, `scaffolded`, `in progress`, `blocked`, and
 `complete`. Only mark a phase complete when every acceptance gate has named

@@ -31,6 +31,7 @@ be updated with the exact version/commit and local modification path.
 | Proactive scheduler | [agronholm/apscheduler](https://github.com/agronholm/apscheduler) 3.11.3 | MIT | four bounded background ticks owned by the Gateway; jobs guarded so one failure cannot kill the schedule | adopted |
 | Durable agent graph | [langchain-ai/langgraph](https://github.com/langchain-ai/langgraph) | MIT | revisit only after a measured workflow outgrows Gateway jobs + LiveKit tasks | deferred |
 | Durable execution | [temporalio/sdk-python](https://github.com/temporalio/sdk-python) | MIT | operationally excessive for initial single-PC product | deferred |
+| Proactive TTS | [kyutai-labs/pocket-tts](https://github.com/kyutai-labs/pocket-tts) 2.1.0 | see model card | 100M-parameter CPU TTS for one-shot announcements; published into the LiveKit room so the client's AEC applies (ADR-019) | adopted |
 | Browser automation | [microsoft/playwright-python](https://github.com/microsoft/playwright-python) 1.62.0 | Apache-2.0 | one long-lived Chromium page behind the Gateway; reuses the already-cached browser, no anti-detect stack | adopted |
 | Web search | [Brave Search API](https://brave.com/search/api/) / SearXNG | commercial API terms / AGPL-3.0 self-hosted | env-selected provider behind one adapter; results always enveloped | adopted |
 | Memory store | Python stdlib `sqlite3` + FTS5 (SQLite 3.50.4) | PSF / public domain | local episodic and semantic memory behind a provider seam; no vector database or embedding model | adopted |

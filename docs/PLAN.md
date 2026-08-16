@@ -105,17 +105,25 @@ Exit criteria:
 - read/write flows are tested with account sandboxes;
 - reconnect, revoked OAuth, duplicate writes, and idempotency are covered.
 
-## Phase 6 — vision and proactive behavior
+## Phase 6 — proactive behaviour and the mind
+
+1. Journal every event that could make Marvi act, with provenance and trust.
+2. Encode the proactivity contract as ordered, named rules.
+3. Decide the least intrusive useful surface and record why.
+4. Speak proactively without borrowing the full-duplex streaming stack.
+
+## Phase 7 — first Windows release
+
+1. Extract/adapt the tested Marvi/Hermes Windows update handoff.
+2. Test updates from multiple older releases and interrupted updates.
+3. Package and publish the first Windows release.
+
+The durable job bridge to Marvi Agent was dropped from this phase; see
+`phases/07-release.md`.
+
+## Phase 8 — vision
 
 1. Keep local presence/gesture inference resident.
 2. Publish selected frames only for explicit active vision tasks.
 3. Add vision context tasks without bloating the foreground agent.
-4. Add proactive notifications that respect focus and quiet settings.
-
-## Phase 7 — Marvi delegation and production update flow
-
-1. Add a durable job bridge to Marvi Agent for coding/research/deep work.
-2. Make jobs survive voice session disconnects and app restarts.
-3. Extract/adapt the tested Marvi/Hermes Windows update handoff.
-4. Test updates from multiple older releases and interrupted updates.
-5. Package, sign, and publish the first stable Windows release.
+4. Decide whether Marvi grows a camera pipeline or consumes the room sidecar's.

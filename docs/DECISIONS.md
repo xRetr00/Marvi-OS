@@ -182,6 +182,41 @@ Three rules follow from this:
   provider is configured, and every fetched URL must resolve to a public
   address so an agent cannot be talked into reading loopback.
 
+## ADR-019 — Two voices for two jobs
+
+**Decision:** the full-duplex session keeps VibeVoice streaming on the GPU.
+Proactive announcements use kyutai PocketTTS on the CPU, published into the
+LiveKit room rather than to the sound card.
+
+**Reason:** the two jobs have opposite requirements. A session reply is a
+first-token race that must be interruptible mid-sentence. A proactive sentence
+is one short utterance Marvi chose to say, with nobody waiting and nothing to
+barge into. Spending streaming GPU budget on the second is paying for a property
+it does not need, on a machine where the 2 GB VRAM headroom is already
+committed. PocketTTS measured 1.5 s to load and 0.811 RTF at 24 kHz on one CPU
+thread.
+
+Publishing into the room rather than the sound card is the load-bearing part.
+The microphone is always live for the wake word, so audio played outside the
+room would be captured and transcribed as if the user had spoken it — the same
+self-transcription failure Phase 3 exists to prevent. Inside the room, the
+client's WebRTC echo cancellation handles it.
+
+Speech failure degrades to the Island rather than losing the decision.
+
+## ADR-020 — The Marvi Agent job bridge is dropped
+
+**Decision:** Phase 7 no longer contains a durable job bridge to Marvi Agent for
+coding, research, or long-running work. Phase 7 is the Windows update handoff
+and the first release.
+
+**Reason:** Marvi OS is an ambient voice and vision assistant. ADR-001 already
+separates it from Marvi Agent precisely so the ambient lifecycle does not
+inherit a coding agent's core and tool schema; adding a bridge back would
+re-couple what that decision separated, and nothing in the shipped surface
+depends on it. If delegation is wanted later it can arrive as its own phase with
+its own evidence, rather than as a condition of shipping version one.
+
 ## ADR-018 — Letta evaluated as the mind, and not adopted
 
 This settles ADR-014a. Measured against the `REAL-AGENCY.md` mind gates.

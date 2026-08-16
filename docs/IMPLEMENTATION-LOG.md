@@ -324,3 +324,31 @@ Validation evidence and the resulting commit are recorded in
   this layer.
 - 229 Python tests and 37 desktop tests pass; ruff, ESLint, typecheck, and the
   production build are clean.
+
+## 2026-08-16 — Proactive speech, live deliberation, and a phase split
+
+- Split vision out of Phase 6 into a new Phase 8 so the proactive mind could be
+  finished without waiting on camera work. Phase 6 is cognition only and is now
+  complete.
+- Gave `speak` a voice. Proactive announcements use kyutai PocketTTS on the CPU
+  rather than the Phase 3 streaming stack, because a one-shot sentence has no
+  first-token race and nothing to barge into (ADR-019). Measured 1.5 s to load
+  and 0.811 RTF at 24 kHz on a single torch thread.
+- Published announcements into the LiveKit room instead of the sound card. The
+  microphone is always live for the wake word, so audio played outside the room
+  would be transcribed as if the user had said it; inside the room the client's
+  WebRTC AEC handles it. This is where Phase 6 reconnects to Phase 3.
+- Attached OpenCode Go to the deliberation seam through the same
+  OpenAI-compatible boundary the voice agent uses. Verified live: an alarm event
+  produced "The bedroom alarm is going off." in 4.1 s, and that sentence is what
+  gets spoken. A slower run exceeded the 20 s budget and fell back to the
+  deterministic verdict, which is the designed degradation.
+- Fixed a real bug the tests caught: the mind was speaking `verdict.detail`,
+  which is diagnostic text about the rule ("ceiling speak"), not a sentence.
+  Speech text and rule diagnostics are now separate, and only deliberation can
+  phrase what is actually said.
+- Speech failure degrades to the Island rather than losing the decision.
+- Dropped the durable Marvi Agent job bridge from Phase 7 (ADR-020). Phase 7 is
+  now the Windows update handoff and the first release.
+- 247 Python tests and 37 desktop tests pass; ruff, ESLint, typecheck, and the
+  production build are clean.

@@ -1,23 +1,24 @@
-# Phase 6 — Vision and Proactive Behavior
+# Phase 6 — Proactive Behaviour and the Mind
 
-**Status:** in progress
+**Status:** complete
 **Depends on:** Phases 3 and 4
+
+Vision moved to [`08-vision.md`](08-vision.md); this phase is cognition only.
 
 ## Scope
 
-- Always-on local presence and gesture inference with bounded resource use.
-- Raw camera frames remain local; selected frames publish only for an explicit
-  active vision task.
-- Focus-safe proactive room/world notifications through the Island.
+- Event-driven cognition: a durable journal, a relevance and policy boundary,
+  and a mind turn that decides the least intrusive useful surface.
+- Focus-safe proactive room and world notifications.
+- Proactive speech that does not borrow the full-duplex voice stack.
 
 ## Acceptance evidence required
 
-- Camera privacy boundary test, idle GPU/RAM measurement, gesture/presence
-  accuracy sample, and proof that background events never focus the main window.
+- Every proactive decision names the rule that produced it, including silence.
+- Background events never steal focus or interrupt a live conversation.
+- Background thinking has explicit time and cost budgets.
 
 ## Implemented — the REAL-AGENCY mind
-
-The proactive half of this phase is built. Vision is not.
 
 - `marvi_gateway.journal`: a durable event journal. Room transitions, account
   items, and reflections land here with provenance and trust before anything
@@ -64,12 +65,37 @@ The proactive half of this phase is built. Vision is not.
 
 Automated coverage: 33 tests across the journal, policy, mind, and scheduler.
 
+## Proactive speech (ADR-019)
+
+`speak` now reaches the speakers. Proactive announcements deliberately do not
+use the Phase 3 streaming stack: there is no first-token race and nothing to
+barge into, so paying GPU streaming cost would be wrong. They use kyutai
+PocketTTS on the CPU — measured here at 1.5 s to load and **0.811 RTF** at
+24 kHz on a single torch thread.
+
+The audio publishes into the same LiveKit room the desktop client is already
+subscribed to, rather than straight to the sound card. That is the important
+part: the microphone is always live for the wake word, so a sentence played
+outside the room would be transcribed as if the user had said it. Routing
+through the room means the client's WebRTC echo cancellation — the same
+mechanism Phase 3 depends on — cancels it. This is the point where Phase 6
+touches Phase 3 again.
+
+If speech fails for any reason the decision is not lost; it drops to the Island
+so the user still sees it.
+
+## Deliberation (live)
+
+The LLM seam now has a provider: OpenCode Go through the same
+OpenAI-compatible boundary the voice agent uses. Verified live — an alarm event
+produced `{"worth_it": true, "say": "The bedroom alarm is going off."}` in
+4.1 s, and that sentence is what Marvi speaks.
+
+`deepseek-v4-flash` is a reasoning model and its latency varies; one run
+exceeded the 20 s budget and fell back to the deterministic verdict, which is
+the designed degradation rather than a failure. Additional providers, OAuth,
+and auxiliary models are future work behind `deliberator_from_env`.
+
 ## Still required
 
-- All vision work: presence and gesture inference, the camera privacy boundary,
-  idle GPU/RAM measurement, and the accuracy sample.
-- LLM deliberation is wired as a seam but no provider is attached, so decisions
-  are deterministic today.
-- The proactive surfaces resolve to decision records; routing `speak` into an
-  actual spoken turn through the LiveKit session is not connected yet.
-- Letta was evaluated for this role and rejected; see ADR-018.
+- Nothing for this phase. Vision is Phase 8; more providers are a later update.

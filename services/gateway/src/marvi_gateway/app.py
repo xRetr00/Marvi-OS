@@ -13,7 +13,9 @@ from livekit import api
 from pydantic import BaseModel, Field
 
 from .accounts import ComposioAccounts, register_account_tools
+from .announce import Announcer, announce_enabled
 from .browser import BrowserSession, browser_enabled, register_browser_tools
+from .deliberate import deliberator_from_env
 from .ingest import AccountIngest
 from .initiative import Initiative
 from .journal import EventJournal
@@ -183,7 +185,13 @@ def create_app(
             register_workspace_tools(tool_registry, workspace)
         journal = EventJournal()
         initiative = Initiative(
-            Mind(journal, memory=memory, settings=InitiativeSettings.from_env()),
+            Mind(
+                journal,
+                memory=memory,
+                settings=InitiativeSettings.from_env(),
+                deliberate=deliberator_from_env(),
+                announcer=Announcer() if announce_enabled() else None,
+            ),
             journal,
             ingest=ingest,
             memory=memory,
