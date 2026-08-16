@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 import socket
 from collections.abc import AsyncIterator
@@ -22,6 +23,9 @@ from .identity import IdentityFiles, plan_warning
 from .ingest import AccountIngest
 from .initiative import Initiative
 from .journal import EventJournal
+from .logs import available as available_logs
+from .logs import configure as configure_logging
+from .logs import install_asyncio_handler, logs_dir, redactor, tail
 from .mcp_bridge import McpBridge, register_mcp_tools
 from .memory import MemoryStore, register_memory_tools
 from .mind import Mind
@@ -214,6 +218,13 @@ class ChatHistory(BaseModel):
     available: bool
 
 
+class LogPage(BaseModel):
+    subsystem: str
+    lines: list[str]
+    available: list[str]
+    directory: str
+
+
 class DecisionPage(BaseModel):
     decisions: list[dict[str, Any]]
     events: list[dict[str, Any]]
@@ -259,6 +270,10 @@ def create_app(
     # Saved GUI settings become environment variables before anything reads
     # them, so the registry still has exactly one source of truth.
     provider_config.load_into_environ()
+    # Logging first, and after the settings load so the redactor already knows
+    # every credential before a single line can be written.
+    configure_logging()
+    redactor().refresh()
     provider_client = ProviderClient()
     identity = IdentityFiles()
     chat: Chat | None = None
@@ -330,6 +345,8 @@ def create_app(
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         # The background mind starts with the Gateway and stops with it, so a
         # restart never leaves an orphaned scheduler ticking.
+        # asyncio reports unretrieved task exceptions to a stderr nobody reads.
+        install_asyncio_handler(asyncio.get_running_loop())
         if initiative is not None:
             initiative.start()
         try:
@@ -537,6 +554,21 @@ def create_app(
         removed = chat.store.clear()
         runtime_store.audit("chat", "cleared", {"messages": removed})
         return ChatHistory(messages=[], available=chat.available())
+
+    @app.get("/logs", response_model=LogPage)
+    async def read_logs(subsystem: str = "errors", lines: int = 300) -> LogPage:
+        """The tail of one log file.
+
+        `errors` by default, because that is the file that answers the question
+        people actually have. Already redacted on the way to disk, so there is
+        nothing further to strip here.
+        """
+        return LogPage(
+            subsystem=subsystem,
+            lines=tail(subsystem, lines=max(1, min(lines, 2000))),
+            available=available_logs(),
+            directory=str(logs_dir()),
+        )
 
     @app.get("/tools", response_model=ToolCatalog)
     async def list_tools() -> ToolCatalog:
@@ -811,6 +843,8 @@ def create_app(
     @app.put("/providers/settings", response_model=ProviderPage)
     async def set_provider_settings(update: ProviderSettingsUpdate) -> ProviderPage:
         provider_config.update(update.values)
+        # A key typed in a moment ago must not appear in the next log line.
+        redactor().refresh()
         # Connecting a provider that was cooling down should retry it, not wait
         # out a cooldown earned by the credential the user just replaced.
         for name in list(provider_client.cooldowns()):

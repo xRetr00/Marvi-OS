@@ -4,7 +4,8 @@ import { existsSync } from 'fs'
 import { join, resolve } from 'path'
 import icon from '../../resources/icon.png?asset'
 import trayIcon from '../../resources/tray-icon.png?asset'
-import { gatewayBind, gatewayUrl, livekitBind, livekitServerPath } from './config'
+import { gatewayBind, gatewayUrl, livekitBind, livekitServerPath, logsDir } from './config'
+import { configure as configureLogging, desktop, installCatchers } from './logger'
 import { offlineRuntime, normalizeRuntimeStatus } from './gateway-runtime'
 import { type ServiceReport, ServiceSupervisor, findUv } from './services'
 import {
@@ -143,11 +144,20 @@ function findRepoRoot(): string | null {
 }
 
 function startVoiceStack(): void {
-  if (process.env['MARVI_MANAGE_VOICE_STACK'] === '0') return
+  // Logging before anything can fail, so a startup failure is recorded rather
+  // than being the one thing nothing wrote down.
+  configureLogging(logsDir())
+  installCatchers()
+  desktop.info('starting the voice stack')
+  if (process.env['MARVI_MANAGE_VOICE_STACK'] === '0') {
+    desktop.info('MARVI_MANAGE_VOICE_STACK=0, leaving the services alone')
+    return
+  }
   repoRoot = findRepoRoot()
   if (!repoRoot) {
     // Nothing to start and no way to start it: say so instead of leaving the
     // shell on a connecting animation that will never finish.
+    desktop.error('no Marvi OS checkout found; the Python services cannot be started')
     publishRuntime({
       ...offlineRuntime(app.getVersion()),
       state: 'error',
@@ -163,6 +173,7 @@ function startVoiceStack(): void {
 
   const uv = findUv()
   if (!uv) {
+    desktop.error('uv was not found on PATH or in any known install location')
     // The most common failure on a fresh machine, and previously invisible.
     // Name it rather than letting it surface as a generic spawn error.
     publishRuntime({

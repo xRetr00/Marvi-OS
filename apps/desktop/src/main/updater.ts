@@ -111,8 +111,7 @@ export function updateInProgress(stateDir: string): boolean {
   }
 
   const alive = pid !== null ? isProcessAlive(pid) : false
-  const fresh =
-    startedAtMs !== null ? Date.now() - startedAtMs < STALE_AFTER_MS : alive
+  const fresh = startedAtMs !== null ? Date.now() - startedAtMs < STALE_AFTER_MS : alive
 
   if (alive && fresh) return true
   try {
