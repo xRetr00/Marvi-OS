@@ -1,8 +1,14 @@
 import { useStore } from '@nanostores/react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { DynamicIsland } from './components/DynamicIsland'
-import { $voiceState, VOICE_PHASES, cycleVoicePhase, type VoicePhase } from './store/voice-state'
+import {
+  $voiceState,
+  VOICE_PHASES,
+  cycleVoicePhase,
+  type VoicePhase,
+  type VoiceState
+} from './store/voice-state'
 
 const NAV_ITEMS = [
   'Overview',
@@ -32,6 +38,10 @@ function MainSurface(): React.JSX.Element {
   useEffect(() => {
     void window.marvi?.getVersion().then(setVersion)
   }, [])
+
+  useEffect(() => {
+    window.marvi?.pushIslandState(voice)
+  }, [voice])
 
   return (
     <div className="app-shell">
@@ -195,14 +205,46 @@ function PagePanel({ page, version }: { page: Page; version: string }): React.JS
 
 function IslandSurface(): React.JSX.Element {
   const voice = useStore($voiceState)
+  const measureRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const unsubscribe = window.marvi?.onIslandState((next) => {
+      if (isVoiceState(next)) $voiceState.set(next)
+    })
+    return unsubscribe
+  }, [])
+
+  useEffect(() => {
+    const element = measureRef.current
+    if (!element) return
+
+    const reportSize = (): void => {
+      const bounds = element.getBoundingClientRect()
+      window.marvi?.setIslandSize({ width: bounds.width, height: bounds.height })
+    }
+    const observer = new ResizeObserver(reportSize)
+    observer.observe(element)
+    reportSize()
+    return () => observer.disconnect()
+  }, [])
+
   return (
-    <button
-      className="island-stage"
-      onDoubleClick={() => window.marvi.showMain()}
-      title="Double-click to open Marvi OS"
-    >
-      <DynamicIsland state={voice} />
-    </button>
+    <div className="island-stage">
+      <div className="island-measure" ref={measureRef}>
+        <DynamicIsland state={voice} />
+      </div>
+    </div>
+  )
+}
+
+function isVoiceState(value: unknown): value is VoiceState {
+  if (!value || typeof value !== 'object') return false
+  const candidate = value as { phase?: unknown; caption?: unknown; level?: unknown }
+  return (
+    typeof candidate.phase === 'string' &&
+    VOICE_PHASES.includes(candidate.phase as VoicePhase) &&
+    typeof candidate.caption === 'string' &&
+    typeof candidate.level === 'number'
   )
 }
 

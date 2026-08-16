@@ -26,6 +26,8 @@ be updated with the exact version/commit and local modification path.
 | Memory candidate | [mem0ai/mem0](https://github.com/mem0ai/mem0) | Apache-2.0 | benchmark against extracted Marvi memory needs | evaluating |
 | Smart Room | `D:\smart-room-plugin` | internal | independent sidecar; reuse bridge/event bus first | selected |
 | Dynamic Island source | `D:\hermes-agent\apps\desktop\src\app\voice-island` | internal | extract focused visual/state pieces with provenance; no voice transport | selected |
+| Desktop brand font | `@nous-research/ui` 0.18.2 `Collapse-Bold.woff2` via `D:\hermes-agent` | MIT package | copied font asset; update from the pinned package when Marvi typography changes | adopted |
+| Desktop mono font | JetBrains Mono faces via `D:\hermes-agent\apps\desktop\src\fonts` | Apache-2.0 | copied Regular/Bold/Italic WOFF2 assets; preserve metrics and license | adopted |
 | Update mechanism source | `D:\hermes-agent\apps\desktop\electron\updater-process.ts` and `D:\hermes-agent\scripts\desktop-update` | internal | extract/adapt tested repo-owned Windows handoff | selected |
 
 ## Update procedure

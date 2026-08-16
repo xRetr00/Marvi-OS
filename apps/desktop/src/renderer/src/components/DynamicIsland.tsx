@@ -11,7 +11,10 @@ export function DynamicIsland({
 }): React.JSX.Element {
   const active = state.phase !== 'ready'
   return (
-    <div className={`dynamic-island island-${state.phase} ${compact ? 'island-compact' : ''}`}>
+    <div
+      className={`dynamic-island island-${state.phase} ${compact ? 'island-compact' : ''}`}
+      data-phase={state.phase}
+    >
       <span className="island-orb" aria-hidden="true">
         M
       </span>

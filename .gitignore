@@ -18,3 +18,4 @@ __pycache__/
 models/
 runtime-data/
 .playwright-cli/
+output/

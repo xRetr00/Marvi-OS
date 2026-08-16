@@ -1,8 +1,40 @@
+@font-face {
+  font-family: 'Collapse';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('../fonts/Collapse-Bold.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../fonts/JetBrainsMono-Regular.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('../fonts/JetBrainsMono-Bold.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../fonts/JetBrainsMono-Italic.woff2') format('woff2');
+}
+
 :root {
   color-scheme: dark;
-  font-family: 'Cascadia Mono', 'IBM Plex Mono', Consolas, monospace;
-  color: #d9e0e5;
-  background: #050607;
+  font-family: 'JetBrains Mono', 'Cascadia Mono', Consolas, monospace;
+  color: #e7e7e3;
+  background: transparent;
   font-synthesis: none;
   text-rendering: geometricPrecision;
 }
@@ -19,4 +51,14 @@ body,
 }
 button {
   font: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

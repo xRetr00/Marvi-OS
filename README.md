@@ -47,6 +47,8 @@ Marvi OS adopts upstream projects before writing custom infrastructure. See
 - [`AGENTS.md`](AGENTS.md) — mandatory rules for every coding agent.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — process and authority boundaries.
 - [`docs/PLAN.md`](docs/PLAN.md) — phased delivery plan and acceptance gates.
+- [`docs/phases/`](docs/phases/README.md) — phase-by-phase status, evidence, and commits.
+- [`docs/IMPLEMENTATION-LOG.md`](docs/IMPLEMENTATION-LOG.md) — chronological work record.
 - [`docs/UI.md`](docs/UI.md) — Dynamic Island and main-window design contract.
 - [`docs/VOICE-MODEL-EVALUATION.md`](docs/VOICE-MODEL-EVALUATION.md) — native voice bakeoff.
 - [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md) — detected target hardware and toolchain.

@@ -68,6 +68,14 @@ Rules:
 - YOLO mode shows a persistent lightning glyph and `YOLO` marker even asleep.
 - Camera/microphone local activity uses tiny state glyphs, not large banners.
 - Background events may animate the Island but may not focus the main window.
+- The native host follows measured content plus a small transparent shadow
+  inset. Resize only at content/state boundaries; never animate native window
+  bounds per frame.
+- Passive states are click-through, non-focusable, non-movable, frameless, and
+  have no host background. Pointer/focus is enabled only for temporary actions.
+
+Typography reuses the current Marvi desktop faces: Collapse for the product
+wordmark and JetBrains Mono for ASCII construction, labels, status, and data.
 
 ## Main control center
 
@@ -138,4 +146,3 @@ Settings include:
 Enabling YOLO requires an explicit settings action and immediately updates the
 Island and status bar. The product does not add per-action confirmations while
 YOLO is active.
-

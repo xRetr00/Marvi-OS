@@ -2,6 +2,11 @@ import { app, BrowserWindow, ipcMain, Menu, nativeImage, screen, shell, Tray } f
 import { is } from '@electron-toolkit/utils'
 import { join } from 'path'
 import icon from '../../resources/icon.png?asset'
+import {
+  islandWindowBounds,
+  normalizeIslandContentSize,
+  type IslandContentSize
+} from './island-window'
 
 let mainWindow: BrowserWindow | null = null
 let islandWindow: BrowserWindow | null = null
@@ -52,26 +57,29 @@ function createMainWindow(): BrowserWindow {
   return window
 }
 
-function positionIsland(window: BrowserWindow): void {
-  const cursorDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
-  const [width] = window.getSize()
-  const x = Math.round(cursorDisplay.workArea.x + (cursorDisplay.workArea.width - width) / 2)
-  const y = cursorDisplay.workArea.y + 10
-  window.setPosition(x, y, false)
+function sizeAndPositionIsland(window: BrowserWindow, contentSize: IslandContentSize): void {
+  const currentDisplay = screen.getDisplayMatching(window.getBounds())
+  const display = currentDisplay.bounds.width
+    ? currentDisplay
+    : screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
+  window.setBounds(islandWindowBounds(display.workArea, contentSize), false)
 }
 
 function createIslandWindow(): BrowserWindow {
   const window = new BrowserWindow({
-    width: 356,
-    height: 78,
+    width: 174,
+    height: 54,
     show: false,
     frame: false,
     transparent: true,
     resizable: false,
-    movable: true,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
     skipTaskbar: true,
     alwaysOnTop: true,
-    focusable: true,
+    focusable: false,
     hasShadow: false,
     backgroundColor: '#00000000',
     webPreferences: {
@@ -82,9 +90,10 @@ function createIslandWindow(): BrowserWindow {
   })
 
   window.setAlwaysOnTop(true, 'screen-saver')
+  window.setIgnoreMouseEvents(true, { forward: true })
   window.setVisibleOnAllWorkspaces(true)
   window.once('ready-to-show', () => {
-    positionIsland(window)
+    sizeAndPositionIsland(window, { width: 150, height: 30 })
     window.showInactive()
   })
   loadSurface(window, 'island')
@@ -118,6 +127,24 @@ app.whenReady().then(() => {
 
   ipcMain.handle('marvi:get-version', () => app.getVersion())
   ipcMain.on('marvi:show-main', showMainWindow)
+  ipcMain.on('marvi:island-state', (event, state) => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) return
+    islandWindow?.webContents.send('marvi:island-state', state)
+  })
+  ipcMain.on('marvi:island-size', (event, value) => {
+    if (!islandWindow || event.sender !== islandWindow.webContents) return
+    const size = normalizeIslandContentSize(value)
+    if (size && islandWindow && !islandWindow.isDestroyed()) {
+      sizeAndPositionIsland(islandWindow, size)
+    }
+  })
+  ipcMain.on('marvi:island-interactive', (event, interactive) => {
+    if (!islandWindow || islandWindow.isDestroyed() || event.sender !== islandWindow.webContents)
+      return
+    const enabled = interactive === true
+    islandWindow.setFocusable(enabled)
+    islandWindow.setIgnoreMouseEvents(!enabled, { forward: true })
+  })
 
   tray = createTray()
   islandWindow = createIslandWindow()

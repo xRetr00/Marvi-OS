@@ -1,5 +1,9 @@
 # Delivery Plan
 
+Implementation checkpoints and evidence live in [`docs/phases/`](phases/README.md).
+The chronological record of completed work lives in
+[`docs/IMPLEMENTATION-LOG.md`](IMPLEMENTATION-LOG.md).
+
 ## Principles
 
 - Adopt upstream before writing infrastructure.
