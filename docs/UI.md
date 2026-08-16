@@ -44,6 +44,28 @@ Marvi OS has three surfaces:
 Closing the control center hides it. It does not terminate the Island or local
 services.
 
+## Frameless shell and custom title bar
+
+The control center is frameless (`frame: false`, `titleBarStyle: 'hidden'`).
+The native Windows title bar never renders; the shell paints its own 40 px
+title bar: brand mark, current page, and minimize / maximize / close controls.
+The bar is the window drag region; interactive children opt out of drag.
+Double-click on the bar toggles maximize, matching Windows shell behavior.
+Close hides to tray per the always-on contract; quit stays on the tray menu.
+
+The shell adds the Hermes-derived chrome pieces, adapted to the Marvi OS
+contract: a glyph spinner (`unicode-animations`), a decode-text CONNECTING
+overlay for initial boot, a boot-failure recovery overlay with diagnostics and
+retry, web haptics on taps/selections/confirmations, a shell context menu on
+right-click of chrome, a translucency lever (0–100 → native window opacity,
+floor 0.3), and the Electric Gaze animated ASCII backdrop. The backdrop is a
+vendored local asset (`apps/desktop/src/renderer/src/assets/background/`),
+never fetched at runtime. Backdrop opacity and translucency are persisted
+per-machine. Reduced-motion users get static text and no exit choreography.
+
+The status bar keeps the persistent readouts and adds a live voice-level
+meter (8 ASCII cells) so the shell reads "alive" at a glance.
+
 ## Dynamic Island
 
 The Island is smaller than Marvi's previous implementation and grows only for

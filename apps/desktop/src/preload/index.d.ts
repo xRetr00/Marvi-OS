@@ -38,6 +38,12 @@ export interface MarviDesktopApi {
   publishVoiceState: (state: AssistantState) => void
   setIslandSize: (size: { width: number; height: number }) => void
   setIslandInteractive: (interactive: boolean) => void
+  minimizeWindow: () => void
+  toggleMaximizeWindow: () => void
+  closeWindow: () => void
+  getWindowState: () => Promise<{ isMaximized: boolean }>
+  onWindowState: (listener: (state: { isMaximized: boolean }) => void) => () => void
+  setTranslucency: (intensity: number) => Promise<number>
 }
 
 export interface MarviBuildInfo {

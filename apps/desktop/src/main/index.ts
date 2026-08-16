@@ -23,7 +23,34 @@ let runtimeStatus: RuntimeStatus = offlineRuntime('unknown')
 let islandPlacement: IslandPlacement = { displayId: null, alignment: 'center' }
 let islandContentSize: IslandContentSize = { width: 76, height: 8 }
 let isQuitting = false
+let translucencyIntensity = 0
 const GATEWAY_BASE_URL = 'http://127.0.0.1:8765'
+
+// The renderer owns the translucency lever (0–100) and mirrors it here; the
+// main process maps it to native window opacity. Floor the most see-through
+// setting at 0.3 so it stays usable. 0 = fully opaque.
+function windowOpacity(): number {
+  return 1 - (translucencyIntensity / 100) * 0.7
+}
+
+function applyWindowTranslucency(window: BrowserWindow | null): void {
+  if (!window || window.isDestroyed() || typeof window.setOpacity !== 'function') return
+  try {
+    window.setOpacity(windowOpacity())
+  } catch {
+    // Opacity is cosmetic; never fail lifecycle over it.
+  }
+}
+
+function windowStatePayload(): { isMaximized: boolean } {
+  return { isMaximized: mainWindow?.isMaximized() ?? false }
+}
+
+function broadcastWindowState(): void {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('marvi:window-state', windowStatePayload())
+  }
+}
 
 function startDevelopmentVoiceStack(): void {
   if (!is.dev || process.env['MARVI_MANAGE_VOICE_STACK'] === '0') return
@@ -85,7 +112,13 @@ function createMainWindow(): BrowserWindow {
     minHeight: 620,
     show: false,
     autoHideMenuBar: true,
+    // Frameless shell: the renderer paints its own title bar (brand, drag
+    // region, window controls), adapted from the Marvi/Hermes desktop
+    // titleBarStyle:'hidden' pattern. The native frame never renders.
+    frame: false,
+    titleBarStyle: 'hidden',
     backgroundColor: '#050607',
+    opacity: windowOpacity(),
     title: 'Marvi OS',
     icon,
     webPreferences: {
@@ -96,6 +129,8 @@ function createMainWindow(): BrowserWindow {
   })
 
   window.once('ready-to-show', () => window.show())
+  window.on('maximize', broadcastWindowState)
+  window.on('unmaximize', broadcastWindowState)
   window.on('close', (event) => {
     if (isQuitting) return
     event.preventDefault()
@@ -421,6 +456,30 @@ app.whenReady().then(() => {
     }
   })
   ipcMain.on('marvi:show-main', showMainWindow)
+  ipcMain.on('marvi:window-minimize', (event) => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) return
+    mainWindow.minimize()
+  })
+  ipcMain.on('marvi:window-toggle-maximize', (event) => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) return
+    if (mainWindow.isMaximized()) mainWindow.unmaximize()
+    else mainWindow.maximize()
+    broadcastWindowState()
+  })
+  ipcMain.on('marvi:window-close', (event) => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) return
+    // Close on the frameless shell means "hide to tray", matching the
+    // always-on contract. Quit stays explicit via the tray menu.
+    mainWindow.hide()
+  })
+  ipcMain.handle('marvi:get-window-state', () => windowStatePayload())
+  ipcMain.handle('marvi:set-translucency', (_event, value) => {
+    const candidate = Number(value)
+    if (!Number.isFinite(candidate)) return translucencyIntensity
+    translucencyIntensity = Math.min(100, Math.max(0, Math.round(candidate)))
+    applyWindowTranslucency(mainWindow)
+    return translucencyIntensity
+  })
   ipcMain.on('marvi:preview-assistant-state', (event, state) => {
     if (!mainWindow || event.sender !== mainWindow.webContents) return
     previewAssistantState(state)

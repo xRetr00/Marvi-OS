@@ -194,3 +194,27 @@ Validation evidence and the resulting commit are recorded in
 - 111 Python tests, 22 desktop tests, ruff, ESLint, typecheck, and the
   production build all pass. Phase 5 stays in progress: no real outbound write
   has been sent, and account event ingestion is not built.
+## 2026-08-16 — Desktop shell UI/UX: frameless chrome and Hermes-adapted surfaces
+
+- Removed the native Windows title bar (`frame:false`, `titleBarStyle:'hidden'`)
+  and added a renderer-painted 40 px title bar: brand mark, current page,
+  minimize/maximize/close controls, drag region, double-click maximize, and
+  close-to-tray behavior. Window verbs are IPC with sender validation in main.
+- Adapted from the Marvi/Hermes desktop shell (MIT, provenance in
+  docs/UPSTREAM.md): glyph spinner (unicode-animations), decode-text CONNECTING
+  overlay, boot-failure recovery overlay with diagnostics + retry, web haptics
+  provider (web-haptics, AudioContext warm-up kept), shell context menu
+  (radix-ui), translucency lever (0–100 → setOpacity, floor 0.3), and the
+  Electric Gaze animated ASCII backdrop vendored locally (412 KB mp4 + poster).
+- Status bar gained a live 8-cell voice-level meter; Settings gained an
+  APPEARANCE section (translucency, backdrop mode, backdrop opacity).
+- `npm run typecheck`: passed. `npm test`: 6 files / 29 tests passed, covering
+  title bar controls, connecting overlay, boot failure diagnostics, glyph
+  spinner fallback, decode prefix, and backdrop/translucency clamps.
+- `npm run build`: passed; renderer bundle 1.89 MB (radix context menu +
+  unicode-animations included), backdrop assets emitted locally.
+- Headless Chromium evidence (mocked bridge) under ignored `output/evidence/`:
+  frameless Overview with Electric Gaze visible through translucent panels,
+  Settings appearance controls, About, and the CONNECTING boot overlay.
+- Work isolated in `git worktree` branch `feat/desktop-shell-ui` off
+  `origin/main`; the primary checkout with concurrent work was untouched.

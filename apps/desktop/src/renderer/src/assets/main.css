@@ -27,10 +27,17 @@ button {
 
 .app-shell {
   display: grid;
-  grid-template-columns: 224px 1fr;
+  grid-template-rows: 40px 1fr;
   width: 100%;
   height: 100%;
   background: var(--ui-bg);
+}
+
+.app-body {
+  position: relative;
+  display: grid;
+  grid-template-columns: 224px 1fr;
+  min-height: 0;
 }
 
 .sidebar {
@@ -856,7 +863,7 @@ nav {
 }
 
 @media (max-width: 980px) {
-  .app-shell {
+  .app-body {
     grid-template-columns: 188px 1fr;
   }
   .overview-grid {
@@ -876,4 +883,310 @@ nav {
     grid-template-columns: 1fr;
     gap: 18px;
   }
+}
+
+/* ===== Frameless shell: custom title bar ===== */
+.titlebar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 40px;
+  padding: 0 0 0 14px;
+  border-bottom: 1px solid var(--ui-stroke-secondary);
+  background: var(--ui-bg);
+  -webkit-app-region: drag;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.titlebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.titlebar-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  object-fit: contain;
+}
+
+.titlebar-product {
+  font-family: 'Collapse', sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+}
+
+.titlebar-page {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: var(--ui-text-secondary);
+}
+
+.titlebar-spacer {
+  flex: 1;
+}
+
+.titlebar-controls {
+  display: flex;
+  height: 100%;
+  -webkit-app-region: no-drag;
+}
+
+.titlebar-control {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--ui-text-secondary);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.titlebar-control:hover {
+  background: var(--ui-stroke-tertiary);
+  color: var(--ui-text-primary);
+}
+
+.titlebar-control.close:hover {
+  background: var(--ui-danger);
+  color: #fff;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* ===== Electric Gaze backdrop ===== */
+.electric-gaze {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.electric-gaze-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(0.8) brightness(0.7);
+}
+
+.sidebar,
+.content {
+  position: relative;
+  z-index: 1;
+}
+
+.sidebar {
+  background: color-mix(in srgb, var(--ui-bg) 82%, transparent);
+}
+
+.content {
+  background: transparent;
+}
+
+.panel,
+.topbar,
+.statusbar {
+  background: color-mix(in srgb, var(--ui-bg-raised) 86%, transparent);
+}
+
+/* ===== Glyph spinner ===== */
+.glyph-spinner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'JetBrains Mono', monospace;
+  line-height: 1;
+}
+
+/* ===== Connecting overlay ===== */
+.connecting-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  background: var(--ui-bg);
+  transition: opacity 480ms ease;
+}
+
+.connecting-overlay-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.connecting-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.connecting-spinner {
+  font-size: 28px;
+  color: var(--ui-accent);
+}
+
+.connecting-text {
+  font-family: 'Collapse', sans-serif;
+  font-size: 22px;
+  letter-spacing: 0.34em;
+}
+
+.connecting-detail {
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: var(--ui-text-secondary);
+}
+
+/* ===== Boot failure overlay ===== */
+.boot-failure-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--ui-bg) 92%, transparent);
+}
+
+.boot-failure-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: min(560px, calc(100vw - 64px));
+  padding: 28px;
+  border: 1px solid var(--ui-danger);
+  background: var(--ui-bg-raised);
+  box-shadow: var(--shadow-nous);
+}
+
+.boot-failure-card h2 {
+  margin: 0;
+  font-family: 'Collapse', sans-serif;
+  font-size: 20px;
+  letter-spacing: 0.1em;
+  color: var(--ui-danger);
+}
+
+.boot-failure-card p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ui-text-secondary);
+}
+
+.boot-failure-log {
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--ui-stroke-secondary);
+  background: var(--ui-bg);
+  font-size: 11px;
+  line-height: 1.7;
+  color: var(--ui-text-secondary);
+  white-space: pre-wrap;
+}
+
+.boot-failure-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.boot-failure-actions button {
+  padding: 8px 16px;
+  border: 1px solid var(--ui-stroke-primary);
+  background: transparent;
+  color: var(--ui-text-primary);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  cursor: pointer;
+}
+
+.boot-failure-actions button:hover {
+  border-color: var(--ui-accent);
+  color: var(--ui-accent);
+}
+
+.boot-failure-card small {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--ui-text-tertiary);
+}
+
+/* ===== Shell context menu ===== */
+.shell-context-menu {
+  min-width: 190px;
+  margin: 4px;
+  padding: 6px;
+  border: 1px solid var(--ui-stroke-primary);
+  background: var(--ui-bg-raised);
+  box-shadow: var(--shadow-nous);
+  z-index: 60;
+}
+
+.shell-context-item {
+  display: flex;
+  align-items: center;
+  padding: 7px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: var(--ui-text-primary);
+  outline: none;
+  cursor: pointer;
+}
+
+.shell-context-item[data-highlighted] {
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
+}
+
+.shell-context-item[data-disabled] {
+  color: var(--ui-text-tertiary);
+  pointer-events: none;
+}
+
+/* ===== Voice level meter (status bar) ===== */
+.voice-level-meter {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--ui-accent);
+}
+
+/* ===== Appearance controls (settings) ===== */
+.appearance-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 240px;
+}
+
+.appearance-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: var(--ui-text-secondary);
+}
+
+.appearance-controls input[type='range'] {
+  width: 100%;
+  accent-color: var(--ui-accent);
+}
+
+.appearance-controls select {
+  padding: 6px 8px;
+  border: 1px solid var(--ui-stroke-primary);
+  background: var(--ui-bg);
+  color: var(--ui-text-primary);
+  font-size: 11px;
 }
