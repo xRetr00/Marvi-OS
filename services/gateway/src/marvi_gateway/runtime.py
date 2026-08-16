@@ -25,6 +25,7 @@ AssistantPhase = Literal[
 CONFIRMATION_TTL_SECONDS = 120.0
 AUDIT_TAIL_LIMIT = 200
 ROOM_EVENT_TTL_SECONDS = 25.0
+EXTERNAL_WRITE_TTL_SECONDS = 900.0
 
 
 def default_audit_path() -> Path:
@@ -112,14 +113,24 @@ def canonical_arguments(arguments: dict[str, Any]) -> str:
 
 
 class PendingConfirmation:
-    __slots__ = ("arguments", "fingerprint", "issued_at", "token", "tool")
+    __slots__ = ("arguments", "fingerprint", "issued_at", "token", "tool", "write_key")
 
-    def __init__(self, token: str, tool: str, arguments: dict[str, Any], issued_at: float):
+    def __init__(
+        self,
+        token: str,
+        tool: str,
+        arguments: dict[str, Any],
+        issued_at: float,
+        write_key: str | None = None,
+    ):
         self.token = token
         self.tool = tool
         self.arguments = arguments
         self.fingerprint = canonical_arguments(arguments)
         self.issued_at = issued_at
+        # Carried across the confirmation so an explicitly supplied idempotency
+        # key still governs the write that eventually runs.
+        self.write_key = write_key
 
 
 class RuntimeStore:
@@ -129,6 +140,37 @@ class RuntimeStore:
         self._pending: dict[str, PendingConfirmation] = {}
         self._last_room_event_id: int | None = None
         self._room_event_at: float | None = None
+        # ponytail: in-memory, so a Gateway restart forgets completed external
+        # writes. That covers the real risk — an agent or network retry seconds
+        # later. Persist to disk only if a restart-spanning duplicate is ever
+        # actually observed.
+        self._external_writes: dict[str, tuple[float, Any]] = {}
+
+    @staticmethod
+    def now() -> float:
+        return time.monotonic()
+
+    # -- external write deduplication ---------------------------------------
+
+    def external_write_key(self, tool: str, arguments: dict[str, Any], supplied: str | None) -> str:
+        if supplied:
+            return f"{tool}:{supplied}"
+        return f"{tool}:{canonical_arguments(arguments)}"
+
+    def expire_external_writes(self, now: float | None = None) -> None:
+        cutoff = (now if now is not None else time.monotonic()) - EXTERNAL_WRITE_TTL_SECONDS
+        for key in [k for k, (at, _) in self._external_writes.items() if at < cutoff]:
+            del self._external_writes[key]
+
+    def completed_external_write(self, key: str) -> tuple[bool, Any]:
+        """Return (already_done, previous_result)."""
+        self.expire_external_writes()
+        if key in self._external_writes:
+            return True, self._external_writes[key][1]
+        return False, None
+
+    def record_external_write(self, key: str, result: Any) -> None:
+        self._external_writes[key] = (time.monotonic(), result)
 
     # -- mode ---------------------------------------------------------------
 
@@ -229,12 +271,21 @@ class RuntimeStore:
     # -- confirmation tokens ------------------------------------------------
 
     def issue_confirmation(
-        self, tool: str, arguments: dict[str, Any], action: str, detail: str
+        self,
+        tool: str,
+        arguments: dict[str, Any],
+        action: str,
+        detail: str,
+        write_key: str | None = None,
     ) -> ConfirmationRequest:
         self.expire_confirmations()
         token = token_urlsafe(24)
         self._pending[token] = PendingConfirmation(
-            token=token, tool=tool, arguments=dict(arguments), issued_at=time.monotonic()
+            token=token,
+            tool=tool,
+            arguments=dict(arguments),
+            issued_at=time.monotonic(),
+            write_key=write_key,
         )
         request = ConfirmationRequest(
             token=token, action=action, detail=detail, tool=tool, arguments=dict(arguments)

@@ -12,7 +12,13 @@ import {
   type VoicePhase,
   type VoiceState
 } from './store/voice-state'
-import type { AuditEvent, RoomEvent, RuntimeStatus } from '../../shared/runtime'
+import type {
+  AuditEvent,
+  ConnectedAccount,
+  MemoryPage,
+  RoomEvent,
+  RuntimeStatus
+} from '../../shared/runtime'
 import type { IslandAlignment, IslandPlacement } from '../../main/island-window'
 import { connectVoiceRoom } from './lib/livekit-room'
 
@@ -122,6 +128,10 @@ function MainSurface(): React.JSX.Element {
           <RoomPanel runtime={runtime} />
         ) : page === 'Activity' ? (
           <ActivityPanel />
+        ) : page === 'Accounts' ? (
+          <AccountsPanel />
+        ) : page === 'Memory' ? (
+          <MemoryPanel />
         ) : (
           <PagePanel page={page} version={version} />
         )}
@@ -158,7 +168,8 @@ function Overview({
     ['MARVI GATEWAY', runtime.components.gateway],
     ['LIVEKIT', runtime.components.livekit],
     ['VOICE', runtime.components.voice],
-    ['SMART ROOM', runtime.components.room]
+    ['SMART ROOM', runtime.components.room],
+    ['ACCOUNTS', runtime.components.accounts]
   ] as const
 
   return (
@@ -219,7 +230,7 @@ function Overview({
         </div>
         <div className="context-line">
           <span>ACCOUNTS</span>
-          <strong>NOT CONNECTED</strong>
+          <strong>{runtime.components.accounts?.detail.toUpperCase() ?? 'NOT CONNECTED'}</strong>
         </div>
         <div className="context-line">
           <span>MEMORY</span>
@@ -337,6 +348,153 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
               <span className="service-name">{event.type.toUpperCase()}</span>
               <span className="service-state">{event.at.slice(11, 19)}</span>
               <small>{event.summary}</small>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function MemoryPanel(): React.JSX.Element {
+  const [page, setPage] = useState<MemoryPage>({ total: 0, entries: [], summary: {} })
+  const [confirmClear, setConfirmClear] = useState(false)
+  const [reload, setReload] = useState(0)
+
+  useEffect(() => {
+    let disposed = false
+    const load = async (): Promise<void> => {
+      const next = await window.marvi?.getMemory()
+      if (!disposed && next) setPage(next)
+    }
+    void load()
+    const timer = setInterval(() => void load(), 5_000)
+    return () => {
+      disposed = true
+      clearInterval(timer)
+    }
+  }, [reload])
+
+  const clearAll = async (): Promise<void> => {
+    await window.marvi?.clearMemory()
+    setConfirmClear(false)
+    setReload((n) => n + 1)
+  }
+
+  return (
+    <section className="single-page panel">
+      <div className="panel-label">{'// MEMORY'}</div>
+      <h2>Memory</h2>
+      <p>
+        A local SQLite store on this machine. Nothing is uploaded and no embedding model runs.
+        Entries taken from email or the web stay marked untrusted and are re-wrapped whenever Marvi
+        reads them back.
+      </p>
+
+      <div className="context-line">
+        <span>ENTRIES</span>
+        <strong>{page.total}</strong>
+      </div>
+      <div className="context-line">
+        <span>FACTS</span>
+        <strong>{(page.summary.facts ?? []).join(' / ').toUpperCase() || 'NONE'}</strong>
+      </div>
+
+      <div className="phase-controls">
+        {confirmClear ? (
+          <>
+            <button className="phase active" onClick={() => void clearAll()}>
+              delete everything
+            </button>
+            <button className="phase" onClick={() => setConfirmClear(false)}>
+              cancel
+            </button>
+          </>
+        ) : (
+          <button className="phase" onClick={() => setConfirmClear(true)}>
+            forget everything
+          </button>
+        )}
+      </div>
+
+      <div className="ascii-divider">+------------------------------+</div>
+
+      {page.entries.length === 0 ? (
+        <span className="construction">NOTHING REMEMBERED YET</span>
+      ) : (
+        <div className="service-list">
+          {page.entries.map((entry) => (
+            <div className="service-row" key={entry.id}>
+              <span className="service-name">{entry.subject.toUpperCase()}</span>
+              <span className={`service-state state-${entry.trusted ? 'ready' : 'error'}`}>
+                {entry.trusted ? entry.kind.toUpperCase() : 'UNTRUSTED'}
+              </span>
+              <small>
+                {entry.at.slice(0, 10)} / {entry.source}
+              </small>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function AccountsPanel(): React.JSX.Element {
+  const [accounts, setAccounts] = useState<ConnectedAccount[]>([])
+  const [detail, setDetail] = useState('Loading')
+  const [available, setAvailable] = useState(true)
+
+  useEffect(() => {
+    let disposed = false
+    const load = async (): Promise<void> => {
+      const page = await window.marvi?.getAccounts()
+      if (disposed || !page) return
+      setAccounts(page.accounts)
+      setDetail(page.detail)
+      setAvailable(page.available)
+    }
+    void load()
+    const timer = setInterval(() => void load(), 30_000)
+    return () => {
+      disposed = true
+      clearInterval(timer)
+    }
+  }, [])
+
+  return (
+    <section className="single-page panel">
+      <div className="panel-label">{'// ACCOUNTS'}</div>
+      <h2>Accounts</h2>
+      <p>
+        Connections are owned by Composio. Marvi OS holds no provider passwords and never runs an
+        OAuth flow — connect or reconnect an account in Composio and it appears here.
+      </p>
+
+      <div className="context-line">
+        <span>COMPOSIO</span>
+        <strong>{available ? detail.toUpperCase() : 'NOT CONFIGURED'}</strong>
+      </div>
+
+      <div className="ascii-divider">+------------------------------+</div>
+
+      {accounts.length === 0 ? (
+        <span className="construction">
+          {available ? 'NO ACCOUNTS CONNECTED' : 'SET COMPOSIO_API_KEY TO ENABLE ACCOUNTS'}
+        </span>
+      ) : (
+        <div className="service-list">
+          {accounts.map((account) => (
+            <div className="service-row" key={account.toolkit}>
+              <span className="service-name">{account.toolkit.toUpperCase()}</span>
+              <span className={`service-state state-${account.connected ? 'ready' : 'error'}`}>
+                {account.connected ? 'CONNECTED' : account.status.toUpperCase()}
+              </span>
+              <small>
+                {account.needsReconnect
+                  ? 'Authorisation ended. Reconnect this account in Composio.'
+                  : 'Available for on-demand retrieval and actions.'}
+              </small>
             </div>
           ))}
         </div>

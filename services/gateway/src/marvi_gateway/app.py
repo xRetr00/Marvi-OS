@@ -10,6 +10,8 @@ from fastapi import FastAPI, HTTPException
 from livekit import api
 from pydantic import BaseModel, Field
 
+from .accounts import ComposioAccounts, register_account_tools
+from .memory import MemoryStore, register_memory_tools
 from .room import RoomSidecar, register_room_tools
 from .runtime import (
     ArgumentsMutatedError,
@@ -34,6 +36,7 @@ class LiveKitConnection(BaseModel):
 
 class ToolCall(BaseModel):
     arguments: dict[str, Any] = Field(default_factory=dict)
+    idempotency_key: str | None = None
 
 
 class ToolInvocation(BaseModel):
@@ -42,6 +45,7 @@ class ToolInvocation(BaseModel):
     token: str | None = None
     result: Any = None
     error: str | None = None
+    deduplicated: bool = False
     runtime: RuntimeStatus | None = None
 
 
@@ -59,6 +63,29 @@ class ToolCatalog(BaseModel):
 
 class RoomEventPage(BaseModel):
     events: list[dict[str, Any]]
+
+
+class MemoryPage(BaseModel):
+    total: int
+    entries: list[dict[str, Any]]
+    summary: dict[str, Any]
+
+
+class MemoryExport(BaseModel):
+    entries: list[dict[str, Any]]
+
+
+class AccountRow(BaseModel):
+    toolkit: str
+    status: str
+    connected: bool
+    needs_reconnect: bool
+
+
+class AccountPage(BaseModel):
+    available: bool
+    detail: str
+    accounts: list[AccountRow]
 
 
 def livekit_is_ready(host: str = "127.0.0.1", port: int = 7880) -> bool:
@@ -81,13 +108,34 @@ def create_app(
     product_version = version or read_version()
     runtime_store = runtime or RuntimeStore()
     sidecar: RoomSidecar | None = None
+    accounts: ComposioAccounts | None = None
+    memory: MemoryStore | None = None
     if tools is not None:
         tool_registry = tools
     else:
         tool_registry = ToolRegistry()
         sidecar = RoomSidecar()
         register_room_tools(tool_registry, sidecar)
+        accounts = ComposioAccounts()
+        if accounts.available():
+            register_account_tools(tool_registry, accounts)
+        memory = MemoryStore()
+        register_memory_tools(tool_registry, memory)
     app = FastAPI(title="Marvi Gateway", version=product_version, docs_url=None, redoc_url=None)
+
+    def accounts_status() -> ComponentStatus:
+        if accounts is None or not accounts.available():
+            return ComponentStatus(state="pending", detail="no Composio API key configured")
+        try:
+            rows = accounts.cached_connections()
+        except Exception as exc:
+            return ComponentStatus(state="error", detail=str(exc)[:120])
+        live = sum(1 for row in rows if row["connected"])
+        stale = sum(1 for row in rows if row["needs_reconnect"])
+        if not rows:
+            return ComponentStatus(state="pending", detail="no accounts connected")
+        detail = f"{live} connected" + (f", {stale} need reconnect" if stale else "")
+        return ComponentStatus(state="ready" if live else "error", detail=detail)
 
     def room_status() -> ComponentStatus:
         if sidecar is None:
@@ -111,6 +159,7 @@ def create_app(
                 ),
                 "voice": ComponentStatus(state="starting", detail="native streaming worker available"),
                 "vision": ComponentStatus(state="pending", detail="local model not selected"),
+                "accounts": accounts_status(),
                 "room": room_status(),
             },
             assistant=runtime_store.assistant,
@@ -149,14 +198,19 @@ def create_app(
         runtime_store.set_yolo(update.yolo)
         return current_status()
 
-    def run_tool(spec: ToolSpec, arguments: dict[str, Any]) -> ToolInvocation:
+    def run_tool(
+        spec: ToolSpec, arguments: dict[str, Any], write_key: str | None = None
+    ) -> ToolInvocation:
         try:
             result = tool_registry.execute(spec, arguments)
         except Exception as exc:  # a sidecar failure must never take down voice
+            # A failed write is not a completed write: leave it retryable.
             runtime_store.audit("failed", spec.name, arguments, detail=str(exc))
             return ToolInvocation(
                 status="failed", tool=spec.name, error=str(exc), runtime=current_status()
             )
+        if write_key is not None:
+            runtime_store.record_external_write(write_key, result)
         runtime_store.audit("executed", spec.name, arguments)
         return ToolInvocation(
             status="executed", tool=spec.name, result=result, runtime=current_status()
@@ -190,12 +244,32 @@ def create_app(
 
         runtime_store.audit("requested", spec.name, arguments)
 
+        write_key: str | None = None
+        if spec.external:
+            write_key = runtime_store.external_write_key(
+                spec.name, arguments, call.idempotency_key
+            )
+            already_done, previous = runtime_store.completed_external_write(write_key)
+            if already_done:
+                # Checked before confirmation on purpose: the action already
+                # happened, so asking again would be a second decision about a
+                # thing that is already done.
+                runtime_store.audit("deduplicated", spec.name, arguments)
+                return ToolInvocation(
+                    status="executed",
+                    tool=spec.name,
+                    result=previous,
+                    deduplicated=True,
+                    runtime=current_status(),
+                )
+
         if spec.sensitive and not runtime_store.assistant.yolo:
             request = runtime_store.issue_confirmation(
                 tool=spec.name,
                 arguments=arguments,
                 action=spec.description,
                 detail=spec.summary(arguments),
+                write_key=write_key,
             )
             runtime_store.audit("confirmation_required", spec.name, arguments)
             return ToolInvocation(
@@ -205,7 +279,7 @@ def create_app(
                 runtime=current_status(),
             )
 
-        return run_tool(spec, arguments)
+        return run_tool(spec, arguments, write_key)
 
     @app.post("/confirmations/{token}", response_model=ToolInvocation)
     async def resolve_confirmation(
@@ -234,7 +308,44 @@ def create_app(
         runtime_store.settle_confirmation(
             token, caption="Action approved", action=spec.description
         )
-        return run_tool(spec, pending.arguments)
+        return run_tool(spec, pending.arguments, pending.write_key)
+
+    @app.get("/memory", response_model=MemoryPage)
+    async def memory_page(limit: int = 50) -> MemoryPage:
+        if memory is None:
+            return MemoryPage(total=0, entries=[], summary={})
+        return MemoryPage(
+            total=memory.count(),
+            entries=memory.recent(limit=max(1, min(limit, 200))),
+            summary=memory.world_summary(),
+        )
+
+    @app.post("/memory/export", response_model=MemoryExport)
+    async def memory_export() -> MemoryExport:
+        return MemoryExport(entries=memory.export() if memory else [])
+
+    @app.delete("/memory", response_model=MemoryPage)
+    async def memory_clear() -> MemoryPage:
+        if memory is None:
+            return MemoryPage(total=0, entries=[], summary={})
+        runtime_store.audit("memory_cleared", "memory", {"removed": memory.forget_all()})
+        return MemoryPage(total=0, entries=[], summary=memory.world_summary())
+
+    @app.get("/accounts", response_model=AccountPage)
+    async def account_page() -> AccountPage:
+        if accounts is None or not accounts.available():
+            return AccountPage(
+                available=False, detail="No Composio API key configured", accounts=[]
+            )
+        try:
+            rows = accounts.cached_connections()
+        except Exception as exc:
+            return AccountPage(available=True, detail=str(exc)[:160], accounts=[])
+        return AccountPage(
+            available=True,
+            detail=f"{sum(1 for r in rows if r['connected'])} of {len(rows)} connected",
+            accounts=[AccountRow(**row) for row in rows],
+        )
 
     @app.get("/room/events", response_model=RoomEventPage)
     async def room_events(limit: int = 50, notable_only: bool = True) -> RoomEventPage:

@@ -347,6 +347,53 @@ app.whenReady().then(() => {
       return []
     }
   })
+  ipcMain.handle('marvi:get-memory', async () => {
+    try {
+      const response = await fetch(`${GATEWAY_BASE_URL}/memory?limit=60`, {
+        signal: AbortSignal.timeout(2_000)
+      })
+      if (!response.ok) return { total: 0, entries: [], summary: {} }
+      return await response.json()
+    } catch {
+      return { total: 0, entries: [], summary: {} }
+    }
+  })
+  ipcMain.handle('marvi:clear-memory', async () => {
+    try {
+      const response = await fetch(`${GATEWAY_BASE_URL}/memory`, {
+        method: 'DELETE',
+        signal: AbortSignal.timeout(5_000)
+      })
+      return response.ok
+    } catch {
+      return false
+    }
+  })
+  ipcMain.handle('marvi:get-accounts', async () => {
+    try {
+      const response = await fetch(`${GATEWAY_BASE_URL}/accounts`, {
+        signal: AbortSignal.timeout(5_000)
+      })
+      if (!response.ok) return { available: false, detail: 'Gateway unavailable', accounts: [] }
+      const body = (await response.json()) as {
+        available?: boolean
+        detail?: string
+        accounts?: Array<Record<string, unknown>>
+      }
+      return {
+        available: Boolean(body.available),
+        detail: typeof body.detail === 'string' ? body.detail : '',
+        accounts: (body.accounts ?? []).map((row) => ({
+          toolkit: String(row.toolkit ?? ''),
+          status: String(row.status ?? ''),
+          connected: Boolean(row.connected),
+          needsReconnect: Boolean(row.needs_reconnect)
+        }))
+      }
+    } catch {
+      return { available: false, detail: 'Gateway unavailable', accounts: [] }
+    }
+  })
   ipcMain.handle('marvi:get-room-events', async () => {
     try {
       const response = await fetch(`${GATEWAY_BASE_URL}/room/events?limit=40`, {

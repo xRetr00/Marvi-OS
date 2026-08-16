@@ -1,5 +1,12 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AssistantState, AuditEvent, RoomEvent, RuntimeStatus } from '../shared/runtime'
+import type {
+  AssistantState,
+  AuditEvent,
+  ConnectedAccount,
+  MemoryPage,
+  RoomEvent,
+  RuntimeStatus
+} from '../shared/runtime'
 import type { IslandPlacement } from '../main/island-window'
 
 const marvi = {
@@ -31,6 +38,13 @@ const marvi = {
   setYolo: (yolo: boolean): Promise<RuntimeStatus> => ipcRenderer.invoke('marvi:set-yolo', yolo),
   getAudit: (): Promise<AuditEvent[]> => ipcRenderer.invoke('marvi:get-audit'),
   getRoomEvents: (): Promise<RoomEvent[]> => ipcRenderer.invoke('marvi:get-room-events'),
+  getMemory: (): Promise<MemoryPage> => ipcRenderer.invoke('marvi:get-memory'),
+  clearMemory: (): Promise<boolean> => ipcRenderer.invoke('marvi:clear-memory'),
+  getAccounts: (): Promise<{
+    available: boolean
+    detail: string
+    accounts: ConnectedAccount[]
+  }> => ipcRenderer.invoke('marvi:get-accounts'),
   getRoomState: (): Promise<{
     status: string
     result: { live: boolean; stale?: boolean; state: Record<string, unknown> } | null

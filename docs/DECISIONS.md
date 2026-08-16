@@ -100,3 +100,49 @@ interruptible, and can explain why Marvi spoke or acted.
 
 LangGraph and Temporal are deferred until a concrete durable workflow proves
 that Gateway jobs plus LiveKit tasks are insufficient.
+
+## ADR-014 — Local SQLite memory instead of an upstream memory framework
+
+**Decision:** Episodic and semantic memory is a local SQLite database with an
+FTS5 index, behind a provider seam in `marvi_gateway.memory`. Letta is deferred
+and mem0 is rejected as the default. This supersedes ADR-013's naming of Letta
+as the primary persistent-mind candidate; ADR-007's "upstream foundation after
+evaluation" is satisfied by this evaluation concluding "not yet".
+
+**Reason:** measured against the ADR-013 and `REAL-AGENCY.md` gates.
+
+- **mem0 2.0.18** hard-depends on `openai`, `qdrant-client`, and `posthog`. A
+  local-first product cannot default to a memory layer that ships product
+  telemetry and a cloud embedding client.
+- **Letta 0.16.8** carries 69 core dependencies including `sentry-sdk`, and is
+  itself a server with its own SQLAlchemy/Alembic migrations. That duplicates
+  the role `AGENTS.md` assigns to Marvi Gateway.
+- Both require an embedding model. Nothing has yet shown that keyword retrieval
+  is insufficient, and the RTX 3060 budget already sits at 4.245 GiB with a 2 GB
+  headroom requirement.
+- SQLite with FTS5 ships in the bundled Python. Measured over 10,000 entries:
+  12.94 ms median search, 1.90 MiB on disk, 1.15 ms reopen, 4.07 ms per write
+  (one commit per write), zero VRAM, zero new dependencies, zero telemetry.
+
+**Revisit when** retrieval quality measurably fails on real recall tasks. The
+store is deliberately narrow — `remember`, `search`, `recent`, `forget`,
+`export` — so a vector backend can be swapped in behind it.
+
+## ADR-015 — External content is contained structurally, not by filtering
+
+**Decision:** Every piece of content originating outside this machine is
+delivered inside an envelope whose delimiter is a per-envelope random nonce,
+carrying its provenance and an explicit untrusted label. Content that arrives
+from an account, or is recalled from memory having come from one, is never
+handed to the model as bare text. Injection-pattern detection exists only to
+show the user what was attempted; it never sanitises and never gates.
+
+**Reason:** a lexical filter is a guessing game the defender loses. An
+unguessable delimiter is not guessable by definition, and it keeps working
+against phrasings nobody enumerated. Content is preserved verbatim so the user
+sees exactly what arrived, and the audit records which injection shapes it
+contained.
+
+Memory is part of this boundary. An untrusted memory is stored with
+`trusted = 0` and re-enveloped on recall, so an injection cannot launder itself
+into instruction position by taking a detour through storage.

@@ -33,6 +33,9 @@ class ToolSpec:
     sensitive: bool
     handler: Callable[..., Any]
     optional: dict[str, type] = field(default_factory=dict)
+    # An external write reaches outside this machine and cannot be undone by
+    # repeating it — a sent email is not a light switch. These are deduplicated.
+    external: bool = False
 
     def summary(self, arguments: dict[str, Any]) -> str:
         """One short human line for the Island and the audit trail."""

@@ -1,4 +1,11 @@
-import type { AssistantState, AuditEvent, RoomEvent, RuntimeStatus } from '../shared/runtime'
+import type {
+  AssistantState,
+  AuditEvent,
+  ConnectedAccount,
+  MemoryPage,
+  RoomEvent,
+  RuntimeStatus
+} from '../shared/runtime'
 import type { IslandPlacement } from '../main/island-window'
 
 export interface MarviDesktopApi {
@@ -14,6 +21,13 @@ export interface MarviDesktopApi {
   setYolo: (yolo: boolean) => Promise<RuntimeStatus>
   getAudit: () => Promise<AuditEvent[]>
   getRoomEvents: () => Promise<RoomEvent[]>
+  getMemory: () => Promise<MemoryPage>
+  clearMemory: () => Promise<boolean>
+  getAccounts: () => Promise<{
+    available: boolean
+    detail: string
+    accounts: ConnectedAccount[]
+  }>
   getRoomState: () => Promise<{
     status: string
     result: { live: boolean; stale?: boolean; state: Record<string, unknown> } | null

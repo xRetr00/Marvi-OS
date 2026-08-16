@@ -150,6 +150,17 @@ tool, the lifecycle event, the time, the active mode, and the exact arguments.
 YOLO executions appear identically to confirmed ones — the mode is a column, not
 a reason to hide a record. Nothing on this view is sent anywhere.
 
+## Accounts and Memory views
+
+Accounts lists every connected toolkit and its state. Marvi OS never collects a
+provider password and never runs an OAuth flow — Composio owns the connections,
+and a dead one says plainly that it must be reconnected there.
+
+Memory shows what is stored, how much, and where each entry came from. An entry
+that originated outside the machine is labelled untrusted rather than shown as
+an ordinary fact. Deleting everything is a two-step action, never a single
+click, and export returns the user's own data verbatim.
+
 ## About view
 
 About uses the app icon, not the repository banner. It contains:

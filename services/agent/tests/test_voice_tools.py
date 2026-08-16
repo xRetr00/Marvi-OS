@@ -90,6 +90,8 @@ def test_tool_schemas_are_voice_sized_and_hide_transport(voice) -> None:
         "room_state",
         "room_light",
         "room_mode",
+        "recall",
+        "remember",
         "approve_pending_action",
         "deny_pending_action",
     }

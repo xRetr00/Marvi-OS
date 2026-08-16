@@ -13,8 +13,8 @@ the desktop application. The desktop icon source is
 
 ## Status
 
-Phases 2 and 4 are complete and Phase 3 is in hardware acceptance. The
-native-Windows stack runs Nemotron 3.5 streaming ASR through `parakeet-rs`,
+Phases 2 and 4 are complete; Phase 3 is in hardware acceptance and Phase 5 is
+in progress. The native-Windows stack runs Nemotron 3.5 streaming ASR through `parakeet-rs`,
 VibeVoice Realtime 0.5B, an official LiveKit `AgentSession`, and an Electron
 LiveKit microphone/playout participant. The remaining Phase 3 gate is a real
 loudspeaker double-talk test plus the 60-minute duplex soak.
@@ -38,7 +38,13 @@ Current implemented desktop surfaces:
 - spoken and Island approval resolving the same token, and a Smart Room sidecar
   connection that degrades to stale reads without disturbing conversation;
 - filtered room event history plus Island micro-events that expand the seed
-  briefly and can never overwrite a live voice turn or steal focus.
+  briefly and can never overwrite a live voice turn or steal focus;
+- connected-account context through the official Composio SDK, where every
+  external payload arrives inside a nonce-delimited untrusted envelope and
+  external writes are confirmed, audited, and deduplicated;
+- local SQLite episodic and semantic memory with search, forget, and verbatim
+  export, storing externally sourced entries as untrusted and re-wrapping them
+  whenever they are recalled.
 
 ## Developer start
 
@@ -49,7 +55,9 @@ npm run dev
 ```
 
 Before the first voice run, copy `services/agent/.env.example` to `.env`, add
-the OpenCode Go key, and run `scripts/setup-voice-models.ps1`. See
+the OpenCode Go key, and run `scripts/setup-voice-models.ps1`. Connected
+accounts need `COMPOSIO_API_KEY` in the same file; Marvi OS reads it from the
+environment and never stores a provider credential of its own. See
 [`docs/VOICE-RUNTIME.md`](docs/VOICE-RUNTIME.md) for the native build and checks.
 
 Gateway and agent dependencies are isolated in the root `uv` workspace. These

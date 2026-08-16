@@ -159,3 +159,38 @@ Validation evidence and the resulting commit are recorded in
   the event rode its own channel, and no stale flash on a fresh start.
 - Phase 4 marked complete: 53 Python tests, 22 desktop tests, ruff, ESLint,
   typecheck, and the production build all pass.
+
+## 2026-08-16 — Phase 5 world context, trust boundary, and memory
+
+- Built the untrusted external content boundary first, because both halves of
+  Phase 5 depend on it. Content is delivered inside an envelope whose delimiter
+  is a per-envelope random nonce, so it cannot close the envelope and continue
+  in instruction position. Injection-pattern detection reports to the audit and
+  never sanitises; content is always preserved verbatim (ADR-015).
+- Added external-write idempotency. Tools declare `external=True`; the router
+  checks the key *before* asking for confirmation, so a duplicate never becomes
+  a second decision about something already done. A failed write stays
+  retryable, and YOLO removes the prompt but not the deduplication.
+- Integrated the official Composio SDK behind a thin adapter, verifying the call
+  surface against the installed 0.19.0 package and a live account rather than
+  from memory. Reads are enveloped; writes are sensitive, external, confirmed,
+  and deduplicated. Dead connections are refused before any network call.
+- Ran the memory bakeoff and rejected both frameworks for now (ADR-014): mem0
+  hard-depends on `openai`, `qdrant-client`, and `posthog` telemetry, and Letta
+  carries 69 core dependencies plus `sentry-sdk` while being a server that
+  duplicates Marvi Gateway. Shipped local SQLite + FTS5 instead — measured at
+  12.94 ms median search over 10,000 entries, 1.90 MiB, 1.15 ms reopen, zero
+  VRAM and zero new dependencies.
+- Connected memory to the trust boundary: an untrusted-origin memory is stored
+  with `trusted = 0` and re-enveloped on recall, so an injection cannot launder
+  itself into instruction position by taking a detour through storage. Proved
+  end to end with an attack carrying a literal `[END EXTERNAL DATA]`.
+- Added Accounts and Memory control-center pages, an `accounts` runtime
+  component, `recall`/`remember` voice tools, and the standing prompt rule that
+  `[EXTERNAL DATA ...]` content is reported and never obeyed.
+- Live evidence against the real account: 9 connections collapsed to 7 toolkits
+  (4 connected, 3 stale), enveloped Gmail and Calendar reads through a real
+  `uvicorn` process, and `slack`/`reddit` refused before any network call.
+- 111 Python tests, 22 desktop tests, ruff, ESLint, typecheck, and the
+  production build all pass. Phase 5 stays in progress: no real outbound write
+  has been sent, and account event ingestion is not built.

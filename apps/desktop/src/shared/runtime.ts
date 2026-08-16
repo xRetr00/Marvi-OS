@@ -29,6 +29,29 @@ export interface RoomEvent {
   summary: string
 }
 
+export interface ConnectedAccount {
+  toolkit: string
+  status: string
+  connected: boolean
+  needsReconnect: boolean
+}
+
+export interface MemoryEntry {
+  id: number
+  kind: string
+  subject: string
+  body: string
+  source: string
+  trusted: boolean
+  at: string
+}
+
+export interface MemoryPage {
+  total: number
+  entries: MemoryEntry[]
+  summary: { total?: number; facts?: string[]; recent_events?: string[] }
+}
+
 export interface AuditEvent {
   at: string
   event: string
@@ -85,6 +108,7 @@ export const OFFLINE_RUNTIME: RuntimeStatus = {
     livekit: { state: 'offline', detail: 'Gateway unavailable' },
     voice: { state: 'offline', detail: 'Gateway unavailable' },
     vision: { state: 'offline', detail: 'Gateway unavailable' },
+    accounts: { state: 'offline', detail: 'Gateway unavailable' },
     room: { state: 'offline', detail: 'Gateway unavailable' }
   },
   assistant: DEFAULT_ASSISTANT_STATE

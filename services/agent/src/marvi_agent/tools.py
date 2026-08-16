@@ -125,6 +125,24 @@ class GatewayTools:
         """Change the room mode. One of normal, reading, focus, relax, night, sleep, alarm, off."""
         return await self._call("room_set_mode", {"mode": mode})
 
+    # -- world context ------------------------------------------------------
+
+    @function_tool
+    async def recall(self, context: RunContext, query: str) -> str:
+        """Search what Marvi remembers about a person, topic, or past event."""
+        status, body = await self._post("/tools/memory_search", {"arguments": {"query": query}})
+        if status != 200 or body.get("status") != "executed":
+            raise ToolError("Memory is unavailable right now.")
+        results = (body.get("result") or {}).get("results") or []
+        if not results:
+            return f"Nothing remembered about {query}."
+        return " ".join(f"{r['subject']}: {r['body']}" for r in results[:3])[:600]
+
+    @function_tool
+    async def remember(self, context: RunContext, subject: str, body: str) -> str:
+        """Remember a durable fact the user has told you."""
+        return await self._call("memory_remember", {"subject": subject, "body": body})
+
     # -- spoken approval ----------------------------------------------------
 
     async def _resolve(self, decision: str) -> tuple[int, dict[str, Any]]:
@@ -166,6 +184,8 @@ class GatewayTools:
             self.room_state,
             self.room_light,
             self.room_mode,
+            self.recall,
+            self.remember,
             self.approve_pending_action,
             self.deny_pending_action,
         ]
