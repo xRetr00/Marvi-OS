@@ -130,9 +130,12 @@ The durable job bridge to Marvi Agent was dropped from this phase; see
 
 ## Phase 9 — providers, auxiliary models, and identity
 
-1. One provider boundary with failover, shared by the voice path and the mind.
-2. Job-based model selection and real cost accounting against the daily budget.
-3. Auxiliary CPU models for the work that does not need a frontier model.
+1. A provider profile registry: one profile per provider carrying auth type,
+   capabilities, and its own cheap auxiliary model.
+2. Subscription-backed providers over OAuth — Codex, Copilot, OpenCode Go, Qwen,
+   vendor coding plans — so Marvi uses plans the user already pays for.
+3. Token refresh, an explicit reconnect state, and quota accounting alongside
+   the money budget.
 4. `SOUL.md` and `USER.md`, composed into the prompt under a token budget.
 
 Full plan and research in `phases/09-providers-identity.md`.
