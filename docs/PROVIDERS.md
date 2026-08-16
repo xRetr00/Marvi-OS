@@ -299,6 +299,20 @@ where it does not.
 A `429` with `Retry-After` is treated as **window exhaustion**: cool that
 provider down until reset and fail over, rather than retrying into a wall.
 
+## Verifying a provider for real
+
+Unit tests check request shaping against recorded payloads. They catch a wrong
+field name; they cannot catch a vendor who renamed one or reports usage
+differently than their documentation says.
+
+```
+uv run --project services/gateway python scripts/verify_provider.py openai
+```
+
+One small call per provider — about 30 input tokens, 16 output — checking that
+a reply comes back and that usage parses. **It spends money**, which is why it
+is a script you run deliberately rather than part of the test suite.
+
 ## Adding a provider
 
 1. Create `providers/<name>.py`, build a `ProviderProfile`, call `register()`.
