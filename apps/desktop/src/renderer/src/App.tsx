@@ -32,6 +32,8 @@ import type {
   InitiativeStatus,
   MemoryPage,
   MindDecision,
+  UpdateResult,
+  UpdateStatus,
   RoomEvent,
   RuntimeStatus
 } from '../../shared/runtime'
@@ -180,6 +182,8 @@ function MainSurface(): React.JSX.Element {
               <MemoryPanel />
             ) : page === 'Mind' ? (
               <MindPanel />
+            ) : page === 'Updates' ? (
+              <UpdatesPanel version={version} />
             ) : (
               <PagePanel page={page} version={version} />
             )}
@@ -422,6 +426,90 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
           ))}
         </div>
       )}
+    </section>
+  )
+}
+
+function UpdatesPanel({ version }: { version: string }): React.JSX.Element {
+  const [status, setStatus] = useState<UpdateStatus | null>(null)
+  const [result, setResult] = useState<UpdateResult | null>(null)
+  const [confirming, setConfirming] = useState(false)
+
+  useEffect(() => {
+    let disposed = false
+    void (async () => {
+      const [next, last] = await Promise.all([
+        window.marvi?.getUpdateStatus(),
+        window.marvi?.consumeUpdateResult()
+      ])
+      if (disposed) return
+      if (next) setStatus(next)
+      // Surfaced once, on the first launch after an update ran.
+      if (last) setResult(last)
+    })()
+    return () => {
+      disposed = true
+    }
+  }, [])
+
+  return (
+    <section className="single-page panel">
+      <div className="panel-label">{'// UPDATES'}</div>
+      <h2>Updates</h2>
+      <p>
+        Marvi OS updates itself from its own checkout, so each update also refreshes the code that
+        performs the next one. The app quits, updates, and comes back. If anything fails the
+        previous version is restored.
+      </p>
+
+      <div className="context-line">
+        <span>VERSION</span>
+        <strong>{version}</strong>
+      </div>
+      <div className="context-line">
+        <span>CHANNEL</span>
+        <strong>{(status?.branch ?? 'main').toUpperCase()}</strong>
+      </div>
+      <div className="context-line">
+        <span>SELF-UPDATE</span>
+        <strong>{status?.supported ? 'AVAILABLE' : 'NOT A GIT INSTALL'}</strong>
+      </div>
+      {status?.inProgress ? (
+        <div className="context-line">
+          <span>STATE</span>
+          <strong>UPDATE IN PROGRESS</strong>
+        </div>
+      ) : null}
+
+      {result ? (
+        <div className="context-line">
+          <span>LAST UPDATE</span>
+          <strong>
+            {result.status.toUpperCase()} — {result.message.toUpperCase()}
+          </strong>
+        </div>
+      ) : null}
+
+      <div className="phase-controls">
+        {!status?.supported ? (
+          <span className="construction">
+            THIS BUILD CANNOT SELF-UPDATE; REINSTALL FROM A RELEASE
+          </span>
+        ) : confirming ? (
+          <>
+            <button className="phase active" onClick={() => void window.marvi?.startUpdate()}>
+              quit and update
+            </button>
+            <button className="phase" onClick={() => setConfirming(false)}>
+              cancel
+            </button>
+          </>
+        ) : (
+          <button className="phase" onClick={() => setConfirming(true)}>
+            check and install update
+          </button>
+        )}
+      </div>
     </section>
   )
 }

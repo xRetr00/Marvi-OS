@@ -39,7 +39,7 @@ be updated with the exact version/commit and local modification path.
 | Dynamic Island source | `D:\hermes-agent\apps\desktop\src\app\voice-island` | internal | extract focused visual/state pieces with provenance; no voice transport | selected |
 | Desktop brand font | `@nous-research/ui` 0.18.2 `Collapse-Bold.woff2` via `D:\hermes-agent` | MIT package | copied font asset; update from the pinned package when Marvi typography changes | adopted |
 | Desktop mono font | JetBrains Mono faces via `D:\hermes-agent\apps\desktop\src\fonts` | Apache-2.0 | copied Regular/Bold/Italic WOFF2 assets; preserve metrics and license | adopted |
-| Update mechanism source | `D:\hermes-agent\apps\desktop\electron\updater-process.ts` and `D:\hermes-agent\scripts\desktop-update` | internal | extract/adapt tested repo-owned Windows handoff | selected |
+| Update mechanism source | `hermes-agent` desktop updater (`electron/updater-process.ts`, `scripts/desktop-update/windows.ps1`) | internal | adapted the handoff contract — cmd-start wrapper, pid wait, marker, result file, rollback — rewritten for Marvi's simpler install rather than copied | adopted |
 | Frameless title bar pattern | `D:\hermes-agent\apps\desktop\electron\main.ts` (`titleBarStyle:'hidden'`, overlay options) | internal | adapt hidden-titlebar shell to renderer-painted chrome | adopted |
 | Glyph spinner | [unicode-animations](https://www.npmjs.com/package/unicode-animations) 1.0.3 | MIT | dependency; braille/orbit frames for CONNECTING and busy states | adopted |
 | Web haptics | [web-haptics](https://github.com/lochie/web-haptics) 0.0.6 | MIT | dependency; audio-transducer tap/selection/success/error feedback | adopted |

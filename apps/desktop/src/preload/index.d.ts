@@ -4,6 +4,8 @@ import type {
   ConnectedAccount,
   InitiativeStatus,
   MindDecision,
+  UpdateResult,
+  UpdateStatus,
   MemoryPage,
   RoomEvent,
   RuntimeStatus
@@ -26,6 +28,9 @@ export interface MarviDesktopApi {
   getInitiative: () => Promise<InitiativeStatus | null>
   setInitiative: (paused: boolean) => Promise<InitiativeStatus | null>
   getDecisions: () => Promise<{ decisions: MindDecision[]; events: unknown[] }>
+  getUpdateStatus: () => Promise<UpdateStatus>
+  consumeUpdateResult: () => Promise<UpdateResult | null>
+  startUpdate: () => Promise<boolean>
   getMemory: () => Promise<MemoryPage>
   clearMemory: () => Promise<boolean>
   getAccounts: () => Promise<{

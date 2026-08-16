@@ -352,3 +352,24 @@ Validation evidence and the resulting commit are recorded in
   now the Windows update handoff and the first release.
 - 247 Python tests and 37 desktop tests pass; ruff, ESLint, typecheck, and the
   production build are clean.
+
+## 2026-08-16 — Phase 7 Windows update handoff
+
+- Adapted the tested Hermes update handoff for Marvi OS. The script lives in the
+  checkout so each update refreshes the updater itself, and the
+  `cmd start /min powershell` wrapper is preserved because a bare detached
+  PowerShell dies before `-File` is read.
+- Made the safety ordering explicit: record the rollback commit before touching
+  anything, fail closed if the app never exits, refuse a dirty tree rather than
+  discard the user's edits, always write a result, always try to relaunch.
+- Verified every path against a throwaway remote: up to date, dirty tree, a real
+  update that moved HEAD and rebuilt, a failing build that rolled back to the
+  working commit, and a live app that aborted the handoff without touching the
+  checkout.
+- Caught a real defect only live testing would find: Windows PowerShell 5.1
+  writes a BOM with `-Encoding utf8`, and `JSON.parse` rejects it. Every update
+  result would have been unreadable, so the user would have seen nothing at all
+  after updating. Fixed on both sides with a regression test.
+- Added an Updates page showing version, channel, self-update capability, and
+  the last result, consumed once rather than re-announced on every launch.
+- 247 Python tests and 48 desktop tests pass.

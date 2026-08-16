@@ -12,6 +12,13 @@ import {
   type IslandContentSize,
   type IslandPlacement
 } from './island-window'
+import {
+  canUpdate,
+  consumeUpdateResult,
+  startUpdate,
+  updateInProgress,
+  updateStateDir
+} from './updater'
 import type { AssistantState, RuntimeStatus } from '../shared/runtime'
 
 let mainWindow: BrowserWindow | null = null
@@ -381,6 +388,34 @@ app.whenReady().then(() => {
     } catch {
       return []
     }
+  })
+  ipcMain.handle('marvi:get-update-status', () => {
+    const root = resolve(app.getAppPath(), '../..')
+    return {
+      supported: canUpdate(root),
+      inProgress: updateInProgress(updateStateDir(process.env['LOCALAPPDATA'])),
+      branch: process.env['MARVI_UPDATE_BRANCH'] ?? 'main',
+      root
+    }
+  })
+  ipcMain.handle('marvi:consume-update-result', () =>
+    consumeUpdateResult(updateStateDir(process.env['LOCALAPPDATA']))
+  )
+  ipcMain.handle('marvi:start-update', () => {
+    const root = resolve(app.getAppPath(), '../..')
+    const started = startUpdate({
+      installRoot: root,
+      branch: process.env['MARVI_UPDATE_BRANCH'] ?? 'main',
+      desktopPid: process.pid,
+      relaunchExe: process.execPath
+    })
+    if (started) {
+      // The updater waits for this process to exit before touching the
+      // checkout, so quitting is part of the handoff, not a side effect.
+      isQuitting = true
+      setTimeout(() => app.quit(), 250)
+    }
+    return started
   })
   ipcMain.handle('marvi:get-initiative', async () => {
     try {

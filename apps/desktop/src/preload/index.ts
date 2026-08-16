@@ -5,6 +5,8 @@ import type {
   ConnectedAccount,
   InitiativeStatus,
   MindDecision,
+  UpdateResult,
+  UpdateStatus,
   MemoryPage,
   RoomEvent,
   RuntimeStatus
@@ -58,6 +60,10 @@ const marvi = {
     ipcRenderer.invoke('marvi:set-initiative', paused),
   getDecisions: (): Promise<{ decisions: MindDecision[]; events: unknown[] }> =>
     ipcRenderer.invoke('marvi:get-decisions'),
+  getUpdateStatus: (): Promise<UpdateStatus> => ipcRenderer.invoke('marvi:get-update-status'),
+  consumeUpdateResult: (): Promise<UpdateResult | null> =>
+    ipcRenderer.invoke('marvi:consume-update-result'),
+  startUpdate: (): Promise<boolean> => ipcRenderer.invoke('marvi:start-update'),
   getMemory: (): Promise<MemoryPage> => ipcRenderer.invoke('marvi:get-memory'),
   clearMemory: (): Promise<boolean> => ipcRenderer.invoke('marvi:clear-memory'),
   getAccounts: (): Promise<{

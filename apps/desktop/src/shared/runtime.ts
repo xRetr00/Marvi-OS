@@ -73,6 +73,22 @@ export interface InitiativeStatus {
   settings: Record<string, number>
 }
 
+export interface UpdateStatus {
+  supported: boolean
+  inProgress: boolean
+  branch: string
+  root: string
+}
+
+export interface UpdateResult {
+  status: 'ok' | 'failed' | 'aborted' | 'skipped'
+  message: string
+  from?: string
+  to?: string
+  branch?: string
+  finishedAt?: string
+}
+
 export interface AuditEvent {
   at: string
   event: string
