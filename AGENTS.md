@@ -140,3 +140,22 @@ Update the relevant architecture, plan, UI, upstream, and decision documents in
 the same change that changes the contract. If implementation and documentation
 disagree, stop and resolve the disagreement before expanding the system.
 
+`README.md` is public product truth, not a one-time bootstrap artifact. Update
+its status, implemented-capability list, start instructions, and documentation
+links at every milestone that changes them. Do not advertise planned or
+scaffolded behavior as shipped behavior.
+
+## Commit discipline
+
+- Commit every completed milestone after its acceptance checks pass and its
+  phase file, implementation log, and README are current.
+- A milestone is one coherent, reviewable product outcome with an acceptance
+  boundary. It is not one file, one function, or one small task.
+- Do not create noisy commits after every file or two. Keep related code, tests,
+  generated assets, and documentation together in the milestone commit.
+- Do not mix independent milestones in one commit. If work is unfinished, leave
+  it uncommitted unless an explicitly requested checkpoint is necessary.
+- Use an imperative conventional subject such as `feat: complete island seed
+  milestone` or `test: prove native voice interruption`.
+- Before committing, run the phase-appropriate tests and `git diff --check`.
+  Record meaningful hardware/visual evidence in the phase file.

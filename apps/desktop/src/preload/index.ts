@@ -2,6 +2,14 @@ import { contextBridge, ipcRenderer } from 'electron'
 
 const marvi = {
   getVersion: (): Promise<string> => ipcRenderer.invoke('marvi:get-version'),
+  getBuildInfo: (): Promise<{
+    version: string
+    commit: string
+    buildTime: string
+    platform: string
+    arch: string
+    updateChannel: string
+  }> => ipcRenderer.invoke('marvi:get-build-info'),
   showMain: (): void => ipcRenderer.send('marvi:show-main'),
   pushIslandState: (state: unknown): void => ipcRenderer.send('marvi:island-state', state),
   onIslandState: (listener: (state: unknown) => void): (() => void) => {

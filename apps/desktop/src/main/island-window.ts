@@ -37,7 +37,13 @@ export function islandWindowBounds(
 
   return {
     x: Math.round(workArea.x + (workArea.width - width) / 2),
-    y: Math.round(workArea.y + topOffset),
+    y: Math.round(
+      workArea.y +
+        (contentSize.width === ISLAND_MIN_CONTENT_SIZE.width &&
+        contentSize.height === ISLAND_MIN_CONTENT_SIZE.height
+          ? 0
+          : topOffset)
+    ),
     width,
     height
   }

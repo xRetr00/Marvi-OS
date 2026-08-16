@@ -13,20 +13,32 @@ the desktop application. The desktop icon source is
 
 ## Status
 
-Foundation implementation. The Electron control center, always-on Island,
-Marvi Gateway health facade, and LiveKit worker configuration now have runnable
-scaffolds and tests. The first voice implementation gate remains a native-Windows
-streaming STT/TTS bakeoff on an NVIDIA RTX 3060 with 12 GB VRAM.
+Phase 2 desktop implementation is in progress. The Electron control center,
+recessed always-on Island, purpose-sized Windows icons, Marvi Gateway health
+facade, and LiveKit worker configuration have runnable scaffolds and tests.
+They are not yet a complete voice assistant. The next hard gate remains a
+native-Windows streaming STT/TTS bakeoff on an NVIDIA RTX 3060 with 12 GB VRAM.
+
+Current implemented desktop surfaces:
+
+- tray-owned application lifetime and control-center window;
+- sidebar, persistent status bar, overview, and About build information;
+- Collapse + JetBrains Mono monochrome design system;
+- passive `76×8` top-edge Island seed that expands for active voice states;
+- canonical app icon rendered in the app, tray, taskbar/package, sidebar, and About.
 
 ## Developer start
 
 ```powershell
 npm install
+npm run icons
 npm run dev
 ```
 
 Gateway and agent dependencies are isolated in the root `uv` workspace. These
 commands are development tooling only; the shipped product has no CLI.
+`npm run icons` requires ImageMagick and regenerates all runtime/package icon
+sizes from `assets/app-icon-source.png`; generated icon files are committed.
 
 ## Foundation
 

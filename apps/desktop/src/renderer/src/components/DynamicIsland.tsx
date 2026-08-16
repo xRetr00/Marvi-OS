@@ -10,6 +10,16 @@ export function DynamicIsland({
   compact?: boolean
 }): React.JSX.Element {
   const active = state.phase !== 'ready'
+
+  if (state.phase === 'ready' && !compact) {
+    return (
+      <div className="dynamic-island island-seed" data-phase="ready" role="status">
+        <span className="island-seed-line" aria-hidden="true" />
+        <span className="sr-only">Marvi OS ready</span>
+      </div>
+    )
+  }
+
   return (
     <div
       className={`dynamic-island island-${state.phase} ${compact ? 'island-compact' : ''}`}

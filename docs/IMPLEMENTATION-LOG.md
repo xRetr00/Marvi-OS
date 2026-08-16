@@ -43,3 +43,13 @@ work belongs in `docs/phases/`; architectural decisions belong in
 
 Validation evidence and the resulting commit are recorded in
 [`phases/02-desktop-island.md`](phases/02-desktop-island.md).
+
+## 2026-08-16 — Phase 2 recessed seed and icon milestone
+
+- Matched old Marvi's passive Island behavior: a transparent `76×8` seed at the
+  top edge, rendering only a breathing 34 px line until activity begins.
+- Replaced runtime downsampling of the 1254 px source with deterministic
+  renderer, runtime, tray, package PNG, and multi-resolution Windows ICO assets.
+- Added the canonical icon to the sidebar and a real About surface with build
+  and component information.
+- Added README-maintenance and milestone-commit rules to `AGENTS.md`.

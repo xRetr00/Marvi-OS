@@ -31,4 +31,10 @@ describe('islandWindowBounds', () => {
       islandWindowBounds({ x: 100, y: 40, width: 1200, height: 800 }, { width: 150, height: 30 })
     ).toEqual({ x: 613, y: 46, width: 174, height: 54 })
   })
+
+  it('anchors the recessed seed directly to the work-area edge', () => {
+    expect(
+      islandWindowBounds({ x: 100, y: 40, width: 1200, height: 800 }, ISLAND_MIN_CONTENT_SIZE)
+    ).toEqual({ x: 650, y: 40, width: 100, height: 32 })
+  })
 })

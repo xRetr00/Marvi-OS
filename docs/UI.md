@@ -29,6 +29,9 @@ or noise that reduces legibility.
 - `assets/marvi-os-banner.png` is README/repository artwork only.
 - Never show or package the repository banner in the main window, About, splash,
   onboarding, tray, Dynamic Island, installer, or notifications.
+- The app icon appears in the Windows executable/taskbar, tray, sidebar brand,
+  and About view. Generate purpose-sized assets from the canonical source;
+  never ask Windows to downsample the 1254 px source at runtime.
 
 ## Window model
 
@@ -50,7 +53,7 @@ Target sizes at 100% scaling:
 
 | State | Size | Content |
 |---|---:|---|
-| sleep | `150×30` | minimal glyph and presence dot |
+| sleep | `76×8` | recessed top-edge seed; only a short light line remains visible |
 | listening | `210×38` | `LISTEN`, compact live waveform |
 | thinking | `230×40` | `THINK`, low-cost ASCII pulse |
 | speaking | `250×42` | `SPEAK`, output waveform, interrupt hint |
@@ -61,6 +64,9 @@ Target sizes at 100% scaling:
 Rules:
 
 - Return to compact state automatically after terminal events.
+- In passive sleep, remove the seed body completely and leave only its short
+  light line at the work-area edge. Do not leave the ready pill, label, or
+  waveform visible until wake/activity begins.
 - Never show a full transcript.
 - Never animate merely to hide latency.
 - Coalesce audio-level rendering to a bounded frame rate.

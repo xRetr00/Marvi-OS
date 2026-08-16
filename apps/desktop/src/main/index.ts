@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, Menu, nativeImage, screen, shell, Tray } f
 import { is } from '@electron-toolkit/utils'
 import { join } from 'path'
 import icon from '../../resources/icon.png?asset'
+import trayIcon from '../../resources/tray-icon.png?asset'
 import {
   islandWindowBounds,
   normalizeIslandContentSize,
@@ -67,8 +68,8 @@ function sizeAndPositionIsland(window: BrowserWindow, contentSize: IslandContent
 
 function createIslandWindow(): BrowserWindow {
   const window = new BrowserWindow({
-    width: 174,
-    height: 54,
+    width: 100,
+    height: 32,
     show: false,
     frame: false,
     transparent: true,
@@ -93,7 +94,7 @@ function createIslandWindow(): BrowserWindow {
   window.setIgnoreMouseEvents(true, { forward: true })
   window.setVisibleOnAllWorkspaces(true)
   window.once('ready-to-show', () => {
-    sizeAndPositionIsland(window, { width: 150, height: 30 })
+    sizeAndPositionIsland(window, { width: 76, height: 8 })
     window.showInactive()
   })
   loadSurface(window, 'island')
@@ -109,7 +110,7 @@ function showMainWindow(): void {
 }
 
 function createTray(): Tray {
-  const instance = new Tray(nativeImage.createFromPath(icon))
+  const instance = new Tray(nativeImage.createFromPath(trayIcon))
   instance.setToolTip('Marvi OS')
   instance.setContextMenu(
     Menu.buildFromTemplate([
@@ -126,6 +127,14 @@ app.whenReady().then(() => {
   app.setAppUserModelId('ai.neuretro.marvi-os')
 
   ipcMain.handle('marvi:get-version', () => app.getVersion())
+  ipcMain.handle('marvi:get-build-info', () => ({
+    version: app.getVersion(),
+    commit: process.env['MARVI_BUILD_COMMIT'] ?? 'development',
+    buildTime: process.env['MARVI_BUILD_TIME'] ?? 'development',
+    platform: process.platform,
+    arch: process.arch,
+    updateChannel: process.env['MARVI_UPDATE_CHANNEL'] ?? 'local'
+  }))
   ipcMain.on('marvi:show-main', showMainWindow)
   ipcMain.on('marvi:island-state', (event, state) => {
     if (!mainWindow || event.sender !== mainWindow.webContents) return

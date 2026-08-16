@@ -1,6 +1,7 @@
 import { useStore } from '@nanostores/react'
 import { useEffect, useRef, useState } from 'react'
 
+import appIcon from './assets/app-icon.png'
 import { DynamicIsland } from './components/DynamicIsland'
 import {
   $voiceState,
@@ -22,6 +23,15 @@ const NAV_ITEMS = [
   'About'
 ] as const
 type Page = (typeof NAV_ITEMS)[number]
+
+interface BuildInfo {
+  version: string
+  commit: string
+  buildTime: string
+  platform: string
+  arch: string
+  updateChannel: string
+}
 
 const SERVICES = [
   { name: 'MARVI GATEWAY', state: 'SCAFFOLD', detail: 'health contract ready' },
@@ -47,9 +57,7 @@ function MainSurface(): React.JSX.Element {
     <div className="app-shell">
       <aside className="sidebar">
         <header className="brand-block">
-          <div className="ascii-mark" aria-hidden="true">
-            [ M ]
-          </div>
+          <BrandIcon className="brand-icon-sidebar" />
           <div>
             <strong>MARVI OS</strong>
             <span>VOICE + VISION</span>
@@ -88,6 +96,8 @@ function MainSurface(): React.JSX.Element {
 
         {page === 'Overview' ? (
           <Overview voicePhase={voice.phase} />
+        ) : page === 'About' ? (
+          <AboutPanel fallbackVersion={version} />
         ) : (
           <PagePanel page={page} version={version} />
         )}
@@ -203,6 +213,66 @@ function PagePanel({ page, version }: { page: Page; version: string }): React.JS
   )
 }
 
+function BrandIcon({ className = '' }: { className?: string }): React.JSX.Element {
+  return <img alt="Marvi OS" className={`brand-icon ${className}`} src={appIcon} />
+}
+
+function AboutPanel({ fallbackVersion }: { fallbackVersion: string }): React.JSX.Element {
+  const [build, setBuild] = useState<BuildInfo>({
+    version: fallbackVersion,
+    commit: 'development',
+    buildTime: 'development',
+    platform: 'win32',
+    arch: 'x64',
+    updateChannel: 'local'
+  })
+
+  useEffect(() => {
+    void window.marvi?.getBuildInfo().then(setBuild)
+  }, [])
+
+  const facts = [
+    ['VERSION', build.version],
+    ['COMMIT', build.commit],
+    ['BUILD', build.buildTime],
+    ['TARGET', `${build.platform} / ${build.arch}`],
+    ['CHANNEL', build.updateChannel],
+    ['GATEWAY', 'scaffold'],
+    ['LIVEKIT', 'pending pin'],
+    ['STT / TTS', 'native bakeoff pending']
+  ]
+
+  return (
+    <section className="about-page">
+      <div className="about-identity">
+        <BrandIcon className="brand-icon-about" />
+        <div>
+          <span className="eyebrow">{'// LOCAL VOICE + VISION SYSTEM'}</span>
+          <h2>MARVI OS</h2>
+          <p>Always-on Windows assistant built around a compact voice-first surface.</p>
+        </div>
+      </div>
+      <dl className="about-facts">
+        {facts.map(([label, value]) => (
+          <div key={label}>
+            <dt>{label}</dt>
+            <dd>{value}</dd>
+          </div>
+        ))}
+      </dl>
+      <div className="about-actions">
+        <button disabled type="button">
+          CHECK FOR UPDATES / PENDING
+        </button>
+        <button disabled type="button">
+          EXPORT DIAGNOSTICS / PENDING
+        </button>
+      </div>
+      <p className="about-provenance">UPSTREAM PROVENANCE AND LICENSES / docs/UPSTREAM.md</p>
+    </section>
+  )
+}
+
 function IslandSurface(): React.JSX.Element {
   const voice = useStore($voiceState)
   const measureRef = useRef<HTMLDivElement>(null)
@@ -229,7 +299,7 @@ function IslandSurface(): React.JSX.Element {
   }, [])
 
   return (
-    <div className="island-stage">
+    <div className={`island-stage island-stage-${voice.phase}`}>
       <div className="island-measure" ref={measureRef}>
         <DynamicIsland state={voice} />
       </div>

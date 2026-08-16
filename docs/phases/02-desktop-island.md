@@ -13,7 +13,9 @@ surface and its native-window behavior can be proven without the voice engine.
 - App icon used at runtime; repository banner excluded from runtime UI.
 - Marvi-derived visual rules: flat hierarchy, one-pixel hairlines, restrained
   blue signal, Collapse branding, and JetBrains Mono system text.
-- Compact state-specific Island geometry: ready `150×30`, wake `180×34`,
+- Recessed Marvi-style sleep seed: `76×8` transparent body at the top edge so
+  only its short light line remains visible.
+- Compact state-specific Island geometry: wake `180×34`,
   listening `210×38`, thinking `230×40`, speaking `250×42`.
 - A dynamic native host that follows measured content with a small transparent
   shadow inset; bounds are validated in Electron before use.
@@ -21,6 +23,10 @@ surface and its native-window behavior can be proven without the voice engine.
   always-on-top behavior for passive states.
 - Control-center preview state synchronized to the independent Island renderer.
 - Unit tests for malformed measurements, clamping, and display centering.
+- Canonical icon used in the sidebar and About, with generated 16–256 px ICO
+  entries, 32 px tray PNG, 256 px runtime/renderer PNG, and 512 px package PNG.
+- About surface exposes version, commit, build time, target architecture,
+  update channel, and current Gateway/LiveKit/voice component status.
 
 ## Design-source review
 
@@ -46,13 +52,19 @@ frame.
 ## Acceptance evidence
 
 - `npm run typecheck`: passed on 2026-08-16.
-- `npm test`: 2 files / 5 tests passed on 2026-08-16.
+- `npm test`: 3 files / 8 tests passed on 2026-08-16.
 - `npm run lint`: passed on 2026-08-16.
 - `npm run build`: passed on 2026-08-16; all four font assets emitted.
-- Native Windows inspection: the ready Island host measured `174×54`, exactly
-  the `150×30` content plus two 12 px transparent insets. Desktop pixels were
-  visible around the pill with no rectangular host background.
+- Native Windows inspection: the seed requests `100×32` host bounds (`76×8`
+  content plus transparent inset); Win32 reports a `100×39` DWM outer rect.
+  A desktop capture confirms the host is transparent and only the `34×2`
+  blue-white line is painted at the work-area edge.
+- About/sidebar visual inspection passed at the `1180×760` target viewport;
+  both render the canonical icon without the repository banner.
+- `electron-builder --dir` produced the Windows x64 unpacked application. The
+  icon extracted from `Marvi-OS.exe` is the expected 32 px Marvi source, and the
+  ICO contains 16, 24, 32, 48, 64, 128, and 256 px entries.
 - Renderer screenshots: main shell and ready Island checked at actual target
   geometry on 2026-08-16; artifacts remain local under ignored `output/`.
-- Commits: `24ca7af` (initial shell); current checkpoint uses commit subject
-  `feat: align desktop design and dynamic island`.
+- Commits: `24ca7af` (initial shell), `fb2178b` (design/dynamic bounds), and
+  current milestone subject `feat: add recessed island and app identity`.
