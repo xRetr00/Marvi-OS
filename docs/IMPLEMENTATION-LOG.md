@@ -253,3 +253,20 @@ Validation evidence and the resulting commit are recorded in
   sensitive unless it declares a read-only hint.
 - 183 Python tests and 22 desktop tests pass; ruff, ESLint, typecheck, and the
   production build are clean. Live surface: 24 tools, 10 of them sensitive.
+## 2026-08-16 — Build script and tag-driven release workflow
+
+- `scripts/build-desktop.ps1`: local Windows build with the CI gates
+  (typecheck, tests), electron-vite build, and electron-builder NSIS installer;
+  verified end-to-end on the RTX 3060 host (96.5 MB setup exe in
+  `apps/desktop/dist/`). Never publishes.
+- `scripts/release.ps1`: cuts releases from a clean main — bumps `VERSION`
+  (single source) plus both package.json mirrors, commits, tags `v<semver>`,
+  pushes; the tag triggers the Release workflow.
+- `.github/workflows/release.yml`: on `v*` tag push, guards tag/VERSION
+  agreement, runs gates, builds the Windows installer with `--publish never`,
+  and publishes a GitHub Release with the installer and channel yml;
+  `workflow_dispatch` is a dry run (artifacts only).
+- Moved the desktop app's runtime packages to devDependencies: the renderer,
+  main, and preload are fully bundled by electron-vite, so no runtime
+  node_modules are needed, and electron-builder's node-modules walker (which
+  OOM'd following the npm-workspace symlink cycle) now packs nothing.
