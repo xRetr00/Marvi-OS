@@ -1,6 +1,6 @@
 # Phase 10 — Logging, Doctor, and Staying Up
 
-**Status:** planned
+**Status:** in progress — steps 1, 2, 3 and 4 done
 **Depends on:** Phase 9 (providers), Phase 7 (the Windows release)
 **Feeds:** Phase 11 (setup), which is built on this phase's remediation engine
 
@@ -141,20 +141,32 @@ One helper, used everywhere, rather than a different `for` loop per call site:
 
 ## Work breakdown
 
-**Step 1 — the logging module.** Per-subsystem files, rotation, the `errors.log`
-fan-in, and the redaction test that greps every written file for a planted
-secret.
+**Step 1 — the logging module. Done.** Per-subsystem files with rotation, the
+`errors.log` fan-in, value-based redaction, and catchers for library loggers,
+every thread's uncaught exceptions, unraisable exceptions, asyncio and warnings.
+Behind a `QueueListener` so the voice path never waits on disk. 26 tests, each
+reading the written file rather than trusting the call site. See
+`docs/LOGGING.md`.
 
-**Step 2 — every subsystem onto it**, including the Electron shell, whose
-supervisor tail becomes `desktop.log` rather than only living in memory.
+**Step 2 — every subsystem onto it. Done.** Routing is by module name, so
+existing code needed no change. The Electron shell writes its own files in the
+same directory and format, because the moment those logs matter most is the
+moment the Gateway is not running. Supervised services' stdout lands in their
+own files. 10 more tests on the shell side.
 
-**Step 3 — checks as a library.** `marvi_gateway/doctor/` — each check a
-function returning status, reason, and a typed remedy. Pure and testable; no
-printing, no HTTP.
+**Step 3 — checks as a library. Done.** `doctor.py`: thirteen checks covering
+dependencies, configuration, providers, reachability, ports, storage, databases
+and the token store. Pure functions returning status, reason and a typed remedy
+— no printing, no HTTP — so the same function serves the page, the API and
+eventually the CLI. A check that raises becomes a finding rather than taking the
+sweep down.
 
-**Step 4 — the remedy engine.** Executes automatic and one-click remedies,
-audits each one, and refuses anything marked "yours to do". Phase 11's installer
-is built on this.
+**Step 4 — the remedy engine. Done.** Three kinds, and the line between them
+enforced in code: `automatic` runs unasked, `confirm` waits, and `manual` is
+never executed even when a runnable is attached. A corrupt database is moved
+aside rather than deleted, because losing data to a repair is worse than the
+corruption that prompted it. `GET /doctor`, `POST /doctor/heal`,
+`GET /doctor/diagnostics`. 19 tests.
 
 **Step 5 — the Doctor page**, grouped by area, worst first, with Fix buttons and
 Copy diagnostics.

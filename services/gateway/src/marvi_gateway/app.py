@@ -13,6 +13,7 @@ from fastapi import FastAPI, HTTPException
 from livekit import api
 from pydantic import BaseModel, Field
 
+from . import doctor as doctor_module
 from .accounts import ComposioAccounts, register_account_tools
 from .activity import ActivityWatch, register_activity_tools
 from .announce import Announcer, announce_enabled
@@ -216,6 +217,23 @@ class ChatReply(BaseModel):
 class ChatHistory(BaseModel):
     messages: list[dict[str, Any]]
     available: bool
+
+
+class DoctorReport(BaseModel):
+    findings: list[dict[str, Any]]
+    summary: dict[str, int]
+    healthy: bool
+
+
+class HealRequest(BaseModel):
+    # Automatic remedies always run. Anything that spends money, takes real
+    # time, or touches another process needs this set.
+    include_confirmed: bool = False
+
+
+class HealResult(BaseModel):
+    applied: list[dict[str, Any]]
+    report: DoctorReport
 
 
 class LogPage(BaseModel):
@@ -554,6 +572,34 @@ def create_app(
         removed = chat.store.clear()
         runtime_store.audit("chat", "cleared", {"messages": removed})
         return ChatHistory(messages=[], available=chat.available())
+
+    def doctor_report() -> DoctorReport:
+        findings = doctor_module.run_checks()
+        counts = doctor_module.summary(findings)
+        return DoctorReport(
+            findings=[f.as_dict() for f in findings],
+            summary=counts,
+            healthy=counts["fail"] == 0,
+        )
+
+    @app.get("/doctor", response_model=DoctorReport)
+    async def run_doctor() -> DoctorReport:
+        return doctor_report()
+
+    @app.post("/doctor/heal", response_model=HealResult)
+    async def heal(request: HealRequest) -> HealResult:
+        findings = doctor_module.run_checks()
+        applied = doctor_module.heal(findings, include_confirmed=request.include_confirmed)
+        for entry in applied:
+            runtime_store.audit("doctor", "healed", entry)
+        # Re-run afterwards: the report has to reflect the repair, not the
+        # state that prompted it.
+        return HealResult(applied=applied, report=doctor_report())
+
+    @app.get("/doctor/diagnostics")
+    async def diagnostics() -> dict[str, str]:
+        """One redacted block to paste into a bug report."""
+        return {"text": doctor_module.diagnostics()}
 
     @app.get("/logs", response_model=LogPage)
     async def read_logs(subsystem: str = "errors", lines: int = 300) -> LogPage:
