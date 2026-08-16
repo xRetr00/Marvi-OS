@@ -16,21 +16,20 @@
     "build": "npm run typecheck && electron-vite build",
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "npm run build && electron-builder --dir",
-    "build:win": "npm run build && electron-builder --win",
+    "build:win": "npm run build && electron-builder --win --publish never",
     "build:mac": "electron-vite build && electron-builder --mac",
     "build:linux": "electron-vite build && electron-builder --linux"
   },
-  "dependencies": {
+  "dependencies": {},
+  "devDependencies": {
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
-    "@nanostores/react": "^1.0.0",
     "livekit-client": "^2.15.10",
     "nanostores": "^1.0.1",
+    "@nanostores/react": "^1.0.0",
     "radix-ui": "^1.6.7",
     "unicode-animations": "^1.0.3",
-    "web-haptics": "^0.0.6"
-  },
-  "devDependencies": {
+    "web-haptics": "^0.0.6",
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",
     "@electron-toolkit/eslint-config-ts": "^3.1.0",
     "@electron-toolkit/tsconfig": "^2.0.0",

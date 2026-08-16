@@ -219,3 +219,20 @@ licenses live in the UPSTREAM ledger.
 
 **Reason:** The product contract is local-first and fail-closed. A backdrop
 that needs the network violates the always-on promise and the UI contract.
+
+## ADR-016 — Tag-driven releases with a repository-owned build script
+
+**Decision:** Releases are cut only by `scripts/release.ps1` (bump VERSION +
+both package.json versions, commit, tag `v<semver>`, push) and built only by
+the `Release` GitHub workflow on tag push. The workflow gates (typecheck,
+tests), builds the Windows installer with `--publish never`, and publishes the
+installer plus `latest.yml` to a GitHub Release. Local builds use
+`scripts/build-desktop.ps1`, which never publishes. The electron-builder
+`publish` config stays disabled (`https://invalid.local/...`) so no stray
+build can publish.
+
+**Reason:** The update mechanism (Phase 7) will read `latest.yml` from the
+GitHub Release; keeping publish tag-driven makes every installer traceable to
+a signed-for tag and keeps failed builds from producing partial releases.
+`workflow_dispatch` builds are dry runs: artifacts upload, no release is
+created.
