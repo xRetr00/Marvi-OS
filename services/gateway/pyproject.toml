@@ -11,6 +11,7 @@ dependencies = [
     "composio>=0.19,<1",
     "fastapi>=0.116,<1",
     "httpx>=0.28,<1",
+    "playwright>=1.49,<2",
     "livekit-api>=1,<2",
     "uvicorn[standard]>=0.35,<1",
 ]
@@ -26,6 +27,7 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = ["browser: exercises a real Chromium instance"]
 
 [tool.ruff]
 line-length = 100

@@ -52,7 +52,10 @@ Current implemented desktop surfaces:
   voice path;
 - web search, fetch, and extract with an SSRF guard, plus file, terminal, and
   process tools confined to an allowlisted workspace root, and MCP servers
-  routed through the Gateway so they inherit confirmation and audit.
+  routed through the Gateway so they inherit confirmation and audit;
+- browser automation where reading a page is free and clicking, typing, or
+  submitting asks first, page content is treated as untrusted, and downloads
+  are refused.
 - frameless control center with a renderer-painted title bar (brand, page,
   window controls), Electric Gaze local backdrop, translucency lever,
   haptics, shell context menu, connecting and boot-failure overlays, and a

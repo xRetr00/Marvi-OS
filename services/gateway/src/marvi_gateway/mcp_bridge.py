@@ -19,13 +19,12 @@ named by `MARVI_MCP_CONFIG`:
 
 from __future__ import annotations
 
-import asyncio
 import json
 import os
-import threading
 from pathlib import Path
 from typing import Any
 
+from .background import LoopThread
 from .untrusted import wrap_external
 
 CALL_TIMEOUT = 60.0
@@ -81,41 +80,21 @@ def load_server_config() -> list[dict[str, Any]]:
     return [s for s in (servers or []) if isinstance(s, dict) and s.get("name")]
 
 
-class _LoopThread:
-    """A private event loop so synchronous tool handlers can drive async MCP
-    sessions without the Gateway becoming async end to end."""
-
-    def __init__(self) -> None:
-        self.loop = asyncio.new_event_loop()
-        self._thread = threading.Thread(target=self._run, daemon=True, name="marvi-mcp")
-        self._thread.start()
-
-    def _run(self) -> None:
-        asyncio.set_event_loop(self.loop)
-        self.loop.run_forever()
-
-    def submit(self, coro, timeout: float = CALL_TIMEOUT):
-        return asyncio.run_coroutine_threadsafe(coro, self.loop).result(timeout)
-
-    def stop(self) -> None:
-        self.loop.call_soon_threadsafe(self.loop.stop)
-
-
 class McpBridge:
     """Connects to configured MCP servers and exposes their tools."""
 
     def __init__(self, servers: list[dict[str, Any]] | None = None, session_factory: Any = None):
         self.servers = servers if servers is not None else load_server_config()
         self._factory = session_factory
-        self._loop: _LoopThread | None = None
+        self._loop: LoopThread | None = None
         self._sessions: dict[str, Any] = {}
 
     def available(self) -> bool:
         return bool(self.servers)
 
-    def _ensure_loop(self) -> _LoopThread:
+    def _ensure_loop(self) -> LoopThread:
         if self._loop is None:
-            self._loop = _LoopThread()
+            self._loop = LoopThread(name="marvi-mcp")
         return self._loop
 
     def close(self) -> None:

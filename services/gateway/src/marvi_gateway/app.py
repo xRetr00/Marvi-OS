@@ -11,6 +11,7 @@ from livekit import api
 from pydantic import BaseModel, Field
 
 from .accounts import ComposioAccounts, register_account_tools
+from .browser import BrowserSession, browser_enabled, register_browser_tools
 from .ingest import AccountIngest
 from .mcp_bridge import McpBridge, register_mcp_tools
 from .memory import MemoryStore, register_memory_tools
@@ -148,6 +149,10 @@ def create_app(
         workspace = Workspace()
         if workspace.available():
             register_workspace_tools(tool_registry, workspace)
+        if browser_enabled():
+            # A headless browser is a real resource cost, so it stays off until
+            # MARVI_BROWSER asks for it.
+            register_browser_tools(tool_registry, BrowserSession(), workspace)
         mcp = McpBridge()
         if mcp.available():
             # Routed here rather than attached to the Agent so MCP tools

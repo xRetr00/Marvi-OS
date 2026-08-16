@@ -182,6 +182,29 @@ Three rules follow from this:
   provider is configured, and every fetched URL must resolve to a public
   address so an agent cannot be talked into reading loopback.
 
+## ADR-017 — The browser is a tool, not an autonomous agent
+
+**Decision:** browsing is a Playwright-backed session behind the same Gateway
+policy as every other tool. Navigating, reading, listing links, and going back
+are ungated; clicking, typing, and submitting are sensitive and confirmed.
+Downloads and dialogs are refused outright rather than confirmed. The session
+is off unless `MARVI_BROWSER` enables it, and every navigation passes the same
+SSRF guard as `web_fetch`.
+
+**Reason:** a page is the sharpest injection surface Marvi has, because the
+agent both reads attacker-authored text *and* holds the controls on the same
+surface. Enveloping page content stops the text from becoming instructions;
+gating the controls stops a page from talking Marvi into pressing something.
+Reading stays free so ordinary research is not a confirmation storm.
+
+Playwright rather than an anti-detect stack such as Camoufox: the cached
+Chromium is already on the machine, and evading bot detection is not a
+behaviour this product should acquire by default.
+
+**Deferred:** computer use, multi-tab sessions, and a browsing DSL. The agent
+composes existing steps; a script language can wait until a real workflow
+cannot be expressed without one.
+
 ## ADR-015 — External content is contained structurally, not by filtering
 
 **Decision:** Every piece of content originating outside this machine is

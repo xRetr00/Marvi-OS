@@ -99,9 +99,9 @@ Automated coverage: 111 Python tests (18 boundary, 9 idempotency, 18 accounts,
 
 ## Tool surface (ADR-016)
 
-24 tools registered live, 10 sensitive. Room (4), accounts (4), memory (6),
-web (3), file (4), terminal (1), process (2), plus any MCP tools discovered
-from configuration under `mcp__<server>__<tool>`.
+32 tools registered live, 12 sensitive. Room (4), accounts (4), memory (6),
+web (3), file (4), terminal (1), process (2), browser (8), plus any MCP tools
+discovered from configuration under `mcp__<server>__<tool>`.
 
 | Gate | Result |
 |---|---|
@@ -110,6 +110,8 @@ from configuration under `mcp__<server>__<tool>`.
 | Tool output | web pages, file contents, command output, and MCP results all enveloped |
 | MCP policy | sensitive unless the tool declares a read-only hint; undeclared arguments refused by schema mapping |
 | Live web search | Brave returned real results through the router, enveloped, hostile snippets flagged |
+| Live browser | real Chromium opened `example.com` enveloped with one end marker; a live DuckDuckGo search ran only after approval and returned matching results; screenshot written into the workspace |
+| Browser refusal | `browser_open` on `127.0.0.1:17842` refused by the SSRF guard; downloads and dialogs cancelled |
 
 ## Still open
 

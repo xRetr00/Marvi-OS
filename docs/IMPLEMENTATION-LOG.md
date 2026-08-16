@@ -270,3 +270,28 @@ Validation evidence and the resulting commit are recorded in
   main, and preload are fully bundled by electron-vite, so no runtime
   node_modules are needed, and electron-builder's node-modules walker (which
   OOM'd following the npm-workspace symlink cycle) now packs nothing.
+
+## 2026-08-16 — Browser tools and automation
+
+- Added a Playwright-backed browser session behind the Gateway policy
+  (ADR-017). Reading, link listing, and going back are ungated; clicking,
+  typing, and submitting are sensitive and confirmed. Downloads and dialogs are
+  cancelled rather than confirmed, and the session is off until `MARVI_BROWSER`
+  enables it.
+- Reused the Chromium already cached at `%LOCALAPPDATA%\ms-playwright` rather
+  than pulling a browser download, and chose Playwright over an anti-detect
+  stack because evading bot detection is not a default behaviour this product
+  should acquire.
+- Extracted the background loop thread into `marvi_gateway.background` so the
+  MCP bridge and the browser share one pattern: the tool registry stays
+  synchronous while async clients live on a loop that outlives a request.
+- Page content is enveloped like any other external source. A browser page is
+  the sharpest injection surface in the product because the agent reads
+  attacker-authored text and holds the controls on the same surface, so the
+  text is contained and the controls are gated.
+- Live: real Chromium opened `example.com` enveloped with exactly one end
+  marker; a DuckDuckGo search executed only after approval and returned pages
+  mentioning the query; a 320 KB screenshot landed in the workspace root; and
+  `browser_open` on `127.0.0.1:17842` was refused by the SSRF guard.
+- 196 Python tests and 37 desktop tests pass; ruff, ESLint, typecheck, and the
+  production build are clean. Live surface: 32 tools, 12 sensitive.
