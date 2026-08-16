@@ -128,6 +128,60 @@ evaluation" is satisfied by this evaluation concluding "not yet".
 store is deliberately narrow — `remember`, `search`, `recent`, `forget`,
 `export` — so a vector backend can be swapped in behind it.
 
+## ADR-014a — Correction: Letta is an LLM provider, not a memory library
+
+**What ADR-014 got wrong.** It evaluated Letta as a self-hosted memory server
+and weighed its 69 dependencies against a local store. That is the wrong shape.
+The supported integration is `openai.LLM.with_letta(agent_id=..., base_url=...,
+api_key=...)`, verified present in the installed livekit-agents 1.6.10. Letta
+replaces the **LLM**, serving an OpenAI-compatible chat-completions endpoint
+that owns the agent's memory blocks and its sleep-time (background
+consolidation) agents. Marvi OS would not import Letta at all.
+
+**What that changes.** The dependency-weight argument does not apply to the
+cloud path, and Letta's sleep-time agents are a real implementation of the
+consolidation behaviour Marvi wants.
+
+**What it does not change.** Two constraints still bind:
+
+- `with_letta` routes conversation to Letta's endpoint, which by default is
+  `https://api.letta.com`. Sending the whole conversation to a third party
+  contradicts the local-first contract, and it displaces OpenCode Go as the
+  configured provider (ADR-013).
+- The self-hosted path avoids that, but is the same 69-dependency server, and
+  `LETTA_API_KEY` is not configured on the target machine today.
+
+**Decision:** the local SQLite store stays the default and keeps serving
+episodic, semantic, graph, reflection, and consolidation needs. Letta remains a
+live candidate for the *mind* rather than the store, to be adopted only behind
+a self-hosted `base_url` and only after the `REAL-AGENCY.md` gates are measured
+— idle cost, retrieval latency, first-token latency, restart recovery, and
+privacy. The reflection seam in `marvi_gateway.memory.reflect(summarise=...)`
+exists so an external summariser can be swapped in without touching storage.
+
+## ADR-016 — Tools reach the world through one policy
+
+**Decision:** every tool — room, accounts, memory, web, file, terminal,
+process, and MCP — is registered in the Gateway router. MCP servers are
+connected as clients by the Gateway rather than attached to the LiveKit `Agent`
+via `mcp_servers`, even though the latter is less code.
+
+**Reason:** the router is where confirmation tokens, the audit trail, and
+external-write idempotency live. A tool attached directly to the agent skips
+all three, so a third-party MCP server could act without a token or an audit
+line, contradicting ADR-008. One policy, one place.
+
+Three rules follow from this:
+
+- Anything a tool returns — a web page, a file, another program's stdout, an
+  MCP result — is external content and is enveloped (ADR-015).
+- An MCP tool is sensitive unless its own annotations declare a read-only hint.
+  An unfamiliar server asking to act should ask first.
+- Reach is configured, never assumed: file and terminal tools refuse entirely
+  until `MARVI_WORKSPACE_ROOT` names a root, web tools refuse until a search
+  provider is configured, and every fetched URL must resolve to a public
+  address so an agent cannot be talked into reading loopback.
+
 ## ADR-015 — External content is contained structurally, not by filtering
 
 **Decision:** Every piece of content originating outside this machine is

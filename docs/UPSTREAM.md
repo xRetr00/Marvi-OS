@@ -22,7 +22,7 @@ be updated with the exact version/commit and local modification path.
 | TTS runtime/model | [microsoft/VibeVoice](https://github.com/microsoft/VibeVoice) `94da20d` / model `6bce5f0` | MIT repository; model card terms | official 0.5B acoustic streaming model + thin adapter | adopted |
 | TTS research challenger | [canopyai/Orpheus-TTS](https://github.com/canopyai/Orpheus-TTS) | Apache-2.0 | benchmark only if primary paths fail | parked |
 | Local end-of-turn | [livekit/agents](https://github.com/livekit/agents) `TurnDetector v1-mini` | LiveKit model license | pin local CPU model explicitly; never cloud auto-select | selected |
-| Tool protocol | [modelcontextprotocol/python-sdk](https://github.com/modelcontextprotocol/python-sdk) | MIT | pinned dependency; version chosen after LiveKit compatibility check | selected |
+| Tool protocol | [modelcontextprotocol/python-sdk](https://github.com/modelcontextprotocol/python-sdk) `mcp` 1.x | MIT | Gateway-side client so MCP tools inherit confirmation and audit (ADR-016); not attached to the Agent | adopted |
 | Account tools | [ComposioHQ/composio](https://github.com/ComposioHQ/composio) `composio` 0.19.0 / `composio-client` 1.43.0 | MIT SDK; hosted-service terms separate | official SDK behind a thin adapter; Composio owns OAuth and Marvi OS never holds provider credentials | adopted |
 | Memory candidate | [mem0ai/mem0](https://github.com/mem0ai/mem0) 2.0.18 | Apache-2.0 | rejected for now: hard dependency on `openai`, `qdrant-client`, and `posthog` telemetry (ADR-014) | rejected |
 | Persistent mind candidate | [letta-ai/letta](https://github.com/letta-ai/letta) 0.16.8 | Apache-2.0 | deferred: 69 core dependencies incl. `sentry-sdk`, and it is itself a server that duplicates Marvi Gateway (ADR-014) | deferred |
@@ -31,6 +31,7 @@ be updated with the exact version/commit and local modification path.
 | Proactive scheduler | [agronholm/apscheduler](https://github.com/agronholm/apscheduler) | MIT | pin stable 3.x behind Gateway; avoid 4.x pre-release | selected |
 | Durable agent graph | [langchain-ai/langgraph](https://github.com/langchain-ai/langgraph) | MIT | revisit only after a measured workflow outgrows Gateway jobs + LiveKit tasks | deferred |
 | Durable execution | [temporalio/sdk-python](https://github.com/temporalio/sdk-python) | MIT | operationally excessive for initial single-PC product | deferred |
+| Web search | [Brave Search API](https://brave.com/search/api/) / SearXNG | commercial API terms / AGPL-3.0 self-hosted | env-selected provider behind one adapter; results always enveloped | adopted |
 | Memory store | Python stdlib `sqlite3` + FTS5 (SQLite 3.50.4) | PSF / public domain | local episodic and semantic memory behind a provider seam; no vector database or embedding model | adopted |
 | Smart Room | `D:\smart-room-plugin` (running copy `D:\hermes-agent\plugins\smart_room` 0.6.0) | internal | independent sidecar; Marvi OS is a client of its authenticated loopback JSON-RPC and never holds device credentials | adopted |
 | Dynamic Island source | `D:\hermes-agent\apps\desktop\src\app\voice-island` | internal | extract focused visual/state pieces with provenance; no voice transport | selected |

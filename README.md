@@ -13,8 +13,8 @@ the desktop application. The desktop icon source is
 
 ## Status
 
-Phases 2 and 4 are complete; Phase 3 is in hardware acceptance and Phase 5 is
-in progress. The native-Windows stack runs Nemotron 3.5 streaming ASR through `parakeet-rs`,
+Phases 2, 4, and 5 are complete; Phase 3 is in hardware acceptance. The
+native-Windows stack runs Nemotron 3.5 streaming ASR through `parakeet-rs`,
 VibeVoice Realtime 0.5B, an official LiveKit `AgentSession`, and an Electron
 LiveKit microphone/playout participant. The remaining Phase 3 gate is a real
 loudspeaker double-talk test plus the 60-minute duplex soak.
@@ -44,8 +44,15 @@ Current implemented desktop surfaces:
   external writes are confirmed, audited, and deduplicated;
 - local SQLite episodic and semantic memory with search, forget, and verbatim
   export, storing externally sourced entries as untrusted and re-wrapping them
-  whenever they are recalled.
-  streamed STT/TTS, local wake gating, and authoritative Island voice states.
+  whenever they are recalled;
+- a knowledge graph, recall-based reinforcement, reflection that promotes
+  repeated episodes into durable facts, and a consolidation pass that forgets
+  only what was never useful;
+- account event ingestion that deduplicates by provider id and never blocks the
+  voice path;
+- web search, fetch, and extract with an SSRF guard, plus file, terminal, and
+  process tools confined to an allowlisted workspace root, and MCP servers
+  routed through the Gateway so they inherit confirmation and audit.
 - frameless control center with a renderer-painted title bar (brand, page,
   window controls), Electric Gaze local backdrop, translucency lever,
   haptics, shell context menu, connecting and boot-failure overlays, and a

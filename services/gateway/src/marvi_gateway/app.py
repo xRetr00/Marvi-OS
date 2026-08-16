@@ -11,6 +11,8 @@ from livekit import api
 from pydantic import BaseModel, Field
 
 from .accounts import ComposioAccounts, register_account_tools
+from .ingest import AccountIngest
+from .mcp_bridge import McpBridge, register_mcp_tools
 from .memory import MemoryStore, register_memory_tools
 from .room import RoomSidecar, register_room_tools
 from .runtime import (
@@ -24,6 +26,8 @@ from .runtime import (
     TokenRejectedError,
 )
 from .tools import InvalidArgumentsError, ToolRegistry, ToolSpec, UnknownToolError
+from .web import WebTools, register_web_tools
+from .workspace import Workspace, register_workspace_tools
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 
@@ -71,6 +75,22 @@ class MemoryPage(BaseModel):
     summary: dict[str, Any]
 
 
+class IngestResult(BaseModel):
+    ingested: list[str]
+    skipped: int
+    errors: list[str]
+
+
+class ReflectResult(BaseModel):
+    considered: int
+    promoted: list[str]
+
+
+class ConsolidateResult(BaseModel):
+    forgotten: int
+    orphan_entities: int
+
+
 class MemoryExport(BaseModel):
     entries: list[dict[str, Any]]
 
@@ -110,6 +130,7 @@ def create_app(
     sidecar: RoomSidecar | None = None
     accounts: ComposioAccounts | None = None
     memory: MemoryStore | None = None
+    ingest: AccountIngest | None = None
     if tools is not None:
         tool_registry = tools
     else:
@@ -121,6 +142,17 @@ def create_app(
             register_account_tools(tool_registry, accounts)
         memory = MemoryStore()
         register_memory_tools(tool_registry, memory)
+        if accounts.available():
+            ingest = AccountIngest(accounts, memory)
+        register_web_tools(tool_registry, WebTools())
+        workspace = Workspace()
+        if workspace.available():
+            register_workspace_tools(tool_registry, workspace)
+        mcp = McpBridge()
+        if mcp.available():
+            # Routed here rather than attached to the Agent so MCP tools
+            # inherit confirmation, audit, and idempotency (ADR-016).
+            register_mcp_tools(tool_registry, mcp)
     app = FastAPI(title="Marvi Gateway", version=product_version, docs_url=None, redoc_url=None)
 
     def accounts_status() -> ComponentStatus:
@@ -319,6 +351,33 @@ def create_app(
             entries=memory.recent(limit=max(1, min(limit, 200))),
             summary=memory.world_summary(),
         )
+
+    @app.post("/accounts/ingest", response_model=IngestResult)
+    async def run_ingest() -> IngestResult:
+        """One bounded ingestion tick. Safe to call repeatedly; duplicates are
+        skipped by provider id."""
+        if ingest is None:
+            return IngestResult(ingested=[], skipped=0, errors=["accounts not configured"])
+        result = ingest.poll()
+        if result["ingested"]:
+            runtime_store.audit(
+                "ingested", "accounts", {"count": len(result["ingested"])}
+            )
+        return IngestResult(**{k: v for k, v in result.items() if k != "at"})
+
+    @app.post("/memory/reflect", response_model=ReflectResult)
+    async def run_reflect() -> ReflectResult:
+        if memory is None:
+            return ReflectResult(considered=0, promoted=[])
+        return ReflectResult(**memory.reflect())
+
+    @app.post("/memory/consolidate", response_model=ConsolidateResult)
+    async def run_consolidate() -> ConsolidateResult:
+        if memory is None:
+            return ConsolidateResult(forgotten=0, orphan_entities=0)
+        result = memory.consolidate()
+        runtime_store.audit("consolidated", "memory", result)
+        return ConsolidateResult(**result)
 
     @app.post("/memory/export", response_model=MemoryExport)
     async def memory_export() -> MemoryExport:

@@ -218,3 +218,38 @@ Validation evidence and the resulting commit are recorded in
   Settings appearance controls, About, and the CONNECTING boot overlay.
 - Work isolated in `git worktree` branch `feat/desktop-shell-ui` off
   `origin/main`; the primary checkout with concurrent work was untouched.
+
+## 2026-08-16 — Phase 5 completion, memory depth, and the tool set
+
+- Closed the outbound gate with one real email through the full router path.
+  Gmail returned id `1a008f2f91cc7f2f`; the duplicate was deduplicated. The
+  requested `noreplay.coregram@gmail.com` sender is not a connected account and
+  has no verified send-as alias, so the single authorised identity was used and
+  the deviation recorded rather than worked around.
+- Built account event ingestion: bounded polling, normalisation, deduplication
+  by provider id, untrusted storage, and untrusted graph edges for senders. A
+  provider outage is a no-op and one dead provider does not stop the others.
+  Live: 20 items ingested, second poll skipped all 20, 18 entities built.
+- Deepened memory to the shape the product actually needs — knowledge graph
+  with cascading deletes, recall-based reinforcement, idempotent reflection
+  that promotes repeated episodes to facts, and a consolidation pass that drops
+  only stale, never-recalled episodes. 31 memory tests.
+- Corrected ADR-014 with ADR-014a. The original evaluated Letta as a
+  self-hosted memory server; the supported integration is
+  `openai.LLM.with_letta`, which makes Letta the *LLM* and owner of memory
+  blocks and sleep-time agents. The dependency argument does not apply to the
+  cloud path, but routing conversation to `api.letta.com` still conflicts with
+  local-first and displaces OpenCode Go, and no `LETTA_API_KEY` is configured.
+  Letta stays a candidate for the mind, not the store.
+- Added the tool set behind one policy (ADR-016): web search/fetch/extract with
+  env-selected Brave or SearXNG, file/terminal/process tools gated on an
+  allowlisted `MARVI_WORKSPACE_ROOT`, and MCP servers connected by the Gateway
+  rather than attached to the Agent so they inherit confirmation and audit.
+- Added an SSRF guard that resolves a host before deciding: loopback, private,
+  link-local, and non-http schemes are refused. Verified live that it blocks
+  the room sidecar on 127.0.0.1:17842 and the cloud metadata address.
+- MCP JSON Schemas are mapped onto the router's exact-argument validation, so a
+  third-party tool cannot smuggle an undeclared argument, and an MCP tool is
+  sensitive unless it declares a read-only hint.
+- 183 Python tests and 22 desktop tests pass; ruff, ESLint, typecheck, and the
+  production build are clean. Live surface: 24 tools, 10 of them sensitive.

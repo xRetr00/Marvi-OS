@@ -1,6 +1,6 @@
 # Phase 5 — World Context and Memory
 
-**Status:** in progress
+**Status:** complete
 **Depends on:** Phase 4 policy/audit path
 
 ## Scope
@@ -67,12 +67,53 @@ and is not batched on purpose.
 Automated coverage: 111 Python tests (18 boundary, 9 idempotency, 18 accounts,
 13 memory) and 22 desktop tests.
 
-## Still required before this phase can be marked complete
+## Closed gates
 
-- No real outbound write has been executed. `send_email` is proven against a
-  fake SDK end to end, but sending an actual email needs a real recipient and
-  explicit permission, so it was deliberately not done.
-- LinkedIn and X are not connected on this account; only Gmail, Calendar,
-  GitHub, and Telegram are live.
-- Event ingestion from accounts into the Gateway event journal is not built;
-  retrieval is on demand only.
+- **Real outbound write.** One `send_email` ran the full path — confirmation
+  token, exact-argument approval, audit, idempotency — and Gmail returned
+  message id `1a008f2f91cc7f2f`. The immediate duplicate was deduplicated and
+  the provider was called once. The requested `noreplay.coregram@gmail.com`
+  sender could not be used: it is not a connected account and has no verified
+  send-as alias, so the only authorised identity was used instead.
+- **Account event ingestion.** `marvi_gateway.ingest` polls connected accounts
+  on a bounded tick, normalises Gmail and Calendar items, and deduplicates by
+  provider id. Live: 20 real items ingested, second poll ingested 0 and skipped
+  20, building 18 graph entities from real senders. A provider outage is a
+  logged no-op, and one dead provider does not stop the others.
+- **Memory depth.** Knowledge graph, reflection, consolidation, and
+  reinforcement — see the memory section below.
+
+## Memory: episodic, semantic, graph, reflection, consolidation
+
+- **Graph.** Entities and relations with `ON DELETE CASCADE`, traversable in
+  both directions, case-insensitive, and collapsing restated facts rather than
+  growing. Edges from untrusted content stay untrusted.
+- **Reinforcement.** Recall bumps `strength` and `last_used`, so consolidation
+  can tell a useful memory from noise without anyone tuning a policy.
+- **Reflection.** Subjects repeated `PROMOTE_AFTER_REPEATS` times become
+  semantic facts. Idempotent, and a pass with nothing to do is free. The
+  `summarise` seam accepts an LLM pass without touching storage.
+- **Consolidation (the sleep pass).** Episodic entries older than
+  `EPISODIC_TTL_DAYS` that were never reinforced are dropped; semantic facts
+  and anything ever recalled are never dropped. Orphaned entities are tidied.
+
+## Tool surface (ADR-016)
+
+24 tools registered live, 10 sensitive. Room (4), accounts (4), memory (6),
+web (3), file (4), terminal (1), process (2), plus any MCP tools discovered
+from configuration under `mcp__<server>__<tool>`.
+
+| Gate | Result |
+|---|---|
+| SSRF guard | loopback, private, link-local, and non-http refused after DNS resolution; blocked `127.0.0.1:17842` and `169.254.169.254` live |
+| Workspace containment | `..`, absolute paths, and root deletion refused; refuses entirely without `MARVI_WORKSPACE_ROOT` |
+| Tool output | web pages, file contents, command output, and MCP results all enveloped |
+| MCP policy | sensitive unless the tool declares a read-only hint; undeclared arguments refused by schema mapping |
+| Live web search | Brave returned real results through the router, enveloped, hostile snippets flagged |
+
+## Still open
+
+- LinkedIn is still **not** connected on the Composio account despite being
+  added — the live listing shows the same 9 connections with no `linkedin`. X
+  is out of scope by request.
+- Letta remains a candidate for the mind rather than the store; see ADR-014a.

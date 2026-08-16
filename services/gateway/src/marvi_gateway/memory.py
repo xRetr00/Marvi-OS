@@ -18,7 +18,7 @@ from __future__ import annotations
 import os
 import re
 import sqlite3
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal
 
@@ -27,17 +27,41 @@ from .untrusted import wrap_external
 MemoryKind = Literal["episodic", "semantic"]
 DEFAULT_SEARCH_LIMIT = 10
 MAX_BODY_CHARS = 4_000
+# Consolidation defaults. Deliberately conservative: forgetting the user's
+# own data is worse than keeping a little too much.
+EPISODIC_TTL_DAYS = 45
+PROMOTE_AFTER_REPEATS = 3
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS memories (
-    id       INTEGER PRIMARY KEY AUTOINCREMENT,
-    kind     TEXT NOT NULL,
-    subject  TEXT NOT NULL,
-    body     TEXT NOT NULL,
-    source   TEXT NOT NULL DEFAULT 'marvi',
-    trusted  INTEGER NOT NULL DEFAULT 1,
-    at       TEXT NOT NULL
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind      TEXT NOT NULL,
+    subject   TEXT NOT NULL,
+    body      TEXT NOT NULL,
+    source    TEXT NOT NULL DEFAULT 'marvi',
+    trusted   INTEGER NOT NULL DEFAULT 1,
+    at        TEXT NOT NULL,
+    strength  INTEGER NOT NULL DEFAULT 1,
+    last_used TEXT
 );
+CREATE TABLE IF NOT EXISTS entities (
+    id   INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    kind TEXT NOT NULL DEFAULT 'thing',
+    at   TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS relations (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    subject_id INTEGER NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+    predicate  TEXT NOT NULL,
+    object_id  INTEGER NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+    source     TEXT NOT NULL DEFAULT 'marvi',
+    trusted    INTEGER NOT NULL DEFAULT 1,
+    at         TEXT NOT NULL,
+    UNIQUE (subject_id, predicate, object_id)
+);
+CREATE INDEX IF NOT EXISTS relations_subject ON relations(subject_id);
+CREATE INDEX IF NOT EXISTS relations_object ON relations(object_id);
 CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts
     USING fts5(subject, body, content='memories', content_rowid='id');
 CREATE TRIGGER IF NOT EXISTS memories_ai AFTER INSERT ON memories BEGIN
@@ -133,7 +157,9 @@ class MemoryStore:
             " WHERE memories_fts MATCH ? ORDER BY rank LIMIT ?",
             (match, max(1, min(limit, 100))),
         ).fetchall()
-        return [self._row(row) for row in rows]
+        found = [self._row(row) for row in rows]
+        self.reinforce([entry["id"] for entry in found])
+        return found
 
     def recent(self, limit: int = DEFAULT_SEARCH_LIMIT, kind: MemoryKind | None = None) -> list[dict[str, Any]]:
         if kind:
@@ -188,6 +214,177 @@ class MemoryStore:
             for r in rows
         ]
 
+    # -- reinforcement ------------------------------------------------------
+
+    def reinforce(self, memory_ids: list[int]) -> None:
+        """Recall strengthens a memory.
+
+        Consolidation reads this to decide what survives, so genuinely useful
+        memories outlive noise without anyone hand-tuning a policy.
+        """
+        if not memory_ids:
+            return
+        now = datetime.now(UTC).isoformat()
+        self._db.executemany(
+            "UPDATE memories SET strength = strength + 1, last_used = ? WHERE id = ?",
+            [(now, i) for i in memory_ids],
+        )
+        self._db.commit()
+
+    # -- knowledge graph ----------------------------------------------------
+
+    def _entity_id(self, name: str, kind: str = "thing") -> int:
+        clean = name.strip()[:120]
+        if not clean:
+            raise ValueError("an entity needs a name")
+        row = self._db.execute("SELECT id FROM entities WHERE name = ?", (clean,)).fetchone()
+        if row:
+            return int(row["id"])
+        cursor = self._db.execute(
+            "INSERT INTO entities (name, kind, at) VALUES (?, ?, ?)",
+            (clean, kind, datetime.now(UTC).isoformat()),
+        )
+        return int(cursor.lastrowid or 0)
+
+    def link(
+        self,
+        subject: str,
+        predicate: str,
+        obj: str,
+        source: str = "marvi",
+        trusted: bool = True,
+    ) -> int:
+        """Record subject -[predicate]-> object.
+
+        Re-stating a known fact is not a duplicate; the unique constraint
+        collapses it instead of growing the graph.
+        """
+        if not predicate.strip():
+            raise ValueError("a relation needs a predicate")
+        subject_id = self._entity_id(subject)
+        object_id = self._entity_id(obj)
+        predicate = predicate.strip()[:80]
+        self._db.execute(
+            "INSERT OR IGNORE INTO relations"
+            " (subject_id, predicate, object_id, source, trusted, at)"
+            " VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                subject_id,
+                predicate,
+                object_id,
+                source,
+                1 if trusted else 0,
+                datetime.now(UTC).isoformat(),
+            ),
+        )
+        self._db.commit()
+        row = self._db.execute(
+            "SELECT id FROM relations WHERE subject_id = ? AND predicate = ? AND object_id = ?",
+            (subject_id, predicate, object_id),
+        ).fetchone()
+        return int(row["id"]) if row else 0
+
+    def neighbours(self, name: str, limit: int = 25) -> list[dict[str, Any]]:
+        """Everything one hop from an entity, in either direction."""
+        clean = name.strip()
+        rows = self._db.execute(
+            "SELECT s.name AS subject, r.predicate, o.name AS object, r.trusted, r.source"
+            " FROM relations r"
+            " JOIN entities s ON s.id = r.subject_id"
+            " JOIN entities o ON o.id = r.object_id"
+            " WHERE s.name = ? COLLATE NOCASE OR o.name = ? COLLATE NOCASE"
+            " ORDER BY r.id DESC LIMIT ?",
+            (clean, clean, max(1, min(limit, 200))),
+        ).fetchall()
+        return [
+            {
+                "subject": r["subject"],
+                "predicate": r["predicate"],
+                "object": r["object"],
+                "trusted": bool(r["trusted"]),
+                "source": r["source"],
+            }
+            for r in rows
+        ]
+
+    def graph_size(self) -> dict[str, int]:
+        return {
+            "entities": int(self._db.execute("SELECT COUNT(*) n FROM entities").fetchone()["n"]),
+            "relations": int(
+                self._db.execute("SELECT COUNT(*) n FROM relations").fetchone()["n"]
+            ),
+        }
+
+    def forget_entity(self, name: str) -> int:
+        """Deleting an entity takes its relations with it."""
+        self._db.execute("PRAGMA foreign_keys = ON")
+        cursor = self._db.execute(
+            "DELETE FROM entities WHERE name = ? COLLATE NOCASE", (name.strip(),)
+        )
+        self._db.commit()
+        return cursor.rowcount
+
+    # -- reflection and consolidation ---------------------------------------
+
+    def reflect(self, summarise: Any = None, limit: int = 50) -> dict[str, Any]:
+        """Turn repeated episodes into durable facts.
+
+        The default pass is deterministic and costs nothing: a subject seen
+        PROMOTE_AFTER_REPEATS times becomes a semantic fact. `summarise` is the
+        seam for an LLM pass -- it receives the grouped episodes and returns
+        [(subject, body)]. It stays optional on purpose, because
+        REAL-AGENCY.md requires a no-op reflection to be cheap and normal.
+        """
+        rows = self._db.execute(
+            "SELECT subject, COUNT(*) AS n FROM memories WHERE kind = 'episodic'"
+            " GROUP BY subject HAVING n >= ? ORDER BY n DESC LIMIT ?",
+            (PROMOTE_AFTER_REPEATS, max(1, min(limit, 200))),
+        ).fetchall()
+        groups = [{"subject": r["subject"], "count": int(r["n"])} for r in rows]
+
+        promoted: list[str] = []
+        if summarise is not None:
+            for subject, body in summarise(groups) or []:
+                self.remember(subject, body, kind="semantic", source="reflection")
+                promoted.append(subject)
+            return {"considered": len(groups), "promoted": promoted}
+
+        for group in groups:
+            already = self._db.execute(
+                "SELECT id FROM memories WHERE kind = 'semantic' AND subject = ?",
+                (group["subject"][:200],),
+            ).fetchone()
+            if already:
+                continue
+            self.remember(
+                group["subject"],
+                f"Recurs: seen {group['count']} times.",
+                kind="semantic",
+                source="reflection",
+            )
+            promoted.append(group["subject"])
+        return {"considered": len(groups), "promoted": promoted}
+
+    def consolidate(self, now: datetime | None = None) -> dict[str, int]:
+        """The sleep pass: drop stale, unreinforced episodes.
+
+        Semantic facts and anything ever recalled are never dropped -- a memory
+        the user actually used is not noise.
+        """
+        moment = now or datetime.now(UTC)
+        cutoff = (moment - timedelta(days=EPISODIC_TTL_DAYS)).isoformat()
+        forgotten = self._db.execute(
+            "DELETE FROM memories WHERE kind = 'episodic' AND at < ?"
+            " AND strength <= 1 AND last_used IS NULL",
+            (cutoff,),
+        ).rowcount
+        orphans = self._db.execute(
+            "DELETE FROM entities WHERE id NOT IN"
+            " (SELECT subject_id FROM relations UNION SELECT object_id FROM relations)"
+        ).rowcount
+        self._db.commit()
+        return {"forgotten": forgotten, "orphan_entities": orphans}
+
     def world_summary(self, limit: int = 5) -> dict[str, Any]:
         """A small, cheap current-world line. No model call."""
         facts = self.recent(limit=limit, kind="semantic")
@@ -196,6 +393,7 @@ class MemoryStore:
             "total": self.count(),
             "facts": [f["subject"] for f in facts],
             "recent_events": [e["subject"] for e in events],
+            "graph": self.graph_size(),
         }
 
 
@@ -210,6 +408,15 @@ def register_memory_tools(registry, memory: MemoryStore) -> None:
 
     def memory_forget(query: str) -> dict[str, Any]:
         return {"forgotten": memory.forget_matching(query)}
+
+    def memory_link(subject: str, predicate: str, target: str) -> dict[str, Any]:
+        return {"id": memory.link(subject, predicate, target)}
+
+    def memory_neighbours(name: str) -> dict[str, Any]:
+        return {"relations": memory.neighbours(name)}
+
+    def memory_reflect() -> dict[str, Any]:
+        return memory.reflect()
 
     registry.register(
         ToolSpec(
@@ -236,5 +443,32 @@ def register_memory_tools(registry, memory: MemoryStore) -> None:
             arguments={"query": str},
             sensitive=True,
             handler=memory_forget,
+        )
+    )
+    registry.register(
+        ToolSpec(
+            name="memory_link",
+            description="Record a relationship between two things",
+            arguments={"subject": str, "predicate": str, "target": str},
+            sensitive=False,
+            handler=memory_link,
+        )
+    )
+    registry.register(
+        ToolSpec(
+            name="memory_neighbours",
+            description="Read what is connected to something",
+            arguments={"name": str},
+            sensitive=False,
+            handler=memory_neighbours,
+        )
+    )
+    registry.register(
+        ToolSpec(
+            name="memory_reflect",
+            description="Consolidate repeated episodes into durable facts",
+            arguments={},
+            sensitive=False,
+            handler=memory_reflect,
         )
     )
