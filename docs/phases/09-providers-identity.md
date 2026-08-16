@@ -6,13 +6,23 @@
 Marvi currently speaks to exactly one model through one hardcoded HTTP call, and
 has no written idea of who it is or who it is talking to. This phase fixes both.
 
-> **Correction.** An earlier draft of this plan proposed LiteLLM as a routing
-> layer over per-token API keys. That is the wrong shape for this product. The
-> point is not to spread token spend across vendors — it is to **use
-> subscriptions the user already pays for**: Codex/ChatGPT, GitHub Copilot,
-> OpenCode Go, Qwen, and vendor coding plans. Those are reached by OAuth against
-> an existing account, not by an API key with a meter attached. A generic
-> routing library does not model that at all.
+> **Correction — and why LiteLLM is out of scope.** An earlier draft proposed
+> LiteLLM as a routing layer. That was wrong twice over.
+>
+> LiteLLM is a **proxy**, not a provider. It is its own product, with its own
+> CLI and its own web UI, and the user configures their providers *inside it*.
+> Adopting it would mean Marvi talks to LiteLLM, which talks to the provider —
+> an extra hop, an extra service to supervise, and a second place where provider
+> configuration lives. Marvi should talk to providers directly. If someone
+> already runs LiteLLM, it is simply an OpenAI-compatible endpoint like any
+> other and needs no special support.
+>
+> The second error was framing this as per-token API keys. Marvi must support
+> **both access paths to the same vendor**: the metered API *and* the
+> subscription plan. OpenAI sells an API and a Codex plan. Anthropic sells an
+> API and Claude Code. Those are different endpoints, different auth, and
+> different billing — so they are different profiles, not one provider with a
+> flag.
 
 ## The shape: a provider profile registry
 
@@ -57,30 +67,67 @@ Marvi will write its own registry rather than copy the implementation — the
 predecessor's is coupled to its plugin loader and CLI — but the profile shape
 and `auth_type` vocabulary are worth adopting directly.
 
-## Subscription-backed providers
+## Three access paths, not three vendors
 
-This is the part the earlier draft missed entirely, and it drives the design.
+The registry is organised by **how you reach a model**, not by who makes it. A
+vendor with two access paths gets two profiles, because everything that differs
+between them lives in the profile.
 
-| Provider | Auth | What it uses |
+**1. Metered APIs** — a key, a meter, pay per token.
+
+| Provider | Auth | Notes |
 |---|---|---|
-| OpenCode Go | key today | the plan already configured here |
-| Codex / ChatGPT | `oauth_external` | a ChatGPT subscription, via the Codex backend |
-| GitHub Copilot | subscription token exchange | a Copilot seat |
+| OpenRouter | `api_key` | many models behind one key |
+| DeepInfra | `api_key` | OpenAI-compatible |
+| DeepSeek | `api_key` | |
+| OpenAI | `api_key` | the API, distinct from the Codex plan below |
+| Anthropic | `api_key` | the API, distinct from Claude Code below |
+| OpenCode Go | `api_key` | what Marvi uses today |
+
+**2. Subscriptions and coding plans** — reached through an account the user
+already pays for, over OAuth. Same vendors as above in several cases, different
+endpoint and different auth.
+
+| Provider | Auth | Uses |
+|---|---|---|
+| Codex | `oauth_external` | a ChatGPT subscription |
+| Claude Code | `oauth_external` | an Anthropic plan |
+| GitHub Copilot | token exchange | a Copilot seat |
 | Qwen | `oauth_external` | a Qwen portal account |
-| Vendor coding plans | mixed | Alibaba, Kimi and similar monthly plans |
-| Local (Ollama, vLLM) | none | the user's own hardware |
+| Alibaba, Kimi coding plans | mixed | monthly vendor plans |
+
+**3. Local** — the user's own hardware, no account and no meter. These matter
+disproportionately for a local-first product: they are the only providers that
+keep working with the network down, and the only ones with no privacy question
+at all.
+
+| Provider | Auth | Endpoint |
+|---|---|---|
+| Ollama | none | `http://localhost:11434/v1` |
+| LM Studio | none | `http://localhost:1234/v1` |
+| llama.cpp / vLLM | none | user-configured |
+
+All three local options serve an OpenAI-compatible API, so one `local` profile
+with a configurable `base_url` covers them, with named presets for the common
+ports rather than a separate plugin each. A running LiteLLM proxy, if the user
+has one, is just another entry here.
 
 Consequences worth stating up front:
 
+- **A vendor is not a provider.** `openai` and `codex` are two profiles, as are
+  `anthropic` and `claude-code`. Selecting a model means selecting an access
+  path. Aliases keep this friendly — typing `claude` should resolve to whichever
+  Anthropic path is actually configured.
 - **Marvi never sees a password.** OAuth happens in the provider's own surface,
   the same rule Composio already follows (ADR-016). Marvi receives a token.
 - **Tokens expire; API keys mostly do not.** Refresh, and a clear "reconnect
   this provider" state, are core to the phase rather than polish. The
   revoked-OAuth handling built for Composio in Phase 5 is the precedent.
-- **Subscription providers have quotas, not per-token prices.** The
-  `daily_budget` in `REAL-AGENCY.md` assumes a money cost. For a subscription
-  the real limit is requests or messages per window, so the budget needs a
-  second unit or the guard silently stops binding.
+- **Three billing models, one budget guard.** Metered APIs cost money per
+  token, subscriptions meter requests per window, and local models cost
+  nothing. The `daily_budget` in `REAL-AGENCY.md` only understands money, so it
+  silently stops binding on a plan and pointlessly throttles a local model.
+  It needs a unit per access path.
 - **Token storage is a real decision.** Refresh tokens are credentials at rest.
   Windows DPAPI is the local option; the alternative is deferring storage to the
   provider's own CLI where one exists.
@@ -133,17 +180,21 @@ envelope (ADR-015). Both end up near the prompt; only one of them is trusted.
 4. **Subscription accounting** — extend the budget to requests-per-window
    alongside money, so the `REAL-AGENCY.md` guard still binds on a plan.
 5. **Auxiliary models via `default_aux_model`** — classification, extraction and
-   deliberation move to the provider's cheap model. Local CPU models are a later
-   option, and CPU-first if adopted, because Phase 8 already put vision there and
-   PocketTTS is also on the CPU.
+   deliberation move to the provider's cheap model. A local provider is the
+   natural home for auxiliary work: free, private, and always available. If a
+   local model runs on this machine it is CPU-first, because Phase 8 put vision
+   on the CPU and PocketTTS is there too, and the GPU budget is already spent.
 6. **Identity files and composer** — schema, budget, editor surface.
 7. **Providers page** — which providers are connected, which need reconnecting,
    which model serves each job, and what has been spent or consumed today.
 
 ## Acceptance evidence required
 
-- At least one subscription-backed provider authenticated end to end without
-  Marvi handling a password, and a call served through it.
+- One provider from each access path working: a metered API, a subscription
+  reached by OAuth without Marvi handling a password, and a local endpoint.
+- The same vendor configured on both paths at once — for instance the OpenAI
+  API and Codex — selectable independently and billed independently.
+- A local provider still answering with the network unavailable.
 - An expired token surfaces as "reconnect this provider" rather than a failure,
   and reconnecting restores service without a restart.
 - Killing the primary provider degrades to a fallback with no user-visible
