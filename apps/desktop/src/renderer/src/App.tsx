@@ -36,6 +36,8 @@ import type {
   MindDecision,
   ProviderPage,
   ProviderRow,
+  UpdateChannel,
+  UpdateCheck,
   UpdateResult,
   UpdateStatus,
   RoomEvent,
@@ -449,6 +451,8 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
 function UpdatesPanel({ version }: { version: string }): React.JSX.Element {
   const [status, setStatus] = useState<UpdateStatus | null>(null)
   const [result, setResult] = useState<UpdateResult | null>(null)
+  const [check, setCheck] = useState<UpdateCheck | null>(null)
+  const [checking, setChecking] = useState(false)
   const [confirming, setConfirming] = useState(false)
 
   useEffect(() => {
@@ -468,6 +472,25 @@ function UpdatesPanel({ version }: { version: string }): React.JSX.Element {
     }
   }, [])
 
+  const runCheck = useCallback(async (): Promise<void> => {
+    setChecking(true)
+    const outcome = await window.marvi?.checkForUpdate()
+    setCheck(outcome ?? null)
+    setChecking(false)
+  }, [])
+
+  const chooseChannel = useCallback(
+    async (channel: UpdateChannel): Promise<void> => {
+      await window.marvi?.setUpdateChannel(channel)
+      setCheck(null)
+      setStatus((current) => (current ? { ...current, channel } : current))
+      void runCheck()
+    },
+    [runCheck]
+  )
+
+  const channel = status?.channel ?? 'release'
+
   return (
     <section className="single-page panel">
       <div className="panel-label">{'// UPDATES'}</div>
@@ -484,7 +507,7 @@ function UpdatesPanel({ version }: { version: string }): React.JSX.Element {
       </div>
       <div className="context-line">
         <span>CHANNEL</span>
-        <strong>{(status?.branch ?? 'main').toUpperCase()}</strong>
+        <strong>{channel.toUpperCase()}</strong>
       </div>
       <div className="context-line">
         <span>SELF-UPDATE</span>
@@ -506,6 +529,39 @@ function UpdatesPanel({ version }: { version: string }): React.JSX.Element {
         </div>
       ) : null}
 
+      {check ? (
+        <div className="context-line">
+          <span>AVAILABLE</span>
+          <strong>
+            {check.error
+              ? check.error.toUpperCase()
+              : check.upToDate
+                ? 'UP TO DATE'
+                : check.channel === 'dev'
+                  ? `${check.behindBy} COMMITS BEHIND MAIN`
+                  : `RELEASE ${(check.targetRef ?? '').toUpperCase()} AVAILABLE`}
+          </strong>
+        </div>
+      ) : null}
+
+      <div className="phase-controls">
+        <button
+          className={channel === 'release' ? 'phase active' : 'phase'}
+          onClick={() => void chooseChannel('release')}
+        >
+          release
+        </button>
+        <button
+          className={channel === 'dev' ? 'phase active' : 'phase'}
+          onClick={() => void chooseChannel('dev')}
+        >
+          dev
+        </button>
+        <button className="phase" onClick={() => void runCheck()} disabled={checking}>
+          {checking ? 'checking…' : 'check'}
+        </button>
+      </div>
+
       <div className="phase-controls">
         {!status?.supported ? (
           <span className="construction">
@@ -522,7 +578,7 @@ function UpdatesPanel({ version }: { version: string }): React.JSX.Element {
           </>
         ) : (
           <button className="phase" onClick={() => setConfirming(true)}>
-            check and install update
+            install update
           </button>
         )}
       </div>

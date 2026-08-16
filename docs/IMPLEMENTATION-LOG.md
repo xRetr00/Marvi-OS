@@ -460,3 +460,31 @@ Validation evidence and the resulting commit are recorded in
   literal BOM inside a regex; the BOM check now compares a code point so the
   source carries no invisible character.
 - 296 Python tests and 48 desktop tests pass.
+
+## 2026-08-17 — Tauri bootstrap installer + updater
+
+- Replaced the PowerShell update handoff with a small Tauri binary
+  (`apps/updater`, `marvi-bootstrap.exe`): a thin GUI shell over a headless
+  Rust core (`marvi-bootstrap-core`). It is both installer (clone + build +
+  atomic swap) and updater (in-place with rollback), and copies itself to
+  `%LOCALAPPDATA%\Marvi OS\bin` on install.
+- Added the channel model: `release` (default, opt-out) follows the latest
+  signed `v*` tag and never fast-forwards a branch; `dev` (opt-in)
+  fast-forwards `origin/main`. Channels persist in the state dir and are
+  toggled from the Updates panel.
+- Fixed every defect found in review: read-only `check` mode (target + behind
+  count, no quit), liveness-aware in-progress marker (dead/stale markers are
+  cleared instead of wedging the UI), build-output snapshot/restore so a failed
+  build cannot leave a half-written app, release-tag integrity verification
+  (invalid signature refuses, unsigned warns + pins the tag commit), a
+  concurrency guard, unified repo-root discovery, and one state-dir source of
+  truth shared with `updater.ts`.
+- The binary is named `marvi-bootstrap` rather than `marvi-updater` so Windows
+  installer detection never auto-elevates it (a real problem surfaced when the
+  crate's test harness, named `marvi_updater_core`, hit UAC error 740).
+- Core logic is unit- and integration-tested against real `git` remotes with a
+  fake build runner: up-to-date, fast-forward, rollback-on-failed-build,
+  dirty-tree skip, latest-tag checkout, and install staging/refusal. The
+  `check` mode was smoke-tested end-to-end through the compiled binary.
+- `release.yml` now builds and publishes `marvi-bootstrap.exe` as a release
+  asset; `scripts/build-updater.ps1` builds it locally.

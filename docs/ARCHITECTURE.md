@@ -152,20 +152,31 @@ validates schemas/authentication and writes the same append-only audit event.
 
 ## Version and update architecture
 
-Product versions come from `VERSION`; builds also embed the Git commit and build
-time. Update channels map to Git branches (`stable`, `beta`, or an explicitly
-configured development branch).
+Product versions come from `VERSION`; builds embed the Git commit and build
+time. There are two update channels, both surfaced in Updates and About:
 
-The Windows update path reuses the the predecessor assistant repository-owned handoff:
+- `release` (default, opt-out): update to the latest signed `v*` tag. Never
+  fast-forwards a moving branch; integrity rests on HTTPS plus (when signing is
+  configured) `git verify-tag`, otherwise on pinning the exact tag commit.
+- `dev` (opt-in): fast-forward `origin/main` and run whatever is there.
 
-1. Gateway fetches update metadata and compares the installed commit.
-2. UI shows the target version/commit list in Updates and About.
-3. User applies; Electron quits after saving state.
-4. A detached checkout-owned PowerShell script waits for process exit.
-5. It fetches, validates, updates into a staging location, installs dependencies,
-   builds/packages, and runs update smoke tests.
-6. It swaps only after success, writes a result marker, and relaunches.
-7. On failure it preserves and relaunches the last working installation.
+The updater is the small Tauri binary `marvi-bootstrap.exe` (`apps/updater`).
+It is both installer and updater, and lives in `%LOCALAPPDATA%\Marvi OS\bin`;
+the standalone installer copies itself there on a fresh install. The flow:
 
-The implementation should be extracted from Marvi's existing updater rather
-than independently recreated.
+1. The renderer's Updates panel shows the channel and can run a read-only
+   check (the bootstrap `check` mode) that reports the target commit and how
+   far behind the install is, without quitting.
+2. The user applies; Electron quits and hands off to the bootstrap with the
+   install root, channel, its own pid, and the relaunch target.
+3. The bootstrap waits for the app to exit (fails closed), verifies the
+   checkout is clean, records the pre-update commit, then fetches the target
+   (`origin/main` for dev, the latest tag for release).
+4. It snapshots the built runtime, applies the target, runs `npm ci` +
+   `npm run build:unpack`, and smoke-tests the produced runtime.
+5. On success it writes a result marker and relaunches. On any failure it
+   restores the previous commit and built runtime, then relaunches — a failed
+   update always leaves the last working installation.
+
+The implementation was extracted from the predecessor assistant' handoff
+contract rather than independently recreated (see `docs/UPSTREAM.md`).

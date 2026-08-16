@@ -383,3 +383,27 @@ GitHub Release; keeping publish tag-driven makes every installer traceable to
 a signed-for tag and keeps failed builds from producing partial releases.
 `workflow_dispatch` builds are dry runs: artifacts upload, no release is
 created.
+
+## ADR-017 — Tauri bootstrap replaces the PowerShell updater
+
+**Decision:** The PowerShell update handoff (`scripts/desktop-update/windows.ps1`)
+is replaced by a small Tauri binary, `marvi-bootstrap.exe` (`apps/updater`),
+that serves as both the installer and the updater. It is a thin GUI shell over
+a headless Rust core (`marvi-bootstrap-core`) that does the git orchestration.
+The Electron app spawns it on update and reads its result marker unchanged.
+
+**Reason:** A frozen PowerShell script could not be signed or shrink the
+installer, and its in-place `git reset --hard` rollback could not preserve a
+half-written build. The bootstrap keeps the repository-owned handoff model
+(the checkout updates itself) while fixing the safety gaps found in review:
+read-only check path, channel model (`release` default vs opt-in `dev`),
+liveness-aware in-progress marker, build-output snapshot/restore, and release
+tag integrity verification. The binary is named `marvi-bootstrap` (not
+`marvi-updater`/`installer`) so Windows installer-detection heuristics never
+auto-elevate it.
+
+**Consequence:** The bootstrap binary is published as a GitHub Release asset
+alongside the installer. A fresh install clones the checkout, builds, and
+atomically swaps it into place; updates are in-place with rollback. The updater
+can be refreshed by shipping a new bootstrap asset and having the app fetch it
+before handing off.
