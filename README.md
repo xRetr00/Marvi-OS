@@ -50,6 +50,9 @@ Current implemented desktop surfaces:
   window controls), Electric Gaze local backdrop, translucency lever,
   haptics, shell context menu, connecting and boot-failure overlays, and a
   voice-level meter in the status bar (see `feat/desktop-shell-ui`).
+- tag-driven releases: `scripts/release.ps1` cuts `v<semver>` tags and the
+  `Release` workflow builds and publishes the Windows installer; local builds
+  use `scripts/build-desktop.ps1` (never publishes).
 
 ## Developer start
 
@@ -69,6 +72,36 @@ Gateway and agent dependencies are isolated in the root `uv` workspace. These
 commands are development tooling only; the shipped product has no CLI.
 `npm run icons` requires ImageMagick and regenerates all runtime/package icon
 sizes from `assets/app-icon-source.png`; generated icon files are committed.
+
+## Build and release
+
+Local Windows build (gates + installer, never publishes):
+
+```powershell
+.\scripts\build-desktop.ps1            # full: typecheck + tests + installer
+.\scripts\build-desktop.ps1 -SkipTests # faster iteration
+```
+
+Artifacts land in `apps/desktop/dist/` (NSIS setup exe + `latest.yml`).
+
+Releases are tag-driven. From a clean `main`:
+
+```powershell
+.\scripts
+elease.ps1                 # 0.1.0-dev.0 -> 0.1.0, then patch bumps
+.\scripts
+elease.ps1 -Bump minor     # or minor/major
+.\scripts
+elease.ps1 -Version 1.2.3  # explicit
+```
+
+The script bumps `VERSION` (the single version source) plus both
+`package.json` mirrors, commits, tags `v<version>`, and pushes. The `Release`
+workflow then gates, builds the Windows installer with `--publish never`, and
+publishes a GitHub Release with the installer and `latest.yml`. The
+electron-builder `publish` config stays disabled so no local or stray build
+can publish. `workflow_dispatch` on the workflow is a dry run: artifacts
+upload, no release is created.
 
 ## Foundation
 

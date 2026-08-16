@@ -1,0 +1,131 @@
+name: Release
+
+# Release flow (see docs/DECISIONS.md ADR-016):
+#   scripts/release.ps1  ->  bump VERSION + package.json, tag v<semver>, push
+#   tag push             ->  this workflow: gates, Windows build, GitHub Release
+#
+# Publishing is tag-driven only. Plain branch pushes never build installers,
+# and the repo's electron-builder publish config stays disabled so a stray
+# local build can never publish. workflow_dispatch does a dry-run build and
+# uploads artifacts without creating a release.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version label for the dry-run build (no release is created)'
+        required: false
+        default: 'dry-run'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout (full history for tags + notes)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version and guard tag/VERSION agreement
+        id: version
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+            VERSION="${TAG#v}"
+            FILE_VERSION="$(head -n1 VERSION | tr -d '[:space:]')"
+            if [ "$VERSION" != "$FILE_VERSION" ]; then
+              echo "::error::Tag $TAG does not match VERSION file ($FILE_VERSION). Refusing to release."
+              exit 1
+            fi
+            DRY_RUN="false"
+          else
+            VERSION="${{ inputs.version }}"
+            DRY_RUN="true"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "dry_run=$DRY_RUN" >> "$GITHUB_OUTPUT"
+          echo "Releasing version=$VERSION dry_run=$DRY_RUN"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test
+
+      - name: Build renderer + main
+        shell: bash
+        env:
+          MARVI_BUILD_COMMIT: ${{ github.sha }}
+          MARVI_BUILD_TIME: ${{ github.event_name == 'push' && github.event.head_commit.timestamp || '' }}
+        run: npm run build
+
+      - name: Build Windows installer
+        run: npm run build:win
+
+      - name: List artifacts
+        shell: bash
+        run: ls -la apps/desktop/dist
+
+      - name: Upload artifacts (dry run only)
+        if: steps.version.outputs.dry_run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: marvi-os-${{ steps.version.outputs.version }}-win-x64
+          path: |
+            apps/desktop/dist/*.exe
+            apps/desktop/dist/*.yml
+          if-no-files-found: error
+
+      - name: Generate release notes
+        if: steps.version.outputs.dry_run == 'false'
+        id: notes
+        shell: bash
+        run: |
+          PREV_TAG="$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true)"
+          if [ -n "$PREV_TAG" ]; then
+            RANGE="$PREV_TAG..HEAD"
+          else
+            RANGE="HEAD"
+          fi
+          {
+            echo "## Marvi OS v${{ steps.version.outputs.version }}"
+            echo
+            echo "Windows x64 installer. SHA-256 checksums are in the asset list below the notes."
+            echo
+            echo "### Changes"
+            git log --no-merges --pretty=format:"- %s (%h)" "$RANGE"
+          } > release-notes.md
+          cat release-notes.md
+
+      - name: Publish GitHub Release
+        if: steps.version.outputs.dry_run == 'false'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v${{ steps.version.outputs.version }}" \
+            --repo "${{ github.repository }}" \
+            --title "Marvi OS v${{ steps.version.outputs.version }}" \
+            --notes-file release-notes.md \
+            apps/desktop/dist/*.exe \
+            apps/desktop/dist/*.yml
