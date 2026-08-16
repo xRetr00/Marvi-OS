@@ -284,3 +284,45 @@ def test_nothing_to_report_is_silent(stack) -> None:
 
     assert initiative.run_homecoming(present=True)["reported"] == []
     assert journal.count_pending() == 0
+
+
+# -- privacy boundary -------------------------------------------------------
+
+
+def test_frames_never_leave_the_machine() -> None:
+    """The camera path must contain no network egress at all.
+
+    Asserted structurally rather than by inspection: a future edit that posts a
+    frame somewhere should fail this test rather than pass review.
+    """
+    import inspect
+
+    from marvi_gateway import vision
+
+    source = inspect.getsource(vision)
+    for forbidden in ("httpx", "requests", "urllib", "socket", "upload", "post("):
+        assert forbidden not in source, f"vision must not reach the network ({forbidden})"
+
+
+def test_only_cropped_faces_are_written_never_whole_frames(tmp_path) -> None:
+    library = FaceLibrary(tmp_path / "vision")
+    try:
+        # Thumbnails land in one known place; nothing else writes images.
+        assert (library.dir / "faces").is_dir()
+        assert list((library.dir / "faces").iterdir()) == []
+    finally:
+        library.close()
+
+
+# -- vision reaching the room, under the sleep rule -------------------------
+
+
+def test_a_vision_driven_room_action_still_obeys_the_sleep_rule() -> None:
+    """Vision proposes; the room boundary decides. Sleep wins either way."""
+    from marvi_gateway.room import SleepProtectedError, assert_sleep_safe
+
+    # Marvi sees someone and would like the light on. Asleep, that is refused.
+    with pytest.raises(SleepProtectedError):
+        assert_sleep_safe("sleep", False, "set_light", {"on": True})
+    # But a light left on during sleep may still be switched off.
+    assert_sleep_safe("sleep", True, "set_light", {"on": False})

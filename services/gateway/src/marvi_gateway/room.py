@@ -52,9 +52,18 @@ NOTABLE_EVENTS = frozenset(
         "alarm_cancelled",
     }
 )
-# Deliberately excluded: `vision_gesture` fires in bursts (three inside fifteen
-# seconds in the sampled log), and a gesture that actually does something
-# already surfaces as the `light_changed` / `mode_changed` it caused.
+# `vision_gesture` is admitted only when it carries a command. A bare gesture
+# fires in bursts and means nothing; a gesture bound to a command is a
+# deliberate instruction from a person in the room. Marvi consumes the
+# sidecar's gesture inference rather than running a second pipeline for it.
+GESTURE_EVENT = "vision_gesture"
+
+
+def is_notable(event: dict[str, Any]) -> bool:
+    kind = event.get("type")
+    if kind == GESTURE_EVENT:
+        return bool(event.get("command"))
+    return kind in NOTABLE_EVENTS
 
 
 def summarize_event(event: dict[str, Any]) -> str:
@@ -88,6 +97,8 @@ def summarize_event(event: dict[str, Any]) -> str:
         return "Room reported clear"
     if kind == "room_presence_unverified":
         return f"Unverified entry: {event.get('identity_reason', 'unknown reason')}"
+    if kind == GESTURE_EVENT:
+        return f"Gesture {event.get('gesture', 'unknown')} requested {event.get('command')}"
 
     fallback = str(event.get("summary") or kind or "room event")
     return fallback[:1].upper() + fallback[1:]
@@ -99,6 +110,35 @@ class RoomUnavailableError(Exception):
 
 class RoomRejectedError(Exception):
     """The sidecar reached a decision and refused the request."""
+
+
+class SleepProtectedError(Exception):
+    """Refused because the room is in sleep mode.
+
+    While someone is asleep the room is theirs, not Marvi's. The single
+    exception is turning a light off: that is the one action whose worst case
+    is a dark room someone was already sleeping in, and whose best case is
+    fixing a light nobody wants on.
+    """
+
+
+def assert_sleep_safe(mode: str | None, light_on: bool, action: str, params: dict[str, Any]) -> None:
+    """Enforce the sleep rule.
+
+    Deliberately a pure function of the room's state and the requested action,
+    so the rule can be read and tested without a sidecar.
+    """
+    if (mode or "").lower() != "sleep":
+        return
+    turning_light_off = action == "set_light" and params.get("on") is False
+    if turning_light_off and light_on:
+        return
+    if turning_light_off and not light_on:
+        raise SleepProtectedError("The room is asleep and the light is already off.")
+    raise SleepProtectedError(
+        f"The room is in sleep mode; {action} is not allowed. "
+        "Only switching a light off is permitted while asleep."
+    )
 
 
 def _sidecar_home() -> Path:
@@ -224,7 +264,7 @@ class RoomSidecar:
                 continue
             if not isinstance(event, dict):
                 continue
-            if notable_only and event.get("type") not in NOTABLE_EVENTS:
+            if notable_only and not is_notable(event):
                 continue
             events.append({**event, "summary": summarize_event(event)})
         return events
@@ -262,9 +302,26 @@ def register_room_tools(registry, sidecar: RoomSidecar) -> None:
     def room_health() -> dict[str, Any]:
         return sidecar.call("get_health")
 
+    def _sleep_state() -> tuple[str | None, bool]:
+        """Read the room's mode and light for the guard.
+
+        Live state first: a stale snapshot claiming the room is awake is the
+        one error that would let Marvi act during sleep.
+        """
+        try:
+            state = sidecar.state().get("state") or {}
+        except RoomUnavailableError:
+            state = sidecar.snapshot() or {}
+        return (
+            ((state.get("modes") or {}).get("active_mode")),
+            bool((state.get("light") or {}).get("on")),
+        )
+
     def room_set_mode(mode: str) -> dict[str, Any]:
         if mode not in ROOM_MODES:
             raise RoomRejectedError(f"invalid mode: {mode}")
+        current, light_on = _sleep_state()
+        assert_sleep_safe(current, light_on, "set_mode", {"mode": mode})
         return sidecar.call("set_mode", {"mode": mode})
 
     def room_set_light(
@@ -280,6 +337,8 @@ def register_room_tools(registry, sidecar: RoomSidecar) -> None:
             if not low <= color_temp <= high:
                 raise RoomRejectedError(f"color_temp must be between {low} and {high}")
             params["color_temp"] = color_temp
+        current, light_on = _sleep_state()
+        assert_sleep_safe(current, light_on, "set_light", params)
         return sidecar.call("set_light", params)
 
     registry.register(

@@ -402,3 +402,29 @@ Validation evidence and the resulting commit are recorded in
   behind `MARVI_SIDECAR_DIR`, and the room integration was re-verified against
   the live sidecar afterwards.
 - 272 Python tests and 48 desktop tests pass.
+
+## 2026-08-16 — Phase 8 completion and the sleep rule
+
+- Ran the camera live in an empty room, twice: 6 frames each, 1 analysed, 5
+  skipped, 83% gated, no faces and no thumbnails written. An empty room costs
+  almost nothing, which was the point of the motion gate.
+- Added the sleep rule (ADR-023). While the room is asleep the only permitted
+  action is switching a light off; everything else is refused. It is enforced at
+  the room boundary so it binds every caller, and it outranks YOLO — YOLO is a
+  statement about prompting, not about consent while unconscious. Verified live
+  against the real room in `focus` mode and simulated in `sleep`.
+- The guard reads live state first and falls back to the last snapshot when the
+  sidecar is unreachable, because a stale "awake" reading is the one error that
+  would let Marvi act during sleep.
+- Admitted the sidecar's gestures, but only when they carry a command. A bare
+  gesture fires in bursts and means nothing; a gesture bound to a command is a
+  deliberate instruction. Marvi consumes the sidecar's inference rather than
+  running a second pipeline.
+- Added a structural privacy test: the vision module must contain no HTTP
+  client, socket, or upload path, so a future edit that sends a frame somewhere
+  fails a test rather than passing review.
+- Phase 8 marked complete. Two items are deliberately open and neither is
+  effort-bound: recognition thresholds need the owner's own face to validate,
+  and activity-inside-applications is a privacy decision and a subsystem of its
+  own rather than a gap in this one.
+- 290 Python tests and 48 desktop tests pass.

@@ -37,6 +37,7 @@ SURFACE_CEILING: dict[str, str] = {
     "schedule:reminder": "speak",
     "vision:visitor_report": "speak",
     "vision:owner_seen": "activity",
+    "room:vision_gesture": "activity",
     "memory:reflection": "remember",
 }
 

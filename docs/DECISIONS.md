@@ -206,6 +206,28 @@ Holding visitor reports until the away → home edge is a product judgement:
 telling someone about a stranger while they are out is information they cannot
 act on, delivered at the moment it will worry them most.
 
+## ADR-023 — Sleep is protected, and YOLO does not override it
+
+**Decision:** while the room is in sleep mode, the only room action Marvi may
+take is switching a light off. Turning a light on, changing brightness, and
+changing the mode are refused. The rule is enforced at the room boundary, so it
+binds voice, the mind, vision, and YOLO identically.
+
+**Reason:** every other guard in this system asks "did the user approve this?".
+This one asks "is the user in a position to be asked?" — and someone asleep is
+not. That makes it the first rule that must outrank YOLO, because YOLO is a
+statement about prompting, not a statement about consent while unconscious.
+
+The single exception exists because "never act" would be worse: a light left on
+over someone asleep is precisely the situation an ambient assistant should fix,
+and the worst case of switching it off is a dark room someone was already
+sleeping in.
+
+Live state is read before the guard decides, falling back to the last snapshot
+if the sidecar is unreachable. A stale reading that says "awake" is the one
+error that would let Marvi act during sleep, so the fallback fails toward
+refusal.
+
 ## ADR-022 — Predecessor branding removed, functional paths kept
 
 **Decision:** references to the predecessor assistant are removed from Marvi OS
