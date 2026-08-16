@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "stt": {
+    "id": "altunenes/parakeet-rs",
+    "revision": "a61d2818df4659c956b9661a9447f46e98c15126",
+    "subdirectory": "nemotron-3.5-asr-streaming-0.6b-onnx",
+    "language": "tr-TR",
+    "files": {
+      "config.json": [2979, "B0289E196D11A17E3C661BBADFE455C87DE4BAFFC1A5E652A5779F5D687C5DB0"],
+      "decoder_joint.onnx": [97590054, "634DFADF24CB4F73C2FAE170B36611D68DB48186426882CBC8F7E02ED9F2BB29"],
+      "encoder.onnx": [42164972, "D569FBE78B48FBB04E169D324F5D25463838CEED7B5FC3BFE209872441979BD9"],
+      "encoder.onnx.data": [2454405120, "7584F85DF76BC9AE6FBDFA53AA8D97B07A842525D1C501D536D77FD9E4F57AC7"],
+      "tokenizer.model": [406554, "CE3895E40806F02A26C3A225161B96EF682D6C0054BAE32A245DEC4258D7D291"]
+    }
+  },
+  "tts": {
+    "id": "microsoft/VibeVoice-Realtime-0.5B",
+    "revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+    "source_revision": "94da20d98b2fa7688e9cbfaf7692ddb4954f7600",
+    "default_voice": "en-Carter_man",
+    "files": {
+      "config.json": [2117, "CAEE2691E790B04054BBE14A753B40149FA7C0C16FADB58D9ADF5412343DCF57"],
+      "model.safetensors": [2035332888, "7758B150B8139DEB48AC1FF6F181F745C8FEDD5511232FD974B3EB217D83B514"],
+      "preprocessor_config.json": [360, "EBF514B5D30A012E5AE00D9A19D01E735E35B27768C3926D980815DB8FA742E5"]
+    }
+  }
+}
+

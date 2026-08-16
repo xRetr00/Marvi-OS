@@ -14,6 +14,7 @@ import {
 } from './store/voice-state'
 import type { RuntimeStatus } from '../../shared/runtime'
 import type { IslandAlignment, IslandPlacement } from '../../main/island-window'
+import { connectVoiceRoom } from './lib/livekit-room'
 
 const NAV_ITEMS = [
   'Overview',
@@ -48,6 +49,21 @@ function MainSurface(): React.JSX.Element {
     void window.marvi?.getVersion().then(setVersion)
     void window.marvi?.getRuntime().then(applyRuntimeState)
     return window.marvi?.onRuntime(applyRuntimeState)
+  }, [])
+
+  useEffect(() => {
+    let disposed = false
+    let disconnect: (() => void) | undefined
+    void connectVoiceRoom()
+      .then((room) => {
+        if (disposed) void room.disconnect()
+        else disconnect = () => void room.disconnect()
+      })
+      .catch(() => cycleVoicePhase('error'))
+    return () => {
+      disposed = true
+      disconnect?.()
+    }
   }, [])
 
   const previewPhase = (phase: VoicePhase): void => {

@@ -1,0 +1,35 @@
+{
+  "hardware": {
+    "gpu": "NVIDIA GeForce RTX 3060",
+    "torch": "2.9.1+cu130",
+    "cuda": "13.0",
+    "gpu_memory_mib_after_bakeoff": 4245,
+    "gpu_total_mib": 12288
+  },
+  "tts": {
+    "model": "microsoft/VibeVoice-Realtime-0.5B",
+    "voice": "en-Carter_man",
+    "load_seconds": 21.698,
+    "first_audio_seconds": 0.735,
+    "generation_seconds": 5.302,
+    "audio_seconds": 5.333,
+    "realtime_factor": 0.994,
+    "torch_peak_vram_mib": 2683,
+    "wav": "C:\\Users\\xRetro\\AppData\\Local\\Marvi-OS\\diagnostics\\phase-3-vibevoice.wav"
+  },
+  "stt": {
+    "model": "nvidia/nemotron-3.5-asr-streaming-0.6b",
+    "runtime": "parakeet-rs 0.3.7 CUDA",
+    "audio_seconds": 5.333,
+    "transcription_seconds": 3.024,
+    "realtime_factor": 0.567,
+    "transcript": "Hello, I am Marvi, the native real time voice system is online"
+  },
+  "source_text": "Hello, I am Marvi. The native realtime voice system is online.",
+  "ready": {
+    "ok": true,
+    "kind": "ready",
+    "text": "en-US",
+    "error": null
+  }
+}

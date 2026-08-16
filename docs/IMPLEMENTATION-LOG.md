@@ -81,3 +81,22 @@ Validation evidence and the resulting commit are recorded in
 - Documented event-driven agency and upstream selection: LiveKit foreground,
   Letta mind bakeoff, APScheduler initiative, and Composio/MCP actions. Deferred
   LangGraph and Temporal until a measured workflow needs them.
+
+## 2026-08-16 — Phase 3 native voice implementation and bakeoff
+
+- Reviewed the supplied ContextAgent, Galaxy, ProAgent, ProAgentBench,
+  ProactiveAgent, Letta, and spoken-interruption sources and routed them to the
+  later Mind/Cortex phases instead of coupling them to realtime audio.
+- Selected and checksum-pinned Nemotron 3.5 ASR Streaming 0.6B plus VibeVoice
+  Realtime 0.5B after native Windows trials; installed 25 official TTS presets.
+- Built a thin Rust `parakeet-rs` CUDA sidecar, true LiveKit streaming STT
+  adapter, incremental VibeVoice TTS adapter, local wake gate, Silero VAD,
+  `TurnDetector v1-mini`, and current `TurnHandlingOptions` interruption policy.
+- Added local room token issuance, Electron microphone publication with WebRTC
+  AEC/noise suppression, remote audio playout, LiveKit state-driven Island
+  updates, hidden development process startup, and startup retry behavior.
+- Verified model hashes, CUDA load, local LiveKit transport, worker dispatch,
+  and an actual synthesized-audio → Nemotron loopback. The tuned run measured
+  0.735 s first TTS audio, 0.994 TTS RTF, 0.567 STT RTF, and 4.245 GiB combined
+  post-run GPU use. Physical speaker double-talk and the 60-minute soak remain
+  the acceptance gate, so Phase 3 is deliberately not marked complete.

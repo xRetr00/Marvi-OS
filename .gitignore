@@ -19,3 +19,4 @@ models/
 runtime-data/
 .playwright-cli/
 output/
+**/target/

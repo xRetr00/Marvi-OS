@@ -13,12 +13,11 @@ the desktop application. The desktop icon source is
 
 ## Status
 
-Phase 2 desktop implementation is complete. The Electron control center,
-recessed always-on Island, purpose-sized Windows icons, authoritative Marvi
-Gateway runtime bridge, and LiveKit worker configuration have runnable
-scaffolds and tests.
-They are not yet a complete voice assistant. The next hard gate remains a
-native-Windows streaming STT/TTS bakeoff on an NVIDIA RTX 3060 with 12 GB VRAM.
+Phase 2 desktop implementation is complete and Phase 3 is in hardware
+acceptance. The native-Windows stack now runs Nemotron 3.5 streaming ASR through
+`parakeet-rs`, VibeVoice Realtime 0.5B, an official LiveKit `AgentSession`, and
+an Electron LiveKit microphone/playout participant. The remaining Phase 3 gate
+is a real loudspeaker double-talk test plus the 60-minute duplex soak.
 
 Current implemented desktop surfaces:
 
@@ -29,6 +28,10 @@ Current implemented desktop surfaces:
 - canonical app icon rendered in the app, tray, taskbar/package, sidebar, and About.
 - action, notification, error, confirmation, and persistent YOLO Island states;
 - Gateway-backed confirmation mode plus monitor/alignment placement controls.
+- pinned model downloads, integrity checks, 25 TTS voices, and repeatable RTX
+  3060 latency/VRAM evidence;
+- local LiveKit room credentials, hidden development lifecycle, WebRTC AEC,
+  streamed STT/TTS, local wake gating, and authoritative Island voice states.
 
 ## Developer start
 
@@ -37,6 +40,10 @@ npm install
 npm run icons
 npm run dev
 ```
+
+Before the first voice run, copy `services/agent/.env.example` to `.env`, add
+the OpenCode Go key, and run `scripts/setup-voice-models.ps1`. See
+[`docs/VOICE-RUNTIME.md`](docs/VOICE-RUNTIME.md) for the native build and checks.
 
 Gateway and agent dependencies are isolated in the root `uv` workspace. These
 commands are development tooling only; the shipped product has no CLI.
@@ -66,6 +73,8 @@ Marvi OS adopts upstream projects before writing custom infrastructure. See
 - [`docs/IMPLEMENTATION-LOG.md`](docs/IMPLEMENTATION-LOG.md) — chronological work record.
 - [`docs/UI.md`](docs/UI.md) — Dynamic Island and main-window design contract.
 - [`docs/VOICE-MODEL-EVALUATION.md`](docs/VOICE-MODEL-EVALUATION.md) — native voice bakeoff.
+- [`docs/VOICE-RUNTIME.md`](docs/VOICE-RUNTIME.md) — selected models, voices, setup, and diagnostics.
+- [`docs/research/MIND-CORTEX-SOURCES.md`](docs/research/MIND-CORTEX-SOURCES.md) — reviewed proactivity and memory research.
 - [`docs/REAL-AGENCY.md`](docs/REAL-AGENCY.md) — proactive mind and repository reuse contract.
 - [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md) — detected target hardware and toolchain.
 - [`docs/UPSTREAM.md`](docs/UPSTREAM.md) — adopted repositories, licenses, and update policy.

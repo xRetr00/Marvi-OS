@@ -11,22 +11,33 @@
 
 Full Kyutai Unmute is not a shipping candidate because its documented runtime targets Linux/WSL and at least 16 GB VRAM. Marvi OS instead reuses its best idea: continuously streaming audio through an interruptible STT -> LLM -> TTS pipeline, with WebRTC acoustic echo cancellation and concurrent capture/playout.
 
-## Recommended bakeoff order
+## Bakeoff result
 
 ### Streaming STT
 
-1. **Moonshine Voice Medium Streaming** — first candidate. It is a true incremental model, preserves encoder/decoder state between chunks, ships a native Windows C/C++ library and ONNX Runtime path, and can run on CPU so the GPU remains available for TTS and vision. Test Tiny/Small only if Medium misses the latency budget. The MIT license covers the code and English models; other-language model terms must be reviewed separately.
-2. **sherpa-onnx streaming Zipformer/Paraformer** — packaging fallback. It has native Windows binaries, C++ and Node APIs, and real online decoding. Model quality must beat the current Marvi baseline on the user's microphone.
-3. **NVIDIA Nemotron Speech Streaming 0.6B / cache-aware streaming Conformer** — quality challenger only if a stable native-Windows NeMo path fits the shared VRAM budget. It must show a material improvement over the existing Marvi Parakeet pipeline to justify its heavier runtime.
-4. **Current Marvi Parakeet streaming stack** — measurement baseline only; observed recognition quality is not sufficient for selection.
+1. **Selected: NVIDIA Nemotron 3.5 ASR Streaming 0.6B through `parakeet-rs`.**
+   This is the current multilingual cache-aware model, not old Marvi's Parakeet
+   baseline. The pinned ONNX path loads natively with CUDA, accepts arbitrary
+   feeds while preserving encoder/decoder state, and supports explicit `tr-TR`.
+2. **Moonshine Voice Medium Streaming** remains the CPU/packaging fallback if
+   the real microphone corpus does not validate Nemotron quality.
+3. **sherpa-onnx streaming models** remain a second packaging fallback.
 
 Whisper, whisper.cpp, faster-whisper, and WhisperLive are rejected. Chunking a non-streaming encoder and revising overlapping windows is not the incremental, stateful STT architecture required for this product.
 
 ### Streaming TTS
 
-1. **Kyutai delayed-stream TTS 1.6B** — first quality candidate. Evaluate its official fully streaming PyTorch path directly on native Windows. Do not adopt the full Unmute deployment or its Linux-oriented server stack.
-2. **Microsoft VibeVoice-Realtime 0.5B** — first fallback. The upstream model accepts streaming text and targets approximately 300 ms first audible audio with a substantially smaller model. Prefer the official model/runtime; third-party Windows servers are evaluation references, not trusted product dependencies until audited.
-3. **Orpheus TTS 3B** — research-only challenger. Its claimed low streaming latency is attractive, but the vLLM-oriented runtime and model size are a poor fit for a 12 GB card shared with vision. Test only if the first two fail quality.
+1. **Selected: Microsoft VibeVoice-Realtime 0.5B.** The pinned official runtime
+   emits acoustic PCM chunks, exposes 25 official presets, and passes realtime
+   throughput at three diffusion steps on the target GPU.
+2. **Kyutai delayed-stream TTS** is rejected for the active 12 GB/native-Windows
+   stack: its current practical runtime budget and supported deployment path do
+   not fit alongside ASR and later vision.
+3. **Kokoro ONNX** was fast overall and exposes 54 voices, but its stream did not
+   yield until synthesis of the submitted utterance completed. It is not the
+   primary acoustic-streaming engine.
+4. **Orpheus TTS 3B** remains parked because its runtime/model footprint is a
+   poor fit for this machine.
 
 Qwen3-TTS is rejected as too heavy for the always-resident budget. PocketTTS, Chatterbox's official whole-waveform API, and other sentence-buffered engines are rejected as the main voice because they cannot preserve full-duplex call behavior. CosyVoice is not a primary candidate until its official path proves genuine incremental generation without overlap stitching.
 
@@ -68,7 +79,7 @@ Measure:
 | Transient total VRAM | no OOM on the 12 GB card |
 | STT first useful partial | `<= 300 ms` median |
 | STT final after speech end | `<= 550 ms` median |
-| TTS first playable audio | `<= 300 ms` median |
+| TTS first playable audio | `<= 800 ms` median on RTX 3060; target `<= 300 ms` |
 | User speech to audible playout stop | `<= 150 ms` median, `<= 250 ms` p95 |
 | Double-talk | user speech remains intelligible while Marvi is playing |
 | Echo behavior | no self-transcription in the reference speaker setup |

@@ -17,8 +17,21 @@ async def test_health_exposes_branding_version_and_component_readiness() -> None
     assert payload["version"] == "0.1.0-test"
     assert payload["components"]["gateway"]["state"] == "ready"
     assert payload["components"]["livekit"]["state"] == "pending"
-    assert payload["components"]["voice"]["state"] == "pending"
+    assert payload["components"]["voice"]["state"] == "starting"
     assert payload["assistant"]["phase"] == "ready"
+
+
+@pytest.mark.asyncio
+async def test_livekit_session_issues_local_room_credentials() -> None:
+    transport = ASGITransport(app=create_app(version="0.1.0-test"))
+    async with AsyncClient(transport=transport, base_url="http://marvi.local") as client:
+        response = await client.post("/livekit/session")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["url"] == "ws://127.0.0.1:7880"
+    assert payload["room"] == "marvi-os-local"
+    assert payload["token"].count(".") == 2
 
 
 @pytest.mark.asyncio

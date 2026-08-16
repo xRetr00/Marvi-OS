@@ -8,7 +8,7 @@ be updated with the exact version/commit and local modification path.
 |---|---|---|---|---|
 | Agent framework | [livekit/agents](https://github.com/livekit/agents) | Apache-2.0 | dependency; never fork session plumbing | selected |
 | Agent scaffold | [livekit-examples/agent-starter-python](https://github.com/livekit-examples/agent-starter-python) | MIT | scaffold with provenance, then keep dependencies upstream | selected |
-| Local RTC server | [livekit/livekit](https://github.com/livekit/livekit) | Apache-2.0 | pinned Windows binary managed by Gateway | selected |
+| Local RTC server | [livekit/livekit](https://github.com/livekit/livekit) 1.13.5 | Apache-2.0 | checksummed Windows binary managed locally | adopted |
 | Desktop RTC client | [livekit/client-sdk-js](https://github.com/livekit/client-sdk-js) | Apache-2.0 | package dependency | selected |
 | Desktop scaffold | [electron-vite/electron-vite](https://github.com/alex8088/electron-vite) via `@quick-start/electron` | MIT | generated React/TypeScript process skeleton; replace demo UI | adopted |
 | React media primitives | [livekit/components-js](https://github.com/livekit/components-js) | Apache-2.0 | reuse only needed hooks/primitives; Island remains custom | selected |
@@ -17,8 +17,9 @@ be updated with the exact version/commit and local modification path.
 | Unmute architecture | [kyutai-labs/unmute](https://github.com/kyutai-labs/unmute) | verify at pin | architecture/reference only; full runtime rejected for 12 GB/native Windows | reference |
 | STT primary candidate | [moonshine-ai/moonshine](https://github.com/moonshine-ai/moonshine) | MIT code and English models; review non-English model terms | native Windows C++/ONNX streaming adapter | evaluating |
 | STT packaging fallback | [k2-fsa/sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) | Apache-2.0 code; verify selected model | native Windows streaming runtime | evaluating |
-| STT quality challenger | [NVIDIA-NeMo/NeMo](https://github.com/NVIDIA-NeMo/NeMo) | Apache-2.0 code; verify Nemotron model terms | native-Windows feasibility spike only | evaluating |
-| TTS fallback | [microsoft/VibeVoice](https://github.com/microsoft/VibeVoice) | MIT repository; verify model card and release terms | official 0.5B realtime model + thin adapter | evaluating |
+| STT runtime | [altunenes/parakeet-rs](https://github.com/altunenes/parakeet-rs) 0.3.7 | MIT OR Apache-2.0 | thin native CUDA sidecar; no ASR reimplementation | adopted |
+| STT model | [NVIDIA Nemotron 3.5 ASR Streaming 0.6B](https://huggingface.co/nvidia/nemotron-3.5-asr-streaming-0.6b) via ONNX export `a61d2818` | OpenMDW-1.1 model terms | stateful 16 kHz streaming with explicit locale | adopted |
+| TTS runtime/model | [microsoft/VibeVoice](https://github.com/microsoft/VibeVoice) `94da20d` / model `6bce5f0` | MIT repository; model card terms | official 0.5B acoustic streaming model + thin adapter | adopted |
 | TTS research challenger | [canopyai/Orpheus-TTS](https://github.com/canopyai/Orpheus-TTS) | Apache-2.0 | benchmark only if primary paths fail | parked |
 | Local end-of-turn | [livekit/agents](https://github.com/livekit/agents) `TurnDetector v1-mini` | LiveKit model license | pin local CPU model explicitly; never cloud auto-select | selected |
 | Tool protocol | [modelcontextprotocol/python-sdk](https://github.com/modelcontextprotocol/python-sdk) | MIT | pinned dependency; version chosen after LiveKit compatibility check | selected |

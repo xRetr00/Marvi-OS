@@ -9,7 +9,12 @@ description = "LiveKit Agents worker for Marvi OS"
 requires-python = ">=3.12,<3.15"
 dependencies = [
     "livekit-agents[openai]>=1.6.9,<2",
+    "livekit-plugins-silero>=1.6.9,<2",
+    "numpy>=2,<3",
     "python-dotenv>=1,<2",
+    "torch==2.9.1",
+    "transformers==4.51.3",
+    "vibevoice @ git+https://github.com/microsoft/VibeVoice.git@94da20d98b2fa7688e9cbfaf7692ddb4954f7600",
 ]
 
 [dependency-groups]
@@ -32,3 +37,11 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "B", "A", "C4", "UP", "SIM", "RUF"]
 ignore = ["E501"]
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu130", marker = "sys_platform == 'win32'" }]

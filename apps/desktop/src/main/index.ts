@@ -1,6 +1,8 @@
 import { app, BrowserWindow, ipcMain, Menu, nativeImage, screen, shell, Tray } from 'electron'
 import { is } from '@electron-toolkit/utils'
-import { join } from 'path'
+import { type ChildProcess, spawn } from 'child_process'
+import { existsSync } from 'fs'
+import { join, resolve } from 'path'
 import icon from '../../resources/icon.png?asset'
 import trayIcon from '../../resources/tray-icon.png?asset'
 import { offlineRuntime, normalizeRuntimeStatus } from './gateway-runtime'
@@ -16,11 +18,49 @@ let mainWindow: BrowserWindow | null = null
 let islandWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let gatewayPoll: NodeJS.Timeout | null = null
+let voiceProcesses: ChildProcess[] = []
 let runtimeStatus: RuntimeStatus = offlineRuntime('unknown')
 let islandPlacement: IslandPlacement = { displayId: null, alignment: 'center' }
 let islandContentSize: IslandContentSize = { width: 76, height: 8 }
 let isQuitting = false
 const GATEWAY_BASE_URL = 'http://127.0.0.1:8765'
+
+function startDevelopmentVoiceStack(): void {
+  if (!is.dev || process.env['MARVI_MANAGE_VOICE_STACK'] === '0') return
+  const repoRoot = resolve(app.getAppPath(), '../..')
+  const livekit = join(
+    process.env['LOCALAPPDATA'] ?? '',
+    'Marvi-OS/runtime/livekit/1.13.5/livekit-server.exe'
+  )
+  const common = { cwd: repoRoot, windowsHide: true, stdio: 'ignore' as const }
+  if (existsSync(livekit)) {
+    voiceProcesses.push(spawn(livekit, ['--dev', '--bind', '127.0.0.1'], common))
+  }
+  voiceProcesses.push(
+    spawn(
+      'uv',
+      [
+        'run',
+        '--project',
+        'services/gateway',
+        'uvicorn',
+        'marvi_gateway.app:app',
+        '--host',
+        '127.0.0.1',
+        '--port',
+        '8765'
+      ],
+      common
+    )
+  )
+  voiceProcesses.push(
+    spawn(
+      'uv',
+      ['run', '--project', 'services/agent', 'python', '-m', 'marvi_agent.session', 'dev'],
+      common
+    )
+  )
+}
 
 function rendererUrl(surface: 'main' | 'island'): string {
   return `${process.env['ELECTRON_RENDERER_URL']}?surface=${surface}`
@@ -155,7 +195,17 @@ async function gatewayRequest(path: string, init?: RequestInit): Promise<Runtime
 
 async function refreshGatewayRuntime(): Promise<RuntimeStatus> {
   try {
-    return publishRuntime(await gatewayRequest('/runtime'))
+    const gateway = await gatewayRequest('/runtime')
+    return publishRuntime({
+      ...gateway,
+      assistant: {
+        ...runtimeStatus.assistant,
+        yolo: gateway.assistant.yolo,
+        microphone: gateway.assistant.microphone,
+        camera: gateway.assistant.camera,
+        confirmation: gateway.assistant.confirmation ?? runtimeStatus.assistant.confirmation
+      }
+    })
   } catch {
     return publishRuntime(offlineRuntime(app.getVersion()))
   }
@@ -188,6 +238,7 @@ function createTray(): Tray {
 
 app.whenReady().then(() => {
   app.setAppUserModelId('ai.neuretro.marvi-os')
+  startDevelopmentVoiceStack()
 
   ipcMain.handle('marvi:get-version', () => app.getVersion())
   ipcMain.handle('marvi:get-build-info', () => ({
@@ -199,6 +250,22 @@ app.whenReady().then(() => {
     updateChannel: process.env['MARVI_UPDATE_CHANNEL'] ?? 'local'
   }))
   ipcMain.handle('marvi:get-runtime', () => runtimeStatus)
+  ipcMain.handle('marvi:get-voice-session', async () => {
+    const response = await fetch(`${GATEWAY_BASE_URL}/livekit/session`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(2_000)
+    })
+    if (!response.ok) throw new Error(`Gateway returned HTTP ${response.status}`)
+    const value = (await response.json()) as Record<string, unknown>
+    if (
+      typeof value.url !== 'string' ||
+      typeof value.room !== 'string' ||
+      typeof value.token !== 'string'
+    ) {
+      throw new Error('Gateway returned an invalid LiveKit session')
+    }
+    return { url: value.url, room: value.room, token: value.token }
+  })
   ipcMain.handle('marvi:get-displays', () =>
     screen.getAllDisplays().map((display, index) => ({
       id: display.id,
@@ -262,6 +329,11 @@ app.whenReady().then(() => {
     if (!mainWindow || event.sender !== mainWindow.webContents) return
     previewAssistantState(state)
   })
+  ipcMain.on('marvi:voice-state', (event, state) => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) return
+    const normalized = normalizeRuntimeStatus({ ...runtimeStatus, assistant: state })
+    if (normalized) publishRuntime(normalized)
+  })
   ipcMain.on('marvi:island-size', (event, value) => {
     if (!islandWindow || event.sender !== islandWindow.webContents) return
     const size = normalizeIslandContentSize(value)
@@ -293,6 +365,8 @@ app.on('before-quit', () => {
   isQuitting = true
   if (gatewayPoll) clearInterval(gatewayPoll)
   gatewayPoll = null
+  for (const process of voiceProcesses) process.kill()
+  voiceProcesses = []
   tray?.destroy()
   tray = null
   islandWindow = null
