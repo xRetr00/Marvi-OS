@@ -73,12 +73,7 @@ class Initiative:
             "pending_events": self.journal.count_pending(),
             "last_runs": dict(self.last_runs),
             "last_errors": dict(self.last_errors),
-            "settings": {
-                "quiet_start": self.mind.settings.quiet_start,
-                "quiet_end": self.mind.settings.quiet_end,
-                "cooldown_seconds": self.mind.settings.cooldown_seconds,
-                "daily_token_budget": self.mind.settings.daily_token_budget,
-            },
+            "settings": self.mind.settings.as_dict(),
         }
 
     # -- jobs ----------------------------------------------------------------

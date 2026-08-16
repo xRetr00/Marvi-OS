@@ -17,6 +17,19 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+
+def _int_env(name: str, fallback: int, low: int, high: int) -> int:
+    """Read an integer setting, clamped. A typo in a config file should not be
+    able to switch proactivity off by accident, or leave it uncapped."""
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return fallback
+    try:
+        return max(low, min(int(raw), high))
+    except ValueError:
+        return fallback
+
+
 # The least intrusive surface that is still useful, most quiet first.
 SURFACES = ("silent", "remember", "activity", "island", "speak", "propose")
 
@@ -67,10 +80,34 @@ class InitiativeSettings:
 
     @classmethod
     def from_env(cls) -> InitiativeSettings:
+        """Every knob here changes how often Marvi speaks, so every one of them
+        resolves from the environment and is editable from the control center.
+        A quiet-hours window buried in a constant is a setting the user cannot
+        reach."""
         return cls(
             paused=os.environ.get("MARVI_INITIATIVE", "").strip().lower()
             in ("0", "off", "false", "paused"),
+            quiet_start=_int_env("MARVI_QUIET_START", DEFAULT_QUIET_START, 0, 23),
+            quiet_end=_int_env("MARVI_QUIET_END", DEFAULT_QUIET_END, 0, 23),
+            cooldown_seconds=_int_env(
+                "MARVI_SURFACE_COOLDOWN", DEFAULT_COOLDOWN_SECONDS, 0, 24 * 3600
+            ),
+            daily_token_budget=_int_env(
+                "MARVI_DAILY_TOKEN_BUDGET", DEFAULT_DAILY_TOKEN_BUDGET, 0, 100_000_000
+            ),
+            speak_when_away=os.environ.get("MARVI_SPEAK_WHEN_AWAY", "").strip().lower()
+            in ("1", "on", "true", "yes"),
         )
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "paused": self.paused,
+            "quiet_start": self.quiet_start,
+            "quiet_end": self.quiet_end,
+            "cooldown_seconds": self.cooldown_seconds,
+            "daily_token_budget": self.daily_token_budget,
+            "speak_when_away": self.speak_when_away,
+        }
 
 
 @dataclass

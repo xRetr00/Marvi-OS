@@ -167,6 +167,18 @@ Streaming is deliberately not implemented here: the voice path streams through
 LiveKit's client, which already owns interruption and playout. This client
 serves the background mind, where nobody is waiting on a first token.
 
+## Chat and voice are one Marvi
+
+Both surfaces resolve through this registry, and both run tools through the same
+router with the same confirmation flow. Chat has no private door: a sensitive
+action typed into it pauses for approval exactly as one spoken aloud does, and
+resolves the same token. Tool results re-enter the conversation inside their
+untrusted envelope, because a tool can return text somebody else wrote.
+
+The only difference is transport. Voice streams through LiveKit's client, which
+owns interruption and playout; chat calls `ProviderClient` directly, where
+nobody is waiting on a first token.
+
 ## Where settings live
 
 The registry reads `os.environ` and nothing else. The control center edits

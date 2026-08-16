@@ -156,6 +156,32 @@ export interface IdentityStatus {
   directory: string
 }
 
+export interface ChatEntry {
+  id: number
+  at: string
+  role: string
+  content: string
+  meta: Record<string, unknown>
+}
+
+export interface ChatReply {
+  reply: string
+  tools_used: string[]
+  pending_confirmation: Record<string, unknown> | null
+  tokens: number
+  provider: string
+  error: string
+}
+
+export interface ServiceReport {
+  name: string
+  state: 'stopped' | 'starting' | 'running' | 'failed' | 'gave up'
+  detail: string
+  restarts: number
+  /** Last lines of the process's own output — the actual reason it died. */
+  output: string[]
+}
+
 export interface ComponentStatus {
   state: ComponentState
   detail: string

@@ -249,8 +249,14 @@ class ProviderProfile:
         effort: str | None = None,
         cache_prefix: bool = False,
         temperature: float | None = None,
+        tools: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
-        """Assemble a request body in this provider's own wire format."""
+        """Assemble a request body in this provider's own wire format.
+
+        `tools` is given in the neutral shape `{name, description, parameters}`
+        and translated per provider — the three formats disagree about where
+        the schema goes, which is the same reason `build_request` exists at all.
+        """
         chosen = model or self.model_for()
         limit = max_tokens or self.default_max_tokens
         wants_stream = stream and self.supports_streaming
@@ -272,6 +278,15 @@ class ProviderProfile:
                 body["temperature"] = temperature
             if self.reasoning.style == "budget_tokens" and effort:
                 body["thinking"] = {"type": "enabled", "budget_tokens": int(effort)}
+            if tools and self.supports_tools:
+                body["tools"] = [
+                    {
+                        "name": t["name"],
+                        "description": t.get("description", ""),
+                        "input_schema": t.get("parameters", {}),
+                    }
+                    for t in tools
+                ]
             return body
 
         if self.api_mode == "responses":
@@ -285,6 +300,16 @@ class ProviderProfile:
                 body["reasoning"] = {"effort": normalised}
             if cache_prefix and self.cache.style == "cache_key":
                 body["prompt_cache_key"] = "marvi-system"
+            if tools and self.supports_tools:
+                body["tools"] = [
+                    {
+                        "type": "function",
+                        "name": t["name"],
+                        "description": t.get("description", ""),
+                        "parameters": t.get("parameters", {}),
+                    }
+                    for t in tools
+                ]
             return body
 
         body = {"model": chosen, "messages": messages}
@@ -302,9 +327,65 @@ class ProviderProfile:
             body["reasoning_effort"] = normalised
         if cache_prefix and self.cache.style == "cache_key":
             body["prompt_cache_key"] = "marvi-system"
+        if tools and self.supports_tools:
+            body["tools"] = [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": t["name"],
+                        "description": t.get("description", ""),
+                        "parameters": t.get("parameters", {}),
+                    },
+                }
+                for t in tools
+            ]
         return body
 
     # -- response reading ----------------------------------------------------
+
+    def read_tool_calls(self, payload: dict[str, Any]) -> list[dict[str, Any]]:
+        """Tool calls the model asked for, normalised to {id, name, arguments}.
+
+        Returned rather than executed: nothing in this module is allowed to run
+        a tool. The caller routes them through the confirmation flow, which is
+        the only path that exists.
+        """
+        import json as _json
+
+        def parse(raw: Any) -> dict[str, Any]:
+            if isinstance(raw, dict):
+                return raw
+            try:
+                loaded = _json.loads(raw or "{}")
+            except (TypeError, ValueError):
+                return {}
+            return loaded if isinstance(loaded, dict) else {}
+
+        if self.api_mode == "anthropic":
+            return [
+                {"id": block.get("id", ""), "name": block.get("name", ""),
+                 "arguments": parse(block.get("input"))}
+                for block in payload.get("content", []) or []
+                if block.get("type") == "tool_use"
+            ]
+
+        if self.api_mode == "responses":
+            return [
+                {"id": item.get("call_id") or item.get("id", ""), "name": item.get("name", ""),
+                 "arguments": parse(item.get("arguments"))}
+                for item in payload.get("output", []) or []
+                if item.get("type") == "function_call"
+            ]
+
+        choices = payload.get("choices") or []
+        if not choices:
+            return []
+        message = choices[0].get("message") or {}
+        return [
+            {"id": call.get("id", ""), "name": (call.get("function") or {}).get("name", ""),
+             "arguments": parse((call.get("function") or {}).get("arguments"))}
+            for call in message.get("tool_calls") or []
+        ]
 
     def read_usage(self, payload: dict[str, Any]) -> Usage:
         """Pull token counts out of this provider's response shape."""

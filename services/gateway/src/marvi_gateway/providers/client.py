@@ -55,6 +55,9 @@ class Completion:
     provider: str
     model: str
     cached: bool = False
+    # Requested, never executed. The caller routes these through the tool
+    # router so confirmation applies identically to every surface.
+    tool_calls: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -143,6 +146,7 @@ class ProviderClient:
         effort: str | None = None,
         cache_prefix: bool = True,
         temperature: float | None = None,
+        tools: list[dict[str, Any]] | None = None,
     ) -> Completion:
         """Call one provider. Raises rather than falling back — see `call_with_fallback`."""
         import httpx
@@ -170,6 +174,7 @@ class ProviderClient:
             # not asking for it is a silent cost.
             cache_prefix=cache_prefix,
             temperature=temperature,
+            tools=tools,
         )
         client = self.http or httpx.Client(timeout=REQUEST_TIMEOUT)
         try:
@@ -201,6 +206,7 @@ class ProviderClient:
             provider=profile.name,
             model=model,
             cached=usage.cached_input > 0,
+            tool_calls=profile.read_tool_calls(payload),
         )
 
     def reachable(self, profile: ProviderProfile, timeout: float = 0.4) -> bool:

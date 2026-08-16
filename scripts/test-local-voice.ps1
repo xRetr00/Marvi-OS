@@ -1,11 +1,13 @@
+. (Join-Path $PSScriptRoot 'runtime-config.ps1')
+. (Join-Path $PSScriptRoot 'runtime-config.ps1')
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
 $logDir = Join-Path $env:LOCALAPPDATA 'Marvi-OS\logs'
-$livekitExe = Join-Path $env:LOCALAPPDATA 'Marvi-OS\runtime\livekit\1.13.5\livekit-server.exe'
+$livekitExe = Get-MarviLiveKitExe
 $uv = (Get-Command uv).Source
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 
-$env:LIVEKIT_URL = 'ws://127.0.0.1:7880'
+$env:LIVEKIT_URL = Get-MarviLiveKitUrl
 $env:LIVEKIT_API_KEY = 'devkey'
 $env:LIVEKIT_API_SECRET = 'secret'
 $env:OPENCODE_GO_API_KEY = 'transport-test-only'
