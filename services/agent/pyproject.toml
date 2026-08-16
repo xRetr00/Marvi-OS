@@ -8,6 +8,7 @@ version = "0.1.0.dev0"
 description = "LiveKit Agents worker for Marvi OS"
 requires-python = ">=3.12,<3.15"
 dependencies = [
+    "httpx>=0.28,<1",
     "livekit-agents[openai]>=1.6.9,<2",
     "livekit-plugins-silero>=1.6.9,<2",
     "numpy>=2,<3",

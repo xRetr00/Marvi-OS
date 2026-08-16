@@ -17,6 +17,7 @@ from .activity import ActivityWatch, register_activity_tools
 from .announce import Announcer, announce_enabled
 from .browser import BrowserSession, browser_enabled, register_browser_tools
 from .deliberate import deliberator_from_env
+from .identity import IdentityFiles, plan_warning
 from .ingest import AccountIngest
 from .initiative import Initiative
 from .journal import EventJournal
@@ -24,6 +25,8 @@ from .mcp_bridge import McpBridge, register_mcp_tools
 from .memory import MemoryStore, register_memory_tools
 from .mind import Mind
 from .policy import InitiativeSettings
+from .providers import ProviderClient, all_profiles
+from .providers import config as provider_config
 from .room import RoomSidecar, register_room_tools
 from .runtime import (
     ArgumentsMutatedError,
@@ -119,6 +122,60 @@ class InitiativeStatus(BaseModel):
     settings: dict[str, Any]
 
 
+class ProviderRow(BaseModel):
+    name: str
+    label: str
+    access_path: str
+    api_mode: str
+    auth_type: str
+    configured: bool
+    base_url: str
+    models: dict[str, str]
+    # The variables this provider reads, so the GUI edits exactly those rather
+    # than deriving names from the provider's own and getting them wrong.
+    env: dict[str, str]
+    limits: dict[str, Any]
+    usage: dict[str, int]
+    cooldown: dict[str, Any] | None
+    warning: str | None
+
+
+class ProviderPage(BaseModel):
+    providers: list[ProviderRow]
+    selected: str | None
+    settings: dict[str, str]
+    totals: dict[str, int]
+
+
+class ProviderSettingsUpdate(BaseModel):
+    # Plain environment variable names, so the GUI edits exactly what the
+    # registry reads. An empty value clears the setting and disconnects.
+    values: dict[str, str]
+
+
+class VoiceProvider(BaseModel):
+    """What the Agent worker needs to build its LLM. Loopback only."""
+
+    provider: str
+    base_url: str
+    model: str
+    api_key: str
+
+
+class IdentityStatus(BaseModel):
+    soul: str
+    user: str
+    tokens: int
+    budget: int
+    truncated: bool
+    directory: str
+
+
+class IdentityUpdate(BaseModel):
+    soul: str | None = None
+    user: str | None = None
+
+
 class DecisionPage(BaseModel):
     decisions: list[dict[str, Any]]
     events: list[dict[str, Any]]
@@ -161,6 +218,11 @@ def create_app(
     tools: ToolRegistry | None = None,
 ) -> FastAPI:
     product_version = version or read_version()
+    # Saved GUI settings become environment variables before anything reads
+    # them, so the registry still has exactly one source of truth.
+    provider_config.load_into_environ()
+    provider_client = ProviderClient()
+    identity = IdentityFiles()
     runtime_store = runtime or RuntimeStore()
     sidecar: RoomSidecar | None = None
     accounts: ComposioAccounts | None = None
@@ -199,7 +261,7 @@ def create_app(
                 journal,
                 memory=memory,
                 settings=InitiativeSettings.from_env(),
-                deliberate=deliberator_from_env(),
+                deliberate=deliberator_from_env(client=provider_client),
                 announcer=Announcer() if announce_enabled() else None,
             ),
             journal,
@@ -564,6 +626,123 @@ def create_app(
         return RoomEventPage(
             events=sidecar.events(limit=max(1, min(limit, 200)), notable_only=notable_only)
         )
+
+    @app.get("/providers", response_model=ProviderPage)
+    async def providers() -> ProviderPage:
+        usage = provider_client.usage_by_provider()
+        cooling = provider_client.cooldowns()
+        rows = [
+            ProviderRow(
+                name=p.name,
+                label=p.label(),
+                access_path=p.access_path,
+                api_mode=p.api_mode,
+                auth_type=p.auth_type,
+                configured=p.configured(),
+                base_url=p.base_url() or "",
+                models={
+                    "main": p.model_for("main"),
+                    "aux": p.model_for("aux"),
+                    "vision": p.default_vision_model or "",
+                },
+                env={
+                    "key": p.key_env[0] if p.key_env else "",
+                    "model": p.default_model_env or "",
+                    "url": p.base_url_env or "",
+                },
+                limits={
+                    "style": p.limits.style,
+                    "windows": [list(w) for w in p.limits.windows],
+                    "readable": p.limits.readable,
+                    "note": p.limits.note,
+                },
+                usage=usage.get(p.name, {"input": 0, "output": 0, "cached_input": 0, "billable": 0}),
+                cooldown=cooling.get(p.name),
+                # Shown before connecting, not after. See docs/PROVIDERS.md.
+                warning=plan_warning(p),
+            )
+            for p in all_profiles()
+        ]
+        total = provider_client.usage()
+        return ProviderPage(
+            providers=rows,
+            selected=os.environ.get("MARVI_PROVIDER", "").strip() or None,
+            settings=provider_config.visible(),
+            totals={
+                "input": total.input,
+                "output": total.output,
+                "cached_input": total.cached_input,
+                "billable": total.billable,
+            },
+        )
+
+    @app.put("/providers/settings", response_model=ProviderPage)
+    async def set_provider_settings(update: ProviderSettingsUpdate) -> ProviderPage:
+        provider_config.update(update.values)
+        # Connecting a provider that was cooling down should retry it, not wait
+        # out a cooldown earned by the credential the user just replaced.
+        for name in list(provider_client.cooldowns()):
+            provider_client.clear_cooldown(name)
+        runtime_store.audit(
+            "providers", "settings",
+            # Never audit the values; several of them are credentials.
+            {"changed": sorted(update.values)},
+        )
+        return await providers()
+
+    @app.get("/providers/voice", response_model=VoiceProvider)
+    async def voice_provider() -> VoiceProvider:
+        """Resolve the voice LLM for the Agent worker.
+
+        The Agent runs in its own environment and must not carry its own copy of
+        the provider table. It asks here, over the same loopback channel it
+        already uses for tools, and gets whatever the user configured.
+        """
+        # The LiveKit OpenAI plugin speaks chat completions, and a local server
+        # that is merely configured is not the same as one that is running.
+        usable = [
+            p
+            for p in provider_client.candidates(
+                os.environ.get("MARVI_PROVIDER", "").strip() or None
+            )
+            if p.api_mode == "chat_completions" and provider_client.reachable(p)
+        ]
+        if not usable:
+            raise HTTPException(
+                status_code=503, detail="no usable provider for the voice path"
+            )
+        chosen = usable[0]
+        return VoiceProvider(
+            provider=chosen.name,
+            base_url=chosen.base_url() or "",
+            model=chosen.model_for("main"),
+            api_key=chosen.api_key() or "local",
+        )
+
+    @app.get("/identity", response_model=IdentityStatus)
+    async def read_identity() -> IdentityStatus:
+        loaded = identity.read()
+        status = identity.status()
+        return IdentityStatus(
+            soul=loaded.soul,
+            user=loaded.user,
+            tokens=loaded.tokens,
+            budget=int(status["budget"]),
+            truncated=loaded.truncated,
+            directory=str(status["directory"]),
+        )
+
+    @app.put("/identity", response_model=IdentityStatus)
+    async def write_identity(update: IdentityUpdate) -> IdentityStatus:
+        if update.soul is not None:
+            identity.write_soul(update.soul)
+        if update.user is not None:
+            identity.write_user(update.user)
+        runtime_store.audit(
+            "identity", "write",
+            {"soul": update.soul is not None, "user": update.user is not None},
+        )
+        return await read_identity()
 
     @app.get("/audit", response_model=AuditPage)
     async def audit_tail(limit: int = 100) -> AuditPage:

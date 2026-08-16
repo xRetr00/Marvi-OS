@@ -137,7 +137,7 @@ def test_speaking_to_an_empty_room_is_downgraded() -> None:
 
 
 def test_an_exhausted_budget_means_silence() -> None:
-    verdict = evaluate(alarm(), world(spent_today=99.0), wanted="speak")
+    verdict = evaluate(alarm(), world(tokens_today=10_000_000), wanted="speak")
     assert verdict.allow is False
     assert verdict.rule == "daily-budget"
 
@@ -220,19 +220,19 @@ def test_an_llm_may_make_a_decision_quieter_but_never_louder(journal) -> None:
     assert quiet_mind.why()[0]["surface"] == "activity"
 
 
-def test_llm_cost_counts_against_the_daily_budget(journal) -> None:
+def test_llm_tokens_count_against_the_daily_budget(journal) -> None:
     journal.append("room", "alarm_started", "Alarm", trusted=True)
-    mind = Mind(journal, deliberate=lambda e, v: ("island", "", 0.25))
+    mind = Mind(journal, deliberate=lambda e, v: ("island", "", 250))
     mind.tick(now=NOON)
 
-    assert journal.spend_since(NOON - timedelta(hours=1)) == pytest.approx(0.25)
+    assert journal.tokens_since(NOON - timedelta(hours=1)) == 250
 
 
 def test_budget_exhaustion_silences_later_events_in_the_same_day(journal) -> None:
     for n in range(3):
         journal.append("room", "alarm_started", f"Alarm {n}", trusted=True)
-    mind = Mind(journal, settings=InitiativeSettings(daily_budget=0.30),
-                deliberate=lambda e, v: ("island", "", 0.20))
+    mind = Mind(journal, settings=InitiativeSettings(daily_token_budget=300),
+                deliberate=lambda e, v: ("island", "", 200))
     mind.tick(now=NOON)
 
     rules = [d["rule"] for d in mind.why()]

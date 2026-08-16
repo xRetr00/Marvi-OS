@@ -1,6 +1,6 @@
 # Phase 9 — Providers, Auxiliary Models, and Identity
 
-**Status:** in progress — foundation shipped
+**Status:** in progress — steps 1, 2, 3, 3b, 7, 8, 9 done; OAuth and more providers remain
 **Depends on:** Phase 6 (the deliberation seam), Phase 5 (memory)
 
 Marvi currently speaks to one model through one hardcoded HTTP call, and has no
@@ -177,12 +177,19 @@ streaming, reasoning effort, and prompt caching. Cache-aware `Usage` separates
 (Ollama, LM Studio, llama.cpp/vLLM) and both OpenCode providers are registered;
 Zen and Go are separate profiles. 36 tests. See `docs/PROVIDERS.md`.
 
-**Step 2 — move the callers.** `session.py` and `deliberate.py` resolve through
-the registry; their hardcoded base URLs are deleted. This is the step that makes
-every later provider work everywhere at once.
+**Step 2 — move the callers. Done.** `deliberate.py` names no provider and calls
+through `ProviderClient`. The Agent worker no longer carries a provider table at
+all: it asks the Gateway for `/providers/voice` over the loopback channel it
+already uses for tools, because two copies of the provider table drift and the
+one that drifts is always the one the user did not edit. The last hardcoded base
+URLs are deleted.
 
-**Step 3 — token accounting.** Record `Usage` per call, make the
-`REAL-AGENCY.md` budget bind on `billable` tokens, and prove caching reduces it.
+**Step 3 — token accounting. Done.** The `REAL-AGENCY.md` budget is denominated
+in tokens rather than dollars, so it binds identically on an API, a plan and a
+local model. It counts `billable` tokens, which excludes cached input — a cached
+prefix genuinely costs less, and the guard should see that rather than a flat
+per-call estimate. The journal migrates its `cost` column to `tokens`; older
+rows count as zero, which is the harmless direction.
 
 **Step 3b — OpenAI and Anthropic. Done.** Both metered APIs plus the Codex and
 Claude Code plan profiles, covering all three wire shapes. A client that records
@@ -200,12 +207,22 @@ endpoints. The shapes are built and unit-tested; this needs keys.
 expiry, an explicit expired state, and a storage decision for refresh tokens.
 Then the rest.
 
-**Step 7 — limits and cooldown.** Display credit and window state; treat 429 +
-`Retry-After` as window exhaustion and fail over.
-**Step 8 — providers page.** Connect, disconnect, reconnect; model per job;
-credit, window and token usage. Everything editable, nothing in code.
+**Step 7 — limits and cooldown. Done.** `GET /providers` reports each provider's
+limit structure, its rolling windows where it has them, and whether they are
+readable at all. Cooldown state and its reason are shown on the card. A 429 with
+`Retry-After` already stands the provider down and fails over.
 
-**Step 9 — identity files and composer**, with the editor surface.
+**Step 8 — providers page. Done.** Grouped by access path, because that is what
+determines how a provider bills and fails. Connect, edit the model, and
+disconnect; a plan cannot be connected until its terms warning has been read.
+Settings are written to `providers.env` and applied to the process immediately,
+so a change takes effect with no restart. Credentials are masked on the way out
+and never reach the audit log. A local server that is configured but not running
+is not offered to the voice path — being "configured" only means it has a URL.
+
+**Step 9 — identity files and composer. Done.** `SOUL.md` and `USER.md` are
+readable and writable from the Identity page, which shows the token budget and
+says when a file has been truncated. Marvi never writes `SOUL.md` itself.
 
 ## Acceptance evidence required
 

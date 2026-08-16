@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS decisions (
     detail      TEXT NOT NULL DEFAULT '',
     provider    TEXT NOT NULL DEFAULT 'deterministic',
     latency_ms  REAL NOT NULL DEFAULT 0,
-    cost        REAL NOT NULL DEFAULT 0,
+    tokens      INTEGER NOT NULL DEFAULT 0,
     outcome     TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS decisions_at ON decisions(at);
@@ -80,6 +80,12 @@ class EventJournal:
         self._db = sqlite3.connect(self.path, check_same_thread=False)
         self._db.row_factory = sqlite3.Row
         self._db.executescript(SCHEMA)
+        # Journals written before the budget moved from dollars to tokens have a
+        # `cost` column and no `tokens` one. Old rows keep their history; they
+        # just count as zero thinking, which is the harmless direction.
+        columns = {r["name"] for r in self._db.execute("PRAGMA table_info(decisions)")}
+        if "tokens" not in columns:
+            self._db.execute("ALTER TABLE decisions ADD COLUMN tokens INTEGER NOT NULL DEFAULT 0")
         self._db.commit()
 
     def close(self) -> None:
@@ -184,13 +190,13 @@ class EventJournal:
         event_id: int | None = None,
         provider: str = "deterministic",
         latency_ms: float = 0.0,
-        cost: float = 0.0,
+        tokens: int = 0,
         outcome: str = "",
         now: datetime | None = None,
     ) -> int:
         cursor = self._db.execute(
             "INSERT INTO decisions"
-            " (at, event_id, trigger, surface, rule, detail, provider, latency_ms, cost, outcome)"
+            " (at, event_id, trigger, surface, rule, detail, provider, latency_ms, tokens, outcome)"
             " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 (now or datetime.now(UTC)).isoformat(),
@@ -201,7 +207,7 @@ class EventJournal:
                 detail[:500],
                 provider,
                 latency_ms,
-                cost,
+                tokens,
                 outcome[:300],
             ),
         )
@@ -214,12 +220,12 @@ class EventJournal:
         ).fetchall()
         return [dict(r) for r in rows]
 
-    def spend_since(self, since: datetime) -> float:
+    def tokens_since(self, since: datetime) -> int:
         row = self._db.execute(
-            "SELECT COALESCE(SUM(cost), 0) AS total FROM decisions WHERE at >= ?",
+            "SELECT COALESCE(SUM(tokens), 0) AS total FROM decisions WHERE at >= ?",
             (since.isoformat(),),
         ).fetchone()
-        return float(row["total"])
+        return int(row["total"])
 
     def last_surfaced(self, source: str, kind: str) -> datetime | None:
         """When Marvi last actually surfaced something for this source/kind."""

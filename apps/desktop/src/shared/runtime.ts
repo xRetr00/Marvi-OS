@@ -111,6 +111,41 @@ export interface AssistantState {
   roomEvent: RoomEvent | null
 }
 
+export interface ProviderRow {
+  name: string
+  label: string
+  accessPath: 'api' | 'plan' | 'local'
+  apiMode: string
+  authType: string
+  configured: boolean
+  baseUrl: string
+  models: { main: string; aux: string; vision: string }
+  /** The environment variables this provider reads. Reported by the registry. */
+  env: { key: string; model: string; url: string }
+  limits: { style: string; windows: string[][]; readable: boolean; note: string }
+  usage: { input: number; output: number; cachedInput: number; billable: number }
+  cooldown: { seconds_remaining: number; reason: string } | null
+  /** Present only on subscription plans: the terms warning shown before connecting. */
+  warning: string | null
+}
+
+export interface ProviderPage {
+  providers: ProviderRow[]
+  selected: string | null
+  /** Saved settings with credentials masked; never the real values. */
+  settings: Record<string, string>
+  totals: { input: number; output: number; cachedInput: number; billable: number }
+}
+
+export interface IdentityStatus {
+  soul: string
+  user: string
+  tokens: number
+  budget: number
+  truncated: boolean
+  directory: string
+}
+
 export interface ComponentStatus {
   state: ComponentState
   detail: string

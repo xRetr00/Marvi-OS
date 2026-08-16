@@ -29,9 +29,12 @@ import { haptic } from './lib/haptics'
 import type {
   AuditEvent,
   ConnectedAccount,
+  IdentityStatus,
   InitiativeStatus,
   MemoryPage,
   MindDecision,
+  ProviderPage,
+  ProviderRow,
   UpdateResult,
   UpdateStatus,
   RoomEvent,
@@ -46,6 +49,8 @@ const NAV_ITEMS = [
   'Vision',
   'Room',
   'Accounts',
+  'Providers',
+  'Identity',
   'Memory',
   'Mind',
   'Activity',
@@ -178,6 +183,10 @@ function MainSurface(): React.JSX.Element {
               <ActivityPanel />
             ) : page === 'Accounts' ? (
               <AccountsPanel />
+            ) : page === 'Providers' ? (
+              <ProvidersPanel />
+            ) : page === 'Identity' ? (
+              <IdentityPanel />
             ) : page === 'Memory' ? (
               <MemoryPanel />
             ) : page === 'Mind' ? (
@@ -752,6 +761,304 @@ function AccountsPanel(): React.JSX.Element {
   )
 }
 
+const ACCESS_LABEL: Record<string, string> = {
+  api: 'PAY AS YOU GO',
+  plan: 'SUBSCRIPTION PLAN',
+  local: 'LOCAL'
+}
+
+function ProviderCard({
+  provider,
+  onSave
+}: {
+  provider: ProviderRow
+  onSave: (values: Record<string, string>) => Promise<void>
+}): React.JSX.Element {
+  const [open, setOpen] = useState(false)
+  const [secret, setSecret] = useState('')
+  const [model, setModel] = useState(provider.models.main)
+  const [acknowledged, setAcknowledged] = useState(provider.configured)
+  const [busy, setBusy] = useState(false)
+
+  const keyEnv = provider.env.key
+  const modelEnv = provider.env.model
+  const needsKey = provider.authType !== 'none' && keyEnv !== ''
+  // A plan cannot be connected until its terms warning has actually been read.
+  const blocked = provider.warning !== null && !acknowledged
+
+  const save = async (values: Record<string, string>): Promise<void> => {
+    setBusy(true)
+    try {
+      await onSave(values)
+      setSecret('')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="service-row provider-row">
+      <span className="service-name">{provider.label.toUpperCase()}</span>
+      <span className={`service-state state-${provider.configured ? 'ready' : 'pending'}`}>
+        {provider.cooldown
+          ? `COOLING DOWN ${Math.round(provider.cooldown.seconds_remaining)}S`
+          : provider.configured
+            ? 'CONNECTED'
+            : 'NOT CONNECTED'}
+      </span>
+      <small>
+        {ACCESS_LABEL[provider.accessPath]} / {provider.apiMode.replace(/_/g, ' ').toUpperCase()} /{' '}
+        {provider.models.main || 'no model'}
+      </small>
+      {provider.cooldown ? (
+        <small className="provider-cooldown">{provider.cooldown.reason}</small>
+      ) : null}
+
+      {provider.limits.windows.length > 0 ? (
+        <small>
+          LIMITS {provider.limits.windows.map(([win, cap]) => `${cap} / ${win}`).join(', ')}
+          {provider.limits.readable ? '' : ' (not published over the API)'}
+        </small>
+      ) : null}
+
+      {provider.usage.billable > 0 ? (
+        <small>
+          {provider.usage.billable.toLocaleString()} billable tokens
+          {provider.usage.cachedInput > 0
+            ? ` / ${provider.usage.cachedInput.toLocaleString()} served from cache`
+            : ''}
+        </small>
+      ) : null}
+
+      <button className="phase" type="button" onClick={() => setOpen(!open)}>
+        {open ? 'CLOSE' : provider.configured ? 'EDIT' : 'CONNECT'}
+      </button>
+
+      {open ? (
+        <div className="provider-form">
+          {provider.warning ? (
+            <label className="provider-warning">
+              <input
+                type="checkbox"
+                checked={acknowledged}
+                onChange={(event) => setAcknowledged(event.target.checked)}
+              />
+              <span>{provider.warning}</span>
+            </label>
+          ) : null}
+
+          {needsKey ? (
+            <input
+              type="password"
+              placeholder={provider.configured ? 'Replace the saved key' : keyEnv}
+              value={secret}
+              onChange={(event) => setSecret(event.target.value)}
+            />
+          ) : (
+            <small>No credential needed. Start the server and Marvi will find it.</small>
+          )}
+
+          <input
+            type="text"
+            placeholder="Model"
+            value={model}
+            onChange={(event) => setModel(event.target.value)}
+          />
+
+          <div className="provider-actions">
+            <button
+              className="phase"
+              type="button"
+              disabled={busy || blocked || (needsKey && !secret && model === provider.models.main)}
+              onClick={() =>
+                void save({
+                  ...(secret ? { [keyEnv]: secret } : {}),
+                  ...(model !== provider.models.main ? { [modelEnv]: model } : {})
+                })
+              }
+            >
+              {blocked ? 'READ THE WARNING FIRST' : busy ? 'SAVING' : 'SAVE'}
+            </button>
+            {provider.configured && needsKey ? (
+              <button
+                className="phase danger"
+                type="button"
+                disabled={busy}
+                onClick={() => void save({ [keyEnv]: '' })}
+              >
+                DISCONNECT
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function ProvidersPanel(): React.JSX.Element {
+  const [page, setPage] = useState<ProviderPage | null>(null)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let disposed = false
+    const load = async (): Promise<void> => {
+      const next = await window.marvi?.getProviders()
+      if (disposed) return
+      if (next) {
+        setPage(next)
+        setError('')
+      } else {
+        setError('Marvi Gateway is unavailable')
+      }
+    }
+    void load()
+    const timer = setInterval(() => void load(), 20_000)
+    return () => {
+      disposed = true
+      clearInterval(timer)
+    }
+  }, [])
+
+  const save = async (values: Record<string, string>): Promise<void> => {
+    const next = await window.marvi?.setProviderSettings(values)
+    if (next) setPage(next)
+    else setError('Could not save; the Gateway did not accept the change')
+  }
+
+  const groups: Array<[string, ProviderRow['accessPath']]> = [
+    ['LOCAL', 'local'],
+    ['PAY AS YOU GO', 'api'],
+    ['SUBSCRIPTION PLANS', 'plan']
+  ]
+
+  return (
+    <section className="single-page panel">
+      <div className="panel-label">{'// PROVIDERS'}</div>
+      <h2>Providers</h2>
+      <p>
+        Keys are written to a local settings file and never leave this machine. Budget is counted in
+        tokens rather than money, because that is the one number every provider reports the same way
+        — and the only one a subscription plan reports at all.
+      </p>
+
+      {page ? (
+        <div className="context-line">
+          <span>TOKENS USED</span>
+          <strong>
+            {page.totals.billable.toLocaleString()} BILLABLE
+            {page.totals.cachedInput > 0
+              ? ` / ${page.totals.cachedInput.toLocaleString()} CACHED`
+              : ''}
+          </strong>
+        </div>
+      ) : null}
+
+      <div className="ascii-divider">+------------------------------+</div>
+
+      {error ? <span className="construction">{error.toUpperCase()}</span> : null}
+
+      {groups.map(([label, path]) => {
+        const rows = (page?.providers ?? []).filter((row) => row.accessPath === path)
+        if (rows.length === 0) return null
+        return (
+          <div key={path}>
+            <div className="panel-label">{`// ${label}`}</div>
+            <div className="service-list">
+              {rows.map((provider) => (
+                <ProviderCard key={provider.name} provider={provider} onSave={save} />
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </section>
+  )
+}
+
+function IdentityPanel(): React.JSX.Element {
+  const [identity, setIdentity] = useState<IdentityStatus | null>(null)
+  const [soul, setSoul] = useState('')
+  const [user, setUser] = useState('')
+  const [saved, setSaved] = useState(true)
+
+  useEffect(() => {
+    let disposed = false
+    void (async () => {
+      const next = await window.marvi?.getIdentity()
+      if (disposed || !next) return
+      setIdentity(next)
+      setSoul(next.soul)
+      setUser(next.user)
+    })()
+    return () => {
+      disposed = true
+    }
+  }, [])
+
+  const save = async (): Promise<void> => {
+    const next = await window.marvi?.setIdentity({ soul, user })
+    if (next) {
+      setIdentity(next)
+      setSaved(true)
+    }
+  }
+
+  return (
+    <section className="single-page panel">
+      <div className="panel-label">{'// IDENTITY'}</div>
+      <h2>Identity</h2>
+      <p>
+        Two files that go into every prompt: who Marvi is, and who it is speaking to. Anything true
+        only sometimes belongs in Memory instead — this is what is true on every single turn, and
+        every token here is paid on every turn including the voice path.
+      </p>
+
+      {identity ? (
+        <div className="context-line">
+          <span>BUDGET</span>
+          <strong>
+            {identity.tokens} / {identity.budget} TOKENS
+            {identity.truncated ? ' — TRUNCATED' : ''}
+          </strong>
+        </div>
+      ) : null}
+
+      <div className="ascii-divider">+------------------------------+</div>
+
+      <label className="identity-field">
+        <span>SOUL.md — voice, temperament, refusals</span>
+        <textarea
+          rows={10}
+          value={soul}
+          onChange={(event) => {
+            setSoul(event.target.value)
+            setSaved(false)
+          }}
+        />
+      </label>
+
+      <label className="identity-field">
+        <span>USER.md — name, hours, standing preferences</span>
+        <textarea
+          rows={10}
+          value={user}
+          onChange={(event) => {
+            setUser(event.target.value)
+            setSaved(false)
+          }}
+        />
+      </label>
+
+      <button className="phase" type="button" disabled={saved} onClick={() => void save()}>
+        {saved ? 'SAVED' : 'SAVE'}
+      </button>
+
+      {identity ? <small>{identity.directory}</small> : null}
+    </section>
+  )
+}
+
 function ActivityPanel(): React.JSX.Element {
   const [events, setEvents] = useState<AuditEvent[]>([])
 
@@ -813,6 +1120,8 @@ function PagePanel({ page, version }: { page: Page; version: string }): React.JS
       'Always-on local presence and gesture processing. Frames leave the PC only for an explicit vision task.',
     Room: 'Status and events from D:\\smart-room-plugin. Marvi OS does not replace its automation authority.',
     Accounts: 'Composio connections for email, LinkedIn, X, and other world-context providers.',
+    Providers: 'Model providers, credentials, models per job, and token usage.',
+    Identity: 'SOUL.md and USER.md - who Marvi is, and who it is speaking to.',
     Memory: 'Durable facts, episodic events, retrieval controls, and forget/export operations.',
     Mind: 'Event-driven decisions, the rule behind each one, and the initiative switch.',
     Activity: 'Structured local event and tool audit timeline. No hidden outbound telemetry.',

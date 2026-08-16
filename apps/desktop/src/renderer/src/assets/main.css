@@ -1190,3 +1190,75 @@ nav {
   color: var(--ui-text-primary);
   font-size: 11px;
 }
+
+/* Providers and identity ---------------------------------------------- */
+.provider-row .phase {
+  flex: 0 0 auto;
+  grid-column: 1 / 3;
+  justify-self: start;
+  padding: 6px 12px;
+  border-color: var(--ui-stroke-tertiary);
+}
+.phase:disabled {
+  color: var(--ui-text-tertiary);
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.phase.danger:hover {
+  border-color: color-mix(in srgb, #ff6b6b 55%, transparent);
+  color: #ff6b6b;
+  background: color-mix(in srgb, #ff6b6b 8%, transparent);
+}
+.provider-cooldown {
+  color: color-mix(in srgb, var(--ui-accent) 70%, var(--ui-text-tertiary));
+}
+.provider-form {
+  display: flex;
+  grid-column: 1 / 3;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 0 2px;
+}
+.provider-form input[type='text'],
+.provider-form input[type='password'],
+.identity-field textarea {
+  padding: 8px;
+  border: 1px solid var(--ui-stroke-tertiary);
+  color: var(--ui-text-primary);
+  background: transparent;
+  font: inherit;
+  font-size: 10px;
+}
+.provider-form input:focus,
+.identity-field textarea:focus {
+  border-color: color-mix(in srgb, var(--ui-accent) 45%, transparent);
+  outline: none;
+}
+/* The plan terms warning is a paragraph, not a label: it has to be readable
+   at a glance or it is decoration. */
+.provider-warning {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  color: var(--ui-text-secondary);
+  font-size: 9px;
+  line-height: 1.5;
+}
+.provider-actions {
+  display: flex;
+  gap: 6px;
+}
+.identity-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 0;
+}
+.identity-field span {
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+}
+.identity-field textarea {
+  resize: vertical;
+  line-height: 1.6;
+}

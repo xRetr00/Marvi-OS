@@ -1,0 +1,193 @@
+"""The providers and identity surfaces the control center talks to.
+
+Two things are being protected here. Provider settings must be editable from
+the GUI without a rebuild, which is the whole reason a saved-settings file
+exists at all. And a credential typed into that GUI must never come back out of
+it.
+"""
+
+from __future__ import annotations
+
+import pytest
+from fastapi.testclient import TestClient
+
+from marvi_gateway.app import create_app
+from marvi_gateway.providers import config
+from marvi_gateway.tools import ToolRegistry
+
+
+@pytest.fixture
+def client(tmp_path, monkeypatch):
+    monkeypatch.setenv("MARVI_PROVIDER_CONFIG", str(tmp_path / "providers.env"))
+    monkeypatch.setenv("MARVI_IDENTITY_DIR", str(tmp_path / "identity"))
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("MARVI_PROVIDER", raising=False)
+    with TestClient(create_app(tools=ToolRegistry())) as c:
+        yield c
+
+
+# -- the settings file ------------------------------------------------------
+
+
+def test_saved_settings_become_environment_variables(tmp_path, monkeypatch) -> None:
+    path = tmp_path / "providers.env"
+    config.write({"OPENAI_API_KEY": "sk-saved", "MARVI_OLLAMA_MODEL": "llama4"}, path)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("MARVI_OLLAMA_MODEL", raising=False)
+
+    assert config.load_into_environ(path) == 2
+    import os
+
+    assert os.environ["OPENAI_API_KEY"] == "sk-saved"
+
+
+def test_a_real_environment_variable_wins(tmp_path, monkeypatch) -> None:
+    path = tmp_path / "providers.env"
+    config.write({"OPENAI_API_KEY": "sk-saved"}, path)
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-from-shell")
+    config.load_into_environ(path)
+
+    # A stale saved value must not quietly override what the user launched with.
+    import os
+
+    assert os.environ["OPENAI_API_KEY"] == "sk-from-shell"
+
+
+def test_secrets_are_masked_on_the_way_out(tmp_path) -> None:
+    path = tmp_path / "providers.env"
+    config.write({"OPENAI_API_KEY": "sk-abcdef123456", "MARVI_OLLAMA_MODEL": "llama4"}, path)
+    shown = config.visible(path)
+
+    assert "abcdef" not in shown["OPENAI_API_KEY"]
+    assert shown["MARVI_OLLAMA_MODEL"] == "llama4"  # not a secret, shown plainly
+
+
+def test_an_empty_value_disconnects(tmp_path, monkeypatch) -> None:
+    path = tmp_path / "providers.env"
+    monkeypatch.setenv("MARVI_PROVIDER_CONFIG", str(path))
+    config.update({"OPENAI_API_KEY": "sk-x"}, path)
+    config.update({"OPENAI_API_KEY": ""}, path)
+
+    import os
+
+    assert "OPENAI_API_KEY" not in config.read(path)
+    assert not os.environ.get("OPENAI_API_KEY")
+
+
+# -- the page ---------------------------------------------------------------
+
+
+def test_the_page_lists_every_provider_with_its_billing(client) -> None:
+    body = client.get("/providers").json()
+    rows = {p["name"]: p for p in body["providers"]}
+
+    assert rows["ollama"]["access_path"] == "local"
+    assert rows["opencode-go"]["limits"]["style"] == "rolling_windows"
+    assert rows["anthropic"]["api_mode"] == "anthropic"
+    assert body["totals"]["billable"] == 0
+
+
+def test_plan_providers_carry_the_terms_warning(client) -> None:
+    rows = {p["name"]: p for p in client.get("/providers").json()["providers"]}
+
+    assert "suspension" in rows["codex"]["warning"]
+    assert rows["openai"]["warning"] is None
+
+
+def test_connecting_a_provider_takes_effect_without_a_restart(client) -> None:
+    before = {p["name"]: p for p in client.get("/providers").json()["providers"]}
+    assert before["openai"]["configured"] is False
+
+    body = client.put(
+        "/providers/settings", json={"values": {"OPENAI_API_KEY": "sk-typed-in-the-gui"}}
+    ).json()
+    after = {p["name"]: p for p in body["providers"]}
+
+    assert after["openai"]["configured"] is True
+    # The key must not come back out of the surface it was typed into.
+    assert "sk-typed-in-the-gui" not in str(body)
+
+
+def test_the_registry_reports_the_variables_it_reads(client) -> None:
+    rows = {p["name"]: p for p in client.get("/providers").json()["providers"]}
+
+    # The GUI must not derive env names from the provider name; OpenCode Go and
+    # llama.cpp both break that guess.
+    assert rows["opencode-go"]["env"]["key"] == "OPENCODE_GO_API_KEY"
+    assert rows["llamacpp"]["env"]["model"] == "MARVI_LOCAL_OPENAI_MODEL"
+    assert rows["ollama"]["env"]["key"] == ""  # no credential to ask for
+
+
+def test_the_model_is_editable_per_provider(client) -> None:
+    body = client.put(
+        "/providers/settings", json={"values": {"MARVI_OLLAMA_MODEL": "qwen3:8b"}}
+    ).json()
+    rows = {p["name"]: p for p in body["providers"]}
+
+    assert rows["ollama"]["models"]["main"] == "qwen3:8b"
+
+
+def test_credentials_are_never_written_to_the_audit_log(client) -> None:
+    client.put("/providers/settings", json={"values": {"OPENAI_API_KEY": "sk-secret"}})
+    audit = client.get("/audit").text
+
+    assert "sk-secret" not in audit
+    assert "OPENAI_API_KEY" in audit  # that it changed is worth recording
+
+
+# -- the voice path ---------------------------------------------------------
+
+
+def test_the_agent_is_told_which_provider_to_use(client, monkeypatch) -> None:
+    # No local server is running under test, so a key provider is the answer.
+    client.put("/providers/settings", json={"values": {"OPENAI_API_KEY": "k"}})
+    body = client.get("/providers/voice").json()
+
+    assert body["provider"] == "openai"
+    assert body["base_url"].endswith("/v1")
+    assert body["model"]
+
+
+def test_a_configured_but_dead_local_server_is_not_offered(client) -> None:
+    # Ollama and LM Studio are "configured" the moment they have a default URL.
+    # Handing the voice path one that nothing is listening on would break the
+    # session at the first turn instead of at startup.
+    client.put("/providers/settings", json={"values": {"OPENAI_API_KEY": "k"}})
+    assert client.get("/providers/voice").json()["provider"] == "openai"
+
+
+def test_the_voice_path_only_gets_a_chat_completions_provider(client) -> None:
+    # Anthropic's Messages API cannot drive the LiveKit OpenAI plugin, so it
+    # must never be handed over as if it could.
+    client.put(
+        "/providers/settings",
+        json={"values": {"ANTHROPIC_API_KEY": "k", "MARVI_PROVIDER": "anthropic"}},
+    )
+    assert client.get("/providers/voice").status_code == 503
+
+    client.put("/providers/settings", json={"values": {"OPENAI_API_KEY": "k"}})
+    assert client.get("/providers/voice").json()["provider"] != "anthropic"
+
+
+# -- identity ---------------------------------------------------------------
+
+
+def test_identity_is_readable_and_writable_from_the_gui(client) -> None:
+    assert client.get("/identity").json()["soul"] == ""
+
+    body = client.put(
+        "/identity", json={"soul": "You are terse.", "user": "Shereef. Works late."}
+    ).json()
+
+    assert body["soul"] == "You are terse."
+    assert body["tokens"] > 0
+    assert body["truncated"] is False
+
+
+def test_the_budget_is_reported_so_it_can_be_seen_before_it_bites(client) -> None:
+    body = client.put("/identity", json={"soul": "x" * 40_000}).json()
+
+    # Every token here is paid on every turn, so the page must show the ceiling.
+    assert body["truncated"] is True
+    assert body["tokens"] <= body["budget"]

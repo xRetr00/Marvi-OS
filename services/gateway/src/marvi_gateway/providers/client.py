@@ -89,6 +89,10 @@ class ProviderClient:
         self._cooldowns[name] = _Cooldown(time.monotonic() + seconds, reason)
         logger.warning("provider %s cooling down %.0fs: %s", name, seconds, reason)
 
+    def clear_cooldown(self, name: str) -> None:
+        """Let a provider be tried again now — used when its settings change."""
+        self._cooldowns.pop(name, None)
+
     def cooldowns(self) -> dict[str, dict[str, Any]]:
         return {
             name: {"seconds_remaining": round(self.resting(name), 1), "reason": entry.reason}
@@ -198,6 +202,32 @@ class ProviderClient:
             model=model,
             cached=usage.cached_input > 0,
         )
+
+    def reachable(self, profile: ProviderProfile, timeout: float = 0.4) -> bool:
+        """Is there actually a server there?
+
+        Only meaningful for local providers: they count as configured the moment
+        they have a URL, so two of them are always "ready" even when neither is
+        running. For a hosted provider the credential is the check.
+
+        The timeout is short on purpose. A server on this machine answers in
+        milliseconds; anything slower is a firewall silently dropping the
+        connection, and waiting a full second for that three times over is a
+        second of nothing on every voice session start.
+        """
+        if profile.access_path != "local":
+            return True
+        import httpx
+
+        try:
+            client = self.http or httpx.Client(timeout=timeout)
+            try:
+                return client.get(f"{profile.base_url()}/models").status_code < 500
+            finally:
+                if self.http is None:
+                    client.close()
+        except Exception:
+            return False
 
     def candidates(self, preferred: str | None = None) -> list[ProviderProfile]:
         """Configured providers, preferred first, then local, then the rest."""

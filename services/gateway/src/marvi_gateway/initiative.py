@@ -77,7 +77,7 @@ class Initiative:
                 "quiet_start": self.mind.settings.quiet_start,
                 "quiet_end": self.mind.settings.quiet_end,
                 "cooldown_seconds": self.mind.settings.cooldown_seconds,
-                "daily_budget": self.mind.settings.daily_budget,
+                "daily_token_budget": self.mind.settings.daily_token_budget,
             },
         }
 

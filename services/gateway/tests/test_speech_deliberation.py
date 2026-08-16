@@ -17,6 +17,7 @@ from marvi_gateway.deliberate import Deliberator, _parse, deliberator_from_env
 from marvi_gateway.journal import EventJournal
 from marvi_gateway.mind import Mind
 from marvi_gateway.policy import Verdict
+from marvi_gateway.providers import ProviderClient
 
 NOON = datetime(2026, 8, 17, 12, 0, tzinfo=UTC)
 
@@ -106,61 +107,67 @@ def event():
             "payload": {}, "trusted": True, "id": 1}
 
 
+def deliberator(handler, usage=None) -> Deliberator:
+    """A Deliberator wired to a fake OpenAI-compatible provider."""
+    client = ProviderClient(http=httpx.Client(transport=httpx.MockTransport(handler)))
+    return Deliberator(client=client, preferred="openai")
+
+
+def reply(text: str, prompt=20, completion=10) -> httpx.Response:
+    return httpx.Response(200, json={
+        "choices": [{"message": {"content": text}}],
+        "usage": {"prompt_tokens": prompt, "completion_tokens": completion},
+    })
+
+
 def test_no_provider_keeps_the_mind_deterministic(monkeypatch) -> None:
-    monkeypatch.setenv("OPENCODE_GO_API_KEY", "")
+    # Nothing configured anywhere, including the local servers.
+    monkeypatch.setattr("marvi_gateway.deliberate.configured_profiles", lambda: [])
     assert deliberator_from_env() is None
 
 
 def test_a_configured_provider_is_used(monkeypatch) -> None:
-    monkeypatch.setenv("OPENCODE_GO_API_KEY", "key")
+    monkeypatch.setenv("OPENAI_API_KEY", "key")
     assert deliberator_from_env() is not None
 
 
-def test_the_model_can_choose_silence() -> None:
-    def handler(request):
-        return httpx.Response(200, json={
-            "choices": [{"message": {"content": '{"worth_it": false, "say": ""}'}}]
-        })
-
-    d = Deliberator(api_key="k", client=httpx.Client(transport=httpx.MockTransport(handler)))
-    surface, _detail, cost = d(event(), verdict())
+def test_the_model_can_choose_silence(monkeypatch) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "k")
+    d = deliberator(lambda request: reply('{"worth_it": false, "say": ""}'))
+    surface, _detail, tokens = d(event(), verdict())
 
     assert surface == "silent"
-    assert cost > 0
+    assert tokens == 30
 
 
-def test_the_model_phrases_the_sentence_but_keeps_the_surface() -> None:
+def test_the_model_phrases_the_sentence_but_keeps_the_surface(monkeypatch) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "k")
+
     def handler(request):
         body = json.loads(request.content)
         # The event content must arrive enveloped and labelled untrusted-safe.
         assert "EXTERNAL DATA" in body["messages"][1]["content"]
-        return httpx.Response(200, json={
-            "choices": [{"message": {"content": '{"worth_it": true, "say": "Your alarm is going off."}'}}]
-        })
+        return reply('{"worth_it": true, "say": "Your alarm is going off."}')
 
-    d = Deliberator(api_key="k", client=httpx.Client(transport=httpx.MockTransport(handler)))
+    d = deliberator(handler)
     surface, detail, _ = d(event(), verdict("speak"))
 
     assert surface == "speak"
     assert detail == "Your alarm is going off."
 
 
-def test_a_provider_failure_falls_back_to_the_policy_verdict() -> None:
-    def handler(request):
-        return httpx.Response(500)
-
-    d = Deliberator(api_key="k", client=httpx.Client(transport=httpx.MockTransport(handler)))
-    surface, _detail, cost = d(event(), verdict("island"))
+def test_a_provider_failure_falls_back_to_the_policy_verdict(monkeypatch) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "k")
+    d = deliberator(lambda request: httpx.Response(500))
+    surface, _detail, tokens = d(event(), verdict("island"))
 
     assert surface == "island"
-    assert cost == 0.0  # a failed thought is not billed
+    assert tokens == 0  # a failed thought is not billed
 
 
-def test_unparseable_output_falls_back_without_crashing() -> None:
-    def handler(request):
-        return httpx.Response(200, json={"choices": [{"message": {"content": "I think maybe?"}}]})
-
-    d = Deliberator(api_key="k", client=httpx.Client(transport=httpx.MockTransport(handler)))
+def test_unparseable_output_falls_back_without_crashing(monkeypatch) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "k")
+    d = deliberator(lambda request: reply("I think maybe?"))
     assert d(event(), verdict("island"))[0] == "island"
 
 
@@ -178,17 +185,31 @@ def test_output_parsing_tolerates_chatty_models(raw, expected) -> None:
     assert _parse(raw) == expected
 
 
-def test_deliberation_cost_is_charged_to_the_budget(journal) -> None:
+def test_deliberation_tokens_are_charged_to_the_budget(journal, monkeypatch) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "k")
     journal.append("room", "alarm_started", "Alarm", trusted=True)
 
-    def handler(request):
-        return httpx.Response(200, json={
-            "choices": [{"message": {"content": '{"worth_it": true, "say": "Alarm."}'}}]
-        })
-
-    d = Deliberator(api_key="k", client=httpx.Client(transport=httpx.MockTransport(handler)))
+    d = deliberator(lambda request: reply('{"worth_it": true, "say": "Alarm."}'))
     mind = Mind(journal, deliberate=d, announcer=FakeAnnouncer())
     mind.tick(now=NOON)
 
     assert mind.why()[0]["provider"] == "llm"
-    assert mind.why()[0]["cost"] > 0
+    assert mind.why()[0]["tokens"] == 30
+
+
+def test_caching_reduces_what_the_budget_is_charged(monkeypatch) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "k")
+
+    def handler(request):
+        return httpx.Response(200, json={
+            "choices": [{"message": {"content": '{"worth_it": false, "say": ""}'}}],
+            "usage": {
+                "prompt_tokens": 1000,
+                "completion_tokens": 10,
+                "prompt_tokens_details": {"cached_tokens": 950},
+            },
+        })
+
+    # The system prompt is identical on every tick, so it should be cached and
+    # the budget should see the saving rather than a flat per-call estimate.
+    assert deliberator(handler)(event(), verdict())[2] == 60

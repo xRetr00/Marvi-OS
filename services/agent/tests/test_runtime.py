@@ -1,29 +1,57 @@
+import httpx
 import pytest
 
 from marvi_agent.runtime import (
-    OPENCODE_GO_BASE_URL,
     AgentConfig,
+    ProviderUnavailableError,
     VoiceStackPendingError,
     require_selected_voice_adapters,
 )
 
 
-def test_config_requires_opencode_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("OPENCODE_GO_API_KEY", raising=False)
+def gateway(status: int, body: dict | None = None) -> httpx.Client:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/providers/voice"
+        return httpx.Response(status, json=body or {})
 
-    with pytest.raises(ValueError, match="OPENCODE_GO_API_KEY"):
-        AgentConfig.from_env()
+    return httpx.Client(transport=httpx.MockTransport(handler))
 
 
-def test_config_defaults_to_fast_voice_model(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("OPENCODE_GO_API_KEY", "test-key")
-    monkeypatch.delenv("MARVI_LLM_MODEL", raising=False)
-    monkeypatch.delenv("MARVI_LLM_BASE_URL", raising=False)
+def test_the_worker_takes_its_provider_from_the_gateway() -> None:
+    config = AgentConfig.from_gateway(
+        gateway(
+            200,
+            {
+                "provider": "ollama",
+                "base_url": "http://127.0.0.1:11434/v1",
+                "model": "llama4:latest",
+                "api_key": "local",
+            },
+        )
+    )
 
-    config = AgentConfig.from_env()
+    # Nothing about which provider this is lives in the worker.
+    assert config.provider == "ollama"
+    assert config.base_url == "http://127.0.0.1:11434/v1"
+    assert config.model == "llama4:latest"
 
-    assert config.model == "deepseek-v4-flash"
-    assert config.base_url == OPENCODE_GO_BASE_URL
+
+def test_no_provider_is_a_clear_message_not_a_crash() -> None:
+    with pytest.raises(ProviderUnavailableError, match="control center"):
+        AgentConfig.from_gateway(gateway(503))
+
+
+def test_an_unreachable_gateway_says_so() -> None:
+    def dead(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("refused")
+
+    with pytest.raises(ProviderUnavailableError, match="unreachable"):
+        AgentConfig.from_gateway(httpx.Client(transport=httpx.MockTransport(dead)))
+
+
+def test_an_incomplete_answer_is_refused() -> None:
+    with pytest.raises(ProviderUnavailableError, match="incomplete"):
+        AgentConfig.from_gateway(gateway(200, {"provider": "x"}))
 
 
 def test_worker_refuses_to_fake_an_unselected_voice_stack() -> None:

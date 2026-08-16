@@ -19,7 +19,7 @@ import {
   updateInProgress,
   updateStateDir
 } from './updater'
-import type { AssistantState, RuntimeStatus } from '../shared/runtime'
+import type { AssistantState, ProviderPage, ProviderRow, RuntimeStatus } from '../shared/runtime'
 
 let mainWindow: BrowserWindow | null = null
 let islandWindow: BrowserWindow | null = null
@@ -36,6 +36,59 @@ const GATEWAY_BASE_URL = 'http://127.0.0.1:8765'
 // The renderer owns the translucency lever (0–100) and mirrors it here; the
 // main process maps it to native window opacity. Floor the most see-through
 // setting at 0.3 so it stays usable. 0 = fully opaque.
+/** The Gateway speaks snake_case; the renderer types are camelCase. */
+function normaliseProviderPage(body: unknown): ProviderPage | null {
+  const page = body as {
+    providers?: Array<Record<string, never>>
+    selected?: string | null
+    settings?: Record<string, string>
+    totals?: Record<string, number>
+  }
+  if (!page || !Array.isArray(page.providers)) return null
+  const usage = (row: Record<string, number> | undefined): ProviderRow['usage'] => ({
+    input: Number(row?.input ?? 0),
+    output: Number(row?.output ?? 0),
+    cachedInput: Number(row?.cached_input ?? 0),
+    billable: Number(row?.billable ?? 0)
+  })
+  return {
+    providers: page.providers.map((raw) => {
+      const row = raw as Record<string, never>
+      return {
+        name: String(row.name ?? ''),
+        label: String(row.label ?? ''),
+        accessPath: (row.access_path ?? 'api') as ProviderRow['accessPath'],
+        apiMode: String(row.api_mode ?? ''),
+        authType: String(row.auth_type ?? ''),
+        configured: Boolean(row.configured),
+        baseUrl: String(row.base_url ?? ''),
+        models: {
+          main: String((row.models as Record<string, string>)?.main ?? ''),
+          aux: String((row.models as Record<string, string>)?.aux ?? ''),
+          vision: String((row.models as Record<string, string>)?.vision ?? '')
+        },
+        env: {
+          key: String((row.env as Record<string, string>)?.key ?? ''),
+          model: String((row.env as Record<string, string>)?.model ?? ''),
+          url: String((row.env as Record<string, string>)?.url ?? '')
+        },
+        limits: {
+          style: String((row.limits as Record<string, string>)?.style ?? 'none'),
+          windows: ((row.limits as Record<string, string[][]>)?.windows ?? []) as string[][],
+          readable: Boolean((row.limits as Record<string, boolean>)?.readable),
+          note: String((row.limits as Record<string, string>)?.note ?? '')
+        },
+        usage: usage(row.usage as Record<string, number> | undefined),
+        cooldown: (row.cooldown ?? null) as ProviderRow['cooldown'],
+        warning: (row.warning ?? null) as string | null
+      }
+    }),
+    selected: page.selected ?? null,
+    settings: page.settings ?? {},
+    totals: usage(page.totals)
+  }
+}
+
 function windowOpacity(): number {
   return 1 - (translucencyIntensity / 100) * 0.7
 }
@@ -532,6 +585,55 @@ app.whenReady().then(() => {
       }
     } catch {
       return { available: false, detail: 'Gateway unavailable', accounts: [] }
+    }
+  })
+  ipcMain.handle('marvi:get-providers', async () => {
+    try {
+      const response = await fetch(`${GATEWAY_BASE_URL}/providers`, {
+        signal: AbortSignal.timeout(5_000)
+      })
+      if (!response.ok) return null
+      return normaliseProviderPage(await response.json())
+    } catch {
+      return null
+    }
+  })
+  ipcMain.handle('marvi:set-provider-settings', async (_event, values) => {
+    if (typeof values !== 'object' || values === null) return null
+    try {
+      const response = await fetch(`${GATEWAY_BASE_URL}/providers/settings`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ values }),
+        signal: AbortSignal.timeout(8_000)
+      })
+      return response.ok ? normaliseProviderPage(await response.json()) : null
+    } catch {
+      return null
+    }
+  })
+  ipcMain.handle('marvi:get-identity', async () => {
+    try {
+      const response = await fetch(`${GATEWAY_BASE_URL}/identity`, {
+        signal: AbortSignal.timeout(3_000)
+      })
+      return response.ok ? await response.json() : null
+    } catch {
+      return null
+    }
+  })
+  ipcMain.handle('marvi:set-identity', async (_event, update) => {
+    if (typeof update !== 'object' || update === null) return null
+    try {
+      const response = await fetch(`${GATEWAY_BASE_URL}/identity`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(update),
+        signal: AbortSignal.timeout(5_000)
+      })
+      return response.ok ? await response.json() : null
+    } catch {
+      return null
     }
   })
   ipcMain.handle('marvi:get-room-events', async () => {

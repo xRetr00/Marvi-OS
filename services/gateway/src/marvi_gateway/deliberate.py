@@ -15,9 +15,10 @@ Three constraints, enforced here rather than trusted to the prompt:
 * event content arrives inside its untrusted envelope. The model is told to
   treat it as information, and the prompt says so before the content appears.
 
-Provider is OpenCode Go through the same OpenAI-compatible boundary the voice
-agent uses (ADR-013). More providers can be added behind `deliberator_from_env`
-without the mind knowing.
+No provider is named here. The call goes through `ProviderClient`, which
+resolves whatever is configured, falls over to the next one, and reports tokens
+in a single shape — so the budget binds the same whether the mind is thinking on
+a local model or a subscription plan.
 """
 
 from __future__ import annotations
@@ -27,18 +28,12 @@ import logging
 import os
 from typing import Any
 
+from .providers import ProviderCallError, ProviderClient, configured_profiles
 from .untrusted import wrap_external
 
 logger = logging.getLogger(__name__)
 
-OPENCODE_GO_BASE_URL = "https://opencode.ai/zen/go/v1"
-DEFAULT_MODEL = "deepseek-v4-flash"
 MAX_OUTPUT_TOKENS = 120
-REQUEST_TIMEOUT = 20.0
-
-# Rough per-call ceiling used for budgeting. The point is that background
-# thinking has a price the policy can see, not accounting precision.
-ESTIMATED_COST_PER_CALL = 0.002
 
 SYSTEM_PROMPT = (
     "You decide whether a background event is worth telling someone about, and "
@@ -57,18 +52,16 @@ class Deliberator:
 
     def __init__(
         self,
-        api_key: str | None = None,
-        model: str | None = None,
-        base_url: str | None = None,
-        client: Any = None,
+        client: ProviderClient | None = None,
+        preferred: str | None = None,
     ) -> None:
-        self.api_key = api_key if api_key is not None else os.environ.get("OPENCODE_GO_API_KEY", "")
-        self.model = model or os.environ.get("MARVI_MIND_MODEL", DEFAULT_MODEL)
-        self.base_url = (base_url or os.environ.get("MARVI_LLM_BASE_URL", OPENCODE_GO_BASE_URL)).rstrip("/")
-        self._client = client
+        self.client = client or ProviderClient()
+        # Thinking in the background is exactly the work that should run on a
+        # free local model when one is there.
+        self.preferred = preferred or os.environ.get("MARVI_MIND_PROVIDER", "").strip() or None
 
     def available(self) -> bool:
-        return bool(self._client or self.api_key.strip())
+        return bool(self.client.candidates(self.preferred))
 
     def _prompt(self, event: dict[str, Any], verdict: Any) -> str:
         envelope = wrap_external(
@@ -82,47 +75,39 @@ class Deliberator:
             f"{envelope}"
         )
 
-    def __call__(self, event: dict[str, Any], verdict: Any) -> tuple[str, str, float]:
-        """Return (surface, detail, cost). Falls back to the verdict on any failure."""
-        if not self.available():
-            return verdict.surface, verdict.detail, 0.0
+    def __call__(self, event: dict[str, Any], verdict: Any) -> tuple[str, str, int]:
+        """Return (surface, detail, billable tokens).
 
-        import httpx
-
-        payload = {
-            "model": self.model,
-            "max_tokens": MAX_OUTPUT_TOKENS,
-            "temperature": 0.2,
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": self._prompt(event, verdict)},
-            ],
-        }
-        client = self._client or httpx.Client(timeout=REQUEST_TIMEOUT)
+        Falls back to the deterministic verdict on any failure, so a dead
+        provider makes the mind quieter rather than broken.
+        """
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": self._prompt(event, verdict)},
+        ]
         try:
-            response = client.post(
-                f"{self.base_url}/chat/completions",
-                json=payload,
-                headers={"authorization": f"Bearer {self.api_key}"},
+            completion = self.client.call_with_fallback(
+                messages,
+                preferred=self.preferred,
+                # A one-sentence yes/no is auxiliary work, not the main model.
+                job="aux",
+                max_tokens=MAX_OUTPUT_TOKENS,
+                temperature=0.2,
             )
-            response.raise_for_status()
-            body = response.json()
-            content = body["choices"][0]["message"]["content"]
-        except Exception as exc:
+        except ProviderCallError as exc:
             logger.warning("deliberation failed: %s", exc)
-            return verdict.surface, verdict.detail, 0.0
-        finally:
-            if self._client is None:
-                client.close()
+            return verdict.surface, verdict.detail, 0
 
-        decision = _parse(content)
+        # Cached prefix tokens are excluded: the budget should see the saving.
+        tokens = completion.usage.billable
+        decision = _parse(completion.text)
         if decision is None:
-            return verdict.surface, verdict.detail, ESTIMATED_COST_PER_CALL
+            return verdict.surface, verdict.detail, tokens
         worth_it, sentence = decision
         if not worth_it:
             # The model may always choose quiet; that is the whole point.
-            return "silent", "not worth interrupting", ESTIMATED_COST_PER_CALL
-        return verdict.surface, sentence[:300], ESTIMATED_COST_PER_CALL
+            return "silent", "not worth interrupting", tokens
+        return verdict.surface, sentence[:300], tokens
 
 
 def _parse(content: str) -> tuple[bool, str] | None:
@@ -142,7 +127,8 @@ def _parse(content: str) -> tuple[bool, str] | None:
     return bool(parsed["worth_it"]), str(parsed.get("say", "")).strip()
 
 
-def deliberator_from_env() -> Deliberator | None:
+def deliberator_from_env(client: ProviderClient | None = None) -> Deliberator | None:
     """None when no provider is configured, which keeps the mind deterministic."""
-    candidate = Deliberator()
-    return candidate if candidate.available() else None
+    if not configured_profiles():
+        return None
+    return Deliberator(client=client)

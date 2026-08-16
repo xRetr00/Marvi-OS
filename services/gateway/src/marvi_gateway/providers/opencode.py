@@ -59,10 +59,10 @@ go = register(
         access_path="plan",
         auth_type="api_key",
         api_mode="chat_completions",
-        base_url_env="MARVI_LLM_BASE_URL",
+        base_url_env="MARVI_OPENCODE_GO_URL",
         default_base_url="https://opencode.ai/zen/go/v1",
         key_env=("OPENCODE_GO_API_KEY",),
-        default_model_env="MARVI_LLM_MODEL",
+        default_model_env="MARVI_OPENCODE_GO_MODEL",
         default_model="deepseek-v4-flash",
         # The plan's own cheap model, so auxiliary work does not burn the cap
         # on a large model.

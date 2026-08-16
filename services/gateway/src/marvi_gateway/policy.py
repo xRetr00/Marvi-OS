@@ -21,7 +21,10 @@ from typing import Any
 SURFACES = ("silent", "remember", "activity", "island", "speak", "propose")
 
 DEFAULT_COOLDOWN_SECONDS = 15 * 60
-DEFAULT_DAILY_BUDGET = 0.50
+# Denominated in tokens, not money. Every provider reports tokens in the same
+# way; a plan reports no spend at all, and a local model has no price. A budget
+# in dollars would silently stop guarding on exactly the providers that need it.
+DEFAULT_DAILY_TOKEN_BUDGET = 200_000
 DEFAULT_QUIET_START = 23
 DEFAULT_QUIET_END = 8
 
@@ -58,7 +61,7 @@ class InitiativeSettings:
     quiet_start: int = DEFAULT_QUIET_START
     quiet_end: int = DEFAULT_QUIET_END
     cooldown_seconds: int = DEFAULT_COOLDOWN_SECONDS
-    daily_budget: float = DEFAULT_DAILY_BUDGET
+    daily_token_budget: int = DEFAULT_DAILY_TOKEN_BUDGET
     speak_when_away: bool = False
     surface_ceiling: dict[str, str] = field(default_factory=lambda: dict(SURFACE_CEILING))
 
@@ -77,7 +80,7 @@ class WorldState:
     now: datetime
     conversation_active: bool = False
     present: bool = True
-    spent_today: float = 0.0
+    tokens_today: int = 0
     last_surfaced: datetime | None = None
 
 
@@ -114,10 +117,12 @@ def evaluate(
 
     surface = _cap(wanted, ceiling)
 
-    # 3. Budget: a day has a spending limit, and exceeding it is not an
+    # 3. Budget: a day has a thinking limit, and exceeding it is not an
     #    emergency, it is silence.
-    if world.spent_today >= rules.daily_budget:
-        return Verdict(False, "silent", "daily-budget", f"spent {world.spent_today:.2f} today")
+    if world.tokens_today >= rules.daily_token_budget:
+        return Verdict(
+            False, "silent", "daily-budget", f"{world.tokens_today} tokens used today"
+        )
 
     # 4. Never talk over a live conversation. The foreground owns the voice.
     if world.conversation_active and SURFACES.index(surface) >= SURFACES.index("island"):

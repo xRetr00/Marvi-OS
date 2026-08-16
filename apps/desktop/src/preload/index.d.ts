@@ -2,11 +2,13 @@ import type {
   AssistantState,
   AuditEvent,
   ConnectedAccount,
+  IdentityStatus,
   InitiativeStatus,
   MindDecision,
   UpdateResult,
   UpdateStatus,
   MemoryPage,
+  ProviderPage,
   RoomEvent,
   RuntimeStatus
 } from '../shared/runtime'
@@ -38,6 +40,10 @@ export interface MarviDesktopApi {
     detail: string
     accounts: ConnectedAccount[]
   }>
+  getProviders: () => Promise<ProviderPage | null>
+  setProviderSettings: (values: Record<string, string>) => Promise<ProviderPage | null>
+  getIdentity: () => Promise<IdentityStatus | null>
+  setIdentity: (update: { soul?: string; user?: string }) => Promise<IdentityStatus | null>
   getRoomState: () => Promise<{
     status: string
     result: { live: boolean; stale?: boolean; state: Record<string, unknown> } | null

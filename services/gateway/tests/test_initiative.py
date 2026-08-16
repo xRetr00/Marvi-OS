@@ -143,7 +143,7 @@ def test_status_reports_what_the_user_needs_to_see(parts) -> None:
     assert status["paused"] is False
     assert status["running"] is False
     assert status["pending_events"] == 1
-    assert status["settings"]["daily_budget"] > 0
+    assert status["settings"]["daily_token_budget"] > 0
 
 
 def test_the_scheduler_starts_and_stops_cleanly(parts) -> None:

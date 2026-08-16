@@ -2,7 +2,7 @@
 
 Reads pending journal events, asks the policy how loud each one may be, and
 takes the least intrusive useful action. Every turn writes a decision record —
-trigger, rule, surface, provider, latency, cost — so the user can always ask
+trigger, rule, surface, provider, latency, tokens — so the user can always ask
 why Marvi spoke, or why it did not.
 
 Two properties `REAL-AGENCY.md` insists on and this module enforces:
@@ -38,7 +38,7 @@ class Mind:
         self.journal = journal
         self.memory = memory
         self.settings = settings or InitiativeSettings()
-        # `deliberate(event, verdict) -> (surface, detail, cost)` is the seam
+        # `deliberate(event, verdict) -> (surface, detail, tokens)` is the seam
         # for an LLM pass. Left unset, the mind is fully deterministic.
         self.deliberate = deliberate
         # Speaks proactive sentences. Left unset, `speak` still records a
@@ -52,7 +52,7 @@ class Mind:
             now=now,
             conversation_active=conversation_active,
             present=present,
-            spent_today=self.journal.spend_since(day_start(now)),
+            tokens_today=self.journal.tokens_since(day_start(now)),
         )
 
     def _wanted_surface(self, event: dict[str, Any]) -> str:
@@ -84,21 +84,21 @@ class Mind:
                 now=base.now,
                 conversation_active=base.conversation_active,
                 present=base.present,
-                spent_today=base.spent_today,
+                tokens_today=base.tokens_today,
                 last_surfaced=self.journal.last_surfaced(event["source"], event["kind"]),
             )
             verdict = evaluate(
                 event, world, self.settings, wanted=self._wanted_surface(event)
             )
 
-            surface, detail, cost, provider = verdict.surface, verdict.detail, 0.0, "deterministic"
+            surface, detail, tokens, provider = verdict.surface, verdict.detail, 0, "deterministic"
             # `detail` is diagnostic text about the rule. What Marvi would
             # actually say is separate, and only deliberation can phrase it.
             sentence = event["summary"]
             if self.deliberate is not None and verdict.allow and verdict.surface != "silent":
                 # An LLM may only make a decision quieter, never louder: the
                 # policy ceiling is not something a model gets to argue with.
-                proposed, proposed_detail, cost = self.deliberate(event, verdict)
+                proposed, proposed_detail, tokens = self.deliberate(event, verdict)
                 from .policy import SURFACES
 
                 if SURFACES.index(proposed) <= SURFACES.index(verdict.surface):
@@ -137,13 +137,13 @@ class Mind:
                 event_id=event["id"],
                 provider=provider,
                 latency_ms=latency,
-                cost=cost,
+                tokens=tokens,
                 outcome=("spoke: " + spoken) if spoken
                 else ("surfaced" if surface not in ("silent", "remember") else surface),
                 now=moment,
             )
             self.journal.mark_processed(event["id"], decision_id)
-            base.spent_today += cost
+            base.tokens_today += tokens
 
             record = {
                 "id": decision_id,

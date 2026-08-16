@@ -1994,6 +1994,7 @@ name = "marvi-os-agent"
 version = "0.1.0.dev0"
 source = { editable = "services/agent" }
 dependencies = [
+    { name = "httpx" },
     { name = "livekit-agents", extra = ["openai"] },
     { name = "livekit-plugins-silero" },
     { name = "numpy" },
@@ -2013,6 +2014,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "httpx", specifier = ">=0.28,<1" },
     { name = "livekit-agents", extras = ["openai"], specifier = ">=1.6.9,<2" },
     { name = "livekit-plugins-silero", specifier = ">=1.6.9,<2" },
     { name = "numpy", specifier = ">=2,<3" },

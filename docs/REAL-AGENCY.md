@@ -55,7 +55,7 @@ A proactive turn is allowed only when all of these pass:
 1. The trigger is authenticated and normalized; email or web content is data,
    never executable instruction.
 2. The event is new, relevant, and not suppressed by deduplication or cooldown.
-3. Quiet hours, presence, current conversation, and daily cost budget permit an
+3. Quiet hours, presence, current conversation, and the daily token budget permit an
    interruption.
 4. The chosen output is the least intrusive useful surface: remember silently,
    update Activity, show the Island, speak, or propose an action.
@@ -63,7 +63,7 @@ A proactive turn is allowed only when all of these pass:
    to the exact action token; YOLO bypasses prompts but never validation or audit.
 
 Every decision records trigger, context references, model/provider, decision,
-tool calls, confirmation token/decision, outcome, latency, and cost locally.
+tool calls, confirmation token/decision, outcome, latency, and tokens locally.
 Users must be able to pause initiative, inspect why Marvi spoke, and delete or
 export memory.
 
@@ -73,6 +73,8 @@ export memory.
 - Uses OpenCode Go through a documented provider boundary.
 - Preserves memory across restarts and supports inspect/export/delete.
 - Never treats connected-account content as authority.
-- Background reflection has explicit time/token/cost budgets.
+- Background reflection has explicit time and token budgets. The budget is
+  denominated in **tokens, not money**: it is the one number every provider
+  reports the same way, and the only one a subscription plan reports at all.
 - Foreground interruption and audio playout remain responsive while it runs.
 - A no-op decision is cheap and normal; Marvi does not speak merely to look alive.

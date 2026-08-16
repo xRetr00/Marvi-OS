@@ -110,6 +110,32 @@ Streaming is deliberately not implemented here: the voice path streams through
 LiveKit's client, which already owns interruption and playout. This client
 serves the background mind, where nobody is waiting on a first token.
 
+## Where settings live
+
+The registry reads `os.environ` and nothing else. The control center edits
+`%LOCALAPPDATA%\Marvi OS\providers.env`, which is loaded into the environment
+when the Gateway starts and applied immediately on save — so there is still one
+source of truth, and the GUI edits the thing that fills it.
+
+A variable already set in the real environment **wins** over the saved file, so
+launching with `OPENAI_API_KEY=...` in the shell is not silently overridden by a
+stale saved value. Clearing a value in the GUI is how you disconnect.
+
+Credentials are masked on the way out (`…3f9a`) and never written to the audit
+log; what is recorded is that a setting changed, not what it changed to.
+
+## Who resolves the provider
+
+Everything resolves in the Gateway. The Agent worker runs in its own Python
+environment and asks `GET /providers/voice` at startup rather than carrying a
+second copy of the provider table — two copies drift, and the one that drifts is
+always the one the user did not edit.
+
+That endpoint only offers a **chat-completions** provider, because the LiveKit
+OpenAI plugin cannot speak Anthropic's Messages API, and only one that actually
+answers: a local server counts as "configured" the moment it has a default URL,
+which is not the same as something listening on it.
+
 ## Plan terms
 
 Subscription plans are sold for interactive use, and driving one from an

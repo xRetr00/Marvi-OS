@@ -90,7 +90,7 @@ def build_session() -> AgentSession:
             language=os.environ.get("MARVI_STT_LANGUAGE", "tr-TR"),
         ),
         vad=silero.VAD.load(),
-        llm=build_llm(AgentConfig.from_env()),
+        llm=build_llm(AgentConfig.from_gateway()),
         tts=streaming_tts,
         turn_handling=TurnHandlingOptions(
             turn_detection=build_local_turn_detector(),

@@ -3,11 +3,13 @@ import type {
   AssistantState,
   AuditEvent,
   ConnectedAccount,
+  IdentityStatus,
   InitiativeStatus,
   MindDecision,
   UpdateResult,
   UpdateStatus,
   MemoryPage,
+  ProviderPage,
   RoomEvent,
   RuntimeStatus
 } from '../shared/runtime'
@@ -71,6 +73,12 @@ const marvi = {
     detail: string
     accounts: ConnectedAccount[]
   }> => ipcRenderer.invoke('marvi:get-accounts'),
+  getProviders: (): Promise<ProviderPage | null> => ipcRenderer.invoke('marvi:get-providers'),
+  setProviderSettings: (values: Record<string, string>): Promise<ProviderPage | null> =>
+    ipcRenderer.invoke('marvi:set-provider-settings', values),
+  getIdentity: (): Promise<IdentityStatus | null> => ipcRenderer.invoke('marvi:get-identity'),
+  setIdentity: (update: { soul?: string; user?: string }): Promise<IdentityStatus | null> =>
+    ipcRenderer.invoke('marvi:set-identity', update),
   getRoomState: (): Promise<{
     status: string
     result: { live: boolean; stale?: boolean; state: Record<string, unknown> } | null
