@@ -127,3 +127,12 @@ The durable job bridge to Marvi Agent was dropped from this phase; see
 2. Publish selected frames only for explicit active vision tasks.
 3. Add vision context tasks without bloating the foreground agent.
 4. Decide whether Marvi grows a camera pipeline or consumes the room sidecar's.
+
+## Phase 9 — providers, auxiliary models, and identity
+
+1. One provider boundary with failover, shared by the voice path and the mind.
+2. Job-based model selection and real cost accounting against the daily budget.
+3. Auxiliary CPU models for the work that does not need a frontier model.
+4. `SOUL.md` and `USER.md`, composed into the prompt under a token budget.
+
+Full plan and research in `phases/09-providers-identity.md`.
