@@ -130,12 +130,13 @@ The durable job bridge to Marvi Agent was dropped from this phase; see
 
 ## Phase 9 — providers, auxiliary models, and identity
 
-1. A provider profile registry: one profile per provider carrying auth type,
-   capabilities, and its own cheap auxiliary model.
-2. Subscription-backed providers over OAuth — Codex, Copilot, OpenCode Go, Qwen,
-   vendor coding plans — so Marvi uses plans the user already pays for.
-3. Token refresh, an explicit reconnect state, and quota accounting alongside
-   the money budget.
+1. One `providers/` package as the single source of truth; nothing about a
+   provider hardcoded anywhere else, everything editable from the GUI.
+2. Three access paths: metered APIs, subscription plans over OAuth, and local
+   endpoints. The same vendor may appear on more than one path.
+3. Budget control denominated in tokens, because credit, dollar caps and rolling
+   windows cannot be compared and mostly cannot be read back. Credit and window
+   limits are displayed, not used for control.
 4. `SOUL.md` and `USER.md`, composed into the prompt under a token budget.
 
 Full plan and research in `phases/09-providers-identity.md`.
