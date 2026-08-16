@@ -8,6 +8,8 @@ import type {
   IdentityStatus,
   InitiativeStatus,
   MindDecision,
+  UpdateChannel,
+  UpdateCheck,
   UpdateResult,
   UpdateStatus,
   MemoryPage,
@@ -68,6 +70,10 @@ const marvi = {
   getUpdateStatus: (): Promise<UpdateStatus> => ipcRenderer.invoke('marvi:get-update-status'),
   consumeUpdateResult: (): Promise<UpdateResult | null> =>
     ipcRenderer.invoke('marvi:consume-update-result'),
+  getUpdateChannel: (): Promise<UpdateChannel> => ipcRenderer.invoke('marvi:get-update-channel'),
+  setUpdateChannel: (channel: UpdateChannel): Promise<UpdateChannel> =>
+    ipcRenderer.invoke('marvi:set-update-channel', channel),
+  checkForUpdate: (): Promise<UpdateCheck> => ipcRenderer.invoke('marvi:check-update'),
   startUpdate: (): Promise<boolean> => ipcRenderer.invoke('marvi:start-update'),
   getMemory: (): Promise<MemoryPage> => ipcRenderer.invoke('marvi:get-memory'),
   clearMemory: (): Promise<boolean> => ipcRenderer.invoke('marvi:clear-memory'),

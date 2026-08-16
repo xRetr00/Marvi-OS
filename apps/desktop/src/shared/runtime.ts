@@ -73,11 +73,25 @@ export interface InitiativeStatus {
   settings: Record<string, number>
 }
 
+export type UpdateChannel = 'release' | 'dev'
+
 export interface UpdateStatus {
   supported: boolean
   inProgress: boolean
-  branch: string
+  channel: UpdateChannel
   root: string
+}
+
+export interface UpdateCheck {
+  channel: UpdateChannel
+  available: boolean
+  upToDate: boolean
+  current?: string
+  target?: string
+  targetRef?: string
+  behindBy: number
+  signed?: boolean | null
+  error?: string | null
 }
 
 export interface UpdateResult {
@@ -86,6 +100,7 @@ export interface UpdateResult {
   from?: string
   to?: string
   branch?: string
+  channel?: string
   finishedAt?: string
 }
 
