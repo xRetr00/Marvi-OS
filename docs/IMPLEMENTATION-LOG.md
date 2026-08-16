@@ -428,3 +428,35 @@ Validation evidence and the resulting commit are recorded in
   and activity-inside-applications is a privacy decision and a subsystem of its
   own rather than a gap in this one.
 - 290 Python tests and 48 desktop tests pass.
+
+## 2026-08-16 — Fixed the connecting hang, added activity context and a VLM seam
+
+- Found why the app hung on the connecting page, and it was not packaging:
+  `current_status()` hardcoded `state="starting"`, while the overlay waited for
+  `ready` or `error`. It could never arrive, so the shell hung in dev and in
+  packaged builds alike. Overall state is now computed — `ready` when the
+  Gateway is up, `degraded` when an optional subsystem is erroring.
+- Fixed two more failures in the same path. The overlay now clears on anything
+  other than `starting`/`offline`, instead of demanding a bare `ready` that any
+  degraded subsystem would prevent. And a Gateway that never arrives surfaces as
+  a boot failure after 30s rather than animating forever.
+- Packaged builds never started the Gateway at all: the launcher was guarded on
+  `is.dev`. It now locates the checkout by walking up for `services/gateway`
+  rather than assuming a fixed depth, and reports a clear error when there is no
+  checkout instead of leaving the shell connecting.
+- Verified end to end on the packaged build: 7 app processes, 9 Gateway
+  children, `/health` answering in about a second, overall state `degraded`,
+  14 tools registered, LiveKit up.
+- Added ActivityWatch as world context — window, browser tab, and idle. It sees
+  the window, not the work, and does not pretend otherwise. Window and tab
+  titles are enveloped as external content, because a web page chooses its own
+  title and can therefore write whatever it likes into that field.
+- Added a scene-description seam for a vision-language model. It is
+  unconfigured, because OpenCode Go exposes 26 models and none accept image
+  content — `mimo-v2-omni`, `qwen3.7-max`, `glm-5.3` and `gpt-5.6-luna` were all
+  tried and all rejected an `image_url` part. It speaks the OpenAI-compatible
+  vision shape and waits for a provider rather than faking the capability.
+- Rewrote `updater.ts` after a scripted edit doubled its newlines and left a
+  literal BOM inside a regex; the BOM check now compares a code point so the
+  source carries no invisible character.
+- 296 Python tests and 48 desktop tests pass.

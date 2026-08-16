@@ -13,6 +13,7 @@ from livekit import api
 from pydantic import BaseModel, Field
 
 from .accounts import ComposioAccounts, register_account_tools
+from .activity import ActivityWatch, register_activity_tools
 from .announce import Announcer, announce_enabled
 from .browser import BrowserSession, browser_enabled, register_browser_tools
 from .deliberate import deliberator_from_env
@@ -185,6 +186,9 @@ def create_app(
         workspace = Workspace()
         if workspace.available():
             register_workspace_tools(tool_registry, workspace)
+        activity = ActivityWatch()
+        if activity.available():
+            register_activity_tools(tool_registry, activity)
         vision = VisionService()
         if vision.available():
             faces = vision.library
@@ -255,6 +259,22 @@ def create_app(
         state, detail = sidecar.status()
         return ComponentStatus(state=state, detail=detail)  # type: ignore[arg-type]
 
+    def overall_state(components: dict[str, ComponentStatus]) -> str:
+        """The single light the shell waits on.
+
+        This used to be hardcoded to "starting", so the connecting overlay
+        waited for a `ready` that could never arrive and the app hung on the
+        connecting page forever — in packaged builds and in dev alike.
+        """
+        if components["gateway"].state != "ready":
+            return "starting"
+        # Optional subsystems are allowed to be absent; the Gateway being up is
+        # what "ready" means. Anything erroring downgrades to degraded so the
+        # status bar can say so without blocking the app.
+        if any(c.state == "error" for c in components.values()):
+            return "degraded"
+        return "ready"
+
     def current_status() -> RuntimeStatus:
         if sidecar is not None:
             latest = sidecar.latest_notable_event()
@@ -269,11 +289,7 @@ def create_app(
                     trusted=True,
                 )
         livekit_ready = livekit_is_ready()
-        return RuntimeStatus(
-            product="Marvi OS",
-            version=product_version,
-            state="starting",
-            components={
+        components = {
                 "gateway": ComponentStatus(state="ready", detail="local facade online"),
                 "livekit": ComponentStatus(
                     state="ready" if livekit_ready else "pending",
@@ -289,7 +305,12 @@ def create_app(
                 ),
                 "accounts": accounts_status(),
                 "room": room_status(),
-            },
+        }
+        return RuntimeStatus(
+            product="Marvi OS",
+            version=product_version,
+            state=overall_state(components),
+            components=components,
             assistant=runtime_store.assistant,
         )
 

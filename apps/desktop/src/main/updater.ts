@@ -18,6 +18,8 @@ import { spawn } from 'child_process'
 import { existsSync, readFileSync, rmSync } from 'fs'
 import { join } from 'path'
 
+const UTF8_BOM = 0xfeff
+
 export interface UpdateResult {
   status: 'ok' | 'failed' | 'aborted' | 'skipped'
   message: string
@@ -79,8 +81,10 @@ export function consumeUpdateResult(stateDir: string): UpdateResult | null {
   if (!existsSync(path)) return null
   let parsed: UpdateResult | null = null
   try {
-    // Written by PowerShell, which may prepend a UTF-8 BOM; JSON.parse rejects it.
-    const text = readFileSync(path, 'utf-8').replace(/^﻿/, '')
+    // Written by PowerShell, which may prepend a UTF-8 BOM; JSON.parse rejects
+    // it. Compared by code point so this source carries no invisible character.
+    const contents = readFileSync(path, 'utf-8')
+    const text = contents.charCodeAt(0) === UTF8_BOM ? contents.slice(1) : contents
     const raw = JSON.parse(text) as Partial<UpdateResult>
     if (raw && typeof raw.status === 'string' && typeof raw.message === 'string') {
       parsed = raw as UpdateResult

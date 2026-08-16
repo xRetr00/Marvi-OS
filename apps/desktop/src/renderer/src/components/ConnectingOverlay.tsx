@@ -30,7 +30,11 @@ export function ConnectingOverlay(): React.JSX.Element | null {
   const [phase, setPhase] = useState<'live' | 'out' | 'gone'>('live')
   const [coldBootDone, setColdBootDone] = useState(false)
 
-  const connecting = !coldBootDone && runtime.state !== 'ready' && runtime.state !== 'error'
+  // Anything other than 'starting'/'offline' means the Gateway answered, so
+  // the shell is usable. Waiting for a bare 'ready' hung the app forever
+  // whenever any optional subsystem was down.
+  const waiting = runtime.state === 'starting' || runtime.state === 'offline'
+  const connecting = !coldBootDone && waiting
 
   useEffect(() => {
     if (coldBootDone || phase !== 'live') return undefined

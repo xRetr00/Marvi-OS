@@ -9,13 +9,30 @@
  */
 import { useStore } from '@nanostores/react'
 
+import { useEffect, useState } from 'react'
+
 import { $runtimeState } from '../store/voice-state'
 import { haptic } from '../lib/haptics'
 
 export function BootFailureOverlay(): React.JSX.Element | null {
   const runtime = useStore($runtimeState)
 
-  if (runtime.state !== 'error') return null
+  const [staleFor, setStaleFor] = useState(0)
+
+  useEffect(() => {
+    if (runtime.state !== 'offline' && runtime.state !== 'starting') {
+      // Reset on the next tick rather than during render-phase effects.
+      const reset = window.setTimeout(() => setStaleFor(0), 0)
+      return () => window.clearTimeout(reset)
+    }
+    // A Gateway that never arrives must surface as a failure the user can act
+    // on, not an animation that runs forever.
+    const timer = window.setInterval(() => setStaleFor((n) => n + 1), 1_000)
+    return () => window.clearInterval(timer)
+  }, [runtime.state])
+
+  const neverCameUp = staleFor >= 30
+  if (runtime.state !== 'error' && !neverCameUp) return null
 
   const details = Object.entries(runtime.components).map(
     ([name, component]) =>

@@ -419,6 +419,26 @@ def register_vision_tools(registry, service: VisionService) -> None:
     def vision_observe(seconds: int = 3) -> dict[str, Any]:
         return service.observe(float(seconds))
 
+    def vision_describe() -> dict[str, Any]:
+        from .describe import describer_from_env
+
+        describer = describer_from_env()
+        if describer is None:
+            return {
+                "available": False,
+                "reason": "No vision model configured; set MARVI_VLM_BASE_URL and MARVI_VLM_MODEL.",
+            }
+        import cv2
+
+        capture = cv2.VideoCapture(service.camera_index, cv2.CAP_DSHOW)
+        try:
+            ok, frame = capture.read()
+        finally:
+            capture.release()
+        if not ok:
+            return {"available": True, "error": "no frame available"}
+        return describer.describe(frame)
+
     def vision_people() -> dict[str, Any]:
         return {"people": service.library.people(), "owner": service.library.owner_name()}
 
@@ -437,6 +457,8 @@ def register_vision_tools(registry, service: VisionService) -> None:
     for spec in (
         ToolSpec(name="vision_observe", description="Look through the camera",
                  arguments={}, optional={"seconds": int}, sensitive=False, handler=vision_observe),
+        ToolSpec(name="vision_describe", description="Describe what the camera sees",
+                 arguments={}, sensitive=False, handler=vision_describe),
         ToolSpec(name="vision_people", description="Read who Marvi recognises",
                  arguments={}, sensitive=False, handler=vision_people),
         ToolSpec(name="vision_visitors", description="Read unreported visitor sightings",

@@ -59,14 +59,48 @@ function broadcastWindowState(): void {
   }
 }
 
-function startDevelopmentVoiceStack(): void {
-  if (!is.dev || process.env['MARVI_MANAGE_VOICE_STACK'] === '0') return
-  const repoRoot = resolve(app.getAppPath(), '../..')
+/**
+ * Find the checkout that owns this install.
+ *
+ * Marvi OS ships as a git checkout (that is what makes the updater work), and
+ * the Python services live in it rather than inside the asar. A packaged build
+ * sits at apps/desktop/dist/win-unpacked, so walk up until `services/gateway`
+ * appears instead of guessing a fixed depth.
+ */
+function findRepoRoot(): string | null {
+  let dir = resolve(app.getAppPath())
+  for (let hop = 0; hop < 8; hop++) {
+    if (existsSync(join(dir, 'services', 'gateway', 'pyproject.toml'))) return dir
+    const parent = resolve(dir, '..')
+    if (parent === dir) break
+    dir = parent
+  }
+  return null
+}
+
+function startVoiceStack(): void {
+  if (process.env['MARVI_MANAGE_VOICE_STACK'] === '0') return
+  const repoRoot = findRepoRoot()
+  if (!repoRoot) {
+    // Nothing to start and no way to start it: say so instead of leaving the
+    // shell on a connecting animation that will never finish.
+    publishRuntime({
+      ...offlineRuntime(app.getVersion()),
+      state: 'error',
+      components: {
+        gateway: {
+          state: 'error',
+          detail: 'No Marvi OS checkout found; run from a git install.'
+        }
+      }
+    })
+    return
+  }
   const livekit = join(
     process.env['LOCALAPPDATA'] ?? '',
     'Marvi-OS/runtime/livekit/1.13.5/livekit-server.exe'
   )
-  const common = { cwd: repoRoot, windowsHide: true, stdio: 'ignore' as const }
+  const common = { cwd: repoRoot, windowsHide: true, stdio: 'ignore' as const, shell: true }
   if (existsSync(livekit)) {
     voiceProcesses.push(spawn(livekit, ['--dev', '--bind', '127.0.0.1'], common))
   }
@@ -281,7 +315,7 @@ function createTray(): Tray {
 
 app.whenReady().then(() => {
   app.setAppUserModelId('ai.neuretro.marvi-os')
-  startDevelopmentVoiceStack()
+  startVoiceStack()
 
   ipcMain.handle('marvi:get-version', () => app.getVersion())
   ipcMain.handle('marvi:get-build-info', () => ({
