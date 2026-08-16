@@ -14,7 +14,11 @@ import {
 } from './island-window'
 import {
   canUpdate,
+  checkForUpdate,
   consumeUpdateResult,
+  getUpdateChannel,
+  resolveBootstrap,
+  setUpdateChannel,
   startUpdate,
   updateInProgress,
   updateStateDir
@@ -378,7 +382,7 @@ app.whenReady().then(() => {
     buildTime: process.env['MARVI_BUILD_TIME'] ?? 'development',
     platform: process.platform,
     arch: process.arch,
-    updateChannel: process.env['MARVI_UPDATE_CHANNEL'] ?? 'local'
+    updateChannel: getUpdateChannel(updateStateDir(process.env['LOCALAPPDATA']))
   }))
   ipcMain.handle('marvi:get-runtime', () => runtimeStatus)
   ipcMain.handle('marvi:get-voice-session', async () => {
@@ -478,27 +482,60 @@ app.whenReady().then(() => {
     }
   })
   ipcMain.handle('marvi:get-update-status', () => {
-    const root = resolve(app.getAppPath(), '../..')
+    const root = findRepoRoot() ?? ''
+    const stateDir = updateStateDir(process.env['LOCALAPPDATA'])
+    const bootstrap = resolveBootstrap(stateDir)
     return {
-      supported: canUpdate(root),
-      inProgress: updateInProgress(updateStateDir(process.env['LOCALAPPDATA'])),
-      branch: process.env['MARVI_UPDATE_BRANCH'] ?? 'main',
+      supported: canUpdate(root, bootstrap),
+      inProgress: updateInProgress(stateDir),
+      channel: getUpdateChannel(stateDir),
       root
     }
   })
   ipcMain.handle('marvi:consume-update-result', () =>
     consumeUpdateResult(updateStateDir(process.env['LOCALAPPDATA']))
   )
+  ipcMain.handle('marvi:get-update-channel', () =>
+    getUpdateChannel(updateStateDir(process.env['LOCALAPPDATA']))
+  )
+  ipcMain.handle('marvi:set-update-channel', (_event, channel) => {
+    if (channel !== 'release' && channel !== 'dev') {
+      return getUpdateChannel(updateStateDir(process.env['LOCALAPPDATA']))
+    }
+    return setUpdateChannel(updateStateDir(process.env['LOCALAPPDATA']), channel)
+  })
+  ipcMain.handle('marvi:check-update', async () => {
+    const root = findRepoRoot()
+    const stateDir = updateStateDir(process.env['LOCALAPPDATA'])
+    const channel = getUpdateChannel(stateDir)
+    const bootstrap = resolveBootstrap(stateDir)
+    if (!root || !bootstrap || !canUpdate(root, bootstrap)) {
+      return {
+        channel,
+        available: false,
+        upToDate: false,
+        behindBy: 0,
+        error: 'This installation cannot self-update.'
+      }
+    }
+    return checkForUpdate(root, channel, bootstrap)
+  })
   ipcMain.handle('marvi:start-update', () => {
-    const root = resolve(app.getAppPath(), '../..')
-    const started = startUpdate({
-      installRoot: root,
-      branch: process.env['MARVI_UPDATE_BRANCH'] ?? 'main',
-      desktopPid: process.pid,
-      relaunchExe: process.execPath
-    })
+    const root = findRepoRoot()
+    if (!root) return false
+    const stateDir = updateStateDir(process.env['LOCALAPPDATA'])
+    const bootstrap = resolveBootstrap(stateDir)
+    const started = startUpdate(
+      {
+        installRoot: root,
+        channel: getUpdateChannel(stateDir),
+        desktopPid: process.pid,
+        relaunchExe: process.execPath
+      },
+      bootstrap
+    )
     if (started) {
-      // The updater waits for this process to exit before touching the
+      // The bootstrap waits for this process to exit before touching the
       // checkout, so quitting is part of the handoff, not a side effect.
       isQuitting = true
       setTimeout(() => app.quit(), 250)

@@ -5,6 +5,8 @@ import type {
   IdentityStatus,
   InitiativeStatus,
   MindDecision,
+  UpdateChannel,
+  UpdateCheck,
   UpdateResult,
   UpdateStatus,
   MemoryPage,
@@ -32,6 +34,9 @@ export interface MarviDesktopApi {
   getDecisions: () => Promise<{ decisions: MindDecision[]; events: unknown[] }>
   getUpdateStatus: () => Promise<UpdateStatus>
   consumeUpdateResult: () => Promise<UpdateResult | null>
+  getUpdateChannel: () => Promise<UpdateChannel>
+  setUpdateChannel: (channel: UpdateChannel) => Promise<UpdateChannel>
+  checkForUpdate: () => Promise<UpdateCheck>
   startUpdate: () => Promise<boolean>
   getMemory: () => Promise<MemoryPage>
   clearMemory: () => Promise<boolean>

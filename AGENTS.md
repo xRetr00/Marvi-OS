@@ -117,10 +117,12 @@ or settings.
 - `VERSION` is the single product version source.
 - Use SemVer prereleases during development and stable SemVer for releases.
 - Every build exposes version, Git commit, build time, and update channel.
-- Reuse the repository-owned Windows update handoff pattern from the predecessor assistant:
-  check the configured branch, show commits, quit, run a detached PowerShell
-  updater from the checkout, update/build atomically, write a result marker,
-  and relaunch.
+- Reuse the repository-owned Windows update handoff pattern: the Electron app
+  quits and hands off to the small Tauri bootstrap binary
+  (`apps/updater`, `marvi-bootstrap.exe`), which updates/builds atomically,
+  writes a result marker, and relaunches. The `release` channel (default)
+  tracks the latest signed `v*` tag; the opt-in `dev` channel fast-forwards
+  `origin/main`.
 - The updater must be tested from older releases, not only from the current
   checkout. A failed update must preserve the last working installation.
 

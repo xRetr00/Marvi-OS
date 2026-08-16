@@ -82,9 +82,18 @@ jobs:
       - name: Build Windows installer
         run: npm run build:win
 
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build Marvi Bootstrap (installer + updater)
+        working-directory: apps/updater
+        run: cargo build --release -p marvi-bootstrap
+
       - name: List artifacts
         shell: bash
-        run: ls -la apps/desktop/dist
+        run: |
+          ls -la apps/desktop/dist
+          ls -la apps/updater/target/release/marvi-bootstrap.exe
 
       - name: Upload artifacts (dry run only)
         if: steps.version.outputs.dry_run == 'true'
@@ -94,6 +103,7 @@ jobs:
           path: |
             apps/desktop/dist/*.exe
             apps/desktop/dist/*.yml
+            apps/updater/target/release/marvi-bootstrap.exe
           if-no-files-found: error
 
       - name: Generate release notes
@@ -128,4 +138,5 @@ jobs:
             --title "Marvi OS v${{ steps.version.outputs.version }}" \
             --notes-file release-notes.md \
             apps/desktop/dist/*.exe \
-            apps/desktop/dist/*.yml
+            apps/desktop/dist/*.yml \
+            apps/updater/target/release/marvi-bootstrap.exe
