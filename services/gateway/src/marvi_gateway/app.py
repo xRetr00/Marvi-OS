@@ -16,6 +16,7 @@ from .accounts import ComposioAccounts, register_account_tools
 from .activity import ActivityWatch, register_activity_tools
 from .announce import Announcer, announce_enabled
 from .browser import BrowserSession, browser_enabled, register_browser_tools
+from .chat import Chat, ChatStore, ChatTurn, schemas_from_registry
 from .deliberate import deliberator_from_env
 from .identity import IdentityFiles, plan_warning
 from .ingest import AccountIngest
@@ -111,7 +112,14 @@ class MemoryExport(BaseModel):
 
 
 class InitiativeUpdate(BaseModel):
-    paused: bool
+    # All optional: the page sends only what changed. Every one of these
+    # changes how often Marvi speaks, so none of them belongs in a constant.
+    paused: bool | None = None
+    quiet_start: int | None = Field(default=None, ge=0, le=23)
+    quiet_end: int | None = Field(default=None, ge=0, le=23)
+    cooldown_seconds: int | None = Field(default=None, ge=0, le=86_400)
+    daily_token_budget: int | None = Field(default=None, ge=0)
+    speak_when_away: bool | None = None
 
 
 class InitiativeStatus(BaseModel):
@@ -186,6 +194,26 @@ class IdentityUpdate(BaseModel):
     user: str | None = None
 
 
+class ChatMessage(BaseModel):
+    message: str
+
+
+class ChatReply(BaseModel):
+    reply: str
+    tools_used: list[str]
+    # Set when a sensitive action was requested: the same token the Island and
+    # the voice path resolve, so no surface has a private way to say yes.
+    pending_confirmation: dict[str, Any] | None
+    tokens: int
+    provider: str
+    error: str
+
+
+class ChatHistory(BaseModel):
+    messages: list[dict[str, Any]]
+    available: bool
+
+
 class DecisionPage(BaseModel):
     decisions: list[dict[str, Any]]
     events: list[dict[str, Any]]
@@ -233,6 +261,7 @@ def create_app(
     provider_config.load_into_environ()
     provider_client = ProviderClient()
     identity = IdentityFiles()
+    chat: Chat | None = None
     runtime_store = runtime or RuntimeStore()
     sidecar: RoomSidecar | None = None
     accounts: ComposioAccounts | None = None
@@ -286,6 +315,12 @@ def create_app(
             # A headless browser is a real resource cost, so it stays off until
             # MARVI_BROWSER asks for it.
             register_browser_tools(tool_registry, BrowserSession(), workspace)
+        chat = Chat(
+            store=ChatStore(),
+            client=provider_client,
+            identity=identity,
+            memory=memory,
+        )
         mcp = McpBridge()
         if mcp.available():
             # Routed here rather than attached to the Agent so MCP tools
@@ -436,6 +471,72 @@ def create_app(
         return ToolInvocation(
             status="executed", tool=spec.name, result=result, runtime=current_status()
         )
+
+    def dispatch_for_chat(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        """Run a tool for chat through exactly the path voice uses.
+
+        Chat gets no private door: an unknown tool, bad arguments, and a
+        sensitive action all behave here the way they do over HTTP.
+        """
+        try:
+            spec = tool_registry.get(name)
+            checked = tool_registry.validate(spec, arguments)
+        except (UnknownToolError, InvalidArgumentsError) as exc:
+            return {"status": "failed", "error": str(exc)}
+
+        runtime_store.audit("requested", spec.name, checked, detail="via chat")
+        write_key = (
+            runtime_store.external_write_key(spec.name, checked, None)
+            if spec.external
+            else None
+        )
+        if spec.sensitive and not runtime_store.assistant.yolo:
+            request = runtime_store.issue_confirmation(
+                tool=spec.name,
+                arguments=checked,
+                action=spec.description,
+                detail=spec.summary(checked),
+                write_key=write_key,
+            )
+            runtime_store.audit("confirmation_required", spec.name, checked)
+            return {"status": "confirmation_required", "token": request.token}
+        return run_tool(spec, checked, write_key).model_dump()
+
+    if chat is not None:
+        chat.dispatch = dispatch_for_chat
+        chat.tool_schemas = lambda: schemas_from_registry(tool_registry)
+
+    @app.get("/chat", response_model=ChatHistory)
+    async def chat_history() -> ChatHistory:
+        if chat is None:
+            return ChatHistory(messages=[], available=False)
+        return ChatHistory(messages=chat.store.history(limit=200), available=chat.available())
+
+    @app.post("/chat", response_model=ChatReply)
+    async def chat_send(body: ChatMessage) -> ChatReply:
+        if chat is None:
+            raise HTTPException(status_code=503, detail="chat is not available")
+        # Blocking call on the event loop would stall the health endpoint the
+        # shell polls every two seconds, so it runs on a worker thread.
+        import anyio
+
+        turn: ChatTurn = await anyio.to_thread.run_sync(chat.send, body.message)
+        return ChatReply(
+            reply=turn.reply,
+            tools_used=turn.tools_used,
+            pending_confirmation=turn.pending_confirmation,
+            tokens=turn.tokens,
+            provider=turn.provider,
+            error=turn.error,
+        )
+
+    @app.delete("/chat", response_model=ChatHistory)
+    async def chat_clear() -> ChatHistory:
+        if chat is None:
+            return ChatHistory(messages=[], available=False)
+        removed = chat.store.clear()
+        runtime_store.audit("chat", "cleared", {"messages": removed})
+        return ChatHistory(messages=[], available=chat.available())
 
     @app.get("/tools", response_model=ToolCatalog)
     async def list_tools() -> ToolCatalog:
@@ -591,10 +692,30 @@ def create_app(
         if initiative is None:
             return InitiativeStatus(paused=True, running=False, pending_events=0,
                                     last_runs={}, last_errors={}, settings={})
-        initiative.set_paused(update.paused)
-        runtime_store.audit(
-            "initiative", "mind", {"paused": update.paused}
+        changed: dict[str, Any] = {}
+        if update.paused is not None:
+            initiative.set_paused(update.paused)
+            changed["paused"] = update.paused
+        for field_name in (
+            "quiet_start",
+            "quiet_end",
+            "cooldown_seconds",
+            "daily_token_budget",
+            "speak_when_away",
+        ):
+            value = getattr(update, field_name)
+            if value is not None:
+                setattr(initiative.mind.settings, field_name, value)
+                changed[field_name] = value
+        # Persisted the same way provider settings are, so a restart keeps them.
+        provider_config.update(
+            {
+                f"MARVI_{key.upper()}": str(value)
+                for key, value in changed.items()
+                if key != "paused"
+            }
         )
+        runtime_store.audit("initiative", "mind", changed)
         return InitiativeStatus(**initiative.status())
 
     @app.get("/mind/decisions", response_model=DecisionPage)

@@ -232,22 +232,25 @@ is not offered to the voice path — being "configured" only means it has a URL.
 readable and writable from the Identity page, which shows the token budget and
 says when a file has been truncated. Marvi never writes `SOUL.md` itself.
 
-## Acceptance evidence required
+## Acceptance evidence
 
-- One provider from each access path working: API, plan over OAuth without
-  Marvi handling a password, and local.
-- The same vendor on both paths at once — the OpenAI API and Codex — selectable
-  and accounted independently.
-- A local provider still answering with the network unavailable.
-- Token budget binds identically on an API provider, a plan, and a local model.
-- A 429 with `Retry-After` cools that provider down and fails over rather than
-  retrying.
-- An expired token surfaces as "reconnect", and reconnecting restores service
-  without a restart.
-- No base URL, model name, or key literal remains in application code; changing
-  a provider in the GUI takes effect without an edit.
-- `SOUL.md` and `USER.md` change behaviour within the prompt budget, and the
-  Phase 5 injection tests still pass with identity loaded.
+| Evidence | State |
+|---|---|
+| Token budget binds identically on an API, a plan, and a local model | **done** — one client, one `billable` number |
+| A 429 with `Retry-After` cools that provider down and fails over | **done** |
+| An expired token surfaces as "reconnect"; reconnecting needs no restart | **done** — and distinct from never-connected |
+| Marvi handles no provider password anywhere in the OAuth flow | **done** — no field exists to type one into |
+| No base URL, model or key literal in application code; GUI edits take effect live | **done** |
+| `SOUL.md` and `USER.md` shape the prompt within an enforced budget | **done** |
+| The Phase 5 injection boundary still holds with identity loaded | **done** — identity is trusted, recalled content keeps its envelope |
+| The same vendor on both paths at once, accounted independently | **structurally done** — `openai` and `codex` are separate profiles with separate usage; not yet proven live |
+| One provider from each access path calling a real endpoint | **open** — needs credentials |
+| A local provider still answering with the network unavailable | **open** — needs a local server running |
+
+The open rows all need something this repository deliberately does not contain.
+`scripts/verify_provider.py` makes one small real call per configured provider
+and checks that the reply and usage shapes match what the profile expects — it
+is not part of the test suite because it spends money.
 
 ## Risks and open questions
 

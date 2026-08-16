@@ -2,6 +2,8 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type {
   AssistantState,
   AuditEvent,
+  ChatEntry,
+  ChatReply,
   ConnectedAccount,
   IdentityStatus,
   InitiativeStatus,
@@ -13,7 +15,8 @@ import type {
   MemoryPage,
   ProviderPage,
   RoomEvent,
-  RuntimeStatus
+  RuntimeStatus,
+  ServiceReport
 } from '../shared/runtime'
 import type { IslandPlacement } from '../main/island-window'
 
@@ -79,6 +82,18 @@ const marvi = {
     detail: string
     accounts: ConnectedAccount[]
   }> => ipcRenderer.invoke('marvi:get-accounts'),
+  getChat: (): Promise<{ messages: ChatEntry[]; available: boolean }> =>
+    ipcRenderer.invoke('marvi:get-chat'),
+  sendChat: (message: string): Promise<ChatReply | null> =>
+    ipcRenderer.invoke('marvi:send-chat', message),
+  clearChat: (): Promise<boolean> => ipcRenderer.invoke('marvi:clear-chat'),
+  getServices: (): Promise<ServiceReport[]> => ipcRenderer.invoke('marvi:get-services'),
+  retryService: (name: string): Promise<boolean> => ipcRenderer.invoke('marvi:retry-service', name),
+  onServices: (listener: (reports: ServiceReport[]) => void): (() => void) => {
+    const handler = (_event: unknown, reports: ServiceReport[]): void => listener(reports)
+    ipcRenderer.on('marvi:services', handler)
+    return () => ipcRenderer.removeListener('marvi:services', handler)
+  },
   getProviders: (): Promise<ProviderPage | null> => ipcRenderer.invoke('marvi:get-providers'),
   setProviderSettings: (values: Record<string, string>): Promise<ProviderPage | null> =>
     ipcRenderer.invoke('marvi:set-provider-settings', values),

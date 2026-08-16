@@ -28,6 +28,7 @@ import { $translucency, setTranslucency } from './store/translucency'
 import { haptic } from './lib/haptics'
 import type {
   AuditEvent,
+  ChatEntry,
   ConnectedAccount,
   IdentityStatus,
   InitiativeStatus,
@@ -40,7 +41,8 @@ import type {
   UpdateResult,
   UpdateStatus,
   RoomEvent,
-  RuntimeStatus
+  RuntimeStatus,
+  ServiceReport
 } from '../../shared/runtime'
 import type { IslandAlignment, IslandPlacement } from '../../main/island-window'
 import { connectVoiceRoom } from './lib/livekit-room'
@@ -48,6 +50,7 @@ import { connectVoiceRoom } from './lib/livekit-room'
 const NAV_ITEMS = [
   'Overview',
   'Voice',
+  'Chat',
   'Vision',
   'Room',
   'Accounts',
@@ -181,6 +184,10 @@ function MainSurface(): React.JSX.Element {
               <AboutPanel fallbackVersion={version} runtime={runtime} />
             ) : page === 'Room' ? (
               <RoomPanel runtime={runtime} />
+            ) : page === 'Voice' ? (
+              <VoicePanel runtime={runtime} />
+            ) : page === 'Chat' ? (
+              <ChatPanel />
             ) : page === 'Activity' ? (
               <ActivityPanel />
             ) : page === 'Accounts' ? (
@@ -1213,6 +1220,342 @@ function IdentityPanel(): React.JSX.Element {
   )
 }
 
+const SERVICE_LABEL: Record<string, string> = {
+  gateway: 'MARVI GATEWAY',
+  livekit: 'LIVEKIT SERVER',
+  agent: 'VOICE AGENT'
+}
+
+const SERVICE_PURPOSE: Record<string, string> = {
+  gateway: 'Tool router, memory, mind, and every provider call.',
+  livekit: 'Local WebRTC media server. Not needed if LIVEKIT_URL points at the cloud.',
+  agent: 'The LiveKit worker that speaks and listens.'
+}
+
+/**
+ * Service health, with the reason when something is down.
+ *
+ * This exists because the shell used to show "gateway offline" and nothing
+ * else, while the actual Python traceback went to a pipe nobody read.
+ */
+function ServiceHealth({ compact = false }: { compact?: boolean }): React.JSX.Element {
+  const [services, setServices] = useState<ServiceReport[]>([])
+  const [expanded, setExpanded] = useState<string | null>(null)
+
+  useEffect(() => {
+    let disposed = false
+    void window.marvi?.getServices().then((reports) => {
+      if (!disposed) setServices(reports ?? [])
+    })
+    const stop = window.marvi?.onServices((reports) => setServices(reports))
+    return () => {
+      disposed = true
+      stop?.()
+    }
+  }, [])
+
+  if (services.length === 0) {
+    return (
+      <span className="construction">
+        {compact ? 'NO SUPERVISED SERVICES' : 'SERVICES ARE MANAGED OUTSIDE MARVI'}
+      </span>
+    )
+  }
+
+  return (
+    <div className="service-list">
+      {services.map((service) => {
+        const bad = service.state === 'failed' || service.state === 'gave up'
+        return (
+          <div className="service-row" key={service.name}>
+            <span className="service-name">
+              {SERVICE_LABEL[service.name] ?? service.name.toUpperCase()}
+            </span>
+            <span
+              className={`service-state state-${
+                service.state === 'running' ? 'ready' : bad ? 'error' : 'pending'
+              }`}
+            >
+              {service.state.toUpperCase()}
+            </span>
+            <small>{SERVICE_PURPOSE[service.name] ?? ''}</small>
+            <small className={bad ? 'provider-cooldown' : undefined}>
+              {service.detail}
+              {service.restarts > 0 ? ` / ${service.restarts} restart attempts` : ''}
+            </small>
+
+            {service.output.length > 0 ? (
+              <>
+                <button
+                  className="phase"
+                  type="button"
+                  onClick={() => setExpanded(expanded === service.name ? null : service.name)}
+                >
+                  {expanded === service.name ? 'HIDE OUTPUT' : 'SHOW OUTPUT'}
+                </button>
+                {expanded === service.name ? (
+                  <pre className="service-output">{service.output.join('\n')}</pre>
+                ) : null}
+              </>
+            ) : null}
+
+            {bad ? (
+              <button
+                className="phase"
+                type="button"
+                onClick={() => void window.marvi?.retryService(service.name)}
+              >
+                RETRY NOW
+              </button>
+            ) : null}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
+  const voice = useStore($voiceState)
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([])
+  const [deviceError, setDeviceError] = useState('')
+
+  useEffect(() => {
+    let disposed = false
+    void navigator.mediaDevices
+      ?.enumerateDevices()
+      .then((all) => {
+        if (disposed) return
+        setDevices(all.filter((device) => device.kind === 'audioinput'))
+      })
+      .catch(() => setDeviceError('Could not read audio devices'))
+    return () => {
+      disposed = true
+    }
+  }, [])
+
+  const livekit = runtime.components.livekit
+  const gateway = runtime.components.gateway
+
+  return (
+    <section className="single-page panel">
+      <div className="panel-label">{'// VOICE'}</div>
+      <h2>Voice</h2>
+      <p>
+        The voice session runs over LiveKit: the agent worker joins a local room, and this window
+        joins the same room as a participant. Both need the Gateway, which issues the token and owns
+        every tool the agent can call.
+      </p>
+
+      <div className="context-line">
+        <span>SESSION</span>
+        <strong>{voice.phase.toUpperCase()}</strong>
+      </div>
+      <div className="context-line">
+        <span>GATEWAY</span>
+        <strong>{(gateway?.detail ?? 'unknown').toUpperCase()}</strong>
+      </div>
+      <div className="context-line">
+        <span>LIVEKIT</span>
+        <strong>{(livekit?.detail ?? 'unknown').toUpperCase()}</strong>
+      </div>
+
+      <div className="ascii-divider">+------------------------------+</div>
+      <div className="panel-label">{'// LOCAL SERVICES'}</div>
+      <ServiceHealth />
+
+      <div className="ascii-divider">+------------------------------+</div>
+      <div className="panel-label">{'// MICROPHONES'}</div>
+      {deviceError ? (
+        <span className="construction">{deviceError.toUpperCase()}</span>
+      ) : devices.length === 0 ? (
+        <span className="construction">
+          NO MICROPHONE VISIBLE / GRANT MICROPHONE PERMISSION TO LIST DEVICES
+        </span>
+      ) : (
+        <div className="service-list">
+          {devices.map((device) => (
+            <div className="service-row" key={device.deviceId}>
+              <span className="service-name">
+                {(device.label || 'Unnamed input').toUpperCase()}
+              </span>
+              <span className="service-state">
+                {device.deviceId === 'default' ? 'DEFAULT' : ''}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function ChatPanel(): React.JSX.Element {
+  const [messages, setMessages] = useState<ChatEntry[]>([])
+  const [draft, setDraft] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [available, setAvailable] = useState(true)
+  const [pending, setPending] = useState<{ tool: string; token: string } | null>(null)
+  const bottom = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    let disposed = false
+    void window.marvi?.getChat().then((page) => {
+      if (disposed || !page) return
+      setMessages(page.messages)
+      setAvailable(page.available)
+    })
+    return () => {
+      disposed = true
+    }
+  }, [])
+
+  useEffect(() => {
+    bottom.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, busy])
+
+  const send = async (): Promise<void> => {
+    const text = draft.trim()
+    if (!text || busy) return
+    setDraft('')
+    setBusy(true)
+    // Show the user's own line immediately; waiting for the round trip to
+    // echo it back makes the window feel broken.
+    setMessages((current) => [
+      ...current,
+      { id: -Date.now(), at: new Date().toISOString(), role: 'user', content: text, meta: {} }
+    ])
+    try {
+      const reply = await window.marvi?.sendChat(text)
+      const page = await window.marvi?.getChat()
+      if (page) setMessages(page.messages)
+      setPending(
+        reply?.pending_confirmation
+          ? {
+              tool: reply.pending_confirmation.tool as string,
+              token: reply.pending_confirmation.token as string
+            }
+          : null
+      )
+      if (reply?.error) {
+        setMessages((current) => [
+          ...current,
+          {
+            id: -Date.now(),
+            at: new Date().toISOString(),
+            role: 'error',
+            content: reply.error,
+            meta: {}
+          }
+        ])
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const resolve = async (decision: 'approve' | 'deny'): Promise<void> => {
+    if (!pending) return
+    await window.marvi?.resolveConfirmation(pending.token, decision)
+    setPending(null)
+  }
+
+  const clear = async (): Promise<void> => {
+    await window.marvi?.clearChat()
+    setMessages([])
+    setPending(null)
+  }
+
+  return (
+    <section className="single-page panel chat-page">
+      <div className="panel-label">{'// CHAT'}</div>
+      <h2>Chat</h2>
+      <p>
+        The same Marvi as the voice session — same identity, same memory, same tools, same
+        confirmations. Only the way you reach it is different.
+      </p>
+
+      {!available ? (
+        <span className="construction">NO PROVIDER CONNECTED / OPEN PROVIDERS TO CONNECT ONE</span>
+      ) : null}
+
+      <div className="chat-log">
+        {messages.length === 0 ? (
+          <span className="construction">NO MESSAGES YET</span>
+        ) : (
+          messages.map((entry) => (
+            <div className={`chat-turn chat-${entry.role}`} key={entry.id}>
+              <span className="chat-role">
+                {entry.role === 'tool' ? 'TOOL RESULT' : entry.role.toUpperCase()}
+              </span>
+              <div className="chat-body">{entry.content}</div>
+            </div>
+          ))
+        )}
+        {busy ? (
+          <div className="chat-turn chat-assistant">
+            <span className="chat-role">MARVI</span>
+            <div className="chat-body chat-thinking">thinking</div>
+          </div>
+        ) : null}
+        <div ref={bottom} />
+      </div>
+
+      {pending ? (
+        <div className="chat-confirm">
+          <span>
+            {pending.tool.toUpperCase()} needs your approval. This is the same token the Island
+            resolves.
+          </span>
+          <div className="provider-actions">
+            <button className="phase active" type="button" onClick={() => void resolve('approve')}>
+              APPROVE
+            </button>
+            <button className="phase danger" type="button" onClick={() => void resolve('deny')}>
+              DENY
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="chat-compose">
+        <textarea
+          rows={3}
+          value={draft}
+          placeholder="Ask Marvi something"
+          disabled={busy || !available}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            // Enter sends, Shift+Enter breaks the line.
+            if (event.key === 'Enter' && !event.shiftKey) {
+              event.preventDefault()
+              void send()
+            }
+          }}
+        />
+        <div className="provider-actions">
+          <button
+            className="phase active"
+            type="button"
+            disabled={busy || !draft.trim() || !available}
+            onClick={() => void send()}
+          >
+            {busy ? 'SENDING' : 'SEND'}
+          </button>
+          <button
+            className="phase danger"
+            type="button"
+            disabled={busy || messages.length === 0}
+            onClick={() => void clear()}
+          >
+            CLEAR
+          </button>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function ActivityPanel(): React.JSX.Element {
   const [events, setEvents] = useState<AuditEvent[]>([])
 
@@ -1270,6 +1613,7 @@ function PagePanel({ page, version }: { page: Page; version: string }): React.JS
     Overview: '',
     Voice:
       'Streaming STT, TTS, wake word, interruption, acoustic echo control, and device diagnostics.',
+    Chat: 'Typed conversation with the same Marvi the voice session reaches.',
     Vision:
       'Always-on local presence and gesture processing. Frames leave the PC only for an explicit vision task.',
     Room: 'Status and events from D:\\smart-room-plugin. Marvi OS does not replace its automation authority.',
@@ -1329,6 +1673,18 @@ function SettingsPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Eleme
 
   return (
     <section className="settings-page" aria-label="Marvi OS settings">
+      <div className="settings-section settings-services">
+        <div>
+          <span className="eyebrow">{'// LOCAL SERVICES'}</span>
+          <h2>RUNTIME</h2>
+          <p>
+            Marvi starts these itself. When one will not start, the reason is its own output — shown
+            here rather than discarded.
+          </p>
+        </div>
+        <ServiceHealth compact />
+      </div>
+
       <div className="settings-section">
         <div>
           <span className="eyebrow">{'// ACTION AUTHORITY'}</span>

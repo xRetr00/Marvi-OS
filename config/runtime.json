@@ -1,0 +1,14 @@
+{
+  "$comment": "Local service topology. One source of truth for the desktop shell, the Gateway, and the PowerShell scripts. Every value here can be overridden by the environment variable named beside it; nothing reads a literal.",
+  "gateway": {
+    "host": "127.0.0.1",
+    "port": 8765,
+    "env": "MARVI_GATEWAY_URL"
+  },
+  "livekit": {
+    "version": "1.13.5",
+    "host": "127.0.0.1",
+    "port": 7880,
+    "env": "LIVEKIT_URL"
+  }
+}

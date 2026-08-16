@@ -1,6 +1,8 @@
 import type {
   AssistantState,
   AuditEvent,
+  ChatEntry,
+  ChatReply,
   ConnectedAccount,
   IdentityStatus,
   InitiativeStatus,
@@ -12,7 +14,8 @@ import type {
   MemoryPage,
   ProviderPage,
   RoomEvent,
-  RuntimeStatus
+  RuntimeStatus,
+  ServiceReport
 } from '../shared/runtime'
 import type { IslandPlacement } from '../main/island-window'
 
@@ -45,6 +48,12 @@ export interface MarviDesktopApi {
     detail: string
     accounts: ConnectedAccount[]
   }>
+  getChat: () => Promise<{ messages: ChatEntry[]; available: boolean }>
+  sendChat: (message: string) => Promise<ChatReply | null>
+  clearChat: () => Promise<boolean>
+  getServices: () => Promise<ServiceReport[]>
+  retryService: (name: string) => Promise<boolean>
+  onServices: (listener: (reports: ServiceReport[]) => void) => () => void
   getProviders: () => Promise<ProviderPage | null>
   setProviderSettings: (values: Record<string, string>) => Promise<ProviderPage | null>
   startOauth: (name: string) => Promise<{ ok: boolean; detail: string }>

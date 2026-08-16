@@ -16,6 +16,7 @@ from marvi_gateway.initiative import Initiative
 from marvi_gateway.journal import EventJournal
 from marvi_gateway.memory import MemoryStore
 from marvi_gateway.mind import Mind
+from marvi_gateway.policy import DEFAULT_QUIET_START, InitiativeSettings
 from marvi_gateway.runtime import RuntimeStore
 from marvi_gateway.tools import ToolRegistry
 
@@ -174,3 +175,53 @@ async def test_initiative_endpoints_expose_pause_and_the_decision_log(tmp_path) 
     assert paused.json()["paused"] is True
     assert decisions.status_code == 200
     assert isinstance(decisions.json()["decisions"], list)
+
+
+# -- every proactivity knob must be reachable ---------------------------------
+
+
+def test_quiet_hours_and_budget_come_from_the_environment(monkeypatch) -> None:
+    monkeypatch.setenv("MARVI_QUIET_START", "21")
+    monkeypatch.setenv("MARVI_DAILY_TOKEN_BUDGET", "12345")
+    settings = InitiativeSettings.from_env()
+
+    # A quiet-hours window buried in a constant is a setting nobody can reach.
+    assert settings.quiet_start == 21
+    assert settings.daily_token_budget == 12345
+
+
+def test_a_bad_setting_falls_back_instead_of_silencing_marvi(monkeypatch) -> None:
+    monkeypatch.setenv("MARVI_QUIET_START", "not a number")
+    monkeypatch.setenv("MARVI_DAILY_TOKEN_BUDGET", "-5")
+    settings = InitiativeSettings.from_env()
+
+    # A typo must not be able to switch proactivity off by accident.
+    assert settings.quiet_start == DEFAULT_QUIET_START
+    assert settings.daily_token_budget == 0  # clamped, not negative
+
+
+def test_settings_are_editable_from_the_control_center(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("MARVI_PROVIDER_CONFIG", str(tmp_path / "providers.env"))
+    from fastapi.testclient import TestClient
+
+    from marvi_gateway.app import create_app
+
+    with TestClient(create_app()) as client:
+        body = client.put(
+            "/initiative", json={"quiet_start": 22, "daily_token_budget": 9999}
+        ).json()
+
+        assert body["settings"]["quiet_start"] == 22
+        assert body["settings"]["daily_token_budget"] == 9999
+        # Saved the same way provider settings are, so a restart keeps them.
+        assert client.get("/initiative").json()["settings"]["quiet_start"] == 22
+
+
+def test_pausing_still_works_on_its_own(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("MARVI_PROVIDER_CONFIG", str(tmp_path / "providers.env"))
+    from fastapi.testclient import TestClient
+
+    from marvi_gateway.app import create_app
+
+    with TestClient(create_app()) as client:
+        assert client.put("/initiative", json={"paused": True}).json()["paused"] is True
