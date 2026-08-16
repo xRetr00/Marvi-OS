@@ -59,7 +59,7 @@ including risky actions, while retaining validation and audit logging.
 
 ## ADR-009 — Repository-owned updates
 
-**Decision:** Reuse Marvi/Hermes' Git-aware, checkout-owned Windows PowerShell
+**Decision:** Reuse the predecessor assistant' Git-aware, checkout-owned Windows PowerShell
 handoff rather than introducing an unrelated generic updater. Product version,
 commit, and update channel are visible in About and the status bar.
 
@@ -182,6 +182,45 @@ Three rules follow from this:
   provider is configured, and every fetched URL must resolve to a public
   address so an agent cannot be talked into reading loopback.
 
+## ADR-021 — Vision is motion-gated, CPU-only, and owner-relative
+
+**Decision:** face recognition runs on the CPU with `buffalo_l`, behind a frame
+difference gate, and a face is only a visitor once it has failed to match the
+enrolled owner. Sightings queue with a thumbnail and surface when the owner
+comes home rather than while they are out.
+
+**Reason:** three constraints, each with a failure mode behind it.
+
+- The GPU budget belongs to the voice stack. It holds 4.245 GiB and `AGENTS.md`
+  requires 2 GB of headroom, so a second resident model on the GPU is not
+  available. CPU inference measured 124 ms per frame, far below what the gate
+  asks for.
+- Continuous analysis is the expensive mistake. A camera watching an empty room
+  should cost almost nothing, and a frame difference is the cheapest possible
+  way to know nothing happened.
+- Owner-relative matching prevents the worst failure: a poor angle on the owner
+  being announced as a stranger in their own home. There is exactly one owner
+  because "visitor" is defined as "not the owner".
+
+Holding visitor reports until the away → home edge is a product judgement:
+telling someone about a stranger while they are out is information they cannot
+act on, delivered at the moment it will worry them most.
+
+## ADR-022 — Predecessor branding removed, functional paths kept
+
+**Decision:** references to the predecessor assistant are removed from Marvi OS
+prose, comments, and documentation. Two categories deliberately remain: the
+third-party `hermes-estree` / `hermes-parser` npm packages, which are not ours
+to rename, and the room sidecar's own data directory, which is the sidecar's
+name for its own storage.
+
+**Reason:** Marvi OS is an independent product (ADR-001) and should not read
+like a fork. But renaming a directory another program owns does not make Marvi
+independent, it makes the room integration break. That path is now behind
+`MARVI_SIDECAR_DIR` and `MARVI_ROOM_HOME`, so it is configuration rather than
+branding, and provenance for adapted work is still recorded in
+`docs/UPSTREAM.md` as `AGENTS.md` requires.
+
 ## ADR-019 — Two voices for two jobs
 
 **Decision:** the full-duplex session keeps VibeVoice streaming on the GPU.
@@ -289,7 +328,7 @@ into instruction position by taking a detour through storage.
 ## ADR-014 — Frameless shell with renderer-painted chrome
 
 **Decision:** The control center window is frameless and paints its own title
-bar (brand, page, window controls). The Hermes hidden-titlebar pattern is
+bar (brand, page, window controls). The the predecessor assistant hidden-titlebar pattern is
 adapted, not the native WCO overlay, because the Marvi OS brand chrome (mono
 Collapse type, drag region, custom hover states) is the product surface.
 
@@ -299,7 +338,7 @@ native via IPC (minimize/maximize/close handled in main with sender checks).
 
 ## ADR-015 — Local-only backdrop and chrome assets
 
-**Decision:** Electric Gaze and all Hermes-adapted chrome ship as vendored
+**Decision:** Electric Gaze and all the predecessor assistant-adapted chrome ship as vendored
 local assets or MIT npm dependencies. No runtime CDN fetch; source URLs and
 licenses live in the UPSTREAM ledger.
 

@@ -114,7 +114,7 @@ Exit criteria:
 
 ## Phase 7 — first Windows release
 
-1. Extract/adapt the tested Marvi/Hermes Windows update handoff.
+1. Extract/adapt the tested the predecessor assistant Windows update handoff.
 2. Test updates from multiple older releases and interrupted updates.
 3. Package and publish the first Windows release.
 

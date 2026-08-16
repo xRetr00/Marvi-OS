@@ -1,7 +1,7 @@
 /**
  * DecodeText — the "CONNECTING" scramble-decode effect as a reusable
- * primitive, adapted from the Marvi/Hermes desktop shell (MIT):
- * D:\hermes-agent\apps\desktop\src\components\ui\decode-text.tsx.
+ * primitive, adapted from the the predecessor assistant desktop shell (MIT):
+ * the predecessor assistant\apps\desktop\src\components\ui\decode-text.tsx.
  *
  *  - Even-weight mono ascii charset so cycling glyphs never jump width.
  *  - Decode resolves half a character per 45 ms tick.

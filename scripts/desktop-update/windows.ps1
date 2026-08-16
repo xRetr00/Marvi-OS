@@ -1,6 +1,6 @@
 # windows.ps1 -- repository-owned Windows update hand-off for Marvi OS.
 #
-# WHY THIS LIVES IN THE REPO (adapted from D:\hermes-agent\scripts\desktop-
+# WHY THIS LIVES IN THE REPO (adapted from the predecessor assistant\scripts\desktop-
 # update\windows.ps1, see docs/UPSTREAM.md): a frozen installer binary cannot
 # fix its own updater. Every fix to the update path would then only reach users
 # through a new signed installer, so update bugs outlive their fixes. Because

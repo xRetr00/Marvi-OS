@@ -1,10 +1,10 @@
 /**
  * Shell context menu — right-click on chrome that owns no menu of its own
  * (title bar gutter, sidebar background, empty panel body) gets window-level
- * verbs instead of nothing. Adapted from the Marvi/Hermes desktop
+ * verbs instead of nothing. Adapted from the the predecessor assistant desktop
  * ShellContextMenu pattern (MIT): a fallback wrapper, where surfaces with
  * their own menu stopPropagation before the trigger sees the event.
- * Provenance: D:\hermes-agent\apps\desktop\src\app\shell\shell-context-menu.tsx
+ * Provenance: the predecessor assistant\apps\desktop\src\app\shell\shell-context-menu.tsx
  * and components/ui/context-menu.tsx (see docs/UPSTREAM.md).
  */
 import { ContextMenu } from 'radix-ui'

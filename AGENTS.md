@@ -117,7 +117,7 @@ or settings.
 - `VERSION` is the single product version source.
 - Use SemVer prereleases during development and stable SemVer for releases.
 - Every build exposes version, Git commit, build time, and update channel.
-- Reuse the repository-owned Windows update handoff pattern from Marvi/Hermes:
+- Reuse the repository-owned Windows update handoff pattern from the predecessor assistant:
   check the configured branch, show commits, quit, run a detached PowerShell
   updater from the checkout, update/build atomically, write a result marker,
   and relaunch.

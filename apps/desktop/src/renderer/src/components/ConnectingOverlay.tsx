@@ -1,9 +1,9 @@
 /**
  * Full-screen connecting overlay shown while the Marvi Gateway / LiveKit
- * voice room boots. Adapted from the Marvi/Hermes desktop
+ * voice room boots. Adapted from the the predecessor assistant desktop
  * GatewayConnectingOverlay (MIT): scramble-decode CONNECTING text plus a
  * glyph spinner, reduced-motion aware, exits once the gateway is ready.
- * Provenance: D:\hermes-agent\apps\desktop\src\components\gateway-connecting-overlay.tsx
+ * Provenance: the predecessor assistant\apps\desktop\src\components\gateway-connecting-overlay.tsx
  * (see docs/UPSTREAM.md).
  *
  * Marvi OS difference: the overlay tracks the gateway runtime state instead

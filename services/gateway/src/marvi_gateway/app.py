@@ -35,6 +35,7 @@ from .runtime import (
     TokenRejectedError,
 )
 from .tools import InvalidArgumentsError, ToolRegistry, ToolSpec, UnknownToolError
+from .vision import FaceLibrary, VisionService, register_vision_tools
 from .web import WebTools, register_web_tools
 from .workspace import Workspace, register_workspace_tools
 
@@ -166,6 +167,7 @@ def create_app(
     ingest: AccountIngest | None = None
     journal: EventJournal | None = None
     initiative: Initiative | None = None
+    faces: FaceLibrary | None = None
     if tools is not None:
         tool_registry = tools
     else:
@@ -183,6 +185,10 @@ def create_app(
         workspace = Workspace()
         if workspace.available():
             register_workspace_tools(tool_registry, workspace)
+        vision = VisionService()
+        if vision.available():
+            faces = vision.library
+            register_vision_tools(tool_registry, vision)
         journal = EventJournal()
         initiative = Initiative(
             Mind(
@@ -195,6 +201,7 @@ def create_app(
             journal,
             ingest=ingest,
             memory=memory,
+            faces=faces,
             room_state=(lambda: {"present": bool(
                 ((sidecar.snapshot() or {}).get("presence") or {}).get("detected", True)
             )}) if sidecar is not None else None,
@@ -273,7 +280,13 @@ def create_app(
                     detail="local server online" if livekit_ready else "local server not running",
                 ),
                 "voice": ComponentStatus(state="starting", detail="native streaming worker available"),
-                "vision": ComponentStatus(state="pending", detail="local model not selected"),
+                "vision": ComponentStatus(
+                    state="ready" if faces is not None else "pending",
+                    detail=(
+                        f"buffalo_l on CPU, owner: {faces.owner_name() or 'not enrolled'}"
+                        if faces is not None else "set MARVI_VISION to enable"
+                    ),
+                ),
                 "accounts": accounts_status(),
                 "room": room_status(),
             },

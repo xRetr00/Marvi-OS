@@ -5,7 +5,7 @@
 
 ## Scope
 
-- Extract and adapt the tested Marvi/Hermes Windows update handoff.
+- Extract and adapt the tested the predecessor assistant Windows update handoff.
 - Test updates from multiple older releases and from interrupted updates.
 - Package and publish the first Windows release of Marvi OS.
 
@@ -19,7 +19,7 @@ shipped surface depends on the bridge.
 
 ## Implemented — the update handoff
 
-- `scripts/desktop-update/windows.ps1`, adapted from the tested Hermes handoff
+- `scripts/desktop-update/windows.ps1`, adapted from the tested predecessor handoff
   with provenance in `docs/UPSTREAM.md`. It lives in the checkout on purpose: a
   frozen installer cannot fix its own updater, so update bugs would outlive
   their fixes. Each successful update also refreshes the updater.

@@ -3,7 +3,7 @@
  * video asset is vendored locally (assets/background/electric-gaze.mp4,
  * 412 KB, CC0-style 21st.dev ascii-recipe render) so the shell never depends
  * on a CDN; source URL recorded in docs/UPSTREAM.md. Opacity and on/off are
- * user settings via the background store. Pattern adapted from the Hermes
+ * user settings via the background store. Pattern adapted from the the predecessor assistant
  * desktop background store + Backdrop component (MIT).
  */
 import { useStore } from '@nanostores/react'

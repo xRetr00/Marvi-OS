@@ -1,7 +1,7 @@
 """Web search, fetch, and extraction.
 
 Providers are selected from the environment in a fixed order, the same shape
-Hermes uses: whichever key is present wins, and the absence of every key is a
+the predecessor assistant uses: whichever key is present wins, and the absence of every key is a
 clear "not configured" rather than a crash.
 
 Everything the web returns is somebody else's writing, so every result leaves
@@ -127,7 +127,7 @@ def html_to_text(html: str) -> tuple[str, str]:
 
 
 def configured_provider() -> str | None:
-    """First configured provider wins. Mirrors the Hermes selection order."""
+    """First configured provider wins. Mirrors the the predecessor assistant selection order."""
     if os.environ.get("SEARXNG_URL", "").strip():
         return "searxng"
     if os.environ.get("BRAVE_SEARCH_API_KEY", "").strip():

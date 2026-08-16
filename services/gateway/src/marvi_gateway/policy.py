@@ -35,6 +35,8 @@ SURFACE_CEILING: dict[str, str] = {
     "accounts:email": "island",
     "accounts:calendar": "island",
     "schedule:reminder": "speak",
+    "vision:visitor_report": "speak",
+    "vision:owner_seen": "activity",
     "memory:reflection": "remember",
 }
 

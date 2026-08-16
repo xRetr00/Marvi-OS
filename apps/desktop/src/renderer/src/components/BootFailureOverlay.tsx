@@ -1,10 +1,10 @@
 /**
  * Recovery surface for a hard boot failure (gateway never came up). Without
  * this the shell renders dead — "gateway offline" with no way to retry or
- * see diagnostics. Adapted from the Marvi/Hermes desktop BootFailureOverlay
+ * see diagnostics. Adapted from the the predecessor assistant desktop BootFailureOverlay
  * (MIT), trimmed to the Marvi OS local contract: retry the gateway poll and
  * reveal diagnostics; no remote reauth path exists here.
- * Provenance: D:\hermes-agent\apps\desktop\src\components\boot-failure-overlay.tsx
+ * Provenance: the predecessor assistant\apps\desktop\src\components\boot-failure-overlay.tsx
  * (see docs/UPSTREAM.md).
  */
 import { useStore } from '@nanostores/react'

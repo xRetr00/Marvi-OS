@@ -53,7 +53,7 @@ The bar is the window drag region; interactive children opt out of drag.
 Double-click on the bar toggles maximize, matching Windows shell behavior.
 Close hides to tray per the always-on contract; quit stays on the tray menu.
 
-The shell adds the Hermes-derived chrome pieces, adapted to the Marvi OS
+The shell adds the the predecessor assistant-derived chrome pieces, adapted to the Marvi OS
 contract: a glyph spinner (`unicode-animations`), a decode-text CONNECTING
 overlay for initial boot, a boot-failure recovery overlay with diagnostics and
 retry, web haptics on taps/selections/confirmations, a shell context menu on

@@ -214,7 +214,7 @@ function MainSurface(): React.JSX.Element {
 }
 
 /**
- * Live voice-level meter in the status bar — the Hermes-style context meter
+ * Live voice-level meter in the status bar — the the predecessor assistant-style context meter
  * adapted to the always-on voice loop: 8 ASCII cells filling with the current
  * assistant audio level so the shell reads "alive" at a glance.
  */

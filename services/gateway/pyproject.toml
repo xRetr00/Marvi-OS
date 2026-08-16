@@ -9,6 +9,11 @@ description = "Local lifecycle and status facade for Marvi OS"
 requires-python = ">=3.12,<3.15"
 dependencies = [
     "composio>=0.19,<1",
+    "pocket-tts>=2,<3",
+    "mcp>=1.9,<2",
+    "apscheduler>=3.10,<4",
+    "opencv-python-headless>=4.10,<5",
+    "insightface>=0.7,<1",
     "fastapi>=0.116,<1",
     "httpx>=0.28,<1",
     "playwright>=1.49,<2",

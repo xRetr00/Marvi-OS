@@ -21,7 +21,7 @@ work belongs in `docs/phases/`; architectural decisions belong in
 
 ## 2026-08-16 — Marvi design alignment and native Island correction
 
-- Reviewed `D:\hermes-agent\apps\desktop\AGENTS.md`, `DESIGN.md`, theme tokens,
+- Reviewed `the predecessor assistant\apps\desktop\AGENTS.md`, `DESIGN.md`, theme tokens,
   font declarations, the voice-Island renderer, and its Electron overlay.
 - Identified the first Marvi OS Island defect: a fixed `356×78`, draggable,
   focusable host containing a fixed 340 px pill. The oversized native surface
@@ -194,13 +194,13 @@ Validation evidence and the resulting commit are recorded in
 - 111 Python tests, 22 desktop tests, ruff, ESLint, typecheck, and the
   production build all pass. Phase 5 stays in progress: no real outbound write
   has been sent, and account event ingestion is not built.
-## 2026-08-16 — Desktop shell UI/UX: frameless chrome and Hermes-adapted surfaces
+## 2026-08-16 — Desktop shell UI/UX: frameless chrome and the predecessor assistant-adapted surfaces
 
 - Removed the native Windows title bar (`frame:false`, `titleBarStyle:'hidden'`)
   and added a renderer-painted 40 px title bar: brand mark, current page,
   minimize/maximize/close controls, drag region, double-click maximize, and
   close-to-tray behavior. Window verbs are IPC with sender validation in main.
-- Adapted from the Marvi/Hermes desktop shell (MIT, provenance in
+- Adapted from the the predecessor assistant desktop shell (MIT, provenance in
   docs/UPSTREAM.md): glyph spinner (unicode-animations), decode-text CONNECTING
   overlay, boot-failure recovery overlay with diagnostics + retry, web haptics
   provider (web-haptics, AudioContext warm-up kept), shell context menu
@@ -355,7 +355,7 @@ Validation evidence and the resulting commit are recorded in
 
 ## 2026-08-16 — Phase 7 Windows update handoff
 
-- Adapted the tested Hermes update handoff for Marvi OS. The script lives in the
+- Adapted the tested predecessor update handoff for Marvi OS. The script lives in the
   checkout so each update refreshes the updater itself, and the
   `cmd start /min powershell` wrapper is preserved because a bare detached
   PowerShell dies before `-File` is read.
@@ -377,3 +377,28 @@ Validation evidence and the resulting commit are recorded in
   unpacked build launched with six processes responding at 542.6 MB aggregate
   working set and exited leaving no strays. Cutting the tagged release is left
   to the user, since publishing is their decision.
+
+## 2026-08-16 — Phase 8 vision and the branding cleanup
+
+- Reviewed the room sidecar's vision pipeline for design and then built a
+  different one. It is motion-gated so an empty room costs almost nothing,
+  CPU-only so it never competes with the voice stack for VRAM, and
+  owner-relative so a bad angle on the owner cannot manufacture a stranger.
+- Visitor sightings queue with a cropped face and a timestamp and surface on the
+  away → home edge, through the Phase 6 mind, where a visitor report is one of
+  the few event kinds allowed to be spoken. Telling someone about a stranger
+  while they are out is information they cannot act on.
+- A lingering stranger is folded into one queue entry by comparing against
+  queued embeddings, and approving a face enrols it so the same person is
+  recognised rather than re-queued.
+- Caught live: loading buffalo_l inside the capture loop consumed the whole
+  observation window, so the first `observe` returned a single frame. The model
+  is warmed before the clock starts. Verified afterwards at 4 frames captured,
+  1 analysed, 3 skipped by the gate.
+- Removed predecessor branding across 27 files. Two categories stayed on
+  purpose: the third-party `hermes-estree`/`hermes-parser` npm packages, and the
+  room sidecar's own data directory — renaming a directory another program owns
+  breaks the integration rather than making Marvi independent. That path is now
+  behind `MARVI_SIDECAR_DIR`, and the room integration was re-verified against
+  the live sidecar afterwards.
+- 272 Python tests and 48 desktop tests pass.

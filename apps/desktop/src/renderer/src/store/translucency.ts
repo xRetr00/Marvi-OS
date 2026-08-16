@@ -1,11 +1,11 @@
 /**
- * Window translucency (see-through window), adapted from the Marvi/Hermes
+ * Window translucency (see-through window), adapted from the the predecessor assistant
  * desktop shell (MIT). One lever, 0–100. 0 = off (fully opaque, the default).
  * Higher = more of the desktop shows through the whole window — the main
  * process maps it to the native window opacity (`setOpacity`).
  *
  * The renderer owns the value and mirrors it to the main process over IPC.
- * Provenance: D:\hermes-agent\apps\desktop\src\store\translucency.ts
+ * Provenance: the predecessor assistant\apps\desktop\src\store\translucency.ts
  * (see docs/UPSTREAM.md).
  */
 import { atom } from 'nanostores'

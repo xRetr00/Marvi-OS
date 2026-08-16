@@ -21,6 +21,8 @@ from pathlib import Path
 from typing import Any
 
 DEFAULT_PORT = 17842
+# Where the room sidecar keeps its own state. Override with MARVI_ROOM_HOME.
+SIDECAR_DATA_DIR = os.environ.get("MARVI_SIDECAR_DIR", "Hermes")
 DEFAULT_TIMEOUT = 8.0  # matches the sidecar's own bounded scene fades and retries
 PROBE_TIMEOUT = 0.5  # status polling must never stall the health endpoint
 PROBE_CACHE_SECONDS = 5.0
@@ -104,7 +106,9 @@ def _sidecar_home() -> Path:
     if configured:
         return Path(configured)
     root = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
-    return Path(root) / "Hermes" / "smart_room"
+    # The sidecar owns this directory and its name; Marvi OS is a guest
+    # here, so the default tracks the sidecar rather than our branding.
+    return Path(root) / SIDECAR_DATA_DIR / "smart_room"
 
 
 class RoomSidecar:

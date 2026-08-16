@@ -38,12 +38,15 @@ class Initiative:
         ingest: Any = None,
         memory: Any = None,
         room_state: Any = None,
+        faces: Any = None,
     ) -> None:
         self.mind = mind
         self.journal = journal
         self.ingest = ingest
         self.memory = memory
         self.room_state = room_state
+        self.faces = faces
+        self._was_home = True
         self._scheduler: Any = None
         self.last_runs: dict[str, str] = {}
         self.last_errors: dict[str, str] = {}
@@ -114,6 +117,50 @@ class Initiative:
                 pass
         return self.mind.tick(conversation_active=conversation, present=present)
 
+    def run_homecoming(self, present: bool | None = None) -> dict[str, Any]:
+        """Report visitors on the away -> home edge.
+
+        Telling someone about a stranger while they are still out is useless
+        and slightly alarming, so sightings queue until they are back.
+        """
+        if self.faces is None:
+            return {"reported": []}
+        if present is None:
+            present = self._presence()
+        arrived = present and not self._was_home
+        self._was_home = present
+        if not arrived:
+            return {"reported": []}
+
+        visitors = self.faces.unreported_visitors()
+        if not visitors:
+            return {"reported": []}
+
+        when = ", ".join(f"{v['time'][:5]} on {v['date']}" for v in visitors[:3])
+        summary = (
+            f"{len(visitors)} unrecognised "
+            f"{'person' if len(visitors) == 1 else 'people'} seen while you were out ({when})"
+        )
+        self.journal.append(
+            "vision",
+            "visitor_report",
+            summary,
+            {"id": f"visitors-{visitors[-1]['id']}",
+             "visitors": visitors,
+             "thumbnails": [v["thumbnail"] for v in visitors if v["thumbnail"]]},
+            trusted=True,
+        )
+        self.faces.mark_reported([v["id"] for v in visitors])
+        return {"reported": [v["id"] for v in visitors], "summary": summary}
+
+    def _presence(self) -> bool:
+        if self.room_state is None:
+            return True
+        try:
+            return bool(self.room_state().get("present", True))
+        except Exception:
+            return self._was_home
+
     def run_reflect(self) -> dict[str, Any]:
         if self.memory is None:
             return {"promoted": []}
@@ -140,6 +187,10 @@ class Initiative:
         scheduler.add_job(
             self._guard("mind", self.run_mind), "interval",
             minutes=MIND_MINUTES, id="mind", max_instances=1, coalesce=True,
+        )
+        scheduler.add_job(
+            self._guard("homecoming", self.run_homecoming), "interval",
+            minutes=1, id="homecoming", max_instances=1, coalesce=True,
         )
         scheduler.add_job(
             self._guard("reflect", self.run_reflect), "interval",

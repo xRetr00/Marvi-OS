@@ -1,9 +1,9 @@
 /**
  * Haptics provider — registers web-haptics audio-transducer feedback for UI
- * gestures, adapted from the Marvi/Hermes desktop shell (MIT):
- * D:\hermes-agent\apps\desktop\src\components\haptics-provider.tsx.
+ * gestures, adapted from the the predecessor assistant desktop shell (MIT):
+ * the predecessor assistant\apps\desktop\src\components\haptics-provider.tsx.
  *
- * Keeps the Hermes warm-up trick: web-haptics builds its AudioContext lazily
+ * Keeps the the predecessor assistant warm-up trick: web-haptics builds its AudioContext lazily
  * inside the first trigger(), and the first AudioContext pays the audio
  * service spin-up (~hundreds of ms). Open/close a throwaway context at idle
  * so the first real haptic lands on an already-warm audio service.

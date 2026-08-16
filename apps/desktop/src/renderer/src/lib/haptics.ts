@@ -1,10 +1,10 @@
 /**
- * Haptic patterns for the control center (adapted from the Marvi/Hermes
+ * Haptic patterns for the control center (adapted from the the predecessor assistant
  * desktop shell, MIT). Web haptics are audio-transducer ticks, so they work
  * on speakers/headphones as subtle UI feedback. Keep the vocabulary tiny and
  * consistent: tap, selection, open, close, success, error, warning.
  *
- * Provenance: D:\hermes-agent\apps\desktop\src\lib\haptics.ts +
+ * Provenance: the predecessor desktop's haptics module +
  * components/haptics-provider.tsx (see docs/UPSTREAM.md).
  */
 import type { HapticInput, TriggerOptions } from 'web-haptics'

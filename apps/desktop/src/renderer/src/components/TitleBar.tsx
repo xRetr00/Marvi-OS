@@ -2,7 +2,7 @@
  * Custom title bar for the frameless main window. The native Windows title
  * bar is removed (frame:false in main) and replaced by this renderer-painted
  * chrome: brand mark, drag region, and window controls. Pattern adapted from
- * the Marvi/Hermes desktop hidden-titlebar shell (docs/UPSTREAM.md).
+ * the the predecessor assistant desktop hidden-titlebar shell (docs/UPSTREAM.md).
  *
  * Contract: the whole bar is a drag region (-webkit-app-region: drag); every
  * interactive child opts out with no-drag. Double-click on the drag region

@@ -1,7 +1,7 @@
 /**
  * One-char glyph spinner driven by `unicode-animations` (braille, orbit, scan,
- * ...). Adapted from the Marvi/Hermes desktop shell (MIT):
- * D:\hermes-agent\apps\desktop\src\components\ui\glyph-spinner.tsx — minus the
+ * ...). Adapted from the the predecessor assistant desktop shell (MIT):
+ * the predecessor assistant\apps\desktop\src\components\ui\glyph-spinner.tsx — minus the
  * pane-shell visibility controller, which Marvi OS does not have. Mirrors the
  * spinner the Marvi Agent TUI uses so desktop and terminal read the same.
  */

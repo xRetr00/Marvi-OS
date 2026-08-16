@@ -5,7 +5,7 @@
  * be re-fetched or swapped. Local-first: the shell never depends on a CDN at
  * runtime. Opacity is persisted per-machine.
  *
- * Pattern adapted from D:\hermes-agent\apps\desktop\src\store\background.ts.
+ * Pattern adapted from the predecessor assistant\apps\desktop\src\store\background.ts.
  */
 import { atom } from 'nanostores'
 

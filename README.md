@@ -15,7 +15,8 @@ the desktop application. The desktop icon source is
 
 Phases 2, 4, 5, and 6 are complete. Phase 3 is in hardware acceptance,
 Phase 7 has the update handoff working and a packaged installer building, and
-vision is now Phase 8. The
+and Phase 8 has face recognition and visitor
+reporting working, with accuracy tuning and scene understanding still open. The
 native-Windows stack runs Nemotron 3.5 streaming ASR through `parakeet-rs`,
 VibeVoice Realtime 0.5B, an official LiveKit `AgentSession`, and an Electron
 LiveKit microphone/playout participant. The remaining Phase 3 gate is a real
@@ -64,7 +65,10 @@ Current implemented desktop surfaces:
   behind it — including the decisions to stay quiet;
 - proactive speech on a CPU model published through the LiveKit room, so Marvi
   can say something unprompted without borrowing the streaming voice stack or
-  hearing itself.
+  hearing itself;
+- motion-gated CPU face recognition that knows the owner from a visitor, queues
+  unfamiliar faces with a cropped preview and a timestamp, and reports them when
+  you get home rather than while you are out.
 - frameless control center with a renderer-painted title bar (brand, page,
   window controls), Electric Gaze local backdrop, translucency lever,
   haptics, shell context menu, connecting and boot-failure overlays, and a
@@ -156,5 +160,5 @@ Marvi OS adopts upstream projects before writing custom infrastructure. See
 
 The current development version is stored in [`VERSION`](VERSION). Marvi OS
 uses SemVer for product releases and records the exact Git commit in every
-build. The update mechanism follows Marvi/Hermes' repository-owned Windows
+build. The update mechanism follows the predecessor assistant' repository-owned Windows
 handoff model; see the architecture document for the update contract.

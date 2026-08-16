@@ -156,7 +156,7 @@ Product versions come from `VERSION`; builds also embed the Git commit and build
 time. Update channels map to Git branches (`stable`, `beta`, or an explicitly
 configured development branch).
 
-The Windows update path reuses the Marvi/Hermes repository-owned handoff:
+The Windows update path reuses the the predecessor assistant repository-owned handoff:
 
 1. Gateway fetches update metadata and compares the installed commit.
 2. UI shows the target version/commit list in Updates and About.

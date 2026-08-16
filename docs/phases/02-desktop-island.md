@@ -38,10 +38,10 @@ surface and its native-window behavior can be proven without the voice engine.
 
 ## Design-source review
 
-- `D:\hermes-agent\apps\desktop\DESIGN.md`
-- `D:\hermes-agent\apps\desktop\src\styles.css`
-- `D:\hermes-agent\apps\desktop\src\app\voice-island`
-- `D:\hermes-agent\apps\desktop\electron\main.ts`
+- `the predecessor assistant\apps\desktop\DESIGN.md`
+- `the predecessor assistant\apps\desktop\src\styles.css`
+- `the predecessor desktop's voice island`
+- `the predecessor assistant\apps\desktop\electron\main.ts`
 
 The old Marvi Island deliberately uses a fixed transparent stage to avoid
 Windows resize animation jank. Marvi OS instead resizes only when content

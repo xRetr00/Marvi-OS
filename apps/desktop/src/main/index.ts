@@ -120,7 +120,7 @@ function createMainWindow(): BrowserWindow {
     show: false,
     autoHideMenuBar: true,
     // Frameless shell: the renderer paints its own title bar (brand, drag
-    // region, window controls), adapted from the Marvi/Hermes desktop
+    // region, window controls), adapted from the the predecessor assistant desktop
     // titleBarStyle:'hidden' pattern. The native frame never renders.
     frame: false,
     titleBarStyle: 'hidden',

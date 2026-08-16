@@ -8,7 +8,7 @@
  *
  * The script is deliberately repository-owned rather than bundled: a frozen
  * binary can never fix its own updater, so update bugs would outlive their
- * fixes. Adapted from the tested Hermes handoff — see docs/UPSTREAM.md.
+ * fixes. Adapted from the tested predecessor handoff — see docs/UPSTREAM.md.
  *
  * The `cmd /d /s /c start` wrapper is not decoration. A bare detached, hidden
  * PowerShell is killed when its parent exits, before `-File` is ever read.
