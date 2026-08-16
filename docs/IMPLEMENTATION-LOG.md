@@ -373,3 +373,7 @@ Validation evidence and the resulting commit are recorded in
 - Added an Updates page showing version, channel, self-update capability, and
   the last result, consumed once rather than re-announced on every launch.
 - 247 Python tests and 48 desktop tests pass.
+- Built the Windows installer end to end: 96.5 MB setup executable, and the
+  unpacked build launched with six processes responding at 542.6 MB aggregate
+  working set and exited leaving no strays. Cutting the tagged release is left
+  to the user, since publishing is their decision.

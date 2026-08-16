@@ -13,8 +13,9 @@ the desktop application. The desktop icon source is
 
 ## Status
 
-Phases 2, 4, 5, and 6 are complete; Phase 3 is in hardware acceptance,
-Phase 7 is preparing the first Windows release, and vision is now Phase 8. The
+Phases 2, 4, 5, and 6 are complete. Phase 3 is in hardware acceptance,
+Phase 7 has the update handoff working and a packaged installer building, and
+vision is now Phase 8. The
 native-Windows stack runs Nemotron 3.5 streaming ASR through `parakeet-rs`,
 VibeVoice Realtime 0.5B, an official LiveKit `AgentSession`, and an Electron
 LiveKit microphone/playout participant. The remaining Phase 3 gate is a real

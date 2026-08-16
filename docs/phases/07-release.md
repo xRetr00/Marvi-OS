@@ -57,12 +57,17 @@ Electron side strips a BOM defensively, and a regression test covers it.
   rebuilt against a real remote.
 - ~~An interrupted or failing update leaves the previous installation
   working~~ — done: build failure rolls back, and a live app aborts the handoff.
-- A packaged build starts, reaches the tray, and reports its version, commit,
-  and channel in About. **Still open** — needs a real `build:win` run and a
-  launch on this machine.
+- ~~A packaged build starts and runs~~ — done: `scripts/build-desktop.ps1`
+  produced `marvi-os-desktop-0.1.0-dev.0-setup.exe` (96.5 MB) and the unpacked
+  build launched with six processes, responding, at 542.6 MB aggregate working
+  set, exiting cleanly with no strays.
 
 ## Still required
 
-- Run `scripts/build-desktop.ps1` and launch the packaged installer to confirm
-  tray, version, commit, and channel.
-- Code signing is not configured; the first release will be unsigned.
+- A human pass over the packaged app: confirm the tray menu and that About
+  reports version, commit, build time, and channel. Launch and process
+  lifetime are verified; the visual check is not something to claim remotely.
+- Cut the first tagged release with `scripts/release.ps1`, which is the
+  remaining step and is deliberately left to you — publishing is your call.
+- Signing uses whatever certificate signtool finds; a real publisher
+  certificate is not configured.
