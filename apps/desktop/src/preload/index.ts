@@ -3,6 +3,8 @@ import type {
   AssistantState,
   AuditEvent,
   ConnectedAccount,
+  InitiativeStatus,
+  MindDecision,
   MemoryPage,
   RoomEvent,
   RuntimeStatus
@@ -26,10 +28,8 @@ const marvi = {
   getWindowState: (): Promise<{ isMaximized: boolean }> =>
     ipcRenderer.invoke('marvi:get-window-state'),
   onWindowState: (listener: (state: { isMaximized: boolean }) => void): (() => void) => {
-    const wrapped = (
-      _event: Electron.IpcRendererEvent,
-      state: { isMaximized: boolean }
-    ): void => listener(state)
+    const wrapped = (_event: Electron.IpcRendererEvent, state: { isMaximized: boolean }): void =>
+      listener(state)
     ipcRenderer.on('marvi:window-state', wrapped)
     return () => ipcRenderer.removeListener('marvi:window-state', wrapped)
   },
@@ -53,6 +53,11 @@ const marvi = {
   setYolo: (yolo: boolean): Promise<RuntimeStatus> => ipcRenderer.invoke('marvi:set-yolo', yolo),
   getAudit: (): Promise<AuditEvent[]> => ipcRenderer.invoke('marvi:get-audit'),
   getRoomEvents: (): Promise<RoomEvent[]> => ipcRenderer.invoke('marvi:get-room-events'),
+  getInitiative: (): Promise<InitiativeStatus | null> => ipcRenderer.invoke('marvi:get-initiative'),
+  setInitiative: (paused: boolean): Promise<InitiativeStatus | null> =>
+    ipcRenderer.invoke('marvi:set-initiative', paused),
+  getDecisions: (): Promise<{ decisions: MindDecision[]; events: unknown[] }> =>
+    ipcRenderer.invoke('marvi:get-decisions'),
   getMemory: (): Promise<MemoryPage> => ipcRenderer.invoke('marvi:get-memory'),
   clearMemory: (): Promise<boolean> => ipcRenderer.invoke('marvi:clear-memory'),
   getAccounts: (): Promise<{

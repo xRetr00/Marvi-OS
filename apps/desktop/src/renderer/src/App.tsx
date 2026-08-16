@@ -29,7 +29,9 @@ import { haptic } from './lib/haptics'
 import type {
   AuditEvent,
   ConnectedAccount,
+  InitiativeStatus,
   MemoryPage,
+  MindDecision,
   RoomEvent,
   RuntimeStatus
 } from '../../shared/runtime'
@@ -43,6 +45,7 @@ const NAV_ITEMS = [
   'Room',
   'Accounts',
   'Memory',
+  'Mind',
   'Activity',
   'Settings',
   'Updates',
@@ -175,18 +178,17 @@ function MainSurface(): React.JSX.Element {
               <AccountsPanel />
             ) : page === 'Memory' ? (
               <MemoryPanel />
+            ) : page === 'Mind' ? (
+              <MindPanel />
             ) : (
               <PagePanel page={page} version={version} />
             )}
 
             <footer className="statusbar">
               <span>
-                <i className={`status-${runtime.state}`} /> GATEWAY{' '}
-                {runtime.state.toUpperCase()}
+                <i className={`status-${runtime.state}`} /> GATEWAY {runtime.state.toUpperCase()}
               </span>
-              <span>
-                LIVEKIT {runtime.components.livekit?.state.toUpperCase() ?? 'UNKNOWN'}
-              </span>
+              <span>LIVEKIT {runtime.components.livekit?.state.toUpperCase() ?? 'UNKNOWN'}</span>
               <span>VOICE {voice.phase.toUpperCase()}</span>
               <VoiceLevelMeter level={voice.level} />
               <span>
@@ -424,6 +426,97 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
   )
 }
 
+function MindPanel(): React.JSX.Element {
+  const [status, setStatus] = useState<InitiativeStatus | null>(null)
+  const [decisions, setDecisions] = useState<MindDecision[]>([])
+  const [reload, setReload] = useState(0)
+
+  useEffect(() => {
+    let disposed = false
+    const load = async (): Promise<void> => {
+      const [next, log] = await Promise.all([
+        window.marvi?.getInitiative(),
+        window.marvi?.getDecisions()
+      ])
+      if (disposed) return
+      if (next) setStatus(next)
+      if (log) setDecisions(log.decisions)
+    }
+    void load()
+    const timer = setInterval(() => void load(), 5_000)
+    return () => {
+      disposed = true
+      clearInterval(timer)
+    }
+  }, [reload])
+
+  const toggle = async (): Promise<void> => {
+    await window.marvi?.setInitiative(!(status?.paused ?? false))
+    setReload((n) => n + 1)
+  }
+
+  return (
+    <section className="single-page panel">
+      <div className="panel-label">{'// MIND'}</div>
+      <h2>Mind</h2>
+      <p>
+        Marvi decides from the event journal, not from a timer. Every decision below names the rule
+        that caused it — including the decisions to stay quiet. Pausing stops decisions but keeps
+        observing, so nothing is lost while initiative is off.
+      </p>
+
+      <div className="context-line">
+        <span>INITIATIVE</span>
+        <strong>{status?.paused ? 'PAUSED' : 'ACTIVE'}</strong>
+      </div>
+      <div className="context-line">
+        <span>SCHEDULE</span>
+        <strong>{status?.running ? 'RUNNING' : 'STOPPED'}</strong>
+      </div>
+      <div className="context-line">
+        <span>PENDING EVENTS</span>
+        <strong>{status?.pending_events ?? 0}</strong>
+      </div>
+      {Object.entries(status?.last_errors ?? {}).map(([job, error]) => (
+        <div className="context-line" key={job}>
+          <span>{job.toUpperCase()} ERROR</span>
+          <strong>{error.slice(0, 60).toUpperCase()}</strong>
+        </div>
+      ))}
+
+      <div className="phase-controls">
+        <button className={status?.paused ? 'phase active' : 'phase'} onClick={() => void toggle()}>
+          {status?.paused ? 'resume initiative' : 'pause initiative'}
+        </button>
+      </div>
+
+      <div className="ascii-divider">+------------------------------+</div>
+
+      {decisions.length === 0 ? (
+        <span className="construction">NO DECISIONS YET</span>
+      ) : (
+        <div className="service-list">
+          {decisions.map((decision) => (
+            <div className="service-row" key={decision.id}>
+              <span className="service-name">{decision.trigger.toUpperCase()}</span>
+              <span
+                className={`service-state state-${decision.surface === 'silent' ? 'offline' : 'ready'}`}
+              >
+                {decision.surface.toUpperCase()}
+              </span>
+              <small>
+                {decision.at.slice(11, 19)} / {decision.rule}
+                {decision.detail ? ` / ${decision.detail}` : ''} / {decision.provider} /{' '}
+                {decision.latency_ms.toFixed(1)}ms
+              </small>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
 function MemoryPanel(): React.JSX.Element {
   const [page, setPage] = useState<MemoryPage>({ total: 0, entries: [], summary: {} })
   const [confirmClear, setConfirmClear] = useState(false)
@@ -633,6 +726,7 @@ function PagePanel({ page, version }: { page: Page; version: string }): React.JS
     Room: 'Status and events from D:\\smart-room-plugin. Marvi OS does not replace its automation authority.',
     Accounts: 'Composio connections for email, LinkedIn, X, and other world-context providers.',
     Memory: 'Durable facts, episodic events, retrieval controls, and forget/export operations.',
+    Mind: 'Event-driven decisions, the rule behind each one, and the initiative switch.',
     Activity: 'Structured local event and tool audit timeline. No hidden outbound telemetry.',
     Settings:
       'Voice devices, wake behavior, startup, confirmation mode, and the explicit YOLO switch.',

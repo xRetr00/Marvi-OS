@@ -382,6 +382,42 @@ app.whenReady().then(() => {
       return []
     }
   })
+  ipcMain.handle('marvi:get-initiative', async () => {
+    try {
+      const response = await fetch(`${GATEWAY_BASE_URL}/initiative`, {
+        signal: AbortSignal.timeout(2_000)
+      })
+      if (!response.ok) return null
+      return await response.json()
+    } catch {
+      return null
+    }
+  })
+  ipcMain.handle('marvi:set-initiative', async (_event, paused) => {
+    if (typeof paused !== 'boolean') return null
+    try {
+      const response = await fetch(`${GATEWAY_BASE_URL}/initiative`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ paused }),
+        signal: AbortSignal.timeout(3_000)
+      })
+      return response.ok ? await response.json() : null
+    } catch {
+      return null
+    }
+  })
+  ipcMain.handle('marvi:get-decisions', async () => {
+    try {
+      const response = await fetch(`${GATEWAY_BASE_URL}/mind/decisions?limit=60`, {
+        signal: AbortSignal.timeout(2_000)
+      })
+      if (!response.ok) return { decisions: [], events: [] }
+      return await response.json()
+    } catch {
+      return { decisions: [], events: [] }
+    }
+  })
   ipcMain.handle('marvi:get-memory', async () => {
     try {
       const response = await fetch(`${GATEWAY_BASE_URL}/memory?limit=60`, {

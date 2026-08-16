@@ -52,6 +52,27 @@ export interface MemoryPage {
   summary: { total?: number; facts?: string[]; recent_events?: string[] }
 }
 
+export interface MindDecision {
+  id: number
+  at: string
+  trigger: string
+  surface: string
+  rule: string
+  detail: string
+  provider: string
+  latency_ms: number
+  cost: number
+}
+
+export interface InitiativeStatus {
+  paused: boolean
+  running: boolean
+  pending_events: number
+  last_runs: Record<string, string>
+  last_errors: Record<string, string>
+  settings: Record<string, number>
+}
+
 export interface AuditEvent {
   at: string
   event: string

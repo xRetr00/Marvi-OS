@@ -295,3 +295,32 @@ Validation evidence and the resulting commit are recorded in
   `browser_open` on `127.0.0.1:17842` was refused by the SSRF guard.
 - 196 Python tests and 37 desktop tests pass; ruff, ESLint, typecheck, and the
   production build are clean. Live surface: 32 tools, 12 sensitive.
+
+## 2026-08-16 — Phase 6 REAL-AGENCY mind and the Letta decision
+
+- Built the event-driven mind described in `REAL-AGENCY.md`: a durable journal
+  with fingerprint deduplication, the five proactivity conditions as ordered
+  named rules, a surface ladder from silent to propose, and a mind turn that
+  records trigger, rule, surface, provider, latency, and cost for every
+  decision — including the decisions to stay quiet.
+- Made restraint the default. An unknown event kind can never exceed Activity,
+  untrusted content can never reach `propose`, quiet hours and absence downgrade
+  speech, a live conversation is never talked over, and an exhausted daily
+  budget produces silence rather than an exception.
+- The LLM deliberation seam may only make a decision quieter. A model does not
+  get to argue with the policy ceiling, and its cost counts against the same
+  budget.
+- Added APScheduler 3.11.3 with four guarded ticks. Pausing stops decisions but
+  not observation, so resuming shows what was missed instead of a silent gap.
+- Replaced the deprecated FastAPI `on_event` hooks with a lifespan handler so
+  the schedule starts and stops with the Gateway and never orphans a scheduler.
+- Evaluated Letta against the mind gates and rejected it (ADR-018). The
+  measurements: its Docker path is explicitly no longer maintained, the
+  self-hosted server wants Postgres with pgvector, `with_letta` cannot carry
+  OpenCode Go because the model is configured inside the Letta agent, and
+  sleep-time agents put the background budget outside Marvi's control. The
+  deeper finding is a role mismatch — `with_letta` replaces the foreground LLM,
+  while the mind is a background decider, so Letta was never an alternative to
+  this layer.
+- 229 Python tests and 37 desktop tests pass; ruff, ESLint, typecheck, and the
+  production build are clean.

@@ -13,7 +13,8 @@ the desktop application. The desktop icon source is
 
 ## Status
 
-Phases 2, 4, and 5 are complete; Phase 3 is in hardware acceptance. The
+Phases 2, 4, and 5 are complete; Phase 3 is in hardware acceptance and
+Phase 6's proactive half is built, with vision still to come. The
 native-Windows stack runs Nemotron 3.5 streaming ASR through `parakeet-rs`,
 VibeVoice Realtime 0.5B, an official LiveKit `AgentSession`, and an Electron
 LiveKit microphone/playout participant. The remaining Phase 3 gate is a real
@@ -55,7 +56,11 @@ Current implemented desktop surfaces:
   routed through the Gateway so they inherit confirmation and audit;
 - browser automation where reading a page is free and clicking, typing, or
   submitting asks first, page content is treated as untrusted, and downloads
-  are refused.
+  are refused;
+- an event-driven mind that decides from a durable journal rather than a timer,
+  where quiet hours, presence, cooldown, a live conversation, and a daily budget
+  each downgrade or silence a proposal, and every decision records the rule
+  behind it — including the decisions to stay quiet.
 - frameless control center with a renderer-painted title bar (brand, page,
   window controls), Electric Gaze local backdrop, translucency lever,
   haptics, shell context menu, connecting and boot-failure overlays, and a

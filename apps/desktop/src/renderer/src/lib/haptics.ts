@@ -9,14 +9,7 @@
  */
 import type { HapticInput, TriggerOptions } from 'web-haptics'
 
-export type HapticIntent =
-  | 'tap'
-  | 'selection'
-  | 'open'
-  | 'close'
-  | 'success'
-  | 'error'
-  | 'warning'
+export type HapticIntent = 'tap' | 'selection' | 'open' | 'close' | 'success' | 'error' | 'warning'
 
 interface HapticConfig {
   options?: TriggerOptions

@@ -182,6 +182,34 @@ Three rules follow from this:
   provider is configured, and every fetched URL must resolve to a public
   address so an agent cannot be talked into reading loopback.
 
+## ADR-018 — Letta evaluated as the mind, and not adopted
+
+This settles ADR-014a. Measured against the `REAL-AGENCY.md` mind gates.
+
+| Gate | Result |
+|---|---|
+| Native Windows without Docker/WSL2 | **fails as a service.** Letta's own docs say the Docker image "is no longer an actively maintained or supported Letta product surface", and the self-hosted server wants PostgreSQL with `pgvector`. A database server plus a vector extension is the same class of operational burden ADR-003 rejected. |
+| OpenCode Go through a provider boundary | **fails as written, passes indirectly.** `openai.LLM.with_letta` takes only `agent_id`, `base_url`, `api_key` — the model is configured inside the Letta agent, so Marvi cannot pass its provider through. A self-hosted Letta *can* be pointed at an OpenAI-compatible endpoint, making it Marvi → Letta → OpenCode Go: two hops, with Letta owning the system prompt that `AGENTS.md` requires to stay small. |
+| Memory across restarts, inspect/export/delete | **passes**, but the data lives in Letta's Postgres and leaves through Letta's API rather than a file the user owns. |
+| Never treats account content as authority | **not provided.** Marvi's envelope boundary is still required either way. |
+| Bounded background cost | **fails.** Letta's sleep-time agents make background model calls on their own schedule. The daily budget in `REAL-AGENCY.md` has to be enforced where the decision is made, and that would no longer be Marvi. |
+| Foreground responsiveness | **unmeasured, structurally worse.** It adds a network hop in front of the provider on the path Phase 3 spent its effort shortening. No endpoint is configured on the target machine to measure. |
+| A no-op decision is cheap | **fails.** The deterministic mind tick is a few SQLite reads; sleep-time agents are model calls. |
+
+**The deeper finding is a role mismatch.** `with_letta` replaces the *foreground
+conversational LLM*. The mind `REAL-AGENCY.md` describes is a *background,
+event-driven decider*: journal, relevance, quiet hours, presence, cooldown,
+budget, surface ceiling, and a decision record. Letta implements none of that —
+its sleep-time agents consolidate Letta's own memory, they do not decide whether
+interrupting a person is appropriate. Letta is therefore not an alternative to
+the mind built in Phase 6; it is an alternative foreground LLM that happens to
+bring its own memory.
+
+**Decision:** the mind stays Gateway-owned. Letta is not adopted, and it is no
+longer tracked as a memory or mind candidate. Reconsider it only as a foreground
+LLM, and only if cloud-hosted conversation memory becomes something the product
+wants — which today contradicts the local-first contract.
+
 ## ADR-017 — The browser is a tool, not an autonomous agent
 
 **Decision:** browsing is a Playwright-backed session behind the same Gateway

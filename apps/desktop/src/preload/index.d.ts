@@ -2,6 +2,8 @@ import type {
   AssistantState,
   AuditEvent,
   ConnectedAccount,
+  InitiativeStatus,
+  MindDecision,
   MemoryPage,
   RoomEvent,
   RuntimeStatus
@@ -21,6 +23,9 @@ export interface MarviDesktopApi {
   setYolo: (yolo: boolean) => Promise<RuntimeStatus>
   getAudit: () => Promise<AuditEvent[]>
   getRoomEvents: () => Promise<RoomEvent[]>
+  getInitiative: () => Promise<InitiativeStatus | null>
+  setInitiative: (paused: boolean) => Promise<InitiativeStatus | null>
+  getDecisions: () => Promise<{ decisions: MindDecision[]; events: unknown[] }>
   getMemory: () => Promise<MemoryPage>
   clearMemory: () => Promise<boolean>
   getAccounts: () => Promise<{

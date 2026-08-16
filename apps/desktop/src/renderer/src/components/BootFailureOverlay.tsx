@@ -17,8 +17,10 @@ export function BootFailureOverlay(): React.JSX.Element | null {
 
   if (runtime.state !== 'error') return null
 
-  const details = Object.entries(runtime.components)
-    .map(([name, component]) => `${name.toUpperCase()}: ${component.state.toUpperCase()} / ${component.detail}`)
+  const details = Object.entries(runtime.components).map(
+    ([name, component]) =>
+      `${name.toUpperCase()}: ${component.state.toUpperCase()} / ${component.detail}`
+  )
 
   return (
     <div className="boot-failure-overlay" role="alert">

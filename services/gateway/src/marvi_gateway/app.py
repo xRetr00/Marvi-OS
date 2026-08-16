@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import os
 import socket
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Literal
 from uuid import uuid4
@@ -13,8 +15,12 @@ from pydantic import BaseModel, Field
 from .accounts import ComposioAccounts, register_account_tools
 from .browser import BrowserSession, browser_enabled, register_browser_tools
 from .ingest import AccountIngest
+from .initiative import Initiative
+from .journal import EventJournal
 from .mcp_bridge import McpBridge, register_mcp_tools
 from .memory import MemoryStore, register_memory_tools
+from .mind import Mind
+from .policy import InitiativeSettings
 from .room import RoomSidecar, register_room_tools
 from .runtime import (
     ArgumentsMutatedError,
@@ -96,6 +102,30 @@ class MemoryExport(BaseModel):
     entries: list[dict[str, Any]]
 
 
+class InitiativeUpdate(BaseModel):
+    paused: bool
+
+
+class InitiativeStatus(BaseModel):
+    paused: bool
+    running: bool
+    pending_events: int
+    last_runs: dict[str, str]
+    last_errors: dict[str, str]
+    settings: dict[str, Any]
+
+
+class DecisionPage(BaseModel):
+    decisions: list[dict[str, Any]]
+    events: list[dict[str, Any]]
+
+
+class MindResult(BaseModel):
+    considered: int
+    decisions: list[dict[str, Any]]
+    surfaced: list[dict[str, Any]]
+
+
 class AccountRow(BaseModel):
     toolkit: str
     status: str
@@ -132,6 +162,8 @@ def create_app(
     accounts: ComposioAccounts | None = None
     memory: MemoryStore | None = None
     ingest: AccountIngest | None = None
+    journal: EventJournal | None = None
+    initiative: Initiative | None = None
     if tools is not None:
         tool_registry = tools
     else:
@@ -149,6 +181,16 @@ def create_app(
         workspace = Workspace()
         if workspace.available():
             register_workspace_tools(tool_registry, workspace)
+        journal = EventJournal()
+        initiative = Initiative(
+            Mind(journal, memory=memory, settings=InitiativeSettings.from_env()),
+            journal,
+            ingest=ingest,
+            memory=memory,
+            room_state=(lambda: {"present": bool(
+                ((sidecar.snapshot() or {}).get("presence") or {}).get("detected", True)
+            )}) if sidecar is not None else None,
+        )
         if browser_enabled():
             # A headless browser is a real resource cost, so it stays off until
             # MARVI_BROWSER asks for it.
@@ -158,7 +200,25 @@ def create_app(
             # Routed here rather than attached to the Agent so MCP tools
             # inherit confirmation, audit, and idempotency (ADR-016).
             register_mcp_tools(tool_registry, mcp)
-    app = FastAPI(title="Marvi Gateway", version=product_version, docs_url=None, redoc_url=None)
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        # The background mind starts with the Gateway and stops with it, so a
+        # restart never leaves an orphaned scheduler ticking.
+        if initiative is not None:
+            initiative.start()
+        try:
+            yield
+        finally:
+            if initiative is not None:
+                initiative.stop()
+
+    app = FastAPI(
+        title="Marvi Gateway",
+        version=product_version,
+        docs_url=None,
+        redoc_url=None,
+        lifespan=lifespan,
+    )
 
     def accounts_status() -> ComponentStatus:
         if accounts is None or not accounts.available():
@@ -182,7 +242,17 @@ def create_app(
 
     def current_status() -> RuntimeStatus:
         if sidecar is not None:
-            runtime_store.observe_room_event(sidecar.latest_notable_event())
+            latest = sidecar.latest_notable_event()
+            runtime_store.observe_room_event(latest)
+            if latest and journal is not None:
+                # A room transition is a world event the mind may reason about.
+                journal.append(
+                    "room",
+                    str(latest.get("type", "event")),
+                    str(latest.get("summary", "room event")),
+                    {"id": latest.get("id")},
+                    trusted=True,
+                )
         livekit_ready = livekit_is_ready()
         return RuntimeStatus(
             product="Marvi OS",
@@ -394,6 +464,40 @@ def create_app(
             return MemoryPage(total=0, entries=[], summary={})
         runtime_store.audit("memory_cleared", "memory", {"removed": memory.forget_all()})
         return MemoryPage(total=0, entries=[], summary=memory.world_summary())
+
+    @app.get("/initiative", response_model=InitiativeStatus)
+    async def initiative_status() -> InitiativeStatus:
+        if initiative is None:
+            return InitiativeStatus(paused=True, running=False, pending_events=0,
+                                    last_runs={}, last_errors={}, settings={})
+        return InitiativeStatus(**initiative.status())
+
+    @app.put("/initiative", response_model=InitiativeStatus)
+    async def set_initiative(update: InitiativeUpdate) -> InitiativeStatus:
+        if initiative is None:
+            return InitiativeStatus(paused=True, running=False, pending_events=0,
+                                    last_runs={}, last_errors={}, settings={})
+        initiative.set_paused(update.paused)
+        runtime_store.audit(
+            "initiative", "mind", {"paused": update.paused}
+        )
+        return InitiativeStatus(**initiative.status())
+
+    @app.get("/mind/decisions", response_model=DecisionPage)
+    async def mind_decisions(limit: int = 50) -> DecisionPage:
+        if journal is None:
+            return DecisionPage(decisions=[], events=[])
+        return DecisionPage(
+            decisions=journal.decisions(limit=max(1, min(limit, 200))),
+            events=journal.recent(limit=max(1, min(limit, 200))),
+        )
+
+    @app.post("/mind/tick", response_model=MindResult)
+    async def mind_tick() -> MindResult:
+        """Run one mind turn now. Safe to call repeatedly; events are decided once."""
+        if initiative is None:
+            return MindResult(considered=0, decisions=[], surfaced=[])
+        return MindResult(**initiative.run_mind())
 
     @app.get("/accounts", response_model=AccountPage)
     async def account_page() -> AccountPage:

@@ -95,9 +95,7 @@ describe('DecodeText', () => {
   })
 
   it('never scrambles the legible prefix', () => {
-    const html = renderToStaticMarkup(
-      <DecodeText active prefix={4} text="CONNECTING" />
-    )
+    const html = renderToStaticMarkup(<DecodeText active prefix={4} text="CONNECTING" />)
 
     expect(html).toContain('CONN')
   })

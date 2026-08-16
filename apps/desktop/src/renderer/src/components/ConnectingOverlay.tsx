@@ -36,11 +36,14 @@ export function ConnectingOverlay(): React.JSX.Element | null {
     if (coldBootDone || phase !== 'live') return undefined
     if (connecting) return undefined
     // Connected (or failed) — run the exit choreography once.
-    const timer = window.setTimeout(() => {
-      setPhase('out')
-      setColdBootDone(true)
-      window.setTimeout(() => setPhase('gone'), prefersReducedMotion() ? 0 : 480)
-    }, prefersReducedMotion() ? 0 : 240)
+    const timer = window.setTimeout(
+      () => {
+        setPhase('out')
+        setColdBootDone(true)
+        window.setTimeout(() => setPhase('gone'), prefersReducedMotion() ? 0 : 480)
+      },
+      prefersReducedMotion() ? 0 : 240
+    )
     return () => window.clearTimeout(timer)
   }, [coldBootDone, connecting, phase])
 
