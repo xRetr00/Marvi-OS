@@ -137,14 +137,12 @@ def migrate_legacy(force: bool = False) -> list[str]:
             # the next run tries again.
             continue
 
-    try:
+    with contextlib.suppress(OSError):
         marker.write_text(
             "Contents were moved here from the old 'Marvi OS' folder.\n"
             "Delete that folder once you are happy nothing is missing.\n",
             encoding="utf-8",
         )
-    except OSError:
-        pass
     return moved
 
 
