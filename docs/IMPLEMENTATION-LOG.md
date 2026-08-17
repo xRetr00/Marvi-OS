@@ -488,3 +488,18 @@ Validation evidence and the resulting commit are recorded in
   `check` mode was smoke-tested end-to-end through the compiled binary.
 - `release.yml` now builds and publishes `marvi-bootstrap.exe` as a release
   asset; `scripts/build-updater.ps1` builds it locally.
+
+## 2026-08-17 — orb + Dynamic Island, end to end
+
+- Vendored the thinking-orbs geometry engine (MIT) into
+  `renderer/src/orb/engine` and rewrote the component layer: the island orb
+  maps Marvi's nine assistant phases to the nine dotted states and colors each
+  per phase (blue voice, green action, amber alert, red error), and the Voice
+  page gets a dense orange→red→pink→magenta particle sphere on a ground grid.
+- Wired the live microphone level through LiveKit's `createAudioAnalyser` so
+  the orbs breathe with real energy rather than a clock (a new `setVoiceLevel`
+  store action streams `calculateVolume()` every 100ms).
+- Removed the fake static wave bars and the in-window island preview; the
+  Dynamic Island is now the live orb + copy in the always-on surface only.
+- `docs/UPSTREAM.md` records the vendored engine and its one local change
+  (dropped an unused `rMin` param).

@@ -13,12 +13,15 @@ describe('DynamicIsland', () => {
     expect(html).not.toContain('Say Marvi')
   })
 
-  it('keeps the full ready state in the control-center preview', () => {
-    const html = renderToStaticMarkup(<DynamicIsland compact state={DEFAULT_ASSISTANT_STATE} />)
+  it('renders a live orb for active voice phases', () => {
+    const html = renderToStaticMarkup(
+      <DynamicIsland
+        state={{ ...DEFAULT_ASSISTANT_STATE, phase: 'listening', caption: 'Listening' }}
+      />
+    )
 
-    expect(html).toContain('island-compact')
-    expect(html).toContain('Say Marvi')
-    expect(html).not.toContain('island-seed-line')
+    expect(html).toContain('island-orb')
+    expect(html).toContain('Listening')
   })
 
   const ROOM_EVENT = {
