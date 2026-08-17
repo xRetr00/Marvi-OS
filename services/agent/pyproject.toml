@@ -13,7 +13,7 @@ dependencies = [
     "livekit-plugins-silero>=1.6.9,<2",
     "numpy>=2,<3",
     "python-dotenv>=1,<2",
-    "torch==2.9.1",
+    "torch==2.13.0",
     "transformers==4.51.3",
     "vibevoice @ git+https://github.com/microsoft/VibeVoice.git@94da20d98b2fa7688e9cbfaf7692ddb4954f7600",
 ]
