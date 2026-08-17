@@ -28,6 +28,12 @@ marvi models remove voice-stt
 marvi logs errors -n 50
 marvi providers
 marvi crashes
+
+marvi gpu                 # what was found, and whether to use it
+marvi gpu gpu | cpu       # decide and remember
+marvi mcp list | add <name> -- <command> [args] | remove | test
+marvi skills list | browse | install <name> | remove <name>
+marvi paths               # where everything lives
 ```
 
 None of these touch localhost. They work with the Gateway stopped.
@@ -45,12 +51,14 @@ into `components.json` and the seam disappears.
 
 Everything installs under `%LOCALAPPDATA%\Marvi-OS` (`MARVI_INSTALL_ROOT`).
 
-**Known wart:** models and binaries go to `Marvi-OS` (hyphen) while logs,
-databases and identity go to `Marvi OS` (space). Two nearly-identical folders is
-confusing, and it predates this phase — the PowerShell installers established
-the hyphenated one. Unifying means migrating an existing install, so it waits
-for step 8, when those scripts are retired and there is one installer to change
-rather than two.
+One root, no spaces. Logs, databases, identity, models, runtime binaries,
+skills and MCP config all live under it, and every path derives from
+`marvi_gateway/paths.py` rather than from a literal in each module.
+
+Anything left in the old space-named folder is moved on first run, without
+overwriting: if a file exists in both, the newer root wins and the old copy
+stays put, because guessing which of two journals is real is not a silent
+decision.
 
 ## The four properties
 
@@ -86,6 +94,81 @@ Setup reports the total size and refuses if the disk cannot take it with a
 margin. Filling a disk halfway through a download breaks considerably more than
 the download.
 
+## The GPU question
+
+**Every install and update path asks before installing anything GPU-capable.**
+A CPU build of PyTorch on a machine with a good GPU is silent, easy, and costs a
+multi-gigabyte reinstall to undo.
+
+Detection layers three sources: `torch.cuda` when torch is already there,
+`nvidia-smi` which works before it is, and the Windows device list which sees a
+card even with no driver. That last case gets its own answer rather than a
+question — a card with no working CUDA is not a choice between GPU and CPU, it
+is a missing driver, and Marvi says so.
+
+The answer is remembered in `MARVI_USE_GPU`, so nothing asks twice. Set it
+before a first run and the question is skipped, which is how an unattended
+install should do it.
+
+## MCP servers
+
+Marvi reads and writes the config shape Claude Desktop, Claude Code, Cursor and
+VS Code all use, so a server configured elsewhere pastes straight in:
+
+```json
+{"mcpServers": {"files": {"command": "npx", "args": ["-y", "@scope/pkg"]}}}
+```
+
+Two conventions are applied for you, because both fail as an unexplained
+timeout: `npx` gets `-y` or it stops to ask about installing the package, and
+Python servers over stdio get `PYTHONUNBUFFERED=1` or their output sits in a
+buffer looking exactly like a hang.
+
+**Adding one is two steps by construction.** An MCP server is not data — it is a
+process that runs code with your permissions. `prepare` returns the exact
+command and writes nothing; `add` refuses without the single-use token bound to
+that exact command. There is no single call that installs a server.
+
+`marvi mcp test <name>` completes a real MCP handshake, because a configured
+server that has never been spoken to is one that will fail the first time it
+matters.
+
+## Skills
+
+Marvi implements the Agent Skills specification rather than a private format, so
+a skill written for another agent works here and one written here works
+elsewhere. A skill is a directory with `SKILL.md` — YAML frontmatter with `name`
+and `description`, optional `license`, `compatibility`, `metadata` and
+`allowed-tools` — plus optional `scripts/`, `references/` and `assets/`.
+
+### `allowed-tools` is a request, never a grant
+
+This is the line that matters. The obvious reading — the skill lists a tool, so
+the skill gets it — would mean **any skill grants itself anything by editing a
+text file**. A skill arriving with `allowed-tools: send_email` would be
+authorised to send email without asking, from a file the user very likely did
+not read.
+
+So the declaration is intersected with what Marvi already permits and never
+widens it. A sensitive tool stays sensitive. What it actually buys is the
+opposite of privilege: it *narrows* a skill to the tools it says it needs.
+
+### The store
+
+`marvi skills browse`, or the Skills page. Sources are GitHub repositories
+listed in `config/skill-sources.json`, read through the git trees API — every
+skill catalogue worth using is ultimately a repo of directories containing
+`SKILL.md`, so there is no vendor API to sign up for and pointing Marvi at a
+private collection works the same way.
+
+**Marvi never installs from a source it discovered itself.** Not from a link in
+a page, not from a suggestion in a model's output. The list is the list.
+
+Browsing only reads. Installing shows the instructions in full first, because
+the body is what will shape behaviour, and resolves `allowed-tools` against
+policy before anything is written. `scripts/` is copied but never executed at
+install time.
+
 ## Doctor knows about components
 
 `marvi doctor` verifies every component by hash, not by existence. A component
@@ -93,17 +176,22 @@ something depends on is a **failure**; one nothing depends on is a warning. The
 remedy is `confirm` rather than `automatic`, because gigabytes of download is a
 decision — and `marvi doctor --fix` lists those and asks before starting.
 
-## Still to come in Phase 11
+## Tool dependencies
 
-- **MCP servers and skills.** Adding an MCP server runs code on this machine, so
-  it will name the exact command first; a skill will not be able to grant itself
-  tools it was not given. Neither is installed from a URL Marvi found itself.
-- **The setup page**, with progress that survives closing it.
-- **First-run flow** — the minimum to say the first sentence, not everything.
-- **LiveKit and buffalo_l file hashes.** Both are described in the catalog so
-  Doctor can report on them, but neither is downloadable yet: LiveKit ships a
-  zip and InsightFace fetches its own weights on first use. Listed rather than
+Browser tools cannot open a page without a browser engine, so Playwright's
+Chromium is a component like any other (`marvi setup browser`). A `command` kind
+covers installers that own their own download, run through `uv run` inside the
+project that pinned the tool rather than whatever is on PATH.
+
+## Still open
+
+- **LiveKit and buffalo_l file hashes.** Both are in the catalog so Doctor can
+  report on them, but neither downloads through this path yet: LiveKit ships a
+  zip, and InsightFace fetches its own weights on first use. Listed rather than
   silently missing.
-- **Retiring the PowerShell installers**, once this covers them. Deleting a
-  working installer before its replacement is proven is how a repo ends up with
-  neither.
+- **First-run flow** — the minimum to say the first sentence, rather than
+  everything at once.
+- **Retiring the PowerShell installers.** Deleting a working installer before
+  its replacement is proven is how a repo ends up with neither. When they go,
+  the voice model entries move from `voice-models.json` into
+  `components.json`.

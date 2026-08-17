@@ -5,6 +5,11 @@ import type {
   ChatReply,
   ConnectedAccount,
   DoctorReport,
+  HardwareAnswer,
+  McpServerRow,
+  SetupPage,
+  SkillReview,
+  StoreSkill,
   IdentityStatus,
   InitiativeStatus,
   MindDecision,
@@ -52,6 +57,16 @@ export interface MarviDesktopApi {
   getChat: () => Promise<{ messages: ChatEntry[]; available: boolean }>
   sendChat: (message: string) => Promise<ChatReply | null>
   clearChat: () => Promise<boolean>
+  getSetup: () => Promise<SetupPage | null>
+  getHardware: () => Promise<HardwareAnswer | null>
+  setHardware: (useGpu: boolean) => Promise<HardwareAnswer | null>
+  installComponent: (name: string) => Promise<SetupPage | null>
+  removeComponent: (name: string) => Promise<SetupPage | null>
+  getSkillStore: () => Promise<{ skills: StoreSkill[]; sources: string[] } | null>
+  reviewSkill: (repo: string, path: string) => Promise<SkillReview | null>
+  installSkill: (staged: string) => Promise<{ ok: boolean; detail: string } | null>
+  removeSkill: (name: string) => Promise<{ ok: boolean; detail: string } | null>
+  getMcp: () => Promise<{ servers: McpServerRow[] } | null>
   runDoctor: () => Promise<DoctorReport | null>
   healDoctor: (includeConfirmed: boolean) => Promise<{ report: DoctorReport } | null>
   copyDiagnostics: () => Promise<string | null>

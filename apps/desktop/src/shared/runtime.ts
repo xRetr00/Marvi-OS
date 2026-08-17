@@ -188,6 +188,58 @@ export interface ChatReply {
   error: string
 }
 
+export interface SetupComponent {
+  name: string
+  kind: string
+  title: string
+  why: string
+  needed_for: string[]
+  bytes_total: number
+  installed: boolean
+  detail: string
+}
+
+export interface SetupPage {
+  components: SetupComponent[]
+  plan: { install: Array<{ name: string; title: string; bytes: number }>; bytes_total: number }
+  install_root: string
+  disk_ok: boolean
+  disk_detail: string
+}
+
+export interface HardwareAnswer {
+  ask: boolean
+  use_gpu: boolean
+  reason: string
+  prompt?: string
+  hardware: { gpus: Array<{ name: string; memory_mb: number; usable: boolean }> }
+}
+
+export interface StoreSkill {
+  name: string
+  description: string
+  source: string
+  repo: string
+  path: string
+  installed: boolean
+}
+
+export interface SkillReview {
+  ok: boolean
+  staged?: string
+  skill: { name: string; description: string; requested_tools: string[] }
+  instructions: string
+  warnings: string[]
+  tools?: { tools: string[]; unknown: string[]; still_sensitive: string[] }
+}
+
+export interface McpServerRow {
+  name: string
+  command: string
+  enabled: boolean
+  on_path: boolean
+}
+
 export interface DoctorFinding {
   check: string
   area: string

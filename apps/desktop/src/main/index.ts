@@ -101,6 +101,24 @@ function gateway(): string {
   return gatewayUrl(repoRoot)
 }
 
+/**
+ * One fetch helper for the read-mostly Gateway endpoints.
+ *
+ * Every one of these had the same six lines of try/catch/timeout around it, and
+ * six copies of a timeout is five chances to pick the wrong one.
+ */
+async function gatewayJson(path: string, init?: RequestInit, timeoutMs = 10_000): Promise<unknown> {
+  try {
+    const response = await fetch(`${gateway()}${path}`, {
+      ...init,
+      signal: AbortSignal.timeout(timeoutMs)
+    })
+    return response.ok ? await response.json() : null
+  } catch {
+    return null
+  }
+}
+
 function windowOpacity(): number {
   return 1 - (translucencyIntensity / 100) * 0.7
 }
@@ -667,6 +685,45 @@ app.whenReady().then(() => {
       return { available: false, detail: 'Gateway unavailable', accounts: [] }
     }
   })
+  ipcMain.handle('marvi:get-setup', () => gatewayJson('/setup'))
+  ipcMain.handle('marvi:get-hardware', () => gatewayJson('/setup/hardware'))
+  ipcMain.handle('marvi:set-hardware', (_event, useGpu) =>
+    gatewayJson('/setup/hardware', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ use_gpu: Boolean(useGpu) })
+    })
+  )
+  ipcMain.handle('marvi:install-component', (_event, name) =>
+    // Gigabytes: the timeout has to allow for a real download on a real line.
+    gatewayJson(`/setup/${encodeURIComponent(String(name))}/install`, { method: 'POST' }, 1_800_000)
+  )
+  ipcMain.handle('marvi:remove-component', (_event, name) =>
+    gatewayJson(`/setup/${encodeURIComponent(String(name))}/remove`, { method: 'POST' })
+  )
+  ipcMain.handle('marvi:get-skill-store', () => gatewayJson('/skills/store', undefined, 60_000))
+  ipcMain.handle('marvi:review-skill', (_event, repo, path) =>
+    gatewayJson(
+      '/skills/review',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ repo, path })
+      },
+      60_000
+    )
+  )
+  ipcMain.handle('marvi:install-skill', (_event, staged) =>
+    gatewayJson('/skills/install', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ staged })
+    })
+  )
+  ipcMain.handle('marvi:remove-skill', (_event, name) =>
+    gatewayJson(`/skills/${encodeURIComponent(String(name))}`, { method: 'DELETE' })
+  )
+  ipcMain.handle('marvi:get-mcp', () => gatewayJson('/mcp'))
   ipcMain.handle('marvi:run-doctor', async () => {
     try {
       const response = await fetch(`${gateway()}/doctor`, {

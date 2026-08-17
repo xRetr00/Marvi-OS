@@ -258,6 +258,30 @@ class SetupPage(BaseModel):
     disk_detail: str
 
 
+class GpuAnswer(BaseModel):
+    use_gpu: bool
+
+
+class McpPrepare(BaseModel):
+    name: str
+    command: str
+    args: list[str] = Field(default_factory=list)
+    env: dict[str, str] = Field(default_factory=dict)
+
+
+class McpApprove(BaseModel):
+    token: str
+
+
+class SkillInstall(BaseModel):
+    repo: str
+    path: str
+
+
+class SkillConfirm(BaseModel):
+    staged: str
+
+
 class LogPage(BaseModel):
     subsystem: str
     lines: list[str]
@@ -702,6 +726,110 @@ def create_app(
         outcome = setup_module.remove(component)
         runtime_store.audit("setup", "remove", outcome.as_dict())
         return setup_page()
+
+    @app.get("/setup/hardware")
+    async def setup_hardware() -> dict[str, Any]:
+        """What Marvi found, and whether it needs to ask about it."""
+        from .setup import hardware
+
+        return hardware.question()
+
+    @app.put("/setup/hardware")
+    async def choose_hardware(answer: GpuAnswer) -> dict[str, Any]:
+        from .setup import hardware
+
+        hardware.remember(answer.use_gpu)
+        runtime_store.audit("setup", "gpu", {"use_gpu": answer.use_gpu})
+        return hardware.question()
+
+    @app.get("/mcp")
+    async def list_mcp() -> dict[str, Any]:
+        from .setup import mcp
+
+        return {"servers": mcp.status()}
+
+    @app.post("/mcp/prepare")
+    async def prepare_mcp(request: McpPrepare) -> dict[str, Any]:
+        """Describe what would run. Writes nothing, starts nothing."""
+        from .setup import mcp
+
+        return mcp.prepare(request.name, request.command, request.args, request.env)
+
+    @app.post("/mcp/add")
+    async def add_mcp(request: McpApprove) -> dict[str, Any]:
+        from .setup import mcp
+
+        result = mcp.add(request.token)
+        runtime_store.audit("setup", "mcp-add", result)
+        return result
+
+    @app.post("/mcp/{name}/test")
+    async def test_mcp(name: str) -> dict[str, Any]:
+        import anyio
+
+        from .setup import mcp
+
+        server = mcp.read().get(name)
+        if server is None:
+            raise HTTPException(status_code=404, detail=f"no server named {name}")
+        return await anyio.to_thread.run_sync(lambda: mcp.test(server))
+
+    @app.delete("/mcp/{name}")
+    async def remove_mcp(name: str) -> dict[str, Any]:
+        from .setup import mcp
+
+        result = mcp.remove(name)
+        runtime_store.audit("setup", "mcp-remove", result)
+        return result
+
+    @app.get("/skills")
+    async def list_skills() -> dict[str, Any]:
+        from .setup import skills
+
+        return {"skills": [s.as_dict() for s in skills.installed()]}
+
+    @app.get("/skills/store")
+    async def browse_skills() -> dict[str, Any]:
+        """Everything the configured sources offer. Reads only."""
+        import anyio
+
+        from .setup import store
+
+        rows = await anyio.to_thread.run_sync(lambda: store.catalogue(REPO_ROOT))
+        return {"skills": rows, "sources": [s.repo for s in store.sources(REPO_ROOT)]}
+
+    @app.post("/skills/review")
+    async def review_skill(request: SkillInstall) -> dict[str, Any]:
+        """Fetch and describe a skill without installing it."""
+        import anyio
+
+        from .setup import store
+
+        return await anyio.to_thread.run_sync(
+            lambda: store.review_remote(
+                REPO_ROOT, request.repo, request.path, tool_registry
+            )
+        )
+
+    @app.post("/skills/install")
+    async def install_skill(request: SkillConfirm) -> dict[str, Any]:
+        from .setup import store
+
+        result = store.install_reviewed(request.staged)
+        runtime_store.audit("setup", "skill-install", result)
+        return result
+
+    @app.delete("/skills/{name}")
+    async def remove_skill(name: str) -> dict[str, Any]:
+        from .setup import skills
+
+        result = skills.remove(name)
+        runtime_store.audit("setup", "skill-remove", result)
+        return result
+
+    @app.get("/paths")
+    async def show_paths() -> dict[str, str]:
+        return paths.describe()
 
     @app.get("/logs", response_model=LogPage)
     async def read_logs(subsystem: str = "errors", lines: int = 300) -> LogPage:

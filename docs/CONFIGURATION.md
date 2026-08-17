@@ -103,6 +103,19 @@ quietly ignored.
 
 See `docs/LOGGING.md` and `docs/IDENTITY.md`.
 
+### Hardware
+
+| Variable | Meaning |
+|---|---|
+| `MARVI_USE_GPU` | `1` or `0`. Set it to skip the GPU question entirely; unset means Marvi asks once and remembers. |
+
+### Paths
+
+`MARVI_HOME` moves the whole root. Everything else derives from it, and each
+individual path still has its own override — `MARVI_LOG_DIR`,
+`MARVI_JOURNAL_DB`, `MARVI_SKILLS_DIR`, `MARVI_MCP_CONFIG` and the rest. Run
+`marvi paths` to see where everything currently resolves to.
+
 ### Proactivity — all editable from the Mind page
 
 | Variable | Default | Meaning |

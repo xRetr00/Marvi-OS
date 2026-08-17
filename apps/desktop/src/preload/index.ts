@@ -6,6 +6,11 @@ import type {
   ChatReply,
   ConnectedAccount,
   DoctorReport,
+  HardwareAnswer,
+  McpServerRow,
+  SetupPage,
+  SkillReview,
+  StoreSkill,
   IdentityStatus,
   InitiativeStatus,
   MindDecision,
@@ -88,6 +93,23 @@ const marvi = {
   sendChat: (message: string): Promise<ChatReply | null> =>
     ipcRenderer.invoke('marvi:send-chat', message),
   clearChat: (): Promise<boolean> => ipcRenderer.invoke('marvi:clear-chat'),
+  getSetup: (): Promise<SetupPage | null> => ipcRenderer.invoke('marvi:get-setup'),
+  getHardware: (): Promise<HardwareAnswer | null> => ipcRenderer.invoke('marvi:get-hardware'),
+  setHardware: (useGpu: boolean): Promise<HardwareAnswer | null> =>
+    ipcRenderer.invoke('marvi:set-hardware', useGpu),
+  installComponent: (name: string): Promise<SetupPage | null> =>
+    ipcRenderer.invoke('marvi:install-component', name),
+  removeComponent: (name: string): Promise<SetupPage | null> =>
+    ipcRenderer.invoke('marvi:remove-component', name),
+  getSkillStore: (): Promise<{ skills: StoreSkill[]; sources: string[] } | null> =>
+    ipcRenderer.invoke('marvi:get-skill-store'),
+  reviewSkill: (repo: string, path: string): Promise<SkillReview | null> =>
+    ipcRenderer.invoke('marvi:review-skill', repo, path),
+  installSkill: (staged: string): Promise<{ ok: boolean; detail: string } | null> =>
+    ipcRenderer.invoke('marvi:install-skill', staged),
+  removeSkill: (name: string): Promise<{ ok: boolean; detail: string } | null> =>
+    ipcRenderer.invoke('marvi:remove-skill', name),
+  getMcp: (): Promise<{ servers: McpServerRow[] } | null> => ipcRenderer.invoke('marvi:get-mcp'),
   runDoctor: (): Promise<DoctorReport | null> => ipcRenderer.invoke('marvi:run-doctor'),
   healDoctor: (includeConfirmed: boolean): Promise<{ report: DoctorReport } | null> =>
     ipcRenderer.invoke('marvi:heal-doctor', includeConfirmed),

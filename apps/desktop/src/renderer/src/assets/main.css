@@ -1306,3 +1306,38 @@ nav {
   white-space: pre-line;
   color: var(--ui-text-secondary);
 }
+
+/* Setup and skills ------------------------------------------------------ */
+.skill-search {
+  width: 100%;
+  margin: 10px 0;
+  padding: 9px;
+  border: 1px solid var(--ui-stroke-tertiary);
+  color: var(--ui-text-primary);
+  background: transparent;
+  font: inherit;
+  font-size: 11px;
+}
+.skill-search:focus {
+  border-color: color-mix(in srgb, var(--ui-accent) 45%, transparent);
+  outline: none;
+}
+/* The review sheet is the gate before installing, so it reads as one block
+   rather than as another row in the list. */
+.skill-review {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 45%, transparent);
+  background: var(--ui-accent-soft);
+}
+.skill-body {
+  grid-column: auto;
+  max-height: 300px;
+  white-space: pre-wrap;
+}
+.provider-actions {
+  flex-wrap: wrap;
+}

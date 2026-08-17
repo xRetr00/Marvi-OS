@@ -1,6 +1,6 @@
 # Phase 11 — Setup: dependencies, models, skills, and MCP
 
-**Status:** in progress — steps 1, 2 and 3 done
+**Status:** complete except the first-run flow and retiring the old installers
 **Depends on:** Phase 10 (the check-and-remedy engine this is built on)
 
 ## The decision: one engine, two front ends
@@ -126,17 +126,31 @@ asks before starting a multi-gigabyte download.
 because verifying a hash needs a manifest to check against and writing that
 twice would have been worse than waiting.
 
-**Step 4 — the setup page.** `GET /setup`, install and remove endpoints exist;
-the page itself does not. What is installed, what is missing, sizes before
-downloading, and progress that survives closing the page.
+**Step 4 — the setup page. Done.** What is installed, what is missing, sizes
+before downloading, install and remove per component, and the GPU question
+first — because it changes which packages get installed, and answering it
+afterwards means a multi-gigabyte reinstall.
 
 **Step 5 — first-run flow.** A new install that opens Marvi should be walked
 through the minimum: pick a provider, install voice models if voice is wanted,
 grant a microphone. Nothing else is required to say the first sentence.
 
-**Step 6 — MCP add/remove/test**, with the run-a-command confirmation.
+**Step 6 — MCP. Done.** The config shape every other agent uses, the two
+conventions that otherwise fail as unexplained timeouts, and a two-step add
+where `prepare` shows the exact argv and `add` refuses without a single-use
+token bound to it. `test` completes a real handshake.
 
-**Step 7 — skills**, with the scoping rule above and a schema.
+**Step 7 — skills. Done.** The Agent Skills specification rather than a private
+format. `allowed-tools` intersected with policy and never widened. A store over
+GitHub repository trees, verified against `anthropics/skills`. Structural rules
+are hard errors; style limits are warnings, because a store that hides real
+skills to enforce a style rule is worse than one that shows them with a note.
+
+**Step 7b — GPU. Done.** Every install and update path asks before installing
+anything GPU-capable, layered detection, and a remembered answer.
+
+**Step 7c — one path root. Done.** `Marvi-OS`, no spaces, everything derived
+from `paths.py`, with a non-destructive migration out of the old folder.
 
 **Step 8 — retire the PowerShell setup scripts**, and unify the install root at
 the same time: models live under `Marvi-OS` while logs and databases live under

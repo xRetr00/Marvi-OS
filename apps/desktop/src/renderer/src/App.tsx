@@ -31,7 +31,11 @@ import type {
   AuditEvent,
   ConnectedAccount,
   DoctorReport,
+  HardwareAnswer,
   IdentityStatus,
+  SetupPage,
+  SkillReview,
+  StoreSkill,
   InitiativeStatus,
   MemoryPage,
   MindDecision,
@@ -60,6 +64,8 @@ const NAV_ITEMS = [
   'Memory',
   'Mind',
   'Activity',
+  'Skills',
+  'Setup',
   'Doctor',
   'Settings',
   'Updates',
@@ -190,6 +196,10 @@ function MainSurface(): React.JSX.Element {
               <VoicePanel runtime={runtime} />
             ) : page === 'Chat' ? (
               <Chat />
+            ) : page === 'Setup' ? (
+              <SetupPanel />
+            ) : page === 'Skills' ? (
+              <SkillsPanel />
             ) : page === 'Doctor' ? (
               <DoctorPanel />
             ) : page === 'Activity' ? (
@@ -1554,6 +1564,316 @@ function DoctorPanel(): React.JSX.Element {
   )
 }
 
+function SetupPanel(): React.JSX.Element {
+  const [page, setPage] = useState<SetupPage | null>(null)
+  const [hardware, setHardware] = useState<HardwareAnswer | null>(null)
+  const [busy, setBusy] = useState('')
+
+  const load = useCallback(async (): Promise<void> => {
+    const [next, gpu] = await Promise.all([window.marvi?.getSetup(), window.marvi?.getHardware()])
+    setPage(next ?? null)
+    setHardware(gpu ?? null)
+  }, [])
+
+  useEffect(() => {
+    let disposed = false
+    void (async () => {
+      const [next, gpu] = await Promise.all([window.marvi?.getSetup(), window.marvi?.getHardware()])
+      if (disposed) return
+      setPage(next ?? null)
+      setHardware(gpu ?? null)
+    })()
+    return () => {
+      disposed = true
+    }
+  }, [])
+
+  const chooseGpu = async (useGpu: boolean): Promise<void> => {
+    setHardware((await window.marvi?.setHardware(useGpu)) ?? hardware)
+  }
+
+  const act = async (name: string, remove: boolean): Promise<void> => {
+    setBusy(name)
+    try {
+      const next = remove
+        ? await window.marvi?.removeComponent(name)
+        : await window.marvi?.installComponent(name)
+      if (next) setPage(next)
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const missing = page?.plan?.install ?? []
+
+  return (
+    <section className="single-page panel">
+      <div className="panel-label">{'// SETUP'}</div>
+      <h2>Setup</h2>
+      <p>
+        Everything Marvi needs, and how much of it is here. Downloads are verified by hash, resume
+        if interrupted, and cost nothing to re-run.
+      </p>
+
+      {/* The GPU question comes first: it changes which packages get installed,
+          and answering it afterwards means a multi-gigabyte reinstall. */}
+      {hardware?.ask ? (
+        <div className="chat-confirm">
+          <span>{hardware.prompt}</span>
+          <div className="provider-actions">
+            <button className="phase active" type="button" onClick={() => void chooseGpu(true)}>
+              USE THE GPU
+            </button>
+            <button className="phase" type="button" onClick={() => void chooseGpu(false)}>
+              CPU ONLY
+            </button>
+          </div>
+        </div>
+      ) : hardware ? (
+        <div className="context-line">
+          <span>HARDWARE</span>
+          <strong>
+            {hardware.use_gpu ? 'GPU' : 'CPU'} — {hardware.reason.toUpperCase()}
+          </strong>
+        </div>
+      ) : null}
+
+      {page ? (
+        <div className="context-line">
+          <span>TO DOWNLOAD</span>
+          <strong>
+            {missing.length} ITEM(S){page.disk_detail ? ` / ${page.disk_detail.toUpperCase()}` : ''}
+          </strong>
+        </div>
+      ) : (
+        <span className="construction">READING THE CATALOG</span>
+      )}
+
+      {page && !page.disk_ok ? (
+        <span className="construction">
+          NOT ENOUGH DISK SPACE / {page.disk_detail.toUpperCase()}
+        </span>
+      ) : null}
+
+      <div className="ascii-divider">+------------------------------+</div>
+
+      <div className="service-list">
+        {(page?.components ?? []).map((component) => (
+          <div className="service-row" key={component.name}>
+            <span className="service-name">{component.title.toUpperCase()}</span>
+            <span
+              className={`service-state state-${component.installed ? 'ready' : component.needed_for.length ? 'error' : 'pending'}`}
+            >
+              {component.installed ? 'INSTALLED' : component.detail.toUpperCase()}
+            </span>
+            <small>{component.why}</small>
+            <small>
+              {component.bytes_total > 0
+                ? `${(component.bytes_total / 1024 ** 3).toFixed(2)} GB`
+                : component.kind}
+              {component.needed_for.length > 0
+                ? ` / needed for ${component.needed_for.join(', ')}`
+                : ''}
+            </small>
+            <div className="provider-actions">
+              <button
+                className="phase"
+                type="button"
+                disabled={!!busy || component.installed}
+                onClick={() => void act(component.name, false)}
+              >
+                {busy === component.name ? 'WORKING' : 'INSTALL'}
+              </button>
+              {component.installed ? (
+                <button
+                  className="phase danger"
+                  type="button"
+                  disabled={!!busy}
+                  onClick={() => void act(component.name, true)}
+                >
+                  REMOVE
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="ascii-divider">+------------------------------+</div>
+      <button className="phase" type="button" onClick={() => void load()}>
+        RE-CHECK
+      </button>
+      {page ? <small>{page.install_root}</small> : null}
+    </section>
+  )
+}
+
+function SkillsPanel(): React.JSX.Element {
+  const [store, setStore] = useState<StoreSkill[]>([])
+  const [sources, setSources] = useState<string[]>([])
+  const [filter, setFilter] = useState('')
+  const [review, setReview] = useState<SkillReview | null>(null)
+  const [busy, setBusy] = useState('')
+
+  const load = useCallback(async (): Promise<void> => {
+    const page = await window.marvi?.getSkillStore()
+    if (page) {
+      setStore(page.skills)
+      setSources(page.sources)
+    }
+  }, [])
+
+  useEffect(() => {
+    let disposed = false
+    void (async () => {
+      const page = await window.marvi?.getSkillStore()
+      if (disposed || !page) return
+      setStore(page.skills)
+      setSources(page.sources)
+    })()
+    return () => {
+      disposed = true
+    }
+  }, [])
+
+  const open = async (skill: StoreSkill): Promise<void> => {
+    setBusy(skill.name)
+    try {
+      const reviewed = await window.marvi?.reviewSkill(skill.repo, skill.path)
+      setReview(reviewed?.ok ? reviewed : null)
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const confirm = async (): Promise<void> => {
+    if (!review?.staged) return
+    setBusy('installing')
+    try {
+      await window.marvi?.installSkill(review.staged)
+      setReview(null)
+      await load()
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const remove = async (name: string): Promise<void> => {
+    setBusy(name)
+    try {
+      await window.marvi?.removeSkill(name)
+      await load()
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const shown = store.filter(
+    (skill) =>
+      !filter ||
+      skill.name.includes(filter.toLowerCase()) ||
+      skill.description.toLowerCase().includes(filter.toLowerCase())
+  )
+
+  return (
+    <section className="single-page panel">
+      <div className="panel-label">{'// SKILLS'}</div>
+      <h2>Skills</h2>
+      <p>
+        Instructions that teach Marvi how to do something. A skill shapes behaviour, so you see what
+        it says before it is installed — and a skill can never grant itself a tool it was not
+        already allowed.
+      </p>
+
+      <div className="context-line">
+        <span>SOURCES</span>
+        <strong>{sources.join(', ').toUpperCase() || 'NONE CONFIGURED'}</strong>
+      </div>
+
+      <input
+        className="skill-search"
+        type="text"
+        placeholder="Search skills"
+        value={filter}
+        onChange={(event) => setFilter(event.target.value)}
+      />
+
+      <div className="ascii-divider">+------------------------------+</div>
+
+      {/* The review sheet: instructions in full, warnings, then the button. */}
+      {review ? (
+        <div className="skill-review">
+          <div className="panel-label">{`// ${review.skill.name.toUpperCase()}`}</div>
+          <p>{review.skill.description}</p>
+          {review.warnings.map((warning) => (
+            <small className="provider-cooldown" key={warning}>
+              {warning}
+            </small>
+          ))}
+          {review.tools?.still_sensitive?.length ? (
+            <small className="provider-cooldown">
+              It names sensitive tools ({review.tools.still_sensitive.join(', ')}). Those still ask
+              you every time.
+            </small>
+          ) : null}
+          <pre className="service-output skill-body">{review.instructions}</pre>
+          <div className="provider-actions">
+            <button
+              className="phase active"
+              type="button"
+              disabled={busy === 'installing'}
+              onClick={() => void confirm()}
+            >
+              {busy === 'installing' ? 'INSTALLING' : 'INSTALL'}
+            </button>
+            <button className="phase" type="button" onClick={() => setReview(null)}>
+              CANCEL
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {store.length === 0 ? (
+        <span className="construction">LOADING THE STORE</span>
+      ) : (
+        <div className="service-list">
+          {shown.map((skill) => (
+            <div className="service-row" key={`${skill.repo}/${skill.name}`}>
+              <span className="service-name">{skill.name.toUpperCase()}</span>
+              <span className={`service-state state-${skill.installed ? 'ready' : 'pending'}`}>
+                {skill.installed ? 'INSTALLED' : ''}
+              </span>
+              <small>{skill.description}</small>
+              <small>{skill.repo}</small>
+              <div className="provider-actions">
+                {skill.installed ? (
+                  <button
+                    className="phase danger"
+                    type="button"
+                    disabled={!!busy}
+                    onClick={() => void remove(skill.name)}
+                  >
+                    REMOVE
+                  </button>
+                ) : (
+                  <button
+                    className="phase"
+                    type="button"
+                    disabled={!!busy}
+                    onClick={() => void open(skill)}
+                  >
+                    {busy === skill.name ? 'FETCHING' : 'VIEW & INSTALL'}
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
 function ActivityPanel(): React.JSX.Element {
   const [events, setEvents] = useState<AuditEvent[]>([])
 
@@ -1622,6 +1942,8 @@ function PagePanel({ page, version }: { page: Page; version: string }): React.JS
     Mind: 'Event-driven decisions, the rule behind each one, and the initiative switch.',
     Activity: 'Structured local event and tool audit timeline. No hidden outbound telemetry.',
     Doctor: 'What is wrong, what Marvi fixed, and what needs you.',
+    Setup: 'Models, binaries and dependencies — what is here and what is missing.',
+    Skills: 'Instructions that teach Marvi how to do something.',
     Settings:
       'Voice devices, wake behavior, startup, confirmation mode, and the explicit YOLO switch.',
     Updates:
