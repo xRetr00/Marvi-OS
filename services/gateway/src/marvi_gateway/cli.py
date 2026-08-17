@@ -210,6 +210,141 @@ def cmd_models(args: argparse.Namespace) -> int:
     return 1
 
 
+def cmd_gpu(args: argparse.Namespace) -> int:
+    from .setup import hardware
+
+    found = hardware.detect()
+    print(found.detail)
+    for gpu in found.gpus:
+        mark = "usable" if gpu.usable else "not usable"
+        memory = f" {gpu.memory_mb / 1024:.0f} GB" if gpu.memory_mb else ""
+        print(f"  {gpu.name}{memory} — {mark} ({gpu.detail})")
+
+    if args.use in ("gpu", "cpu"):
+        hardware.remember(args.use == "gpu")
+        print(f"Saved: models will use the {args.use.upper()}.")
+        return 0
+
+    answer = hardware.question(found)
+    if not answer["ask"]:
+        print(f"\n{answer['reason']} — using {'GPU' if answer['use_gpu'] else 'CPU'}.")
+        return 0
+    print(f"\n{answer['prompt']}")
+    hardware.remember(_confirm("Use the GPU?"))
+    return 0
+
+
+def cmd_mcp(args: argparse.Namespace) -> int:
+    from .setup import mcp
+
+    if args.action == "list":
+        rows = mcp.status()
+        if not rows:
+            print("No MCP servers configured.")
+        for row in rows:
+            state = "on " if row["enabled"] else "off"
+            found = "" if row["on_path"] else "  (not on PATH)"
+            print(f"[{state}] {row['name']:16} {row['command']}{found}")
+        return 0
+
+    if args.action == "add":
+        if not args.name or not args.command:
+            print("usage: marvi mcp add <name> -- <command> [args...]", file=sys.stderr)
+            return 1
+        prepared = mcp.prepare(args.name, args.command[0], args.command[1:])
+        print(f"This will run:\n  {prepared['command']}")
+        if prepared["resolved"]:
+            print(f"  resolved to {prepared['resolved']}")
+        for warning in prepared["warnings"]:
+            print(f"  ! {warning}")
+        # An MCP server runs code. The command is shown in full, every time,
+        # before anything is written.
+        print(f"\n{prepared['notice']}")
+        if not args.yes and not _confirm("\nAdd it?"):
+            return 0
+        result = mcp.add(prepared["token"])
+        print(result["detail"])
+        return 0 if result["ok"] else 1
+
+    if args.action == "remove":
+        result = mcp.remove(args.name or "")
+        print(result["detail"])
+        return 0 if result["ok"] else 1
+
+    if args.action == "test":
+        servers = mcp.read()
+        server = servers.get(args.name or "")
+        if server is None:
+            print(f"no server named {args.name}", file=sys.stderr)
+            return 1
+        print(f"starting {server.display()} ...")
+        result = mcp.test(server)
+        print(result["detail"])
+        return 0 if result["ok"] else 1
+    return 1
+
+
+def cmd_skills(args: argparse.Namespace) -> int:
+    from .setup import skills, store
+
+    root = repo_root()
+    if args.action == "list":
+        for skill in skills.installed():
+            print(f"{skill.name:24} {skill.description[:60]}")
+        return 0
+
+    if args.action == "browse":
+        rows = store.catalogue(root)
+        if not rows:
+            print("No skills found. Check config/skill-sources.json.")
+        for row in rows:
+            mark = "installed" if row["installed"] else ""
+            print(f"{row['name']:24} {mark:10} {row['description'][:52]}")
+            print(f"{'':24} {row['repo']}/{row['path']}")
+        return 0
+
+    if args.action == "install":
+        if not args.name:
+            print("usage: marvi skills install <name>", file=sys.stderr)
+            return 1
+        match = next(
+            (r for r in store.catalogue(root) if r["name"] == args.name), None
+        )
+        if match is None:
+            print(f"no skill named {args.name} in any configured source", file=sys.stderr)
+            return 1
+        reviewed = store.review_remote(root, match["repo"], match["path"])
+        if not reviewed.get("ok"):
+            print(reviewed.get("detail", "could not fetch"), file=sys.stderr)
+            return 1
+        print(f"{reviewed['skill']['name']}: {reviewed['skill']['description'][:200]}")
+        for warning in reviewed["warnings"]:
+            print(f"  ! {warning}")
+        # The body is instructions that will shape behaviour, so it is offered
+        # rather than hidden behind a name and a description.
+        if not args.yes and _confirm("\nShow the full instructions?"):
+            print("\n" + reviewed["instructions"][:8000])
+        if not args.yes and not _confirm("\nInstall it?"):
+            return 0
+        result = store.install_reviewed(reviewed["staged"])
+        print(result["detail"])
+        return 0 if result["ok"] else 1
+
+    if args.action == "remove":
+        result = skills.remove(args.name or "")
+        print(result["detail"])
+        return 0 if result["ok"] else 1
+    return 1
+
+
+def cmd_paths(_args: argparse.Namespace) -> int:
+    from . import paths
+
+    for name, value in paths.describe().items():
+        print(f"{name:10} {value}")
+    return 0
+
+
 # -- logs and providers ----------------------------------------------------------
 
 
@@ -281,6 +416,28 @@ def build_parser() -> argparse.ArgumentParser:
     models.add_argument("--force", action="store_true", help="re-download even if verified")
     models.add_argument("--yes", "-y", action="store_true")
     models.set_defaults(handler=cmd_models)
+
+    gpu = sub.add_parser("gpu", help="what Marvi found, and whether to use it")
+    gpu.add_argument("use", nargs="?", choices=["gpu", "cpu"], help="set and remember")
+    gpu.set_defaults(handler=cmd_gpu)
+
+    mcp_cmd = sub.add_parser("mcp", help="MCP servers")
+    mcp_cmd.add_argument("action", choices=["list", "add", "remove", "test"])
+    mcp_cmd.add_argument("name", nargs="?")
+    mcp_cmd.add_argument(
+        "command", nargs="*", help="after --, the command and its arguments"
+    )
+    mcp_cmd.add_argument("--yes", "-y", action="store_true")
+    mcp_cmd.set_defaults(handler=cmd_mcp)
+
+    skills_cmd = sub.add_parser("skills", help="browse, install and remove skills")
+    skills_cmd.add_argument("action", choices=["list", "browse", "install", "remove"])
+    skills_cmd.add_argument("name", nargs="?")
+    skills_cmd.add_argument("--yes", "-y", action="store_true")
+    skills_cmd.set_defaults(handler=cmd_skills)
+
+    paths_cmd = sub.add_parser("paths", help="where Marvi keeps everything")
+    paths_cmd.set_defaults(handler=cmd_paths)
 
     logs_cmd = sub.add_parser("logs", help="tail a subsystem log")
     logs_cmd.add_argument("subsystem", nargs="?", default="errors")

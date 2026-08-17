@@ -1,0 +1,12 @@
+{
+  "$comment": "Where the skill store looks. Marvi never installs from a source it discovered itself - not from a link in a page, not from a model's suggestion. This list is the list, and it is yours to edit.",
+  "schema": 1,
+  "sources": [
+    {
+      "name": "Anthropic",
+      "repo": "anthropics/skills",
+      "branch": "main",
+      "description": "The official Agent Skills repository."
+    }
+  ]
+}

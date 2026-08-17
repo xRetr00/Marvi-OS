@@ -73,6 +73,8 @@ class Skill:
     body: str = ""
     source: str = ""
     path: Path | None = None
+    #: Spec violations that are worth saying but not worth refusing over.
+    problems: tuple[str, ...] = ()
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -83,6 +85,7 @@ class Skill:
             "metadata": self.metadata,
             "requested_tools": list(self.requested_tools),
             "source": self.source,
+            "problems": list(self.problems),
             "installed_at": str(self.path) if self.path else "",
         }
 
@@ -108,7 +111,28 @@ def _parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
 
     data: dict[str, Any] = {}
     current_map: str | None = None
+    block_key: str | None = None
+    block_lines: list[str] = []
+    folded = False
+
+    def close_block() -> None:
+        nonlocal block_key, block_lines
+        if block_key is not None:
+            separator = " " if folded else "\n"
+            data[block_key] = separator.join(
+                line.strip() for line in block_lines
+            ).strip()
+            block_key, block_lines = None, []
+
     for raw in block.splitlines():
+        # Block scalars are common in real skills. A parser that ignores them
+        # shows a literal "|-" where the description should be.
+        if block_key is not None:
+            if raw.startswith((" ", "\t")) or not raw.strip():
+                block_lines.append(raw)
+                continue
+            close_block()
+
         if not raw.strip() or raw.lstrip().startswith("#"):
             continue
         if raw.startswith((" ", "\t")) and current_map:
@@ -119,13 +143,19 @@ def _parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
         key, separator, value = raw.partition(":")
         if not separator:
             continue
-        key, value = key.strip(), value.strip().strip("\"'")
+        key, value = key.strip(), value.strip()
+        if value.startswith(("|", ">")):
+            block_key, block_lines, current_map = key, [], None
+            folded = value.startswith(">")
+            continue
+        value = value.strip("\"'")
         if value:
             data[key] = value
             current_map = None
         else:
             data[key] = {}
             current_map = key
+    close_block()
     return data, body.lstrip("\n")
 
 
@@ -143,19 +173,29 @@ def parse(text: str, source: str = "") -> Skill:
     description = str(data.get("description", "")).strip()
     if not description:
         raise SkillError("frontmatter is missing `description`")
-    if len(description) > MAX_DESCRIPTION:
-        raise SkillError("`description` is longer than 1024 characters")
+    # Over-length is a quality problem, not a broken file. Anthropic's own
+    # `claude-api` skill exceeds the 1024-character limit, and a store that
+    # silently hides real skills for it would be worse than one that shows them
+    # with a note. Structural rules stay hard errors; these are soft.
     compatibility = str(data.get("compatibility", "")).strip()
-    if len(compatibility) > MAX_COMPATIBILITY:
-        raise SkillError("`compatibility` is longer than 500 characters")
 
     raw_tools = data.get("allowed-tools", "")
     requested = tuple(t for t in str(raw_tools).split() if t) if raw_tools else ()
     metadata = data.get("metadata") if isinstance(data.get("metadata"), dict) else {}
 
+    problems: list[str] = []
+    if len(description) > MAX_DESCRIPTION:
+        problems.append(
+            f"`description` is {len(description)} characters; the specification "
+            "recommends 1024 or fewer, and it is loaded for every skill at startup"
+        )
+    if len(compatibility) > MAX_COMPATIBILITY:
+        problems.append("`compatibility` is longer than 500 characters")
+
     return Skill(
         name=name,
         description=description,
+        problems=tuple(problems),
         license=str(data.get("license", "")).strip(),
         compatibility=compatibility,
         metadata={str(k): str(v) for k, v in (metadata or {}).items()},
