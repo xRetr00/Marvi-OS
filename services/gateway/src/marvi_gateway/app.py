@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 from . import breadcrumb, paths
 from . import doctor as doctor_module
 from . import plugins as plugins_module
+from . import room as room_module
 from . import setup as setup_module
 from .accounts import ComposioAccounts, register_account_tools
 from .activity import ActivityWatch, register_activity_tools
@@ -40,7 +41,7 @@ from .policy import InitiativeSettings
 from .providers import ProviderClient, all_profiles
 from .providers import config as provider_config
 from .providers.oauth import OAuthError, broker
-from .room import RoomSidecar, register_room_tools
+from .room import RoomSidecar, register_room_tools, sleep_guard
 from .runtime import (
     ArgumentsMutatedError,
     AuditPage,
@@ -419,6 +420,21 @@ def create_app(
         # tool Marvi already registered, only add to the set. `load` imports and
         # collects; nothing is started until the lifespan opens.
         loaded_plugins.extend(load_installed_plugins())
+        for plugin in loaded_plugins:
+            # The guard is Marvi's, not the plugin's. The room plugin's own
+            # handlers know nothing about the sleep rule, so bridging them
+            # without it would open a second path to the light that skips the
+            # guard the built-in tools apply.
+            plugins_module.bridge_tools(
+                tool_registry,
+                plugin,
+                guard=sleep_guard(sidecar) if plugin.name == room_module.PLUGIN_NAME else None,
+                read_only=(
+                    room_module.READ_ONLY_PLUGIN_TOOLS
+                    if plugin.name == room_module.PLUGIN_NAME
+                    else frozenset()
+                ),
+            )
         accounts = ComposioAccounts()
         if accounts.available():
             register_account_tools(tool_registry, accounts)

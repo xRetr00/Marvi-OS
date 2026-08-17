@@ -157,6 +157,29 @@ def assert_sleep_safe(mode: str | None, light_on: bool, action: str, params: dic
     )
 
 
+def read_sleep_state(sidecar: RoomSidecar) -> tuple[str | None, bool]:
+    """The room's mode and light, for the sleep rule. Refuses rather than guesses.
+
+    `RoomSidecar.state()` already falls back to the on-disk snapshot, so it
+    raises only when there is *no* state at all — neither live nor stale. The
+    first version of this treated that as "not asleep", which meant a room whose
+    engine was not running would accept every write the rule exists to refuse.
+
+    Not knowing is not the same as awake. This fails closed.
+    """
+    try:
+        state = sidecar.state().get("state") or {}
+    except RoomUnavailableError as exc:
+        raise SleepProtectedError(
+            "Marvi cannot tell whether the room is asleep, so it will not change it. "
+            "Start the room plugin and try again."
+        ) from exc
+    return (
+        ((state.get("modes") or {}).get("active_mode")),
+        bool((state.get("light") or {}).get("on")),
+    )
+
+
 def _sidecar_home() -> Path:
     """Where the room plugin keeps its state and its RPC token.
 
@@ -350,25 +373,10 @@ def register_room_tools(registry, sidecar: RoomSidecar) -> None:
     def room_health() -> dict[str, Any]:
         return sidecar.call("get_health")
 
-    def _sleep_state() -> tuple[str | None, bool]:
-        """Read the room's mode and light for the guard.
-
-        Live state first: a stale snapshot claiming the room is awake is the
-        one error that would let Marvi act during sleep.
-        """
-        try:
-            state = sidecar.state().get("state") or {}
-        except RoomUnavailableError:
-            state = sidecar.snapshot() or {}
-        return (
-            ((state.get("modes") or {}).get("active_mode")),
-            bool((state.get("light") or {}).get("on")),
-        )
-
     def room_set_mode(mode: str) -> dict[str, Any]:
         if mode not in ROOM_MODES:
             raise RoomRejectedError(f"invalid mode: {mode}")
-        current, light_on = _sleep_state()
+        current, light_on = read_sleep_state(sidecar)
         assert_sleep_safe(current, light_on, "set_mode", {"mode": mode})
         return sidecar.call("set_mode", {"mode": mode})
 
@@ -385,7 +393,7 @@ def register_room_tools(registry, sidecar: RoomSidecar) -> None:
             if not low <= color_temp <= high:
                 raise RoomRejectedError(f"color_temp must be between {low} and {high}")
             params["color_temp"] = color_temp
-        current, light_on = _sleep_state()
+        current, light_on = read_sleep_state(sidecar)
         assert_sleep_safe(current, light_on, "set_light", params)
         return sidecar.call("set_light", params)
 
@@ -426,3 +434,43 @@ def register_room_tools(registry, sidecar: RoomSidecar) -> None:
             handler=room_set_light,
         )
     )
+
+
+#: The room plugin's tools that only read. Everything else is confirmed.
+#:
+#: Marvi decides this, not the plugin: a plugin declaring its own writes
+#: harmless is exactly the claim that should not be taken at face value.
+READ_ONLY_PLUGIN_TOOLS = frozenset(
+    {"smart_room_state", "smart_room_health", "smart_room_diagnostic"}
+)
+
+#: Plugin tools that change the room, mapped to the action name the sleep rule
+#: knows. A tool absent from here is still confirmed; it is simply not something
+#: the sleep rule has an opinion about.
+_SLEEP_GUARDED = {
+    "smart_room_set_light": "set_light",
+    "smart_room_set_mode": "set_mode",
+    "smart_room_override": "override",
+    "smart_room_alarm": "alarm",
+}
+
+
+def sleep_guard(sidecar: RoomSidecar):
+    """A guard for `plugins.bridge_tools` that enforces the sleep rule.
+
+    The plugin's own handlers know nothing about this rule — they enforce
+    whatever their author decided. Bridging them without this would create a
+    second path to the light that skips the guard the built-in tools apply,
+    which is the one thing the sleep rule exists to prevent.
+
+    Marvi supplies this; a plugin cannot register, replace or bypass it.
+    """
+
+    def guard(tool: str, arguments: dict[str, Any]) -> None:
+        action = _SLEEP_GUARDED.get(tool)
+        if action is None:
+            return
+        mode, light_on = read_sleep_state(sidecar)
+        assert_sleep_safe(mode, light_on, action, arguments)
+
+    return guard

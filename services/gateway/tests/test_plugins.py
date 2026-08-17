@@ -254,3 +254,181 @@ def test_status_reports_a_declared_but_uninstalled_plugin(tmp_path, plugin_dir) 
     assert rows[0]["installed"] is False
     assert rows[0]["detail"] == "not installed"
     assert rows[0]["why"] == "because"
+
+
+# -- the bridge ----------------------------------------------------------------
+
+
+SCHEMA = {
+    "name": "p_set",
+    "description": "Set a thing",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "on": {"type": "boolean"},
+            "brightness": {"type": "integer"},
+            "label": {"type": "string"},
+        },
+        "required": ["on"],
+    },
+}
+
+
+def _loaded_with(*requests: plugins.ToolRequest) -> plugins.LoadedPlugin:
+    context = plugins.PluginContext(plugin="p")
+    context.tools.extend(requests)
+    return plugins.LoadedPlugin(
+        name="p", manifest=plugins.Manifest(name="p"), context=context, module=None
+    )
+
+
+def test_a_bridged_tool_requires_confirmation_unless_marvi_says_otherwise() -> None:
+    from marvi_gateway.tools import ToolRegistry
+
+    registry = ToolRegistry()
+    loaded = _loaded_with(
+        plugins.ToolRequest(name="p_set", schema=SCHEMA, handler=lambda args: args),
+        plugins.ToolRequest(name="p_read", schema=SCHEMA, handler=lambda args: args),
+    )
+
+    plugins.bridge_tools(registry, loaded, read_only=frozenset({"p_read"}))
+
+    # Default-deny: a plugin does not get to call its own writes harmless.
+    assert registry.get("p_set").sensitive is True
+    assert registry.get("p_read").sensitive is False
+
+
+def test_json_schema_becomes_required_and_optional_arguments() -> None:
+    from marvi_gateway.tools import ToolRegistry
+
+    registry = ToolRegistry()
+    plugins.bridge_tools(
+        registry,
+        _loaded_with(plugins.ToolRequest(name="p_set", schema=SCHEMA, handler=lambda args: args)),
+    )
+    spec = registry.get("p_set")
+
+    assert spec.arguments == {"on": bool}
+    assert spec.optional == {"brightness": int, "label": str}
+
+
+def test_a_plugin_cannot_replace_a_tool_marvi_already_has() -> None:
+    """Installing a plugin must not silently redefine an existing tool."""
+    from marvi_gateway.tools import ToolRegistry, ToolSpec
+
+    registry = ToolRegistry()
+    registry.register(
+        ToolSpec(
+            name="p_set",
+            description="Marvi's own",
+            arguments={},
+            sensitive=True,
+            handler=lambda: "built-in",
+        )
+    )
+    bridged = plugins.bridge_tools(
+        registry,
+        _loaded_with(
+            plugins.ToolRequest(name="p_set", schema=SCHEMA, handler=lambda args: "plugin")
+        ),
+    )
+
+    assert bridged == []
+    assert registry.get("p_set").handler() == "built-in"
+
+
+def test_marvis_guard_runs_before_the_plugins_handler_and_can_refuse() -> None:
+    """The property the room's sleep rule depends on.
+
+    The plugin's own handler knows nothing about Marvi's rules. Bridging it
+    without a guard in front would be a second path to the light that skips the
+    one the built-in tools apply.
+    """
+    from marvi_gateway.tools import ToolRegistry
+
+    called: list[str] = []
+
+    def handler(args):
+        called.append("plugin ran")
+        return args
+
+    def guard(tool: str, arguments: dict) -> None:
+        called.append(f"guard saw {tool}")
+        if arguments.get("on") is True:
+            raise room.SleepProtectedError("the room is asleep")
+
+    registry = ToolRegistry()
+    plugins.bridge_tools(
+        registry,
+        _loaded_with(plugins.ToolRequest(name="p_set", schema=SCHEMA, handler=handler)),
+        guard=guard,
+    )
+
+    with pytest.raises(room.SleepProtectedError):
+        registry.get("p_set").handler(on=True)
+    # Refused before the plugin was reached, not after.
+    assert called == ["guard saw p_set"]
+
+    registry.get("p_set").handler(on=False)
+    assert called == ["guard saw p_set", "guard saw p_set", "plugin ran"]
+
+
+def test_the_room_guard_refuses_a_bridged_write_while_asleep() -> None:
+    """End to end with the real guard, against the real rule."""
+
+    class Asleep:
+        def state(self):
+            return {"state": {"modes": {"active_mode": "sleep"}, "light": {"on": True}}}
+
+        def snapshot(self):
+            return {}
+
+    guard = room.sleep_guard(Asleep())
+
+    # Only switching a light off is permitted while asleep.
+    guard("smart_room_set_light", {"on": False})
+    for tool, arguments in (
+        ("smart_room_set_light", {"on": True}),
+        ("smart_room_set_mode", {"mode": "reading"}),
+        ("smart_room_override", {}),
+    ):
+        with pytest.raises(room.SleepProtectedError):
+            guard(tool, arguments)
+    # A tool the rule has no opinion about is not blocked by it.
+    guard("smart_room_health", {})
+
+
+def test_the_room_guard_is_inert_while_the_room_is_awake() -> None:
+    class Awake:
+        def state(self):
+            return {"state": {"modes": {"active_mode": "normal"}, "light": {"on": False}}}
+
+        def snapshot(self):
+            return {}
+
+    guard = room.sleep_guard(Awake())
+    guard("smart_room_set_light", {"on": True})
+    guard("smart_room_set_mode", {"mode": "focus"})
+
+
+def test_the_room_guard_refuses_when_it_cannot_tell_whether_the_room_is_asleep() -> None:
+    """Fail closed. Not knowing is not the same as awake.
+
+    `state()` already falls back to the on-disk snapshot, so it raises only when
+    there is no state at all. The first version treated that as "not asleep",
+    which meant a room whose engine was not running accepted every write the
+    rule exists to refuse.
+    """
+
+    class Unreachable:
+        def state(self):
+            raise room.RoomUnavailableError("plugin not running")
+
+        def snapshot(self):
+            return None
+
+    guard = room.sleep_guard(Unreachable())
+    with pytest.raises(room.SleepProtectedError, match="cannot tell"):
+        guard("smart_room_set_mode", {"mode": "reading"})
+    # Reads are still allowed; the rule is about changing the room.
+    guard("smart_room_state", {})

@@ -575,3 +575,111 @@ def status(repo_root: Path) -> list[dict[str, Any]]:
                 row["commit"] = "unknown"
         rows.append(row)
     return rows
+
+
+# -- bridging a plugin's tools into the router ---------------------------------
+
+#: JSON Schema types, as the router's argument types.
+_SCHEMA_TYPES: dict[str, type] = {
+    "string": str,
+    "integer": int,
+    "number": float,
+    "boolean": bool,
+    "array": list,
+    "object": dict,
+}
+
+#: What a guard is handed, and what it may raise. Marvi supplies these; a plugin
+#: cannot. See `room.sleep_guard`.
+Guard = Callable[[str, dict[str, Any]], None]
+
+
+def _argument_types(schema: dict[str, Any]) -> tuple[dict[str, type], dict[str, type]]:
+    """Split a JSON Schema's properties into required and optional, with types."""
+    parameters = schema.get("parameters") or {}
+    properties = parameters.get("properties") or {}
+    required = set(parameters.get("required") or ())
+    needed: dict[str, type] = {}
+    optional: dict[str, type] = {}
+    for name, definition in properties.items():
+        declared = (definition or {}).get("type")
+        # An unknown or union type is accepted as-is rather than guessed at; the
+        # plugin validates its own arguments and the router still records them.
+        python_type = _SCHEMA_TYPES.get(declared if isinstance(declared, str) else "", object)
+        (needed if name in required else optional)[name] = python_type
+    return needed, optional
+
+
+def bridge_tools(
+    registry: Any,
+    loaded: LoadedPlugin,
+    guard: Guard | None = None,
+    read_only: frozenset[str] = frozenset(),
+) -> list[str]:
+    """Register a plugin's requested tools with Marvi's router.
+
+    Three rules, and the first two are why this is not a loop over `tools`:
+
+    **A built-in wins.** A plugin cannot replace a tool Marvi already
+    registered — that would let installing a plugin silently redefine what an
+    existing tool does.
+
+    **Marvi's guard runs first.** A plugin's own handler enforces whatever the
+    plugin's author decided; it knows nothing about Marvi's rules. The room's
+    sleep rule — only switching a light off, and YOLO cannot override it — lives
+    in `room.py` and is applied *around* the plugin's handler, so bridging
+    cannot open a path around it. A guard that raises stops the call.
+
+    **Confirmation is the default.** `sensitive=True` unless the tool is named
+    in `read_only`, which Marvi supplies and the plugin cannot influence. A
+    plugin asking for something unconfirmed does not get it.
+    """
+    from .tools import ToolSpec, UnknownToolError
+
+    def already_registered(name: str) -> bool:
+        # `get` raises rather than returning None for an unknown tool.
+        try:
+            registry.get(name)
+        except UnknownToolError:
+            return False
+        return True
+
+    registered = []
+    for request in loaded.context.tools:
+        if already_registered(request.name):
+            log.info(
+                "plugin tool not bridged; Marvi already has that name",
+                extra={"marvi_plugin": loaded.name, "marvi_tool": request.name},
+            )
+            continue
+
+        needed, optional = _argument_types(request.schema)
+        description = str(request.schema.get("description") or request.name).strip()
+
+        def call(_request: ToolRequest = request, **arguments: Any) -> Any:
+            if guard is not None:
+                # Before the plugin sees it. A guard raising is a refusal.
+                guard(_request.name, arguments)
+            # Plugin handlers take one dict, not keyword arguments.
+            return _request.handler(arguments)
+
+        registry.register(
+            ToolSpec(
+                name=request.name,
+                description=description[:200],
+                arguments=needed,
+                optional=optional,
+                sensitive=request.name not in read_only,
+                handler=call,
+            )
+        )
+        registered.append(request.name)
+
+    log.info(
+        "bridged plugin tools",
+        extra={
+            "marvi_plugin": loaded.name,
+            "marvi_tools": ", ".join(registered) or "none",
+        },
+    )
+    return registered
