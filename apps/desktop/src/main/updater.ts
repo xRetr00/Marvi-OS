@@ -21,7 +21,9 @@ import { join } from 'path'
 import type { UpdateChannel, UpdateCheck, UpdateResult } from '../shared/runtime'
 
 const UTF8_BOM = 0xfeff
-const STATE_DIR_NAME = 'Marvi OS'
+// Mirrors STATE_DIR_NAME in apps/updater/crates/core/src/lib.rs and
+// marvi_gateway/paths.py. All three must agree.
+const STATE_DIR_NAME = 'Marvi-OS'
 const MARKER_FILE = '.marvi-update-in-progress'
 const RESULT_FILE = '.marvi-update-result.json'
 const CHANNEL_FILE = '.marvi-update-channel'

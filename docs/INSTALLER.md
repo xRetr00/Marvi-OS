@@ -1,91 +1,133 @@
-# Installing and updating Marvi
+# The installer and updater
 
-## The bootstrap installer owns this, not Electron
+`apps/updater` — a Rust core with a Tauri shell. **This is what ships.** Marvi is
+not distributed as an electron-builder installer, and the desktop app does not
+update itself.
 
-Marvi is **not** distributed as an electron-builder installer. The bootstrap
-installer and updater are the shipping vehicle, and everything below is the
-contract this repository holds up its end of.
+The reason is that an app-bundle installer can only install an app bundle, and
+the app is the smallest part of Marvi. What actually has to arrive on a machine
+is a git checkout, a Python toolchain, a Node toolchain, and eventually several
+gigabytes of models.
 
-The reason is that an Electron installer can only install the Electron app, and
-the Electron app is the smallest part of Marvi. What actually has to arrive on a
-machine is a git checkout, a Python toolchain, a Node toolchain, and several
-gigabytes of models — none of which an app bundle is good at.
+## Shape
 
-## What the installer provides
+```
+apps/updater/
+  crates/core/     headless logic, no GUI dependency, testable against real git
+  src-tauri/       thin shell over the core
+  ui/              the installer window
+```
 
-**`uv` and Node ship with the installer.** They are not assumed to be present
-and not left to the user to install. This is the same choice other agent
-products make, and it is the direct fix for the failure that opened Phase 10: a
-GUI-launched Electron does not inherit the PATH a terminal has, so a `uv`
-installed later is a `uv` the app cannot see.
+The core has no Tauri dependency on purpose: it is tested against real `git`
+binaries and a fake build runner, which is why the install and update flows have
+tests at all.
 
-The installer is responsible for:
+## What it does
+
+**Install** clones the target ref into a staging directory, provisions the
+toolchain, builds, and atomically swaps it into place. A failed install deletes
+the staging tree and leaves nothing half-installed.
+
+**Update** fast-forwards or checks out the target, re-checks the toolchain,
+rebuilds, and restores the previous commit if the build fails.
+
+**Channels** are the one knob:
 
 | | |
 |---|---|
-| The checkout | clone or update from the GitHub repository |
-| `uv` | install, put on PATH, and **check and update on every run** |
-| Node | same |
-| Paths | create `%LOCALAPPDATA%\Marvi-OS`, and put `marvi` on PATH |
-| Updates | fetch the release package, apply it, re-check the toolchain |
+| `Release` | default, opt-out. The latest signed `v*` tag. Never follows a moving branch. |
+| `Dev` | opt-in. Fast-forwards `origin/main` and runs whatever is there. |
 
-Marvi is responsible for everything downstream of that: models, binaries,
-Python dependencies, browsers, skills, MCP servers. All of it through
-`marvi setup` and the Setup page, which is one implementation the installer can
-also call.
+A smoke test gates both: the Electron entrypoint must exist, or the build is
+treated as failed and rolled back.
 
-## The handoff
+## `uv` and Node come with it
 
-After the installer has placed the checkout and the toolchain:
+Neither toolchain is optional — Marvi is a Python service and a Node build — and
+neither is left to the user. That was the failure that opened Phase 10: a
+GUI-launched Electron does not inherit the PATH a terminal has, so a `uv`
+installed afterwards is one the app cannot see, and every symptom of it looked
+identical to every other startup failure.
+
+They install **into the state directory** rather than system-wide:
+
+- an uninstall takes them with it instead of leaving tools behind;
+- a machine-wide `uv` that someone else manages is not overwritten;
+- the path is known, so it can be handed to the build explicitly rather than
+  hoped for.
+
+**A tool already on PATH is used as-is.** Downloading a second copy of something
+that works wastes bandwidth and disk. Node is the exception: a version below the
+required major is treated as absent, because building against it fails later and
+less clearly.
+
+The check runs before **every** build — install and update both — because a
+release can need a newer toolchain than the one that installed the previous
+release, and finding that out partway through `npm ci` is finding out too late
+to say anything useful. `NODE_VERSION` in `install.rs` is how a release asks for
+a newer one.
+
+The provisioned directories are prepended to `PATH` for the build itself. A
+child process that cannot see the toolchain just installed is the exact failure
+this exists to prevent.
+
+## One state directory
+
+`%LOCALAPPDATA%\Marvi-OS`. Everything: the checkout marker, update results,
+toolchains, logs, databases, identity, models, runtime binaries, skills, MCP
+config.
+
+The name is declared once in `crates/core/src/lib.rs` as `STATE_DIR_NAME` and
+mirrored in `apps/desktop/src/main/updater.ts` and
+`services/gateway/src/marvi_gateway/paths.py`. **All three must agree**, and the
+comment in each says so.
+
+It was `Marvi OS` with a space until models and binaries ended up in a second,
+hyphenated folder. Two nearly identical names is confusing to look at, and a
+space in a path is a nuisance in every shell. Anything left in the old folder is
+migrated on first run and the old copies are left in place rather than deleted.
+
+## Releases
+
+Each release ships a package the updater applies, rather than an installer the
+user re-runs. The updater is only re-shipped when the updater itself changes.
+
+So the release contract is:
+
+1. Tag `v*` on the repository. The Release channel finds it.
+2. The updater clones or fast-forwards to it.
+3. The toolchain is re-checked and updated if the release needs a newer one.
+4. `npm ci` and `npm run build:unpack`, then the smoke test.
+5. On failure, the previous commit is restored.
+
+## The handoff to Marvi
+
+After the checkout and toolchain are in place, everything downstream belongs to
+Marvi itself — models, browsers, Python dependencies, skills, MCP servers:
 
 ```bash
 marvi doctor        # what is missing, and what fixes each thing
 marvi setup         # install it
 ```
 
-`marvi doctor` is the contract test. If it reports zero failures, the installer
-did its job. If it reports `uv is not on PATH`, the installer did not — and it
-says so precisely rather than leaving a broken app with no explanation.
+`marvi doctor` is the contract test. Zero failures means the installer did its
+job; `uv is not on PATH` means it did not, and says so precisely rather than
+leaving a broken app with no explanation.
 
-**`marvi` must be on PATH** and runnable from both `cmd.exe` and PowerShell.
-That is an installer responsibility, and it matters because the CLI is what
-works when the desktop app does not.
+`marvi` must be on PATH and runnable from both `cmd.exe` and PowerShell, because
+the CLI is what works when the desktop app does not.
 
-## Releases
+## What the installer deliberately does not decide
 
-Each release ships a package the updater applies, rather than an installer the
-user re-runs. The updater then re-checks `uv` and Node and updates them if the
-new release needs newer ones.
-
-Version and toolchain expectations live in `config/runtime.json`, so the
-installer and Marvi read the same numbers instead of each holding their own.
-
-## The GPU question belongs to setup, not the installer
-
-The installer should **not** decide this. Whether to install CUDA or CPU builds
-depends on hardware the installer can see but on a preference only the user
-holds, and getting it wrong costs a multi-gigabyte reinstall.
-
-So the installer installs the toolchain, and the first `marvi setup` (or the
-Setup page) asks once and remembers. See `MARVI_USE_GPU` in
-`docs/CONFIGURATION.md`; setting it before the first run skips the question,
+**The GPU.** It depends on hardware the installer can see but a preference only
+the user holds, and getting it wrong costs a multi-gigabyte reinstall. Setup
+asks once and remembers; `MARVI_USE_GPU` set beforehand skips the question,
 which is how an unattended install should do it.
 
-## One root
+**Models.** Gigabytes, and which ones depends on the capabilities the user
+actually wants.
 
-Everything Marvi writes lives under `%LOCALAPPDATA%\Marvi-OS` — logs, databases,
-identity, models, runtime binaries, skills, MCP config. One folder to back up
-and one to delete.
+**Skills and MCP servers.** Both are trust decisions, and an unattended
+installer is the wrong place to make one.
 
-There used to be a second folder with a space in the name. Marvi migrates
-anything left in it on first run and leaves the old copies in place rather than
-deleting them, so nothing is lost if the move was not what you wanted.
-
-## What is not the installer's job
-
-- **Provider credentials.** Those are entered in the app, stored per-user, and
-  never shipped.
-- **Models.** Several gigabytes that depend on which capabilities the user
-  actually wants. Setup asks; the installer does not guess.
-- **Skills and MCP servers.** Both are trust decisions, and an installer running
-  unattended is the wrong place to make one.
+**Provider credentials.** Entered in the app, stored per-user, never shipped.

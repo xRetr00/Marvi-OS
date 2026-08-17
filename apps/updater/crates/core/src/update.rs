@@ -15,7 +15,6 @@ use std::time::{Duration, Instant};
 use crate::builder::BuildRunner;
 use crate::channels::Channel;
 use crate::git::{self, SignatureStatus};
-use crate::install::build_and_smoke;
 use crate::marker;
 use crate::result::UpdateResult;
 use crate::tags;
@@ -159,7 +158,11 @@ pub fn run_update(cfg: &mut UpdateConfig, progress: &mut dyn FnMut(&str)) -> Upd
 
     // -- rebuild -----------------------------------------------------------
     progress("building");
-    if let Err(e) = build_and_smoke(&root, &mut *cfg.builder, progress) {
+    // Re-checked on every update, not just on install.
+    let state = cfg.state_dir.clone();
+    if let Err(e) = crate::install::build_with_toolchain(
+        &root, Some(&state), &mut *cfg.builder, progress,
+    ) {
         let _ = rollback(&root, &previous, &backups);
         let out = UpdateOutcome::new("failed", format!("{e} The previous version was restored."))
             .with_range(&previous, &previous);

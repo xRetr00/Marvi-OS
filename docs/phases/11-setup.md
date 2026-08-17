@@ -152,8 +152,13 @@ anything GPU-capable, layered detection, and a remembered answer.
 **Step 7c — one path root. Done.** `Marvi-OS`, no spaces, everything derived
 from `paths.py`, with a non-destructive migration out of the old folder.
 
-**Step 8 — retire the PowerShell setup scripts**, and unify the install root at
-the same time: models live under `Marvi-OS` while logs and databases live under
+**Step 7d — the installer owns the toolchain. Done.** `apps/updater` is the
+shipping vehicle — a Rust core with a Tauri shell, not electron-builder — and it
+now provisions `uv` and Node into the state directory before every build,
+install and update alike. See `docs/INSTALLER.md`.
+
+**Step 8 — retire the PowerShell setup scripts.** The install root is already
+unified; models live under `Marvi-OS` while logs and databases live under
 `Marvi OS`, which is two confusingly similar folders. Both changes touch the
 same code, and doing them together means one migration rather than two.
 Until then they stay and are documented as the older path, because deleting a

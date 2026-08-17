@@ -11,6 +11,10 @@ use crate::result::UpdateResult;
 use crate::tags;
 use crate::util::random_suffix;
 
+/// The Node the desktop build is known to work with. Bumping this is how a
+/// release asks for a newer toolchain.
+pub const NODE_VERSION: &str = "v22.11.0";
+
 pub struct InstallConfig {
     pub install_root: PathBuf,
     pub channel: Channel,
@@ -113,7 +117,8 @@ pub fn install(cfg: &mut InstallConfig, progress: &mut dyn FnMut(&str)) -> Insta
     }
 
     progress("building");
-    if let Err(e) = build_and_smoke(&staging, &mut *cfg.builder, progress) {
+    let state = cfg.state_dir.clone();
+    if let Err(e) = build_with_toolchain(&staging, Some(&state), &mut *cfg.builder, progress) {
         cleanup(&staging);
         return fail(e);
     }
@@ -151,11 +156,31 @@ pub fn install(cfg: &mut InstallConfig, progress: &mut dyn FnMut(&str)) -> Insta
 }
 
 /// Run the build and verify the runtime was produced.
-pub(crate) fn build_and_smoke(
+/// Provision `uv` and Node, then build.
+///
+/// The check runs before **every** build, install or update, because a release
+/// can need a newer toolchain than the one that installed the previous
+/// release - and discovering that partway through `npm ci` is discovering it
+/// too late to say anything useful.
+///
+/// The provisioned directories are prepended to `PATH` for the build itself.
+/// A child process that cannot see the toolchain just installed is the exact
+/// failure this is here to prevent.
+pub(crate) fn build_with_toolchain(
     root: &Path,
+    state_dir: Option<&Path>,
     builder: &mut dyn BuildRunner,
     progress: &mut dyn FnMut(&str),
 ) -> Result<(), String> {
+    if let Some(state) = state_dir {
+        progress("checking uv and Node");
+        let extra = crate::toolchain::ensure_toolchain(state, NODE_VERSION, progress)?;
+        if !extra.is_empty() {
+            let merged = crate::toolchain::prepend_path(&extra, std::env::var("PATH").ok());
+            // Safe here: single-threaded installer, set before any child runs.
+            unsafe { std::env::set_var("PATH", merged) };
+        }
+    }
     builder.prepare(root, progress)?;
     if !smoke_ok(root) {
         return Err("build produced no runnable runtime (smoke test failed)".to_string());

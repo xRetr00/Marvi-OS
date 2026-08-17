@@ -176,9 +176,18 @@ describe('start update gating', () => {
 })
 
 describe('state directory', () => {
-  it('lives beside the other Marvi OS state', () => {
+  it('is the one root the Rust core and the Gateway also use', () => {
+    // STATE_DIR_NAME in apps/updater/crates/core/src/lib.rs and
+    // marvi_gateway/paths.py must match this. Three copies of a folder name is
+    // three chances for one of them to drift.
     expect(updateStateDir('C:\\Users\\x\\AppData\\Local')).toBe(
-      join('C:\\Users\\x\\AppData\\Local', 'Marvi OS')
+      join('C:\\Users\\x\\AppData\\Local', 'Marvi-OS')
     )
+  })
+
+  it('has no space in it', () => {
+    // A space in a path is a nuisance in every shell, and this one is passed to
+    // PowerShell by the update handoff.
+    expect(updateStateDir('C:\\x')).not.toContain(' ')
   })
 })
