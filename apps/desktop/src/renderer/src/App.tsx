@@ -9,6 +9,7 @@ import { ElectricGazeBackground } from './components/ElectricGazeBackground'
 import { HapticsProvider } from './components/HapticsProvider'
 import { TitleBar } from './components/TitleBar'
 import { ShellContextMenu } from './components/ui/shell-context-menu'
+import { Chat } from './chat'
 import {
   $runtimeState,
   $voiceState,
@@ -28,7 +29,6 @@ import { $translucency, setTranslucency } from './store/translucency'
 import { haptic } from './lib/haptics'
 import type {
   AuditEvent,
-  ChatEntry,
   ConnectedAccount,
   DoctorReport,
   IdentityStatus,
@@ -189,7 +189,7 @@ function MainSurface(): React.JSX.Element {
             ) : page === 'Voice' ? (
               <VoicePanel runtime={runtime} />
             ) : page === 'Chat' ? (
-              <ChatPanel />
+              <Chat />
             ) : page === 'Doctor' ? (
               <DoctorPanel />
             ) : page === 'Activity' ? (
@@ -1394,172 +1394,6 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
   )
 }
 
-function ChatPanel(): React.JSX.Element {
-  const [messages, setMessages] = useState<ChatEntry[]>([])
-  const [draft, setDraft] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [available, setAvailable] = useState(true)
-  const [pending, setPending] = useState<{ tool: string; token: string } | null>(null)
-  const bottom = useRef<HTMLDivElement | null>(null)
-
-  useEffect(() => {
-    let disposed = false
-    void window.marvi?.getChat().then((page) => {
-      if (disposed || !page) return
-      setMessages(page.messages)
-      setAvailable(page.available)
-    })
-    return () => {
-      disposed = true
-    }
-  }, [])
-
-  useEffect(() => {
-    bottom.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, busy])
-
-  const send = async (): Promise<void> => {
-    const text = draft.trim()
-    if (!text || busy) return
-    setDraft('')
-    setBusy(true)
-    // Show the user's own line immediately; waiting for the round trip to
-    // echo it back makes the window feel broken.
-    setMessages((current) => [
-      ...current,
-      { id: -Date.now(), at: new Date().toISOString(), role: 'user', content: text, meta: {} }
-    ])
-    try {
-      const reply = await window.marvi?.sendChat(text)
-      const page = await window.marvi?.getChat()
-      if (page) setMessages(page.messages)
-      setPending(
-        reply?.pending_confirmation
-          ? {
-              tool: reply.pending_confirmation.tool as string,
-              token: reply.pending_confirmation.token as string
-            }
-          : null
-      )
-      if (reply?.error) {
-        setMessages((current) => [
-          ...current,
-          {
-            id: -Date.now(),
-            at: new Date().toISOString(),
-            role: 'error',
-            content: reply.error,
-            meta: {}
-          }
-        ])
-      }
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const resolve = async (decision: 'approve' | 'deny'): Promise<void> => {
-    if (!pending) return
-    await window.marvi?.resolveConfirmation(pending.token, decision)
-    setPending(null)
-  }
-
-  const clear = async (): Promise<void> => {
-    await window.marvi?.clearChat()
-    setMessages([])
-    setPending(null)
-  }
-
-  return (
-    <section className="single-page panel chat-page">
-      <div className="panel-label">{'// CHAT'}</div>
-      <h2>Chat</h2>
-      <p>
-        The same Marvi as the voice session — same identity, same memory, same tools, same
-        confirmations. Only the way you reach it is different.
-      </p>
-
-      {!available ? (
-        <span className="construction">NO PROVIDER CONNECTED / OPEN PROVIDERS TO CONNECT ONE</span>
-      ) : null}
-
-      <div className="chat-log">
-        {messages.length === 0 ? (
-          <span className="construction">NO MESSAGES YET</span>
-        ) : (
-          messages.map((entry) => (
-            <div className={`chat-turn chat-${entry.role}`} key={entry.id}>
-              <span className="chat-role">
-                {entry.role === 'tool' ? 'TOOL RESULT' : entry.role.toUpperCase()}
-              </span>
-              <div className="chat-body">{entry.content}</div>
-            </div>
-          ))
-        )}
-        {busy ? (
-          <div className="chat-turn chat-assistant">
-            <span className="chat-role">MARVI</span>
-            <div className="chat-body chat-thinking">thinking</div>
-          </div>
-        ) : null}
-        <div ref={bottom} />
-      </div>
-
-      {pending ? (
-        <div className="chat-confirm">
-          <span>
-            {pending.tool.toUpperCase()} needs your approval. This is the same token the Island
-            resolves.
-          </span>
-          <div className="provider-actions">
-            <button className="phase active" type="button" onClick={() => void resolve('approve')}>
-              APPROVE
-            </button>
-            <button className="phase danger" type="button" onClick={() => void resolve('deny')}>
-              DENY
-            </button>
-          </div>
-        </div>
-      ) : null}
-
-      <div className="chat-compose">
-        <textarea
-          rows={3}
-          value={draft}
-          placeholder="Ask Marvi something"
-          disabled={busy || !available}
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={(event) => {
-            // Enter sends, Shift+Enter breaks the line.
-            if (event.key === 'Enter' && !event.shiftKey) {
-              event.preventDefault()
-              void send()
-            }
-          }}
-        />
-        <div className="provider-actions">
-          <button
-            className="phase active"
-            type="button"
-            disabled={busy || !draft.trim() || !available}
-            onClick={() => void send()}
-          >
-            {busy ? 'SENDING' : 'SEND'}
-          </button>
-          <button
-            className="phase danger"
-            type="button"
-            disabled={busy || messages.length === 0}
-            onClick={() => void clear()}
-          >
-            CLEAR
-          </button>
-        </div>
-      </div>
-    </section>
-  )
-}
-
 const AREA_ORDER = ['dependencies', 'providers', 'configuration', 'services', 'storage', 'doctor']
 
 function DoctorPanel(): React.JSX.Element {
@@ -1628,7 +1462,7 @@ function DoctorPanel(): React.JSX.Element {
       <h2>Doctor</h2>
       <p>
         What is wrong, and what fixes it. Safe repairs have already run; anything that costs money,
-        takes real time, or touches another process waits for you. Some things only you can do —
+        takes real time, or touches another process waits for you. Some things only you can do ΓÇö
         those say exactly where to go.
       </p>
 
@@ -1688,7 +1522,7 @@ function DoctorPanel(): React.JSX.Element {
                     <small
                       className={finding.remedy.kind === 'manual' ? 'doctor-manual' : undefined}
                     >
-                      {finding.remedy.kind === 'manual' ? '→ ' : '→ '}
+                      {finding.remedy.kind === 'manual' ? 'ΓåÆ ' : 'ΓåÆ '}
                       {finding.remedy.action}
                       {finding.remedy.how ? `\n${finding.remedy.how}` : ''}
                     </small>
@@ -1988,7 +1822,7 @@ function AboutPanel({
     buildTime: 'development',
     platform: 'win32',
     arch: 'x64',
-    updateChannel: 'local'
+    updateChannel: 'release'
   })
 
   useEffect(() => {
