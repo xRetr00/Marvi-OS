@@ -31,7 +31,7 @@ class VoiceRuntimeError(RuntimeError):
 class NemotronSTT(stt.STT):
     """Stateful native streaming STT backed by the Rust parakeet-rs sidecar."""
 
-    def __init__(self, *, executable: Path, model_dir: Path = NEMOTRON_MODEL, language: str = "tr-TR"):
+    def __init__(self, *, executable: Path, model_dir: Path = NEMOTRON_MODEL, language: str = "en-US"):
         super().__init__(capabilities=stt.STTCapabilities(streaming=True, interim_results=True))
         self._executable = executable
         self._model_dir = model_dir

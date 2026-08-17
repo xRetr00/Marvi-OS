@@ -4,7 +4,7 @@
     "id": "altunenes/parakeet-rs",
     "revision": "a61d2818df4659c956b9661a9447f46e98c15126",
     "subdirectory": "nemotron-3.5-asr-streaming-0.6b-onnx",
-    "language": "tr-TR",
+    "language": "en-US",
     "files": {
       "config.json": [2979, "B0289E196D11A17E3C661BBADFE455C87DE4BAFFC1A5E652A5779F5D687C5DB0"],
       "decoder_joint.onnx": [97590054, "634DFADF24CB4F73C2FAE170B36611D68DB48186426882CBC8F7E02ED9F2BB29"],
