@@ -92,6 +92,12 @@ jobs:
       - name: Desktop tests
         run: npm test
 
+      - name: Install the browser engine
+        # Browser tools cannot open a page without it, and the browser test is
+        # one of the few that exercises a real page. This is the same install
+        # `marvi setup browser` performs.
+        run: uv run --project services/gateway playwright install chromium
+
       - name: Gateway tests
         run: uv run --project services/gateway pytest -q services/gateway/tests
 
