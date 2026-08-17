@@ -10,12 +10,14 @@ from typing import Any, Literal
 from urllib.parse import urlparse
 from uuid import uuid4
 
+import anyio
 from fastapi import FastAPI, HTTPException
 from livekit import api
 from pydantic import BaseModel, Field
 
 from . import breadcrumb, paths
 from . import doctor as doctor_module
+from . import plugins as plugins_module
 from . import setup as setup_module
 from .accounts import ComposioAccounts, register_account_tools
 from .activity import ActivityWatch, register_activity_tools
@@ -342,6 +344,27 @@ def read_version(root: Path = REPO_ROOT) -> str:
     return (root / "VERSION").read_text(encoding="utf-8").strip()
 
 
+def load_installed_plugins() -> list[plugins_module.LoadedPlugin]:
+    """Import every installed plugin. A broken one is skipped, not fatal.
+
+    A plugin failing to load is a Marvi with less in it, not a Marvi that
+    cannot start — and the Doctor page is a better place to explain that than a
+    Gateway which refuses to boot.
+    """
+    found = []
+    for row in plugins_module.status(REPO_ROOT):
+        if not row["installed"] or not row["supported"]:
+            continue
+        try:
+            found.append(plugins_module.load(row["name"]))
+        except plugins_module.PluginError as exc:
+            get_logger("plugins").error(
+                "plugin failed to load",
+                extra={"marvi_plugin": row["name"], "marvi_error": str(exc)[:300]},
+            )
+    return found
+
+
 def create_app(
     version: str | None = None,
     runtime: RuntimeStore | None = None,
@@ -385,12 +408,17 @@ def create_app(
     journal: EventJournal | None = None
     initiative: Initiative | None = None
     faces: FaceLibrary | None = None
+    loaded_plugins: list[plugins_module.LoadedPlugin] = []
     if tools is not None:
         tool_registry = tools
     else:
         tool_registry = ToolRegistry()
         sidecar = RoomSidecar()
         register_room_tools(tool_registry, sidecar)
+        # Installed plugins, after the built-in tools: a plugin cannot replace a
+        # tool Marvi already registered, only add to the set. `load` imports and
+        # collects; nothing is started until the lifespan opens.
+        loaded_plugins.extend(load_installed_plugins())
         accounts = ComposioAccounts()
         if accounts.available():
             register_account_tools(tool_registry, accounts)
@@ -450,11 +478,24 @@ def create_app(
         install_asyncio_handler(asyncio.get_running_loop())
         if initiative is not None:
             initiative.start()
+        # A plugin's backend is a child process it starts itself, on a worker
+        # thread because starting one is blocking work and the event loop is
+        # serving the health endpoint the shell polls every two seconds.
+        for plugin in loaded_plugins:
+            await anyio.to_thread.run_sync(
+                lambda p=plugin: plugins_module.fire(p, "on_gateway_start")
+            )
         try:
             yield
         finally:
             if initiative is not None:
                 initiative.stop()
+            # Stopped in reverse, and never allowed to raise: a plugin that
+            # cannot shut down cleanly must not leave the rest of the shutdown
+            # undone, or its child process outlives the Gateway and holds the
+            # port the next one needs.
+            for plugin in reversed(loaded_plugins):
+                plugins_module.fire(plugin, "on_gateway_stop")
 
     app = FastAPI(
         title="Marvi Gateway",
