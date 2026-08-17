@@ -186,9 +186,18 @@ pub fn run_powershell(
     timeout: Duration,
     progress: &mut dyn FnMut(&str),
 ) -> Result<(), String> {
+    // The system module path is put back first. A vendor install script that
+    // calls a plain cmdlet - Astral's calls `Get-ExecutionPolicy` - fails with
+    // "the module could not be loaded" wherever PSModulePath has been narrowed,
+    // which is the case on a GitHub runner and on any machine where something
+    // has rewritten it. Autoloading needs the path to be there; nothing else in
+    // the script can compensate for it.
+    let script = format!(
+        r#"$env:PSModulePath = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\Modules;$env:PSModulePath"; {script}"#
+    );
     run_reporting(
         "powershell",
-        &["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
+        &["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", &script],
         cwd,
         timeout,
         progress,

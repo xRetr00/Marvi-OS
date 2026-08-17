@@ -12,6 +12,14 @@ use marvi_bootstrap_core::toolchain::{Tool, ensure_toolchain, status};
 #[test]
 #[ignore = "downloads uv and Node"]
 fn uv_and_node_are_installed_into_the_state_directory() {
+    // A narrowed PSModulePath is the condition that broke this in CI: Astral's
+    // install script calls `Get-ExecutionPolicy`, and that cmdlet cannot
+    // autoload without the system module path. Reproduced here so the fix is
+    // exercised on a developer machine too, where PSModulePath is usually fine.
+    unsafe {
+        std::env::set_var("PSModulePath", r"C:\nonexistent\Modules");
+    }
+
     let state = std::env::temp_dir().join(format!("marvi-toolchain-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&state);
     std::fs::create_dir_all(&state).unwrap();

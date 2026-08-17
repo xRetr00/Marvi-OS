@@ -58,6 +58,11 @@ from .workspace import Workspace, register_workspace_tools
 # dead local endpoints still renders immediately.
 LOCAL_PROBE_TIMEOUT = 0.4
 
+#: Live download progress by component name, while an install is in flight.
+#: Module level because the install request and the polling request are
+#: different requests; it is a readout, not state anything depends on.
+_install_progress: dict[str, dict[str, Any]] = {}
+
 REPO_ROOT = Path(__file__).resolve().parents[4]
 
 
@@ -256,6 +261,10 @@ class ComponentRow(BaseModel):
     bytes_total: int
     installed: bool
     detail: str
+    #: Bytes fetched so far while an install is running, else None. The install
+    #: endpoint blocks for as long as the download takes, so this is what the
+    #: page polls to show anything at all during it.
+    progress: dict[str, Any] | None = None
 
 
 class SetupPage(BaseModel):
@@ -713,7 +722,7 @@ def create_app(
         enough, detail = setup_module.disk_space_for(components)
         rows = []
         for component in components:
-            state = component.status()
+            state = setup_module.state_of(component, REPO_ROOT)
             rows.append(
                 ComponentRow(
                     name=component.name,
@@ -724,6 +733,7 @@ def create_app(
                     bytes_total=component.bytes_total,
                     installed=bool(state["installed"]),
                     detail=str(state["detail"]),
+                    progress=_install_progress.get(component.name),
                 )
             )
         return SetupPage(
@@ -746,11 +756,26 @@ def create_app(
             raise HTTPException(status_code=404, detail=f"unknown component {name}")
         import anyio
 
+        def note(name: str, file: str, done: int, total: int) -> None:
+            # Written from the worker thread and read by whatever polls /setup.
+            # A dict assignment is atomic enough for a progress readout, and a
+            # lock here would be a lock held across a multi-gigabyte download.
+            _install_progress[name] = {
+                "file": file,
+                "bytes_done": done,
+                "bytes_total": total,
+            }
+
         # Gigabytes on a worker thread: blocking the event loop would stall the
         # health endpoint the shell polls every two seconds.
-        outcome = await anyio.to_thread.run_sync(
-            lambda: setup_module.install(component, REPO_ROOT)
-        )
+        try:
+            outcome = await anyio.to_thread.run_sync(
+                lambda: setup_module.install(component, REPO_ROOT, progress=note)
+            )
+        finally:
+            # Cleared whatever happened, or a failed download leaves the page
+            # showing a bar that will never move again.
+            _install_progress.pop(name, None)
         runtime_store.audit("setup", "install", outcome.as_dict())
         return setup_page()
 

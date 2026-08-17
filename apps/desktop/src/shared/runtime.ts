@@ -197,6 +197,10 @@ export interface SetupComponent {
   bytes_total: number
   installed: boolean
   detail: string
+  /** Live download position while an install is running, else absent. The
+   * install request blocks for the whole download, so polling this is the only
+   * way the page can show anything during it. */
+  progress?: { file: string; bytes_done: number; bytes_total: number } | null
 }
 
 export interface SetupPage {

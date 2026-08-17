@@ -1395,3 +1395,10 @@ nav {
 .provider-actions {
   flex-wrap: wrap;
 }
+
+/* The live byte count during a download. Its own line, because the row is a
+   grid and a wrapping filename should not push the buttons around. */
+.setup-progress {
+  color: var(--ui-accent);
+  font-variant-numeric: tabular-nums;
+}

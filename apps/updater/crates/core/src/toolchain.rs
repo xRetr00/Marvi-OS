@@ -42,6 +42,11 @@ const INSTALL_TIMEOUT: Duration = Duration::from_secs(600);
 /// The minimum Node major version the desktop build needs.
 pub const NODE_MAJOR_MINIMUM: u32 = 20;
 
+/// The `uv` release to install. Pinned for the same reason `NODE_VERSION` is:
+/// an installer that silently follows `latest` is an installer whose result
+/// depends on the day it ran.
+pub const UV_VERSION: &str = "0.12.5";
+
 /// One of the two toolchains Marvi cannot run without.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tool {
@@ -191,32 +196,68 @@ pub fn toolchain_status(state_dir: &Path) -> Vec<ToolStatus> {
     vec![status(state_dir, Tool::Uv), status(state_dir, Tool::Node)]
 }
 
+fn uv_archive_url() -> Result<String, String> {
+    let triple = match (std::env::consts::OS, std::env::consts::ARCH) {
+        ("windows", "x86_64") => "x86_64-pc-windows-msvc",
+        ("windows", "aarch64") => "aarch64-pc-windows-msvc",
+        ("linux", "x86_64") => "x86_64-unknown-linux-gnu",
+        ("linux", "aarch64") => "aarch64-unknown-linux-gnu",
+        ("macos", "x86_64") => "x86_64-apple-darwin",
+        ("macos", "aarch64") => "aarch64-apple-darwin",
+        (os, arch) => return Err(format!("no uv build for {os}/{arch}")),
+    };
+    let extension = if cfg!(windows) { "zip" } else { "tar.gz" };
+    Ok(format!(
+        "https://github.com/astral-sh/uv/releases/download/{UV_VERSION}/uv-{triple}.{extension}"
+    ))
+}
+
 fn install_uv(state_dir: &Path, progress: &mut dyn FnMut(&str)) -> Result<PathBuf, String> {
     let target = toolchain_dir(state_dir).join("uv");
     std::fs::create_dir_all(&target).map_err(|e| format!("could not create {target:?}: {e}"))?;
-    progress("installing uv");
+    progress(&format!("installing uv {UV_VERSION}"));
 
-    // The vendor's own installer, pointed at Marvi's directory rather than the
-    // user's profile, so an uninstall takes it away again.
+    // The release archive, not `install.ps1`.
+    //
+    // The vendor script calls `Get-ExecutionPolicy`, and on a host where
+    // PSModulePath has been narrowed that cmdlet cannot autoload — the script
+    // dies with "the module could not be loaded" before it downloads anything.
+    // That is a real failure (it broke the release build) and it is not
+    // something this code can fix from the outside, because PowerShell
+    // recomputes PSModulePath at startup.
+    //
+    // Fetching the archive ourselves removes the dependency rather than
+    // negotiating with it: the same two operations the Node install already
+    // uses, and nothing that needs a module to load.
+    let url = uv_archive_url()?;
     #[cfg(windows)]
     {
         let script = format!(
-            "$env:UV_INSTALL_DIR='{}'; $env:UV_NO_MODIFY_PATH='1'; \
-             irm https://astral.sh/uv/install.ps1 | iex",
-            target.display()
+            "$ErrorActionPreference='Stop'; \
+             $tmp=Join-Path $env:TEMP 'marvi-uv-{suffix}.zip'; \
+             Invoke-WebRequest -Uri '{url}' -OutFile $tmp; \
+             Expand-Archive -Path $tmp -DestinationPath '{target}' -Force; \
+             Remove-Item $tmp",
+            suffix = crate::util::random_suffix(),
+            url = url,
+            target = target.display()
         );
         run_powershell(&script, state_dir, INSTALL_TIMEOUT, progress)
             .map_err(|e| format!("uv install failed: {e}"))?;
+        // The Windows archive holds the executables at its root, but a future
+        // release could nest them; find the binary rather than assume.
+        lift_binary(&target, Tool::Uv)?;
     }
     #[cfg(not(windows))]
     {
         let command = format!(
-            "UV_INSTALL_DIR='{}' UV_NO_MODIFY_PATH=1 \
-             curl -LsSf https://astral.sh/uv/install.sh | sh",
-            target.display()
+            "set -e; mkdir -p '{target}'; curl -Ls '{url}' | tar -xz -C '{target}'",
+            target = target.display(),
+            url = url
         );
         run_shell_reporting(&command, state_dir, INSTALL_TIMEOUT, progress)
             .map_err(|e| format!("uv install failed: {e}"))?;
+        lift_binary(&target, Tool::Uv)?;
     }
 
     let exe = managed_tool_path(state_dir, Tool::Uv);
@@ -224,6 +265,40 @@ fn install_uv(state_dir: &Path, progress: &mut dyn FnMut(&str)) -> Result<PathBu
         return Err("uv installed but does not run".to_string());
     }
     Ok(exe)
+}
+
+/// Move a tool's executable to the root of `dir` if the archive nested it.
+///
+/// Publishers move things between releases; the managed path is a contract with
+/// the rest of Marvi, so the binary is put where that contract says it is.
+fn lift_binary(dir: &Path, tool: Tool) -> Result<(), String> {
+    let expected = dir.join(tool.executable());
+    if expected.is_file() {
+        return Ok(());
+    }
+    let found = walk_for(dir, tool.executable(), 3)
+        .ok_or_else(|| format!("{} is not in the archive", tool.executable()))?;
+    std::fs::rename(&found, &expected)
+        .map_err(|e| format!("could not place {}: {e}", tool.executable()))?;
+    Ok(())
+}
+
+fn walk_for(dir: &Path, name: &str, depth: usize) -> Option<PathBuf> {
+    let entries = std::fs::read_dir(dir).ok()?;
+    let mut directories = Vec::new();
+    for entry in entries.filter_map(Result::ok) {
+        let path = entry.path();
+        if path.is_file() && path.file_name().is_some_and(|n| n == name) {
+            return Some(path);
+        }
+        if path.is_dir() {
+            directories.push(path);
+        }
+    }
+    if depth == 0 {
+        return None;
+    }
+    directories.into_iter().find_map(|d| walk_for(&d, name, depth - 1))
 }
 
 fn node_archive_url(version: &str) -> Result<String, String> {

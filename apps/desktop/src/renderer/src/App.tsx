@@ -1607,6 +1607,14 @@ function DoctorPanel(): React.JSX.Element {
   )
 }
 
+/** Bytes as a size someone can read. `0` reads as a dash, not "0.00 GB". */
+function gigabytes(bytes: number): string {
+  if (!bytes) return '—'
+  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(0)} KB`
+  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(0)} MB`
+  return `${(bytes / 1024 ** 3).toFixed(2)} GB`
+}
+
 function SetupPanel(): React.JSX.Element {
   const [page, setPage] = useState<SetupPage | null>(null)
   const [hardware, setHardware] = useState<HardwareAnswer | null>(null)
@@ -1637,12 +1645,23 @@ function SetupPanel(): React.JSX.Element {
 
   const act = async (name: string, remove: boolean): Promise<void> => {
     setBusy(name)
+    // The install request does not return until the whole download is finished,
+    // which for the voice models is several minutes. Polling the page in the
+    // meantime is what turns a frozen "WORKING" into a moving byte count.
+    const poll = remove
+      ? null
+      : setInterval(() => {
+          void window.marvi?.getSetup().then((next) => {
+            if (next) setPage(next)
+          })
+        }, 1_000)
     try {
       const next = remove
         ? await window.marvi?.removeComponent(name)
         : await window.marvi?.installComponent(name)
       if (next) setPage(next)
     } finally {
+      if (poll) clearInterval(poll)
       setBusy('')
     }
   }
@@ -1705,10 +1724,25 @@ function SetupPanel(): React.JSX.Element {
           <div className="service-row" key={component.name}>
             <span className="service-name">{component.title.toUpperCase()}</span>
             <span
-              className={`service-state state-${component.installed ? 'ready' : component.needed_for.length ? 'error' : 'pending'}`}
+              className={`service-state state-${
+                component.installed ? 'ready' : busy === component.name ? 'starting' : 'pending'
+              }`}
             >
-              {component.installed ? 'INSTALLED' : component.detail.toUpperCase()}
+              {/* Not `error` when it is merely not downloaded yet. Painting
+                  every uninstalled component red made a fresh install look
+                  like a broken one. */}
+              {component.installed
+                ? 'INSTALLED'
+                : busy === component.name
+                  ? 'DOWNLOADING'
+                  : component.detail.toUpperCase()}
             </span>
+            {component.progress ? (
+              <small className="setup-progress">
+                {component.progress.file} — {gigabytes(component.progress.bytes_done)} of{' '}
+                {gigabytes(component.progress.bytes_total)}
+              </small>
+            ) : null}
             <small>{component.why}</small>
             <small>
               {component.bytes_total > 0
