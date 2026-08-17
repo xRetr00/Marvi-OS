@@ -584,5 +584,5 @@ would have started editing the real `PATH` and Desktop.
 **The bootstrap had no version.** It ships as its own binary and is the thing
 that performs updates, so a user can be holding an older one than the release
 they installed. It was pinned at `0.1.0` with no way to say so; it now carries
-  the product version, answers `--version` without a window, and CI refuses a tag
-  where the two disagree.
+the product version, answers `--version` without a window, and CI refuses a tag
+where the two disagree.
