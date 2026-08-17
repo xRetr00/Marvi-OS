@@ -176,10 +176,6 @@ nav {
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
-.top-island-preview {
-  transform: scale(0.78);
-  transform-origin: right center;
-}
 
 .overview-grid {
   display: grid;
@@ -624,7 +620,7 @@ nav {
 }
 .dynamic-island {
   display: grid;
-  grid-template-columns: 18px 1fr 46px;
+  grid-template-columns: 20px 1fr 46px;
   align-items: center;
   gap: 7px;
   width: 150px;
@@ -646,7 +642,7 @@ nav {
 }
 /* Background room event: two columns only, no signals block, no controls. */
 .dynamic-island.island-room-event {
-  grid-template-columns: 18px 1fr;
+  grid-template-columns: 20px 1fr;
   width: 232px;
   height: 28px;
   border-color: rgb(255 255 255 / 12%);
@@ -657,16 +653,9 @@ nav {
   white-space: nowrap;
 }
 .island-orb {
-  display: grid;
-  width: 18px;
-  height: 18px;
-  place-items: center;
-  border: 1px solid var(--ui-stroke-primary);
-  border-radius: 50%;
-  color: var(--ui-text-primary);
-  background: #09090a;
-  font-family: 'Collapse', sans-serif;
-  font-size: 8px;
+  display: block;
+  width: 20px;
+  height: 20px;
 }
 .island-copy {
   min-width: 0;
@@ -708,13 +697,6 @@ nav {
     var(--shadow-nous),
     0 0 16px rgb(20 126 193 / 10%),
     inset 0 1px 0 rgb(255 255 255 / 7%);
-}
-.island-listening .island-orb,
-.island-wake .island-orb,
-.island-speaking .island-orb {
-  color: var(--ui-accent);
-  border-color: color-mix(in srgb, var(--ui-accent) 60%, transparent);
-  box-shadow: inset 0 0 10px var(--ui-accent-soft);
 }
 .dynamic-island[data-phase='wake'] {
   width: 180px;
@@ -816,34 +798,32 @@ nav {
 .island-signals .signal-on {
   color: var(--ui-accent);
 }
-.wave {
+/* Voice page orb --------------------------------------------------------- */
+.voice-orb-stage {
   display: flex;
-  height: 24px;
+  flex-direction: column;
   align-items: center;
-  justify-content: flex-end;
-  gap: 2px;
+  gap: 14px;
+  margin: 6px 0 16px;
+  padding: 18px;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 12px;
+  background: radial-gradient(circle at 50% 42%, #0a0a0c 0%, #050505 72%);
 }
-.wave i {
-  width: 2px;
-  height: calc(3px + var(--bar) * 14px);
-  border-radius: 2px;
-  background: var(--ui-stroke-primary);
-  transform-origin: center;
+.voice-orb-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
 }
-.wave.active i {
-  background: color-mix(in srgb, var(--ui-accent) 62%, var(--ui-text-primary));
-  animation: wave 850ms ease-in-out var(--delay) infinite alternate;
+.voice-orb-phase {
+  color: var(--ui-text-secondary);
+  font-size: 9px;
+  letter-spacing: 0.2em;
 }
-
-@keyframes wave {
-  from {
-    transform: scaleY(0.35);
-    opacity: 0.45;
-  }
-  to {
-    transform: scaleY(1);
-    opacity: 1;
-  }
+.voice-orb-caption {
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
 }
 @keyframes pulse {
   50% {
@@ -876,9 +856,6 @@ nav {
   }
   .portrait-frame {
     gap: 24px;
-  }
-  .top-island-preview {
-    display: none;
   }
   .settings-section {
     grid-template-columns: 1fr;

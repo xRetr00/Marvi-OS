@@ -4,10 +4,12 @@ import {
   Room,
   RoomEvent,
   Track,
+  createAudioAnalyser,
+  type LocalAudioTrack,
   type RemoteTrack
 } from 'livekit-client'
 
-import { $voiceState, cycleVoicePhase } from '../store/voice-state'
+import { $voiceState, cycleVoicePhase, setVoiceLevel } from '../store/voice-state'
 
 interface LiveKitConnection {
   url: string
@@ -29,6 +31,21 @@ function applyAgentState(participant: RemoteParticipant): void {
   else if (state === 'speaking') publishPhase('speaking')
   else if (state === 'initializing') publishPhase('wake')
   else if (state) publishPhase('ready')
+}
+
+/**
+ * Stream the local mic level into the voice store so the orbs breathe with
+ * real energy rather than a clock. Runs for the life of the room.
+ */
+function streamMicLevel(track: LocalAudioTrack): () => void {
+  const analyser = createAudioAnalyser(track, {
+    cloneTrack: true,
+    smoothingTimeConstant: 0.8
+  })
+  const timer = window.setInterval(() => {
+    setVoiceLevel(analyser.calculateVolume())
+  }, 100)
+  return () => window.clearInterval(timer)
 }
 
 export async function connectVoiceRoom(): Promise<Room> {
@@ -69,6 +86,11 @@ export async function connectVoiceRoom(): Promise<Room> {
     autoGainControl: true,
     channelCount: 1
   })
+  const micTrack = room.localParticipant.getTrackPublication(Track.Source.Microphone)
+    ?.audioTrack as LocalAudioTrack | undefined
+  let stopLevel: (() => void) | undefined
+  if (micTrack) stopLevel = streamMicLevel(micTrack)
+  room.on(RoomEvent.Disconnected, () => stopLevel?.())
   if (room.state === ConnectionState.Connected) publishPhase('ready')
   return room
 }
