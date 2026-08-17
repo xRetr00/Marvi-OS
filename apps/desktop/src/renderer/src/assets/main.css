@@ -4,6 +4,7 @@
   --ui-bg: #050505;
   --ui-bg-raised: #0a0a0b;
   --ui-text-primary: #e7e7e3;
+  --ui-text-emphasis: #fafaf8;
   --ui-text-secondary: #72767d;
   --ui-text-tertiary: #464a50;
   --ui-stroke-primary: #303236;
@@ -111,7 +112,7 @@ nav {
 }
 .nav-item.active {
   border-left-color: var(--ui-accent);
-  color: #fafaf8;
+  color: var(--ui-text-emphasis);
   background: linear-gradient(90deg, var(--ui-accent-soft), transparent);
 }
 .nav-item.active span {
@@ -168,7 +169,7 @@ nav {
 }
 .topbar h1 {
   margin: 7px 0 0;
-  color: #fafaf8;
+  color: var(--ui-text-emphasis);
   font-family: 'Collapse', sans-serif;
   font-size: 21px;
   font-weight: 500;
@@ -231,7 +232,7 @@ nav {
 .core-copy strong {
   display: block;
   margin: 12px 0;
-  color: #fafaf8;
+  color: var(--ui-text-emphasis);
   font-family: 'Collapse', sans-serif;
   font-size: 29px;
   font-weight: 400;
@@ -375,7 +376,7 @@ nav {
 .mode-switch.active,
 .alignment-buttons button.active {
   border-color: var(--ui-accent);
-  color: #fafaf8;
+  color: var(--ui-text-emphasis);
   background: var(--ui-accent-soft);
 }
 .placement-controls {
@@ -445,7 +446,7 @@ nav {
 }
 .about-identity h2 {
   margin: 8px 0 6px;
-  color: #fafaf8;
+  color: var(--ui-text-emphasis);
   font-family: 'Collapse', sans-serif;
   font-size: 36px;
   letter-spacing: 0.08em;
@@ -504,7 +505,7 @@ nav {
 }
 .single-page h2 {
   margin: 44px 44px 14px;
-  color: #fafaf8;
+  color: var(--ui-text-emphasis);
   font-family: 'Collapse', sans-serif;
   font-size: 30px;
   font-weight: 400;
@@ -800,7 +801,7 @@ nav {
 }
 .confirmation-actions .confirm-primary {
   border-color: var(--ui-accent);
-  color: #fafaf8;
+  color: var(--ui-text-emphasis);
   background: var(--ui-accent);
 }
 .island-signals {
@@ -1205,9 +1206,9 @@ nav {
   opacity: 0.5;
 }
 .phase.danger:hover {
-  border-color: color-mix(in srgb, #ff6b6b 55%, transparent);
-  color: #ff6b6b;
-  background: color-mix(in srgb, #ff6b6b 8%, transparent);
+  border-color: color-mix(in srgb, var(--ui-danger) 55%, transparent);
+  color: var(--ui-danger);
+  background: color-mix(in srgb, var(--ui-danger) 8%, transparent);
 }
 .provider-cooldown {
   color: color-mix(in srgb, var(--ui-accent) 70%, var(--ui-text-tertiary));
@@ -1286,89 +1287,4 @@ nav {
   white-space: pre;
 }
 
-/* Chat ------------------------------------------------------------------ */
-.chat-page {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-.chat-log {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 14px;
-  min-height: 220px;
-  padding: 14px 2px;
-  overflow-y: auto;
-  border-top: 1px solid var(--ui-stroke-tertiary);
-  border-bottom: 1px solid var(--ui-stroke-tertiary);
-}
-.chat-turn {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.chat-role {
-  color: var(--ui-text-tertiary);
-  font-size: 8px;
-  letter-spacing: 0.12em;
-}
-.chat-body {
-  color: var(--ui-text-primary);
-  font-size: 11px;
-  line-height: 1.7;
-  /* Model output has real line breaks in it; honouring them is the difference
-     between a readable answer and a paragraph of mush. */
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.chat-user .chat-body {
-  color: var(--ui-accent);
-}
-/* A tool result is somebody else's text. It reads as evidence, not as Marvi. */
-.chat-tool .chat-body {
-  max-height: 160px;
-  padding: 8px;
-  overflow: auto;
-  border-left: 2px solid var(--ui-stroke-tertiary);
-  color: var(--ui-text-tertiary);
-  font-size: 9px;
-}
-.chat-error .chat-body {
-  color: #ff6b6b;
-}
-.chat-thinking {
-  color: var(--ui-text-tertiary);
-}
-.chat-thinking::after {
-  content: '...';
-}
-.chat-confirm {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px;
-  border: 1px solid color-mix(in srgb, var(--ui-accent) 45%, transparent);
-  background: var(--ui-accent-soft);
-  font-size: 10px;
-}
-.chat-compose {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding-top: 12px;
-}
-.chat-compose textarea {
-  padding: 10px;
-  resize: vertical;
-  border: 1px solid var(--ui-stroke-tertiary);
-  color: var(--ui-text-primary);
-  background: transparent;
-  font: inherit;
-  font-size: 11px;
-  line-height: 1.6;
-}
-.chat-compose textarea:focus {
-  border-color: color-mix(in srgb, var(--ui-accent) 45%, transparent);
-  outline: none;
-}
+/* Chat styles live in the isolated chat module: src/renderer/src/chat/chat.css */
