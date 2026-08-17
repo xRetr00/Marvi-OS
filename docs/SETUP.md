@@ -192,15 +192,33 @@ working assistant rather than prerequisites for one.
 
 A first run that downloads everything before saying hello is a bad first run.
 
+## Source types
+
+| Type | Verified by | Used for |
+|---|---|---|
+| `huggingface` | size + SHA256 per file | the voice models |
+| `url` | size + SHA256 per file | direct downloads |
+| `git` | presence, at a pinned revision | the TTS speaker voices |
+| `python` | the lockfile, via `uv sync` | service dependencies |
+| `command` | the tool's own check | Playwright's browsers |
+
+The `git` type is a sparse checkout plus a shallow fetch of one pinned commit —
+a few hundred megabytes rather than the whole repository. Some things are simply
+not published as files: the VibeVoice speaker voices are `.pt` files in a git
+repository and nowhere else, and without them the TTS model has nothing to sound
+like.
+
+It reports "not hash-verified" rather than pretending otherwise, because a
+subdirectory checkout has no published hashes to check against. The revision is
+pinned, which is the guarantee that is actually available.
+
 ## Still open
 
 - **LiveKit and buffalo_l file hashes.** Both are in the catalog so Doctor can
   report on them, but neither downloads through this path yet: LiveKit ships a
   zip, and InsightFace fetches its own weights on first use. Listed rather than
   silently missing.
-- **A `git` source type.** `setup-voice-models.ps1` clones VibeVoice for the
-  TTS speaker voices, which is a subdirectory checkout rather than a file
-  download. Until the installer can do that, `marvi setup voice` would leave the
-  TTS model with no voice to speak in — so the PowerShell scripts remain the
-  supported path for voice, and `voice-tts-voices` is catalogued as not yet
-  fetchable so Doctor says so.
+- **LiveKit and buffalo_l file hashes.** Both are in the catalog so Doctor can
+  report on them, but neither downloads through this path yet: LiveKit ships a
+  zip, and InsightFace fetches its own weights on first use. Listed rather than
+  silently missing.

@@ -88,7 +88,7 @@ npm run dev
 ```
 
 Before the first voice run, copy `services/agent/.env.example` to `.env`, add
-the OpenCode Go key, and run `scripts/setup-voice-models.ps1`. Connected
+the OpenCode Go key, and run `marvi setup voice`. Connected
 accounts need `COMPOSIO_API_KEY` in the same file; Marvi OS reads it from the
 environment and never stores a provider credential of its own. See
 [`docs/VOICE-RUNTIME.md`](docs/VOICE-RUNTIME.md) for the native build and checks.

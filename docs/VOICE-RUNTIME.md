@@ -22,10 +22,11 @@ combined STT/TTS budget. Whisper and batch-only STT are rejected.
 
 ## Installation and checks
 
-Run `scripts/setup-voice-models.ps1`. It downloads immutable Hugging Face
+Run `marvi setup voice`. It downloads immutable Hugging Face
 revisions into `%LOCALAPPDATA%\Marvi-OS\models`, copies the official VibeVoice
 voice presets, and verifies every core payload against `config/voice-models.json`.
-Use `scripts/check-voice-models.ps1` for a later integrity check.
+Use `marvi models verify voice-stt` (or `voice-tts`) for a later integrity
+check; `marvi doctor` runs the same check across everything.
 
 Build the native STT bridge with:
 

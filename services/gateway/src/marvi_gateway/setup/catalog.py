@@ -29,7 +29,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Literal
 
@@ -94,6 +94,9 @@ class Component:
     files: tuple[FileSpec, ...] = ()
     #: For `python`: the uv project to sync.
     project: str = ""
+    #: For `git`: the one subdirectory to check out, and the files to keep.
+    subdirectory: str = ""
+    pattern: str = "*"
     extra: dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -115,6 +118,19 @@ class Component:
 
     def status(self) -> dict[str, Any]:
         """Installed, partly installed, or missing — with the reason per file."""
+        if self.source_type == "git" and not self.files:
+            # A subdirectory checkout has no published hashes to check against,
+            # so presence is the only honest check. Said plainly rather than
+            # dressed up as verification.
+            target = self.target()
+            found = sorted(target.glob(self.pattern)) if target.exists() else []
+            if found:
+                return {
+                    "installed": True,
+                    "detail": f"{len(found)} file(s) present (not hash-verified)",
+                    "problems": [],
+                }
+            return {"installed": False, "detail": "not installed", "problems": []}
         if not self.files:
             return {"installed": False, "detail": "nothing to verify", "problems": []}
         base = self.target()
@@ -187,6 +203,21 @@ def _voice_components(repo_root: Path) -> list[Component]:
     return components
 
 
+def _voices_revision(repo_root: Path) -> str:
+    """The VibeVoice commit the speaker voices come from.
+
+    Kept in `voice-models.json` beside the model it belongs to, so the revision
+    is not written down in two places that can disagree.
+    """
+    try:
+        manifest = json.loads(
+            (repo_root / "config" / "voice-models.json").read_text(encoding="utf-8")
+        )
+    except (OSError, ValueError):
+        return ""
+    return str((manifest.get("tts") or {}).get("source_revision", ""))
+
+
 def _component_from(raw: dict[str, Any]) -> Component:
     source = raw.get("source") or {}
     return Component(
@@ -202,6 +233,8 @@ def _component_from(raw: dict[str, Any]) -> Component:
         install_to=raw.get("install_to", ""),
         files=_files_from(raw.get("files")),
         project=raw.get("project", ""),
+        subdirectory=(raw.get("extra") or {}).get("subdirectory", ""),
+        pattern=(raw.get("extra") or {}).get("pattern", "*"),
         extra=raw.get("extra", {}),
     )
 
@@ -217,7 +250,10 @@ def load(repo_root: Path) -> list[Component]:
         return components
     for raw in manifest.get("components", []):
         try:
-            components.append(_component_from(raw))
+            component = _component_from(raw)
+            if component.source_type == "git" and not component.revision:
+                component = replace(component, revision=_voices_revision(repo_root))
+            components.append(component)
         except (KeyError, TypeError) as exc:
             # One malformed entry must not hide the rest of the catalog.
             log.warning("skipping a malformed component entry: %s", exc)

@@ -27,6 +27,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -150,6 +151,8 @@ def install(
         return _sync_project(component, repo_root, use_gpu=use_gpu)
     if component.kind == "command":
         return _run_command(component, repo_root)
+    if component.source_type == "git":
+        return _git_subdirectory(component, force=force)
 
     if not component.files:
         return Outcome(
@@ -259,6 +262,79 @@ def _run_command(component: Component, repo_root: Path) -> Outcome:
         tail = (finished.stderr or finished.stdout or "").strip().splitlines()[-3:]
         return Outcome(component.name, False, " / ".join(tail) or "command failed")
     return Outcome(component.name, True, f"ran {' '.join(command)}")
+
+
+def _git_subdirectory(component: Component, force: bool = False) -> Outcome:
+    """Check out one subdirectory of a repository at a pinned revision.
+
+    Some things are not published as downloadable files. The VibeVoice speaker
+    voices are `.pt` files in a git repository and nowhere else, and without
+    them the TTS model has nothing to sound like.
+
+    Sparse checkout plus a shallow fetch of the one pinned commit. The obvious
+    approach - a blobless clone then `git checkout <rev> -- <path>` - looks
+    right and fails: with `--filter=blob:none` the blobs were never fetched and
+    a path-limited checkout cannot lazily fetch them, so it dies with "unable to
+    read sha1 file". Sparse checkout tells git what is wanted *before* the
+    fetch, so only those blobs come down.
+    """
+    from ..doctor import find_uv  # noqa: F401 - kept for symmetry with the rest
+
+    if not shutil.which("git"):
+        return Outcome(
+            component.name, False, "git is not installed; see Doctor for how to get it"
+        )
+    if not component.revision:
+        # An unpinned checkout is different files tomorrow.
+        return Outcome(component.name, False, "no revision pinned for this component")
+
+    target = component.target()
+    if component.status()["installed"] and not force:
+        return Outcome(component.name, True, "already installed", skipped=True)
+
+    staging = Path(tempfile.mkdtemp(prefix="marvi-git-"))
+    try:
+        repo = str(staging)
+        for argv in (
+            ["git", "init", "--quiet", repo],
+            ["git", "-C", repo, "remote", "add", "origin", component.source_id],
+            # --no-cone so an arbitrary path works, not just a top-level folder.
+            ["git", "-C", repo, "sparse-checkout", "set", "--no-cone",
+             component.subdirectory],
+            # Depth 1 on the exact commit: no history, no other branches.
+            ["git", "-C", repo, "fetch", "--depth", "1", "--quiet", "origin",
+             component.revision],
+            ["git", "-C", repo, "checkout", "--quiet", "FETCH_HEAD"],
+        ):
+            finished = subprocess.run(
+                argv, capture_output=True, text=True, timeout=SYNC_TIMEOUT
+            )
+            if finished.returncode != 0:
+                tail = (finished.stderr or "").strip().splitlines()[-2:]
+                return Outcome(component.name, False, " / ".join(tail) or "git failed")
+
+        source = staging / component.subdirectory
+        wanted = sorted(source.glob(component.pattern)) if source.exists() else []
+        if not wanted:
+            return Outcome(
+                component.name, False,
+                f"nothing matching {component.pattern} in {component.subdirectory}",
+            )
+
+        target.mkdir(parents=True, exist_ok=True)
+        for item in wanted:
+            if item.is_file():
+                shutil.copy2(item, target / item.name)
+        log.info(
+            "checked out %s", component.name,
+            extra={"marvi_files": len(wanted), "marvi_revision": component.revision},
+        )
+        return Outcome(component.name, True, f"{len(wanted)} file(s) checked out")
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return Outcome(component.name, False, f"checkout failed: {exc}")
+    finally:
+        # A clone is throwaway; leaving one behind wastes a lot of disk.
+        shutil.rmtree(staging, ignore_errors=True, onerror=None)
 
 
 def command_installed(component: Component, repo_root: Path) -> bool:

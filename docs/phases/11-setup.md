@@ -1,6 +1,6 @@
 # Phase 11 — Setup: dependencies, models, skills, and MCP
 
-**Status:** complete except step 8, which is blocked on one missing source type
+**Status:** complete
 **Depends on:** Phase 10 (the check-and-remedy engine this is built on)
 
 ## The decision: one engine, two front ends
@@ -161,22 +161,26 @@ shipping vehicle — a Rust core with a Tauri shell, not electron-builder — an
 now provisions `uv` and Node into the state directory before every build,
 install and update alike. See `docs/INSTALLER.md`.
 
-**Step 8 — retire the PowerShell setup scripts. Blocked, deliberately.**
+**Step 8 — retire the PowerShell setup scripts. Done.**
 
-The install root is already unified, so half of what this step was for is done.
-The scripts stay because of one specific gap, found by reading them rather than
-assuming: `setup-voice-models.ps1` does not only download from Hugging Face. It
-also **clones VibeVoice and copies `demo/voices/streaming_model/*.pt`** — a git
-checkout of a subdirectory, which is the one source type the new installer
-cannot do.
+The blocker was real and specific: `setup-voice-models.ps1` did not only
+download from Hugging Face, it cloned VibeVoice for the TTS speaker voices —
+`.pt` files that exist in that repository and nowhere else. Retiring the script
+without that would have left a `marvi setup voice` that installs the TTS model
+and gives it no voice to speak in.
 
-Retiring them today would mean a `marvi setup voice` that installs the TTS model
-and leaves it with no voice to speak in. So `voice-tts-voices` is catalogued as
-not yet fetchable, Doctor reports it, and the scripts remain the supported path
-for voice until a `git` source type exists.
+So a `git` source type was added: sparse checkout plus a shallow fetch of one
+pinned commit. The obvious version — a blobless clone then
+`git checkout <rev> -- <path>` — looks right and fails, because with
+`--filter=blob:none` the blobs were never fetched and a path-limited checkout
+cannot lazily fetch them. Sparse checkout declares what is wanted *before* the
+fetch, so only those blobs come down.
 
-Deleting a working installer before its replacement covers it is how a repo ends
-up with neither.
+Verified against the real repository: 25 voice files including the configured
+default, idempotent on re-run, and removable.
+
+Both scripts are deleted. `marvi setup voice` and `marvi models verify` cover
+everything they did.
 
 ## Acceptance evidence
 
@@ -191,7 +195,7 @@ up with neither.
 | Every install path asks about the GPU before installing PyTorch | **done** |
 | One state directory, agreed by Rust, TypeScript and Python | **done** — asserted by a test on each side |
 | The installer provisions `uv` and Node, and re-checks on update | **done** |
-| A clean machine reaches a working voice session with one command | **open** — needs the `git` source type for the TTS voices |
+| A clean machine reaches a working voice session with one command | **done** — `marvi setup voice`, including the TTS voices |
 - `remove` leaves nothing behind outside the repo.
 
 ## Open questions

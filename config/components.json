@@ -128,7 +128,8 @@
       "install_to": "models/tts/vibevoice-realtime-0.5b/voices",
       "extra": {
         "subdirectory": "demo/voices/streaming_model",
-        "note": "A git checkout of a subdirectory, not a file download - the only component the new installer cannot yet fetch, and the reason scripts/setup-voice-models.ps1 is still the supported path for voice."
+        "note": "A pinned git subdirectory checkout: these .pt files exist in the VibeVoice repository and nowhere else.",
+        "pattern": "*.pt"
       }
     }
   ]
