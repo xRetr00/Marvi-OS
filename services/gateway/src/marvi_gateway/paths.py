@@ -90,6 +90,11 @@ def models_dir() -> Path:
     return _from_env("MARVI_MODEL_ROOT", "models")
 
 
+def vision_models_root() -> Path:
+    """The root InsightFace is given. It appends `models/<name>` itself."""
+    return models_dir() / "vision"
+
+
 def runtime_dir() -> Path:
     return _from_env("MARVI_RUNTIME_ROOT", "runtime")
 

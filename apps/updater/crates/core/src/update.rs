@@ -32,6 +32,10 @@ pub struct UpdateConfig {
     pub relaunch_exe: Option<PathBuf>,
     pub no_relaunch: bool,
     pub builder: Box<dyn BuildRunner>,
+    /// False only in tests. Gates the toolchain download and the handoff — the
+    /// handoff writes to the user's PATH and Desktop, which a test must never
+    /// do, and the toolchain is ~100 MB per run.
+    pub provision_toolchain: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -179,8 +183,9 @@ pub fn run_update(cfg: &mut UpdateConfig, progress: &mut dyn FnMut(&str)) -> Upd
     progress("building");
     // Re-checked on every update, not just on install.
     let state = cfg.state_dir.clone();
+    let toolchain_state = cfg.provision_toolchain.then_some(state.as_path());
     if let Err(e) = crate::install::build_with_toolchain(
-        &root, Some(&state), &mut *cfg.builder, progress,
+        &root, toolchain_state, &mut *cfg.builder, progress,
     ) {
         let _ = rollback(&root, &previous, &backups);
         let out = UpdateOutcome::new("failed", format!("{e} The previous version was restored."))
@@ -190,6 +195,26 @@ pub fn run_update(cfg: &mut UpdateConfig, progress: &mut dyn FnMut(&str)) -> Upd
     }
 
     discard_backups(&backups);
+
+    // Also on update, not only on install. An existing installation predates
+    // the handoff entirely — no `marvi` command, no shortcut, no LiveKit
+    // server — and updating is how those machines get them. Every step is
+    // idempotent, so running it again on an already-good install costs a
+    // couple of seconds and changes nothing.
+    if cfg.provision_toolchain {
+        if let Err(e) = crate::handoff::install_essentials(&root, &state, progress) {
+            progress(&format!(
+                "warning: some components did not install ({e}); run `marvi setup` to finish"
+            ));
+        }
+        if let Err(e) = crate::handoff::install_cli_shim(&root, &state, progress) {
+            progress(&format!("warning: the marvi command was not installed ({e})"));
+        }
+        if let Err(e) = crate::handoff::create_shortcuts(&root, progress) {
+            progress(&format!("warning: no shortcut was created ({e})"));
+        }
+    }
+
     let out = UpdateOutcome::new("ok", "Updated successfully.")
         .with_range(&previous, &target)
         .with_ref(target_ref);

@@ -18,6 +18,7 @@ fn config(local: &std::path::Path, state: &std::path::Path, builder: FakeBuilder
         relaunch_exe: None,
         no_relaunch: true,
         builder: Box::new(builder),
+        provision_toolchain: false,
     }
 }
 

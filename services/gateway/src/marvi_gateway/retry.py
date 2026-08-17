@@ -28,6 +28,7 @@ returns a value or raises the last exception with the attempt count attached.
 
 from __future__ import annotations
 
+import logging
 import random
 import time
 from collections.abc import Callable
@@ -64,6 +65,11 @@ class Policy:
     #: False for anything that reaches outside this machine and cannot be undone
     #: by doing it again. Such an operation is attempted exactly once.
     repeatable: bool = True
+    #: True when the thing being called is optional and being absent is a normal
+    #: state, not a fault. Exhausting the retries is still logged, but not as an
+    #: error: a sidecar the user never installed filled errors.log with one
+    #: entry per poll, which buries the failures that do mean something.
+    optional: bool = False
 
     def wait_for(self, attempt: int, rng: random.Random | None = None) -> float:
         """Exponential, capped, with full jitter.
@@ -119,7 +125,8 @@ def retry[T](
                 break
             wait = policy.wait_for(attempt, rng)
             if now() - started + wait > policy.budget_seconds:
-                log.warning(
+                log.log(
+                    logging.INFO if policy.optional else logging.WARNING,
                     "%s: out of time after %d attempts", what, attempt,
                     extra={"marvi_error": str(exc)[:200]},
                 )
@@ -137,7 +144,12 @@ def retry[T](
     assert last is not None
     # Never silent. The caller waited longer and still has nothing, so the
     # least it gets is the reason.
-    log.error("%s gave up", what, extra={"marvi_error": str(last)[:200]})
+    log.log(
+        logging.INFO if policy.optional else logging.ERROR,
+        "%s gave up",
+        what,
+        extra={"marvi_error": str(last)[:200]},
+    )
     raise RetriesExhaustedError(what, policy.attempts, last)
 
 

@@ -7,6 +7,7 @@ same email three times.
 
 from __future__ import annotations
 
+import logging
 import random
 
 import pytest
@@ -254,3 +255,36 @@ def test_a_clean_interrupt_leaves_no_crash_note(crumbs) -> None:
 
     # Ctrl-C is a user action, not a crash.
     assert breadcrumb.pending() == []
+
+
+def test_an_optional_dependency_giving_up_is_not_an_error(caplog) -> None:
+    """The room sidecar is a program the user may never start.
+
+    Logging that at ERROR once per poll filled errors.log with the one thing
+    that was working as designed, and buried the ones that were not.
+    """
+    policy = Policy(attempts=2, base_seconds=0, budget_seconds=10, optional=True)
+
+    def always_fails() -> None:
+        raise ConnectionRefusedError("sidecar is not reachable")
+
+    with caplog.at_level(logging.INFO, logger="marvi.retry"):
+        with pytest.raises(RetriesExhaustedError):
+            retry(always_fails, "room.get_state", policy=policy, sleep=lambda _: None)
+
+    gave_up = [r for r in caplog.records if "gave up" in r.getMessage()]
+    assert gave_up, "giving up is still reported — quietly, not silently"
+    assert all(r.levelno < logging.WARNING for r in gave_up)
+
+
+def test_a_required_dependency_giving_up_is_still_an_error(caplog) -> None:
+    policy = Policy(attempts=2, base_seconds=0, budget_seconds=10)
+
+    def always_fails() -> None:
+        raise ConnectionRefusedError("gateway is down")
+
+    with caplog.at_level(logging.INFO, logger="marvi.retry"):
+        with pytest.raises(RetriesExhaustedError):
+            retry(always_fails, "provider.call", policy=policy, sleep=lambda _: None)
+
+    assert any(r.levelno == logging.ERROR for r in caplog.records)

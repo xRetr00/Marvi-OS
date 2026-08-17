@@ -102,6 +102,8 @@ def cmd_diagnostics(_args: argparse.Namespace) -> int:
 def _selected(args: argparse.Namespace) -> list[setup_module.Component]:
     root = repo_root()
     everything = setup_module.load(root)
+    if getattr(args, "essential", False):
+        return [c for c in everything if c.essential]
     if not args.what:
         return everything
     chosen: list[setup_module.Component] = []
@@ -178,7 +180,7 @@ def cmd_models(args: argparse.Namespace) -> int:
 
     if args.action == "list":
         for component in components:
-            state = component.status()
+            state = setup_module.state_of(component, root)
             mark = "installed" if state["installed"] else state["detail"]
             print(f"{component.name:16} {component.kind:8} {mark:34} {gigabytes(component.bytes_total)}")
         return 0
@@ -189,7 +191,7 @@ def cmd_models(args: argparse.Namespace) -> int:
         return 1
 
     if args.action == "verify":
-        state = target.status()
+        state = setup_module.state_of(target, root)
         print(f"{target.name}: {state['detail']}")
         for problem in state["problems"]:
             print(f"  {problem['file']}: {problem['reason']}")
@@ -431,6 +433,11 @@ def build_parser() -> argparse.ArgumentParser:
         "what", nargs="*", help="component or capability names; default is everything"
     )
     setup_cmd.add_argument("--yes", "-y", action="store_true", help="do not ask")
+    setup_cmd.add_argument(
+        "--essential",
+        action="store_true",
+        help="only what Marvi cannot start without; what the installer runs",
+    )
     setup_cmd.add_argument("--dry-run", action="store_true", help="show the plan only")
     setup_cmd.set_defaults(handler=cmd_setup)
 

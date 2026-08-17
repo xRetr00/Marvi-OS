@@ -16,9 +16,37 @@
       },
       "install_to": "runtime/livekit/1.13.5",
       "extra": {
-        "note": "The release ships a zip; sizes and hashes are filled in when the download flow is proven against it.",
-        "version": "1.13.5"
-      }
+        "version": "1.13.5",
+        "note": "Sizes and hashes are the GitHub release digests for v1.13.5."
+      },
+      "binary": "livekit-server.exe",
+      "files_by_platform": {
+        "windows-amd64": {
+          "livekit_1.13.5_windows_amd64.zip": [
+            18244211,
+            "3ec7eaa76ef64063bf21f78364733703e0969612cb92ffd60661ed45fa4a8906"
+          ]
+        },
+        "windows-arm64": {
+          "livekit_1.13.5_windows_arm64.zip": [
+            16219345,
+            "9a0facddf31346f22854a1beaeaaa2c623c165078c54765115b249d771eb0b66"
+          ]
+        },
+        "linux-amd64": {
+          "livekit_1.13.5_linux_amd64.tar.gz": [
+            18064127,
+            "c020fac437b7cc9b776eef1ad5ea8af77be9acfa07602eca20a3a44930dfbc70"
+          ]
+        },
+        "linux-arm64": {
+          "livekit_1.13.5_linux_arm64.tar.gz": [
+            16349520,
+            "332015305518765fe05bad74fc3a9d9583e635e7dd130de3c4fc563d69c550f3"
+          ]
+        }
+      },
+      "essential": true
     },
     {
       "name": "vision-faces",
@@ -32,9 +60,16 @@
         "type": "url",
         "base_url": "https://github.com/deepinsight/insightface/releases/download/v0.7"
       },
-      "install_to": "models/vision/buffalo_l",
+      "install_to": "models/vision/models/buffalo_l",
       "extra": {
-        "note": "InsightFace downloads this itself on first use; listed here so Doctor can report on it and so removal is honest."
+        "note": "InsightFace would fetch this itself on first use, which turns the first face Marvi ever sees into a silent 290 MB download. Installed up front instead, into the root vision.py passes to FaceAnalysis."
+      },
+      "binary": "w600k_r50.onnx",
+      "files": {
+        "buffalo_l.zip": [
+          288621354,
+          "80ffe37d8a5940d59a7384c201a2a38d4741f2f3c51eef46ebb28218a7b0ca2f"
+        ]
       }
     },
     {
@@ -50,7 +85,8 @@
       "source": {
         "type": "command"
       },
-      "project": "services/gateway"
+      "project": "services/gateway",
+      "essential": true
     },
     {
       "name": "agent-python",
@@ -67,7 +103,8 @@
       "extra": {
         "gpu_sensitive": true,
         "note": "Installs PyTorch. The CPU wheel on a GPU machine is the mistake this flags."
-      }
+      },
+      "essential": true
     },
     {
       "name": "playwright-browsers",

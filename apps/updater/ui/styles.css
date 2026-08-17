@@ -114,3 +114,58 @@ footer {
 .accent {
   color: var(--accent);
 }
+
+/* The install log. Selectable, because the first thing anyone does with a
+   failure is copy it. */
+.log {
+  flex: 1;
+  margin-top: 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  background: #08090b;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
+  cursor: text;
+  min-height: 0;
+}
+
+.ask {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--accent);
+}
+
+.ask p {
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+
+.ask-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.ask button {
+  font: inherit;
+  font-size: 13px;
+  padding: 7px 14px;
+  color: var(--fg);
+  background: transparent;
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.ask button:hover {
+  border-color: var(--accent);
+}
+
+.ask button.primary {
+  border-color: var(--accent);
+  color: var(--accent);
+}

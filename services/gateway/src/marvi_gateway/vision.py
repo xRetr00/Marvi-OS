@@ -310,7 +310,18 @@ class VisionService:
             from insightface.app import FaceAnalysis
 
             # CPU on purpose: the GPU budget belongs to the voice stack.
-            app = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
+            #
+            # `root` points at Marvi's own directory so the model the setup
+            # step installed is the one that loads. Without it InsightFace
+            # looks in ~/.insightface and downloads its own copy — 290 MB, on
+            # the first frame, with no indication of why nothing is happening.
+            from . import paths
+
+            app = FaceAnalysis(
+                name="buffalo_l",
+                root=str(paths.vision_models_root()),
+                providers=["CPUExecutionProvider"],
+            )
             app.prepare(ctx_id=-1, det_size=DETECT_SIZE)
             self._analyzer = app
         return self._analyzer

@@ -18,14 +18,22 @@
 //! newer toolchain than the one that installed the last release, and finding
 //! that out during the build is finding out too late.
 //!
-//! A tool already on PATH is used as-is. Downloading a second copy of something
-//! that works is a waste of the user's bandwidth and their disk.
+//! **Marvi installs its own copies even when the tools are already on PATH.**
+//! That was not the original design — reusing a working tool looked like it
+//! saved a download — but the PATH a developer's terminal has is not the PATH a
+//! GUI-launched app inherits, so "found during install" and "usable at runtime"
+//! are different questions and only the second one matters. A copy at a path
+//! Marvi chose is one it can always hand to a child process. What is on PATH is
+//! still reported, because it is useful to see; it just is not relied on.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
 
-use crate::util::run_shell_with_timeout;
+#[cfg(not(windows))]
+use crate::util::run_shell_reporting;
+#[cfg(windows)]
+use crate::util::run_powershell;
 
 /// How long a toolchain download is allowed to take before it is a failure
 /// rather than a slow connection.
@@ -87,7 +95,8 @@ pub fn toolchain_dir(state_dir: &Path) -> PathBuf {
     state_dir.join("toolchain")
 }
 
-fn managed_path(state_dir: &Path, tool: Tool) -> PathBuf {
+/// Where Marvi's own copy of a tool lives, installed or not.
+pub fn managed_tool_path(state_dir: &Path, tool: Tool) -> PathBuf {
     let base = toolchain_dir(state_dir).join(tool.name());
     match tool {
         Tool::Uv => base.join(tool.executable()),
@@ -136,34 +145,34 @@ fn node_major(version: &str) -> Option<u32> {
 
 /// Look for one tool: Marvi's own copy first, then whatever is on PATH.
 pub fn status(state_dir: &Path, tool: Tool) -> ToolStatus {
-    let managed = managed_path(state_dir, tool);
+    let managed = managed_tool_path(state_dir, tool);
     if let Some(version) = probe_version(&managed) {
-        return ToolStatus {
-            tool: tool.name(),
-            found: true,
-            path: Some(managed),
-            version,
-            managed: true,
-            detail: "installed by Marvi".to_string(),
-        };
-    }
-
-    if let Some((path, version)) = on_path(tool) {
-        // Already usable. Downloading a second copy of a working tool wastes
-        // the user's bandwidth and their disk.
         let too_old = tool == Tool::Node
             && node_major(&version).is_some_and(|major| major < NODE_MAJOR_MINIMUM);
         return ToolStatus {
             tool: tool.name(),
             found: !too_old,
-            path: Some(path),
+            path: Some(managed),
             version: version.clone(),
-            managed: false,
+            managed: true,
             detail: if too_old {
                 format!("{version} is older than the required v{NODE_MAJOR_MINIMUM}")
             } else {
-                "already on PATH".to_string()
+                "installed by Marvi".to_string()
             },
+        };
+    }
+
+    if let Some((path, version)) = on_path(tool) {
+        // Reported, not relied on: `found` stays false so the installer
+        // provisions a copy at a path it controls. See the module comment.
+        return ToolStatus {
+            tool: tool.name(),
+            found: false,
+            path: Some(path),
+            version: version.clone(),
+            managed: false,
+            detail: "on PATH, but not one Marvi controls".to_string(),
         };
     }
 
@@ -189,24 +198,28 @@ fn install_uv(state_dir: &Path, progress: &mut dyn FnMut(&str)) -> Result<PathBu
 
     // The vendor's own installer, pointed at Marvi's directory rather than the
     // user's profile, so an uninstall takes it away again.
-    let command = if cfg!(windows) {
-        format!(
-            "powershell -NoProfile -ExecutionPolicy Bypass -Command \
-             \"$env:UV_INSTALL_DIR='{}'; $env:UV_NO_MODIFY_PATH='1'; \
-             irm https://astral.sh/uv/install.ps1 | iex\"",
+    #[cfg(windows)]
+    {
+        let script = format!(
+            "$env:UV_INSTALL_DIR='{}'; $env:UV_NO_MODIFY_PATH='1'; \
+             irm https://astral.sh/uv/install.ps1 | iex",
             target.display()
-        )
-    } else {
-        format!(
+        );
+        run_powershell(&script, state_dir, INSTALL_TIMEOUT, progress)
+            .map_err(|e| format!("uv install failed: {e}"))?;
+    }
+    #[cfg(not(windows))]
+    {
+        let command = format!(
             "UV_INSTALL_DIR='{}' UV_NO_MODIFY_PATH=1 \
              curl -LsSf https://astral.sh/uv/install.sh | sh",
             target.display()
-        )
-    };
-    run_shell_with_timeout(&command, state_dir, INSTALL_TIMEOUT)
-        .map_err(|e| format!("uv install failed: {e}"))?;
+        );
+        run_shell_reporting(&command, state_dir, INSTALL_TIMEOUT, progress)
+            .map_err(|e| format!("uv install failed: {e}"))?;
+    }
 
-    let exe = managed_path(state_dir, Tool::Uv);
+    let exe = managed_tool_path(state_dir, Tool::Uv);
     if probe_version(&exe).is_none() {
         return Err("uv installed but does not run".to_string());
     }
@@ -241,24 +254,32 @@ fn install_node(
     // Unpacked into a staging directory and moved into place, so an
     // interrupted download never leaves something that looks installed.
     let staging = base.with_extension(crate::util::random_suffix());
-    let command = if cfg!(windows) {
-        format!(
-            "powershell -NoProfile -ExecutionPolicy Bypass -Command \
-             \"$ErrorActionPreference='Stop'; $tmp=Join-Path $env:TEMP 'marvi-node.zip'; \
+    #[cfg(windows)]
+    let outcome = {
+        // A unique temp name: two installs running at once would otherwise
+        // download over each other's archive.
+        let script = format!(
+            "$ErrorActionPreference='Stop'; \
+             $tmp=Join-Path $env:TEMP 'marvi-node-{suffix}.zip'; \
              Invoke-WebRequest -Uri '{url}' -OutFile $tmp; \
              Expand-Archive -Path $tmp -DestinationPath '{staging}' -Force; \
-             Remove-Item $tmp\"",
+             Remove-Item $tmp",
+            suffix = crate::util::random_suffix(),
             url = url,
             staging = staging.display()
-        )
-    } else {
-        format!(
+        );
+        run_powershell(&script, state_dir, INSTALL_TIMEOUT, progress)
+    };
+    #[cfg(not(windows))]
+    let outcome = {
+        let command = format!(
             "set -e; mkdir -p '{staging}'; curl -Ls '{url}' | tar -x -C '{staging}' --strip-components=0",
             staging = staging.display(),
             url = url
-        )
+        );
+        run_shell_reporting(&command, state_dir, INSTALL_TIMEOUT, progress)
     };
-    run_shell_with_timeout(&command, state_dir, INSTALL_TIMEOUT).map_err(|e| {
+    outcome.map_err(|e| {
         let _ = std::fs::remove_dir_all(&staging);
         format!("Node download failed: {e}")
     })?;
@@ -275,7 +296,7 @@ fn install_node(
     std::fs::rename(&source, &base).map_err(|e| format!("could not place Node: {e}"))?;
     let _ = std::fs::remove_dir_all(&staging);
 
-    let exe = managed_path(state_dir, Tool::Node);
+    let exe = managed_tool_path(state_dir, Tool::Node);
     if probe_version(&exe).is_none() {
         return Err("Node installed but does not run".to_string());
     }
@@ -296,27 +317,34 @@ pub fn ensure_toolchain(
 
     for tool in [Tool::Uv, Tool::Node] {
         let found = status(state_dir, tool);
-        if found.found {
+        let path = if found.found {
             progress(&format!(
                 "{} {} ({})",
                 found.tool, found.version, found.detail
             ));
-            if found.managed {
-                if let Some(path) = found.path.as_ref().and_then(|p| p.parent()) {
-                    extra_paths.push(path.to_path_buf());
-                }
+            managed_tool_path(state_dir, tool)
+        } else {
+            if let Some(other) = found.path.as_ref() {
+                // Worth saying out loud: the user has the tool, and Marvi is
+                // downloading one anyway. Silence there looks like a bug.
+                progress(&format!(
+                    "{} {} found at {} — installing Marvi's own copy so the app \
+                     can find it too",
+                    found.tool,
+                    found.version,
+                    other.display()
+                ));
             }
-            continue;
-        }
-
-        let installed = match tool {
-            Tool::Uv => install_uv(state_dir, progress)?,
-            Tool::Node => install_node(state_dir, node_version, progress)?,
+            let installed = match tool {
+                Tool::Uv => install_uv(state_dir, progress)?,
+                Tool::Node => install_node(state_dir, node_version, progress)?,
+            };
+            progress(&format!("{} ready", tool.name()));
+            installed
         };
-        if let Some(parent) = installed.parent() {
+        if let Some(parent) = path.parent() {
             extra_paths.push(parent.to_path_buf());
         }
-        progress(&format!("{} ready", tool.name()));
     }
 
     Ok(extra_paths)
@@ -340,12 +368,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_missing_tool_is_reported_not_guessed() {
+    fn a_tool_on_path_does_not_satisfy_the_requirement() {
+        // The regression this guards: v0.1.3 found the developer's own uv and
+        // Node, installed neither, and the GUI-launched app — which inherits a
+        // different PATH — could not run either of them.
         let empty = std::env::temp_dir().join("marvi-toolchain-empty");
-        let found = status(&empty, Tool::Uv);
-        // It may legitimately be on PATH on a developer machine; what must not
-        // happen is claiming a managed copy that is not there.
-        assert!(!found.managed || found.path.is_some());
+        let _ = std::fs::remove_dir_all(&empty);
+        for tool in [Tool::Uv, Tool::Node] {
+            let found = status(&empty, tool);
+            assert!(!found.found, "{} must be installed, not borrowed", tool.name());
+            assert!(!found.managed);
+        }
     }
 
     #[test]

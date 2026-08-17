@@ -918,18 +918,32 @@ function ProviderCard({
     }
   }
 
+  // A local provider is configured the moment it has a default URL, which is
+  // not the same as running. Saying CONNECTED for an Ollama that is not
+  // started sends the user looking for the fault everywhere except the cause.
+  const offline = provider.reachable === false
+  const ready = provider.configured && !offline
+
   return (
     <div className="service-row provider-row">
       <span className="service-name">{provider.label.toUpperCase()}</span>
-      <span className={`service-state state-${provider.configured ? 'ready' : 'pending'}`}>
+      <span className={`service-state state-${ready ? 'ready' : 'pending'}`}>
         {provider.cooldown
           ? `COOLING DOWN ${Math.round(provider.cooldown.seconds_remaining)}S`
-          : oauth
-            ? oauth.state.toUpperCase()
-            : provider.configured
-              ? 'CONNECTED'
-              : 'NOT CONNECTED'}
+          : offline
+            ? 'NOT RUNNING'
+            : oauth
+              ? oauth.state.toUpperCase()
+              : provider.configured
+                ? 'CONNECTED'
+                : 'NOT CONNECTED'}
       </span>
+      {offline ? (
+        <small className="provider-cooldown">
+          Nothing is listening on {provider.baseUrl} — start it, or point{' '}
+          {provider.env.url || 'the URL'} somewhere else.
+        </small>
+      ) : null}
       <small>
         {ACCESS_LABEL[provider.accessPath]} / {provider.apiMode.replace(/_/g, ' ').toUpperCase()} /{' '}
         {provider.models.main || 'no model'}

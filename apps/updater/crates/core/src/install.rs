@@ -22,6 +22,15 @@ pub struct InstallConfig {
     pub state_dir: PathBuf,
     pub relaunch_exe: Option<PathBuf>,
     pub builder: Box<dyn BuildRunner>,
+    /// False only in tests. Provisioning downloads ~100 MB of `uv` and Node,
+    /// which a unit test has no business doing; the live test in
+    /// `toolchain_live.rs` covers the real thing. Also gates the handoff, for
+    /// the same reason: a test must not touch the user's PATH or Desktop.
+    pub provision_toolchain: bool,
+    /// The user's GPU answer, or None when they were not asked. Recorded before
+    /// the Python environments are built, because it picks the PyTorch index
+    /// and getting it wrong costs a multi-gigabyte reinstall.
+    pub use_gpu: Option<bool>,
 }
 
 #[derive(Debug, Clone)]
@@ -125,7 +134,8 @@ pub fn install(cfg: &mut InstallConfig, progress: &mut dyn FnMut(&str)) -> Insta
 
     progress("building");
     let state = cfg.state_dir.clone();
-    if let Err(e) = build_with_toolchain(&staging, Some(&state), &mut *cfg.builder, progress) {
+    let toolchain_state = cfg.provision_toolchain.then_some(state.as_path());
+    if let Err(e) = build_with_toolchain(&staging, toolchain_state, &mut *cfg.builder, progress) {
         cleanup(&staging);
         return fail(e);
     }
@@ -141,6 +151,34 @@ pub fn install(cfg: &mut InstallConfig, progress: &mut dyn FnMut(&str)) -> Insta
     if let Err(e) = std::fs::rename(&staging, &cfg.install_root) {
         cleanup(&staging);
         return fail(format!("could not activate the installation: {e}"));
+    }
+
+    // Everything past this point is best-effort: the checkout is built and
+    // in place, and a missing shortcut is not a reason to undo that. Each step
+    // says what happened, because a step that fails in silence is what made
+    // the previous release impossible to diagnose.
+    if cfg.provision_toolchain {
+        crate::handoff::record_gpu_choice(
+            &cfg.install_root,
+            &cfg.state_dir,
+            cfg.use_gpu,
+            progress,
+        );
+        if let Err(e) =
+            crate::handoff::install_essentials(&cfg.install_root, &cfg.state_dir, progress)
+        {
+            progress(&format!(
+                "warning: some components did not install ({e}); run `marvi setup` to finish"
+            ));
+        }
+        if let Err(e) =
+            crate::handoff::install_cli_shim(&cfg.install_root, &cfg.state_dir, progress)
+        {
+            progress(&format!("warning: the marvi command was not installed ({e})"));
+        }
+        if let Err(e) = crate::handoff::create_shortcuts(&cfg.install_root, progress) {
+            progress(&format!("warning: no shortcut was created ({e})"));
+        }
     }
 
     let result = UpdateResult::new("ok", "Installed successfully.")
