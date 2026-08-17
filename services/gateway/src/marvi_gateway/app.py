@@ -19,6 +19,7 @@ from . import breadcrumb, paths
 from . import doctor as doctor_module
 from . import plugins as plugins_module
 from . import room as room_module
+from . import schedule as schedule_module
 from . import setup as setup_module
 from .accounts import ComposioAccounts, register_account_tools
 from .activity import ActivityWatch, register_activity_tools
@@ -41,7 +42,7 @@ from .policy import InitiativeSettings
 from .providers import ProviderClient, all_profiles
 from .providers import config as provider_config
 from .providers.oauth import OAuthError, broker
-from .room import RoomSidecar, register_room_tools, sleep_guard
+from .room import RoomSidecar, RoomUnavailableError, register_room_tools, sleep_guard
 from .runtime import (
     ArgumentsMutatedError,
     AuditPage,
@@ -432,6 +433,10 @@ def create_app(
     initiative: Initiative | None = None
     faces: FaceLibrary | None = None
     loaded_plugins: list[plugins_module.LoadedPlugin] = []
+    #: Highest room event id already journaled. None until the first poll sets a
+    #: baseline, so a restart does not replay the log into the mind.
+    room_cursor: int | None = None
+    scheduler: schedule_module.Scheduler | None = None
     if tools is not None:
         tool_registry = tools
     else:
@@ -441,6 +446,8 @@ def create_app(
         # Installed plugins, after the built-in tools: a plugin cannot replace a
         # tool Marvi already registered, only add to the set. `load` imports and
         # collects; nothing is started until the lifespan opens.
+        scheduler = schedule_module.Scheduler(schedule_module.ScheduleStore())
+        schedule_module.register_schedule_tools(tool_registry, scheduler)
         loaded_plugins.extend(load_installed_plugins())
         for plugin in loaded_plugins:
             # The guard is Marvi's, not the plugin's. The room plugin's own
@@ -516,6 +523,13 @@ def create_app(
         install_asyncio_handler(asyncio.get_running_loop())
         if initiative is not None:
             initiative.start()
+        if scheduler is not None:
+            # The journal and initiative are wired in here rather than at
+            # construction, because the tools are registered before either
+            # exists and a reminder needs the journal to fire into.
+            scheduler.journal = journal
+            scheduler.initiative = initiative
+            scheduler.start()
         # A plugin's backend is a child process it starts itself, on a worker
         # thread because starting one is blocking work and the event loop is
         # serving the health endpoint the shell polls every two seconds.
@@ -528,6 +542,8 @@ def create_app(
         finally:
             if initiative is not None:
                 initiative.stop()
+            if scheduler is not None:
+                scheduler.stop()
             # Stopped in reverse, and never allowed to raise: a plugin that
             # cannot shut down cleanly must not leave the rest of the shutdown
             # undone, or its child process outlives the Gateway and holds the
@@ -607,19 +623,50 @@ def create_app(
             )
         return ComponentStatus(state="ready", detail="LiveKit up, voice models installed")
 
-    def current_status() -> RuntimeStatus:
-        if sidecar is not None:
+    def drain_room_events() -> dict[str, Any] | None:
+        """Journal every room event since the last poll. Returns the newest.
+
+        Two bugs lived here. It read *one* event per poll, so a second notable
+        thing in the same interval was lost; and it re-appended whatever the
+        newest event was on every poll, so the journal's six-hour dedupe window
+        was the only thing stopping a light change from yesterday re-entering the
+        mind's queue forever — which it did, every six hours.
+
+        The cursor fixes both: only genuinely new events are journaled, and all
+        of them are.
+        """
+        nonlocal room_cursor
+        if sidecar is None:
+            return None
+        try:
+            fresh = sidecar.events_since(room_cursor)
+        except RoomUnavailableError:
+            # The room being down is not a Gateway problem; the component status
+            # says so, and the poll must not fail because of it.
+            return None
+        if room_cursor is None:
+            # First poll establishes a baseline. Whatever is already in the log
+            # happened before Marvi was running and is not news.
             latest = sidecar.latest_notable_event()
-            runtime_store.observe_room_event(latest)
-            if latest and journal is not None:
+            if latest is not None:
+                room_cursor = int(latest.get("id", 0))
+            return latest
+        for event in fresh:
+            room_cursor = max(room_cursor, int(event.get("id", 0)))
+            if journal is not None:
                 # A room transition is a world event the mind may reason about.
                 journal.append(
                     "room",
-                    str(latest.get("type", "event")),
-                    str(latest.get("summary", "room event")),
-                    {"id": latest.get("id")},
+                    str(event.get("type", "event")),
+                    str(event.get("summary", "room event")),
+                    {"id": event.get("id")},
                     trusted=True,
                 )
+        return fresh[-1] if fresh else None
+
+    def current_status() -> RuntimeStatus:
+        if sidecar is not None:
+            runtime_store.observe_room_event(drain_room_events())
         livekit_ready = livekit_is_ready()
         components = {
                 "gateway": ComponentStatus(state="ready", detail="local facade online"),

@@ -175,13 +175,29 @@ def evaluate(
                 True, _cap("activity", ceiling), "cooldown", f"last surfaced {quiet_for:.0f}s ago"
             )
 
-    # 6. Quiet hours downgrade speech to something glanceable.
-    if _quiet_now(rules, world.now) and SURFACES.index(surface) >= SURFACES.index("speak"):
+    # 6. A schedule the user set is not Marvi's initiative, and the rules that
+    #    exist to keep Marvi's own ideas quiet do not apply to it. Quiet hours
+    #    downgrade speech to a glance, which is right for "you have email" and
+    #    useless for an alarm set for 07:00 — an alarm that appears silently on
+    #    a screen is not an alarm. Same for an empty room: a reminder to leave
+    #    the house is most useful on the way out.
+    #
+    #    Deliberately narrow. Everything above still applies: it cannot talk
+    #    over a live conversation, it cannot escape the cooldown, and it is
+    #    still capped by its ceiling.
+    requested = event.get("source") == "schedule"
+
+    # 7. Quiet hours downgrade speech to something glanceable.
+    if (
+        not requested
+        and _quiet_now(rules, world.now)
+        and SURFACES.index(surface) >= SURFACES.index("speak")
+    ):
         return Verdict(True, _cap("island", ceiling), "quiet-hours", "downgraded from speech")
 
-    # 7. Speaking to an empty room is noise, not initiative.
+    # 8. Speaking to an empty room is noise, not initiative.
     speaking = SURFACES.index(surface) >= SURFACES.index("speak")
-    if speaking and not world.present and not rules.speak_when_away:
+    if speaking and not requested and not world.present and not rules.speak_when_away:
         return Verdict(True, _cap("island", ceiling), "nobody-present", "downgraded from speech")
 
     return Verdict(True, surface, "allowed", f"ceiling {ceiling}")

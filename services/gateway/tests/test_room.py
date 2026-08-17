@@ -16,6 +16,7 @@ from httpx import ASGITransport, AsyncClient
 
 from marvi_gateway.app import create_app
 from marvi_gateway.room import (
+    NOTABLE_EVENTS,
     RoomRejectedError,
     RoomSidecar,
     RoomUnavailableError,
@@ -257,3 +258,146 @@ async def test_invalid_room_arguments_never_reach_the_sidecar(sidecar, tmp_path)
     assert bad_brightness.json()["status"] == "failed"
     assert wrong_type.status_code == 422
     assert [request["method"] for request in fake.requests] == []
+
+
+# -- the event gap -------------------------------------------------------------
+
+
+def _write_events(home, events) -> None:
+    home.mkdir(parents=True, exist_ok=True)
+    (home / "events.jsonl").write_text(
+        "\n".join(json.dumps(event) for event in events) + "\n", encoding="utf-8"
+    )
+
+
+def test_every_new_event_is_drained_not_just_the_newest(tmp_path) -> None:
+    """Two notable things in one poll interval is not unusual.
+
+    `latest_notable_event` returned one event per call and the Gateway called it
+    once per health poll, so presence clearing and a light going off within the
+    same two seconds meant one of them was never seen by anything.
+    """
+    home = tmp_path / "room"
+    _write_events(
+        home,
+        [
+            {"id": 1, "type": "mode_changed", "summary": "reading"},
+            {"id": 2, "type": "presence_cleared", "summary": "empty"},
+            {"id": 3, "type": "light_changed", "summary": "off"},
+        ],
+    )
+    sidecar = RoomSidecar(home=home)
+
+    fresh = sidecar.events_since(1)
+
+    assert [event["id"] for event in fresh] == [2, 3]
+    # Oldest first: these go into the journal, which records what happened in
+    # the order it happened.
+    assert [event["type"] for event in fresh] == ["presence_cleared", "light_changed"]
+
+
+def test_nothing_is_returned_once_caught_up(tmp_path) -> None:
+    home = tmp_path / "room"
+    _write_events(home, [{"id": 7, "type": "light_changed", "summary": "on"}])
+
+    assert RoomSidecar(home=home).events_since(7) == []
+
+
+def test_a_cursor_of_none_returns_everything_notable(tmp_path) -> None:
+    home = tmp_path / "room"
+    _write_events(
+        home,
+        [
+            {"id": 1, "type": "vision_identity_state", "summary": "ambient"},
+            {"id": 2, "type": "light_changed", "summary": "on"},
+        ],
+    )
+
+    fresh = RoomSidecar(home=home).events_since(None)
+
+    # Ambient churn is still filtered; the cursor decides *when*, the allowlist
+    # decides *what*.
+    assert [event["id"] for event in fresh] == [2]
+
+
+def test_the_allowlist_covers_what_the_engine_actually_writes() -> None:
+    """Triaged against a real 500-event sample, not guessed at.
+
+    The first version noticed four of the thirteen types in the log: a phone
+    arriving home, a device dropping off the network and every gesture went
+    unseen.
+    """
+    for noticed in (
+        "room_entry",
+        "device_offline",
+        "device_online",
+        "phone_location_changed",
+        "vision_sleep_state",
+    ):
+        assert noticed in NOTABLE_EVENTS, noticed
+
+    # Deliberately excluded: ambient state, and the engine's own bookkeeping.
+    # `vision_identity_state` alone was 413 of those 500 events.
+    for ignored in (
+        "vision_identity_state",
+        # One gesture emits up to 41 consecutive events in a real log. Worth
+        # surfacing, but only after debouncing to a single transition.
+        "vision_gesture",
+        "smart_room_state_reconciled",
+        "visitor_history_corrected",
+    ):
+        assert ignored not in NOTABLE_EVENTS, ignored
+
+
+@pytest.mark.asyncio
+async def test_a_stale_event_is_not_re_journaled_on_every_poll(tmp_path, monkeypatch) -> None:
+    """The bug the cursor exists to fix.
+
+    The Gateway appended whatever the newest room event was on *every* health
+    poll. The journal's six-hour dedupe window was the only thing stopping a
+    light change from yesterday re-entering the mind's queue — which it did,
+    every six hours, forever.
+    """
+    from marvi_gateway.journal import EventJournal
+
+    home = tmp_path / "room"
+    _write_events(home, [{"id": 1, "type": "light_changed", "summary": "off"}])
+    monkeypatch.setenv("MARVI_ROOM_HOME", str(home))
+    monkeypatch.setenv("MARVI_JOURNAL_DB", str(tmp_path / "journal.sqlite3"))
+
+    app = create_app(version="0.1.0-test")
+
+    def room_events() -> list[dict]:
+        journal = EventJournal(tmp_path / "journal.sqlite3")
+        try:
+            return [e for e in journal.recent(limit=100) if e["source"] == "room"]
+        finally:
+            journal.close()
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://marvi.local"
+    ) as client:
+        for _ in range(4):
+            await client.get("/runtime")
+
+    # The first poll only established a baseline: nothing that predates Marvi
+    # running is news, and nothing was appended four times.
+    assert room_events() == []
+
+    # A genuinely new event arrives, exactly once however often it is polled.
+    _write_events(
+        home,
+        [
+            {"id": 1, "type": "light_changed", "summary": "off"},
+            {"id": 2, "type": "mode_changed", "summary": "reading"},
+        ],
+    )
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://marvi.local"
+    ) as client:
+        for _ in range(3):
+            await client.get("/runtime")
+
+    recorded = room_events()
+    assert len(recorded) == 1
+    assert recorded[0]["kind"] == "mode_changed"

@@ -50,16 +50,49 @@ ROOM_MODES = {"normal", "reading", "focus", "relax", "night", "sleep", "alarm", 
 
 EVENT_TAIL_BYTES = 64 * 1024
 
-# The sidecar's event log is dominated by ambient vision state churn — in a
-# 500-event sample, 446 were `vision_identity_state`. An always-on surface must
-# allowlist rather than denylist: an unrecognised new type is better missed than
-# blasted at the user every second. Add types here deliberately.
+# The engine's log is dominated by ambient vision state churn — in a 500-event
+# sample, 413 were `vision_identity_state`. An always-on surface must allowlist
+# rather than denylist: an unrecognised new type is better missed than blasted at
+# the user every second. Add types here deliberately.
+#
+# Triaged against the events this engine really writes, rather than guessed at.
+# The first version of this list allowlisted ten types and noticed four of the
+# thirteen in the log — a phone arriving home, a device dropping off the network
+# and every gesture went unseen.
+#
+# Deliberately still excluded, and why:
+#
+#   vision_identity_state       ambient, and it is state, not news. It belongs in
+#                               the context line, which reads `state.vision`.
+#   vision_gesture              one gesture emits a burst: measured against a real
+#                               log, 98 events with runs of up to 41 consecutive
+#                               ids. A gesture is a genuine intentional act and
+#                               worth surfacing, but it needs debouncing to a
+#                               single transition first, and an allowlist entry
+#                               is not that. Adding it here would put 41 entries
+#                               in the journal for one wave.
+#   smart_room_state_reconciled bookkeeping the engine does to itself.
+#   visitor_history_corrected   same.
 NOTABLE_EVENTS = frozenset(
     {
         "mode_changed",
         "light_changed",
         "presence_detected",
         "presence_cleared",
+        # Someone came in. The engine writes this alongside presence_detected
+        # for an identified entry, and it carries who.
+        "room_entry",
+        # A device dropping off the network is the room quietly losing a limb:
+        # the bulb stops answering, the ESP32 stops reporting, and every later
+        # symptom looks like something else.
+        "device_offline",
+        "device_online",
+        # OwnTracks. Arriving and leaving is exactly the kind of thing an
+        # always-on assistant should know without being told.
+        "phone_location_changed",
+        # Falling asleep and waking are what the sleep rule turns on, so Marvi
+        # should hear about them rather than infer them from a poll.
+        "vision_sleep_state",
         "he20_occupied",
         "he20_cleared",
         "room_presence_unverified",
@@ -340,6 +373,22 @@ class RoomSidecar:
     def latest_notable_event(self) -> dict[str, Any] | None:
         found = self.events(limit=1)
         return found[0] if found else None
+
+    def events_since(self, after_id: int | None, limit: int = 50) -> list[dict[str, Any]]:
+        """Notable events newer than `after_id`, oldest first.
+
+        `latest_notable_event` returns one event per call, and the Gateway called
+        it once per health poll — so two notable things happening between polls
+        meant one of them was never seen by anything. Presence clearing and a
+        light going off within the same two seconds is not an unusual pair.
+
+        Oldest first because these go into the journal, and the journal is a
+        record of what happened in the order it happened.
+        """
+        found = self.events(limit=limit)
+        if after_id is not None:
+            found = [event for event in found if int(event.get("id", 0)) > after_id]
+        return list(reversed(found))
 
     def reachable(self) -> bool:
         try:
