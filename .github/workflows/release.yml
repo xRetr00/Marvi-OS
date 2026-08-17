@@ -111,6 +111,30 @@ jobs:
         working-directory: apps/updater
         run: cargo test --workspace
 
+      - name: Guard bootstrap/VERSION agreement
+        shell: bash
+        run: |
+          # The bootstrap ships as its own binary and is the thing that performs
+          # updates, so a user can be holding an older one than the release they
+          # installed. `marvi-bootstrap --version` is how they find out, which
+          # only helps if the number is the product's.
+          BOOTSTRAP="$(grep -m1 '^version = ' apps/updater/Cargo.toml | cut -d'"' -f2)"
+          FILE_VERSION="$(head -n1 VERSION | tr -d '[:space:]')"
+          if [ "$BOOTSTRAP" != "$FILE_VERSION" ]; then
+            echo "::error::apps/updater/Cargo.toml is $BOOTSTRAP but VERSION is $FILE_VERSION."
+            exit 1
+          fi
+          echo "bootstrap version $BOOTSTRAP matches VERSION"
+
+      - name: Smoke test the bootstrap CLI
+        working-directory: apps/updater
+        shell: bash
+        run: |
+          # It reports a version and refuses nonsense. Both are things a user
+          # hits before anything else, and neither needs a window.
+          cargo run -q -p marvi-bootstrap -- --version
+          cargo run -q -p marvi-bootstrap -- nonsense && exit 1 || true
+
       - name: Build the app exactly as the updater will
         shell: bash
         env:

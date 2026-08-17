@@ -14,7 +14,17 @@ mod cli;
 use cli::Mode;
 
 fn main() {
-    let args = match cli::parse(std::env::args().skip(1)) {
+    // Before parsing: the bootstrap is the one component a user can be holding
+    // an old copy of, because it is the thing that does the updating. Asking it
+    // which version it is has to work without arguments and without a window.
+    let mut argv: Vec<String> = std::env::args().skip(1).collect();
+    if argv.iter().any(|a| a == "--version" || a == "-v") {
+        println!("marvi-bootstrap {}", env!("CARGO_PKG_VERSION"));
+        return;
+    }
+    argv.retain(|a| a != "--version" && a != "-v");
+
+    let args = match cli::parse(argv) {
         Ok(a) => a,
         Err(e) => {
             eprintln!("{e}");

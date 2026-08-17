@@ -70,7 +70,20 @@ foreach ($pkg in @('package.json', 'apps\desktop\package.json')) {
   $json | ConvertTo-Json -Depth 10 | Set-Content $pkg
 }
 
-git add VERSION package.json apps\desktop\package.json
+# The bootstrap ships as its own binary, so a user can be running an older one
+# than the release they installed - it is the thing that does the updating. It
+# carries the product version so `marvi-bootstrap --version` answers usefully.
+$cargo = 'apps\updater\Cargo.toml'
+$text = Get-Content $cargo -Raw
+$updated = [regex]::Replace($text, '(?m)^version = "[^"]+"', "version = `"$Version`"", 1)
+if ($updated -eq $text) { throw "Could not find the workspace version in $cargo." }
+Set-Content -Path $cargo -Value $updated -NoNewline
+# Cargo.lock records it too; a lockfile that disagrees fails the build.
+Push-Location apps\updater
+cargo update --workspace --offline 2>&1 | Out-Null
+Pop-Location
+
+git add VERSION package.json apps\desktop\package.json apps\updater\Cargo.toml apps\updater\Cargo.lock
 git commit -m "chore: release $tag"
 git tag -a $tag -m "Marvi OS $tag"
 git push origin main
