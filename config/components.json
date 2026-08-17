@@ -1,0 +1,55 @@
+{
+  "$comment": "What Marvi can install. Data, not code — adding a component means adding an entry here. Voice models live in voice-models.json until the PowerShell installers are retired, because duplicating their hashes is how two files drift apart.",
+  "schema": 1,
+  "components": [
+    {
+      "name": "livekit",
+      "kind": "binary",
+      "title": "LiveKit server",
+      "why": "Carries the voice session. Not needed if LIVEKIT_URL points at a cloud project.",
+      "needed_for": ["voice"],
+      "source": {
+        "type": "url",
+        "base_url": "https://github.com/livekit/livekit/releases/download/v1.13.5"
+      },
+      "install_to": "runtime/livekit/1.13.5",
+      "extra": {
+        "note": "The release ships a zip; sizes and hashes are filled in when the download flow is proven against it.",
+        "version": "1.13.5"
+      }
+    },
+    {
+      "name": "vision-faces",
+      "kind": "model",
+      "title": "Face recognition (buffalo_l)",
+      "why": "Recognises you and tells a known face from a visitor.",
+      "needed_for": ["vision"],
+      "source": {
+        "type": "url",
+        "base_url": "https://github.com/deepinsight/insightface/releases/download/v0.7"
+      },
+      "install_to": "models/vision/buffalo_l",
+      "extra": {
+        "note": "InsightFace downloads this itself on first use; listed here so Doctor can report on it and so removal is honest."
+      }
+    },
+    {
+      "name": "gateway-python",
+      "kind": "python",
+      "title": "Gateway dependencies",
+      "why": "The Gateway will not start without them.",
+      "needed_for": ["gateway", "voice", "vision"],
+      "source": { "type": "command" },
+      "project": "services/gateway"
+    },
+    {
+      "name": "agent-python",
+      "kind": "python",
+      "title": "Voice agent dependencies",
+      "why": "The voice worker will not start without them.",
+      "needed_for": ["voice"],
+      "source": { "type": "command" },
+      "project": "services/agent"
+    }
+  ]
+}

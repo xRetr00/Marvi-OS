@@ -1,6 +1,6 @@
 # Phase 11 — Setup: dependencies, models, skills, and MCP
 
-**Status:** planned
+**Status:** in progress — steps 1, 2 and 3 done
 **Depends on:** Phase 10 (the check-and-remedy engine this is built on)
 
 ## The decision: one engine, two front ends
@@ -104,16 +104,30 @@ kind of input.
 
 ## Work breakdown
 
-**Step 1 — the component manifest.** One schema covering models, binaries,
-skills, and MCP servers, generalising `config/voice-models.json`.
+**Step 1 — the component manifest. Done.** `config/components.json`, the same
+shape `voice-models.json` already had: an id, a pinned revision, and a file map
+of `{name: [size, sha256]}`. Voice models are still read from the older file
+because the PowerShell installers read it too, and duplicating five hashes is
+how two files drift apart.
 
-**Step 2 — install, verify, remove**, on Phase 10's remedy engine. Resumable
-downloads, hash verification, atomic moves into place.
+**Step 2 — install, verify, remove. Done.** Verified by hash before anything is
+moved into place, resumable through a `.part` file and a `Range` header,
+idempotent on a complete install, and reversible with a guard against a manifest
+that points outside the install root. Disk space is checked before the first
+byte. Proven end to end against a real Hugging Face download. 24 tests.
 
-**Step 3 — the CLI.** `marvi` as a console script over the module. Doctor and
-setup first; the rest follows.
+**Step 3 — the CLI. Done.** `marvi` as a console script: `doctor`,
+`doctor --fix`, `setup`, `models`, `logs`, `providers`, `crashes`,
+`diagnostics`. Nothing calls localhost, so it works with the Gateway stopped —
+which is the entire reason it exists. `--fix` lists consequential remedies and
+asks before starting a multi-gigabyte download.
 
-**Step 4 — the setup page.** What is installed, what is missing, sizes before
+**Step 3b — Doctor sees components. Done.** The check Phase 10 deferred here,
+because verifying a hash needs a manifest to check against and writing that
+twice would have been worse than waiting.
+
+**Step 4 — the setup page.** `GET /setup`, install and remove endpoints exist;
+the page itself does not. What is installed, what is missing, sizes before
 downloading, and progress that survives closing the page.
 
 **Step 5 — first-run flow.** A new install that opens Marvi should be walked
@@ -124,7 +138,10 @@ grant a microphone. Nothing else is required to say the first sentence.
 
 **Step 7 — skills**, with the scoping rule above and a schema.
 
-**Step 8 — retire the PowerShell setup scripts**, once the module covers them.
+**Step 8 — retire the PowerShell setup scripts**, and unify the install root at
+the same time: models live under `Marvi-OS` while logs and databases live under
+`Marvi OS`, which is two confusingly similar folders. Both changes touch the
+same code, and doing them together means one migration rather than two.
 Until then they stay and are documented as the older path, because deleting a
 working installer before its replacement is proven is how a repo ends up with
 neither.

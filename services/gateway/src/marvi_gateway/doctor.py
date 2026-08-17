@@ -485,6 +485,56 @@ def check_logs() -> Finding:
     )
 
 
+def repo_root() -> Path:
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        if (parent / "config" / "components.json").exists():
+            return parent
+    return Path.cwd()
+
+
+def check_components() -> list[Finding]:
+    """Installed components, verified by hash rather than by existence.
+
+    Deferred out of Phase 10 until the manifest existed, because checking a
+    hash needs something to check it against and writing that twice would have
+    been worse than waiting.
+    """
+    from .setup import catalog, installer
+
+    root = repo_root()
+    findings: list[Finding] = []
+    for component in catalog.load(root):
+        if not component.files:
+            # Described but not yet fetchable; nothing to verify.
+            continue
+        state = component.status()
+        if state["installed"]:
+            findings.append(
+                Finding(component.name, "components", "ok", "verified")
+            )
+            continue
+        partly = 0 < len(state["problems"]) < len(component.files)
+        findings.append(
+            Finding(
+                component.name,
+                "components",
+                # A component nothing needs is not a failure; one the voice
+                # path depends on is.
+                "fail" if component.needed_for else "warn",
+                f"{state['detail']} ({component.bytes_total / 1024**3:.1f} GB)",
+                Remedy(
+                    kind="confirm",
+                    action=f"Download {component.title}",
+                    how=component.why,
+                    run=lambda c=component: installer.install(c, root).detail,
+                ),
+                {"problems": state["problems"], "partly_installed": partly},
+            )
+        )
+    return findings
+
+
 def check_crashes() -> Finding:
     from . import breadcrumb
 
@@ -530,6 +580,7 @@ def run_checks() -> list[Finding]:
         check_disk_space,
         check_logs,
         check_token_store,
+        check_components,
         check_crashes,
         check_databases,
     ]

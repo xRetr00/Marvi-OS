@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from . import breadcrumb
 from . import doctor as doctor_module
+from . import setup as setup_module
 from .accounts import ComposioAccounts, register_account_tools
 from .activity import ActivityWatch, register_activity_tools
 from .announce import Announcer, announce_enabled
@@ -236,6 +237,25 @@ class HealRequest(BaseModel):
 class HealResult(BaseModel):
     applied: list[dict[str, Any]]
     report: DoctorReport
+
+
+class ComponentRow(BaseModel):
+    name: str
+    kind: str
+    title: str
+    why: str
+    needed_for: list[str]
+    bytes_total: int
+    installed: bool
+    detail: str
+
+
+class SetupPage(BaseModel):
+    components: list[ComponentRow]
+    plan: dict[str, Any]
+    install_root: str
+    disk_ok: bool
+    disk_detail: str
 
 
 class LogPage(BaseModel):
@@ -617,6 +637,61 @@ def create_app(
     async def diagnostics() -> dict[str, str]:
         """One redacted block to paste into a bug report."""
         return {"text": doctor_module.diagnostics()}
+
+    def setup_page() -> SetupPage:
+        components = setup_module.load(REPO_ROOT)
+        enough, detail = setup_module.disk_space_for(components)
+        rows = []
+        for component in components:
+            state = component.status()
+            rows.append(
+                ComponentRow(
+                    name=component.name,
+                    kind=component.kind,
+                    title=component.title,
+                    why=component.why,
+                    needed_for=list(component.needed_for),
+                    bytes_total=component.bytes_total,
+                    installed=bool(state["installed"]),
+                    detail=str(state["detail"]),
+                )
+            )
+        return SetupPage(
+            components=rows,
+            plan=setup_module.plan(components),
+            install_root=str(setup_module.install_root()),
+            disk_ok=enough,
+            disk_detail=detail,
+        )
+
+    @app.get("/setup", response_model=SetupPage)
+    async def read_setup() -> SetupPage:
+        """What is installed, what is missing, and how big the gap is."""
+        return setup_page()
+
+    @app.post("/setup/{name}/install", response_model=SetupPage)
+    async def install_component(name: str) -> SetupPage:
+        component = setup_module.get(REPO_ROOT, name)
+        if component is None:
+            raise HTTPException(status_code=404, detail=f"unknown component {name}")
+        import anyio
+
+        # Gigabytes on a worker thread: blocking the event loop would stall the
+        # health endpoint the shell polls every two seconds.
+        outcome = await anyio.to_thread.run_sync(
+            lambda: setup_module.install(component, REPO_ROOT)
+        )
+        runtime_store.audit("setup", "install", outcome.as_dict())
+        return setup_page()
+
+    @app.post("/setup/{name}/remove", response_model=SetupPage)
+    async def remove_component(name: str) -> SetupPage:
+        component = setup_module.get(REPO_ROOT, name)
+        if component is None:
+            raise HTTPException(status_code=404, detail=f"unknown component {name}")
+        outcome = setup_module.remove(component)
+        runtime_store.audit("setup", "remove", outcome.as_dict())
+        return setup_page()
 
     @app.get("/logs", response_model=LogPage)
     async def read_logs(subsystem: str = "errors", lines: int = 300) -> LogPage:

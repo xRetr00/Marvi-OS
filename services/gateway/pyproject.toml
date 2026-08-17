@@ -21,6 +21,11 @@ dependencies = [
     "uvicorn[standard]>=0.35,<1",
 ]
 
+[project.scripts]
+# The terminal front end over the same modules the Gateway serves. One line,
+# because the CLI is a caller rather than a second implementation.
+marvi = "marvi_gateway.cli:main"
+
 [dependency-groups]
 dev = ["pytest>=8,<10", "pytest-asyncio>=1,<2", "ruff>=0.11,<1"]
 

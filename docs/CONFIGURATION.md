@@ -86,6 +86,7 @@ quietly ignored.
 | `MARVI_TOKEN_STORE` | `%LOCALAPPDATA%\Marvi OS\tokens.bin` |
 | `MARVI_JOURNAL_DB` | `%LOCALAPPDATA%\Marvi OS\journal.sqlite3` |
 | `MARVI_CHAT_DB` | `%LOCALAPPDATA%\Marvi OS\chat.sqlite3` |
+| `MARVI_INSTALL_ROOT` | `%LOCALAPPDATA%\Marvi-OS` |
 | `MARVI_IDENTITY_DIR` | `%LOCALAPPDATA%\Marvi OS` |
 
 ### Logging and identity
@@ -96,6 +97,7 @@ quietly ignored.
 | `MARVI_LOG_LEVEL` | `INFO` | |
 | `MARVI_LOG_MAX_BYTES` | 8 MB | rotation size per file |
 | `MARVI_LOG_BACKUPS` | 3 | |
+| `MARVI_INSTALL_ROOT` | `%LOCALAPPDATA%\Marvi-OS` |
 | `MARVI_IDENTITY_DIR` | `%LOCALAPPDATA%\Marvi OS` | where `SOUL.md` and `USER.md` live |
 | `MARVI_IDENTITY_BUDGET` | 1200 | tokens of identity paid on every turn |
 
