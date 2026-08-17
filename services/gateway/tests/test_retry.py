@@ -268,9 +268,11 @@ def test_an_optional_dependency_giving_up_is_not_an_error(caplog) -> None:
     def always_fails() -> None:
         raise ConnectionRefusedError("sidecar is not reachable")
 
-    with caplog.at_level(logging.INFO, logger="marvi.retry"):
-        with pytest.raises(RetriesExhaustedError):
-            retry(always_fails, "room.get_state", policy=policy, sleep=lambda _: None)
+    with (
+        caplog.at_level(logging.INFO, logger="marvi.retry"),
+        pytest.raises(RetriesExhaustedError),
+    ):
+        retry(always_fails, "room.get_state", policy=policy, sleep=lambda _: None)
 
     gave_up = [r for r in caplog.records if "gave up" in r.getMessage()]
     assert gave_up, "giving up is still reported — quietly, not silently"
@@ -283,8 +285,10 @@ def test_a_required_dependency_giving_up_is_still_an_error(caplog) -> None:
     def always_fails() -> None:
         raise ConnectionRefusedError("gateway is down")
 
-    with caplog.at_level(logging.INFO, logger="marvi.retry"):
-        with pytest.raises(RetriesExhaustedError):
-            retry(always_fails, "provider.call", policy=policy, sleep=lambda _: None)
+    with (
+        caplog.at_level(logging.INFO, logger="marvi.retry"),
+        pytest.raises(RetriesExhaustedError),
+    ):
+        retry(always_fails, "provider.call", policy=policy, sleep=lambda _: None)
 
     assert any(r.levelno == logging.ERROR for r in caplog.records)
