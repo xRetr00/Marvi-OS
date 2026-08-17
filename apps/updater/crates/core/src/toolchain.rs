@@ -39,8 +39,14 @@ use crate::util::run_powershell;
 /// rather than a slow connection.
 const INSTALL_TIMEOUT: Duration = Duration::from_secs(600);
 
-/// The minimum Node major version the desktop build needs.
-pub const NODE_MAJOR_MINIMUM: u32 = 20;
+/// The minimum Node the desktop build needs, as (major, minor).
+///
+/// A major-only check was not enough: v22.11.0 satisfied "at least 22" and
+/// still failed every dependency, which require `>=22.12.0`. The dependency
+/// that actually broke needs `require()` of an ES module, which Node supports
+/// from 22.12 and not before — a difference of one minor version that a major
+/// comparison cannot see.
+pub const NODE_MINIMUM: (u32, u32) = (22, 12);
 
 /// The `uv` release to install. Pinned for the same reason `NODE_VERSION` is:
 /// an installer that silently follows `latest` is an installer whose result
@@ -144,16 +150,23 @@ fn on_path(tool: Tool) -> Option<(PathBuf, String)> {
     Some((path, version))
 }
 
-fn node_major(version: &str) -> Option<u32> {
-    version.trim_start_matches('v').split('.').next()?.parse().ok()
+/// (major, minor) from a `vX.Y.Z` string.
+fn node_version(version: &str) -> Option<(u32, u32)> {
+    let mut parts = version.trim_start_matches('v').split('.');
+    let major = parts.next()?.parse().ok()?;
+    let minor = parts.next().unwrap_or("0").parse().unwrap_or(0);
+    Some((major, minor))
+}
+
+fn node_too_old(version: &str) -> bool {
+    node_version(version).is_some_and(|found| found < NODE_MINIMUM)
 }
 
 /// Look for one tool: Marvi's own copy first, then whatever is on PATH.
 pub fn status(state_dir: &Path, tool: Tool) -> ToolStatus {
     let managed = managed_tool_path(state_dir, tool);
     if let Some(version) = probe_version(&managed) {
-        let too_old = tool == Tool::Node
-            && node_major(&version).is_some_and(|major| major < NODE_MAJOR_MINIMUM);
+        let too_old = tool == Tool::Node && node_too_old(&version);
         return ToolStatus {
             tool: tool.name(),
             found: !too_old,
@@ -161,7 +174,10 @@ pub fn status(state_dir: &Path, tool: Tool) -> ToolStatus {
             version: version.clone(),
             managed: true,
             detail: if too_old {
-                format!("{version} is older than the required v{NODE_MAJOR_MINIMUM}")
+                format!(
+                    "{version} is older than the required v{}.{}",
+                    NODE_MINIMUM.0, NODE_MINIMUM.1
+                )
             } else {
                 "installed by Marvi".to_string()
             },
@@ -457,10 +473,25 @@ mod tests {
     }
 
     #[test]
-    fn node_versions_are_compared_by_major() {
-        assert_eq!(node_major("v22.11.0"), Some(22));
-        assert_eq!(node_major("18.0.0"), Some(18));
-        assert_eq!(node_major("nonsense"), None);
+    fn node_versions_are_compared_by_major_and_minor() {
+        // The regression: v22.11.0 shipped, satisfied a major-only check, and
+        // could not build the app. Every Electron and Vite package requires
+        // >=22.12.0, and the one that broke needs `require()` of an ES module,
+        // which Node supports from 22.12 and not before.
+        assert!(node_too_old("v22.11.0"), "22.11 cannot build the app");
+        assert!(!node_too_old("v22.12.0"));
+        assert!(!node_too_old("v22.23.2"));
+        assert!(!node_too_old("v24.12.0"));
+        assert!(node_too_old("v20.19.0"));
+        assert_eq!(node_version("v22.11.0"), Some((22, 11)));
+        assert_eq!(node_version("nonsense"), None);
+    }
+
+    #[test]
+    fn the_version_we_provision_satisfies_our_own_minimum() {
+        // The pin and the floor are two constants in two files, and shipping a
+        // pin below the floor is exactly what v0.2.0 did.
+        assert!(!node_too_old(crate::install::NODE_VERSION));
     }
 
     #[test]

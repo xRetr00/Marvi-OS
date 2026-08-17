@@ -13,7 +13,18 @@ use crate::util::random_suffix;
 
 /// The Node the desktop build is known to work with. Bumping this is how a
 /// release asks for a newer toolchain.
-pub const NODE_VERSION: &str = "v22.11.0";
+/// The Node the installer provisions.
+///
+/// Must stay on the same major as `node-version` in `.github/workflows/release.yml`,
+/// and CI guards that they agree — the point being that the Node a user gets is
+/// the Node the release was gated on.
+///
+/// v22.11.0 shipped in v0.2.0 and could not build the app: every Electron and
+/// Vite package requires `>=22.12.0`, and `electron-builder install-app-deps`
+/// died with ERR_REQUIRE_ESM because `require()` of an ES module only works from
+/// 22.12 onwards. It went unnoticed because every machine that built Marvi
+/// already had a newer Node on PATH; provisioning our own is what exposed it.
+pub const NODE_VERSION: &str = "v22.23.2";
 
 pub struct InstallConfig {
     pub install_root: PathBuf,
