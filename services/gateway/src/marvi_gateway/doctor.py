@@ -581,6 +581,7 @@ def run_checks() -> list[Finding]:
         check_logs,
         check_token_store,
         check_components,
+        check_plugins,
         check_crashes,
         check_databases,
     ]
@@ -662,3 +663,86 @@ def diagnostics(findings: list[Finding] | None = None, log_lines: int = 60) -> s
     recent = tail("errors", lines=log_lines)
     lines += ["", f"## errors.log (last {len(recent)} lines)", *recent]
     return "\n".join(lines)
+
+
+def check_plugins() -> list[Finding]:
+    """Declared plugins: installed, importable, and supported here.
+
+    Three separate ways a plugin fails, and they need three different answers.
+    A missing checkout is a command away. A checkout that will not import is a
+    broken plugin and Marvi should say which one rather than quietly running
+    with fewer tools. A plugin declaring platforms this machine is not one of is
+    working as designed and should not be reported as a fault.
+    """
+    from . import plugins as plugins_module
+
+    findings: list[Finding] = []
+    try:
+        rows = plugins_module.status(repo_root())
+    except Exception as exc:
+        return [Finding("plugins", "plugins", "warn", f"could not read the plugin list: {exc}")]
+
+    if not rows:
+        return [Finding("plugins", "plugins", "ok", "no plugins are declared")]
+
+    for row in rows:
+        name = row["name"]
+        if not row["installed"]:
+            findings.append(
+                Finding(
+                    name,
+                    "plugins",
+                    # A plugin nobody installed is a choice, not a fault. It is
+                    # reported so it is discoverable, at the level that says so.
+                    "warn",
+                    f"{row['title']} is not installed",
+                    Remedy(
+                        kind="confirm",
+                        action=f"Install the {row['title']} plugin",
+                        how=(
+                            f"Run: marvi plugin install {name}\n"
+                            "Or use the Plugins page. Its code runs inside Marvi "
+                            "and its dependencies install into Marvi, so this is "
+                            "a trust decision."
+                        ),
+                    ),
+                )
+            )
+            continue
+
+        if not row["supported"]:
+            findings.append(
+                Finding(name, "plugins", "ok", f"installed, not used here: {row['detail']}")
+            )
+            continue
+
+        # Installed and supported: the only remaining question is whether it
+        # actually loads, and that is worth answering by trying.
+        try:
+            loaded = plugins_module.load(name)
+        except plugins_module.PluginError as exc:
+            findings.append(
+                Finding(
+                    name,
+                    "plugins",
+                    "fail",
+                    f"{row['title']} will not load: {exc}",
+                    Remedy(
+                        kind="confirm",
+                        action=f"Re-install the {row['title']} plugin",
+                        how=(
+                            f"Run: marvi plugin update {name}\n"
+                            "If that does not fix it, the plugin's own "
+                            f"dependencies may be missing: marvi plugin install {name}"
+                        ),
+                    ),
+                )
+            )
+            continue
+
+        tools = len(loaded.context.tools)
+        version = f"v{row['version']}" if row["version"] else "no version"
+        findings.append(
+            Finding(name, "plugins", "ok", f"{version}, {tools} tools, commit {row['commit']}")
+        )
+    return findings
