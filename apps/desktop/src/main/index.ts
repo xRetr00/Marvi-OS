@@ -737,6 +737,20 @@ function startApp(): void {
         return { available: false, detail: 'Gateway unavailable', accounts: [] }
       }
     })
+    ipcMain.handle('marvi:get-schedules', () => gatewayJson('/schedules'))
+    ipcMain.handle('marvi:add-schedule', (_event, body) =>
+      gatewayJson('/schedules', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+    )
+    ipcMain.handle('marvi:schedule-action', (_event, id, action) =>
+      gatewayJson(
+        `/schedules/${encodeURIComponent(String(id))}/${encodeURIComponent(String(action))}`,
+        { method: 'POST' }
+      )
+    )
     ipcMain.handle('marvi:get-plugins', () => gatewayJson('/plugins'))
     // A clone plus a dependency install. Minutes, not seconds.
     ipcMain.handle('marvi:plugin-action', (_event, name, action) =>

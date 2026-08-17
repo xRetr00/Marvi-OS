@@ -132,6 +132,16 @@ def _validate(action: str, kind: str, expression: str) -> None:
             raise ScheduleError(
                 "a cron expression has five fields: minute hour day month weekday"
             )
+        # Built with the thing that will actually run it. Counting fields is not
+        # validation: "99 99 * * *" has five and is not a time, and accepting it
+        # meant the reminder was stored, listed as enabled, and silently never
+        # fired because the scheduler refused it at start.
+        try:
+            from apscheduler.triggers.cron import CronTrigger
+
+            CronTrigger.from_crontab(expression, timezone="UTC")
+        except Exception as exc:
+            raise ScheduleError(f"{expression!r} is not a schedule: {exc}") from exc
         return
     raise ScheduleError(f"unknown schedule kind {kind!r}; use 'cron' or 'interval'")
 

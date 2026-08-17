@@ -59,7 +59,7 @@ EVENT_TAIL_BYTES = 64 * 1024
 #: This is what makes such a type surfaceable at all. Allowlisting it without
 #: collapsing put 41 entries in the journal for a single wave, which is why the
 #: original decision was to drop it entirely.
-BURSTY_EVENTS = {"vision_gesture": "gesture"}
+BURSTY_EVENTS = {"vision_gesture": "gesture", "vision_sleep_state": "sleep_state"}
 
 # The engine's log is dominated by ambient vision state churn — in a 500-event
 # sample, 413 were `vision_identity_state`. An always-on surface must allowlist
@@ -79,33 +79,44 @@ BURSTY_EVENTS = {"vision_gesture": "gesture"}
 #   visitor_history_corrected   same.
 NOTABLE_EVENTS = frozenset(
     {
+        # -- checked against evidence, not guessed -----------------------------
+        # Two sources, because neither alone is complete: the engine's
+        # `_emit_event` calls (what the source can emit) and a real event log
+        # (what it has emitted). `device_online` appears only in the log — it is
+        # raised with a computed name — and a source scan alone would have
+        # dropped it.
+        #
+        # Removed as unfounded: `he20_occupied`, `he20_cleared`, `alarm_started`
+        # and `alarm_cancelled` are in neither. They were invented names, which
+        # is why they never fired and made a working sensor look broken. The
+        # mmwave sensor reports through `presence_cleared` with
+        # `source: "mmwave"` and through `state.mmwave`, not an event of its own.
         "mode_changed",
         "light_changed",
         "presence_detected",
         "presence_cleared",
-        # Someone came in. The engine writes this alongside presence_detected
-        # for an identified entry, and it carries who.
         "room_entry",
-        # A device dropping off the network is the room quietly losing a limb:
-        # the bulb stops answering, the ESP32 stops reporting, and every later
-        # symptom looks like something else.
+        # A device dropping off the network is the room quietly losing a limb.
         "device_offline",
         "device_online",
-        # OwnTracks. Arriving and leaving is exactly the kind of thing an
-        # always-on assistant should know without being told.
-        "phone_location_changed",
-        # Falling asleep and waking are what the sleep rule turns on, so Marvi
-        # should hear about them rather than infer them from a poll.
-        "vision_sleep_state",
-        # An intentional act by the user. Only surfaceable because `BURSTY_EVENTS`
-        # collapses a held gesture to one event; see the note there.
-        "vision_gesture",
-        "he20_occupied",
-        "he20_cleared",
+        # Seen in neither scan, but the summariser has always handled it and it
+        # is presence-related, so it stays: an event that never arrives costs
+        # nothing, and one silently dropped costs a lot.
         "room_presence_unverified",
-        "alarm_started",
+        # OwnTracks. Arriving and leaving is exactly what an always-on
+        # assistant should know without being told.
+        "phone_location_changed",
+        "geofence_arrive_home",
+        "geofence_leave_home",
+        # The sleep rule turns on these, so Marvi hears them rather than
+        # inferring them from a poll.
+        "vision_sleep_state",
+        "sleep_cancelled",
+        # An intentional act by the user. Surfaceable only because
+        # `BURSTY_EVENTS` collapses a held gesture; see the note there.
+        "vision_gesture",
         "alarm_acknowledged",
-        "alarm_cancelled",
+        "alarm_duration_expired",
     }
 )
 # `vision_gesture` is admitted only when it carries a command. A bare gesture
@@ -151,6 +162,31 @@ def summarize_event(event: dict[str, Any]) -> str:
         return "Room occupancy confirmed"
     if kind == "he20_cleared":
         return "Room reported clear"
+    if kind == "vision_sleep_state":
+        # The engine's own summary is the literal "vision sleep state" for both
+        # directions, so Marvi heard the transition and could not tell which way
+        # it went. The payload has carried `sleep_state` all along.
+        state = str(event.get("sleep_state", "")).strip().lower()
+        if state in ("asleep", "sleeping"):
+            return "Asleep"
+        if state == "awake":
+            return "Awake"
+        return "Sleep state changed"
+
+    if kind in ("geofence_arrive_home", "geofence_leave_home"):
+        return "Arrived home" if kind.endswith("arrive_home") else "Left home"
+
+    if kind == "sleep_cancelled":
+        return "Sleep cancelled"
+
+    if kind == "device_offline":
+        device = str(event.get("device") or event.get("name") or "a device")
+        return f"{device} went offline"
+
+    if kind == "vision_gesture":
+        gesture = str(event.get("gesture", "")).replace("_", " ").strip()
+        return f"Gesture: {gesture}" if gesture else "Gesture"
+
     if kind == "room_presence_unverified":
         return f"Unverified entry: {event.get('identity_reason', 'unknown reason')}"
     if kind == GESTURE_EVENT:

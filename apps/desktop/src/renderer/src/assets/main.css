@@ -1433,3 +1433,58 @@ nav {
   color: var(--ui-text-tertiary);
   word-break: break-all;
 }
+
+/* The new-schedule form. Labels above inputs, because a time expression is
+   unfamiliar enough to need its hint visible while typing. */
+.schedule-form {
+  display: grid;
+  gap: 12px;
+  margin: 0 44px 12px;
+  max-width: 560px;
+}
+
+.schedule-form label {
+  display: grid;
+  gap: 5px;
+}
+
+.schedule-form label > span {
+  color: var(--ui-text-secondary);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+}
+
+.schedule-form input[type='text'],
+.schedule-form input:not([type]) {
+  padding: 9px 11px;
+  border: 1px solid var(--ui-stroke-secondary);
+  background: var(--ui-bg);
+  color: var(--ui-text-primary);
+  font: inherit;
+  font-size: 12px;
+}
+
+.schedule-form input:focus {
+  border-color: var(--ui-accent);
+  outline: none;
+}
+
+/* The opt-in reads as a sentence, so its consequence is next to the tickbox
+   rather than somewhere the user has to go and find. */
+.schedule-insist {
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: 10px;
+}
+
+.schedule-insist input {
+  margin-top: 2px;
+}
+
+.schedule-insist small {
+  display: block;
+  margin-top: 3px;
+  color: var(--ui-text-tertiary);
+  letter-spacing: 0;
+  text-transform: none;
+}

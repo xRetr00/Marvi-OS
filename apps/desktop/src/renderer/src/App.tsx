@@ -51,6 +51,7 @@ import type {
   MemoryPage,
   MindDecision,
   PluginPage,
+  SchedulePage,
   ProviderPage,
   ProviderRow,
   UpdateChannel,
@@ -80,7 +81,7 @@ const NAV_GROUPS = [
   { label: 'World', items: ['Vision', 'Room', 'Activity'] },
   { label: 'Self', items: ['Identity', 'Memory', 'Mind'] },
   { label: 'Extend', items: ['Providers', 'Accounts', 'Skills', 'Plugins'] },
-  { label: 'System', items: ['Setup', 'Doctor', 'Settings', 'Updates', 'About'] }
+  { label: 'System', items: ['Schedules', 'Setup', 'Doctor', 'Settings', 'Updates', 'About'] }
 ] as const
 
 type Page = (typeof NAV_GROUPS)[number]['items'][number]
@@ -101,6 +102,7 @@ const PAGE_BLURB: Record<Page, string> = {
   Accounts: 'Connected services, and what Marvi may do with them',
   Skills: 'Instructions Marvi can load for a task',
   Plugins: 'Backends Marvi runs, installed from a repository',
+  Schedules: 'Reminders and checks Marvi runs on a clock',
   Setup: 'Models, browsers and dependencies',
   Doctor: 'What is wrong, and how to fix each thing',
   Settings: 'Behaviour, appearance and devices',
@@ -252,6 +254,8 @@ function MainSurface(): React.JSX.Element {
                 <SkillsPanel />
               ) : page === 'Plugins' ? (
                 <PluginsPanel />
+              ) : page === 'Schedules' ? (
+                <SchedulesPanel />
               ) : page === 'Doctor' ? (
                 <DoctorPanel />
               ) : page === 'Activity' ? (
@@ -1822,6 +1826,165 @@ function SetupPanel(): React.JSX.Element {
   )
 }
 
+function SchedulesPanel(): React.JSX.Element {
+  const [page, setPage] = useState<SchedulePage | null>(null)
+  const [name, setName] = useState('')
+  const [when, setWhen] = useState('')
+  const [message, setMessage] = useState('')
+  const [insist, setInsist] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let disposed = false
+    void (async () => {
+      const next = await window.marvi?.getSchedules()
+      if (!disposed && next) setPage(next)
+    })()
+    return () => {
+      disposed = true
+    }
+  }, [])
+
+  const add = async (): Promise<void> => {
+    setError('')
+    const next = await window.marvi?.addSchedule({ name, when, message, insist })
+    if (!next) {
+      setError('Marvi would not accept that. Check the time.')
+      return
+    }
+    setPage(next)
+    setName('')
+    setWhen('')
+    setMessage('')
+    setInsist(false)
+  }
+
+  const act = async (
+    id: number,
+    action: 'remove' | 'enable' | 'disable' | 'run'
+  ): Promise<void> => {
+    const next = await window.marvi?.scheduleAction(id, action)
+    if (next) setPage(next)
+  }
+
+  return (
+    <section className="single-page panel">
+      <div className="panel-label">{'// SCHEDULES'}</div>
+      <h2>Schedules</h2>
+      <p>
+        Reminders and scheduled checks. A schedule re-times something Marvi can already do; it
+        cannot introduce a new one. When it fires it writes an event and the usual rules decide how
+        loud it may be.
+      </p>
+
+      {error ? <span className="construction">{error.toUpperCase()}</span> : null}
+
+      <AsciiRule />
+      <div className="panel-label">{'// NEW'}</div>
+
+      <div className="schedule-form">
+        <label>
+          <span>NAME</span>
+          <input
+            value={name}
+            placeholder="wake up"
+            onChange={(event) => setName(event.target.value)}
+          />
+        </label>
+        <label>
+          <span>WHEN</span>
+          <input
+            value={when}
+            placeholder="07:30, 60 (minutes), or a cron expression"
+            onChange={(event) => setWhen(event.target.value)}
+          />
+        </label>
+        <label>
+          <span>MESSAGE</span>
+          <input
+            value={message}
+            placeholder="Time to get up"
+            onChange={(event) => setMessage(event.target.value)}
+          />
+        </label>
+        <label className="schedule-insist">
+          <input
+            type="checkbox"
+            checked={insist}
+            onChange={(event) => setInsist(event.target.checked)}
+          />
+          <span>
+            SPEAK ANYWAY
+            {/* The opt-in. Off by default because an hourly check firing out
+                loud at 3am is what quiet hours exists to prevent. */}
+            <small>Ignore quiet hours and sleep mode. For an alarm you mean.</small>
+          </span>
+        </label>
+        <button
+          className="phase"
+          type="button"
+          disabled={!name || !when}
+          onClick={() => void add()}
+        >
+          ADD
+        </button>
+      </div>
+
+      <AsciiRule />
+      <div className="panel-label">{'// SET'}</div>
+
+      <div className="service-list">
+        {(page?.schedules ?? []).map((row) => (
+          <div className="service-row" key={row.id}>
+            <span className="service-name">{row.name.toUpperCase()}</span>
+            <span
+              className={`service-state state-${
+                row.last_error ? 'error' : row.enabled ? 'ready' : 'pending'
+              }`}
+            >
+              {row.last_error ? 'FAILED' : row.enabled ? 'ON' : 'OFF'}
+              {row.insist ? ' / INSISTS' : ''}
+            </span>
+            <small>
+              {row.kind === 'interval' ? `every ${row.expression} minutes` : row.expression} /{' '}
+              {row.action}
+            </small>
+            {row.message ? <small>{row.message}</small> : null}
+            {row.last_error ? (
+              <small className="provider-cooldown">{row.last_error}</small>
+            ) : row.last_run ? (
+              <small>last run {row.last_run}</small>
+            ) : null}
+            <div className="provider-actions">
+              <button className="phase" type="button" onClick={() => void act(row.id, 'run')}>
+                RUN NOW
+              </button>
+              <button
+                className="phase"
+                type="button"
+                onClick={() => void act(row.id, row.enabled ? 'disable' : 'enable')}
+              >
+                {row.enabled ? 'PAUSE' : 'RESUME'}
+              </button>
+              <button
+                className="phase danger"
+                type="button"
+                onClick={() => void act(row.id, 'remove')}
+              >
+                REMOVE
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {(page?.schedules ?? []).length === 0 ? (
+        <span className="construction">NOTHING SCHEDULED</span>
+      ) : null}
+    </section>
+  )
+}
+
 function PluginsPanel(): React.JSX.Element {
   const [page, setPage] = useState<PluginPage | null>(null)
   const [busy, setBusy] = useState('')
@@ -2215,6 +2378,7 @@ function PagePanel({ page, version }: { page: Page; version: string }): React.JS
       'Always-on local presence and gesture processing. Frames leave the PC only for an explicit vision task.',
     Room: 'Lights, modes and presence from the room plugin. Marvi does not replace its automation authority.',
     Plugins: 'Backends Marvi installs from a repository and runs as its own child processes.',
+    Schedules: 'Reminders and scheduled checks, and whether each may speak through quiet hours.',
     Accounts: 'Composio connections for email, LinkedIn, X, and other world-context providers.',
     Providers: 'Model providers, credentials, models per job, and token usage.',
     Identity: 'SOUL.md and USER.md - who Marvi is, and who it is speaking to.',

@@ -9,6 +9,7 @@ import type {
   HardwareAnswer,
   McpServerRow,
   PluginPage,
+  SchedulePage,
   SetupPage,
   SkillReview,
   StoreSkill,
@@ -94,6 +95,18 @@ const marvi = {
   sendChat: (message: string): Promise<ChatReply | null> =>
     ipcRenderer.invoke('marvi:send-chat', message),
   clearChat: (): Promise<boolean> => ipcRenderer.invoke('marvi:clear-chat'),
+  getSchedules: (): Promise<SchedulePage | null> => ipcRenderer.invoke('marvi:get-schedules'),
+  addSchedule: (body: {
+    name: string
+    when: string
+    message?: string
+    action?: string
+    insist?: boolean
+  }): Promise<SchedulePage | null> => ipcRenderer.invoke('marvi:add-schedule', body),
+  scheduleAction: (
+    id: number,
+    action: 'remove' | 'enable' | 'disable' | 'run'
+  ): Promise<SchedulePage | null> => ipcRenderer.invoke('marvi:schedule-action', id, action),
   getPlugins: (): Promise<PluginPage | null> => ipcRenderer.invoke('marvi:get-plugins'),
   pluginAction: (
     name: string,

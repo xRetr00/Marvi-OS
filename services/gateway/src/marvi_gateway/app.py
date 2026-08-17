@@ -279,6 +279,35 @@ class SetupPage(BaseModel):
     disk_detail: str
 
 
+class ScheduleRow(BaseModel):
+    id: int
+    name: str
+    action: str
+    kind: str
+    expression: str
+    message: str
+    enabled: bool
+    created_at: str
+    insist: bool
+    last_run: str | None = None
+    last_error: str | None = None
+
+
+class SchedulePage(BaseModel):
+    schedules: list[ScheduleRow]
+    #: What a schedule may trigger, so the page can offer exactly those.
+    actions: dict[str, str]
+    running: bool
+
+
+class NewSchedule(BaseModel):
+    name: str
+    when: str
+    message: str = ""
+    action: str = "remind"
+    insist: bool = False
+
+
 class PluginRow(BaseModel):
     name: str
     title: str
@@ -880,6 +909,66 @@ def create_app(
             install_root=str(plugins_module.root()),
             data_root=str(plugins_module.data_root()),
         )
+
+    def schedule_page() -> SchedulePage:
+        if scheduler is None:
+            return SchedulePage(schedules=[], actions={}, running=False)
+        state = scheduler.status()
+        return SchedulePage(
+            schedules=[ScheduleRow(**row) for row in state["schedules"]],
+            actions=state["actions"],
+            running=bool(state["running"]),
+        )
+
+    @app.get("/schedules", response_model=SchedulePage)
+    async def read_schedules() -> SchedulePage:
+        return schedule_page()
+
+    @app.post("/schedules", response_model=SchedulePage)
+    async def add_schedule(body: NewSchedule) -> SchedulePage:
+        if scheduler is None:
+            raise HTTPException(status_code=503, detail="the scheduler is not running")
+        kind, expression = "cron", body.when.strip()
+        if expression.isdigit():
+            kind = "interval"
+        elif ":" in expression and len(expression.split(":")) == 2:
+            hour, _, minute = expression.partition(":")
+            try:
+                expression = f"{int(minute)} {int(hour)} * * *"
+            except ValueError as exc:
+                raise HTTPException(
+                    status_code=400, detail=f"{body.when!r} is not a time Marvi understands"
+                ) from exc
+        try:
+            scheduler.store.add(
+                body.name, body.action, kind, expression, body.message, insist=body.insist
+            )
+        except schedule_module.ScheduleError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        # Rebuilt so a new reminder does not wait for a restart.
+        scheduler.reload()
+        runtime_store.audit("schedule", "add", {"name": body.name, "when": body.when})
+        return schedule_page()
+
+    @app.post("/schedules/{schedule_id}/{action}", response_model=SchedulePage)
+    async def change_schedule(schedule_id: int, action: str) -> SchedulePage:
+        if scheduler is None:
+            raise HTTPException(status_code=503, detail="the scheduler is not running")
+        try:
+            if action == "remove":
+                scheduler.store.remove(schedule_id)
+            elif action in ("enable", "disable"):
+                scheduler.store.set_enabled(schedule_id, action == "enable")
+            elif action == "run":
+                scheduler.fire(schedule_id)
+            else:
+                raise HTTPException(status_code=400, detail=f"unknown action {action}")
+        except schedule_module.ScheduleError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if action != "run":
+            scheduler.reload()
+        runtime_store.audit("schedule", action, {"id": schedule_id})
+        return schedule_page()
 
     @app.get("/plugins", response_model=PluginPage)
     async def read_plugins() -> PluginPage:

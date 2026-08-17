@@ -371,3 +371,25 @@ export interface PluginPage {
   install_root: string
   data_root: string
 }
+
+/** A reminder or scheduled check the user set. */
+export interface ScheduleRow {
+  id: number
+  name: string
+  action: string
+  kind: string
+  expression: string
+  message: string
+  enabled: boolean
+  created_at: string
+  /** Speak even during quiet hours and while the room is asleep. Opt-in. */
+  insist: boolean
+  last_run: string | null
+  last_error: string | null
+}
+
+export interface SchedulePage {
+  schedules: ScheduleRow[]
+  actions: Record<string, string>
+  running: boolean
+}
