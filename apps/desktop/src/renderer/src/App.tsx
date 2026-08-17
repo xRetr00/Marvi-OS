@@ -5,6 +5,7 @@ import appIcon from './assets/app-icon.png'
 import { BootFailureOverlay } from './components/BootFailureOverlay'
 import { ConnectingOverlay } from './components/ConnectingOverlay'
 import { DynamicIsland } from './components/DynamicIsland'
+import { VoiceOrb } from './orb'
 import { ElectricGazeBackground } from './components/ElectricGazeBackground'
 import { HapticsProvider } from './components/HapticsProvider'
 import { TitleBar } from './components/TitleBar'
@@ -159,6 +160,7 @@ function MainSurface(): React.JSX.Element {
                 <button
                   className={page === item ? 'nav-item active' : 'nav-item'}
                   key={item}
+                  aria-current={page === item ? 'page' : undefined}
                   onClick={() => navigate(item)}
                 >
                   <span>{String(index + 1).padStart(2, '0')}</span>
@@ -178,9 +180,6 @@ function MainSurface(): React.JSX.Element {
               <div>
                 <span className="eyebrow">{'// CONTROL CENTER'}</span>
                 <h1>{page}</h1>
-              </div>
-              <div className="top-island-preview">
-                <DynamicIsland compact state={voice} />
               </div>
             </header>
 
@@ -1374,6 +1373,18 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
         joins the same room as a participant. Both need the Gateway, which issues the token and owns
         every tool the agent can call.
       </p>
+
+      <div className="voice-orb-stage">
+        <VoiceOrb
+          size={220}
+          level={voice.level}
+          active={voice.phase === 'listening' || voice.phase === 'speaking'}
+        />
+        <div className="voice-orb-meta">
+          <span className="voice-orb-phase">{voice.phase.toUpperCase()}</span>
+          <span className="voice-orb-caption">{voice.caption}</span>
+        </div>
+      </div>
 
       <div className="context-line">
         <span>SESSION</span>

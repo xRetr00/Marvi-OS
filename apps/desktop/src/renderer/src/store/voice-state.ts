@@ -33,6 +33,18 @@ export function applyRuntimeState(runtime: RuntimeStatus): void {
   $voiceState.set(runtime.assistant)
 }
 
+/**
+ * Publish the live microphone level (0..1) without touching the phase. The
+ * island and voice orbs read this continuously; the phase carries the state,
+ * the level carries the energy.
+ */
+export function setVoiceLevel(level: number): void {
+  const next = Math.max(0, Math.min(1, Number.isFinite(level) ? level : 0))
+  const current = $voiceState.get()
+  if (Math.abs(current.level - next) < 0.005) return
+  $voiceState.set({ ...current, level: next })
+}
+
 export function cycleVoicePhase(phase: AssistantPhase): void {
   const copy = PHASE_COPY[phase]
   $voiceState.set({
