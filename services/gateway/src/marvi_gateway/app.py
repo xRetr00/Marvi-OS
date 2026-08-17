@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from . import breadcrumb
 from . import doctor as doctor_module
+from . import paths
 from . import setup as setup_module
 from .accounts import ComposioAccounts, register_account_tools
 from .activity import ActivityWatch, register_activity_tools
@@ -28,6 +29,7 @@ from .ingest import AccountIngest
 from .initiative import Initiative
 from .journal import EventJournal
 from .logs import available as available_logs
+from .logs import get_logger
 from .logs import configure as configure_logging
 from .logs import install_asyncio_handler, logs_dir, redactor, tail
 from .mcp_bridge import McpBridge, register_mcp_tools
@@ -307,6 +309,10 @@ def create_app(
     tools: ToolRegistry | None = None,
 ) -> FastAPI:
     product_version = version or read_version()
+    # Before anything opens a database or a log: move whatever is still in the
+    # old space-named folder. Someone's memory and identity live in there, and
+    # silently starting fresh would look exactly like data loss.
+    moved = paths.migrate_legacy()
     # Saved GUI settings become environment variables before anything reads
     # them, so the registry still has exactly one source of truth.
     provider_config.load_into_environ()
@@ -316,6 +322,12 @@ def create_app(
     redactor().refresh()
     # Say once that last time ended badly, then forget it. A crash nobody is
     # told about is a pattern nobody spots.
+    if moved:
+        configure_logging()
+        get_logger("setup").info(
+            "moved %d item(s) out of the old folder", len(moved),
+            extra={"marvi_moved": ", ".join(moved)},
+        )
     breadcrumb.install("gateway")
     last_crashes = breadcrumb.report_and_clear()
     provider_client = ProviderClient()

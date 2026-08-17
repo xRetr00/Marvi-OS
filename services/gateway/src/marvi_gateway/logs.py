@@ -131,11 +131,9 @@ MIN_SECRET_LENGTH = 8
 
 
 def logs_dir() -> Path:
-    configured = os.environ.get("MARVI_LOG_DIR", "").strip()
-    if configured:
-        return Path(configured)
-    root = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
-    return Path(root) / "Marvi OS" / "logs"
+    from .paths import logs_dir as resolved
+
+    return resolved()
 
 
 def subsystem_for(logger_name: str) -> str:

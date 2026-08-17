@@ -39,11 +39,9 @@ SOUL_SHARE = 0.45  # soul is smaller than user context when both must be trimmed
 
 
 def identity_dir() -> Path:
-    configured = os.environ.get("MARVI_IDENTITY_DIR", "").strip()
-    if configured:
-        return Path(configured)
-    root = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
-    return Path(root) / "Marvi OS"
+    from .paths import identity_dir as resolved
+
+    return resolved()
 
 
 def estimate_tokens(text: str) -> int:

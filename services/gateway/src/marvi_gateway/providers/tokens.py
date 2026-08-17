@@ -69,11 +69,9 @@ class StoredToken:
 
 
 def token_path() -> Path:
-    configured = os.environ.get("MARVI_TOKEN_STORE", "").strip()
-    if configured:
-        return Path(configured)
-    root = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
-    return Path(root) / "Marvi OS" / "tokens.bin"
+    from ..paths import token_store
+
+    return token_store()
 
 
 # -- Windows DPAPI -----------------------------------------------------------

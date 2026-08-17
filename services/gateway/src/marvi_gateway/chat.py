@@ -82,13 +82,9 @@ class ChatTurn:
 
 
 def default_chat_path() -> Path:
-    import os
+    from .paths import chat_db
 
-    configured = os.environ.get("MARVI_CHAT_DB")
-    if configured:
-        return Path(configured)
-    root = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
-    return Path(root) / "Marvi OS" / "chat.sqlite3"
+    return chat_db()
 
 
 class ChatStore:

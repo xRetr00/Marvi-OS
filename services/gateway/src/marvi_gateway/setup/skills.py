@@ -1,0 +1,304 @@
+"""Installing skills.
+
+A skill is a directory with a `SKILL.md` in it, following the Agent Skills
+specification: YAML frontmatter with `name` and `description`, optional
+`license`, `compatibility`, `metadata` and `allowed-tools`, then Markdown
+instructions, with optional `scripts/`, `references/` and `assets/`. Marvi
+implements that format rather than a private one, so a skill written for any
+other agent works here and one written here works elsewhere.
+
+## `allowed-tools` is a request, never a grant
+
+This is the line that matters. A skill's frontmatter can name the tools it wants
+pre-approved, and the obvious reading — "the skill lists it, so the skill gets
+it" — would mean **any skill can grant itself anything by editing a text file**.
+A skill that arrives saying `allowed-tools: send_email` would be authorised to
+send email without asking, from a file the user very likely did not read.
+
+So the declaration is intersected with what Marvi already permits and never
+widens it. A sensitive tool stays sensitive. What `allowed-tools` actually buys
+is the opposite of privilege: it *narrows* the skill to the tools it says it
+needs, which is useful, and is the only direction that is safe.
+
+## The body is instructions, not data
+
+A skill's Markdown legitimately shapes behaviour — that is its purpose, and
+wrapping it in an untrusted envelope would make it useless. That is precisely
+why installing one is a decision the user makes explicitly about a source they
+named, and why the body is shown before it is installed.
+
+## Scripts are not run at install time
+
+`scripts/` may contain executables. Nothing here executes them; they run only
+when the agent decides to, through the same tool boundary as anything else.
+Installing a skill must never be a way to run code.
+"""
+
+from __future__ import annotations
+
+import re
+import shutil
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+from ..logs import get_logger
+from ..paths import skills_dir
+
+log = get_logger("setup")
+
+SKILL_FILE = "SKILL.md"
+#: From the specification: 1-64 chars, lowercase alphanumeric and hyphens, no
+#: leading, trailing or consecutive hyphens.
+NAME_PATTERN = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+MAX_NAME = 64
+MAX_DESCRIPTION = 1024
+MAX_COMPATIBILITY = 500
+#: The spec recommends keeping the body small because it is loaded whole on
+#: activation. Warned about, not enforced — it is the author's call.
+RECOMMENDED_BODY_LINES = 500
+
+ALLOWED_SUBDIRECTORIES = {"scripts", "references", "assets"}
+
+
+@dataclass
+class Skill:
+    name: str
+    description: str
+    license: str = ""
+    compatibility: str = ""
+    metadata: dict[str, str] = field(default_factory=dict)
+    #: What the skill asks for. Intersected with policy, never applied as given.
+    requested_tools: tuple[str, ...] = ()
+    body: str = ""
+    source: str = ""
+    path: Path | None = None
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "description": self.description,
+            "license": self.license,
+            "compatibility": self.compatibility,
+            "metadata": self.metadata,
+            "requested_tools": list(self.requested_tools),
+            "source": self.source,
+            "installed_at": str(self.path) if self.path else "",
+        }
+
+
+class SkillError(Exception):
+    pass
+
+
+def _parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
+    """Read the YAML block between the leading `---` markers.
+
+    Deliberately a small parser rather than a YAML dependency: the spec's
+    frontmatter is flat scalars plus one optional one-level map, and a full YAML
+    loader on a file from the internet is a larger surface than the feature
+    needs.
+    """
+    if not text.startswith("---"):
+        raise SkillError("SKILL.md must start with YAML frontmatter")
+    end = text.find("\n---", 3)
+    if end == -1:
+        raise SkillError("the frontmatter block is not closed")
+    block, body = text[3:end], text[end + 4 :]
+
+    data: dict[str, Any] = {}
+    current_map: str | None = None
+    for raw in block.splitlines():
+        if not raw.strip() or raw.lstrip().startswith("#"):
+            continue
+        if raw.startswith((" ", "\t")) and current_map:
+            key, _, value = raw.strip().partition(":")
+            if key:
+                data.setdefault(current_map, {})[key.strip()] = value.strip().strip("\"'")
+            continue
+        key, separator, value = raw.partition(":")
+        if not separator:
+            continue
+        key, value = key.strip(), value.strip().strip("\"'")
+        if value:
+            data[key] = value
+            current_map = None
+        else:
+            data[key] = {}
+            current_map = key
+    return data, body.lstrip("\n")
+
+
+def parse(text: str, source: str = "") -> Skill:
+    data, body = _parse_frontmatter(text)
+
+    name = str(data.get("name", "")).strip()
+    if not name:
+        raise SkillError("frontmatter is missing `name`")
+    if len(name) > MAX_NAME or not NAME_PATTERN.match(name):
+        raise SkillError(
+            f"`{name}` is not a valid skill name: lowercase letters, digits and "
+            "single hyphens only, up to 64 characters"
+        )
+    description = str(data.get("description", "")).strip()
+    if not description:
+        raise SkillError("frontmatter is missing `description`")
+    if len(description) > MAX_DESCRIPTION:
+        raise SkillError("`description` is longer than 1024 characters")
+    compatibility = str(data.get("compatibility", "")).strip()
+    if len(compatibility) > MAX_COMPATIBILITY:
+        raise SkillError("`compatibility` is longer than 500 characters")
+
+    raw_tools = data.get("allowed-tools", "")
+    requested = tuple(t for t in str(raw_tools).split() if t) if raw_tools else ()
+    metadata = data.get("metadata") if isinstance(data.get("metadata"), dict) else {}
+
+    return Skill(
+        name=name,
+        description=description,
+        license=str(data.get("license", "")).strip(),
+        compatibility=compatibility,
+        metadata={str(k): str(v) for k, v in (metadata or {}).items()},
+        requested_tools=requested,
+        body=body,
+        source=source,
+    )
+
+
+def read_skill(directory: Path) -> Skill:
+    path = directory / SKILL_FILE
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise SkillError(f"cannot read {path}: {exc}") from exc
+    skill = parse(text, source=str(directory))
+    if skill.name != directory.name:
+        # The spec requires it, and a mismatch is how one skill quietly
+        # overwrites another on install.
+        raise SkillError(
+            f"the skill is named `{skill.name}` but its folder is `{directory.name}`"
+        )
+    skill.path = directory
+    return skill
+
+
+# -- what a skill is allowed to do -------------------------------------------------
+
+
+def permitted_tools(skill: Skill, registry: Any) -> dict[str, Any]:
+    """Resolve `allowed-tools` against what Marvi actually permits.
+
+    Intersection only. A skill naming a tool that does not exist gets nothing
+    for it, and a skill naming a sensitive tool does not thereby make it
+    unsensitive — it still goes through confirmation.
+    """
+    known = {spec.name: spec for spec in registry}
+    if not skill.requested_tools:
+        # No declaration means the normal tool set, not "everything unlocked".
+        return {"tools": sorted(known), "narrowed": False, "unknown": [], "still_sensitive": []}
+
+    requested = {t.split("(")[0] for t in skill.requested_tools}
+    granted = sorted(requested & set(known))
+    unknown = sorted(requested - set(known))
+    return {
+        "tools": granted,
+        "narrowed": True,
+        "unknown": unknown,
+        # Named explicitly so the install screen can say it out loud: listing a
+        # sensitive tool does not pre-approve it.
+        "still_sensitive": sorted(n for n in granted if known[n].sensitive),
+    }
+
+
+def review(skill: Skill, registry: Any = None) -> dict[str, Any]:
+    """Everything the user should see before installing. Writes nothing."""
+    warnings: list[str] = []
+    lines = skill.body.count("\n") + 1
+    if lines > RECOMMENDED_BODY_LINES:
+        warnings.append(
+            f"The instructions are {lines} lines; the specification recommends "
+            "under 500, since the whole body loads when the skill activates."
+        )
+    if skill.requested_tools:
+        warnings.append(
+            "This skill names tools it wants: "
+            + ", ".join(skill.requested_tools)
+            + ". Marvi treats that as a request, never a grant — sensitive "
+            "actions still ask you first."
+        )
+    result = {
+        "skill": skill.as_dict(),
+        # Shown, not summarised: it is instructions that will shape behaviour.
+        "instructions": skill.body,
+        "warnings": warnings,
+    }
+    if registry is not None:
+        result["tools"] = permitted_tools(skill, registry)
+    return result
+
+
+# -- installing -----------------------------------------------------------------------
+
+
+def installed(directory: Path | None = None) -> list[Skill]:
+    base = directory or skills_dir()
+    found: list[Skill] = []
+    if not base.exists():
+        return found
+    for child in sorted(base.iterdir()):
+        if not child.is_dir():
+            continue
+        try:
+            found.append(read_skill(child))
+        except SkillError as exc:
+            log.warning("skipping skill in %s: %s", child.name, exc)
+    return found
+
+
+def install_from(source: Path, directory: Path | None = None) -> dict[str, Any]:
+    """Copy a skill directory into place after validating it."""
+    base = directory or skills_dir()
+    try:
+        skill = read_skill(source)
+    except SkillError as exc:
+        return {"ok": False, "detail": str(exc)}
+
+    destination = base / skill.name
+    base.mkdir(parents=True, exist_ok=True)
+    if destination.exists():
+        shutil.rmtree(destination)
+    destination.mkdir(parents=True)
+
+    copied = 0
+    for item in source.iterdir():
+        if item.name == SKILL_FILE:
+            shutil.copy2(item, destination / SKILL_FILE)
+            copied += 1
+        elif item.is_dir() and item.name in ALLOWED_SUBDIRECTORIES:
+            shutil.copytree(item, destination / item.name)
+            copied += 1
+        elif item.is_file():
+            shutil.copy2(item, destination / item.name)
+            copied += 1
+        # Anything else — an unexpected directory — is left behind rather than
+        # copied. A skill is SKILL.md plus three known folders.
+
+    log.info("installed skill %s", skill.name, extra={"marvi_source": str(source)})
+    return {"ok": True, "detail": f"installed {skill.name}", "items": copied}
+
+
+def remove(name: str, directory: Path | None = None) -> dict[str, Any]:
+    base = directory or skills_dir()
+    target = base / name
+    try:
+        resolved = target.resolve()
+    except OSError:
+        return {"ok": False, "detail": "could not resolve that path"}
+    if base.resolve() not in resolved.parents:
+        # A name like `../../something` must not delete outside the skills tree.
+        return {"ok": False, "detail": "refusing to remove a path outside skills"}
+    if not resolved.exists():
+        return {"ok": False, "detail": f"no skill named {name}"}
+    shutil.rmtree(resolved)
+    log.info("removed skill %s", name)
+    return {"ok": True, "detail": f"removed {name}"}

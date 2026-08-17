@@ -69,7 +69,9 @@ def default_vision_dir() -> Path:
     if configured:
         return Path(configured)
     root = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
-    return Path(root) / "Marvi OS" / "vision"
+    from .paths import vision_dir as resolved
+
+    return resolved()
 
 
 def cosine(left: list[float], right: list[float]) -> float:

@@ -45,8 +45,9 @@ def install_root() -> Path:
     configured = os.environ.get("MARVI_INSTALL_ROOT", "").strip()
     if configured:
         return Path(configured)
-    root = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
-    return Path(root) / "Marvi-OS"
+    from ..paths import root
+
+    return root()
 
 
 @dataclass(frozen=True)

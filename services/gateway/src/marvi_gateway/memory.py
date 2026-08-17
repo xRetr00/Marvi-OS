@@ -75,11 +75,9 @@ END;
 
 
 def default_memory_path() -> Path:
-    configured = os.environ.get("MARVI_MEMORY_DB")
-    if configured:
-        return Path(configured)
-    root = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
-    return Path(root) / "Marvi OS" / "memory.sqlite3"
+    from .paths import memory_db
+
+    return memory_db()
 
 
 def _fts_query(text: str) -> str:

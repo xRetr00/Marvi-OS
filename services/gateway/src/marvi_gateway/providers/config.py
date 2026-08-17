@@ -27,11 +27,9 @@ SECRET_MARKERS = ("KEY", "SECRET", "TOKEN", "PASSWORD")
 
 
 def config_path() -> Path:
-    configured = os.environ.get("MARVI_PROVIDER_CONFIG", "").strip()
-    if configured:
-        return Path(configured)
-    root = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
-    return Path(root) / "Marvi OS" / "providers.env"
+    from ..paths import provider_config
+
+    return provider_config()
 
 
 def is_secret(name: str) -> bool:

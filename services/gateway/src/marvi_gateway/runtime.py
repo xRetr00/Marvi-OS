@@ -29,11 +29,9 @@ EXTERNAL_WRITE_TTL_SECONDS = 900.0
 
 
 def default_audit_path() -> Path:
-    configured = os.environ.get("MARVI_AUDIT_LOG")
-    if configured:
-        return Path(configured)
-    root = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
-    return Path(root) / "Marvi OS" / "audit.jsonl"
+    from .paths import audit_log
+
+    return audit_log()
 
 
 class ComponentStatus(BaseModel):

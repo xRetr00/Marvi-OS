@@ -59,11 +59,9 @@ CREATE INDEX IF NOT EXISTS decisions_at ON decisions(at);
 
 
 def default_journal_path() -> Path:
-    configured = os.environ.get("MARVI_JOURNAL_DB")
-    if configured:
-        return Path(configured)
-    root = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
-    return Path(root) / "Marvi OS" / "journal.sqlite3"
+    from .paths import journal_db
+
+    return journal_db()
 
 
 def fingerprint(source: str, kind: str, summary: str, payload: dict[str, Any]) -> str:
