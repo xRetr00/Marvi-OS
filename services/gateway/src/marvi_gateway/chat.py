@@ -146,6 +146,7 @@ class Chat:
         tool_schemas: Callable[[], list[dict[str, Any]]] | None = None,
         memory: Any = None,
         curiosity: Curiosity | None = None,
+        plugins: list[Any] | None = None,
     ) -> None:
         self.store = store or ChatStore()
         self.client = client or ProviderClient()
@@ -154,6 +155,9 @@ class Chat:
         self.tool_schemas = tool_schemas
         self.memory = memory
         self.curiosity = curiosity
+        #: Loaded plugins, for their context lines. The room's line carries what
+        #: the engine already knows about the room — including its own vision.
+        self.plugins = plugins or []
 
     def available(self) -> bool:
         return bool(self.client.candidates())

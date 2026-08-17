@@ -683,3 +683,38 @@ def bridge_tools(
         },
     )
     return registered
+
+
+def context_lines(loaded: list[LoadedPlugin], limit: int = 240) -> list[str]:
+    """One short line per plugin, for the system prompt.
+
+    The room plugin has always offered this — `register_context_provider` is part
+    of the contract and `build_context_line` returns a compact summary of the
+    room, including the engine's own vision block: whether the owner is visible,
+    what they appear to be doing, whether they are asleep. Marvi collected the
+    provider and never called it, so it ran a second camera pipeline and ignored
+    what the room already knew.
+
+    Calling it is what closes that gap at the information level. It does not
+    merge the two pipelines — that is a larger decision about which one owns the
+    camera — but it does stop Marvi being ignorant of an answer it already has.
+
+    Bounded and defensive: this runs on the prompt path, so a plugin that is slow
+    or throws must not take a turn down with it, and a plugin that returns an
+    essay must not eat the identity budget.
+    """
+    lines = []
+    for plugin in loaded:
+        for name, provider in plugin.context.context_providers.items():
+            try:
+                value = provider()
+            except Exception as exc:
+                log.warning("context provider %s.%s failed: %s", plugin.name, name, exc)
+                continue
+            if not value:
+                # None is the documented "nothing to say" answer, not an error.
+                continue
+            text = str(value).strip().replace("\n", " ")
+            if text:
+                lines.append(text[:limit])
+    return lines

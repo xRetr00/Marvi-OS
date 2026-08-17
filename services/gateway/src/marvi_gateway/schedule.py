@@ -17,12 +17,21 @@ through the same proactivity policy as everything else. So a reminder cannot
 talk over a live conversation and cannot escape the audit trail — and it needed
 no new path to the speaker.
 
-**A reminder the user set is not the same as something Marvi decided.** Quiet
-hours downgrade Marvi's own initiative from speech to a glance, which is right.
-Applying that to an alarm the user set for 07:00 would make it useless: an alarm
-that appears silently on a screen is not an alarm. `policy.decide` treats
-`source="schedule"` as requested, so quiet hours and an empty room do not
-downgrade it. Everything else still applies.
+**Bypassing quiet hours is per-schedule and opt-in.** Quiet hours downgrade
+Marvi's own initiative from speech to a glance, which is right. Applying that to
+an alarm the user set for 07:00 would make it useless — an alarm that appears
+silently on a screen is not an alarm.
+
+But the first version of this exempted *every* schedule, and that was too broad:
+"check my email hourly" firing out loud at 3am is the thing quiet hours exists to
+prevent, and the user did not ask for that by asking for the check. So `insist`
+is a flag on the schedule. Off by default; on for the alarm, where the user chose
+the time and meant it. It also overrides sleep mode, because "wake me at seven"
+is precisely a request to be woken.
+
+`insist` is the only thing that crosses those two lines, and nothing else does:
+a schedule still cannot talk over a live conversation, still obeys the cooldown,
+and is still capped by its ceiling.
 
 ## What a reminder is not
 
@@ -78,6 +87,10 @@ class Schedule:
     message: str
     enabled: bool
     created_at: str
+    #: Speak even during quiet hours and while the room is in sleep mode. The
+    #: user asked for this time and meant it; an alarm that stays silent is not
+    #: an alarm. Off by default — an hourly mail check has not earned it.
+    insist: bool = False
     last_run: str | None = None
     last_error: str | None = None
 
@@ -91,6 +104,7 @@ class Schedule:
             "message": self.message,
             "enabled": self.enabled,
             "created_at": self.created_at,
+            "insist": self.insist,
             "last_run": self.last_run,
             "last_error": self.last_error,
         }
@@ -140,12 +154,22 @@ class ScheduleStore:
                 expression TEXT NOT NULL,
                 message TEXT NOT NULL DEFAULT '',
                 enabled INTEGER NOT NULL DEFAULT 1,
+                insist INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL,
                 last_run TEXT,
                 last_error TEXT
             )
             """
         )
+        # Added after the first release of this table. `ALTER TABLE` rather
+        # than a rebuild, so nobody's reminders are dropped by an upgrade.
+        columns = {
+            row["name"] for row in self._db.execute("PRAGMA table_info(schedules)")
+        }
+        if "insist" not in columns:
+            self._db.execute(
+                "ALTER TABLE schedules ADD COLUMN insist INTEGER NOT NULL DEFAULT 0"
+            )
         self._db.commit()
 
     def close(self) -> None:
@@ -162,6 +186,7 @@ class ScheduleStore:
             message=str(row["message"] or ""),
             enabled=bool(row["enabled"]),
             created_at=str(row["created_at"]),
+            insist=bool(row["insist"]),
             last_run=row["last_run"],
             last_error=row["last_error"],
         )
@@ -173,6 +198,7 @@ class ScheduleStore:
         kind: str,
         expression: str,
         message: str = "",
+        insist: bool = False,
         now: datetime | None = None,
     ) -> Schedule:
         label = (name or "").strip()
@@ -184,9 +210,18 @@ class ScheduleStore:
 
         moment = (now or datetime.now(UTC)).isoformat()
         cursor = self._db.execute(
-            "INSERT INTO schedules (name, action, kind, expression, message, created_at)"
-            " VALUES (?, ?, ?, ?, ?, ?)",
-            (label, action, kind, str(expression), message.strip(), moment),
+            "INSERT INTO schedules"
+            " (name, action, kind, expression, message, insist, created_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                label,
+                action,
+                kind,
+                str(expression),
+                message.strip(),
+                1 if insist else 0,
+                moment,
+            ),
         )
         self._db.commit()
         log.info(
@@ -271,9 +306,15 @@ class Scheduler:
                 # for this at a time they chose.
                 self.journal.append(
                     "schedule",
-                    "reminder",
+                    # The kind is what the policy reads, so the opt-in has to be
+                    # visible there rather than hidden in the payload.
+                    "insistent_reminder" if schedule.insist else "reminder",
                     schedule.message or schedule.name,
-                    {"schedule_id": schedule.id, "name": schedule.name},
+                    {
+                        "schedule_id": schedule.id,
+                        "name": schedule.name,
+                        "insist": schedule.insist,
+                    },
                     trusted=True,
                 )
             elif schedule.action == "check_accounts":
@@ -355,8 +396,19 @@ def register_schedule_tools(registry: Any, scheduler: Scheduler) -> None:
     """Let voice and chat set, list and cancel reminders."""
     from .tools import ToolSpec
 
-    def schedule_add(name: str, when: str, message: str = "", action: str = "remind") -> dict:
-        """`when` is either "HH:MM" or a cron expression or a number of minutes."""
+    def schedule_add(
+        name: str,
+        when: str,
+        message: str = "",
+        action: str = "remind",
+        insist: bool = False,
+    ) -> dict:
+        """`when` is either "HH:MM" or a cron expression or a number of minutes.
+
+        `insist` is the alarm case: speak even during quiet hours and even while
+        the room is asleep. It is off unless asked for, because "check my mail
+        hourly" firing out loud at 3am is what quiet hours is for.
+        """
         kind, expression = "cron", when.strip()
         if expression.isdigit():
             kind, expression = "interval", expression
@@ -367,7 +419,9 @@ def register_schedule_tools(registry: Any, scheduler: Scheduler) -> None:
                 expression = f"{int(minute)} {int(hour)} * * *"
             except ValueError as exc:
                 raise ScheduleError(f"{when!r} is not a time Marvi understands") from exc
-        return scheduler.store.add(name, action, kind, expression, message).as_dict()
+        return scheduler.store.add(
+            name, action, kind, expression, message, insist=bool(insist)
+        ).as_dict()
 
     def schedule_list() -> dict:
         return {"schedules": [s.as_dict() for s in scheduler.store.list()]}
@@ -390,7 +444,7 @@ def register_schedule_tools(registry: Any, scheduler: Scheduler) -> None:
             name="schedule_add",
             description="Set a reminder or a scheduled check",
             arguments={"name": str, "when": str},
-            optional={"message": str, "action": str},
+            optional={"message": str, "action": str, "insist": bool},
             # Confirmed: a schedule is a standing instruction that will act
             # again later, which is exactly the kind of thing worth agreeing to
             # once rather than discovering at seven in the morning.

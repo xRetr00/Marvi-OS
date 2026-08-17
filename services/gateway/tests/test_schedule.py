@@ -162,11 +162,23 @@ def _world(**changes):
     return WorldState(**base)
 
 
-def test_an_alarm_the_user_set_is_not_downgraded_by_quiet_hours() -> None:
-    """An alarm that appears silently on a screen is not an alarm.
+def test_an_insistent_alarm_is_not_downgraded_by_quiet_hours() -> None:
+    """An alarm that appears silently on a screen is not an alarm."""
+    verdict = evaluate(
+        {"source": "schedule", "kind": "insistent_reminder", "trusted": True},
+        _world(),
+        InitiativeSettings(),
+        wanted="speak",
+    )
 
-    Quiet hours downgrading speech is right for "you have email" and wrong for
-    the 07:00 wake-up the user asked for.
+    assert verdict.surface == "speak"
+    assert verdict.rule == "allowed"
+
+
+def test_an_ordinary_schedule_is_still_quiet_at_three_in_the_morning() -> None:
+    """The correction to the first version, which exempted every schedule.
+
+    Asking for an hourly mail check is not asking to be woken by it.
     """
     verdict = evaluate(
         {"source": "schedule", "kind": "reminder", "trusted": True},
@@ -175,8 +187,8 @@ def test_an_alarm_the_user_set_is_not_downgraded_by_quiet_hours() -> None:
         wanted="speak",
     )
 
-    assert verdict.surface == "speak"
-    assert verdict.rule == "allowed"
+    assert verdict.surface != "speak"
+    assert verdict.rule == "quiet-hours"
 
 
 def test_marvis_own_idea_is_still_downgraded_at_the_same_moment() -> None:
@@ -197,10 +209,10 @@ def test_marvis_own_idea_is_still_downgraded_at_the_same_moment() -> None:
     assert verdict.rule == "quiet-hours"
 
 
-def test_a_reminder_reaches_an_empty_room() -> None:
+def test_an_insistent_reminder_reaches_an_empty_room() -> None:
     # "Remember your keys" is most useful on the way out.
     verdict = evaluate(
-        {"source": "schedule", "kind": "reminder", "trusted": True},
+        {"source": "schedule", "kind": "insistent_reminder", "trusted": True},
         _world(present=False, now=datetime(2026, 8, 18, 12, 0, tzinfo=UTC)),
         InitiativeSettings(),
         wanted="speak",
@@ -209,10 +221,10 @@ def test_a_reminder_reaches_an_empty_room() -> None:
     assert verdict.surface == "speak"
 
 
-def test_a_reminder_still_will_not_talk_over_a_live_conversation() -> None:
+def test_an_insistent_reminder_still_will_not_talk_over_a_conversation() -> None:
     """The exemption is narrow. It is not a licence to interrupt."""
     verdict = evaluate(
-        {"source": "schedule", "kind": "reminder", "trusted": True},
+        {"source": "schedule", "kind": "insistent_reminder", "trusted": True},
         _world(conversation_active=True),
         InitiativeSettings(),
         wanted="speak",

@@ -432,3 +432,72 @@ def test_the_room_guard_refuses_when_it_cannot_tell_whether_the_room_is_asleep()
         guard("smart_room_set_mode", {"mode": "reading"})
     # Reads are still allowed; the rule is about changing the room.
     guard("smart_room_state", {})
+
+
+# -- context providers ---------------------------------------------------------
+
+
+def test_a_plugins_context_line_reaches_the_prompt() -> None:
+    """The room engine always offered this and Marvi never called it.
+
+    `build_context_line` carries what the engine knows about the room, including
+    its own vision block — whether the owner is visible, what they appear to be
+    doing, whether they are asleep. Marvi collected the provider and ignored it
+    while running a second camera pipeline.
+    """
+    context = plugins.PluginContext(plugin="room")
+    context.register_context_provider("room", lambda: "Room: reading, light 40%, owner present")
+    loaded = plugins.LoadedPlugin(
+        name="room", manifest=plugins.Manifest(name="room"), context=context, module=None
+    )
+
+    assert plugins.context_lines([loaded]) == ["Room: reading, light 40%, owner present"]
+
+
+def test_a_provider_returning_nothing_is_not_an_error() -> None:
+    context = plugins.PluginContext(plugin="room")
+    # None is the documented "nothing to say" answer.
+    context.register_context_provider("room", lambda: None)
+    loaded = plugins.LoadedPlugin(
+        name="room", manifest=plugins.Manifest(name="room"), context=context, module=None
+    )
+
+    assert plugins.context_lines([loaded]) == []
+
+
+def test_a_broken_provider_does_not_take_the_turn_down() -> None:
+    """This runs on the prompt path. A plugin must not be able to stop a reply."""
+
+    def explode() -> str:
+        raise RuntimeError("no state")
+
+    context = plugins.PluginContext(plugin="room")
+    context.register_context_provider("room", explode)
+    context.register_context_provider("other", lambda: "still here")
+    loaded = plugins.LoadedPlugin(
+        name="room", manifest=plugins.Manifest(name="room"), context=context, module=None
+    )
+
+    # The working one survives its neighbour.
+    assert plugins.context_lines([loaded]) == ["still here"]
+
+
+def test_a_verbose_provider_cannot_eat_the_identity_budget() -> None:
+    context = plugins.PluginContext(plugin="room")
+    context.register_context_provider("room", lambda: "x" * 5_000)
+    loaded = plugins.LoadedPlugin(
+        name="room", manifest=plugins.Manifest(name="room"), context=context, module=None
+    )
+
+    line = plugins.context_lines([loaded], limit=240)[0]
+    assert len(line) == 240
+
+
+def test_newlines_are_flattened_so_one_line_stays_one_line() -> None:
+    context = plugins.PluginContext(plugin="room")
+    context.register_context_provider("room", lambda: "Room: reading\nLight: 40%")
+    loaded = plugins.LoadedPlugin(
+        name="room", manifest=plugins.Manifest(name="room"), context=context, module=None
+    )
+
+    assert "\n" not in plugins.context_lines([loaded])[0]

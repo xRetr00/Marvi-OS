@@ -509,6 +509,10 @@ def create_app(
             identity=identity,
             memory=memory,
             curiosity=curiosity,
+            # Their context lines reach the prompt. The room's carries what its
+            # engine already knows, including its own vision block, which Marvi
+            # was collecting and never reading.
+            plugins=loaded_plugins,
         )
         mcp = McpBridge()
         if mcp.available():

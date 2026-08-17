@@ -582,6 +582,8 @@ def run_checks() -> list[Finding]:
         check_token_store,
         check_components,
         check_plugins,
+        check_desktop_build,
+        check_installer_log,
         check_crashes,
         check_databases,
     ]
@@ -746,3 +748,84 @@ def check_plugins() -> list[Finding]:
             Finding(name, "plugins", "ok", f"{version}, {tools} tools, commit {row['commit']}")
         )
     return findings
+
+
+def check_desktop_build() -> Finding:
+    """Is the Electron app actually built?
+
+    The reported symptom: the installer cloned the repository and left the
+    desktop app unbuilt, so `install/` existed, Marvi's state directory filled
+    with databases, and there was no app to launch. Nothing said so — the
+    installer wrote no log and the Doctor did not look.
+
+    Checked from the checkout rather than from the state directory, because the
+    build lives beside the source it came from.
+    """
+    root = repo_root()
+    entrypoint = root / "apps" / "desktop" / "out" / "main" / "index.js"
+    if entrypoint.is_file():
+        return Finding("desktop build", "install", "ok", str(entrypoint))
+
+    if not (root / "apps" / "desktop" / "package.json").is_file():
+        # No checkout at all is a different problem with a different answer.
+        return Finding(
+            "desktop build",
+            "install",
+            "fail",
+            f"no desktop app source under {root}",
+            Remedy(
+                kind="manual",
+                action="Re-run the installer",
+                how=(
+                    "Download marvi-bootstrap.exe from the latest release and run it.\n"
+                    "It reports what it is doing and writes a log to "
+                    "logs/installer.log."
+                ),
+            ),
+        )
+
+    return Finding(
+        "desktop build",
+        "install",
+        "fail",
+        "the source is here but the app was never built",
+        Remedy(
+            kind="manual",
+            action="Build the desktop app",
+            how=(
+                f"Run in {root}:\n"
+                "  npm ci\n"
+                "  npm run build:unpack\n"
+                "Then check logs/installer.log for why the installer did not."
+            ),
+        ),
+    )
+
+
+def check_installer_log() -> Finding:
+    """Point at the installer's log when there is one, and say if it ended badly."""
+    from .logs import logs_dir
+
+    path = logs_dir() / "installer.log"
+    if not path.is_file():
+        return Finding("installer log", "install", "ok", "no install has been recorded")
+    try:
+        tail = path.read_text(encoding="utf-8", errors="replace").strip().splitlines()[-40:]
+    except OSError as exc:
+        return Finding("installer log", "install", "warn", f"could not read {path}: {exc}")
+
+    endings = [line for line in tail if "===" in line and "started" not in line]
+    last = endings[-1] if endings else ""
+    if last and "ok:" not in last:
+        return Finding(
+            "installer log",
+            "install",
+            "warn",
+            f"the last install did not finish cleanly: {last.strip()[:160]}",
+            Remedy(
+                kind="manual",
+                action="Read the installer log",
+                how=f"Open {path}\nThe last 40 lines carry the failure.",
+            ),
+        )
+    return Finding("installer log", "install", "ok", str(path))

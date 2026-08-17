@@ -96,6 +96,97 @@ def cmd_diagnostics(_args: argparse.Namespace) -> int:
     return 0
 
 
+# -- schedules -----------------------------------------------------------------
+
+
+def cmd_cron(args: argparse.Namespace) -> int:
+    """Reminders, from a shell.
+
+    The CLI matters here for the same reason it does everywhere else in Marvi:
+    when the app will not start, the reminder you set for tomorrow morning
+    should still be readable and cancellable.
+    """
+    from .schedule import ScheduleError, Scheduler, ScheduleStore
+
+    store = ScheduleStore()
+    try:
+        if args.action == "list":
+            rows = store.list()
+            if not rows:
+                print("No reminders. Add one with:")
+                print('  marvi cron add "wake up" --at 07:30 --message "Time to get up" --insist')
+                return 0
+            for row in rows:
+                state = "on " if row.enabled else "off"
+                insist = " insists" if row.insist else ""
+                when = f"every {row.expression}m" if row.kind == "interval" else row.expression
+                print(f"[{row.id:3}] {state} {row.name:24} {row.action:14} {when}{insist}")
+                if row.message:
+                    print(f"           {row.message}")
+                if row.last_error:
+                    print(f"           last error: {row.last_error}")
+                elif row.last_run:
+                    print(f"           last run: {row.last_run}")
+            return 0
+
+        if args.action == "add":
+            if not args.name or not args.at:
+                print('usage: marvi cron add "<name>" --at <when>', file=sys.stderr)
+                return 1
+            expression, kind = args.at.strip(), "cron"
+            if expression.isdigit():
+                kind = "interval"
+            elif ":" in expression and len(expression.split(":")) == 2:
+                hour, _, minute = expression.partition(":")
+                try:
+                    expression = f"{int(minute)} {int(hour)} * * *"
+                except ValueError:
+                    print(f"{args.at!r} is not a time Marvi understands", file=sys.stderr)
+                    return 1
+            made = store.add(
+                args.name, args.what, kind, expression, args.message, insist=args.insist
+            )
+            print(f"added [{made.id}] {made.name} at {made.expression}")
+            if made.insist:
+                print("  it will speak during quiet hours and while the room is asleep")
+            return 0
+
+        if not args.name:
+            print("which reminder? try `marvi cron list`", file=sys.stderr)
+            return 1
+        try:
+            schedule_id = int(args.name)
+        except ValueError:
+            print(f"{args.name!r} is not an id; `marvi cron list` shows them", file=sys.stderr)
+            return 1
+
+        if args.action == "remove":
+            print("removed" if store.remove(schedule_id) else "no such reminder")
+            return 0
+        if args.action in ("enable", "disable"):
+            row = store.set_enabled(schedule_id, args.action == "enable")
+            print(f"{row.name} is {'on' if row.enabled else 'off'}")
+            return 0
+        if args.action == "run":
+            # Fires it now, through the same path the scheduler uses, which is
+            # the only honest way to test that a reminder works.
+            from .journal import EventJournal
+
+            journal = EventJournal()
+            try:
+                outcome = Scheduler(store, journal=journal).fire(schedule_id)
+            finally:
+                journal.close()
+            print(outcome.get("detail", "done"))
+            return 0 if outcome.get("ok") else 1
+        return 1
+    except ScheduleError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    finally:
+        store.close()
+
+
 # -- plugins -------------------------------------------------------------------
 
 
@@ -547,6 +638,19 @@ def build_parser() -> argparse.ArgumentParser:
     plugin_cmd.add_argument("name", nargs="?")
     plugin_cmd.add_argument("--yes", "-y", action="store_true")
     plugin_cmd.set_defaults(handler=cmd_plugin)
+
+    cron_cmd = sub.add_parser("cron", help="reminders and scheduled checks")
+    cron_cmd.add_argument("action", choices=["list", "add", "remove", "enable", "disable", "run"])
+    cron_cmd.add_argument("name", nargs="?", help="a name to add, or an id for the rest")
+    cron_cmd.add_argument("--at", help='when: "07:30", a cron expression, or minutes')
+    cron_cmd.add_argument("--message", default="", help="what Marvi should say")
+    cron_cmd.add_argument("--action", dest="what", default="remind", help="what to run")
+    cron_cmd.add_argument(
+        "--insist",
+        action="store_true",
+        help="speak even during quiet hours and while the room is asleep",
+    )
+    cron_cmd.set_defaults(handler=cmd_cron)
 
     status_cmd = sub.add_parser("status", help="what is left to set up")
     status_cmd.set_defaults(handler=cmd_status)

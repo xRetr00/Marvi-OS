@@ -6,7 +6,7 @@ use std::sync::mpsc;
 use std::time::Duration;
 
 use marvi_bootstrap_core::{
-    InstallConfig, NpmBuildRunner, UpdateConfig, install, run_update, state_dir,
+    InstallConfig, InstallLog, NpmBuildRunner, UpdateConfig, install, run_update, state_dir,
 };
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Listener};
@@ -126,7 +126,15 @@ fn operate(handle: &AppHandle, args: Cli) {
         channel: args.channel.as_str().to_string(),
     });
 
+    // Everything the window shows also goes to disk. A window that closes is
+    // not a record, and an install that fails is exactly when one is needed.
+    let mut log = InstallLog::open(
+        &state_dir(),
+        &format!("{:?}", args.mode).to_ascii_lowercase(),
+    );
+    let log_path = log.path().display().to_string();
     let mut progress = |stage: &str| {
+        log.line(stage);
         let _ = handle.emit("progress", ProgressPayload {
             stage: stage.to_string(),
         });
@@ -171,6 +179,12 @@ fn operate(handle: &AppHandle, args: Cli) {
         Mode::Check => unreachable!("check mode is handled headlessly in main"),
     };
 
+    progress(&format!("=== {status}: {message} ==="));
+    // Named in the window too, so the user knows where to look without having
+    // to be told which folder Marvi keeps its logs in.
+    if status != "ok" {
+        progress(&format!("the full log is at {log_path}"));
+    }
     let _ = handle.emit("done", DonePayload {
         status,
         message,

@@ -51,6 +51,7 @@ SURFACE_CEILING: dict[str, str] = {
     "accounts:email": "island",
     "accounts:calendar": "island",
     "schedule:reminder": "speak",
+    "schedule:insistent_reminder": "speak",
     "vision:visitor_report": "speak",
     "vision:owner_seen": "activity",
     "room:vision_gesture": "activity",
@@ -175,21 +176,26 @@ def evaluate(
                 True, _cap("activity", ceiling), "cooldown", f"last surfaced {quiet_for:.0f}s ago"
             )
 
-    # 6. A schedule the user set is not Marvi's initiative, and the rules that
-    #    exist to keep Marvi's own ideas quiet do not apply to it. Quiet hours
-    #    downgrade speech to a glance, which is right for "you have email" and
-    #    useless for an alarm set for 07:00 — an alarm that appears silently on
-    #    a screen is not an alarm. Same for an empty room: a reminder to leave
-    #    the house is most useful on the way out.
+    # 6. One opt-in exemption, and only for a schedule the user marked as
+    #    insistent. Quiet hours downgrade speech to a glance, which is right for
+    #    "you have email" and useless for an alarm set for 07:00 — an alarm that
+    #    appears silently on a screen is not an alarm.
+    #
+    #    Per-schedule rather than per-source: the first version exempted every
+    #    schedule, which would have let "check my mail hourly" fire out loud at
+    #    3am. Asking for an hourly check is not asking to be woken by it.
     #
     #    Deliberately narrow. Everything above still applies: it cannot talk
-    #    over a live conversation, it cannot escape the cooldown, and it is
-    #    still capped by its ceiling.
-    requested = event.get("source") == "schedule"
+    #    over a live conversation, it cannot escape the cooldown, and it is still
+    #    capped by its ceiling.
+    insistent = event.get("source") == "schedule" and (
+        event.get("kind") == "insistent_reminder"
+        or bool((event.get("payload") or {}).get("insist"))
+    )
 
     # 7. Quiet hours downgrade speech to something glanceable.
     if (
-        not requested
+        not insistent
         and _quiet_now(rules, world.now)
         and SURFACES.index(surface) >= SURFACES.index("speak")
     ):
@@ -197,7 +203,7 @@ def evaluate(
 
     # 8. Speaking to an empty room is noise, not initiative.
     speaking = SURFACES.index(surface) >= SURFACES.index("speak")
-    if speaking and not requested and not world.present and not rules.speak_when_away:
+    if speaking and not insistent and not world.present and not rules.speak_when_away:
         return Verdict(True, _cap("island", ceiling), "nobody-present", "downgraded from speech")
 
     return Verdict(True, surface, "allowed", f"ceiling {ceiling}")
