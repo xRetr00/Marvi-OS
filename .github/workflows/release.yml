@@ -126,6 +126,15 @@ jobs:
           fi
           echo "bootstrap version $BOOTSTRAP matches VERSION"
 
+      - name: Provision the toolchain for real
+        working-directory: apps/updater
+        # The `uv` installer was broken from the day it was written and shipped
+        # that way, because it only runs on a machine without `uv` and every
+        # machine that built Marvi had it. This is the test that would have
+        # caught it, so it runs on the release path even though it downloads.
+        run: cargo test --test toolchain_live -- --ignored --nocapture
+              uv_and_node_are_installed_into_the_state_directory
+
       - name: Smoke test the bootstrap CLI
         working-directory: apps/updater
         shell: bash
