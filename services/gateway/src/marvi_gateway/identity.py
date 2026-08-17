@@ -30,7 +30,11 @@ from pathlib import Path
 # Roughly four characters per token. Deliberately an estimate: the point is a
 # hard ceiling, not an exact count, and over-estimating is the safe direction.
 CHARS_PER_TOKEN = 4
-DEFAULT_BUDGET_TOKENS = 900
+# Sized to the shipped SOUL.md plus room to edit it, and to a USER.md that grows
+# as Marvi learns. 1200 tokens sounds like a lot to pay every turn, but this is
+# the byte-identical prefix, so it is the part that caches — the marginal cost
+# after the first turn is close to nothing.
+DEFAULT_BUDGET_TOKENS = 1200
 SOUL_SHARE = 0.45  # soul is smaller than user context when both must be trimmed
 
 

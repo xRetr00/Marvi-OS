@@ -17,7 +17,7 @@ gates still apply.
 | 7 | [`07-release.md`](07-release.md) | in progress |
 | 8 | [`08-vision.md`](08-vision.md) | complete |
 | 9 | [`09-providers-identity.md`](09-providers-identity.md) | feature-complete |
-| 10 | [`10-resilience.md`](10-resilience.md) | planned |
+| 10 | [`10-resilience.md`](10-resilience.md) | complete |
 | 11 | [`11-setup.md`](11-setup.md) | planned |
 
 Status vocabulary: `planned`, `scaffolded`, `in progress`, `blocked`, and

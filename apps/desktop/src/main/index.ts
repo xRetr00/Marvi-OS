@@ -667,6 +667,51 @@ app.whenReady().then(() => {
       return { available: false, detail: 'Gateway unavailable', accounts: [] }
     }
   })
+  ipcMain.handle('marvi:run-doctor', async () => {
+    try {
+      const response = await fetch(`${gateway()}/doctor`, {
+        signal: AbortSignal.timeout(20_000)
+      })
+      return response.ok ? await response.json() : null
+    } catch {
+      return null
+    }
+  })
+  ipcMain.handle('marvi:heal-doctor', async (_event, includeConfirmed) => {
+    try {
+      const response = await fetch(`${gateway()}/doctor/heal`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ include_confirmed: Boolean(includeConfirmed) }),
+        signal: AbortSignal.timeout(120_000)
+      })
+      return response.ok ? await response.json() : null
+    } catch {
+      return null
+    }
+  })
+  ipcMain.handle('marvi:copy-diagnostics', async () => {
+    try {
+      const response = await fetch(`${gateway()}/doctor/diagnostics`, {
+        signal: AbortSignal.timeout(20_000)
+      })
+      if (!response.ok) return null
+      return ((await response.json()) as { text?: string }).text ?? null
+    } catch {
+      return null
+    }
+  })
+  ipcMain.handle('marvi:get-logs', async (_event, subsystem) => {
+    const name = typeof subsystem === 'string' && subsystem ? subsystem : 'errors'
+    try {
+      const response = await fetch(`${gateway()}/logs?subsystem=${encodeURIComponent(name)}`, {
+        signal: AbortSignal.timeout(8_000)
+      })
+      return response.ok ? await response.json() : null
+    } catch {
+      return null
+    }
+  })
   ipcMain.handle('marvi:get-chat', async () => {
     try {
       const response = await fetch(`${gateway()}/chat`, { signal: AbortSignal.timeout(4_000) })

@@ -1,6 +1,6 @@
 # Phase 10 — Logging, Doctor, and Staying Up
 
-**Status:** in progress — steps 1, 2, 3 and 4 done
+**Status:** complete
 **Depends on:** Phase 9 (providers), Phase 7 (the Windows release)
 **Feeds:** Phase 11 (setup), which is built on this phase's remediation engine
 
@@ -168,20 +168,30 @@ aside rather than deleted, because losing data to a repair is worse than the
 corruption that prompted it. `GET /doctor`, `POST /doctor/heal`,
 `GET /doctor/diagnostics`. 19 tests.
 
-**Step 5 — the Doctor page**, grouped by area, worst first, with Fix buttons and
-Copy diagnostics.
+**Step 5 — the Doctor page. Done.** Grouped by area, worst first, with a Fix
+button for what needs confirming, per-subsystem log tabs, and Copy diagnostics.
 
-**Step 6 — the retry helper**, and converting existing ad-hoc retries onto it,
-with the guard that refuses external writes.
+**Step 6 — the retry helper. Done.** Exponential backoff with full jitter, a cap
+on attempts *and* elapsed time, `give_up_on` winning over `retry_on`, and the
+guard that attempts an external write exactly once. A contradictory policy
+resolves the cautious way. 19 tests, mostly negative ones.
 
-**Step 7 — reconnect policies** for the sidecar, LiveKit, and MCP.
+**Step 7 — reconnect. Done for the sidecar.** A fresh connection per call means
+there is no session to re-establish, so the only failure worth retrying is a
+refusal while the sidecar restarts. `RoomRejectedError` gives up immediately —
+the sidecar answered, and it will answer the same next time. The liveness probe
+is deliberately *not* retried: it asks whether the sidecar is up right now, and
+retrying answers a different question. LiveKit and MCP still restart at the
+supervisor level rather than reconnecting in place.
 
-**Step 8 — degradation tests.** Kill each dependency in turn; assert the rest
-still works and says what is wrong.
+**Step 8 — degradation tests. Done.** No provider, dead sidecar, no vision,
+corrupt journal, unreadable token store, and broken logging — each killed in
+turn, with the rest asserted still working and still honest. 11 tests.
 
-**Step 9 — a crash breadcrumb.** On an unhandled exception, write what happened
-before exiting, so the next launch can say "Marvi stopped unexpectedly last
-time" and show it.
+**Step 9 — the crash breadcrumb. Done.** An unclean exit writes one small file;
+the next launch reports it once and clears it. The last five are kept, because
+one crash is an incident and five is a pattern. Chained onto the existing
+excepthook so the full traceback still reaches the log.
 
 ## Acceptance evidence
 
@@ -201,6 +211,16 @@ time" and show it.
 - Killing the room sidecar degrades room tools only. Voice keeps working.
 - An external write is never retried automatically, proven by a test.
 - Copy diagnostics produces a block containing nothing secret.
+
+## What is not done
+
+**LiveKit and MCP reconnect in place.** Both currently recover by being
+restarted, which works but drops in-flight state. The sidecar case was the
+urgent one because a dropped sidecar meant dead tools until a manual restart.
+
+**Doctor does not check models or OS permissions yet.** Both belong to Phase 11,
+which owns the model manifest and the install flow; adding half of it here would
+mean writing the hash-checking twice.
 
 ## Open questions
 

@@ -485,6 +485,27 @@ def check_logs() -> Finding:
     )
 
 
+def check_crashes() -> Finding:
+    from . import breadcrumb
+
+    crumbs = breadcrumb.read_all()
+    if not crumbs:
+        return Finding("clean shutdown", "services", "ok", "no unclean exits recorded")
+    latest = crumbs[-1]
+    return Finding(
+        "clean shutdown",
+        "services",
+        "warn",
+        f"{len(crumbs)} unclean exit(s), last: {latest.get('reason', '?')}",
+        Remedy(
+            kind="automatic",
+            action="Acknowledge and clear",
+            run=lambda: "cleared" if breadcrumb.clear() else "nothing to clear",
+        ),
+        {"crashes": crumbs},
+    )
+
+
 # -- the sweep -------------------------------------------------------------------
 
 SEVERITY = {"fail": 0, "warn": 1, "ok": 2}
@@ -509,6 +530,7 @@ def run_checks() -> list[Finding]:
         check_disk_space,
         check_logs,
         check_token_store,
+        check_crashes,
         check_databases,
     ]
     findings: list[Finding] = []

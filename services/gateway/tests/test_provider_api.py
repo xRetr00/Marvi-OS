@@ -217,12 +217,14 @@ def test_the_voice_path_only_gets_a_chat_completions_provider(client) -> None:
 
 
 def test_identity_is_readable_and_writable_from_the_gui(client) -> None:
-    assert client.get("/identity").json()["soul"] == ""
+    # First run seeds the shipped soul, so it is present rather than empty.
+    assert "You are Marvi" in client.get("/identity").json()["soul"]
 
     body = client.put(
         "/identity", json={"soul": "You are terse.", "user": "Shereef. Works late."}
     ).json()
 
+    # And the user's edit replaces it: the soul is theirs.
     assert body["soul"] == "You are terse."
     assert body["tokens"] > 0
     assert body["truncated"] is False

@@ -20,12 +20,17 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from .retry import Policy, RetriesExhaustedError, retry
+
 DEFAULT_PORT = 17842
 # Where the room sidecar keeps its own state. Override with MARVI_ROOM_HOME.
 SIDECAR_DATA_DIR = os.environ.get("MARVI_SIDECAR_DIR", "Hermes")
 DEFAULT_TIMEOUT = 8.0  # matches the sidecar's own bounded scene fades and retries
 PROBE_TIMEOUT = 0.5  # status polling must never stall the health endpoint
 PROBE_CACHE_SECONDS = 5.0
+# Short and few: a voice turn is waiting on this, so riding out a sidecar
+# restart is worth a second or two and no more.
+ROOM_RECONNECT = Policy(attempts=3, base_seconds=0.2, max_seconds=1.0, budget_seconds=3.0)
 
 # Verified against the running runtime: set_light takes on/brightness/color_temp/rgb.
 # "scene" is a label the sidecar derives, not an input.
@@ -179,6 +184,29 @@ class RoomSidecar:
     def call(
         self, method: str, params: dict[str, Any] | None = None, timeout: float | None = None
     ) -> dict[str, Any]:
+        """Call the sidecar, riding out a restart.
+
+        A fresh connection per call means there is no session to re-establish —
+        the only failure worth retrying is a refusal while the sidecar is coming
+        back up, which lasts seconds. A `RoomRejectedError` is the sidecar
+        answering, and it will answer the same way next time.
+        """
+        try:
+            return retry(
+                lambda: self._call_once(method, params, timeout),
+                what=f"room.{method}",
+                policy=ROOM_RECONNECT,
+                give_up_on=(RoomRejectedError,),
+            )
+        except RetriesExhaustedError as exhausted:
+            # Retrying is an implementation detail. Every caller here catches
+            # RoomUnavailableError, and changing the exception type under them
+            # would turn a handled failure into an unhandled one.
+            raise exhausted.cause from None
+
+    def _call_once(
+        self, method: str, params: dict[str, Any] | None = None, timeout: float | None = None
+    ) -> dict[str, Any]:
         deadline = timeout if timeout is not None else self.timeout
         request = {
             "jsonrpc": "2.0",
@@ -275,7 +303,10 @@ class RoomSidecar:
 
     def reachable(self) -> bool:
         try:
-            self.call("ping", timeout=PROBE_TIMEOUT)
+            # Deliberately not retried: this asks whether the sidecar is up
+            # right now. Retrying would both slow the health poll and answer a
+            # different question than the one asked.
+            self._call_once("ping", timeout=PROBE_TIMEOUT)
             return True
         except (RoomUnavailableError, RoomRejectedError):
             return False

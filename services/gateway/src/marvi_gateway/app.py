@@ -13,12 +13,14 @@ from fastapi import FastAPI, HTTPException
 from livekit import api
 from pydantic import BaseModel, Field
 
+from . import breadcrumb
 from . import doctor as doctor_module
 from .accounts import ComposioAccounts, register_account_tools
 from .activity import ActivityWatch, register_activity_tools
 from .announce import Announcer, announce_enabled
 from .browser import BrowserSession, browser_enabled, register_browser_tools
 from .chat import Chat, ChatStore, ChatTurn, schemas_from_registry
+from .curiosity import Curiosity, seed_identity
 from .deliberate import deliberator_from_env
 from .identity import IdentityFiles, plan_warning
 from .ingest import AccountIngest
@@ -292,8 +294,17 @@ def create_app(
     # every credential before a single line can be written.
     configure_logging()
     redactor().refresh()
+    # Say once that last time ended badly, then forget it. A crash nobody is
+    # told about is a pattern nobody spots.
+    breadcrumb.install("gateway")
+    last_crashes = breadcrumb.report_and_clear()
     provider_client = ProviderClient()
     identity = IdentityFiles()
+    # Ship the default soul on first run. Seeded once and never overwritten:
+    # an update that replaced the user's edited SOUL.md would be the worst
+    # possible behaviour for a file describing who Marvi is.
+    seed_identity(identity, REPO_ROOT)
+    curiosity = Curiosity(identity=identity)
     chat: Chat | None = None
     runtime_store = runtime or RuntimeStore()
     sidecar: RoomSidecar | None = None
@@ -353,6 +364,7 @@ def create_app(
             client=provider_client,
             identity=identity,
             memory=memory,
+            curiosity=curiosity,
         )
         mcp = McpBridge()
         if mcp.available():
@@ -585,6 +597,11 @@ def create_app(
     @app.get("/doctor", response_model=DoctorReport)
     async def run_doctor() -> DoctorReport:
         return doctor_report()
+
+    @app.get("/doctor/crashes")
+    async def crashes() -> dict[str, Any]:
+        """What was left behind by an unclean exit, read at startup."""
+        return {"crashes": last_crashes}
 
     @app.post("/doctor/heal", response_model=HealResult)
     async def heal(request: HealRequest) -> HealResult:

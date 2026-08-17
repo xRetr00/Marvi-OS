@@ -31,6 +31,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from .curiosity import Curiosity, handle_tool, obvious_facts
+from .curiosity import tool_schemas as curiosity_tools
 from .identity import IdentityFiles
 from .providers import ProviderCallError, ProviderClient
 from .untrusted import wrap_external
@@ -147,6 +149,7 @@ class Chat:
         dispatch: ToolDispatch | None = None,
         tool_schemas: Callable[[], list[dict[str, Any]]] | None = None,
         memory: Any = None,
+        curiosity: Curiosity | None = None,
     ) -> None:
         self.store = store or ChatStore()
         self.client = client or ProviderClient()
@@ -154,17 +157,24 @@ class Chat:
         self.dispatch = dispatch
         self.tool_schemas = tool_schemas
         self.memory = memory
+        self.curiosity = curiosity
 
     def available(self) -> bool:
         return bool(self.client.candidates())
 
-    def _system(self) -> str:
+    def _system(self, gap: Any = None) -> str:
         # Identity leads, then the chat brief. Identity is byte-identical every
         # turn, which is what makes the prefix cacheable.
-        return self.identity.compose(SYSTEM_PROMPT)
+        brief = SYSTEM_PROMPT
+        if self.curiosity is not None:
+            # Appended after the cacheable identity block, because this part
+            # legitimately changes: it carries at most one question, and only
+            # when the rate limit allows one.
+            brief = brief + "\n\n" + self.curiosity.guidance(gap)
+        return self.identity.compose(brief)
 
-    def _messages(self) -> list[dict[str, Any]]:
-        wire: list[dict[str, Any]] = [{"role": "system", "content": self._system()}]
+    def _messages(self, gap: Any = None) -> list[dict[str, Any]]:
+        wire: list[dict[str, Any]] = [{"role": "system", "content": self._system(gap)}]
         for row in self.store.history():
             if row["role"] in ("user", "assistant"):
                 wire.append({"role": row["role"], "content": row["content"]})
@@ -183,8 +193,29 @@ class Chat:
                 error="No provider is connected. Open Providers and connect one.",
             )
 
+        history = self.store.history()
+        turns = sum(1 for row in history if row["role"] == "user")
         self.store.append("user", text)
-        schemas = self.tool_schemas() if self.tool_schemas else []
+
+        gap = None
+        if self.curiosity is not None:
+            # A name offered plainly should not depend on a model call going
+            # well, so the unmistakable phrasings are caught directly.
+            for key, value in obvious_facts(text).items():
+                self.curiosity.learn(key, value)
+            gap = self.curiosity.may_ask(turns)
+            if gap is not None:
+                # The cooldown starts when the question is *offered*, not when
+                # the model is detected to have asked it. Detecting that is
+                # guesswork, and guessing wrong in this direction means asking
+                # again on the next turn — which is the behaviour that makes an
+                # assistant unbearable. Burning an unused window is harmless:
+                # the gap stays open and comes round again.
+                self.curiosity.mark_asked(gap.key)
+
+        schemas = list(self.tool_schemas() if self.tool_schemas else [])
+        if self.curiosity is not None:
+            schemas += curiosity_tools()
         used: list[str] = []
         tokens = 0
         provider = ""
@@ -192,7 +223,7 @@ class Chat:
         for _round in range(MAX_TOOL_ROUNDS):
             try:
                 completion = self.client.call_with_fallback(
-                    self._messages(),
+                    self._messages(gap),
                     max_tokens=MAX_REPLY_TOKENS,
                     tools=schemas or None,
                 )
@@ -215,15 +246,36 @@ class Chat:
                     reply=reply, tools_used=used, tokens=tokens, provider=provider
                 )
 
+            # Marvi keeping its own notes is not an action on the user's
+            # behalf, so it needs no router, no confirmation, and no audit of
+            # an external effect — and it must keep working in a session that
+            # has no tool router at all.
+            own_notes = {"remember_about_user", "forget_about_user"}
+            for call in [c for c in calls if c.get("name") in own_notes]:
+                if self.curiosity is None:
+                    continue
+                name = call.get("name", "")
+                outcome = handle_tool(self.curiosity, name, call.get("arguments") or {})
+                used.append(name)
+                self.store.append(
+                    "tool",
+                    wrap_external(f"tool:{name}", outcome.get("result")).text,
+                    tool=name,
+                )
+
+            router_calls = [c for c in calls if c.get("name") not in own_notes]
+            if not router_calls:
+                continue
             if self.dispatch is None:
                 return ChatTurn(
                     reply=completion.text.strip(),
                     error="tools are not available in this session",
                     tokens=tokens,
+                    tools_used=used,
                     provider=provider,
                 )
 
-            for call in calls:
+            for call in router_calls:
                 name = call.get("name", "")
                 arguments = call.get("arguments") or {}
                 outcome = self.dispatch(name, arguments)

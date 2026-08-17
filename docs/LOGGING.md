@@ -106,6 +106,22 @@ matter most is the moment the Gateway is not running**, so posting them over
 HTTP would lose exactly the lines that explain why nothing started. It honours
 the same redaction and the same `errors.log` fan-in.
 
+## Doctor
+
+`marvi_gateway/doctor.py` reads these files and everything else. It is a module
+inside Marvi rather than a script beside it, so the page, the API and any future
+CLI share one implementation. Every finding carries a remedy of one of three
+kinds — `automatic` runs unasked, `confirm` waits, `manual` is never executed
+and instead names the exact command or settings page.
+
+`GET /doctor`, `POST /doctor/heal`, `GET /doctor/diagnostics`.
+
+## Crashes
+
+An unclean exit writes `last-crash.json` beside the logs. The next launch
+reports it once and clears it — a crash nobody is told about is a pattern nobody
+spots. The last five are kept.
+
 ## Reading them
 
 - `GET /logs?subsystem=errors&lines=300` — already redacted on disk, so there is
