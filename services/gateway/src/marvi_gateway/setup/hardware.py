@@ -86,7 +86,7 @@ class Hardware:
 
 def _run(command: list[str]) -> str:
     try:
-        finished = subprocess.run(  # noqa: S603 - fixed argv, no shell
+        finished = subprocess.run(
             command, capture_output=True, text=True, timeout=PROBE_TIMEOUT
         )
     except (OSError, subprocess.TimeoutExpired):
@@ -97,7 +97,7 @@ def _run(command: list[str]) -> str:
 def _from_torch() -> list[Gpu]:
     """Ground truth, when torch is already here."""
     try:
-        import torch  # noqa: PLC0415 - optional and slow; only import if present
+        import torch
     except Exception:
         return []
     try:

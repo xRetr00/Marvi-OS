@@ -13,9 +13,8 @@ from fastapi import FastAPI, HTTPException
 from livekit import api
 from pydantic import BaseModel, Field
 
-from . import breadcrumb
+from . import breadcrumb, paths
 from . import doctor as doctor_module
-from . import paths
 from . import setup as setup_module
 from .accounts import ComposioAccounts, register_account_tools
 from .activity import ActivityWatch, register_activity_tools
@@ -29,9 +28,8 @@ from .ingest import AccountIngest
 from .initiative import Initiative
 from .journal import EventJournal
 from .logs import available as available_logs
-from .logs import get_logger
 from .logs import configure as configure_logging
-from .logs import install_asyncio_handler, logs_dir, redactor, tail
+from .logs import get_logger, install_asyncio_handler, logs_dir, redactor, tail
 from .mcp_bridge import McpBridge, register_mcp_tools
 from .memory import MemoryStore, register_memory_tools
 from .mind import Mind

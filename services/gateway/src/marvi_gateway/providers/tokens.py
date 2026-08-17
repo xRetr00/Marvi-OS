@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import contextlib
 import json
-import os
 import sys
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta

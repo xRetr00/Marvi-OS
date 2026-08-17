@@ -252,7 +252,7 @@ def test(server: Server) -> dict[str, Any]:
         },
     }
     try:
-        finished = subprocess.run(  # noqa: S603 - argv the user explicitly approved
+        finished = subprocess.run(
             server.argv(),
             input=json.dumps(request) + "\n",
             capture_output=True,

@@ -15,7 +15,6 @@ adopted here.
 
 from __future__ import annotations
 
-import os
 import re
 import sqlite3
 from datetime import UTC, datetime, timedelta
