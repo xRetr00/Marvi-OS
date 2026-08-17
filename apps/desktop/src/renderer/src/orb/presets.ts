@@ -3,20 +3,12 @@
 // fine profiles; `speed` multiplies the shared clock. Resolved once per
 // (state, size) pair and cached — the render loop sees plain numbers.
 
-import type { ModeOpts } from './engine/profiles';
-import { BASE_PROFILES, scaleCounts, scaleRadii } from './engine/profiles';
-import type { OrbSize, OrbState } from './types';
+import type { ModeOpts } from './engine/profiles'
+import { BASE_PROFILES, scaleCounts, scaleRadii } from './engine/profiles'
+import type { OrbSize, OrbState } from './types'
 
 export type ModeKey =
-  | 'orbits'
-  | 'globe'
-  | 'rubik'
-  | 'wave'
-  | 'web'
-  | 'braid'
-  | 'ribbon'
-  | 'ring'
-  | 'morph';
+  'orbits' | 'globe' | 'rubik' | 'wave' | 'web' | 'braid' | 'ribbon' | 'ring' | 'morph'
 
 export const STATE_TO_MODE: Record<OrbState, ModeKey> = {
   working: 'orbits',
@@ -28,14 +20,14 @@ export const STATE_TO_MODE: Record<OrbState, ModeKey> = {
   composing: 'ribbon',
   breathing: 'ring',
   shaping: 'morph'
-};
+}
 
 export interface Preset {
-  speed: number;
-  count: number;
-  size: number;
+  speed: number
+  count: number
+  size: number
   /** Extra mode opts merged verbatim after scaling. */
-  extra?: ModeOpts;
+  extra?: ModeOpts
 }
 
 /** Exported so `scripts/extract-spec.ts` can emit them for the native ports. */
@@ -69,37 +61,47 @@ export const PRESETS: Record<ModeKey, Record<OrbSize, Preset>> = {
     20: { speed: 3.12, count: 0.051, size: 1.073, extra: { spin: 0, bandMul: 4.94, wobMul: 1 } }
   },
   ring: {
-    64: { speed: 3.24, count: 0.25, size: 0.956, extra: { spin: 0, bandMul: 3.627, wobMul: 0.368 } },
-    20: { speed: 3.78, count: 0.028, size: 1.622, extra: { spin: 0, bandMul: 3.968, wobMul: 0.565 } }
+    64: {
+      speed: 3.24,
+      count: 0.25,
+      size: 0.956,
+      extra: { spin: 0, bandMul: 3.627, wobMul: 0.368 }
+    },
+    20: {
+      speed: 3.78,
+      count: 0.028,
+      size: 1.622,
+      extra: { spin: 0, bandMul: 3.968, wobMul: 0.565 }
+    }
   },
   morph: {
     64: { speed: 2.405, count: 0.702, size: 0.395, extra: { spread: 1.45 } },
     20: { speed: 2.08, count: 0.53, size: 1.011, extra: { spread: 1.45 } }
   }
-};
-
-export interface Resolved {
-  mode: ModeKey;
-  speed: number;
-  opts: ModeOpts;
 }
 
-const cache = new Map<string, Resolved>();
+export interface Resolved {
+  mode: ModeKey
+  speed: number
+  opts: ModeOpts
+}
+
+const cache = new Map<string, Resolved>()
 
 /** Resolve a (state, size) pair to its mode + fully-scaled draw options. */
 export function resolvePreset(state: OrbState, size: OrbSize): Resolved {
-  const key = `${state}-${size}`;
-  const hit = cache.get(key);
-  if (hit) return hit;
+  const key = `${state}-${size}`
+  const hit = cache.get(key)
+  if (hit) return hit
 
-  const mode = STATE_TO_MODE[state];
-  const preset = PRESETS[mode][size];
-  let opts: ModeOpts = { ...BASE_PROFILES[mode] };
-  if (preset.count !== 1) opts = scaleCounts(opts, preset.count);
-  if (preset.size !== 1) opts = scaleRadii(opts, preset.size);
-  if (preset.extra) opts = { ...opts, ...preset.extra };
+  const mode = STATE_TO_MODE[state]
+  const preset = PRESETS[mode][size]
+  let opts: ModeOpts = { ...BASE_PROFILES[mode] }
+  if (preset.count !== 1) opts = scaleCounts(opts, preset.count)
+  if (preset.size !== 1) opts = scaleRadii(opts, preset.size)
+  if (preset.extra) opts = { ...opts, ...preset.extra }
 
-  const resolved: Resolved = { mode, speed: preset.speed, opts };
-  cache.set(key, resolved);
-  return resolved;
+  const resolved: Resolved = { mode, speed: preset.speed, opts }
+  cache.set(key, resolved)
+  return resolved
 }

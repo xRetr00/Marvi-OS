@@ -119,8 +119,6 @@ export interface AssistantState {
   detail: string | null
   level: number
   yolo: boolean
-  microphone: boolean
-  camera: boolean
   confirmation: ConfirmationRequest | null
   /** Background room event. Rendered only while idle; never steals focus. */
   roomEvent: RoomEvent | null
@@ -291,8 +289,6 @@ export const DEFAULT_ASSISTANT_STATE: AssistantState = {
   detail: null,
   level: 0,
   yolo: false,
-  microphone: true,
-  camera: true,
   confirmation: null,
   roomEvent: null
 }
@@ -309,5 +305,43 @@ export const OFFLINE_RUNTIME: RuntimeStatus = {
     accounts: { state: 'offline', detail: 'Gateway unavailable' },
     room: { state: 'offline', detail: 'Gateway unavailable' }
   },
-  assistant: DEFAULT_ASSISTANT_STATE
+  // Not DEFAULT_ASSISTANT_STATE: that one is the *ready* state, and reusing it
+  // here made an unreachable Marvi say "Say Marvi" and report VOICE READY in
+  // the status bar. An assistant we cannot reach is in its error phase.
+  assistant: {
+    ...DEFAULT_ASSISTANT_STATE,
+    phase: 'error',
+    caption: 'Gateway unavailable',
+    detail: 'Marvi is not answering'
+  }
+}
+
+/** What the microphone and camera rows should say, and never more than is known.
+ *
+ * `AssistantState` used to carry `microphone: true` and `camera: true`. Nothing
+ * ever assigned them, so the app reported "MIC ON / CAM ON" and "CAMERA: ALWAYS
+ * ON" with the Gateway offline and vision disabled. A device indicator that is
+ * always on is worse than no indicator: it is the one place a user looks to
+ * check whether they are being listened to.
+ *
+ * The components that own the devices are the only honest source: the voice
+ * session publishes the microphone, the vision loop opens the camera.
+ */
+export type DeviceState = 'on' | 'off' | 'unknown'
+
+export function deviceState(
+  runtime: Pick<RuntimeStatus, 'state' | 'components'>,
+  device: 'microphone' | 'camera'
+): DeviceState {
+  // Nothing is known about a machine we cannot reach.
+  if (runtime.state === 'offline') return 'unknown'
+  const component = runtime.components[device === 'microphone' ? 'voice' : 'vision']
+  if (!component) return 'unknown'
+  if (component.state === 'ready') return 'on'
+  if (component.state === 'starting') return 'unknown'
+  return 'off'
+}
+
+export function deviceLabel(state: DeviceState): string {
+  return state === 'on' ? 'ON' : state === 'off' ? 'OFF' : '?'
 }

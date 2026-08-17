@@ -13,8 +13,6 @@ const valid = {
     detail: null,
     level: 0.3,
     yolo: false,
-    microphone: true,
-    camera: true,
     confirmation: null
   }
 }

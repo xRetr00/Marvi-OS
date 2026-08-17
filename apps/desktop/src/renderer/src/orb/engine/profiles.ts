@@ -3,7 +3,7 @@
 // applies count / radius multipliers on top, resolved once per mount.
 
 export interface ModeOpts {
-  [key: string]: number | undefined;
+  [key: string]: number | undefined
 }
 
 // 2-D lattices (rings × dots-per-ring) come in pairs — each side takes
@@ -13,9 +13,9 @@ const COUNT_PAIRS: ReadonlyArray<readonly [string, string]> = [
   ['latRings', 'lonDensity'],
   ['rings', 'lonDensity'],
   ['lanes', 'segs']
-];
-const COUNT_KEYS = ['orbitN', 'ghostN', 'nodeN', 'strandN', 'signals'] as const;
-const ICON_DENSITY_KEYS = ['iconD'] as const;
+]
+const COUNT_KEYS = ['orbitN', 'ghostN', 'nodeN', 'strandN', 'signals'] as const
+const ICON_DENSITY_KEYS = ['iconD'] as const
 
 // Every key that sets a dot's rendered radius — scaling all of them keeps
 // a dot's near/far falloff intact while shrinking or growing the mark.
@@ -29,45 +29,45 @@ const RADIUS_KEYS = [
   'partRDepth',
   'nodeR',
   'nodeRDepth'
-] as const;
+] as const
 
 export function scaleCounts(opts: ModeOpts, scale: number): ModeOpts {
-  const out: ModeOpts = { ...opts };
-  const done = new Set<string>();
-  const rt = Math.sqrt(scale);
+  const out: ModeOpts = { ...opts }
+  const done = new Set<string>()
+  const rt = Math.sqrt(scale)
   for (const [a, b] of COUNT_PAIRS) {
-    const va = out[a];
-    const vb = out[b];
+    const va = out[a]
+    const vb = out[b]
     if (va != null && vb != null && !done.has(a) && !done.has(b)) {
-      out[a] = Math.max(2, Math.round(va * rt));
-      out[b] = Math.max(2, Math.round(vb * rt));
-      done.add(a);
-      done.add(b);
+      out[a] = Math.max(2, Math.round(va * rt))
+      out[b] = Math.max(2, Math.round(vb * rt))
+      done.add(a)
+      done.add(b)
     }
   }
   for (const k of COUNT_KEYS) {
-    const v = out[k];
+    const v = out[k]
     // 0 means the mode opted out of that layer entirely (ring has no ghost
     // sphere) — scaling must not resurrect it as a single stray dot
-    if (v != null && v !== 0 && !done.has(k)) out[k] = Math.max(1, Math.round(v * scale));
+    if (v != null && v !== 0 && !done.has(k)) out[k] = Math.max(1, Math.round(v * scale))
   }
   for (const k of ICON_DENSITY_KEYS) {
-    const v = out[k];
-    if (v != null) out[k] = Math.max(0.02, v * scale);
+    const v = out[k]
+    if (v != null) out[k] = Math.max(0.02, v * scale)
   }
-  return out;
+  return out
 }
 
 export function scaleRadii(opts: ModeOpts, scale: number): ModeOpts {
-  const out: ModeOpts = { ...opts };
+  const out: ModeOpts = { ...opts }
   for (const k of RADIUS_KEYS) {
-    const v = out[k];
-    if (v != null) out[k] = v * scale;
+    const v = out[k]
+    if (v != null) out[k] = v * scale
   }
   // remember the multiplier itself — spacing-derived radii (the morph
   // outline) use it, since they aren't based on any single radius key
-  out.rSizeMul = (out.rSizeMul ?? 1) * scale;
-  return out;
+  out.rSizeMul = (out.rSizeMul ?? 1) * scale
+  return out
 }
 
 /** Base (fine) profiles per mode, before preset multipliers. */
@@ -159,4 +159,4 @@ export const BASE_PROFILES: Record<string, ModeOpts> = {
     iconD: 1,
     rMin: 0.25
   }
-};
+}

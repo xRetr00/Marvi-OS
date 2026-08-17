@@ -431,8 +431,6 @@ async function refreshGatewayRuntime(): Promise<RuntimeStatus> {
       assistant: {
         ...runtimeStatus.assistant,
         yolo: gateway.assistant.yolo,
-        microphone: gateway.assistant.microphone,
-        camera: gateway.assistant.camera,
         confirmation: gateway.assistant.confirmation ?? runtimeStatus.assistant.confirmation,
         roomEvent: gateway.assistant.roomEvent
       }

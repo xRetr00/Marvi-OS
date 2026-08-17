@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import appIcon from './assets/app-icon.png'
 import { BootFailureOverlay } from './components/BootFailureOverlay'
+import { AsciiRule } from './components/ui/ascii-rule'
 import { ConnectingOverlay } from './components/ConnectingOverlay'
 import { DynamicIsland } from './components/DynamicIsland'
 import { VoiceOrb } from './orb'
@@ -11,6 +12,15 @@ import { HapticsProvider } from './components/HapticsProvider'
 import { TitleBar } from './components/TitleBar'
 import { ShellContextMenu } from './components/ui/shell-context-menu'
 import { Chat } from './chat'
+
+/** Settings shows the device rows in full words. "ALWAYS ON" was printed
+ * unconditionally, including with the Gateway offline; "?" is the honest answer
+ * when nothing has been able to look. */
+const DEVICE_COPY: Record<DeviceState, string> = {
+  on: 'ALWAYS ON',
+  off: 'OFF',
+  unknown: 'UNKNOWN'
+}
 import {
   $runtimeState,
   $voiceState,
@@ -48,8 +58,10 @@ import type {
   UpdateStatus,
   RoomEvent,
   RuntimeStatus,
-  ServiceReport
+  ServiceReport,
+  DeviceState
 } from '../../shared/runtime'
+import { deviceLabel, deviceState } from '../../shared/runtime'
 import type { IslandAlignment, IslandPlacement } from '../../main/island-window'
 import { connectVoiceRoom } from './lib/livekit-room'
 
@@ -183,41 +195,46 @@ function MainSurface(): React.JSX.Element {
               </div>
             </header>
 
-            {page === 'Overview' ? (
-              <Overview onPreviewPhase={previewPhase} runtime={runtime} voice={voice} />
-            ) : page === 'Settings' ? (
-              <SettingsPanel runtime={runtime} />
-            ) : page === 'About' ? (
-              <AboutPanel fallbackVersion={version} runtime={runtime} />
-            ) : page === 'Room' ? (
-              <RoomPanel runtime={runtime} />
-            ) : page === 'Voice' ? (
-              <VoicePanel runtime={runtime} />
-            ) : page === 'Chat' ? (
-              <Chat />
-            ) : page === 'Setup' ? (
-              <SetupPanel />
-            ) : page === 'Skills' ? (
-              <SkillsPanel />
-            ) : page === 'Doctor' ? (
-              <DoctorPanel />
-            ) : page === 'Activity' ? (
-              <ActivityPanel />
-            ) : page === 'Accounts' ? (
-              <AccountsPanel />
-            ) : page === 'Providers' ? (
-              <ProvidersPanel />
-            ) : page === 'Identity' ? (
-              <IdentityPanel />
-            ) : page === 'Memory' ? (
-              <MemoryPanel />
-            ) : page === 'Mind' ? (
-              <MindPanel />
-            ) : page === 'Updates' ? (
-              <UpdatesPanel version={version} />
-            ) : (
-              <PagePanel page={page} version={version} />
-            )}
+            {/* One scroll region for every page, so the top bar and status bar
+                stay put and no page has to remember to handle its own
+                overflow. */}
+            <div className="page-scroll">
+              {page === 'Overview' ? (
+                <Overview onPreviewPhase={previewPhase} runtime={runtime} voice={voice} />
+              ) : page === 'Settings' ? (
+                <SettingsPanel runtime={runtime} />
+              ) : page === 'About' ? (
+                <AboutPanel fallbackVersion={version} runtime={runtime} />
+              ) : page === 'Room' ? (
+                <RoomPanel runtime={runtime} />
+              ) : page === 'Voice' ? (
+                <VoicePanel runtime={runtime} />
+              ) : page === 'Chat' ? (
+                <Chat />
+              ) : page === 'Setup' ? (
+                <SetupPanel />
+              ) : page === 'Skills' ? (
+                <SkillsPanel />
+              ) : page === 'Doctor' ? (
+                <DoctorPanel />
+              ) : page === 'Activity' ? (
+                <ActivityPanel />
+              ) : page === 'Accounts' ? (
+                <AccountsPanel />
+              ) : page === 'Providers' ? (
+                <ProvidersPanel />
+              ) : page === 'Identity' ? (
+                <IdentityPanel />
+              ) : page === 'Memory' ? (
+                <MemoryPanel />
+              ) : page === 'Mind' ? (
+                <MindPanel />
+              ) : page === 'Updates' ? (
+                <UpdatesPanel version={version} />
+              ) : (
+                <PagePanel page={page} version={version} />
+              )}
+            </div>
 
             <footer className="statusbar">
               <span>
@@ -227,7 +244,8 @@ function MainSurface(): React.JSX.Element {
               <span>VOICE {voice.phase.toUpperCase()}</span>
               <VoiceLevelMeter level={voice.level} />
               <span>
-                MIC {voice.microphone ? 'ON' : 'OFF'} / CAM {voice.camera ? 'ON' : 'OFF'}
+                MIC {deviceLabel(deviceState(runtime, 'microphone'))} / CAM{' '}
+                {deviceLabel(deviceState(runtime, 'camera'))}
               </span>
               <span className={voice.yolo ? 'status-yolo' : ''}>
                 {voice.yolo ? '⚡ YOLO' : 'CONFIRM'}
@@ -430,7 +448,7 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
         </div>
       ) : null}
 
-      <div className="ascii-divider">+------------------------------+</div>
+      <AsciiRule />
 
       {error ? (
         <span className="construction">{error.toUpperCase()}</span>
@@ -663,7 +681,7 @@ function MindPanel(): React.JSX.Element {
         </button>
       </div>
 
-      <div className="ascii-divider">+------------------------------+</div>
+      <AsciiRule />
 
       {decisions.length === 0 ? (
         <span className="construction">NO DECISIONS YET</span>
@@ -751,7 +769,7 @@ function MemoryPanel(): React.JSX.Element {
         )}
       </div>
 
-      <div className="ascii-divider">+------------------------------+</div>
+      <AsciiRule />
 
       {page.entries.length === 0 ? (
         <span className="construction">NOTHING REMEMBERED YET</span>
@@ -810,7 +828,7 @@ function AccountsPanel(): React.JSX.Element {
         <strong>{available ? detail.toUpperCase() : 'NOT CONFIGURED'}</strong>
       </div>
 
-      <div className="ascii-divider">+------------------------------+</div>
+      <AsciiRule />
 
       {accounts.length === 0 ? (
         <span className="construction">
@@ -1137,7 +1155,7 @@ function ProvidersPanel(): React.JSX.Element {
         </div>
       ) : null}
 
-      <div className="ascii-divider">+------------------------------+</div>
+      <AsciiRule />
 
       {error ? <span className="construction">{error.toUpperCase()}</span> : null}
 
@@ -1212,7 +1230,7 @@ function IdentityPanel(): React.JSX.Element {
         </div>
       ) : null}
 
-      <div className="ascii-divider">+------------------------------+</div>
+      <AsciiRule />
 
       <label className="identity-field">
         <span>SOUL.md — voice, temperament, refusals</span>
@@ -1399,11 +1417,11 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
         <strong>{(livekit?.detail ?? 'unknown').toUpperCase()}</strong>
       </div>
 
-      <div className="ascii-divider">+------------------------------+</div>
+      <AsciiRule />
       <div className="panel-label">{'// LOCAL SERVICES'}</div>
       <ServiceHealth />
 
-      <div className="ascii-divider">+------------------------------+</div>
+      <AsciiRule />
       <div className="panel-label">{'// MICROPHONES'}</div>
       {deviceError ? (
         <span className="construction">{deviceError.toUpperCase()}</span>
@@ -1529,7 +1547,7 @@ function DoctorPanel(): React.JSX.Element {
         </button>
       </div>
 
-      <div className="ascii-divider">+------------------------------+</div>
+      <AsciiRule />
 
       {areas.map((area) => (
         <div key={area}>
@@ -1568,7 +1586,7 @@ function DoctorPanel(): React.JSX.Element {
         </div>
       ))}
 
-      <div className="ascii-divider">+------------------------------+</div>
+      <AsciiRule />
       <div className="panel-label">{'// LOGS'}</div>
       <div className="provider-actions doctor-logs-tabs">
         {logs.available.map((name) => (
@@ -1680,7 +1698,7 @@ function SetupPanel(): React.JSX.Element {
         </span>
       ) : null}
 
-      <div className="ascii-divider">+------------------------------+</div>
+      <AsciiRule />
 
       <div className="service-list">
         {(page?.components ?? []).map((component) => (
@@ -1724,7 +1742,7 @@ function SetupPanel(): React.JSX.Element {
         ))}
       </div>
 
-      <div className="ascii-divider">+------------------------------+</div>
+      <AsciiRule />
       <button className="phase" type="button" onClick={() => void load()}>
         RE-CHECK
       </button>
@@ -1823,7 +1841,7 @@ function SkillsPanel(): React.JSX.Element {
         onChange={(event) => setFilter(event.target.value)}
       />
 
-      <div className="ascii-divider">+------------------------------+</div>
+      <AsciiRule />
 
       {/* The review sheet: instructions in full, warnings, then the button. */}
       {review ? (
@@ -1924,7 +1942,7 @@ function ActivityPanel(): React.JSX.Element {
         Append-only local audit of every tool decision. Nothing here is sent anywhere; YOLO
         executions are recorded exactly like confirmed ones.
       </p>
-      <div className="ascii-divider">+------------------------------+</div>
+      <AsciiRule />
 
       {events.length === 0 ? (
         <span className="construction">NO TOOL ACTIVITY RECORDED YET</span>
@@ -1981,7 +1999,7 @@ function PagePanel({ page, version }: { page: Page; version: string }): React.JS
       <div className="panel-label">{`// ${page.toUpperCase()}`}</div>
       <h2>{page}</h2>
       <p>{descriptions[page]}</p>
-      <div className="ascii-divider">+------------------------------+</div>
+      <AsciiRule />
       <span className="construction">FOUNDATION ONLINE / FEATURE MODULE PENDING</span>
     </section>
   )
@@ -2141,11 +2159,11 @@ function SettingsPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Eleme
       <div className="settings-section device-summary">
         <div>
           <span>MICROPHONE</span>
-          <strong>{runtime.assistant.microphone ? 'ALWAYS ON' : 'OFF'}</strong>
+          <strong>{DEVICE_COPY[deviceState(runtime, 'microphone')]}</strong>
         </div>
         <div>
           <span>CAMERA</span>
-          <strong>{runtime.assistant.camera ? 'ALWAYS ON' : 'OFF'}</strong>
+          <strong>{DEVICE_COPY[deviceState(runtime, 'camera')]}</strong>
         </div>
         <div>
           <span>GATEWAY</span>
@@ -2226,6 +2244,7 @@ function AboutPanel({
 
 function IslandSurface(): React.JSX.Element {
   const voice = useStore($voiceState)
+  const runtime = useStore($runtimeState)
   const measureRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -2264,6 +2283,8 @@ function IslandSurface(): React.JSX.Element {
               ?.resolveConfirmation(voice.confirmation.token, decision)
               .then(applyRuntimeState)
           }}
+          camera={deviceState(runtime, 'camera')}
+          microphone={deviceState(runtime, 'microphone')}
           state={voice}
         />
       </div>

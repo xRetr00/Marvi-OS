@@ -491,6 +491,34 @@ def create_app(
             return "degraded"
         return "ready"
 
+    def voice_status(livekit_ready: bool) -> ComponentStatus:
+        """Whether a voice session could actually happen, and if not, why.
+
+        This was pinned at `starting` with the detail "native streaming worker
+        available" — permanently, whatever the truth was. A status that never
+        changes is not a status, and it was the source of the meaningless
+        `VOICE STARTING` in the status bar.
+
+        The Gateway cannot see the agent worker directly, so it reports the two
+        things it *can* check, and says which one is missing rather than
+        implying it knows more than it does.
+        """
+        if not livekit_ready:
+            return ComponentStatus(
+                state="pending", detail="no LiveKit server to carry the session"
+            )
+        missing = [
+            component.title
+            for component in setup_module.for_capability(REPO_ROOT, "voice")
+            if not setup_module.state_of(component, REPO_ROOT)["installed"]
+        ]
+        if missing:
+            return ComponentStatus(
+                state="pending",
+                detail=f"not installed: {', '.join(missing[:3])} — run `marvi setup voice`",
+            )
+        return ComponentStatus(state="ready", detail="LiveKit up, voice models installed")
+
     def current_status() -> RuntimeStatus:
         if sidecar is not None:
             latest = sidecar.latest_notable_event()
@@ -511,7 +539,7 @@ def create_app(
                     state="ready" if livekit_ready else "pending",
                     detail="local server online" if livekit_ready else "local server not running",
                 ),
-                "voice": ComponentStatus(state="starting", detail="native streaming worker available"),
+                "voice": voice_status(livekit_ready),
                 "vision": ComponentStatus(
                     state="ready" if faces is not None else "pending",
                     detail=(

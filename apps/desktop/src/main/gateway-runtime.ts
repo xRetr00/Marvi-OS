@@ -43,9 +43,7 @@ export function normalizeRuntimeStatus(value: unknown): RuntimeStatus | null {
     !ASSISTANT_PHASES.includes(assistant.phase as AssistantState['phase']) ||
     typeof assistant.caption !== 'string' ||
     typeof assistant.level !== 'number' ||
-    typeof assistant.yolo !== 'boolean' ||
-    typeof assistant.microphone !== 'boolean' ||
-    typeof assistant.camera !== 'boolean'
+    typeof assistant.yolo !== 'boolean'
   ) {
     return null
   }
@@ -117,8 +115,6 @@ export function normalizeRuntimeStatus(value: unknown): RuntimeStatus | null {
       detail: typeof assistant.detail === 'string' ? assistant.detail : null,
       level: Math.max(0, Math.min(1, assistant.level)),
       yolo: assistant.yolo,
-      microphone: assistant.microphone,
-      camera: assistant.camera,
       confirmation,
       roomEvent
     }

@@ -22,9 +22,16 @@ function clamp01(x: number): number {
 
 function hexToRgb(hex: string): [number, number, number] {
   const value = hex.replace('#', '')
-  const n = value.length === 3
-    ? parseInt(value.split('').map((c) => c + c).join(''), 16)
-    : parseInt(value, 16)
+  const n =
+    value.length === 3
+      ? parseInt(
+          value
+            .split('')
+            .map((c) => c + c)
+            .join(''),
+          16
+        )
+      : parseInt(value, 16)
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
 }
 

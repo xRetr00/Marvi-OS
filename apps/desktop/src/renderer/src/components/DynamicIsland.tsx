@@ -1,3 +1,4 @@
+import type { DeviceState } from '../../../shared/runtime'
 import type { VoiceState } from '../store/voice-state'
 import { Orb } from '../orb/Orb'
 import { accentFor, orbStateFor } from '../orb/phase'
@@ -6,9 +7,17 @@ const VOICE_ACTIVE = new Set(['wake', 'listening', 'thinking', 'speaking'])
 
 export function DynamicIsland({
   state,
+  microphone = 'unknown',
+  camera = 'unknown',
   onConfirmationDecision
 }: {
   state: VoiceState
+  /** Passed in rather than read off `state`, which used to carry two booleans
+   * nothing ever set — so the island lit MIC and CAM permanently. This is the
+   * one indicator a user checks to see whether they are being listened to, so
+   * it defaults to unknown and only lights on evidence. */
+  microphone?: DeviceState
+  camera?: DeviceState
   onConfirmationDecision?: (decision: 'approve' | 'deny') => void
 }): React.JSX.Element {
   const voiceActive = VOICE_ACTIVE.has(state.phase)
@@ -25,7 +34,13 @@ export function DynamicIsland({
         role="status"
         aria-live="polite"
       >
-        <Orb state={orbStateFor('ready')} size={20} accent={accentFor('ready')} level={state.level} className="island-orb" />
+        <Orb
+          state={orbStateFor('ready')}
+          size={20}
+          accent={accentFor('ready')}
+          level={state.level}
+          className="island-orb"
+        />
         <div className="island-copy">
           <small>{state.yolo ? '⚡ YOLO / ROOM' : 'ROOM'}</small>
           <strong>{state.roomEvent.summary}</strong>
@@ -97,8 +112,12 @@ export function DynamicIsland({
       </div>
       {!voiceActive ? (
         <div className="island-signals" aria-label="Local sensor state">
-          <span className={state.microphone ? 'signal-on' : ''}>MIC</span>
-          <span className={state.camera ? 'signal-on' : ''}>CAM</span>
+          <span className={microphone === 'on' ? 'signal-on' : ''}>
+            MIC{microphone === 'unknown' ? '?' : ''}
+          </span>
+          <span className={camera === 'on' ? 'signal-on' : ''}>
+            CAM{camera === 'unknown' ? '?' : ''}
+          </span>
         </div>
       ) : null}
     </div>

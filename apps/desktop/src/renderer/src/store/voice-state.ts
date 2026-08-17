@@ -2,7 +2,6 @@ import { atom } from 'nanostores'
 
 import {
   ASSISTANT_PHASES,
-  DEFAULT_ASSISTANT_STATE,
   OFFLINE_RUNTIME,
   type AssistantPhase,
   type AssistantState,
@@ -26,7 +25,9 @@ const PHASE_COPY: Record<AssistantPhase, { caption: string; detail: string | nul
 }
 
 export const $runtimeState = atom<RuntimeStatus>(OFFLINE_RUNTIME)
-export const $voiceState = atom<AssistantState>(DEFAULT_ASSISTANT_STATE)
+// Nothing has answered yet when this is created, so it starts from the
+// offline state rather than claiming to be ready.
+export const $voiceState = atom<AssistantState>(OFFLINE_RUNTIME.assistant)
 
 export function applyRuntimeState(runtime: RuntimeStatus): void {
   $runtimeState.set(runtime)

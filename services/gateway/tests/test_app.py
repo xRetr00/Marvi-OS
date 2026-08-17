@@ -26,8 +26,23 @@ async def test_health_exposes_branding_version_and_component_readiness(monkeypat
     assert payload["version"] == "0.1.0-test"
     assert payload["components"]["gateway"]["state"] == "ready"
     assert payload["components"]["livekit"]["state"] == "pending"
-    assert payload["components"]["voice"]["state"] == "starting"
     assert payload["assistant"]["phase"] == "ready"
+
+
+@pytest.mark.asyncio
+async def test_voice_reports_why_it_is_not_ready_rather_than_a_fixed_state(monkeypatch) -> None:
+    """It used to answer `starting` / "native streaming worker available" always.
+
+    A component state that never changes is not a state, and it is what made
+    `VOICE STARTING` in the status bar mean nothing. With no LiveKit server
+    there can be no session, and saying so is more useful than saying anything
+    about a worker.
+    """
+    payload = await health(monkeypatch, livekit_running=False)
+    voice = payload["components"]["voice"]
+
+    assert voice["state"] == "pending"
+    assert "LiveKit" in voice["detail"]
 
 
 @pytest.mark.asyncio

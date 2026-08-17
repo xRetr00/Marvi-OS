@@ -1,10 +1,10 @@
 // Engine-level contracts shared by every mode implementation.
 
-import type { ModeOpts } from './profiles';
+import type { ModeOpts } from './profiles'
 
-export type { Dot, Line, OrbFrame } from './core';
+export type { Dot, Line, OrbFrame } from './core'
 
-import type { OrbFrame } from './core';
+import type { OrbFrame } from './core'
 
 /**
  * Geometry for one instant: pure math over (size, t, opts), no rendering
@@ -14,7 +14,7 @@ import type { OrbFrame } from './core';
  * inside a Reanimated worklet on the React Native UI thread, and so its
  * output can be compared numerically against the Swift port.
  */
-export type ModeFrame = (size: number, t: number, opts: ModeOpts) => OrbFrame;
+export type ModeFrame = (size: number, t: number, opts: ModeOpts) => OrbFrame
 
 /** One frame painter: draws a mode into a 2D context at CSS-px `size`. */
 export type ModeDraw = (
@@ -23,4 +23,4 @@ export type ModeDraw = (
   t: number,
   dark: boolean,
   opts: ModeOpts
-) => void;
+) => void

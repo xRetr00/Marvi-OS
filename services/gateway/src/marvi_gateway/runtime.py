@@ -59,8 +59,6 @@ class AssistantState(BaseModel):
     detail: str | None = None
     level: float = Field(default=0.0, ge=0.0, le=1.0)
     yolo: bool = False
-    microphone: bool = True
-    camera: bool = True
     confirmation: ConfirmationRequest | None = None
     # A background room event rides its own channel so it can never take over a
     # live voice phase. The Island shows it only while idle.

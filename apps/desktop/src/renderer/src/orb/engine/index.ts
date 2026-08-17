@@ -17,11 +17,11 @@
 // Ink convention: `white` is the paper-theme ink value in [0,1]; on a dark
 // substrate a renderer mirrors it (`1 - white`) so near dots read bright.
 
-export { MODE_FRAMES, MODE_DRAWS } from './registry';
-export { resolvePreset, STATE_TO_MODE, type ModeKey, type Resolved } from '../presets';
-export type { Dot, Line, OrbFrame, ModeFrame, ModeDraw } from './types';
-export type { ModeOpts } from './profiles';
-export type { OrbState, OrbSize } from '../types';
+export { MODE_FRAMES, MODE_DRAWS } from './registry'
+export { resolvePreset, STATE_TO_MODE, type ModeKey, type Resolved } from '../presets'
+export type { Dot, Line, OrbFrame, ModeFrame, ModeDraw } from './types'
+export type { ModeOpts } from './profiles'
+export type { OrbState, OrbSize } from '../types'
 
 // Escape hatches for renderers that want the primitives themselves.
-export { finalizeFrame, paintFrame, paint, paintLines, radiusScale, makeProj } from './core';
+export { finalizeFrame, paintFrame, paint, paintLines, radiusScale, makeProj } from './core'
