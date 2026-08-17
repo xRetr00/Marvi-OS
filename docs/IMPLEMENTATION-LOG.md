@@ -586,3 +586,62 @@ that performs updates, so a user can be holding an older one than the release
 they installed. It was pinned at `0.1.0` with no way to say so; it now carries
 the product version, answers `--version` without a window, and CI refuses a tag
 where the two disagree.
+
+## 2026-08-17 — The UI was confidently wrong
+
+Reported as "no scrollbars, the colors are broken, the texts are idiotic". All
+of it was true, and almost all of it was one failure mode wearing several
+costumes: **the app displaying something it had no basis for.**
+
+**A third of every page was unreachable.** `.sidebar` and `.content` are grid
+items, and a grid item defaults to `min-height: auto` — "never smaller than my
+content". So a page taller than the window pushed both past the shell,
+`body { overflow: hidden }` clipped the excess, and there was no scroll
+container anywhere to reach it. Measured on a 720px window: 882px of content,
+with the status bar sitting entirely below the fold. `min-height: 0` plus one
+`.page-scroll` region fixes all seventeen pages, and the sidebar's seventeen
+destinations now scroll too.
+
+Scrollbars are styled and always visible. An overlay scrollbar that appears
+only mid-gesture is indistinguishable from no scrollbar, and that is precisely
+how a clipped page reads as a broken one.
+
+**The "maze" was a fixed-width string.** `+------------------------------+`
+appeared fifteen times as a literal thirty-two characters, so on any wider
+panel it floated mid-page as a stray box — and two of them either side of a
+section that happened to be empty (Setup, while the catalog loads) looked
+exactly like what was reported. `AsciiRule` keeps real corner characters and
+clips a long dash run to its container, which in a monospace face is an honest
+character rule at any width. That is what the ASCII look was after.
+
+**Text below the contrast floor.** `--ui-text-tertiary` was 2.31:1 against the
+background — under the 3:1 minimum for even large text — and it was the colour
+of the buttons. `--ui-text-secondary` was 4.44:1, just under 4.5, and it
+carries almost every label in the app. Now 4.85 and 7.73. Sixteen labels were
+9px with 0.16em tracking, which is a decorative size doing a legibility job.
+
+**"MIC ON / CAM ON" with the Gateway offline.** `AssistantState.microphone`
+and `.camera` were declared with defaults of `True` and **nothing ever assigned
+them** — not in the Gateway, not in the desktop. So the status bar, the Island,
+and Settings ("CAMERA: ALWAYS ON") all reported both devices live, permanently.
+This is the one indicator a person checks to find out whether they are being
+listened to, which makes it the worst possible place for a comfortable
+assumption. The fields are deleted. `deviceState()` derives from the component
+that owns the device and answers `unknown` when the Gateway cannot be reached.
+
+**"VOICE READY" with the Gateway offline**, for two independent reasons. The
+`voice` component was hardcoded to `starting` with the detail "native streaming
+worker available" — forever, whatever was true — which is what made `VOICE
+STARTING` in the status bar mean nothing; it now reports whether a session
+could actually happen and names what is missing. And `OFFLINE_RUNTIME` reused
+the *ready* assistant state, so an unreachable Marvi said "Say Marvi".
+
+**A 2.5 GB download that said only "WORKING".** No progress was plumbed at all:
+the install endpoint blocks for the whole download and returned only when done.
+The installer's `progress` callback now writes to a readout the `/setup` page
+reports, and the panel polls it during an install. Components that were merely
+not downloaded yet were also painted in the *error* colour, which made a fresh
+install look like a broken one.
+
+`shell-layout.test.ts` locks the layout chain and the device honesty, since both
+failures were invisible to every test that existed.
