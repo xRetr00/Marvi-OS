@@ -1,5 +1,5 @@
 {
-  "$comment": "What Marvi can install. Data, not code — adding a component means adding an entry here. Voice models live in voice-models.json until the PowerShell installers are retired, because duplicating their hashes is how two files drift apart.",
+  "$comment": "What Marvi can install. Data, not code \u2014 adding a component means adding an entry here. Voice models live in voice-models.json until the PowerShell installers are retired, because duplicating their hashes is how two files drift apart.",
   "schema": 1,
   "components": [
     {
@@ -7,7 +7,9 @@
       "kind": "binary",
       "title": "LiveKit server",
       "why": "Carries the voice session. Not needed if LIVEKIT_URL points at a cloud project.",
-      "needed_for": ["voice"],
+      "needed_for": [
+        "voice"
+      ],
       "source": {
         "type": "url",
         "base_url": "https://github.com/livekit/livekit/releases/download/v1.13.5"
@@ -23,7 +25,9 @@
       "kind": "model",
       "title": "Face recognition (buffalo_l)",
       "why": "Recognises you and tells a known face from a visitor.",
-      "needed_for": ["vision"],
+      "needed_for": [
+        "vision"
+      ],
       "source": {
         "type": "url",
         "base_url": "https://github.com/deepinsight/insightface/releases/download/v0.7"
@@ -38,8 +42,14 @@
       "kind": "python",
       "title": "Gateway dependencies",
       "why": "The Gateway will not start without them.",
-      "needed_for": ["gateway", "voice", "vision"],
-      "source": { "type": "command" },
+      "needed_for": [
+        "gateway",
+        "voice",
+        "vision"
+      ],
+      "source": {
+        "type": "command"
+      },
       "project": "services/gateway"
     },
     {
@@ -47,9 +57,61 @@
       "kind": "python",
       "title": "Voice agent dependencies",
       "why": "The voice worker will not start without them.",
-      "needed_for": ["voice"],
-      "source": { "type": "command" },
-      "project": "services/agent"
+      "needed_for": [
+        "voice"
+      ],
+      "source": {
+        "type": "command"
+      },
+      "project": "services/agent",
+      "extra": {
+        "gpu_sensitive": true,
+        "note": "Installs PyTorch. The CPU wheel on a GPU machine is the mistake this flags."
+      }
+    },
+    {
+      "name": "playwright-browsers",
+      "kind": "command",
+      "title": "Browser engine (Chromium)",
+      "why": "Browser tools cannot open a page without it.",
+      "needed_for": [
+        "browser"
+      ],
+      "source": {
+        "type": "command"
+      },
+      "project": "services/gateway",
+      "extra": {
+        "run": [
+          "playwright",
+          "install",
+          "chromium"
+        ],
+        "check": [
+          "playwright",
+          "--version"
+        ],
+        "note": "Roughly 150 MB, downloaded by Playwright itself into its own cache."
+      }
+    },
+    {
+      "name": "playwright-deps",
+      "kind": "command",
+      "title": "Browser system libraries",
+      "why": "Chromium needs them on Linux; a no-op on Windows.",
+      "needed_for": [],
+      "source": {
+        "type": "command"
+      },
+      "project": "services/gateway",
+      "extra": {
+        "run": [
+          "playwright",
+          "install-deps",
+          "chromium"
+        ],
+        "windows_skip": true
+      }
     }
   ]
 }

@@ -138,10 +138,18 @@ def install(
     http: Any = None,
     progress: Progress | None = None,
     force: bool = False,
+    use_gpu: bool | None = None,
 ) -> Outcome:
-    """Put a component in place, or confirm it already is."""
+    """Put a component in place, or confirm it already is.
+
+    `use_gpu` only matters for GPU-sensitive components; None means "use the
+    saved preference", which is what every caller that has not asked should
+    pass.
+    """
     if component.kind == "python":
-        return _sync_project(component, repo_root)
+        return _sync_project(component, repo_root, use_gpu=use_gpu)
+    if component.kind == "command":
+        return _run_command(component, repo_root)
 
     if not component.files:
         return Outcome(
@@ -177,9 +185,12 @@ def install(
     return Outcome(component.name, True, "installed and verified", fetched)
 
 
-def _sync_project(component: Component, repo_root: Path) -> Outcome:
-    """Run `uv sync` for a Python service."""
+def _sync_project(
+    component: Component, repo_root: Path, use_gpu: bool | None = None
+) -> Outcome:
+    """Run `uv sync` for a Python service, on the right PyTorch index."""
     from ..doctor import find_uv
+    from . import hardware
 
     uv = find_uv()
     if not uv:
@@ -187,6 +198,22 @@ def _sync_project(component: Component, repo_root: Path) -> Outcome:
             component.name, False,
             "uv is not installed; see Doctor for how to get it",
         )
+
+    environment = dict(os.environ)
+    note = ""
+    if component.extra.get("gpu_sensitive"):
+        # The mistake this exists to prevent: a CPU wheel on a GPU machine,
+        # silent until someone wonders why the voice model is slow.
+        decided = use_gpu
+        if decided is None:
+            decided = bool(hardware.question()["use_gpu"])
+        environment["UV_TORCH_BACKEND"] = "cu130" if decided else "cpu"
+        note = f" ({'GPU' if decided else 'CPU'} build)"
+        log.info(
+            "syncing %s for %s", component.name, "GPU" if decided else "CPU",
+            extra={"marvi_torch_index": hardware.torch_index(decided)},
+        )
+
     try:
         finished = subprocess.run(
             [uv, "sync", "--project", component.project],
@@ -194,13 +221,62 @@ def _sync_project(component: Component, repo_root: Path) -> Outcome:
             capture_output=True,
             text=True,
             timeout=SYNC_TIMEOUT,
+            env=environment,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return Outcome(component.name, False, f"uv sync failed: {exc}")
     if finished.returncode != 0:
         tail = (finished.stderr or finished.stdout or "").strip().splitlines()[-3:]
         return Outcome(component.name, False, " / ".join(tail) or "uv sync failed")
-    return Outcome(component.name, True, "dependencies synced")
+    return Outcome(component.name, True, f"dependencies synced{note}")
+
+
+def _run_command(component: Component, repo_root: Path) -> Outcome:
+    """Run an installer that owns its own download — Playwright, mostly.
+
+    Run through `uv run` inside the owning project, so the tool is the one that
+    project pinned rather than whatever happens to be on PATH.
+    """
+    from ..doctor import find_uv
+
+    command = list(component.extra.get("run") or [])
+    if not command:
+        return Outcome(component.name, False, "no command in the manifest")
+    if component.extra.get("windows_skip") and os.name == "nt":
+        return Outcome(component.name, True, "not needed on Windows", skipped=True)
+
+    uv = find_uv()
+    if not uv:
+        return Outcome(component.name, False, "uv is not installed")
+    argv = [uv, "run", "--project", component.project or "services/gateway", *command]
+    try:
+        finished = subprocess.run(
+            argv, cwd=repo_root, capture_output=True, text=True, timeout=SYNC_TIMEOUT
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return Outcome(component.name, False, f"{' '.join(command)} failed: {exc}")
+    if finished.returncode != 0:
+        tail = (finished.stderr or finished.stdout or "").strip().splitlines()[-3:]
+        return Outcome(component.name, False, " / ".join(tail) or "command failed")
+    return Outcome(component.name, True, f"ran {' '.join(command)}")
+
+
+def command_installed(component: Component, repo_root: Path) -> bool:
+    """Whether a command-kind component has already done its work."""
+    from ..doctor import find_uv
+
+    check = list(component.extra.get("check") or [])
+    uv = find_uv()
+    if not check or not uv:
+        return False
+    try:
+        finished = subprocess.run(
+            [uv, "run", "--project", component.project or "services/gateway", *check],
+            cwd=repo_root, capture_output=True, text=True, timeout=60,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return finished.returncode == 0
 
 
 def verify(component: Component) -> Outcome:
