@@ -5,6 +5,7 @@ import type {
   ChatEntry,
   ChatReply,
   ConnectedAccount,
+  DoctorReport,
   IdentityStatus,
   InitiativeStatus,
   MindDecision,
@@ -87,6 +88,14 @@ const marvi = {
   sendChat: (message: string): Promise<ChatReply | null> =>
     ipcRenderer.invoke('marvi:send-chat', message),
   clearChat: (): Promise<boolean> => ipcRenderer.invoke('marvi:clear-chat'),
+  runDoctor: (): Promise<DoctorReport | null> => ipcRenderer.invoke('marvi:run-doctor'),
+  healDoctor: (includeConfirmed: boolean): Promise<{ report: DoctorReport } | null> =>
+    ipcRenderer.invoke('marvi:heal-doctor', includeConfirmed),
+  copyDiagnostics: (): Promise<string | null> => ipcRenderer.invoke('marvi:copy-diagnostics'),
+  getLogs: (
+    subsystem: string
+  ): Promise<{ subsystem: string; lines: string[]; available: string[] } | null> =>
+    ipcRenderer.invoke('marvi:get-logs', subsystem),
   getServices: (): Promise<ServiceReport[]> => ipcRenderer.invoke('marvi:get-services'),
   retryService: (name: string): Promise<boolean> => ipcRenderer.invoke('marvi:retry-service', name),
   onServices: (listener: (reports: ServiceReport[]) => void): (() => void) => {

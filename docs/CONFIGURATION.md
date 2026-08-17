@@ -88,6 +88,19 @@ quietly ignored.
 | `MARVI_CHAT_DB` | `%LOCALAPPDATA%\Marvi OS\chat.sqlite3` |
 | `MARVI_IDENTITY_DIR` | `%LOCALAPPDATA%\Marvi OS` |
 
+### Logging and identity
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `MARVI_LOG_DIR` | `%LOCALAPPDATA%\Marvi OS\logs` | where the per-subsystem files go |
+| `MARVI_LOG_LEVEL` | `INFO` | |
+| `MARVI_LOG_MAX_BYTES` | 8 MB | rotation size per file |
+| `MARVI_LOG_BACKUPS` | 3 | |
+| `MARVI_IDENTITY_DIR` | `%LOCALAPPDATA%\Marvi OS` | where `SOUL.md` and `USER.md` live |
+| `MARVI_IDENTITY_BUDGET` | 1200 | tokens of identity paid on every turn |
+
+See `docs/LOGGING.md` and `docs/IDENTITY.md`.
+
 ### Proactivity — all editable from the Mind page
 
 | Variable | Default | Meaning |

@@ -155,7 +155,11 @@ Full plan and research in `phases/09-providers-identity.md`.
    downloads at scale, or touches another process is a decision, not a repair.
 4. Retry is bounded, jittered, and never applied to an external write.
 
-Full plan in `phases/10-resilience.md`.
+5. `SOUL.md` ships with Marvi and Marvi never writes it; `USER.md` starts empty
+   and Marvi fills it by listening, asking at most one rationed question when
+   the moment suits.
+
+Full plan in `phases/10-resilience.md`; identity in `IDENTITY.md`.
 
 ## Phase 11 — setup
 

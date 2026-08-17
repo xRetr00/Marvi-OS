@@ -81,3 +81,9 @@ export function livekitBind(repoRoot: string | null): { host: string; port: numb
   const { host, port } = manifest(repoRoot).livekit
   return { host, port }
 }
+
+export function logsDir(): string {
+  const configured = process.env['MARVI_LOG_DIR']?.trim()
+  if (configured) return configured
+  return join(process.env['LOCALAPPDATA'] ?? '', 'Marvi OS', 'logs')
+}

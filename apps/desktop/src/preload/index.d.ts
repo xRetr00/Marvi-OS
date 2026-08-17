@@ -4,6 +4,7 @@ import type {
   ChatEntry,
   ChatReply,
   ConnectedAccount,
+  DoctorReport,
   IdentityStatus,
   InitiativeStatus,
   MindDecision,
@@ -51,6 +52,12 @@ export interface MarviDesktopApi {
   getChat: () => Promise<{ messages: ChatEntry[]; available: boolean }>
   sendChat: (message: string) => Promise<ChatReply | null>
   clearChat: () => Promise<boolean>
+  runDoctor: () => Promise<DoctorReport | null>
+  healDoctor: (includeConfirmed: boolean) => Promise<{ report: DoctorReport } | null>
+  copyDiagnostics: () => Promise<string | null>
+  getLogs: (
+    subsystem: string
+  ) => Promise<{ subsystem: string; lines: string[]; available: string[] } | null>
   getServices: () => Promise<ServiceReport[]>
   retryService: (name: string) => Promise<boolean>
   onServices: (listener: (reports: ServiceReport[]) => void) => () => void

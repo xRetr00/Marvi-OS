@@ -284,3 +284,105 @@ def test_a_failed_tool_does_not_end_the_conversation(store, tmp_path) -> None:
     ).send("check the room")
 
     assert turn.reply == "I could not reach the room."
+
+
+# -- learning about the user through conversation -----------------------------
+
+
+def curious_chat(store, *payloads, tmp_path):
+    from marvi_gateway.curiosity import Curiosity
+    from marvi_gateway.identity import IdentityFiles
+
+    identity = IdentityFiles(tmp_path)
+    return Chat(
+        store=store,
+        client=ProviderClient(http=replying(*payloads)),
+        identity=identity,
+        curiosity=Curiosity(path=tmp_path / "c.sqlite3", identity=identity),
+    )
+
+
+def test_marvi_says_nothing_about_itself_in_the_first_breath(store, tmp_path) -> None:
+    seen: list[dict] = []
+
+    def handler(request):
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, json=says("hello"))
+
+    from marvi_gateway.curiosity import Curiosity
+    from marvi_gateway.identity import IdentityFiles
+
+    identity = IdentityFiles(tmp_path)
+    chat = Chat(
+        store=store,
+        client=ProviderClient(http=httpx.Client(transport=httpx.MockTransport(handler))),
+        identity=identity,
+        curiosity=Curiosity(path=tmp_path / "c.sqlite3", identity=identity),
+    )
+    chat.send("hi")
+
+    # A question in the opening exchange reads as an interruption.
+    assert "natural opening" not in seen[0]["messages"][0]["content"]
+
+
+def test_a_name_said_in_passing_is_recorded_without_a_tool_call(store, tmp_path) -> None:
+    chat = curious_chat(store, says("Hello."), tmp_path=tmp_path)
+    chat.send("hey, I'm Shereef")
+
+    # The commonest case must not depend on a model call going well.
+    assert chat.curiosity.state()["name"]["value"] == "Shereef"
+
+
+def test_the_model_can_record_something_it_was_told(store, tmp_path) -> None:
+    chat = curious_chat(
+        store,
+        wants("remember_about_user", {"key": "work", "value": "Software engineer"}),
+        says("Right."),
+        tmp_path=tmp_path,
+    )
+    turn = chat.send("I'm working as an SWE")
+
+    assert turn.reply == "Right."
+    assert chat.curiosity.state()["work"]["value"] == "Software engineer"
+    assert "Software engineer" in chat.identity.read().user
+
+
+def test_recording_needs_no_confirmation(store, tmp_path) -> None:
+    # It is Marvi keeping its own notes, not an action on the user's behalf, so
+    # it must not interrupt with an approval prompt.
+    chat = curious_chat(
+        store,
+        wants("remember_about_user", {"key": "rhythm", "value": "Up late"}),
+        says("Noted."),
+        tmp_path=tmp_path,
+    )
+    turn = chat.send("I'm always up past midnight")
+
+    assert turn.pending_confirmation is None
+
+
+def test_deflecting_ends_the_topic_for_good(store, tmp_path) -> None:
+    chat = curious_chat(
+        store,
+        wants("forget_about_user", {"key": "name"}),
+        says("No problem."),
+        tmp_path=tmp_path,
+    )
+    chat.send("rather not say")
+
+    assert chat.curiosity.state()["name"]["state"] == "declined"
+    assert all(gap.key != "name" for gap in chat.curiosity.open_gaps())
+
+
+def test_asking_burns_the_window_even_if_the_model_stays_quiet(store, tmp_path) -> None:
+    chat = curious_chat(
+        store, says("a"), says("b"), says("c"), says("d"), tmp_path=tmp_path
+    )
+    chat.send("one")
+    chat.send("two")
+    chat.send("three")  # the first turn where a question is allowed
+
+    # Detecting whether the model actually asked is guesswork, and guessing
+    # wrong means asking again next turn — the behaviour that makes an
+    # assistant unbearable. Burning an unused window is the safe direction.
+    assert chat.curiosity.may_ask() is None

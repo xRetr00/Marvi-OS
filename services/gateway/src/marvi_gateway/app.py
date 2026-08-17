@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 import socket
 from collections.abc import AsyncIterator
@@ -12,16 +13,22 @@ from fastapi import FastAPI, HTTPException
 from livekit import api
 from pydantic import BaseModel, Field
 
+from . import breadcrumb
+from . import doctor as doctor_module
 from .accounts import ComposioAccounts, register_account_tools
 from .activity import ActivityWatch, register_activity_tools
 from .announce import Announcer, announce_enabled
 from .browser import BrowserSession, browser_enabled, register_browser_tools
 from .chat import Chat, ChatStore, ChatTurn, schemas_from_registry
+from .curiosity import Curiosity, seed_identity
 from .deliberate import deliberator_from_env
 from .identity import IdentityFiles, plan_warning
 from .ingest import AccountIngest
 from .initiative import Initiative
 from .journal import EventJournal
+from .logs import available as available_logs
+from .logs import configure as configure_logging
+from .logs import install_asyncio_handler, logs_dir, redactor, tail
 from .mcp_bridge import McpBridge, register_mcp_tools
 from .memory import MemoryStore, register_memory_tools
 from .mind import Mind
@@ -214,6 +221,30 @@ class ChatHistory(BaseModel):
     available: bool
 
 
+class DoctorReport(BaseModel):
+    findings: list[dict[str, Any]]
+    summary: dict[str, int]
+    healthy: bool
+
+
+class HealRequest(BaseModel):
+    # Automatic remedies always run. Anything that spends money, takes real
+    # time, or touches another process needs this set.
+    include_confirmed: bool = False
+
+
+class HealResult(BaseModel):
+    applied: list[dict[str, Any]]
+    report: DoctorReport
+
+
+class LogPage(BaseModel):
+    subsystem: str
+    lines: list[str]
+    available: list[str]
+    directory: str
+
+
 class DecisionPage(BaseModel):
     decisions: list[dict[str, Any]]
     events: list[dict[str, Any]]
@@ -259,8 +290,21 @@ def create_app(
     # Saved GUI settings become environment variables before anything reads
     # them, so the registry still has exactly one source of truth.
     provider_config.load_into_environ()
+    # Logging first, and after the settings load so the redactor already knows
+    # every credential before a single line can be written.
+    configure_logging()
+    redactor().refresh()
+    # Say once that last time ended badly, then forget it. A crash nobody is
+    # told about is a pattern nobody spots.
+    breadcrumb.install("gateway")
+    last_crashes = breadcrumb.report_and_clear()
     provider_client = ProviderClient()
     identity = IdentityFiles()
+    # Ship the default soul on first run. Seeded once and never overwritten:
+    # an update that replaced the user's edited SOUL.md would be the worst
+    # possible behaviour for a file describing who Marvi is.
+    seed_identity(identity, REPO_ROOT)
+    curiosity = Curiosity(identity=identity)
     chat: Chat | None = None
     runtime_store = runtime or RuntimeStore()
     sidecar: RoomSidecar | None = None
@@ -320,6 +364,7 @@ def create_app(
             client=provider_client,
             identity=identity,
             memory=memory,
+            curiosity=curiosity,
         )
         mcp = McpBridge()
         if mcp.available():
@@ -330,6 +375,8 @@ def create_app(
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         # The background mind starts with the Gateway and stops with it, so a
         # restart never leaves an orphaned scheduler ticking.
+        # asyncio reports unretrieved task exceptions to a stderr nobody reads.
+        install_asyncio_handler(asyncio.get_running_loop())
         if initiative is not None:
             initiative.start()
         try:
@@ -537,6 +584,54 @@ def create_app(
         removed = chat.store.clear()
         runtime_store.audit("chat", "cleared", {"messages": removed})
         return ChatHistory(messages=[], available=chat.available())
+
+    def doctor_report() -> DoctorReport:
+        findings = doctor_module.run_checks()
+        counts = doctor_module.summary(findings)
+        return DoctorReport(
+            findings=[f.as_dict() for f in findings],
+            summary=counts,
+            healthy=counts["fail"] == 0,
+        )
+
+    @app.get("/doctor", response_model=DoctorReport)
+    async def run_doctor() -> DoctorReport:
+        return doctor_report()
+
+    @app.get("/doctor/crashes")
+    async def crashes() -> dict[str, Any]:
+        """What was left behind by an unclean exit, read at startup."""
+        return {"crashes": last_crashes}
+
+    @app.post("/doctor/heal", response_model=HealResult)
+    async def heal(request: HealRequest) -> HealResult:
+        findings = doctor_module.run_checks()
+        applied = doctor_module.heal(findings, include_confirmed=request.include_confirmed)
+        for entry in applied:
+            runtime_store.audit("doctor", "healed", entry)
+        # Re-run afterwards: the report has to reflect the repair, not the
+        # state that prompted it.
+        return HealResult(applied=applied, report=doctor_report())
+
+    @app.get("/doctor/diagnostics")
+    async def diagnostics() -> dict[str, str]:
+        """One redacted block to paste into a bug report."""
+        return {"text": doctor_module.diagnostics()}
+
+    @app.get("/logs", response_model=LogPage)
+    async def read_logs(subsystem: str = "errors", lines: int = 300) -> LogPage:
+        """The tail of one log file.
+
+        `errors` by default, because that is the file that answers the question
+        people actually have. Already redacted on the way to disk, so there is
+        nothing further to strip here.
+        """
+        return LogPage(
+            subsystem=subsystem,
+            lines=tail(subsystem, lines=max(1, min(lines, 2000))),
+            available=available_logs(),
+            directory=str(logs_dir()),
+        )
 
     @app.get("/tools", response_model=ToolCatalog)
     async def list_tools() -> ToolCatalog:
@@ -811,6 +906,8 @@ def create_app(
     @app.put("/providers/settings", response_model=ProviderPage)
     async def set_provider_settings(update: ProviderSettingsUpdate) -> ProviderPage:
         provider_config.update(update.values)
+        # A key typed in a moment ago must not appear in the next log line.
+        redactor().refresh()
         # Connecting a provider that was cooling down should retry it, not wait
         # out a cooldown earned by the credential the user just replaced.
         for name in list(provider_client.cooldowns()):

@@ -1,6 +1,6 @@
 # Phase 10 — Logging, Doctor, and Staying Up
 
-**Status:** planned
+**Status:** complete
 **Depends on:** Phase 9 (providers), Phase 7 (the Windows release)
 **Feeds:** Phase 11 (setup), which is built on this phase's remediation engine
 
@@ -141,35 +141,57 @@ One helper, used everywhere, rather than a different `for` loop per call site:
 
 ## Work breakdown
 
-**Step 1 — the logging module.** Per-subsystem files, rotation, the `errors.log`
-fan-in, and the redaction test that greps every written file for a planted
-secret.
+**Step 1 — the logging module. Done.** Per-subsystem files with rotation, the
+`errors.log` fan-in, value-based redaction, and catchers for library loggers,
+every thread's uncaught exceptions, unraisable exceptions, asyncio and warnings.
+Behind a `QueueListener` so the voice path never waits on disk. 26 tests, each
+reading the written file rather than trusting the call site. See
+`docs/LOGGING.md`.
 
-**Step 2 — every subsystem onto it**, including the Electron shell, whose
-supervisor tail becomes `desktop.log` rather than only living in memory.
+**Step 2 — every subsystem onto it. Done.** Routing is by module name, so
+existing code needed no change. The Electron shell writes its own files in the
+same directory and format, because the moment those logs matter most is the
+moment the Gateway is not running. Supervised services' stdout lands in their
+own files. 10 more tests on the shell side.
 
-**Step 3 — checks as a library.** `marvi_gateway/doctor/` — each check a
-function returning status, reason, and a typed remedy. Pure and testable; no
-printing, no HTTP.
+**Step 3 — checks as a library. Done.** `doctor.py`: thirteen checks covering
+dependencies, configuration, providers, reachability, ports, storage, databases
+and the token store. Pure functions returning status, reason and a typed remedy
+— no printing, no HTTP — so the same function serves the page, the API and
+eventually the CLI. A check that raises becomes a finding rather than taking the
+sweep down.
 
-**Step 4 — the remedy engine.** Executes automatic and one-click remedies,
-audits each one, and refuses anything marked "yours to do". Phase 11's installer
-is built on this.
+**Step 4 — the remedy engine. Done.** Three kinds, and the line between them
+enforced in code: `automatic` runs unasked, `confirm` waits, and `manual` is
+never executed even when a runnable is attached. A corrupt database is moved
+aside rather than deleted, because losing data to a repair is worse than the
+corruption that prompted it. `GET /doctor`, `POST /doctor/heal`,
+`GET /doctor/diagnostics`. 19 tests.
 
-**Step 5 — the Doctor page**, grouped by area, worst first, with Fix buttons and
-Copy diagnostics.
+**Step 5 — the Doctor page. Done.** Grouped by area, worst first, with a Fix
+button for what needs confirming, per-subsystem log tabs, and Copy diagnostics.
 
-**Step 6 — the retry helper**, and converting existing ad-hoc retries onto it,
-with the guard that refuses external writes.
+**Step 6 — the retry helper. Done.** Exponential backoff with full jitter, a cap
+on attempts *and* elapsed time, `give_up_on` winning over `retry_on`, and the
+guard that attempts an external write exactly once. A contradictory policy
+resolves the cautious way. 19 tests, mostly negative ones.
 
-**Step 7 — reconnect policies** for the sidecar, LiveKit, and MCP.
+**Step 7 — reconnect. Done for the sidecar.** A fresh connection per call means
+there is no session to re-establish, so the only failure worth retrying is a
+refusal while the sidecar restarts. `RoomRejectedError` gives up immediately —
+the sidecar answered, and it will answer the same next time. The liveness probe
+is deliberately *not* retried: it asks whether the sidecar is up right now, and
+retrying answers a different question. LiveKit and MCP still restart at the
+supervisor level rather than reconnecting in place.
 
-**Step 8 — degradation tests.** Kill each dependency in turn; assert the rest
-still works and says what is wrong.
+**Step 8 — degradation tests. Done.** No provider, dead sidecar, no vision,
+corrupt journal, unreadable token store, and broken logging — each killed in
+turn, with the rest asserted still working and still honest. 11 tests.
 
-**Step 9 — a crash breadcrumb.** On an unhandled exception, write what happened
-before exiting, so the next launch can say "Marvi stopped unexpectedly last
-time" and show it.
+**Step 9 — the crash breadcrumb. Done.** An unclean exit writes one small file;
+the next launch reports it once and clears it. The last five are kept, because
+one crash is an incident and five is a pattern. Chained onto the existing
+excepthook so the full traceback still reaches the log.
 
 ## Acceptance evidence
 
@@ -189,6 +211,16 @@ time" and show it.
 - Killing the room sidecar degrades room tools only. Voice keeps working.
 - An external write is never retried automatically, proven by a test.
 - Copy diagnostics produces a block containing nothing secret.
+
+## What is not done
+
+**LiveKit and MCP reconnect in place.** Both currently recover by being
+restarted, which works but drops in-flight state. The sidecar case was the
+urgent one because a dropped sidecar meant dead tools until a manual restart.
+
+**Doctor does not check models or OS permissions yet.** Both belong to Phase 11,
+which owns the model manifest and the install flow; adding half of it here would
+mean writing the hash-checking twice.
 
 ## Open questions
 

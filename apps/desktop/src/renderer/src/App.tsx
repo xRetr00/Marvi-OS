@@ -30,6 +30,7 @@ import { haptic } from './lib/haptics'
 import type {
   AuditEvent,
   ConnectedAccount,
+  DoctorReport,
   IdentityStatus,
   InitiativeStatus,
   MemoryPage,
@@ -59,6 +60,7 @@ const NAV_ITEMS = [
   'Memory',
   'Mind',
   'Activity',
+  'Doctor',
   'Settings',
   'Updates',
   'About'
@@ -188,6 +190,8 @@ function MainSurface(): React.JSX.Element {
               <VoicePanel runtime={runtime} />
             ) : page === 'Chat' ? (
               <Chat />
+            ) : page === 'Doctor' ? (
+              <DoctorPanel />
             ) : page === 'Activity' ? (
               <ActivityPanel />
             ) : page === 'Accounts' ? (
@@ -1390,6 +1394,166 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
   )
 }
 
+const AREA_ORDER = ['dependencies', 'providers', 'configuration', 'services', 'storage', 'doctor']
+
+function DoctorPanel(): React.JSX.Element {
+  const [report, setReport] = useState<DoctorReport | null>(null)
+  const [logs, setLogs] = useState<{ subsystem: string; lines: string[]; available: string[] }>({
+    subsystem: 'errors',
+    lines: [],
+    available: []
+  })
+  const [busy, setBusy] = useState('')
+  const [copied, setCopied] = useState(false)
+
+  const load = useCallback(async (): Promise<void> => {
+    const next = await window.marvi?.runDoctor()
+    setReport(next ?? null)
+  }, [])
+
+  const loadLogs = useCallback(async (subsystem: string): Promise<void> => {
+    const page = await window.marvi?.getLogs(subsystem)
+    if (page) setLogs({ subsystem, lines: page.lines, available: page.available })
+  }, [])
+
+  useEffect(() => {
+    let disposed = false
+    void (async () => {
+      const [next, page] = await Promise.all([
+        window.marvi?.runDoctor(),
+        window.marvi?.getLogs('errors')
+      ])
+      if (disposed) return
+      setReport(next ?? null)
+      if (page) setLogs({ subsystem: 'errors', lines: page.lines, available: page.available })
+    })()
+    return () => {
+      disposed = true
+    }
+  }, [])
+
+  const heal = async (includeConfirmed: boolean): Promise<void> => {
+    setBusy(includeConfirmed ? 'fixing' : 'repairing')
+    try {
+      const result = await window.marvi?.healDoctor(includeConfirmed)
+      if (result) setReport(result.report)
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const copy = async (): Promise<void> => {
+    const text = await window.marvi?.copyDiagnostics()
+    if (!text) return
+    await navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2_000)
+  }
+
+  const findings = report?.findings ?? []
+  const fixable = findings.filter((f) => f.remedy.runnable && f.remedy.kind === 'confirm')
+  const areas = [...new Set(findings.map((f) => f.area))].sort(
+    (a, b) => AREA_ORDER.indexOf(a) - AREA_ORDER.indexOf(b)
+  )
+
+  return (
+    <section className="single-page panel">
+      <div className="panel-label">{'// DOCTOR'}</div>
+      <h2>Doctor</h2>
+      <p>
+        What is wrong, and what fixes it. Safe repairs have already run; anything that costs money,
+        takes real time, or touches another process waits for you. Some things only you can do ΓÇö
+        those say exactly where to go.
+      </p>
+
+      {report ? (
+        <div className="context-line">
+          <span>STATE</span>
+          <strong>
+            {report.summary.fail} FAILING / {report.summary.warn} WARNINGS / {report.summary.ok} OK
+          </strong>
+        </div>
+      ) : (
+        <span className="construction">RUNNING CHECKS</span>
+      )}
+
+      <div className="provider-actions doctor-actions">
+        <button className="phase" type="button" disabled={!!busy} onClick={() => void load()}>
+          RE-CHECK
+        </button>
+        <button
+          className="phase active"
+          type="button"
+          disabled={!!busy || fixable.length === 0}
+          onClick={() => void heal(true)}
+        >
+          {busy === 'fixing' ? 'FIXING' : `FIX ${fixable.length} THING(S)`}
+        </button>
+        <button className="phase" type="button" onClick={() => void copy()}>
+          {copied ? 'COPIED' : 'COPY DIAGNOSTICS'}
+        </button>
+      </div>
+
+      <div className="ascii-divider">+------------------------------+</div>
+
+      {areas.map((area) => (
+        <div key={area}>
+          <div className="panel-label">{`// ${area.toUpperCase()}`}</div>
+          <div className="service-list">
+            {findings
+              .filter((finding) => finding.area === area)
+              .map((finding) => (
+                <div className="service-row" key={`${finding.area}/${finding.check}`}>
+                  <span className="service-name">{finding.check.toUpperCase()}</span>
+                  <span
+                    className={`service-state state-${
+                      finding.status === 'ok'
+                        ? 'ready'
+                        : finding.status === 'fail'
+                          ? 'error'
+                          : 'pending'
+                    }`}
+                  >
+                    {finding.status.toUpperCase()}
+                  </span>
+                  <small>{finding.detail}</small>
+
+                  {finding.status !== 'ok' && finding.remedy.kind !== 'none' ? (
+                    <small
+                      className={finding.remedy.kind === 'manual' ? 'doctor-manual' : undefined}
+                    >
+                      {finding.remedy.kind === 'manual' ? 'ΓåÆ ' : 'ΓåÆ '}
+                      {finding.remedy.action}
+                      {finding.remedy.how ? `\n${finding.remedy.how}` : ''}
+                    </small>
+                  ) : null}
+                </div>
+              ))}
+          </div>
+        </div>
+      ))}
+
+      <div className="ascii-divider">+------------------------------+</div>
+      <div className="panel-label">{'// LOGS'}</div>
+      <div className="provider-actions doctor-logs-tabs">
+        {logs.available.map((name) => (
+          <button
+            key={name}
+            className={name === logs.subsystem ? 'phase active' : 'phase'}
+            type="button"
+            onClick={() => void loadLogs(name)}
+          >
+            {name.toUpperCase()}
+          </button>
+        ))}
+      </div>
+      <pre className="service-output doctor-log">
+        {logs.lines.length > 0 ? logs.lines.join('\n') : 'nothing recorded'}
+      </pre>
+    </section>
+  )
+}
+
 function ActivityPanel(): React.JSX.Element {
   const [events, setEvents] = useState<AuditEvent[]>([])
 
@@ -1457,6 +1621,7 @@ function PagePanel({ page, version }: { page: Page; version: string }): React.JS
     Memory: 'Durable facts, episodic events, retrieval controls, and forget/export operations.',
     Mind: 'Event-driven decisions, the rule behind each one, and the initiative switch.',
     Activity: 'Structured local event and tool audit timeline. No hidden outbound telemetry.',
+    Doctor: 'What is wrong, what Marvi fixed, and what needs you.',
     Settings:
       'Voice devices, wake behavior, startup, confirmation mode, and the explicit YOLO switch.',
     Updates:

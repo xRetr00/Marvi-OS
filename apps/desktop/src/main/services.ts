@@ -2,6 +2,8 @@ import { type ChildProcess, spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
+import { log as writeLog } from './logger'
+
 /**
  * Starting the local services, and knowing when they did not start.
  *
@@ -34,6 +36,14 @@ export interface ServiceReport {
   restarts: number
   /** Last lines of stdout/stderr, newest last. The reason, when there is one. */
   output: string[]
+}
+
+/**
+ * Services write to stdout and stderr interchangeably - uvicorn logs INFO to
+ * stderr - so the stream is a poor signal. Reading the line is a better one.
+ */
+function looksLikeError(line: string): boolean {
+  return /\b(error|traceback|exception|critical|failed|fatal)\b/i.test(line)
 }
 
 const MAX_OUTPUT_LINES = 60
@@ -84,6 +94,9 @@ class Service {
       const text = part.trimEnd()
       if (!text) continue
       this.output.push(text)
+      // Also to disk. The in-memory tail serves the Doctor page; the file is
+      // what survives a restart and what someone can actually send.
+      writeLog(this.spec.name, looksLikeError(text) ? 'ERROR' : 'INFO', text)
     }
     if (this.output.length > MAX_OUTPUT_LINES) {
       this.output = this.output.slice(-MAX_OUTPUT_LINES)

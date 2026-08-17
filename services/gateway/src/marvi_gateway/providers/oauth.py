@@ -326,6 +326,15 @@ class OAuthBroker:
         expires_at = ""
         if isinstance(expires_in, int | float) and expires_in > 0:
             expires_at = (datetime.now(UTC) + timedelta(seconds=float(expires_in))).isoformat()
+        # Registered before it is stored or logged: an access token is a
+        # credential that never went through the environment, so the redactor
+        # has no other way to learn it.
+        from ..logs import redactor
+
+        redactor().add(access)
+        refresh = str(payload.get("refresh_token") or "")
+        if refresh:
+            redactor().add(refresh)
         return StoredToken(
             provider=name,
             access_token=access,

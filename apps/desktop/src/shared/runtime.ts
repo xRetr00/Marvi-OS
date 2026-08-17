@@ -188,6 +188,27 @@ export interface ChatReply {
   error: string
 }
 
+export interface DoctorFinding {
+  check: string
+  area: string
+  status: 'ok' | 'warn' | 'fail'
+  detail: string
+  remedy: {
+    kind: 'automatic' | 'confirm' | 'manual' | 'none'
+    action: string
+    /** For a manual remedy: exactly where to go. Specificity is the value. */
+    how: string
+    runnable: boolean
+  }
+  extra: Record<string, unknown>
+}
+
+export interface DoctorReport {
+  findings: DoctorFinding[]
+  summary: { ok: number; warn: number; fail: number }
+  healthy: boolean
+}
+
 export interface ServiceReport {
   name: string
   state: 'stopped' | 'starting' | 'running' | 'failed' | 'gave up'

@@ -162,10 +162,7 @@ describe('channel persistence', () => {
 describe('start update gating', () => {
   it('refuses when there is no bootstrap', () => {
     const root = checkout()
-    const ok = startUpdate(
-      { installRoot: root, channel: 'release', desktopPid: process.pid },
-      null
-    )
+    const ok = startUpdate({ installRoot: root, channel: 'release', desktopPid: process.pid }, null)
     expect(ok).toBe(false)
   })
 
