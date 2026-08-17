@@ -21,7 +21,7 @@ import contextlib
 import sys
 from pathlib import Path
 
-from . import breadcrumb, doctor, logs
+from . import breadcrumb, doctor, logs, plugins
 from . import setup as setup_module
 from .providers import all_profiles, configured_profiles
 from .providers import config as provider_config
@@ -94,6 +94,81 @@ def cmd_diagnostics(_args: argparse.Namespace) -> int:
     # Already redacted: the log files it quotes were scrubbed on the way to disk.
     print(doctor.diagnostics())
     return 0
+
+
+# -- plugins -------------------------------------------------------------------
+
+
+def cmd_plugin(args: argparse.Namespace) -> int:
+    """Install, update and inspect desktop plugins.
+
+    A plugin is a backend Marvi runs, not a prompt (`marvi skills`) and not
+    someone else's tool process (`marvi mcp`). Installing one runs its code in
+    the Gateway, which is why it is a deliberate command and not something setup
+    does quietly.
+    """
+    root = repo_root()
+
+    if args.action == "list":
+        rows = plugins.status(root)
+        if not rows:
+            print("No plugins are declared in config/plugin-sources.json.")
+            return 0
+        for row in rows:
+            mark = "installed" if row["installed"] else "not installed"
+            version = f" v{row['version']}" if row["version"] else ""
+            commit = f" @{row['commit']}" if row["commit"] else ""
+            print(f"{row['name']:14} {mark:14}{version}{commit}")
+            if row["why"]:
+                print(f"               {row['why']}")
+            if not row["supported"]:
+                print(f"               {row['detail']}")
+            if row["tools"]:
+                print(f"               tools: {', '.join(row['tools'])}")
+        return 0
+
+    if not args.name:
+        print("which plugin? try `marvi plugin list`", file=sys.stderr)
+        return 1
+
+    if args.action == "install":
+        source = plugins.source_for(root, args.name)
+        if source is None:
+            print(f"unknown plugin: {args.name}", file=sys.stderr)
+            return 1
+        # A plugin's code runs inside the Gateway and its dependencies land in
+        # the Gateway's environment. That is a trust decision, so it is asked.
+        print(f"{source.title} — {source.repo} ({source.ref})")
+        if source.why:
+            print(f"  {source.why}")
+        print("  Its code runs inside Marvi and its dependencies install into Marvi.")
+        if not args.yes and not _confirm("Install it?"):
+            return 0
+        try:
+            print(plugins.install(source, root))
+        except plugins.PluginError as exc:
+            print(f"install failed: {exc}", file=sys.stderr)
+            return 1
+        return 0
+
+    if args.action == "update":
+        try:
+            print(plugins.update(args.name, root))
+        except plugins.PluginError as exc:
+            print(f"update failed: {exc}", file=sys.stderr)
+            return 1
+        return 0
+
+    if args.action == "remove":
+        if not args.yes and not _confirm(f"Remove the {args.name} plugin?"):
+            return 0
+        try:
+            print(plugins.remove(args.name))
+        except plugins.PluginError as exc:
+            print(f"remove failed: {exc}", file=sys.stderr)
+            return 1
+        return 0
+    return 1
 
 
 # -- setup ---------------------------------------------------------------------
@@ -466,6 +541,12 @@ def build_parser() -> argparse.ArgumentParser:
     skills_cmd.add_argument("name", nargs="?")
     skills_cmd.add_argument("--yes", "-y", action="store_true")
     skills_cmd.set_defaults(handler=cmd_skills)
+
+    plugin_cmd = sub.add_parser("plugin", help="desktop plugins (the room engine and friends)")
+    plugin_cmd.add_argument("action", choices=["list", "install", "update", "remove"])
+    plugin_cmd.add_argument("name", nargs="?")
+    plugin_cmd.add_argument("--yes", "-y", action="store_true")
+    plugin_cmd.set_defaults(handler=cmd_plugin)
 
     status_cmd = sub.add_parser("status", help="what is left to set up")
     status_cmd.set_defaults(handler=cmd_status)

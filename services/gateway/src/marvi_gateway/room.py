@@ -1,9 +1,16 @@
 """Smart Room sidecar adapter.
 
-The room engine at ``D:\\smart-room-plugin`` owns every device, automation, and
-piece of room history. Marvi OS is a client: it speaks the sidecar's existing
-authenticated JSON-RPC over loopback and never holds device credentials or
-drives Tuya/MQTT itself.
+The room engine is a **desktop plugin** (`marvi_gateway.plugins`): Marvi clones
+it from its repository, installs it, and starts it as a Gateway child process.
+It owns every device, automation, and piece of room history. Marvi is a client:
+it speaks the plugin's authenticated JSON-RPC over loopback and never holds
+device credentials or drives Tuya/MQTT itself.
+
+It used to read its state and RPC token out of `%LOCALAPPDATA%\\Hermes`, which
+meant Marvi could only talk to a room that *another application* had started —
+if that application was not installed or not running, the room simply did not
+work and nothing said why. The plugin now lives under Marvi's own plugin data
+root.
 
 Wire format (verified against the running runtime): one newline-terminated JSON
 object per request carrying ``jsonrpc``, ``id``, ``method``, ``params`` and an
@@ -23,8 +30,9 @@ from typing import Any
 from .retry import Policy, RetriesExhaustedError, retry
 
 DEFAULT_PORT = 17842
-# Where the room sidecar keeps its own state. Override with MARVI_ROOM_HOME.
-SIDECAR_DATA_DIR = os.environ.get("MARVI_SIDECAR_DIR", "Hermes")
+#: The plugin's own directory name inside the plugin data root. It is the
+#: plugin's `name` in `plugin.yaml`, which is also its import name.
+PLUGIN_NAME = "smart_room"
 DEFAULT_TIMEOUT = 8.0  # matches the sidecar's own bounded scene fades and retries
 PROBE_TIMEOUT = 0.5  # status polling must never stall the health endpoint
 PROBE_CACHE_SECONDS = 5.0
@@ -150,13 +158,19 @@ def assert_sleep_safe(mode: str | None, light_on: bool, action: str, params: dic
 
 
 def _sidecar_home() -> Path:
+    """Where the room plugin keeps its state and its RPC token.
+
+    Under Marvi's plugin data root: the plugin is Marvi's to install and start,
+    so its data belongs somewhere an uninstall can find and a backup can cover.
+    `MARVI_ROOM_HOME` still overrides it, which is how someone already running
+    the engine under another host points Marvi at that copy instead.
+    """
     configured = os.environ.get("MARVI_ROOM_HOME")
     if configured:
         return Path(configured)
-    root = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
-    # The sidecar owns this directory and its name; Marvi OS is a guest
-    # here, so the default tracks the sidecar rather than our branding.
-    return Path(root) / SIDECAR_DATA_DIR / "smart_room"
+    from .plugins import data_root
+
+    return data_root() / PLUGIN_NAME
 
 
 class RoomSidecar:

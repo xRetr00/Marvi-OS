@@ -1,0 +1,14 @@
+{
+  "$comment": "Desktop plugins: git repositories Marvi clones, updates and runs as gateway sidecars. Distinct from skills (prompts) and MCP servers (external tool processes) \u2014 a plugin ships a long-running backend and registers tools against it. Nothing in the code knows the name of a specific plugin; this file is the whole list.",
+  "plugins": [
+    {
+      "name": "smart_room",
+      "title": "Smart Room",
+      "why": "Presence fusion, Tuya LAN control, automations and room history. Owns every device; Marvi is a client.",
+      "repo": "https://github.com/xRetr00/smart-room-plugin",
+      "$comment_ref": "Empty follows the repository's own default branch, whatever it is called. Name a branch or a tag here to pin the plugin instead.",
+      "ref": "",
+      "trusted": true
+    }
+  ]
+}
