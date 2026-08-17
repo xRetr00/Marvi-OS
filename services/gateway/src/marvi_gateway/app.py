@@ -4,9 +4,10 @@ import asyncio
 import os
 import socket
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import urlparse
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException
@@ -52,6 +53,10 @@ from .tools import InvalidArgumentsError, ToolRegistry, ToolSpec, UnknownToolErr
 from .vision import FaceLibrary, VisionService, register_vision_tools
 from .web import WebTools, register_web_tools
 from .workspace import Workspace, register_workspace_tools
+
+# Long enough for a loopback connect, short enough that a page listing a dozen
+# dead local endpoints still renders immediately.
+LOCAL_PROBE_TIMEOUT = 0.4
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 
@@ -157,6 +162,9 @@ class ProviderRow(BaseModel):
     # Sign-in state for OAuth providers; None for everything else.
     oauth: dict[str, Any] | None
     warning: str | None
+    # Local providers only: is something listening on the endpoint right now?
+    # None means "not probed" — a remote API is not pinged just to draw a page.
+    reachable: bool | None = None
 
 
 class ProviderPage(BaseModel):
@@ -1073,10 +1081,40 @@ def create_app(
             events=sidecar.events(limit=max(1, min(limit, 200)), notable_only=notable_only)
         )
 
+    async def _listening(base_url: str) -> bool:
+        """Is anything accepting connections on this endpoint?
+
+        A local provider is configured the moment it has a default URL, which
+        made the page say CONNECTED for an Ollama that was not running. The
+        endpoint is on this machine, so a TCP connect answers it in about a
+        millisecond and needs no HTTP request against an unknown API shape.
+        """
+        parsed = urlparse(base_url)
+        host, port = parsed.hostname, parsed.port
+        if not host:
+            return False
+        if port is None:
+            port = 443 if parsed.scheme == "https" else 80
+        try:
+            _, writer = await asyncio.wait_for(
+                asyncio.open_connection(host, port), timeout=LOCAL_PROBE_TIMEOUT
+            )
+        except (TimeoutError, OSError):
+            return False
+        writer.close()
+        with suppress(Exception):
+            await writer.wait_closed()
+        return True
+
     @app.get("/providers", response_model=ProviderPage)
     async def providers() -> ProviderPage:
         usage = provider_client.usage_by_provider()
         cooling = provider_client.cooldowns()
+        # Probed together: a handful of dead endpoints in sequence is a
+        # visible pause on a page the user opens to find out what is wrong.
+        local = [p for p in all_profiles() if p.access_path == "local"]
+        probes = await asyncio.gather(*(_listening(p.base_url()) for p in local))
+        reachable = dict(zip((p.name for p in local), probes, strict=True))
         rows = [
             ProviderRow(
                 name=p.name,
@@ -1107,6 +1145,7 @@ def create_app(
                 oauth=broker().status(p),
                 # Shown before connecting, not after. See docs/PROVIDERS.md.
                 warning=plan_warning(p),
+                reachable=reachable.get(p.name),
             )
             for p in all_profiles()
         ]

@@ -152,6 +152,8 @@ export interface ProviderRow {
   } | null
   /** Present only on subscription plans: the terms warning shown before connecting. */
   warning: string | null
+  /** Local providers only: is something listening right now? null = not probed. */
+  reachable: boolean | null
 }
 
 export interface ProviderPage {

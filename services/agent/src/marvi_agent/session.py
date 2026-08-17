@@ -87,7 +87,7 @@ def build_session() -> AgentSession:
     return AgentSession(
         stt=NemotronSTT(
             executable=voice_runtime_executable(),
-            language=os.environ.get("MARVI_STT_LANGUAGE", "tr-TR"),
+            language=os.environ.get("MARVI_STT_LANGUAGE", "en-US"),
         ),
         vad=silero.VAD.load(),
         llm=build_llm(AgentConfig.from_gateway()),

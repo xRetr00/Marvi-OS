@@ -1,9 +1,18 @@
 //! Small cross-cutting helpers: the current PID, timestamps, random temp
 //! names, and running a command under a hard timeout.
 
+use std::io::{BufRead, BufReader};
 use std::process::{Command, Stdio};
+use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+/// How many trailing output lines a failure carries back.
+///
+/// A build that fails on line 4000 of `npm ci` is explained by the last few
+/// lines; "npm exited with 1" explains nothing, which is what the installer
+/// used to say.
+const FAILURE_CONTEXT_LINES: usize = 25;
 
 /// Current process id as `u32` (Windows pids fit; truncation is fine).
 pub fn current_pid() -> u32 {
@@ -55,8 +64,7 @@ pub fn random_suffix() -> String {
     format!("{a:016x}{b:016x}")
 }
 
-/// Run `program args` in `cwd` under a hard timeout, streaming nothing and
-/// returning an error on timeout or non-zero exit.
+/// Run `program args` in `cwd` under a hard timeout, discarding output.
 ///
 /// On Windows, `.cmd`/`.bat` programs (like `npm`) must be run through
 /// `cmd /d /s /c`; callers are expected to pass `cmd` with the full command
@@ -67,21 +75,75 @@ pub fn run_with_timeout(
     cwd: &std::path::Path,
     timeout: Duration,
 ) -> Result<(), String> {
+    run_reporting(program, args, cwd, timeout, &mut |_| {})
+}
+
+/// Same, but each line the command prints is handed to `progress`.
+///
+/// The installer showed "building" for fifteen minutes and then either finished
+/// or said "npm exited with 1". Both are indistinguishable from a hang while
+/// they are happening, and neither says what went wrong afterwards. Output is
+/// the only thing that does, so it is forwarded live and the tail is kept for
+/// the error message.
+pub fn run_reporting(
+    program: &str,
+    args: &[&str],
+    cwd: &std::path::Path,
+    timeout: Duration,
+    progress: &mut dyn FnMut(&str),
+) -> Result<(), String> {
     let mut child = Command::new(program)
         .args(args)
         .current_dir(cwd)
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| format!("could not start {program}: {e}"))?;
 
-    let deadline = Instant::now() + timeout;
-    loop {
-        match child.try_wait() {
-            Ok(Some(status)) if status.success() => return Ok(()),
-            Ok(Some(status)) => {
-                return Err(format!("{program} exited with {status}"));
+    // Both pipes are drained on their own threads. A child that fills a pipe
+    // nobody is reading blocks forever, and a build that produces megabytes of
+    // output would do exactly that.
+    let (tx, rx) = mpsc::channel::<String>();
+    for stream in [
+        child.stdout.take().map(|s| Box::new(s) as Box<dyn std::io::Read + Send>),
+        child.stderr.take().map(|s| Box::new(s) as Box<dyn std::io::Read + Send>),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        let tx = tx.clone();
+        thread::spawn(move || {
+            for line in BufReader::new(stream).lines().map_while(Result::ok) {
+                if tx.send(line).is_err() {
+                    break;
+                }
             }
+        });
+    }
+    drop(tx);
+
+    let mut tail: std::collections::VecDeque<String> = std::collections::VecDeque::new();
+    let pump = |rx: &mpsc::Receiver<String>,
+                    tail: &mut std::collections::VecDeque<String>,
+                    progress: &mut dyn FnMut(&str)| {
+        while let Ok(line) = rx.try_recv() {
+            let line = line.trim_end().to_string();
+            if line.is_empty() {
+                continue;
+            }
+            progress(&line);
+            tail.push_back(line);
+            if tail.len() > FAILURE_CONTEXT_LINES {
+                tail.pop_front();
+            }
+        }
+    };
+
+    let deadline = Instant::now() + timeout;
+    let status = loop {
+        pump(&rx, &mut tail, progress);
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
             Ok(None) => {}
             Err(e) => return Err(format!("wait on {program} failed: {e}")),
         }
@@ -91,7 +153,46 @@ pub fn run_with_timeout(
             return Err(format!("{program} timed out after {timeout:?}"));
         }
         thread::sleep(Duration::from_millis(100));
+    };
+    // The reader threads may still be finishing after the child exits.
+    thread::sleep(Duration::from_millis(50));
+    pump(&rx, &mut tail, progress);
+
+    if status.success() {
+        return Ok(());
     }
+    let context: Vec<&str> = tail.iter().map(String::as_str).collect();
+    if context.is_empty() {
+        return Err(format!("{program} exited with {status}"));
+    }
+    Err(format!(
+        "{program} exited with {status}:\n{}",
+        context.join("\n")
+    ))
+}
+
+/// Run a PowerShell script, forwarding its output.
+///
+/// Not routed through `cmd /d /s /c`: a PowerShell one-liner contains quotes,
+/// and Rust's argument escaping targets the C runtime parser, which is not the
+/// one `cmd` uses. The two disagree, the quoting arrives mangled, and the
+/// command fails instantly. That is exactly what happened to the `uv`
+/// installer — a failure nobody saw, because on a machine that already had
+/// `uv` the code never ran.
+#[cfg(windows)]
+pub fn run_powershell(
+    script: &str,
+    cwd: &std::path::Path,
+    timeout: Duration,
+    progress: &mut dyn FnMut(&str),
+) -> Result<(), String> {
+    run_reporting(
+        "powershell",
+        &["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
+        cwd,
+        timeout,
+        progress,
+    )
 }
 
 /// Run a command whose full line (including a `.cmd` target) is known, e.g.
@@ -110,6 +211,21 @@ pub fn run_shell_with_timeout(
         ("sh", vec!["-c", command_line])
     };
     run_with_timeout(program, &args, cwd, timeout)
+}
+
+/// `run_shell_with_timeout`, with the command's output forwarded live.
+pub fn run_shell_reporting(
+    command_line: &str,
+    cwd: &std::path::Path,
+    timeout: Duration,
+    progress: &mut dyn FnMut(&str),
+) -> Result<(), String> {
+    let (program, args): (&str, Vec<&str>) = if cfg!(windows) {
+        ("cmd", vec!["/d", "/s", "/c", command_line])
+    } else {
+        ("sh", vec!["-c", command_line])
+    };
+    run_reporting(program, &args, cwd, timeout, progress)
 }
 
 /// True when a Windows process id is still alive. Falls back to `tasklist`

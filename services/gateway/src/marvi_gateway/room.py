@@ -30,7 +30,10 @@ PROBE_TIMEOUT = 0.5  # status polling must never stall the health endpoint
 PROBE_CACHE_SECONDS = 5.0
 # Short and few: a voice turn is waiting on this, so riding out a sidecar
 # restart is worth a second or two and no more.
-ROOM_RECONNECT = Policy(attempts=3, base_seconds=0.2, max_seconds=1.0, budget_seconds=3.0)
+# `optional`: the sidecar is a separate program the user may simply not run.
+ROOM_RECONNECT = Policy(
+    attempts=3, base_seconds=0.2, max_seconds=1.0, budget_seconds=3.0, optional=True
+)
 
 # Verified against the running runtime: set_light takes on/brightness/color_temp/rgb.
 # "scene" is a label the sidecar derives, not an input.

@@ -503,3 +503,86 @@ Validation evidence and the resulting commit are recorded in
   Dynamic Island is now the live orb + copy in the always-on surface only.
 - `docs/UPSTREAM.md` records the vendored engine and its one local change
   (dropped an unused `rMin` param).
+
+## 2026-08-17 — The first real install, and what it exposed
+
+v0.1.3 was the first release installed from the bootstrap on a machine that was
+not the development machine. It produced thirteen reported problems, and
+confirming them turned up five more. The pattern in almost all of them is the
+same: a code path that only runs on a machine unlike this one, so nobody had
+ever run it.
+
+**`uv` and Node were never installed.** Both were found on `PATH` and skipped —
+a deliberate choice that turned out to be wrong, because the `PATH` a
+developer's terminal has is not the one a GUI-launched Electron inherits.
+Marvi now installs its own copies regardless, and says out loud that it is
+doing so when a copy already exists.
+
+Making that change is what revealed the reason nobody had noticed: **the `uv`
+install command had been broken since it was written.** It ran a PowerShell
+one-liner through `cmd /d /s /c`, and Rust's argument escaping targets the C
+runtime parser rather than `cmd`'s. The quoting arrived mangled and the command
+failed in about a second — on a code path that never executed on any machine
+that already had `uv`. PowerShell is now invoked directly, and
+`crates/core/tests/toolchain_live.rs` performs a real download, because that is
+the only kind of test that would have caught it.
+
+**The installer stopped at "it builds".** A built checkout is not an
+installation: there was no LiveKit server, no `marvi` command, and no shortcut.
+`handoff.rs` now runs four steps after the build, on install *and* on update
+(an existing installation predates all of it, and updating is how those
+machines get it): record the GPU answer, `marvi setup --essential`, write a
+`marvi` shim and prepend it to `PATH`, create shortcuts. Each is best-effort
+and reports what it did.
+
+**Archive components.** The LiveKit catalog entry had no files, so it installed
+nothing and said "nothing to download". `binary` now marks a component whose
+payload arrives as an archive: downloaded, hash-verified, unpacked, archive
+deleted, presence of the named file being what "installed" means. LiveKit
+1.13.5 and the `buffalo_l` face model both use it — the latter previously left
+InsightFace to fetch 290 MB silently on the first frame it ever processed.
+
+**The installer said nothing while working.** `npm ci` and `uv sync` ran with
+their output discarded, so the window showed one word for fifteen minutes and
+then either finished or said `npm exited with 1`. Output is streamed line by
+line into a log pane and the last 25 lines are carried into the error. The
+window is also resizable, minimisable, has a title bar, and is no longer always
+on top.
+
+**Two log directories.** `apps/desktop/src/main/config.ts` still had
+`'Marvi OS'` with a space while everything else had been moved to `Marvi-OS`,
+so a running Marvi split its own logs across two folders and neither had the
+whole story. There is one `stateDir()` now, and everything derives from it.
+
+**The voice stack could not start.** The agent exited immediately on every
+launch with `ValueError: ws_url is required, or set LIVEKIT_URL` — the shell
+knew the URL and never passed it to the children. All three now receive one
+`childEnv`.
+
+**LiveKit was signing with the published `devkey` / `secret` pair.** The JWT
+library warned about the six-byte HMAC key on every start, and that key guards
+a room carrying the user's microphone and camera. A random 32-byte pair is
+generated per installation and shared with the server (`--keys`), the Gateway
+and the agent; a stored secret below 32 bytes is replaced rather than carried
+forward.
+
+**Things that claimed to be fine and were not.** A local provider reported
+`CONNECTED` whenever it had a default URL, so a stopped Ollama looked healthy —
+the endpoint is now probed and a dead one names itself. Five of nine components
+reported "nothing to verify" because the check had never been written for
+Python environments or commands. An unreachable optional room sidecar logged an
+`ERROR` on every poll, burying the failures that meant something;
+`Policy.optional` drops those to `INFO` without making them silent.
+
+**The test suite was writing to the user's real installation.** Every test that
+built the app or configured logging wrote into `%LOCALAPPDATA%\Marvi-OS\logs`;
+one autouse fixture pinning `MARVI_HOME` covers all of them and every path
+added later. Separately, the updater's refresh tests were downloading ~100 MB
+of toolchain per run (82s to 2s once gated) and — once the handoff existed —
+would have started editing the real `PATH` and Desktop.
+
+**The bootstrap had no version.** It ships as its own binary and is the thing
+that performs updates, so a user can be holding an older one than the release
+they installed. It was pinned at `0.1.0` with no way to say so; it now carries
+  the product version, answers `--version` without a window, and CI refuses a tag
+  where the two disagree.

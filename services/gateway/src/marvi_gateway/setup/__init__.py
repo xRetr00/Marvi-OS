@@ -23,6 +23,7 @@ from .installer import (
     install,
     plan,
     remove,
+    state_of,
     verify,
 )
 
@@ -32,6 +33,7 @@ __all__ = [
     "InstallError",
     "Outcome",
     "disk_space_for",
+    "essential",
     "firstrun",
     "for_capability",
     "get",
@@ -43,6 +45,7 @@ __all__ = [
     "plan",
     "remove",
     "skills",
+    "state_of",
     "store",
     "verify",
 ]

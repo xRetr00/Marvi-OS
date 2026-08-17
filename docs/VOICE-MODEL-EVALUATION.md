@@ -18,7 +18,8 @@ Full Kyutai Unmute is not a shipping candidate because its documented runtime ta
 1. **Selected: NVIDIA Nemotron 3.5 ASR Streaming 0.6B through `parakeet-rs`.**
    This is the current multilingual cache-aware model, not old Marvi's Parakeet
    baseline. The pinned ONNX path loads natively with CUDA, accepts arbitrary
-   feeds while preserving encoder/decoder state, and supports explicit `tr-TR`.
+   feeds while preserving encoder/decoder state, and takes an explicit
+   language hint (`en-US` by default).
 2. **Moonshine Voice Medium Streaming** remains the CPU/packaging fallback if
    the real microphone corpus does not validate Nemotron quality.
 3. **sherpa-onnx streaming models** remain a second packaging fallback.

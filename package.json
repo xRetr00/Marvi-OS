@@ -1,17 +1,18 @@
 {
-    "name":  "marvi-os",
-    "private":  true,
-    "version":  "0.1.0",
-    "workspaces":  [
-                       "apps/*"
-                   ],
-    "scripts":  {
-                    "icons":  "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/generate-icons.ps1",
-                    "dev":  "npm run dev --workspace marvi-os-desktop",
-                    "build":  "npm run build --workspace marvi-os-desktop",
-                    "build:win":  "npm run build:win --workspace marvi-os-desktop",
-                    "test":  "npm run test --workspace marvi-os-desktop",
-                    "typecheck":  "npm run typecheck --workspace marvi-os-desktop",
-                    "lint":  "npm run lint --workspace marvi-os-desktop"
-                }
+  "name": "marvi-os",
+  "private": true,
+  "version": "0.1.4",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "icons": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/generate-icons.ps1",
+    "dev": "npm run dev --workspace marvi-os-desktop",
+    "build": "npm run build --workspace marvi-os-desktop",
+    "build:unpack": "npm run build:unpack --workspace marvi-os-desktop",
+    "build:win": "npm run build:win --workspace marvi-os-desktop",
+    "test": "npm run test --workspace marvi-os-desktop",
+    "typecheck": "npm run typecheck --workspace marvi-os-desktop",
+    "lint": "npm run lint --workspace marvi-os-desktop"
+  }
 }

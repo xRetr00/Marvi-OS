@@ -1,4 +1,5 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { randomBytes } from 'node:crypto'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 /**
@@ -82,8 +83,67 @@ export function livekitBind(repoRoot: string | null): { host: string; port: numb
   return { host, port }
 }
 
+/** Everything Marvi owns. Must match STATE_DIR_NAME in the Rust core and
+ * `root()` in marvi_gateway/paths.py — three copies, one name. */
+export function stateDir(): string {
+  const configured = process.env['MARVI_HOME']?.trim()
+  if (configured) return configured
+  return join(process.env['LOCALAPPDATA'] ?? '', 'Marvi-OS')
+}
+
 export function logsDir(): string {
   const configured = process.env['MARVI_LOG_DIR']?.trim()
   if (configured) return configured
-  return join(process.env['LOCALAPPDATA'] ?? '', 'Marvi OS', 'logs')
+  return join(stateDir(), 'logs')
+}
+
+/**
+ * The LiveKit API credential for this installation.
+ *
+ * `livekit-server --dev` ships with the published pair `devkey` / `secret`,
+ * and every part of Marvi fell back to it. Six bytes of world-known secret is
+ * what signs the tokens that grant access to a room carrying the user's
+ * microphone and camera, and the JWT library says so on every start:
+ *
+ *     InsecureKeyLengthWarning: The HMAC key is 6 bytes long
+ *
+ * So a random pair is generated once per installation and shared with the
+ * server, the Gateway and the agent. The file is created with owner-only
+ * permissions; on Windows that is advisory, but the value being unguessable is
+ * what actually matters here.
+ */
+export function livekitCredentials(): { key: string; secret: string } {
+  const fromEnv = process.env['LIVEKIT_API_KEY']?.trim()
+  const secretFromEnv = process.env['LIVEKIT_API_SECRET']?.trim()
+  if (fromEnv && secretFromEnv) return { key: fromEnv, secret: secretFromEnv }
+
+  const path = join(stateDir(), 'livekit-keys.json')
+  try {
+    if (existsSync(path)) {
+      const parsed = JSON.parse(readFileSync(path, 'utf8')) as Partial<{
+        key: string
+        secret: string
+      }>
+      // A secret this short is either the old default or a corrupt file; either
+      // way it is replaced rather than carried forward.
+      if (parsed.key && parsed.secret && parsed.secret.length >= 32) {
+        return { key: parsed.key, secret: parsed.secret }
+      }
+    }
+  } catch {
+    // Unreadable or malformed: generate a new one rather than fail to start.
+  }
+
+  const created = {
+    key: `marvi-${randomBytes(8).toString('hex')}`,
+    secret: randomBytes(32).toString('base64url')
+  }
+  try {
+    mkdirSync(stateDir(), { recursive: true })
+    writeFileSync(path, JSON.stringify(created, null, 2), { mode: 0o600 })
+  } catch {
+    // Not persisting means a new pair next launch, which still works because
+    // all three processes are started from this one value.
+  }
+  return created
 }

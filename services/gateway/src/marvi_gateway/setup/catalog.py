@@ -29,6 +29,8 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import platform
+import sys
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Literal
@@ -85,6 +87,11 @@ class Component:
     why: str
     #: Which capabilities stop working without it. Empty means optional extra.
     needed_for: tuple[str, ...] = ()
+    #: True for the handful of things Marvi cannot start without — the Python
+    #: environments, and the LiveKit server that carries the voice session.
+    #: The installer installs exactly these and leaves the rest to the user,
+    #: because everything else is either large or a trust decision.
+    essential: bool = False
     #: `huggingface` and `url` are downloadable; `command` is run.
     source_type: str = "huggingface"
     source_id: str = ""
@@ -97,6 +104,10 @@ class Component:
     #: For `git`: the one subdirectory to check out, and the files to keep.
     subdirectory: str = ""
     pattern: str = "*"
+    #: For an archive: the file the download must produce once unpacked. The
+    #: archive itself is deleted afterwards, so this — not the download — is
+    #: what "installed" means for these.
+    binary: str = ""
     extra: dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -118,6 +129,13 @@ class Component:
 
     def status(self) -> dict[str, Any]:
         """Installed, partly installed, or missing — with the reason per file."""
+        if self.binary:
+            # The archive is verified on the way in and then thrown away, so
+            # the unpacked binary is the only thing left to check.
+            target = self.target() / self.binary
+            if target.exists() and target.stat().st_size > 0:
+                return {"installed": True, "detail": "unpacked", "problems": []}
+            return {"installed": False, "detail": "not installed", "problems": []}
         if self.source_type == "git" and not self.files:
             # A subdirectory checkout has no published hashes to check against,
             # so presence is the only honest check. Said plainly rather than
@@ -148,6 +166,12 @@ class Component:
             "detail": f"{len(problems)} of {len(self.files)} files bad",
             "problems": problems,
         }
+
+
+def _platform_key() -> str:
+    machine = platform.machine().lower()
+    arch = "arm64" if machine in {"arm64", "aarch64"} else "amd64"
+    return f"{sys.platform.replace('win32', 'windows')}-{arch}"
 
 
 def _files_from(mapping: dict[str, Any], prefix: str = "") -> tuple[FileSpec, ...]:
@@ -226,17 +250,33 @@ def _component_from(raw: dict[str, Any]) -> Component:
         title=raw.get("title", raw["name"]),
         why=raw.get("why", ""),
         needed_for=tuple(raw.get("needed_for", ())),
+        essential=bool(raw.get("essential", False)),
         source_type=source.get("type", "huggingface"),
         source_id=source.get("id", ""),
         revision=source.get("revision", ""),
         base_url=source.get("base_url", ""),
         install_to=raw.get("install_to", ""),
-        files=_files_from(raw.get("files")),
+        files=_files_from(_for_this_platform(raw)),
         project=raw.get("project", ""),
         subdirectory=(raw.get("extra") or {}).get("subdirectory", ""),
         pattern=(raw.get("extra") or {}).get("pattern", "*"),
+        binary=raw.get("binary", ""),
         extra=raw.get("extra", {}),
     )
+
+
+def _for_this_platform(raw: dict[str, Any]) -> dict[str, Any]:
+    """Pick this machine's files, for a component that publishes per-platform.
+
+    A component with a plain `files` map is the same everywhere and is returned
+    as-is; one with `files_by_platform` gets the entry for this OS and
+    architecture, or nothing, which reads as "not installable here" rather than
+    silently installing the wrong binary.
+    """
+    by_platform = raw.get("files_by_platform")
+    if not by_platform:
+        return raw.get("files") or {}
+    return by_platform.get(_platform_key()) or {}
 
 
 def load(repo_root: Path) -> list[Component]:
@@ -266,3 +306,8 @@ def get(repo_root: Path, name: str) -> Component | None:
 
 def for_capability(repo_root: Path, capability: str) -> list[Component]:
     return [c for c in load(repo_root) if capability in c.needed_for]
+
+
+def essential(repo_root: Path) -> list[Component]:
+    """What the installer puts in place without asking."""
+    return [c for c in load(repo_root) if c.essential]

@@ -18,6 +18,8 @@ fn install_cfg(
         state_dir: state.to_path_buf(),
         relaunch_exe: None,
         builder: Box::new(builder),
+        provision_toolchain: false,
+        use_gpu: None,
     }
 }
 

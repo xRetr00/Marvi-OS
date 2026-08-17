@@ -2,6 +2,7 @@ import { type ChildProcess, spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
+import { stateDir } from './config'
 import { log as writeLog } from './logger'
 import { groupSpawnOptions, isAlive, killTree, stopTree } from './processes'
 
@@ -283,6 +284,10 @@ export function findUv(): string | null {
 
   const home = process.env['USERPROFILE'] ?? process.env['HOME'] ?? ''
   const candidates = [
+    // Marvi's own copy first. The installer provisions it precisely so there
+    // is a path that does not depend on whose PATH this process inherited.
+    join(stateDir(), 'toolchain', 'uv', 'uv.exe'),
+    join(stateDir(), 'toolchain', 'uv', 'uv'),
     join(home, '.local', 'bin', 'uv.exe'),
     join(home, '.cargo', 'bin', 'uv.exe'),
     join(process.env['LOCALAPPDATA'] ?? '', 'Programs', 'uv', 'uv.exe'),

@@ -14,6 +14,21 @@
         <span class="spinner" id="spinner"></span>
         <span id="stage-text">starting&hellip;</span>
       </div>
+
+      <!-- The install takes fifteen minutes. Without this the window shows one
+           line the whole time, which is indistinguishable from a hang. -->
+      <pre class="log" id="log" aria-live="polite"></pre>
+
+      <!-- Shown only when there is a real choice to make. Getting it wrong
+           means a multi-gigabyte reinstall, so it is asked, not guessed. -->
+      <div class="ask" id="gpu-ask" hidden>
+        <p id="gpu-prompt"></p>
+        <div class="ask-buttons">
+          <button type="button" id="gpu-yes" class="primary">Use the GPU</button>
+          <button type="button" id="gpu-no">CPU only</button>
+        </div>
+      </div>
+
       <div class="status" id="status" hidden></div>
       <footer>
         <span>installer / updater</span>

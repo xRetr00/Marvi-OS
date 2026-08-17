@@ -76,8 +76,9 @@ Current implemented desktop surfaces:
   haptics, shell context menu, connecting and boot-failure overlays, and a
   voice-level meter in the status bar (see `feat/desktop-shell-ui`).
 - tag-driven releases: `scripts/release.ps1` cuts `v<semver>` tags and the
-  `Release` workflow builds and publishes the Windows installer; local builds
-  use `scripts/build-desktop.ps1` (never publishes).
+  `Release` workflow gates them. There is no per-release installer — the
+  bootstrap (`apps/updater`) clones the tag and builds it on the machine, so
+  the tag is the payload. See `docs/INSTALLER.md`.
 
 ## Developer start
 
@@ -121,12 +122,29 @@ elease.ps1 -Version 1.2.3  # explicit
 ```
 
 The script bumps `VERSION` (the single version source) plus both
-`package.json` mirrors, commits, tags `v<version>`, and pushes. The `Release`
-workflow then gates, builds the Windows installer with `--publish never`, and
-publishes a GitHub Release with the installer and `latest.yml`. The
-electron-builder `publish` config stays disabled so no local or stray build
-can publish. `workflow_dispatch` on the workflow is a dry run: artifacts
-upload, no release is created.
+`package.json` mirrors, commits, tags `v<version>`, and pushes.
+
+The `Release` workflow then runs every gate — desktop, gateway, agent and
+bootstrap tests — and finally `npm run build:unpack`, which is the exact build
+the updater performs on a user's machine. A tag that cannot be built is a tag
+that breaks every Dev-channel update, and the failure would land on someone
+else's computer rather than in the workflow.
+
+It publishes `marvi-bootstrap.exe` and its checksum. An existing install
+updates itself from the tag and downloads nothing; the bootstrap is only for a
+first install. `workflow_dispatch` is a dry run: artifacts upload, no release
+is created.
+
+## Installing
+
+Download `marvi-bootstrap.exe` from the latest release and run it. It installs
+`uv` and Node, clones the tag, and builds it. Then:
+
+```powershell
+marvi status     # what is left to set up
+marvi setup      # install what is missing
+marvi doctor     # what is wrong, and what fixes it
+```
 
 ## Foundation
 

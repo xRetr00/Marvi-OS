@@ -56,10 +56,26 @@ They install **into the state directory** rather than system-wide:
 - the path is known, so it can be handed to the build explicitly rather than
   hoped for.
 
-**A tool already on PATH is used as-is.** Downloading a second copy of something
-that works wastes bandwidth and disk. Node is the exception: a version below the
-required major is treated as absent, because building against it fails later and
-less clearly.
+**Marvi installs its own copies even when the tools are already on PATH.** The
+original design reused whatever was there, which looked like it saved a
+download. It did not: the PATH a developer's terminal has is not the PATH a
+GUI-launched app inherits, so "found during install" and "usable at runtime" are
+different questions and only the second one matters. v0.1.3 shipped with neither
+tool installed, because both were found and skipped.
+
+What is on PATH is still reported — it is useful to see — and the installer says
+out loud that it is downloading a copy anyway, because silence there reads as a
+bug.
+
+That change also uncovered the reason it had never been noticed: the `uv`
+installer command had been broken since it was written. It ran a PowerShell
+one-liner through `cmd /d /s /c`, and Rust's argument escaping targets the C
+runtime parser rather than `cmd`'s, so the quoting arrived mangled and the
+command failed in about a second. On any machine that already had `uv`, that
+code never ran. PowerShell is now invoked directly, and there is a live test
+(`cargo test -p marvi-bootstrap-core --test toolchain_live -- --ignored`) that
+does a real download, because that is the only kind of test that would have
+caught it.
 
 The check runs before **every** build — install and update both — because a
 release can need a newer toolchain than the one that installed the previous
@@ -140,8 +156,23 @@ So the release contract is:
 
 ## The handoff to Marvi
 
-After the checkout and toolchain are in place, everything downstream belongs to
-Marvi itself — models, browsers, Python dependencies, skills, MCP servers:
+A checkout that builds is not an installation. v0.1.3 finished with no LiveKit
+server, no `marvi` command and no shortcut, every one of which reads as "Marvi
+is broken" rather than "the installer stopped early". So `handoff.rs` runs four
+more steps, on install **and** on update — an existing installation predates all
+of this, and updating is how those machines get it:
+
+| | |
+|---|---|
+| **The GPU answer** | Asked in the installer window, before anything reads it. It picks the PyTorch index, and getting it wrong costs a multi-gigabyte reinstall. `--gpu` / `--cpu` answers it unattended; unanswered leaves it to Marvi's own detection. |
+| **Essential components** | `marvi setup --essential`: the LiveKit server and the two Python environments. Which ones is the catalog's decision (`"essential": true`), not the installer's. |
+| **`marvi` on PATH** | A `.cmd` shim in `bin/`, **prepended** to the user's PATH — another tool's `marvi` was winning. A shim, not a copy, so an update never leaves a stale CLI behind. |
+| **Shortcuts** | Desktop and Start menu, pointing at the built executable found under `apps/desktop/dist`. |
+
+Every step is best-effort and reports what it did: a missing shortcut is not a
+reason to undo a working install, but it is a reason to say so.
+
+Everything larger stays with the user — models, browsers, skills, MCP servers:
 
 ```bash
 marvi doctor        # what is missing, and what fixes each thing
@@ -152,15 +183,20 @@ marvi setup         # install it
 job; `uv is not on PATH` means it did not, and says so precisely rather than
 leaving a broken app with no explanation.
 
-`marvi` must be on PATH and runnable from both `cmd.exe` and PowerShell, because
-the CLI is what works when the desktop app does not.
+## The window
+
+Resizable, minimisable, with a title bar, and **not** always on top. It was none
+of those, which meant a fifteen-minute install sat over everything the user was
+doing with no way to move it aside.
+
+It also shows a scrolling log. `npm ci` and `uv sync` are the slow parts and the
+parts that fail, and their output used to go to `/dev/null` — so the window
+showed one word for fifteen minutes, which is indistinguishable from a hang, and
+then either finished or said `npm exited with 1`, which explains nothing. Output
+is now streamed line by line, and the last 25 lines are carried into the error
+message.
 
 ## What the installer deliberately does not decide
-
-**The GPU.** It depends on hardware the installer can see but a preference only
-the user holds, and getting it wrong costs a multi-gigabyte reinstall. Setup
-asks once and remembers; `MARVI_USE_GPU` set beforehand skips the question,
-which is how an unattended install should do it.
 
 **Models.** Gigabytes, and which ones depends on the capabilities the user
 actually wants.

@@ -166,6 +166,9 @@ def install(
         # Running setup on a complete install must cost nothing and say so.
         return Outcome(component.name, True, "already installed", skipped=True)
 
+    if component.binary:
+        return _archive(component, http, progress, force=force)
+
     base = component.target()
     fetched = 0
     for spec in component.files:
@@ -186,6 +189,74 @@ def install(
         return Outcome(component.name, False, final["detail"], fetched)
     log.info("installed %s", component.name, extra={"marvi_bytes": fetched})
     return Outcome(component.name, True, "installed and verified", fetched)
+
+
+def _archive(
+    component: Component,
+    http: Any,
+    progress: Progress | None,
+    force: bool = False,
+) -> Outcome:
+    """Download one archive, verify it, unpack it, and throw the archive away.
+
+    LiveKit — and most released binaries — ship a zip or a tarball rather than
+    the loose file the catalog's file map assumes. Keeping the archive after
+    unpacking would double the disk cost of every binary component for nothing.
+    """
+    state = component.status()
+    if state["installed"] and not force:
+        return Outcome(component.name, True, "already installed", skipped=True)
+
+    spec = component.files[0]
+    target = component.target()
+    staging = target.parent / f".{target.name}.unpacking"
+    archive = staging / spec.path
+
+    shutil.rmtree(staging, ignore_errors=True)
+    staging.mkdir(parents=True, exist_ok=True)
+    try:
+        fetched = _download(
+            component.url_for(spec), archive, spec, http, progress, component.name
+        )
+    except InstallError as exc:
+        shutil.rmtree(staging, ignore_errors=True)
+        log.error("install of %s failed: %s", component.name, exc)
+        return Outcome(component.name, False, str(exc), 0)
+
+    try:
+        # `shutil` picks the format from the suffix, and refuses anything it
+        # does not know rather than leaving a half-unpacked directory.
+        shutil.unpack_archive(str(archive), str(staging))
+    except (OSError, ValueError, shutil.ReadError) as exc:
+        shutil.rmtree(staging, ignore_errors=True)
+        return Outcome(component.name, False, f"could not unpack: {exc}", fetched)
+    archive.unlink(missing_ok=True)
+
+    # Releases vary on whether the payload sits at the archive root or inside a
+    # versioned directory. Find the named file rather than encoding one
+    # publisher's habit, then take everything beside it: a model archive is five
+    # files that are useless apart, and a binary archive usually carries its
+    # licence.
+    found = next((f for f in staging.rglob(component.binary) if f.is_file()), None)
+    if found is None:
+        shutil.rmtree(staging, ignore_errors=True)
+        return Outcome(
+            component.name, False, f"{component.binary} is not in the archive", fetched
+        )
+
+    target.mkdir(parents=True, exist_ok=True)
+    for item in found.parent.iterdir():
+        destination = target / item.name
+        if destination.exists():
+            shutil.rmtree(destination) if destination.is_dir() else destination.unlink()
+        shutil.move(str(item), str(destination))
+    if not is_windows():
+        binary = target / component.binary
+        binary.chmod(binary.stat().st_mode | 0o111)
+    shutil.rmtree(staging, ignore_errors=True)
+
+    log.info("installed %s", component.name, extra={"marvi_bytes": fetched})
+    return Outcome(component.name, True, "downloaded, verified and unpacked", fetched)
 
 
 def _sync_project(
@@ -353,6 +424,33 @@ def command_installed(component: Component, repo_root: Path) -> bool:
     except (OSError, subprocess.TimeoutExpired):
         return False
     return finished.returncode == 0
+
+
+def state_of(component: Component, repo_root: Path) -> dict[str, Any]:
+    """A component's real state, including the kinds a file map cannot describe.
+
+    `Component.status()` only knows about downloaded files, so it answered
+    "nothing to verify" for every Python environment and every command — which
+    is what `marvi models list` showed for five of nine components. That reads
+    as "broken" and is really "this check was never written".
+    """
+    if component.kind == "python":
+        marker = repo_root / (component.project or "") / ".venv"
+        shared = repo_root / ".venv"
+        if marker.is_dir() or shared.is_dir():
+            return {"installed": True, "detail": "environment present", "problems": []}
+        return {"installed": False, "detail": "not synced", "problems": []}
+    if component.kind == "command":
+        if is_windows() and component.extra.get("windows_skip"):
+            return {"installed": True, "detail": "not needed on Windows", "problems": []}
+        if not component.extra.get("check"):
+            # Honest: running it again is cheap and idempotent, so there is
+            # nothing to report except that nobody can tell from here.
+            return {"installed": False, "detail": "cannot be checked; safe to re-run", "problems": []}
+        if command_installed(component, repo_root):
+            return {"installed": True, "detail": "present", "problems": []}
+        return {"installed": False, "detail": "not installed", "problems": []}
+    return component.status()
 
 
 def verify(component: Component) -> Outcome:

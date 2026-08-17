@@ -8,7 +8,8 @@ adapters:
 - **STT:** NVIDIA Nemotron 3.5 ASR Streaming 0.6B, exported to ONNX by the
   pinned `altunenes/parakeet-rs` repository and executed through the upstream
   `parakeet-rs` crate. It is stateful, cache-aware, 16 kHz, and runs with an
-  explicit `tr-TR` language hint.
+  explicit language hint; the default is `en-US`, set with
+  `MARVI_STT_LANGUAGE`.
 - **TTS:** Microsoft VibeVoice Realtime 0.5B with 24 kHz streamed audio chunks
   and three diffusion steps, selected by the native hardware bakeoff.
   The LiveKit `StreamAdapter` sends completed sentences while generation and

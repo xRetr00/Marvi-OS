@@ -4,7 +4,15 @@ import { existsSync } from 'fs'
 import { join, resolve } from 'path'
 import icon from '../../resources/icon.png?asset'
 import trayIcon from '../../resources/tray-icon.png?asset'
-import { gatewayBind, gatewayUrl, livekitBind, livekitServerPath, logsDir } from './config'
+import {
+  gatewayBind,
+  gatewayUrl,
+  livekitBind,
+  livekitCredentials,
+  livekitServerPath,
+  logsDir,
+  stateDir
+} from './config'
 import { configure as configureLogging, desktop, installCatchers } from './logger'
 import { killStrays } from './processes'
 import { offlineRuntime, normalizeRuntimeStatus } from './gateway-runtime'
@@ -89,7 +97,8 @@ function normaliseProviderPage(body: unknown): ProviderPage | null {
         usage: usage(row.usage as Record<string, number> | undefined),
         cooldown: (row.cooldown ?? null) as ProviderRow['cooldown'],
         oauth: (row.oauth ?? null) as ProviderRow['oauth'],
-        warning: (row.warning ?? null) as string | null
+        warning: (row.warning ?? null) as string | null,
+        reachable: (row.reachable ?? null) as boolean | null
       }
     }),
     selected: page.selected ?? null,
@@ -218,6 +227,18 @@ function startVoiceStack(): void {
   const livekit = livekitServerPath(repoRoot)
   const lk = livekitBind(repoRoot)
 
+  // Handed to every child rather than left to a .env nobody ships. The agent
+  // exits immediately without LIVEKIT_URL, and it is the shell that knows it.
+  const credentials = livekitCredentials()
+  const childEnv: Record<string, string> = {
+    LIVEKIT_URL: process.env['LIVEKIT_URL'] ?? `ws://${lk.host}:${lk.port}`,
+    LIVEKIT_API_KEY: credentials.key,
+    LIVEKIT_API_SECRET: credentials.secret,
+    MARVI_GATEWAY_URL: gateway(),
+    MARVI_HOME: stateDir(),
+    MARVI_LOG_DIR: logsDir()
+  }
+
   supervisor = new ServiceSupervisor((reports) => {
     serviceReports = reports
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -228,8 +249,11 @@ function startVoiceStack(): void {
   supervisor.add({
     name: 'livekit',
     command: livekit,
-    args: ['--dev', '--bind', lk.host],
+    // `--keys` rather than `--dev`'s published devkey/secret pair. See
+    // livekitCredentials().
+    args: ['--dev', '--bind', lk.host, '--keys', `${credentials.key}: ${credentials.secret}`],
     cwd: repoRoot,
+    env: childEnv,
     // Optional: a cloud LiveKit URL needs no local server.
     when: () => existsSync(livekit)
   })
@@ -247,13 +271,15 @@ function startVoiceStack(): void {
       '--port',
       bind.port
     ],
-    cwd: repoRoot
+    cwd: repoRoot,
+    env: childEnv
   })
   supervisor.add({
     name: 'agent',
     command: uv,
     args: ['run', '--project', 'services/agent', 'python', '-m', 'marvi_agent.session', 'dev'],
-    cwd: repoRoot
+    cwd: repoRoot,
+    env: childEnv
   })
   supervisor.startAll()
 }

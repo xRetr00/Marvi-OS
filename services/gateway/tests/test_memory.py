@@ -24,11 +24,11 @@ def memory(tmp_path):
 
 
 def test_facts_and_events_are_stored_and_found(memory) -> None:
-    memory.remember("Shereef prefers Turkish STT", "language is tr-TR", kind="semantic")
+    memory.remember("Shereef prefers a terse assistant", "keep replies short", kind="semantic")
     memory.remember("Ran the voice bakeoff", "VibeVoice won", kind="episodic")
 
     assert memory.count() == 2
-    assert memory.search("turkish")[0]["subject"].startswith("Shereef prefers")
+    assert memory.search("terse")[0]["subject"].startswith("Shereef prefers")
     assert memory.search("bakeoff")[0]["kind"] == "episodic"
 
 

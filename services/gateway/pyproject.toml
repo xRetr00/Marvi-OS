@@ -14,6 +14,10 @@ dependencies = [
     "apscheduler>=3.10,<4",
     "opencv-python-headless>=4.10,<5",
     "insightface>=0.7,<1",
+    # insightface imports this at module load and does not declare it, so a
+    # fresh install has working vision code and no runtime to execute it. CPU
+    # build on purpose: buffalo_l is motion-gated and runs on CPU by design.
+    "onnxruntime>=1.17,<2",
     "fastapi>=0.116,<1",
     "httpx>=0.28,<1",
     "playwright>=1.49,<2",

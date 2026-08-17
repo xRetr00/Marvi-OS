@@ -4,7 +4,7 @@
 use std::path::Path;
 use std::time::Duration;
 
-use crate::util::run_shell_with_timeout;
+use crate::util::run_shell_reporting;
 
 /// Runs the dependency-install and build stages inside a checkout.
 ///
@@ -36,11 +36,11 @@ impl Default for NpmBuildRunner {
 impl BuildRunner for NpmBuildRunner {
     fn prepare(&mut self, root: &Path, progress: &mut dyn FnMut(&str)) -> Result<(), String> {
         progress("installing dependencies (npm ci)");
-        run_shell_with_timeout("npm ci", root, self.ci_timeout)
+        run_shell_reporting("npm ci", root, self.ci_timeout, progress)
             .map_err(|e| format!("dependency installation failed: {e}"))?;
 
         progress("building (npm run build:unpack)");
-        run_shell_with_timeout("npm run build:unpack", root, self.build_timeout)
+        run_shell_reporting("npm run build:unpack", root, self.build_timeout, progress)
             .map_err(|e| format!("build failed: {e}"))?;
 
         Ok(())

@@ -8,6 +8,7 @@
 //!                             --desktop-pid <pid> [--relaunch-exe <path>] [--no-relaunch]
 //! marvi-bootstrap.exe install --install-root <dir> --channel release|dev
 //!                             [--repo <url>] [--relaunch-exe <path>]
+//!                             [--gpu | --cpu]
 //! ```
 
 use marvi_bootstrap_core::Channel;
@@ -38,6 +39,9 @@ pub struct Cli {
     pub desktop_pid: Option<u32>,
     pub relaunch_exe: Option<String>,
     pub no_relaunch: bool,
+    /// The GPU answer. None means unanswered, which leaves the decision to
+    /// Marvi's own detection rather than guessing on the user's behalf.
+    pub use_gpu: Option<bool>,
 }
 
 impl Cli {
@@ -61,6 +65,7 @@ pub fn parse<I: IntoIterator<Item = String>>(args: I) -> Result<Cli, String> {
             desktop_pid: None,
             relaunch_exe: None,
             no_relaunch: false,
+            use_gpu: None,
         });
     }
 
@@ -77,6 +82,7 @@ pub fn parse<I: IntoIterator<Item = String>>(args: I) -> Result<Cli, String> {
     let mut desktop_pid: Option<u32> = None;
     let mut relaunch_exe: Option<String> = None;
     let mut no_relaunch = false;
+    let mut use_gpu: Option<bool> = None;
 
     let mut i = 1;
     while i < args.len() {
@@ -106,6 +112,8 @@ pub fn parse<I: IntoIterator<Item = String>>(args: I) -> Result<Cli, String> {
             }
             "--relaunch-exe" => relaunch_exe = Some(value()?),
             "--no-relaunch" => no_relaunch = true,
+            "--gpu" => use_gpu = Some(true),
+            "--cpu" => use_gpu = Some(false),
             other => return Err(format!("unknown option {other:?}\n{}", Cli::usage())),
         }
         i += 1;
@@ -123,5 +131,6 @@ pub fn parse<I: IntoIterator<Item = String>>(args: I) -> Result<Cli, String> {
         desktop_pid,
         relaunch_exe,
         no_relaunch,
+        use_gpu,
     })
 }
