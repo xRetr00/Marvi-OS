@@ -278,6 +278,28 @@ class SetupPage(BaseModel):
     disk_detail: str
 
 
+class PluginRow(BaseModel):
+    name: str
+    title: str
+    why: str
+    repo: str
+    ref: str
+    installed: bool
+    version: str
+    commit: str
+    tools: list[str]
+    detail: str
+    supported: bool
+
+
+class PluginPage(BaseModel):
+    plugins: list[PluginRow]
+    #: Where checkouts live and where plugin data lives, shown because a plugin
+    #: is a thing on disk the user may want to look at.
+    install_root: str
+    data_root: str
+
+
 class GpuAnswer(BaseModel):
     use_gpu: bool
 
@@ -800,6 +822,57 @@ def create_app(
             disk_ok=enough,
             disk_detail=detail,
         )
+
+    def plugin_page() -> PluginPage:
+        return PluginPage(
+            plugins=[PluginRow(**row) for row in plugins_module.status(REPO_ROOT)],
+            install_root=str(plugins_module.root()),
+            data_root=str(plugins_module.data_root()),
+        )
+
+    @app.get("/plugins", response_model=PluginPage)
+    async def read_plugins() -> PluginPage:
+        return plugin_page()
+
+    @app.post("/plugins/{name}/install", response_model=PluginPage)
+    async def install_plugin(name: str) -> PluginPage:
+        """Clone a plugin and install its dependencies.
+
+        A plugin's code runs inside the Gateway and its dependencies land in the
+        Gateway's environment, which is why this is a button the user presses
+        and not something setup does quietly. The confirmation is the UI's.
+        """
+        source = plugins_module.source_for(REPO_ROOT, name)
+        if source is None:
+            raise HTTPException(status_code=404, detail=f"unknown plugin {name}")
+        try:
+            detail = await anyio.to_thread.run_sync(
+                lambda: plugins_module.install(source, REPO_ROOT)
+            )
+        except plugins_module.PluginError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        runtime_store.audit("plugin", "install", {"plugin": name, "detail": detail})
+        return plugin_page()
+
+    @app.post("/plugins/{name}/update", response_model=PluginPage)
+    async def update_plugin(name: str) -> PluginPage:
+        try:
+            detail = await anyio.to_thread.run_sync(
+                lambda: plugins_module.update(name, REPO_ROOT)
+            )
+        except plugins_module.PluginError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        runtime_store.audit("plugin", "update", {"plugin": name, "detail": detail})
+        return plugin_page()
+
+    @app.post("/plugins/{name}/remove", response_model=PluginPage)
+    async def remove_plugin(name: str) -> PluginPage:
+        try:
+            detail = plugins_module.remove(name)
+        except plugins_module.PluginError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        runtime_store.audit("plugin", "remove", {"plugin": name, "detail": detail})
+        return plugin_page()
 
     @app.get("/setup", response_model=SetupPage)
     async def read_setup() -> SetupPage:

@@ -8,6 +8,7 @@ import type {
   DoctorReport,
   HardwareAnswer,
   McpServerRow,
+  PluginPage,
   SetupPage,
   SkillReview,
   StoreSkill,
@@ -93,6 +94,11 @@ const marvi = {
   sendChat: (message: string): Promise<ChatReply | null> =>
     ipcRenderer.invoke('marvi:send-chat', message),
   clearChat: (): Promise<boolean> => ipcRenderer.invoke('marvi:clear-chat'),
+  getPlugins: (): Promise<PluginPage | null> => ipcRenderer.invoke('marvi:get-plugins'),
+  pluginAction: (
+    name: string,
+    action: 'install' | 'update' | 'remove'
+  ): Promise<PluginPage | null> => ipcRenderer.invoke('marvi:plugin-action', name, action),
   getSetup: (): Promise<SetupPage | null> => ipcRenderer.invoke('marvi:get-setup'),
   getHardware: (): Promise<HardwareAnswer | null> => ipcRenderer.invoke('marvi:get-hardware'),
   setHardware: (useGpu: boolean): Promise<HardwareAnswer | null> =>

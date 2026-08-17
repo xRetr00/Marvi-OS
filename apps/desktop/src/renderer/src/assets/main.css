@@ -136,12 +136,26 @@ button {
 nav {
   padding: 18px 10px;
 }
+/* Groups, not a numbered list of eighteen. The numbers implied an order that
+   does not exist, and the group label is what makes the list learnable. */
+.nav-group {
+  margin-bottom: 6px;
+}
+
+.nav-group-label {
+  margin: 0;
+  padding: 14px 14px 6px;
+  color: var(--ui-text-tertiary);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.18em;
+}
+
 .nav-item {
-  display: grid;
-  grid-template-columns: 36px 1fr;
+  display: block;
   width: 100%;
-  margin: 2px 0;
-  padding: 11px 12px;
+  margin: 1px 0;
+  padding: 9px 14px 9px 20px;
   border: 0;
   border-left: 2px solid transparent;
   color: var(--ui-text-secondary);
@@ -152,9 +166,6 @@ nav {
   cursor: pointer;
 }
 
-.nav-item span {
-  color: var(--ui-text-tertiary);
-}
 .nav-item:hover {
   color: var(--ui-text-primary);
   background: rgb(255 255 255 / 2.5%);
@@ -1401,4 +1412,24 @@ nav {
 .setup-progress {
   color: var(--ui-accent);
   font-variant-numeric: tabular-nums;
+}
+
+/* One line under the page title saying what the page is for. A heading that
+   only repeats the sidebar entry spends ninety pixels without paying for it. */
+.topbar {
+  flex-wrap: wrap;
+}
+
+.topbar-blurb {
+  flex-basis: 100%;
+  margin: 2px 0 0;
+  color: var(--ui-text-secondary);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+/* A plugin is a thing on disk, from a place. Both are worth showing. */
+.plugin-repo {
+  color: var(--ui-text-tertiary);
+  word-break: break-all;
 }

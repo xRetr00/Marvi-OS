@@ -7,6 +7,7 @@ import type {
   DoctorReport,
   HardwareAnswer,
   McpServerRow,
+  PluginPage,
   SetupPage,
   SkillReview,
   StoreSkill,
@@ -57,6 +58,11 @@ export interface MarviDesktopApi {
   getChat: () => Promise<{ messages: ChatEntry[]; available: boolean }>
   sendChat: (message: string) => Promise<ChatReply | null>
   clearChat: () => Promise<boolean>
+  getPlugins: () => Promise<PluginPage | null>
+  pluginAction: (
+    name: string,
+    action: 'install' | 'update' | 'remove'
+  ) => Promise<PluginPage | null>
   getSetup: () => Promise<SetupPage | null>
   getHardware: () => Promise<HardwareAnswer | null>
   setHardware: (useGpu: boolean) => Promise<HardwareAnswer | null>

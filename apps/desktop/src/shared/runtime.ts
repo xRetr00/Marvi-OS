@@ -349,3 +349,25 @@ export function deviceState(
 export function deviceLabel(state: DeviceState): string {
   return state === 'on' ? 'ON' : state === 'off' ? 'OFF' : '?'
 }
+
+/** A desktop plugin: a backend Marvi installs from a repository and runs. */
+export interface PluginRow {
+  name: string
+  title: string
+  why: string
+  repo: string
+  ref: string
+  installed: boolean
+  version: string
+  commit: string
+  tools: string[]
+  detail: string
+  /** False when the plugin declares platforms this machine is not one of. */
+  supported: boolean
+}
+
+export interface PluginPage {
+  plugins: PluginRow[]
+  install_root: string
+  data_root: string
+}

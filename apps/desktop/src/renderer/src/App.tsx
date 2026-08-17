@@ -50,6 +50,7 @@ import type {
   InitiativeStatus,
   MemoryPage,
   MindDecision,
+  PluginPage,
   ProviderPage,
   ProviderRow,
   UpdateChannel,
@@ -65,26 +66,47 @@ import { deviceLabel, deviceState } from '../../shared/runtime'
 import type { IslandAlignment, IslandPlacement } from '../../main/island-window'
 import { connectVoiceRoom } from './lib/livekit-room'
 
-const NAV_ITEMS = [
-  'Overview',
-  'Voice',
-  'Chat',
-  'Vision',
-  'Room',
-  'Accounts',
-  'Providers',
-  'Identity',
-  'Memory',
-  'Mind',
-  'Activity',
-  'Skills',
-  'Setup',
-  'Doctor',
-  'Settings',
-  'Updates',
-  'About'
+/**
+ * The sidebar, grouped by what a page is *for*.
+ *
+ * It was one flat list of eighteen entries numbered `01`..`18`. The numbers
+ * implied an order that does not exist — nobody works through Marvi from
+ * Overview to About — and a list that long with no structure is a list you
+ * scan every time instead of learning. Five groups, each answering a different
+ * question, and no numbers.
+ */
+const NAV_GROUPS = [
+  { label: 'Talk', items: ['Overview', 'Voice', 'Chat'] },
+  { label: 'World', items: ['Vision', 'Room', 'Activity'] },
+  { label: 'Self', items: ['Identity', 'Memory', 'Mind'] },
+  { label: 'Extend', items: ['Providers', 'Accounts', 'Skills', 'Plugins'] },
+  { label: 'System', items: ['Setup', 'Doctor', 'Settings', 'Updates', 'About'] }
 ] as const
-type Page = (typeof NAV_ITEMS)[number]
+
+type Page = (typeof NAV_GROUPS)[number]['items'][number]
+
+/** One line saying what the page is, shown under its title. A heading that only
+ * repeats the sidebar entry spends the space without paying for it. */
+const PAGE_BLURB: Record<Page, string> = {
+  Overview: 'Everything at a glance, and what is not working',
+  Voice: 'The live session, and what Marvi heard',
+  Chat: 'The same assistant, typed',
+  Vision: 'Who Marvi recognises, and what it does about visitors',
+  Room: 'Lights, modes and presence, from the room plugin',
+  Activity: 'What you have been doing, as context Marvi may use',
+  Identity: 'Who Marvi is, and what it has learned about you',
+  Memory: 'What Marvi remembers. Yours to read, export and delete',
+  Mind: 'Why Marvi did things, and when it decided to act on its own',
+  Providers: 'The models Marvi can call, and what they have cost',
+  Accounts: 'Connected services, and what Marvi may do with them',
+  Skills: 'Instructions Marvi can load for a task',
+  Plugins: 'Backends Marvi runs, installed from a repository',
+  Setup: 'Models, browsers and dependencies',
+  Doctor: 'What is wrong, and how to fix each thing',
+  Settings: 'Behaviour, appearance and devices',
+  Updates: 'Version, channel, and what changed',
+  About: 'Build, licences and provenance'
+}
 
 interface BuildInfo {
   version: string
@@ -168,31 +190,44 @@ function MainSurface(): React.JSX.Element {
             </header>
 
             <nav aria-label="Main navigation">
-              {NAV_ITEMS.map((item, index) => (
-                <button
-                  className={page === item ? 'nav-item active' : 'nav-item'}
-                  key={item}
-                  aria-current={page === item ? 'page' : undefined}
-                  onClick={() => navigate(item)}
-                >
-                  <span>{String(index + 1).padStart(2, '0')}</span>
-                  {item.toUpperCase()}
-                </button>
+              {NAV_GROUPS.map((group) => (
+                <div className="nav-group" key={group.label}>
+                  <h2 className="nav-group-label">{group.label.toUpperCase()}</h2>
+                  {group.items.map((item) => (
+                    <button
+                      className={page === item ? 'nav-item active' : 'nav-item'}
+                      key={item}
+                      aria-current={page === item ? 'page' : undefined}
+                      onClick={() => navigate(item)}
+                    >
+                      {item.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
               ))}
             </nav>
 
             <div className="sidebar-foot">
-              <span className="pulse-dot" /> ALWAYS ON
-              <small>MIC + CAMERA LOCAL</small>
+              <span className={runtime.state === 'ready' ? 'pulse-dot' : ''} />{' '}
+              {runtime.state === 'ready' ? 'ALWAYS ON' : runtime.state.toUpperCase()}
+              <small>
+                {/* Local processing is the claim worth making, and it is true
+                    whatever state the Gateway is in. Whether the devices are
+                    live is the status bar's job, and it now answers honestly. */}
+                MIC + CAMERA STAY ON THIS MACHINE
+              </small>
             </div>
           </aside>
 
           <main className="content">
             <header className="topbar">
               <div>
-                <span className="eyebrow">{'// CONTROL CENTER'}</span>
+                <span className="eyebrow">
+                  {`// ${(NAV_GROUPS.find((g) => (g.items as readonly string[]).includes(page))?.label ?? '').toUpperCase()}`}
+                </span>
                 <h1>{page}</h1>
               </div>
+              <p className="topbar-blurb">{PAGE_BLURB[page]}</p>
             </header>
 
             {/* One scroll region for every page, so the top bar and status bar
@@ -215,6 +250,8 @@ function MainSurface(): React.JSX.Element {
                 <SetupPanel />
               ) : page === 'Skills' ? (
                 <SkillsPanel />
+              ) : page === 'Plugins' ? (
+                <PluginsPanel />
               ) : page === 'Doctor' ? (
                 <DoctorPanel />
               ) : page === 'Activity' ? (
@@ -1785,6 +1822,171 @@ function SetupPanel(): React.JSX.Element {
   )
 }
 
+function PluginsPanel(): React.JSX.Element {
+  const [page, setPage] = useState<PluginPage | null>(null)
+  const [busy, setBusy] = useState('')
+  const [confirming, setConfirming] = useState('')
+  const [error, setError] = useState('')
+
+  const load = useCallback(async (): Promise<void> => {
+    const next = await window.marvi?.getPlugins()
+    if (next) setPage(next)
+  }, [])
+
+  useEffect(() => {
+    // Guarded rather than a bare `void load()`: navigating away mid-fetch would
+    // otherwise set state on a panel that no longer exists.
+    let disposed = false
+    void (async () => {
+      const next = await window.marvi?.getPlugins()
+      if (!disposed && next) setPage(next)
+    })()
+    return () => {
+      disposed = true
+    }
+  }, [])
+
+  const act = async (name: string, action: 'install' | 'update' | 'remove'): Promise<void> => {
+    setBusy(name)
+    setError('')
+    setConfirming('')
+    try {
+      const next = await window.marvi?.pluginAction(name, action)
+      if (next) setPage(next)
+      else setError(`${action} failed — see the Doctor page`)
+    } finally {
+      setBusy('')
+    }
+  }
+
+  return (
+    <section className="single-page panel">
+      <div className="panel-label">{'// PLUGINS'}</div>
+      <h2>Plugins</h2>
+      <p>
+        Backends Marvi runs. A plugin is not a skill and not an MCP server: it ships a long-running
+        process of its own and registers tools that talk to it. Its code runs inside Marvi and its
+        dependencies install into Marvi, so adding one is a decision, not a download.
+      </p>
+
+      {error ? <span className="construction">{error.toUpperCase()}</span> : null}
+
+      <AsciiRule />
+
+      <div className="service-list">
+        {(page?.plugins ?? []).map((plugin) => (
+          <div className="service-row" key={plugin.name}>
+            <span className="service-name">{plugin.title.toUpperCase()}</span>
+            <span
+              className={`service-state state-${
+                !plugin.supported
+                  ? 'error'
+                  : plugin.installed
+                    ? 'ready'
+                    : busy === plugin.name
+                      ? 'starting'
+                      : 'pending'
+              }`}
+            >
+              {busy === plugin.name
+                ? 'WORKING'
+                : plugin.installed
+                  ? `INSTALLED ${plugin.version ? `v${plugin.version}` : ''}`.trim()
+                  : plugin.detail.toUpperCase()}
+            </span>
+            {plugin.why ? <small>{plugin.why}</small> : null}
+            <small className="plugin-repo">
+              {plugin.repo}
+              {plugin.ref ? ` (${plugin.ref})` : ' (default branch)'}
+              {plugin.commit ? ` @${plugin.commit}` : ''}
+            </small>
+            {plugin.installed && !plugin.supported ? (
+              <small className="provider-cooldown">{plugin.detail}</small>
+            ) : null}
+            {plugin.tools.length > 0 ? (
+              <small>
+                {plugin.tools.length} tools: {plugin.tools.join(', ')}
+              </small>
+            ) : null}
+
+            {confirming === plugin.name ? (
+              <div className="chat-confirm">
+                <p>
+                  {plugin.title} runs its own code inside Marvi and installs its dependencies into
+                  Marvi&apos;s environment. Only install plugins you trust.
+                </p>
+                <div className="provider-actions">
+                  <button
+                    className="phase active"
+                    type="button"
+                    onClick={() => void act(plugin.name, 'install')}
+                  >
+                    INSTALL IT
+                  </button>
+                  <button className="phase" type="button" onClick={() => setConfirming('')}>
+                    CANCEL
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="provider-actions">
+                {plugin.installed ? (
+                  <>
+                    <button
+                      className="phase"
+                      type="button"
+                      disabled={!!busy}
+                      onClick={() => void act(plugin.name, 'update')}
+                    >
+                      PULL LATEST
+                    </button>
+                    <button
+                      className="phase danger"
+                      type="button"
+                      disabled={!!busy}
+                      onClick={() => void act(plugin.name, 'remove')}
+                    >
+                      REMOVE
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    className="phase"
+                    type="button"
+                    disabled={!!busy}
+                    onClick={() => setConfirming(plugin.name)}
+                  >
+                    INSTALL
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {(page?.plugins ?? []).length === 0 ? (
+        <span className="construction">
+          NO PLUGINS DECLARED / ADD ONE TO config/plugin-sources.json
+        </span>
+      ) : null}
+
+      <AsciiRule />
+      <button className="phase" type="button" onClick={() => void load()}>
+        RE-CHECK
+      </button>
+      {page ? (
+        <>
+          <small>CHECKOUTS {page.install_root}</small>
+          {/* Named because removing a plugin keeps its data, and someone
+              looking for their room history should not have to guess. */}
+          <small>PLUGIN DATA {page.data_root}</small>
+        </>
+      ) : null}
+    </section>
+  )
+}
+
 function SkillsPanel(): React.JSX.Element {
   const [store, setStore] = useState<StoreSkill[]>([])
   const [sources, setSources] = useState<string[]>([])
@@ -2011,7 +2213,8 @@ function PagePanel({ page, version }: { page: Page; version: string }): React.JS
     Chat: 'Typed conversation with the same Marvi the voice session reaches.',
     Vision:
       'Always-on local presence and gesture processing. Frames leave the PC only for an explicit vision task.',
-    Room: 'Status and events from D:\\smart-room-plugin. Marvi OS does not replace its automation authority.',
+    Room: 'Lights, modes and presence from the room plugin. Marvi does not replace its automation authority.',
+    Plugins: 'Backends Marvi installs from a repository and runs as its own child processes.',
     Accounts: 'Composio connections for email, LinkedIn, X, and other world-context providers.',
     Providers: 'Model providers, credentials, models per job, and token usage.',
     Identity: 'SOUL.md and USER.md - who Marvi is, and who it is speaking to.',
