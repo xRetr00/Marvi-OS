@@ -65,10 +65,6 @@ CREATE INDEX IF NOT EXISTS sightings_unreported ON sightings(reported, status);
 
 
 def default_vision_dir() -> Path:
-    configured = os.environ.get("MARVI_VISION_DIR")
-    if configured:
-        return Path(configured)
-    root = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
     from .paths import vision_dir as resolved
 
     return resolved()

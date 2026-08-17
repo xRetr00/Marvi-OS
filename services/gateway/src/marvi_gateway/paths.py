@@ -16,6 +16,7 @@ starting fresh would look exactly like data loss.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import shutil
 from pathlib import Path
