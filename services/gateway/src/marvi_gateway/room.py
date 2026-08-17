@@ -50,6 +50,17 @@ ROOM_MODES = {"normal", "reading", "focus", "relax", "night", "sleep", "alarm", 
 
 EVENT_TAIL_BYTES = 64 * 1024
 
+#: Types the engine repeats while a condition holds, and the field that says
+#: *which* condition. A held gesture emits one event every couple of seconds:
+#: measured on a real log, 98 gesture events with runs of up to 41 consecutive
+#: ids, all of them the same `Open_Palm`. Collapsed to the first of each run, so
+#: one wave is one event.
+#:
+#: This is what makes such a type surfaceable at all. Allowlisting it without
+#: collapsing put 41 entries in the journal for a single wave, which is why the
+#: original decision was to drop it entirely.
+BURSTY_EVENTS = {"vision_gesture": "gesture"}
+
 # The engine's log is dominated by ambient vision state churn — in a 500-event
 # sample, 413 were `vision_identity_state`. An always-on surface must allowlist
 # rather than denylist: an unrecognised new type is better missed than blasted at
@@ -64,13 +75,6 @@ EVENT_TAIL_BYTES = 64 * 1024
 #
 #   vision_identity_state       ambient, and it is state, not news. It belongs in
 #                               the context line, which reads `state.vision`.
-#   vision_gesture              one gesture emits a burst: measured against a real
-#                               log, 98 events with runs of up to 41 consecutive
-#                               ids. A gesture is a genuine intentional act and
-#                               worth surfacing, but it needs debouncing to a
-#                               single transition first, and an allowlist entry
-#                               is not that. Adding it here would put 41 entries
-#                               in the journal for one wave.
 #   smart_room_state_reconciled bookkeeping the engine does to itself.
 #   visitor_history_corrected   same.
 NOTABLE_EVENTS = frozenset(
@@ -93,6 +97,9 @@ NOTABLE_EVENTS = frozenset(
         # Falling asleep and waking are what the sleep rule turns on, so Marvi
         # should hear about them rather than infer them from a poll.
         "vision_sleep_state",
+        # An intentional act by the user. Only surfaceable because `BURSTY_EVENTS`
+        # collapses a held gesture to one event; see the note there.
+        "vision_gesture",
         "he20_occupied",
         "he20_cleared",
         "room_presence_unverified",
@@ -211,6 +218,36 @@ def read_sleep_state(sidecar: RoomSidecar) -> tuple[str | None, bool]:
         ((state.get("modes") or {}).get("active_mode")),
         bool((state.get("light") or {}).get("on")),
     )
+
+
+def _collapse_bursts(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Keep one event per run of a repeating condition.
+
+    `events` is newest-first, which is the order the caller wants. A run is
+    therefore walked backwards in time, and the one kept is the *oldest* of the
+    run — the moment the gesture started, not the last frame of it still being
+    held.
+
+    Untouched for anything not in `BURSTY_EVENTS`: this collapses a repetition,
+    never two genuinely separate things that happen to look alike.
+    """
+    kept: list[dict[str, Any]] = []
+    for event in events:
+        field = BURSTY_EVENTS.get(str(event.get("type", "")))
+        if field is None:
+            kept.append(event)
+            continue
+        # Newest-first, so the previous entry is the *later* event. Replacing it
+        # walks the run back to where it began.
+        if (
+            kept
+            and kept[-1].get("type") == event.get("type")
+            and kept[-1].get(field) == event.get(field)
+        ):
+            kept[-1] = event
+            continue
+        kept.append(event)
+    return kept
 
 
 def _sidecar_home() -> Path:
@@ -368,7 +405,7 @@ class RoomSidecar:
             if notable_only and not is_notable(event):
                 continue
             events.append({**event, "summary": summarize_event(event)})
-        return events
+        return _collapse_bursts(events)
 
     def latest_notable_event(self) -> dict[str, Any] | None:
         found = self.events(limit=1)

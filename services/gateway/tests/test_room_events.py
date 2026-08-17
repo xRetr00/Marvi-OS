@@ -74,8 +74,55 @@ def test_unknown_event_types_fall_back_to_the_sidecar_summary() -> None:
     assert summarize_event({"type": "future_event"}) == "Future_event"
 
 
-def test_bursty_gesture_events_are_not_notable() -> None:
-    assert "vision_gesture" not in NOTABLE_EVENTS
+def test_a_held_gesture_collapses_to_the_moment_it_started() -> None:
+    """Gestures were dropped entirely because they arrive in bursts.
+
+    On a real log: 98 gesture events, runs of up to 41 consecutive ids, all the
+    same held `Open_Palm`. Allowlisting them without collapsing put 41 journal
+    entries in for one wave, so the original decision was to ignore the type.
+    Collapsing the run makes it surfaceable, and one wave is one event.
+    """
+    from marvi_gateway.room import _collapse_bursts
+
+    assert "vision_gesture" in NOTABLE_EVENTS
+
+    # events() hands back newest-first, so this run reads 3, 2, 1 in time.
+    held = [
+        {"id": 3, "type": "vision_gesture", "gesture": "Open_Palm"},
+        {"id": 2, "type": "vision_gesture", "gesture": "Open_Palm"},
+        {"id": 1, "type": "vision_gesture", "gesture": "Open_Palm"},
+    ]
+    collapsed = _collapse_bursts(held)
+
+    # One event, and it is the oldest: the moment the gesture began, not the
+    # last frame of it still being held.
+    assert [event["id"] for event in collapsed] == [1]
+
+
+def test_a_different_gesture_is_a_different_event() -> None:
+    from marvi_gateway.room import _collapse_bursts
+
+    changed = [
+        {"id": 3, "type": "vision_gesture", "gesture": "Thumb_Up"},
+        {"id": 2, "type": "vision_gesture", "gesture": "Open_Palm"},
+        {"id": 1, "type": "vision_gesture", "gesture": "Open_Palm"},
+    ]
+
+    assert [e["id"] for e in _collapse_bursts(changed)] == [3, 1]
+
+
+def test_collapsing_leaves_everything_else_alone() -> None:
+    """It collapses a repetition, never two separate things that look alike."""
+    from marvi_gateway.room import _collapse_bursts
+
+    repeated = [
+        {"id": 3, "type": "light_changed", "summary": "off"},
+        {"id": 2, "type": "light_changed", "summary": "off"},
+        {"id": 1, "type": "mode_changed", "summary": "reading"},
+    ]
+
+    # Two lights going off really are two events.
+    assert [e["id"] for e in _collapse_bursts(repeated)] == [3, 2, 1]
 
 
 def test_ambient_vision_churn_is_filtered_out(tmp_path) -> None:

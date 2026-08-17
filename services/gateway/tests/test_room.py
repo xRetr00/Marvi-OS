@@ -333,6 +333,8 @@ def test_the_allowlist_covers_what_the_engine_actually_writes() -> None:
         "device_online",
         "phone_location_changed",
         "vision_sleep_state",
+        # Surfaceable only because a held gesture is collapsed to one event.
+        "vision_gesture",
     ):
         assert noticed in NOTABLE_EVENTS, noticed
 
@@ -340,9 +342,6 @@ def test_the_allowlist_covers_what_the_engine_actually_writes() -> None:
     # `vision_identity_state` alone was 413 of those 500 events.
     for ignored in (
         "vision_identity_state",
-        # One gesture emits up to 41 consecutive events in a real log. Worth
-        # surfacing, but only after debouncing to a single transition.
-        "vision_gesture",
         "smart_room_state_reconciled",
         "visitor_history_corrected",
     ):
