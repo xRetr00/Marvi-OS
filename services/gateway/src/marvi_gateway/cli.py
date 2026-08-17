@@ -337,6 +337,30 @@ def cmd_skills(args: argparse.Namespace) -> int:
     return 1
 
 
+def cmd_status(_args: argparse.Namespace) -> int:
+    """Where this install has got to, and what would move it along."""
+    from .setup import firstrun
+
+    state = firstrun.status(repo_root())
+    for step in state["steps"]:
+        mark = "done" if step["done"] else ("NEEDED" if step["required"] else "optional")
+        print(f"[{mark:8}] {step['title']}")
+        if not step["done"]:
+            print(f"           {step['why']}")
+            print(f"           {step['action']}  ({step['detail']})")
+
+    print()
+    if not state["usable"]:
+        print("Not usable yet: " + ", ".join(state["blocking"]))
+    elif state["complete"]:
+        print("Marvi is fully set up.")
+    else:
+        # Usable is not the same as complete, and saying so is what keeps a
+        # first run short.
+        print("Marvi is usable. The rest is optional.")
+    return 0 if state["usable"] else 1
+
+
 def cmd_paths(_args: argparse.Namespace) -> int:
     from . import paths
 
@@ -435,6 +459,9 @@ def build_parser() -> argparse.ArgumentParser:
     skills_cmd.add_argument("name", nargs="?")
     skills_cmd.add_argument("--yes", "-y", action="store_true")
     skills_cmd.set_defaults(handler=cmd_skills)
+
+    status_cmd = sub.add_parser("status", help="what is left to set up")
+    status_cmd.set_defaults(handler=cmd_status)
 
     paths_cmd = sub.add_parser("paths", help="where Marvi keeps everything")
     paths_cmd.set_defaults(handler=cmd_paths)

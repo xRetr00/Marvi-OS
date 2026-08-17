@@ -183,15 +183,24 @@ Chromium is a component like any other (`marvi setup browser`). A `command` kind
 covers installers that own their own download, run through `uv run` inside the
 project that pinned the tool rather than whatever is on PATH.
 
+## First run
+
+`marvi status`, or the Setup page. The minimum is **one provider and nothing
+else** — Marvi thinks, chats, remembers and uses every local tool with no models
+installed. Voice is gigabytes and vision needs a camera; both are additions to a
+working assistant rather than prerequisites for one.
+
+A first run that downloads everything before saying hello is a bad first run.
+
 ## Still open
 
 - **LiveKit and buffalo_l file hashes.** Both are in the catalog so Doctor can
   report on them, but neither downloads through this path yet: LiveKit ships a
   zip, and InsightFace fetches its own weights on first use. Listed rather than
   silently missing.
-- **First-run flow** — the minimum to say the first sentence, rather than
-  everything at once.
-- **Retiring the PowerShell installers.** Deleting a working installer before
-  its replacement is proven is how a repo ends up with neither. When they go,
-  the voice model entries move from `voice-models.json` into
-  `components.json`.
+- **A `git` source type.** `setup-voice-models.ps1` clones VibeVoice for the
+  TTS speaker voices, which is a subdirectory checkout rather than a file
+  download. Until the installer can do that, `marvi setup voice` would leave the
+  TTS model with no voice to speak in — so the PowerShell scripts remain the
+  supported path for voice, and `voice-tts-voices` is catalogued as not yet
+  fetchable so Doctor says so.

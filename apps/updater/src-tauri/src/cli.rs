@@ -17,7 +17,9 @@ pub const DEFAULT_REPO: &str = "https://github.com/xRetr00/Marvi-OS.git";
 /// Default install location for the no-argument installer path.
 pub fn default_install_root() -> String {
     let base = std::env::var("LOCALAPPDATA").unwrap_or_else(|_| ".".to_string());
-    format!("{}\\Marvi OS\\install", base.trim_end_matches('\\'))
+    // Must match STATE_DIR_NAME in the core. A space here would also mean a
+    // space in every shell command that later touches the install root.
+    format!("{}\\Marvi-OS\\install", base.trim_end_matches('\\'))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

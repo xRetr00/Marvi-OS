@@ -10,6 +10,7 @@ Components are data (`config/components.json`), not code.
 
 from __future__ import annotations
 
+from . import firstrun, hardware, mcp, skills, store
 from .catalog import Component, FileSpec, for_capability, get, install_root, load
 
 # The module is `installer` and the function is `install`; naming both the
@@ -31,12 +32,17 @@ __all__ = [
     "InstallError",
     "Outcome",
     "disk_space_for",
+    "firstrun",
     "for_capability",
     "get",
+    "hardware",
     "install",
     "install_root",
     "load",
+    "mcp",
     "plan",
     "remove",
+    "skills",
+    "store",
     "verify",
 ]

@@ -314,7 +314,7 @@ def check_livekit(host: str = "127.0.0.1", port: int = 7880) -> Finding:
             action="Start LiveKit",
             how=(
                 "Marvi starts it automatically when the server binary is "
-                "installed. Run scripts/setup-voice-models.ps1, or point "
+                "installed. Run `marvi setup voice`, or point "
                 "LIVEKIT_URL at a cloud project."
             ),
         ),

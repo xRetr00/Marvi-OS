@@ -727,6 +727,13 @@ def create_app(
         runtime_store.audit("setup", "remove", outcome.as_dict())
         return setup_page()
 
+    @app.get("/setup/first-run")
+    async def first_run() -> dict[str, Any]:
+        """What is left before Marvi is useful, and what is merely nice."""
+        from .setup import firstrun
+
+        return firstrun.status(REPO_ROOT)
+
     @app.get("/setup/hardware")
     async def setup_hardware() -> dict[str, Any]:
         """What Marvi found, and whether it needs to ask about it."""

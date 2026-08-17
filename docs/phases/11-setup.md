@@ -1,6 +1,6 @@
 # Phase 11 — Setup: dependencies, models, skills, and MCP
 
-**Status:** complete except the first-run flow and retiring the old installers
+**Status:** complete except step 8, which is blocked on one missing source type
 **Depends on:** Phase 10 (the check-and-remedy engine this is built on)
 
 ## The decision: one engine, two front ends
@@ -131,9 +131,13 @@ before downloading, install and remove per component, and the GPU question
 first — because it changes which packages get installed, and answering it
 afterwards means a multi-gigabyte reinstall.
 
-**Step 5 — first-run flow.** A new install that opens Marvi should be walked
-through the minimum: pick a provider, install voice models if voice is wanted,
-grant a microphone. Nothing else is required to say the first sentence.
+**Step 5 — first-run flow. Done.** `marvi status`, and `GET /setup/first-run`.
+The minimum is computed rather than scripted, and it is smaller than it looks:
+**one provider and nothing else.** Marvi thinks, chats, remembers and uses every
+local tool with no models at all. Voice is gigabytes and vision needs a camera;
+both are additions to a working assistant, not prerequisites for one. Steps
+report whether they are already done, so a half-set-up machine resumes rather
+than restarts.
 
 **Step 6 — MCP. Done.** The config shape every other agent uses, the two
 conventions that otherwise fail as unexplained timeouts, and a two-step add
@@ -157,25 +161,37 @@ shipping vehicle — a Rust core with a Tauri shell, not electron-builder — an
 now provisions `uv` and Node into the state directory before every build,
 install and update alike. See `docs/INSTALLER.md`.
 
-**Step 8 — retire the PowerShell setup scripts.** The install root is already
-unified; models live under `Marvi-OS` while logs and databases live under
-`Marvi OS`, which is two confusingly similar folders. Both changes touch the
-same code, and doing them together means one migration rather than two.
-Until then they stay and are documented as the older path, because deleting a
-working installer before its replacement is proven is how a repo ends up with
-neither.
+**Step 8 — retire the PowerShell setup scripts. Blocked, deliberately.**
+
+The install root is already unified, so half of what this step was for is done.
+The scripts stay because of one specific gap, found by reading them rather than
+assuming: `setup-voice-models.ps1` does not only download from Hugging Face. It
+also **clones VibeVoice and copies `demo/voices/streaming_model/*.pt`** — a git
+checkout of a subdirectory, which is the one source type the new installer
+cannot do.
+
+Retiring them today would mean a `marvi setup voice` that installs the TTS model
+and leaves it with no voice to speak in. So `voice-tts-voices` is catalogued as
+not yet fetchable, Doctor reports it, and the scripts remain the supported path
+for voice until a `git` source type exists.
+
+Deleting a working installer before its replacement covers it is how a repo ends
+up with neither.
 
 ## Acceptance evidence
 
-- A clean machine reaches a working voice session with one command and no manual
-  file copying.
-- A deliberately corrupted model is detected by hash and re-downloaded.
-- An interrupted download resumes rather than restarting.
-- Re-running setup on a complete install changes nothing and says so.
-- `marvi doctor` works with the Gateway stopped and the desktop app closed.
-- Adding an MCP server requires confirming the exact command; its tools then
-  appear in the router with confirmation and audit intact.
-- A skill claiming new permissions for itself does not receive them.
+| Evidence | State |
+|---|---|
+| A corrupted model is detected by hash, not by existence | **done** |
+| An interrupted download resumes rather than restarting | **done** |
+| Re-running setup on a complete install changes nothing and says so | **done** |
+| `marvi doctor` works with the Gateway stopped and the app closed | **done** |
+| Adding an MCP server confirms the exact command first | **done** — two-step, single-use token bound to the argv |
+| A skill claiming new permissions does not receive them | **done** — intersected with policy, never widened |
+| Every install path asks about the GPU before installing PyTorch | **done** |
+| One state directory, agreed by Rust, TypeScript and Python | **done** — asserted by a test on each side |
+| The installer provisions `uv` and Node, and re-checks on update | **done** |
+| A clean machine reaches a working voice session with one command | **open** — needs the `git` source type for the TTS voices |
 - `remove` leaves nothing behind outside the repo.
 
 ## Open questions
