@@ -117,13 +117,22 @@ pub fn run_shell_with_timeout(
 #[cfg(windows)]
 pub fn process_alive(pid: u32) -> bool {
     let filter = format!("PID eq {pid}");
-    let output = Command::new("tasklist").args(["/FI", &filter, "/NH"]).output();
+    // CSV, because "any non-empty line" is wrong: when nothing matches,
+    // tasklist prints "INFO: No tasks are running which match the specified
+    // criteria." to *stdout*. Treating that as a match makes every dead process
+    // look alive - which made `wait_for_exit` never return, so every update
+    // aborted with "Marvi OS did not exit in time".
+    let output = Command::new("tasklist")
+        .args(["/FI", &filter, "/NH", "/FO", "CSV"])
+        .output();
     match output {
         Ok(out) => {
             let text = String::from_utf8_lossy(&out.stdout);
-            // The header is suppressed with /NH, so any non-empty line means a
-            // process matched the filter.
-            text.lines().any(|l| !l.trim().is_empty())
+            // A real row is quoted CSV and carries the pid as its own field.
+            // The INFO line is neither.
+            let needle = format!("\"{pid}\"");
+            text.lines()
+                .any(|line| line.trim_start().starts_with('"') && line.contains(&needle))
         }
         Err(_) => true, // can't determine: treat as alive (fail closed)
     }
@@ -148,6 +157,20 @@ mod tests {
     #[test]
     fn epoch_ms_increases_or_is_zero() {
         assert!(epoch_ms() > 0);
+    }
+
+    #[test]
+    fn this_process_is_alive() {
+        assert!(process_alive(std::process::id()));
+    }
+
+    #[test]
+    fn a_dead_pid_is_not_reported_alive() {
+        // The regression that matters: tasklist prints "INFO: No tasks are
+        // running..." to stdout, and counting that as a match made every dead
+        // process look alive - so wait_for_exit never returned and every update
+        // aborted with "Marvi OS did not exit in time".
+        assert!(!process_alive(4_294_967_294));
     }
 
     #[test]

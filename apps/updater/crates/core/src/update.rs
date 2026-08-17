@@ -72,6 +72,17 @@ pub fn run_update(cfg: &mut UpdateConfig, progress: &mut dyn FnMut(&str)) -> Upd
     let _ = marker::write_marker(&cfg.state_dir);
     let root = cfg.install_root.clone();
 
+    // One installer at a time. Two doing `git checkout` and `npm ci` in the
+    // same directory corrupts the checkout with no clear cause.
+    let _lock = match crate::singleton::acquire(&cfg.state_dir) {
+        Ok(lock) => lock,
+        Err(message) => {
+            let out = UpdateOutcome::new("aborted", message);
+            finish(cfg, &out, false);
+            return out;
+        }
+    };
+
     // -- preflight: the desktop must actually exit (fails closed) ----------
     // If the app is still running the finish step must not relaunch, or the
     // user ends up with two instances.
@@ -85,6 +96,14 @@ pub fn run_update(cfg: &mut UpdateConfig, progress: &mut dyn FnMut(&str)) -> Upd
             finish(cfg, &out, false);
             return out;
         }
+    }
+
+    // The desktop exiting is not enough: its children outlive it, and one of
+    // them still holding a file is the difference between an update that works
+    // and one that fails inside git.
+    let stopped = crate::singleton::clear_install_root(&root, progress);
+    if !stopped.is_empty() {
+        progress(&format!("stopped {}", stopped.join(", ")));
     }
 
     // -- preflight: usable, clean checkout ---------------------------------

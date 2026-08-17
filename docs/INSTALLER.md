@@ -87,10 +87,48 @@ hyphenated folder. Two nearly identical names is confusing to look at, and a
 space in a path is a nuisance in every shell. Anything left in the old folder is
 migrated on first run and the old copies are left in place rather than deleted.
 
+## One at a time
+
+**The desktop takes a single-instance lock.** Two instances would each start a
+Gateway on 8765, an agent joining the same LiveKit room, and a vision loop on
+the same camera — the second of each failing in a way that looks like a bug
+rather than like a second copy, while both write the same databases. A second
+launch surfaces the first window instead.
+
+**The bootstrap takes a file lock** in the state directory. Double-clicking the
+installer twice, or clicking Update while an install is finishing, would
+otherwise run two `git checkout` and `npm ci` passes in one directory. A stale
+lock from a crash is reclaimed rather than treated as fatal.
+
+## Shutting down properly
+
+`child.kill()` ends `uv` and leaves the Python it started running. Every Marvi
+service is `uv` launching something, so the process that holds the port and the
+checkout is a **grandchild**, and on Windows a held file makes `git checkout`
+and `npm ci` fail.
+
+So three things happen:
+
+- the desktop kills the whole tree on quit (`taskkill /T` on Windows, process
+  group elsewhere), politely first and then not;
+- it sweeps for strays at startup, matched by command line rather than by
+  executable name, since `python.exe` says nothing and `marvi_gateway` is
+  unambiguous;
+- the updater clears anything holding the install root before it applies,
+  because the desktop exiting is not the same as its children exiting.
+
 ## Releases
 
-Each release ships a package the updater applies, rather than an installer the
-user re-runs. The updater is only re-shipped when the updater itself changes.
+**There is no per-release installer.** The updater clones the tag and builds it
+on the machine, so the tag is the payload; the release attaches the bootstrap
+binary and a checksum for first-time installs, and GitHub's own source archives
+are the rest.
+
+That makes the CI gates the important part. A tag that cannot be built is a tag
+that breaks every Dev-channel update, and the failure lands on a user's machine
+rather than in the workflow. So the release job runs the full suite — desktop,
+gateway, agent, bootstrap — and then runs **`npm run build:unpack`, the exact
+build the updater will run**, and smoke-tests its output.
 
 So the release contract is:
 

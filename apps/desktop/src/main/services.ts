@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { log as writeLog } from './logger'
+import { groupSpawnOptions, isAlive, killTree, stopTree } from './processes'
 
 /**
  * Starting the local services, and knowing when they did not start.
@@ -122,7 +123,11 @@ class Service {
         windowsHide: true,
         // Piped, not ignored. This is the whole point.
         stdio: ['ignore', 'pipe', 'pipe'],
-        env: { ...process.env, ...this.spec.env }
+        env: { ...process.env, ...this.spec.env },
+        // Its own process group, so the whole tree can be signalled at once.
+        // Every service here is `uv` launching Python, so the process that
+        // matters is a grandchild.
+        ...groupSpawnOptions()
       })
     } catch (error) {
       this.fail(`could not launch ${this.spec.command}: ${String(error)}`)
@@ -189,12 +194,35 @@ class Service {
     this.timer = setTimeout(() => this.start(), wait)
   }
 
+  /**
+   * Stop this service and everything it started.
+   *
+   * `child.kill()` would end `uv` and leave the Python it spawned running,
+   * holding the port and the checkout. That orphan then breaks the next update
+   * and fights the next launch for 8765.
+   */
   stop(): void {
     this.stopping = true
     if (this.timer) clearTimeout(this.timer)
     this.timer = null
-    this.child?.kill()
+    const child = this.child
     this.child = null
+    if (!child) return
+    void stopTree(child).catch(() => killTree(child.pid, true))
+  }
+
+  /** Synchronous, for `will-quit` where a promise will not be awaited. */
+  stopNow(): void {
+    this.stopping = true
+    if (this.timer) clearTimeout(this.timer)
+    this.timer = null
+    const pid = this.child?.pid
+    this.child = null
+    if (pid) killTree(pid, true)
+  }
+
+  alive(): boolean {
+    return isAlive(this.child?.pid)
   }
 
   /** Clear the failure count and try again now — the Doctor's retry button. */
@@ -221,6 +249,11 @@ export class ServiceSupervisor {
 
   stopAll(): void {
     for (const service of this.services.values()) service.stop()
+  }
+
+  /** Immediate, for quit: Electron will not wait for a promise there. */
+  stopAllNow(): void {
+    for (const service of this.services.values()) service.stopNow()
   }
 
   retry(name: string): boolean {

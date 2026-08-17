@@ -1,13 +1,17 @@
 name: Release
 
-# Release flow (see docs/DECISIONS.md ADR-016):
+# Release flow:
 #   scripts/release.ps1  ->  bump VERSION + package.json, tag v<semver>, push
-#   tag push             ->  this workflow: gates, Windows build, GitHub Release
+#   tag push             ->  this workflow: gates, bootstrap build, GitHub Release
 #
-# Publishing is tag-driven only. Plain branch pushes never build installers,
-# and the repo's electron-builder publish config stays disabled so a stray
-# local build can never publish. workflow_dispatch does a dry-run build and
-# uploads artifacts without creating a release.
+# There is no per-release installer. Marvi is installed and updated by the
+# bootstrap (apps/updater), which clones the tag and builds it on the machine.
+# So the release artifact is the bootstrap binary plus checksums, and the tag
+# itself is the payload.
+#
+# That makes the gates the important part of this file. A tag that cannot be
+# built is a tag that breaks every Dev-channel update, and the failure lands on
+# the user's machine rather than here.
 
 on:
   push:
@@ -63,64 +67,96 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Install dependencies
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      # -- gates ------------------------------------------------------------
+      # Everything a user's machine would run, run here first. The build gate
+      # in particular: the updater runs `build:unpack` on the tag, so a tag
+      # that fails it is a tag that bricks every update.
+
+      - name: Install Node dependencies
         run: npm ci
 
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Tests
+      - name: Lint
+        run: npm run lint
+
+      - name: Desktop tests
         run: npm test
 
-      - name: Build renderer + main
+      - name: Gateway tests
+        run: uv run --project services/gateway pytest -q services/gateway/tests
+
+      - name: Gateway lint
+        run: uv run --project services/gateway ruff check .
+
+      - name: Agent tests
+        run: uv run --project services/agent pytest -q services/agent/tests
+
+      - name: Bootstrap tests
+        working-directory: apps/updater
+        run: cargo test --workspace
+
+      - name: Build the app exactly as the updater will
         shell: bash
         env:
           MARVI_BUILD_COMMIT: ${{ github.sha }}
           MARVI_BUILD_TIME: ${{ github.event_name == 'push' && github.event.head_commit.timestamp || '' }}
-        run: npm run build
+        run: npm run build:unpack
 
-      - name: Build Windows installer
-        run: npm run build:win
+      - name: Smoke test the build output
+        shell: bash
+        run: |
+          # The same check the updater makes before swapping a build into place.
+          test -f apps/desktop/out/main/index.js || {
+            echo "::error::build:unpack produced no Electron entrypoint"
+            exit 1
+          }
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+      # -- the artifact -------------------------------------------------------
 
       - name: Build Marvi Bootstrap (installer + updater)
         working-directory: apps/updater
         run: cargo build --release -p marvi-bootstrap
 
-      - name: List artifacts
+      - name: Checksums
         shell: bash
         run: |
-          ls -la apps/desktop/dist
-          ls -la apps/updater/target/release/marvi-bootstrap.exe
+          mkdir -p release
+          cp apps/updater/target/release/marvi-bootstrap.exe release/
+          cd release
+          sha256sum marvi-bootstrap.exe > SHA256SUMS.txt
+          cat SHA256SUMS.txt
 
       - name: Upload artifacts (dry run only)
         if: steps.version.outputs.dry_run == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: marvi-os-${{ steps.version.outputs.version }}-win-x64
-          path: |
-            apps/desktop/dist/*.exe
-            apps/desktop/dist/*.yml
-            apps/updater/target/release/marvi-bootstrap.exe
+          name: marvi-bootstrap-${{ steps.version.outputs.version }}-win-x64
+          path: release/*
           if-no-files-found: error
 
       - name: Generate release notes
         if: steps.version.outputs.dry_run == 'false'
-        id: notes
         shell: bash
         run: |
           PREV_TAG="$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true)"
-          if [ -n "$PREV_TAG" ]; then
-            RANGE="$PREV_TAG..HEAD"
-          else
-            RANGE="HEAD"
-          fi
+          if [ -n "$PREV_TAG" ]; then RANGE="$PREV_TAG..HEAD"; else RANGE="HEAD"; fi
           {
             echo "## Marvi OS v${{ steps.version.outputs.version }}"
             echo
-            echo "Windows x64 installer. SHA-256 checksums are in the asset list below the notes."
+            echo "**Already have Marvi?** It updates itself — nothing here to download."
+            echo
+            echo "**New install:** download \`marvi-bootstrap.exe\` and run it. It"
+            echo "installs \`uv\` and Node, clones this tag, and builds it."
             echo
             echo "### Changes"
             git log --no-merges --pretty=format:"- %s (%h)" "$RANGE"
@@ -133,10 +169,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # The source archives GitHub attaches are the actual payload: the
+          # updater clones the tag. The bootstrap is only for a first install.
           gh release create "v${{ steps.version.outputs.version }}" \
             --repo "${{ github.repository }}" \
             --title "Marvi OS v${{ steps.version.outputs.version }}" \
             --notes-file release-notes.md \
-            apps/desktop/dist/*.exe \
-            apps/desktop/dist/*.yml \
-            apps/updater/target/release/marvi-bootstrap.exe
+            release/marvi-bootstrap.exe \
+            release/SHA256SUMS.txt

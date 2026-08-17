@@ -55,6 +55,13 @@ pub fn install(cfg: &mut InstallConfig, progress: &mut dyn FnMut(&str)) -> Insta
         installed_at: cfg.install_root.clone(),
     };
 
+    // Held for the whole install. Someone who double-clicks the installer twice
+    // would otherwise get two clones and two builds in the same directory.
+    let _lock = match crate::singleton::acquire(&cfg.state_dir) {
+        Ok(lock) => lock,
+        Err(message) => return fail(message),
+    };
+
     if cfg.install_root.exists() {
         let non_empty = std::fs::read_dir(&cfg.install_root)
             .map(|mut d| d.next().is_some())

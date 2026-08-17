@@ -6,6 +6,7 @@ import icon from '../../resources/icon.png?asset'
 import trayIcon from '../../resources/tray-icon.png?asset'
 import { gatewayBind, gatewayUrl, livekitBind, livekitServerPath, logsDir } from './config'
 import { configure as configureLogging, desktop, installCatchers } from './logger'
+import { killStrays } from './processes'
 import { offlineRuntime, normalizeRuntimeStatus } from './gateway-runtime'
 import { type ServiceReport, ServiceSupervisor, findUv } from './services'
 import {
@@ -188,6 +189,12 @@ function startVoiceStack(): void {
     })
     return
   }
+
+  // Anything left running from a session that did not shut down cleanly. An
+  // orphaned Gateway holds port 8765, and the new one then fails to bind for a
+  // reason that looks like nothing at all.
+  const strays = killStrays(repoRoot ?? undefined)
+  if (strays > 0) desktop.warn(`stopped ${strays} leftover process(es) from a previous session`)
 
   const uv = findUv()
   if (!uv) {
@@ -434,553 +441,579 @@ function createTray(): Tray {
   return instance
 }
 
-app.whenReady().then(() => {
-  app.setAppUserModelId('ai.neuretro.marvi-os')
-  startVoiceStack()
-
-  ipcMain.handle('marvi:get-version', () => app.getVersion())
-  ipcMain.handle('marvi:get-build-info', () => ({
-    version: app.getVersion(),
-    commit: process.env['MARVI_BUILD_COMMIT'] ?? 'development',
-    buildTime: process.env['MARVI_BUILD_TIME'] ?? 'development',
-    platform: process.platform,
-    arch: process.arch,
-    updateChannel: getUpdateChannel(updateStateDir(process.env['LOCALAPPDATA']))
-  }))
-  ipcMain.handle('marvi:get-runtime', () => runtimeStatus)
-  ipcMain.handle('marvi:get-voice-session', async () => {
-    const response = await fetch(`${gateway()}/livekit/session`, {
-      method: 'POST',
-      signal: AbortSignal.timeout(2_000)
-    })
-    if (!response.ok) throw new Error(`Gateway returned HTTP ${response.status}`)
-    const value = (await response.json()) as Record<string, unknown>
-    if (
-      typeof value.url !== 'string' ||
-      typeof value.room !== 'string' ||
-      typeof value.token !== 'string'
-    ) {
-      throw new Error('Gateway returned an invalid LiveKit session')
+// One Marvi, and only one.
+//
+// Two instances would each start a Gateway on 8765, an agent joining the same
+// LiveKit room, and a vision loop on the same camera. The second of each fails
+// in a way that looks like a bug rather than like a second copy, and both would
+// write to the same databases. Electron's lock is the cheapest way to make that
+// impossible; the second launch just surfaces the first.
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    showMainWindow()
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.focus()
     }
-    return { url: value.url, room: value.room, token: value.token }
   })
-  ipcMain.handle('marvi:get-displays', () =>
-    screen.getAllDisplays().map((display, index) => ({
-      id: display.id,
-      label: display.label || `Display ${index + 1}`,
-      primary: display.id === screen.getPrimaryDisplay().id
+  void startApp()
+}
+
+function startApp(): void {
+  app.whenReady().then(() => {
+    app.setAppUserModelId('ai.neuretro.marvi-os')
+    startVoiceStack()
+
+    ipcMain.handle('marvi:get-version', () => app.getVersion())
+    ipcMain.handle('marvi:get-build-info', () => ({
+      version: app.getVersion(),
+      commit: process.env['MARVI_BUILD_COMMIT'] ?? 'development',
+      buildTime: process.env['MARVI_BUILD_TIME'] ?? 'development',
+      platform: process.platform,
+      arch: process.arch,
+      updateChannel: getUpdateChannel(updateStateDir(process.env['LOCALAPPDATA']))
     }))
-  )
-  ipcMain.handle('marvi:get-island-placement', () => islandPlacement)
-  ipcMain.handle('marvi:set-island-placement', (_event, value) => {
-    if (!value || typeof value !== 'object') return islandPlacement
-    const candidate = value as Partial<IslandPlacement>
-    const displayExists =
-      candidate.displayId === null ||
-      (typeof candidate.displayId === 'number' &&
-        screen.getAllDisplays().some((display) => display.id === candidate.displayId))
-    const alignmentIsValid =
-      candidate.alignment === 'left' ||
-      candidate.alignment === 'center' ||
-      candidate.alignment === 'right'
-    if (!displayExists || !alignmentIsValid) return islandPlacement
-    if (!alignmentIsValid) return islandPlacement
-    islandPlacement = {
-      displayId: candidate.displayId ?? null,
-      alignment: candidate.alignment as IslandPlacement['alignment']
-    }
-    if (islandWindow && !islandWindow.isDestroyed()) {
-      sizeAndPositionIsland(islandWindow, islandContentSize)
-    }
-    return islandPlacement
-  })
-  ipcMain.handle('marvi:set-yolo', async (_event, yolo) => {
-    if (typeof yolo !== 'boolean') return runtimeStatus
-    try {
-      return publishRuntime(
-        await gatewayRequest('/runtime/mode', {
-          method: 'PUT',
-          body: JSON.stringify({ yolo })
+    ipcMain.handle('marvi:get-runtime', () => runtimeStatus)
+    ipcMain.handle('marvi:get-voice-session', async () => {
+      const response = await fetch(`${gateway()}/livekit/session`, {
+        method: 'POST',
+        signal: AbortSignal.timeout(2_000)
+      })
+      if (!response.ok) throw new Error(`Gateway returned HTTP ${response.status}`)
+      const value = (await response.json()) as Record<string, unknown>
+      if (
+        typeof value.url !== 'string' ||
+        typeof value.room !== 'string' ||
+        typeof value.token !== 'string'
+      ) {
+        throw new Error('Gateway returned an invalid LiveKit session')
+      }
+      return { url: value.url, room: value.room, token: value.token }
+    })
+    ipcMain.handle('marvi:get-displays', () =>
+      screen.getAllDisplays().map((display, index) => ({
+        id: display.id,
+        label: display.label || `Display ${index + 1}`,
+        primary: display.id === screen.getPrimaryDisplay().id
+      }))
+    )
+    ipcMain.handle('marvi:get-island-placement', () => islandPlacement)
+    ipcMain.handle('marvi:set-island-placement', (_event, value) => {
+      if (!value || typeof value !== 'object') return islandPlacement
+      const candidate = value as Partial<IslandPlacement>
+      const displayExists =
+        candidate.displayId === null ||
+        (typeof candidate.displayId === 'number' &&
+          screen.getAllDisplays().some((display) => display.id === candidate.displayId))
+      const alignmentIsValid =
+        candidate.alignment === 'left' ||
+        candidate.alignment === 'center' ||
+        candidate.alignment === 'right'
+      if (!displayExists || !alignmentIsValid) return islandPlacement
+      if (!alignmentIsValid) return islandPlacement
+      islandPlacement = {
+        displayId: candidate.displayId ?? null,
+        alignment: candidate.alignment as IslandPlacement['alignment']
+      }
+      if (islandWindow && !islandWindow.isDestroyed()) {
+        sizeAndPositionIsland(islandWindow, islandContentSize)
+      }
+      return islandPlacement
+    })
+    ipcMain.handle('marvi:set-yolo', async (_event, yolo) => {
+      if (typeof yolo !== 'boolean') return runtimeStatus
+      try {
+        return publishRuntime(
+          await gatewayRequest('/runtime/mode', {
+            method: 'PUT',
+            body: JSON.stringify({ yolo })
+          })
+        )
+      } catch {
+        return publishRuntime(offlineRuntime(app.getVersion()))
+      }
+    })
+    ipcMain.handle('marvi:resolve-confirmation', async (_event, token, decision) => {
+      if (typeof token !== 'string' || (decision !== 'approve' && decision !== 'deny')) {
+        return runtimeStatus
+      }
+      // The approval is bound to the arguments the Island actually displayed. Anything
+      // else and the Gateway burns the token rather than executing a different action.
+      const pending = runtimeStatus.assistant.confirmation
+      if (!pending || pending.token !== token) return runtimeStatus
+      try {
+        const response = await fetch(`${gateway()}/confirmations/${encodeURIComponent(token)}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ decision, arguments: pending.arguments }),
+          signal: AbortSignal.timeout(10_000)
         })
-      )
-    } catch {
-      return publishRuntime(offlineRuntime(app.getVersion()))
-    }
-  })
-  ipcMain.handle('marvi:resolve-confirmation', async (_event, token, decision) => {
-    if (typeof token !== 'string' || (decision !== 'approve' && decision !== 'deny')) {
-      return runtimeStatus
-    }
-    // The approval is bound to the arguments the Island actually displayed. Anything
-    // else and the Gateway burns the token rather than executing a different action.
-    const pending = runtimeStatus.assistant.confirmation
-    if (!pending || pending.token !== token) return runtimeStatus
-    try {
-      const response = await fetch(`${gateway()}/confirmations/${encodeURIComponent(token)}`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ decision, arguments: pending.arguments }),
-        signal: AbortSignal.timeout(10_000)
-      })
-      const body = (await response.json()) as { runtime?: unknown }
-      const normalized = normalizeRuntimeStatus(body.runtime)
-      return normalized ? publishRuntime(normalized) : await refreshGatewayRuntime()
-    } catch {
-      return runtimeStatus
-    }
-  })
-  ipcMain.handle('marvi:get-audit', async () => {
-    try {
-      const response = await fetch(`${gateway()}/audit?limit=100`, {
-        signal: AbortSignal.timeout(1_500)
-      })
-      if (!response.ok) return []
-      const body = (await response.json()) as { events?: unknown }
-      return Array.isArray(body.events) ? body.events : []
-    } catch {
-      return []
-    }
-  })
-  ipcMain.handle('marvi:get-update-status', () => {
-    const root = findRepoRoot() ?? ''
-    const stateDir = updateStateDir(process.env['LOCALAPPDATA'])
-    const bootstrap = resolveBootstrap(stateDir)
-    return {
-      supported: canUpdate(root, bootstrap),
-      inProgress: updateInProgress(stateDir),
-      channel: getUpdateChannel(stateDir),
-      root
-    }
-  })
-  ipcMain.handle('marvi:consume-update-result', () =>
-    consumeUpdateResult(updateStateDir(process.env['LOCALAPPDATA']))
-  )
-  ipcMain.handle('marvi:get-update-channel', () =>
-    getUpdateChannel(updateStateDir(process.env['LOCALAPPDATA']))
-  )
-  ipcMain.handle('marvi:set-update-channel', (_event, channel) => {
-    if (channel !== 'release' && channel !== 'dev') {
-      return getUpdateChannel(updateStateDir(process.env['LOCALAPPDATA']))
-    }
-    return setUpdateChannel(updateStateDir(process.env['LOCALAPPDATA']), channel)
-  })
-  ipcMain.handle('marvi:check-update', async () => {
-    const root = findRepoRoot()
-    const stateDir = updateStateDir(process.env['LOCALAPPDATA'])
-    const channel = getUpdateChannel(stateDir)
-    const bootstrap = resolveBootstrap(stateDir)
-    if (!root || !bootstrap || !canUpdate(root, bootstrap)) {
-      return {
-        channel,
-        available: false,
-        upToDate: false,
-        behindBy: 0,
-        error: 'This installation cannot self-update.'
+        const body = (await response.json()) as { runtime?: unknown }
+        const normalized = normalizeRuntimeStatus(body.runtime)
+        return normalized ? publishRuntime(normalized) : await refreshGatewayRuntime()
+      } catch {
+        return runtimeStatus
       }
-    }
-    return checkForUpdate(root, channel, bootstrap)
-  })
-  ipcMain.handle('marvi:start-update', () => {
-    const root = findRepoRoot()
-    if (!root) return false
-    const stateDir = updateStateDir(process.env['LOCALAPPDATA'])
-    const bootstrap = resolveBootstrap(stateDir)
-    const started = startUpdate(
-      {
-        installRoot: root,
+    })
+    ipcMain.handle('marvi:get-audit', async () => {
+      try {
+        const response = await fetch(`${gateway()}/audit?limit=100`, {
+          signal: AbortSignal.timeout(1_500)
+        })
+        if (!response.ok) return []
+        const body = (await response.json()) as { events?: unknown }
+        return Array.isArray(body.events) ? body.events : []
+      } catch {
+        return []
+      }
+    })
+    ipcMain.handle('marvi:get-update-status', () => {
+      const root = findRepoRoot() ?? ''
+      const stateDir = updateStateDir(process.env['LOCALAPPDATA'])
+      const bootstrap = resolveBootstrap(stateDir)
+      return {
+        supported: canUpdate(root, bootstrap),
+        inProgress: updateInProgress(stateDir),
         channel: getUpdateChannel(stateDir),
-        desktopPid: process.pid,
-        relaunchExe: process.execPath
-      },
-      bootstrap
-    )
-    if (started) {
-      // The bootstrap waits for this process to exit before touching the
-      // checkout, so quitting is part of the handoff, not a side effect.
-      isQuitting = true
-      setTimeout(() => app.quit(), 250)
-    }
-    return started
-  })
-  ipcMain.handle('marvi:get-initiative', async () => {
-    try {
-      const response = await fetch(`${gateway()}/initiative`, {
-        signal: AbortSignal.timeout(2_000)
-      })
-      if (!response.ok) return null
-      return await response.json()
-    } catch {
-      return null
-    }
-  })
-  ipcMain.handle('marvi:set-initiative', async (_event, paused) => {
-    if (typeof paused !== 'boolean') return null
-    try {
-      const response = await fetch(`${gateway()}/initiative`, {
-        method: 'PUT',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ paused }),
-        signal: AbortSignal.timeout(3_000)
-      })
-      return response.ok ? await response.json() : null
-    } catch {
-      return null
-    }
-  })
-  ipcMain.handle('marvi:get-decisions', async () => {
-    try {
-      const response = await fetch(`${gateway()}/mind/decisions?limit=60`, {
-        signal: AbortSignal.timeout(2_000)
-      })
-      if (!response.ok) return { decisions: [], events: [] }
-      return await response.json()
-    } catch {
-      return { decisions: [], events: [] }
-    }
-  })
-  ipcMain.handle('marvi:get-memory', async () => {
-    try {
-      const response = await fetch(`${gateway()}/memory?limit=60`, {
-        signal: AbortSignal.timeout(2_000)
-      })
-      if (!response.ok) return { total: 0, entries: [], summary: {} }
-      return await response.json()
-    } catch {
-      return { total: 0, entries: [], summary: {} }
-    }
-  })
-  ipcMain.handle('marvi:clear-memory', async () => {
-    try {
-      const response = await fetch(`${gateway()}/memory`, {
-        method: 'DELETE',
-        signal: AbortSignal.timeout(5_000)
-      })
-      return response.ok
-    } catch {
-      return false
-    }
-  })
-  ipcMain.handle('marvi:get-accounts', async () => {
-    try {
-      const response = await fetch(`${gateway()}/accounts`, {
-        signal: AbortSignal.timeout(5_000)
-      })
-      if (!response.ok) return { available: false, detail: 'Gateway unavailable', accounts: [] }
-      const body = (await response.json()) as {
-        available?: boolean
-        detail?: string
-        accounts?: Array<Record<string, unknown>>
+        root
       }
-      return {
-        available: Boolean(body.available),
-        detail: typeof body.detail === 'string' ? body.detail : '',
-        accounts: (body.accounts ?? []).map((row) => ({
-          toolkit: String(row.toolkit ?? ''),
-          status: String(row.status ?? ''),
-          connected: Boolean(row.connected),
-          needsReconnect: Boolean(row.needs_reconnect)
-        }))
-      }
-    } catch {
-      return { available: false, detail: 'Gateway unavailable', accounts: [] }
-    }
-  })
-  ipcMain.handle('marvi:get-setup', () => gatewayJson('/setup'))
-  ipcMain.handle('marvi:get-hardware', () => gatewayJson('/setup/hardware'))
-  ipcMain.handle('marvi:set-hardware', (_event, useGpu) =>
-    gatewayJson('/setup/hardware', {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ use_gpu: Boolean(useGpu) })
     })
-  )
-  ipcMain.handle('marvi:install-component', (_event, name) =>
-    // Gigabytes: the timeout has to allow for a real download on a real line.
-    gatewayJson(`/setup/${encodeURIComponent(String(name))}/install`, { method: 'POST' }, 1_800_000)
-  )
-  ipcMain.handle('marvi:remove-component', (_event, name) =>
-    gatewayJson(`/setup/${encodeURIComponent(String(name))}/remove`, { method: 'POST' })
-  )
-  ipcMain.handle('marvi:get-skill-store', () => gatewayJson('/skills/store', undefined, 60_000))
-  ipcMain.handle('marvi:review-skill', (_event, repo, path) =>
-    gatewayJson(
-      '/skills/review',
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ repo, path })
-      },
-      60_000
+    ipcMain.handle('marvi:consume-update-result', () =>
+      consumeUpdateResult(updateStateDir(process.env['LOCALAPPDATA']))
     )
-  )
-  ipcMain.handle('marvi:install-skill', (_event, staged) =>
-    gatewayJson('/skills/install', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ staged })
-    })
-  )
-  ipcMain.handle('marvi:remove-skill', (_event, name) =>
-    gatewayJson(`/skills/${encodeURIComponent(String(name))}`, { method: 'DELETE' })
-  )
-  ipcMain.handle('marvi:get-mcp', () => gatewayJson('/mcp'))
-  ipcMain.handle('marvi:run-doctor', async () => {
-    try {
-      const response = await fetch(`${gateway()}/doctor`, {
-        signal: AbortSignal.timeout(20_000)
-      })
-      return response.ok ? await response.json() : null
-    } catch {
-      return null
-    }
-  })
-  ipcMain.handle('marvi:heal-doctor', async (_event, includeConfirmed) => {
-    try {
-      const response = await fetch(`${gateway()}/doctor/heal`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ include_confirmed: Boolean(includeConfirmed) }),
-        signal: AbortSignal.timeout(120_000)
-      })
-      return response.ok ? await response.json() : null
-    } catch {
-      return null
-    }
-  })
-  ipcMain.handle('marvi:copy-diagnostics', async () => {
-    try {
-      const response = await fetch(`${gateway()}/doctor/diagnostics`, {
-        signal: AbortSignal.timeout(20_000)
-      })
-      if (!response.ok) return null
-      return ((await response.json()) as { text?: string }).text ?? null
-    } catch {
-      return null
-    }
-  })
-  ipcMain.handle('marvi:get-logs', async (_event, subsystem) => {
-    const name = typeof subsystem === 'string' && subsystem ? subsystem : 'errors'
-    try {
-      const response = await fetch(`${gateway()}/logs?subsystem=${encodeURIComponent(name)}`, {
-        signal: AbortSignal.timeout(8_000)
-      })
-      return response.ok ? await response.json() : null
-    } catch {
-      return null
-    }
-  })
-  ipcMain.handle('marvi:get-chat', async () => {
-    try {
-      const response = await fetch(`${gateway()}/chat`, { signal: AbortSignal.timeout(4_000) })
-      return response.ok ? await response.json() : { messages: [], available: false }
-    } catch {
-      return { messages: [], available: false }
-    }
-  })
-  ipcMain.handle('marvi:send-chat', async (_event, message) => {
-    if (typeof message !== 'string') return null
-    try {
-      const response = await fetch(`${gateway()}/chat`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ message }),
-        // A tool round trip can be slow; a short timeout would look like a bug.
-        signal: AbortSignal.timeout(180_000)
-      })
-      return response.ok ? await response.json() : null
-    } catch {
-      return null
-    }
-  })
-  ipcMain.handle('marvi:clear-chat', async () => {
-    try {
-      const response = await fetch(`${gateway()}/chat`, {
-        method: 'DELETE',
-        signal: AbortSignal.timeout(5_000)
-      })
-      return response.ok
-    } catch {
-      return false
-    }
-  })
-  ipcMain.handle('marvi:get-services', () => serviceReports)
-  ipcMain.handle('marvi:retry-service', (_event, name) => {
-    if (typeof name !== 'string' || !supervisor) return false
-    return supervisor.retry(name)
-  })
-  ipcMain.handle('marvi:get-providers', async () => {
-    try {
-      const response = await fetch(`${gateway()}/providers`, {
-        signal: AbortSignal.timeout(5_000)
-      })
-      if (!response.ok) return null
-      return normaliseProviderPage(await response.json())
-    } catch {
-      return null
-    }
-  })
-  ipcMain.handle('marvi:set-provider-settings', async (_event, values) => {
-    if (typeof values !== 'object' || values === null) return null
-    try {
-      const response = await fetch(`${gateway()}/providers/settings`, {
-        method: 'PUT',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ values }),
-        signal: AbortSignal.timeout(8_000)
-      })
-      return response.ok ? normaliseProviderPage(await response.json()) : null
-    } catch {
-      return null
-    }
-  })
-  ipcMain.handle('marvi:start-oauth', async (_event, name) => {
-    if (typeof name !== 'string') return { ok: false, detail: 'no provider' }
-    try {
-      const response = await fetch(`${gateway()}/providers/${name}/oauth/start`, {
-        method: 'POST',
-        signal: AbortSignal.timeout(8_000)
-      })
-      const body = (await response.json()) as { url?: string; detail?: string }
-      if (!response.ok || !body.url) {
-        return { ok: false, detail: body.detail ?? 'could not start sign-in' }
+    ipcMain.handle('marvi:get-update-channel', () =>
+      getUpdateChannel(updateStateDir(process.env['LOCALAPPDATA']))
+    )
+    ipcMain.handle('marvi:set-update-channel', (_event, channel) => {
+      if (channel !== 'release' && channel !== 'dev') {
+        return getUpdateChannel(updateStateDir(process.env['LOCALAPPDATA']))
       }
-      // The provider's own login page, in the user's own browser. Marvi never
-      // renders it and never sees what is typed into it.
-      void shell.openExternal(body.url)
-      return { ok: true, detail: '' }
-    } catch {
-      return { ok: false, detail: 'Marvi Gateway is unavailable' }
-    }
-  })
-  ipcMain.handle('marvi:poll-oauth', async (_event, name) => {
-    if (typeof name !== 'string') return null
-    try {
-      const response = await fetch(`${gateway()}/providers/${name}/oauth/status`, {
-        signal: AbortSignal.timeout(5_000)
-      })
-      return response.ok ? await response.json() : null
-    } catch {
-      return null
-    }
-  })
-  ipcMain.handle('marvi:disconnect-provider', async (_event, name) => {
-    if (typeof name !== 'string') return null
-    try {
-      const response = await fetch(`${gateway()}/providers/${name}/disconnect`, {
-        method: 'POST',
-        signal: AbortSignal.timeout(8_000)
-      })
-      return response.ok ? normaliseProviderPage(await response.json()) : null
-    } catch {
-      return null
-    }
-  })
-  ipcMain.handle('marvi:get-identity', async () => {
-    try {
-      const response = await fetch(`${gateway()}/identity`, {
-        signal: AbortSignal.timeout(3_000)
-      })
-      return response.ok ? await response.json() : null
-    } catch {
-      return null
-    }
-  })
-  ipcMain.handle('marvi:set-identity', async (_event, update) => {
-    if (typeof update !== 'object' || update === null) return null
-    try {
-      const response = await fetch(`${gateway()}/identity`, {
+      return setUpdateChannel(updateStateDir(process.env['LOCALAPPDATA']), channel)
+    })
+    ipcMain.handle('marvi:check-update', async () => {
+      const root = findRepoRoot()
+      const stateDir = updateStateDir(process.env['LOCALAPPDATA'])
+      const channel = getUpdateChannel(stateDir)
+      const bootstrap = resolveBootstrap(stateDir)
+      if (!root || !bootstrap || !canUpdate(root, bootstrap)) {
+        return {
+          channel,
+          available: false,
+          upToDate: false,
+          behindBy: 0,
+          error: 'This installation cannot self-update.'
+        }
+      }
+      return checkForUpdate(root, channel, bootstrap)
+    })
+    ipcMain.handle('marvi:start-update', () => {
+      const root = findRepoRoot()
+      if (!root) return false
+      const stateDir = updateStateDir(process.env['LOCALAPPDATA'])
+      const bootstrap = resolveBootstrap(stateDir)
+      const started = startUpdate(
+        {
+          installRoot: root,
+          channel: getUpdateChannel(stateDir),
+          desktopPid: process.pid,
+          relaunchExe: process.execPath
+        },
+        bootstrap
+      )
+      if (started) {
+        // The bootstrap waits for this process to exit before touching the
+        // checkout, so quitting is part of the handoff, not a side effect.
+        isQuitting = true
+        setTimeout(() => app.quit(), 250)
+      }
+      return started
+    })
+    ipcMain.handle('marvi:get-initiative', async () => {
+      try {
+        const response = await fetch(`${gateway()}/initiative`, {
+          signal: AbortSignal.timeout(2_000)
+        })
+        if (!response.ok) return null
+        return await response.json()
+      } catch {
+        return null
+      }
+    })
+    ipcMain.handle('marvi:set-initiative', async (_event, paused) => {
+      if (typeof paused !== 'boolean') return null
+      try {
+        const response = await fetch(`${gateway()}/initiative`, {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ paused }),
+          signal: AbortSignal.timeout(3_000)
+        })
+        return response.ok ? await response.json() : null
+      } catch {
+        return null
+      }
+    })
+    ipcMain.handle('marvi:get-decisions', async () => {
+      try {
+        const response = await fetch(`${gateway()}/mind/decisions?limit=60`, {
+          signal: AbortSignal.timeout(2_000)
+        })
+        if (!response.ok) return { decisions: [], events: [] }
+        return await response.json()
+      } catch {
+        return { decisions: [], events: [] }
+      }
+    })
+    ipcMain.handle('marvi:get-memory', async () => {
+      try {
+        const response = await fetch(`${gateway()}/memory?limit=60`, {
+          signal: AbortSignal.timeout(2_000)
+        })
+        if (!response.ok) return { total: 0, entries: [], summary: {} }
+        return await response.json()
+      } catch {
+        return { total: 0, entries: [], summary: {} }
+      }
+    })
+    ipcMain.handle('marvi:clear-memory', async () => {
+      try {
+        const response = await fetch(`${gateway()}/memory`, {
+          method: 'DELETE',
+          signal: AbortSignal.timeout(5_000)
+        })
+        return response.ok
+      } catch {
+        return false
+      }
+    })
+    ipcMain.handle('marvi:get-accounts', async () => {
+      try {
+        const response = await fetch(`${gateway()}/accounts`, {
+          signal: AbortSignal.timeout(5_000)
+        })
+        if (!response.ok) return { available: false, detail: 'Gateway unavailable', accounts: [] }
+        const body = (await response.json()) as {
+          available?: boolean
+          detail?: string
+          accounts?: Array<Record<string, unknown>>
+        }
+        return {
+          available: Boolean(body.available),
+          detail: typeof body.detail === 'string' ? body.detail : '',
+          accounts: (body.accounts ?? []).map((row) => ({
+            toolkit: String(row.toolkit ?? ''),
+            status: String(row.status ?? ''),
+            connected: Boolean(row.connected),
+            needsReconnect: Boolean(row.needs_reconnect)
+          }))
+        }
+      } catch {
+        return { available: false, detail: 'Gateway unavailable', accounts: [] }
+      }
+    })
+    ipcMain.handle('marvi:get-setup', () => gatewayJson('/setup'))
+    ipcMain.handle('marvi:get-hardware', () => gatewayJson('/setup/hardware'))
+    ipcMain.handle('marvi:set-hardware', (_event, useGpu) =>
+      gatewayJson('/setup/hardware', {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(update),
-        signal: AbortSignal.timeout(5_000)
+        body: JSON.stringify({ use_gpu: Boolean(useGpu) })
       })
-      return response.ok ? await response.json() : null
-    } catch {
-      return null
-    }
-  })
-  ipcMain.handle('marvi:get-room-events', async () => {
-    try {
-      const response = await fetch(`${gateway()}/room/events?limit=40`, {
-        signal: AbortSignal.timeout(1_500)
-      })
-      if (!response.ok) return []
-      const body = (await response.json()) as { events?: unknown }
-      return Array.isArray(body.events) ? body.events : []
-    } catch {
-      return []
-    }
-  })
-  ipcMain.handle('marvi:get-room-state', async () => {
-    try {
-      const response = await fetch(`${gateway()}/tools/room_state`, {
+    )
+    ipcMain.handle('marvi:install-component', (_event, name) =>
+      // Gigabytes: the timeout has to allow for a real download on a real line.
+      gatewayJson(
+        `/setup/${encodeURIComponent(String(name))}/install`,
+        { method: 'POST' },
+        1_800_000
+      )
+    )
+    ipcMain.handle('marvi:remove-component', (_event, name) =>
+      gatewayJson(`/setup/${encodeURIComponent(String(name))}/remove`, { method: 'POST' })
+    )
+    ipcMain.handle('marvi:get-skill-store', () => gatewayJson('/skills/store', undefined, 60_000))
+    ipcMain.handle('marvi:review-skill', (_event, repo, path) =>
+      gatewayJson(
+        '/skills/review',
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ repo, path })
+        },
+        60_000
+      )
+    )
+    ipcMain.handle('marvi:install-skill', (_event, staged) =>
+      gatewayJson('/skills/install', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ arguments: {} }),
-        signal: AbortSignal.timeout(3_000)
+        body: JSON.stringify({ staged })
       })
-      if (!response.ok) return null
-      return await response.json()
-    } catch {
-      return null
-    }
-  })
-  ipcMain.on('marvi:show-main', showMainWindow)
-  ipcMain.on('marvi:window-minimize', (event) => {
-    if (!mainWindow || event.sender !== mainWindow.webContents) return
-    mainWindow.minimize()
-  })
-  ipcMain.on('marvi:window-toggle-maximize', (event) => {
-    if (!mainWindow || event.sender !== mainWindow.webContents) return
-    if (mainWindow.isMaximized()) mainWindow.unmaximize()
-    else mainWindow.maximize()
-    broadcastWindowState()
-  })
-  ipcMain.on('marvi:window-close', (event) => {
-    if (!mainWindow || event.sender !== mainWindow.webContents) return
-    // Close on the frameless shell means "hide to tray", matching the
-    // always-on contract. Quit stays explicit via the tray menu.
-    mainWindow.hide()
-  })
-  ipcMain.handle('marvi:get-window-state', () => windowStatePayload())
-  ipcMain.handle('marvi:set-translucency', (_event, value) => {
-    const candidate = Number(value)
-    if (!Number.isFinite(candidate)) return translucencyIntensity
-    translucencyIntensity = Math.min(100, Math.max(0, Math.round(candidate)))
-    applyWindowTranslucency(mainWindow)
-    return translucencyIntensity
-  })
-  ipcMain.on('marvi:preview-assistant-state', (event, state) => {
-    if (!mainWindow || event.sender !== mainWindow.webContents) return
-    previewAssistantState(state)
-  })
-  ipcMain.on('marvi:voice-state', (event, state) => {
-    if (!mainWindow || event.sender !== mainWindow.webContents) return
-    const normalized = normalizeRuntimeStatus({ ...runtimeStatus, assistant: state })
-    if (normalized) publishRuntime(normalized)
-  })
-  ipcMain.on('marvi:island-size', (event, value) => {
-    if (!islandWindow || event.sender !== islandWindow.webContents) return
-    const size = normalizeIslandContentSize(value)
-    if (size && islandWindow && !islandWindow.isDestroyed()) {
-      sizeAndPositionIsland(islandWindow, size)
-    }
-  })
-  ipcMain.on('marvi:island-interactive', (event, interactive) => {
-    if (!islandWindow || islandWindow.isDestroyed() || event.sender !== islandWindow.webContents)
-      return
-    const enabled = interactive === true
-    islandWindow.setFocusable(enabled)
-    islandWindow.setIgnoreMouseEvents(!enabled, { forward: true })
-  })
+    )
+    ipcMain.handle('marvi:remove-skill', (_event, name) =>
+      gatewayJson(`/skills/${encodeURIComponent(String(name))}`, { method: 'DELETE' })
+    )
+    ipcMain.handle('marvi:get-mcp', () => gatewayJson('/mcp'))
+    ipcMain.handle('marvi:run-doctor', async () => {
+      try {
+        const response = await fetch(`${gateway()}/doctor`, {
+          signal: AbortSignal.timeout(20_000)
+        })
+        return response.ok ? await response.json() : null
+      } catch {
+        return null
+      }
+    })
+    ipcMain.handle('marvi:heal-doctor', async (_event, includeConfirmed) => {
+      try {
+        const response = await fetch(`${gateway()}/doctor/heal`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ include_confirmed: Boolean(includeConfirmed) }),
+          signal: AbortSignal.timeout(120_000)
+        })
+        return response.ok ? await response.json() : null
+      } catch {
+        return null
+      }
+    })
+    ipcMain.handle('marvi:copy-diagnostics', async () => {
+      try {
+        const response = await fetch(`${gateway()}/doctor/diagnostics`, {
+          signal: AbortSignal.timeout(20_000)
+        })
+        if (!response.ok) return null
+        return ((await response.json()) as { text?: string }).text ?? null
+      } catch {
+        return null
+      }
+    })
+    ipcMain.handle('marvi:get-logs', async (_event, subsystem) => {
+      const name = typeof subsystem === 'string' && subsystem ? subsystem : 'errors'
+      try {
+        const response = await fetch(`${gateway()}/logs?subsystem=${encodeURIComponent(name)}`, {
+          signal: AbortSignal.timeout(8_000)
+        })
+        return response.ok ? await response.json() : null
+      } catch {
+        return null
+      }
+    })
+    ipcMain.handle('marvi:get-chat', async () => {
+      try {
+        const response = await fetch(`${gateway()}/chat`, { signal: AbortSignal.timeout(4_000) })
+        return response.ok ? await response.json() : { messages: [], available: false }
+      } catch {
+        return { messages: [], available: false }
+      }
+    })
+    ipcMain.handle('marvi:send-chat', async (_event, message) => {
+      if (typeof message !== 'string') return null
+      try {
+        const response = await fetch(`${gateway()}/chat`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ message }),
+          // A tool round trip can be slow; a short timeout would look like a bug.
+          signal: AbortSignal.timeout(180_000)
+        })
+        return response.ok ? await response.json() : null
+      } catch {
+        return null
+      }
+    })
+    ipcMain.handle('marvi:clear-chat', async () => {
+      try {
+        const response = await fetch(`${gateway()}/chat`, {
+          method: 'DELETE',
+          signal: AbortSignal.timeout(5_000)
+        })
+        return response.ok
+      } catch {
+        return false
+      }
+    })
+    ipcMain.handle('marvi:get-services', () => serviceReports)
+    ipcMain.handle('marvi:retry-service', (_event, name) => {
+      if (typeof name !== 'string' || !supervisor) return false
+      return supervisor.retry(name)
+    })
+    ipcMain.handle('marvi:get-providers', async () => {
+      try {
+        const response = await fetch(`${gateway()}/providers`, {
+          signal: AbortSignal.timeout(5_000)
+        })
+        if (!response.ok) return null
+        return normaliseProviderPage(await response.json())
+      } catch {
+        return null
+      }
+    })
+    ipcMain.handle('marvi:set-provider-settings', async (_event, values) => {
+      if (typeof values !== 'object' || values === null) return null
+      try {
+        const response = await fetch(`${gateway()}/providers/settings`, {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ values }),
+          signal: AbortSignal.timeout(8_000)
+        })
+        return response.ok ? normaliseProviderPage(await response.json()) : null
+      } catch {
+        return null
+      }
+    })
+    ipcMain.handle('marvi:start-oauth', async (_event, name) => {
+      if (typeof name !== 'string') return { ok: false, detail: 'no provider' }
+      try {
+        const response = await fetch(`${gateway()}/providers/${name}/oauth/start`, {
+          method: 'POST',
+          signal: AbortSignal.timeout(8_000)
+        })
+        const body = (await response.json()) as { url?: string; detail?: string }
+        if (!response.ok || !body.url) {
+          return { ok: false, detail: body.detail ?? 'could not start sign-in' }
+        }
+        // The provider's own login page, in the user's own browser. Marvi never
+        // renders it and never sees what is typed into it.
+        void shell.openExternal(body.url)
+        return { ok: true, detail: '' }
+      } catch {
+        return { ok: false, detail: 'Marvi Gateway is unavailable' }
+      }
+    })
+    ipcMain.handle('marvi:poll-oauth', async (_event, name) => {
+      if (typeof name !== 'string') return null
+      try {
+        const response = await fetch(`${gateway()}/providers/${name}/oauth/status`, {
+          signal: AbortSignal.timeout(5_000)
+        })
+        return response.ok ? await response.json() : null
+      } catch {
+        return null
+      }
+    })
+    ipcMain.handle('marvi:disconnect-provider', async (_event, name) => {
+      if (typeof name !== 'string') return null
+      try {
+        const response = await fetch(`${gateway()}/providers/${name}/disconnect`, {
+          method: 'POST',
+          signal: AbortSignal.timeout(8_000)
+        })
+        return response.ok ? normaliseProviderPage(await response.json()) : null
+      } catch {
+        return null
+      }
+    })
+    ipcMain.handle('marvi:get-identity', async () => {
+      try {
+        const response = await fetch(`${gateway()}/identity`, {
+          signal: AbortSignal.timeout(3_000)
+        })
+        return response.ok ? await response.json() : null
+      } catch {
+        return null
+      }
+    })
+    ipcMain.handle('marvi:set-identity', async (_event, update) => {
+      if (typeof update !== 'object' || update === null) return null
+      try {
+        const response = await fetch(`${gateway()}/identity`, {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(update),
+          signal: AbortSignal.timeout(5_000)
+        })
+        return response.ok ? await response.json() : null
+      } catch {
+        return null
+      }
+    })
+    ipcMain.handle('marvi:get-room-events', async () => {
+      try {
+        const response = await fetch(`${gateway()}/room/events?limit=40`, {
+          signal: AbortSignal.timeout(1_500)
+        })
+        if (!response.ok) return []
+        const body = (await response.json()) as { events?: unknown }
+        return Array.isArray(body.events) ? body.events : []
+      } catch {
+        return []
+      }
+    })
+    ipcMain.handle('marvi:get-room-state', async () => {
+      try {
+        const response = await fetch(`${gateway()}/tools/room_state`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ arguments: {} }),
+          signal: AbortSignal.timeout(3_000)
+        })
+        if (!response.ok) return null
+        return await response.json()
+      } catch {
+        return null
+      }
+    })
+    ipcMain.on('marvi:show-main', showMainWindow)
+    ipcMain.on('marvi:window-minimize', (event) => {
+      if (!mainWindow || event.sender !== mainWindow.webContents) return
+      mainWindow.minimize()
+    })
+    ipcMain.on('marvi:window-toggle-maximize', (event) => {
+      if (!mainWindow || event.sender !== mainWindow.webContents) return
+      if (mainWindow.isMaximized()) mainWindow.unmaximize()
+      else mainWindow.maximize()
+      broadcastWindowState()
+    })
+    ipcMain.on('marvi:window-close', (event) => {
+      if (!mainWindow || event.sender !== mainWindow.webContents) return
+      // Close on the frameless shell means "hide to tray", matching the
+      // always-on contract. Quit stays explicit via the tray menu.
+      mainWindow.hide()
+    })
+    ipcMain.handle('marvi:get-window-state', () => windowStatePayload())
+    ipcMain.handle('marvi:set-translucency', (_event, value) => {
+      const candidate = Number(value)
+      if (!Number.isFinite(candidate)) return translucencyIntensity
+      translucencyIntensity = Math.min(100, Math.max(0, Math.round(candidate)))
+      applyWindowTranslucency(mainWindow)
+      return translucencyIntensity
+    })
+    ipcMain.on('marvi:preview-assistant-state', (event, state) => {
+      if (!mainWindow || event.sender !== mainWindow.webContents) return
+      previewAssistantState(state)
+    })
+    ipcMain.on('marvi:voice-state', (event, state) => {
+      if (!mainWindow || event.sender !== mainWindow.webContents) return
+      const normalized = normalizeRuntimeStatus({ ...runtimeStatus, assistant: state })
+      if (normalized) publishRuntime(normalized)
+    })
+    ipcMain.on('marvi:island-size', (event, value) => {
+      if (!islandWindow || event.sender !== islandWindow.webContents) return
+      const size = normalizeIslandContentSize(value)
+      if (size && islandWindow && !islandWindow.isDestroyed()) {
+        sizeAndPositionIsland(islandWindow, size)
+      }
+    })
+    ipcMain.on('marvi:island-interactive', (event, interactive) => {
+      if (!islandWindow || islandWindow.isDestroyed() || event.sender !== islandWindow.webContents)
+        return
+      const enabled = interactive === true
+      islandWindow.setFocusable(enabled)
+      islandWindow.setIgnoreMouseEvents(!enabled, { forward: true })
+    })
 
-  tray = createTray()
-  islandWindow = createIslandWindow()
-  mainWindow = createMainWindow()
-  startGatewayPolling()
+    tray = createTray()
+    islandWindow = createIslandWindow()
+    mainWindow = createMainWindow()
+    startGatewayPolling()
 
-  app.on('activate', showMainWindow)
-})
+    app.on('activate', showMainWindow)
+  })
+}
 
 app.on('window-all-closed', () => {
   // The tray and Dynamic Island are the always-on product surface.
@@ -990,7 +1023,9 @@ app.on('before-quit', () => {
   isQuitting = true
   if (gatewayPoll) clearInterval(gatewayPoll)
   gatewayPoll = null
-  supervisor?.stopAll()
+  // Synchronous: Electron does not await anything here, and a promise would
+  // be abandoned mid-kill.
+  supervisor?.stopAllNow()
   supervisor = null
   tray?.destroy()
   tray = null

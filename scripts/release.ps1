@@ -1,6 +1,11 @@
 # Cuts a Marvi OS release: bumps VERSION + package.json versions, commits,
-# tags v<version>, and pushes. The tag push triggers the Release workflow,
-# which builds the Windows installer and publishes it to GitHub Releases.
+# tags v<version>, and pushes. The tag push triggers the Release workflow.
+#
+# There is no per-release installer. The updater clones the tag and builds it
+# on the machine, so the tag itself is the payload and the workflow publishes
+# only the bootstrap binary and its checksum. What matters is that the tag
+# builds: the workflow gates on the full test suite and on the exact build the
+# updater will run.
 #
 #   .\scripts\release.ps1                 # first run: 0.1.0-dev.0 -> 0.1.0
 #                                         # later: bumps patch (0.1.0 -> 0.1.1)
@@ -57,7 +62,7 @@ if (git rev-parse -q --verify "refs/tags/$tag") {
 Write-Host "Releasing $current -> $Version" -ForegroundColor Cyan
 
 # VERSION is the single product version source; both package.json files mirror
-# it so electron-builder and npm tooling agree (see AGENTS.md versioning).
+# it so npm tooling and `app.getVersion()` agree (see AGENTS.md versioning).
 Set-Content -Path VERSION -Value "$Version`n" -NoNewline
 foreach ($pkg in @('package.json', 'apps\desktop\package.json')) {
   $json = Get-Content $pkg -Raw | ConvertFrom-Json
@@ -73,7 +78,7 @@ git push origin $tag
 
 Write-Host @"
 
-Pushed $tag. GitHub Actions now builds and publishes the release:
+Pushed $tag. GitHub Actions now gates and publishes the release:
   https://github.com/xRetr00/Marvi-OS/actions?query=workflow%3ARelease
 "@ -ForegroundColor Green
 Pop-Location

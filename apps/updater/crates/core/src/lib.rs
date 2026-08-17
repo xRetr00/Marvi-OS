@@ -11,6 +11,7 @@ pub mod git;
 pub mod install;
 pub mod marker;
 pub mod result;
+pub mod singleton;
 pub mod tags;
 pub mod toolchain;
 pub mod update;
@@ -22,6 +23,7 @@ pub use check::{CheckOutcome, check};
 pub use install::{InstallConfig, InstallOutcome, NODE_VERSION, install};
 pub use marker::{Marker, clear_marker, read_marker, write_marker};
 pub use result::{UpdateResult, read_result, write_result};
+pub use singleton::{Lock, acquire, clear_install_root, find_strays, kill_tree};
 pub use toolchain::{Tool, ToolStatus, ensure_toolchain, toolchain_status};
 pub use update::{UpdateConfig, UpdateOutcome, run_update};
 
