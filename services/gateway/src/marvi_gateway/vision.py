@@ -286,6 +286,26 @@ def frame_motion(previous: Any, current: Any) -> float:
     return float(np.mean(np.abs(current.astype("int16") - previous.astype("int16"))))
 
 
+def _truthy(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in ("1", "true", "on", "yes")
+
+
+def room_provides_vision() -> bool:
+    """Is the room engine already watching this camera?
+
+    Read from the room's own state file rather than by asking the plugin, so
+    this costs nothing on a hot path and works even while the engine restarts.
+    """
+    try:
+        from .room import RoomSidecar
+
+        state = RoomSidecar().snapshot() or {}
+    except Exception:
+        return False
+    vision = state.get("vision") or {}
+    return bool(vision.get("enabled"))
+
+
 class VisionService:
     """Owns the camera and the model. Everything expensive is gated on motion."""
 
@@ -303,7 +323,25 @@ class VisionService:
         self._analyzer = analyzer
 
     def available(self) -> bool:
-        return os.environ.get("MARVI_VISION", "").strip().lower() in ("1", "true", "on", "yes")
+        """Whether Marvi should run its own camera loop.
+
+        **The room plugin owns the camera.** Its engine already runs a vision
+        pipeline — person count, owner visibility, activity, sleep state,
+        gestures — and running a second one on the same device means two
+        processes competing for it and two answers to "is the owner here" that
+        can disagree. The room's answers reach Marvi through the plugin's
+        context line instead.
+
+        So this stays off while the room plugin is providing vision, even if
+        `MARVI_VISION` is set. Setting `MARVI_VISION_OWNS_CAMERA` overrides it,
+        for a machine with a second camera or no room plugin at all.
+        """
+        asked = os.environ.get("MARVI_VISION", "").strip().lower() in ("1", "true", "on", "yes")
+        if not asked:
+            return False
+        if _truthy("MARVI_VISION_OWNS_CAMERA"):
+            return True
+        return not room_provides_vision()
 
     def _model(self) -> Any:
         if self._analyzer is None:

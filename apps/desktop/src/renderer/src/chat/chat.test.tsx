@@ -58,33 +58,26 @@ describe('ToolMessage', () => {
 describe('Composer', () => {
   const noop = (): void => {}
 
-  it('disables send and clear when there is nothing to do', () => {
+  it('disables send when there is nothing to send', () => {
     const html = renderToStaticMarkup(
-      <Composer
-        draft=""
-        busy={false}
-        available
-        canClear={false}
-        onDraftChange={noop}
-        onSend={noop}
-        onClear={noop}
-      />
+      <Composer draft="" busy={false} available onDraftChange={noop} onSend={noop} />
     )
-    expect(html).toContain('SEND')
+    // Send is a control on the edge of the field now, not a full-width button
+    // competing with the transcript for attention.
+    expect(html).toContain('aria-label="Send"')
     expect(html).toContain('disabled')
+  })
+
+  it('says how to send, since Enter and Shift+Enter differ', () => {
+    const html = renderToStaticMarkup(
+      <Composer draft="hello" busy={false} available onDraftChange={noop} onSend={noop} />
+    )
+    expect(html).toContain('Enter sends')
   })
 
   it('offers a hint to connect a provider when unavailable', () => {
     const html = renderToStaticMarkup(
-      <Composer
-        draft=""
-        busy={false}
-        available={false}
-        canClear={false}
-        onDraftChange={noop}
-        onSend={noop}
-        onClear={noop}
-      />
+      <Composer draft="" busy={false} available={false} onDraftChange={noop} onSend={noop} />
     )
     expect(html).toContain('Connect a provider')
   })

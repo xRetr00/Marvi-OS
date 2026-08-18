@@ -3,30 +3,73 @@
    Palette and typography come from the shell tokens; nothing here introduces
    color or type the shell does not already use. */
 
+/* Full bleed. It had an 18px margin and sat inside a bordered panel, so the
+   transcript was a box on a page instead of the page. */
 .chat-page {
-  align-self: stretch;
-  margin: 18px;
-  padding-bottom: 0;
   display: flex;
   flex-direction: column;
+  height: 100%;
   min-height: 0;
   overflow: hidden;
+  background: color-mix(in srgb, var(--ui-bg) 97%, transparent);
 }
 
-.chat-layout {
+.chat-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--ui-stroke-secondary);
+}
+
+.chat-bar-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ui-text-secondary);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-bar-button {
+  padding: 6px 12px;
+  border: 1px solid var(--ui-stroke-secondary);
+  background: transparent;
+  color: var(--ui-text-secondary);
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.chat-bar-button:hover:not(:disabled) {
+  border-color: var(--ui-accent);
+  color: var(--ui-text-emphasis);
+}
+
+.chat-bar-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.chat-body-area {
   display: flex;
   flex: 1;
   min-height: 0;
 }
 
 /* -- sessions sidebar --------------------------------------------------- */
+/* A drawer, not a column. One session does not earn a fifth of the width on
+   every single view. */
 .chat-sessions {
   display: flex;
   flex: none;
-  width: 190px;
+  width: 240px;
   flex-direction: column;
   min-height: 0;
   border-right: 1px solid var(--ui-stroke-secondary);
+  background: var(--ui-bg-raised);
 }
 .chat-sessions-head {
   display: flex;
@@ -121,9 +164,11 @@
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 18px;
+  gap: 22px;
   min-height: 0;
-  padding: 16px 18px;
+  /* Centred with a reading measure: full-width lines across a 1280px window
+     are hard to track back to the start of the next one. */
+  padding: 28px max(24px, calc((100% - 780px) / 2));
   overflow-y: auto;
 }
 .chat-empty {
@@ -163,22 +208,34 @@
 }
 .chat-role {
   color: var(--ui-text-tertiary);
-  font-size: 8px;
-  letter-spacing: 0.14em;
+  font-size: 10px;
+  letter-spacing: 0.12em;
 }
 .chat-time {
   color: var(--ui-text-tertiary);
-  font-size: 8px;
+  font-size: 10px;
 }
 .chat-body {
   color: var(--ui-text-primary);
-  font-size: 11px;
-  line-height: 1.7;
+  font-size: 13px;
+  line-height: 1.75;
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+/* The user's own turn is set apart by a panel rather than by colouring the
+   text: accent-coloured body text was both harder to read and inconsistent
+   with everything else that uses the accent to mean "interactive". */
+.chat-user {
+  align-self: flex-end;
+  max-width: 85%;
+  padding: 10px 14px;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 10px 10px 2px 10px;
+  background: var(--ui-bg-raised);
+}
 .chat-user .chat-body {
-  color: var(--ui-accent);
+  color: var(--ui-text-emphasis);
 }
 .chat-error .chat-body {
   color: var(--ui-danger);
@@ -346,4 +403,69 @@
 .chat-compose-actions {
   display: flex;
   gap: 8px;
+}
+
+/* -- composer ------------------------------------------------------------ */
+.chat-compose {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px max(24px, calc((100% - 780px) / 2)) 18px;
+  border-top: 1px solid var(--ui-stroke-secondary);
+}
+
+.chat-compose-field {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 8px 8px 8px 14px;
+  border: 1px solid var(--ui-stroke-primary);
+  border-radius: 12px;
+  background: var(--ui-bg-raised);
+}
+
+.chat-compose-field:focus-within {
+  border-color: var(--ui-accent);
+}
+
+.chat-compose-field textarea {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--ui-text-primary);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.6;
+  resize: none;
+  outline: none;
+}
+
+.chat-compose-field textarea::placeholder {
+  color: var(--ui-text-tertiary);
+}
+
+.chat-send {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--ui-accent);
+  border-radius: 8px;
+  background: var(--ui-accent-soft);
+  color: var(--ui-text-emphasis);
+  font: inherit;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.chat-send:disabled {
+  border-color: var(--ui-stroke-secondary);
+  background: transparent;
+  color: var(--ui-text-tertiary);
+  cursor: default;
+}
+
+.chat-compose-hint {
+  color: var(--ui-text-tertiary);
+  font-size: 10px;
 }

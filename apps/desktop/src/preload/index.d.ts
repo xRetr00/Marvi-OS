@@ -8,6 +8,7 @@ import type {
   HardwareAnswer,
   McpServerRow,
   PluginPage,
+  SchedulePage,
   SetupPage,
   SkillReview,
   StoreSkill,
@@ -58,6 +59,18 @@ export interface MarviDesktopApi {
   getChat: () => Promise<{ messages: ChatEntry[]; available: boolean }>
   sendChat: (message: string) => Promise<ChatReply | null>
   clearChat: () => Promise<boolean>
+  getSchedules: () => Promise<SchedulePage | null>
+  addSchedule: (body: {
+    name: string
+    when: string
+    message?: string
+    action?: string
+    insist?: boolean
+  }) => Promise<SchedulePage | null>
+  scheduleAction: (
+    id: number,
+    action: 'remove' | 'enable' | 'disable' | 'run'
+  ) => Promise<SchedulePage | null>
   getPlugins: () => Promise<PluginPage | null>
   pluginAction: (
     name: string,

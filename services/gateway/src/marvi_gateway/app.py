@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import socket
-from collections.abc import AsyncIterator
+import time
+from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from typing import Any, Literal
@@ -12,10 +14,11 @@ from uuid import uuid4
 
 import anyio
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 from livekit import api
 from pydantic import BaseModel, Field
 
-from . import breadcrumb, paths
+from . import breadcrumb, latency, paths
 from . import doctor as doctor_module
 from . import plugins as plugins_module
 from . import room as room_module
@@ -277,6 +280,35 @@ class SetupPage(BaseModel):
     install_root: str
     disk_ok: bool
     disk_detail: str
+
+
+class ScheduleRow(BaseModel):
+    id: int
+    name: str
+    action: str
+    kind: str
+    expression: str
+    message: str
+    enabled: bool
+    created_at: str
+    insist: bool
+    last_run: str | None = None
+    last_error: str | None = None
+
+
+class SchedulePage(BaseModel):
+    schedules: list[ScheduleRow]
+    #: What a schedule may trigger, so the page can offer exactly those.
+    actions: dict[str, str]
+    running: bool
+
+
+class NewSchedule(BaseModel):
+    name: str
+    when: str
+    message: str = ""
+    action: str = "remind"
+    insist: bool = False
 
 
 class PluginRow(BaseModel):
@@ -880,6 +912,161 @@ def create_app(
             install_root=str(plugins_module.root()),
             data_root=str(plugins_module.data_root()),
         )
+
+    def schedule_page() -> SchedulePage:
+        if scheduler is None:
+            return SchedulePage(schedules=[], actions={}, running=False)
+        state = scheduler.status()
+        return SchedulePage(
+            schedules=[ScheduleRow(**row) for row in state["schedules"]],
+            actions=state["actions"],
+            running=bool(state["running"]),
+        )
+
+    class LlmTurn(BaseModel):
+        messages: list[dict[str, Any]]
+        #: Which job this turn is, so the right model and later the right
+        #: auxiliary slot is chosen. Not a provider name: callers say what they
+        #: are doing and the Gateway decides who does it.
+        job: str = "main"
+        surface: str = "unknown"
+        max_tokens: int | None = None
+        effort: str | None = None
+        temperature: float | None = None
+        tools: list[dict[str, Any]] | None = None
+
+    @app.post("/llm")
+    async def llm_turn(turn: LlmTurn) -> StreamingResponse:
+        """One LLM turn, streamed, for any caller.
+
+        The seam. Chat, voice, mind and vision each reached a provider their own
+        way, so fallback, cooldowns and usage applied to two of the four. They
+        come here instead, and the differences between them become the `job`
+        and `surface` they declare rather than four transports.
+
+        Server-sent events, because the caller is either an Electron renderer or
+        a LiveKit worker and both speak it, and because a buffered response
+        would move first-token latency to the whole-response time — which on
+        voice is the difference this endpoint exists to avoid.
+        """
+
+        def events() -> Iterator[str]:
+            sample = latency.Sample(surface=turn.surface, path="gateway", provider="", model="")
+            started = time.perf_counter()
+            try:
+                for piece in provider_client.stream(
+                    turn.messages,
+                    job=turn.job,
+                    max_tokens=turn.max_tokens,
+                    effort=turn.effort,
+                    temperature=turn.temperature,
+                    tools=turn.tools,
+                ):
+                    if piece.get("delta") and sample.first_token_ms is None:
+                        sample.first_token_ms = (time.perf_counter() - started) * 1000
+                    if piece.get("done"):
+                        sample.provider = str(piece.get("provider", ""))
+                        sample.model = str(piece.get("model", ""))
+                    yield f"data: {json.dumps(piece)}\n\n"
+            except Exception as exc:
+                # Reported in the stream rather than as a status code: by the
+                # time a provider fails the response has usually already begun,
+                # and a caller mid-stream cannot see a header.
+                sample.error = f"{type(exc).__name__}: {exc}"[:200]
+                yield f"data: {json.dumps({'error': str(exc)[:200]})}\n\n"
+            finally:
+                sample.total_ms = (time.perf_counter() - started) * 1000
+                latency.record(sample)
+                yield "data: [DONE]\n\n"
+
+        return StreamingResponse(
+            events(),
+            media_type="text/event-stream",
+            # Nothing between here and the caller may buffer: both are on
+            # loopback, and a proxy that helpfully batches would undo the point.
+            headers={"cache-control": "no-cache", "x-accel-buffering": "no"},
+        )
+
+    @app.post("/latency")
+    async def record_latency(sample: dict[str, Any]) -> dict[str, Any]:
+        """Take a timing sample from the Agent.
+
+        The Agent runs in its own process, so it cannot append to the recording
+        the Gateway owns. It posts instead, after the turn is over.
+        """
+        latency.record(
+            latency.Sample(
+                surface=str(sample.get("surface", "unknown")),
+                path=str(sample.get("path", "unknown")),
+                provider=str(sample.get("provider", "")),
+                model=str(sample.get("model", "")),
+                first_token_ms=sample.get("first_token_ms"),
+                total_ms=sample.get("total_ms"),
+                error=str(sample.get("error", "")),
+            )
+        )
+        return {"recorded": True}
+
+    @app.get("/latency")
+    async def read_latency(surface: str | None = None) -> dict[str, Any]:
+        return latency.summarise(surface=surface)
+
+    @app.get("/latency/compare")
+    async def compare_latency(
+        surface: str = "voice", before: str = "direct", after: str = "gateway"
+    ) -> dict[str, Any]:
+        """The Phase 12 gate, as a number rather than an opinion."""
+        return latency.compare(surface, before, after)
+
+    @app.get("/schedules", response_model=SchedulePage)
+    async def read_schedules() -> SchedulePage:
+        return schedule_page()
+
+    @app.post("/schedules", response_model=SchedulePage)
+    async def add_schedule(body: NewSchedule) -> SchedulePage:
+        if scheduler is None:
+            raise HTTPException(status_code=503, detail="the scheduler is not running")
+        kind, expression = "cron", body.when.strip()
+        if expression.isdigit():
+            kind = "interval"
+        elif ":" in expression and len(expression.split(":")) == 2:
+            hour, _, minute = expression.partition(":")
+            try:
+                expression = f"{int(minute)} {int(hour)} * * *"
+            except ValueError as exc:
+                raise HTTPException(
+                    status_code=400, detail=f"{body.when!r} is not a time Marvi understands"
+                ) from exc
+        try:
+            scheduler.store.add(
+                body.name, body.action, kind, expression, body.message, insist=body.insist
+            )
+        except schedule_module.ScheduleError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        # Rebuilt so a new reminder does not wait for a restart.
+        scheduler.reload()
+        runtime_store.audit("schedule", "add", {"name": body.name, "when": body.when})
+        return schedule_page()
+
+    @app.post("/schedules/{schedule_id}/{action}", response_model=SchedulePage)
+    async def change_schedule(schedule_id: int, action: str) -> SchedulePage:
+        if scheduler is None:
+            raise HTTPException(status_code=503, detail="the scheduler is not running")
+        try:
+            if action == "remove":
+                scheduler.store.remove(schedule_id)
+            elif action in ("enable", "disable"):
+                scheduler.store.set_enabled(schedule_id, action == "enable")
+            elif action == "run":
+                scheduler.fire(schedule_id)
+            else:
+                raise HTTPException(status_code=400, detail=f"unknown action {action}")
+        except schedule_module.ScheduleError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if action != "run":
+            scheduler.reload()
+        runtime_store.audit("schedule", action, {"id": schedule_id})
+        return schedule_page()
 
     @app.get("/plugins", response_model=PluginPage)
     async def read_plugins() -> PluginPage:

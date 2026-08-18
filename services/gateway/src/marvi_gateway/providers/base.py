@@ -23,6 +23,7 @@ providers differ in four ways that change the request itself:
 
 from __future__ import annotations
 
+import json
 import os
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
@@ -386,6 +387,58 @@ class ProviderProfile:
              "arguments": parse((call.get("function") or {}).get("arguments"))}
             for call in message.get("tool_calls") or []
         ]
+
+    def read_stream_line(self, line: str) -> dict[str, Any] | None:
+        """One line of a streaming response, as a delta or a usage report.
+
+        Three API modes, three envelopes, and all three arrive as
+        Server-Sent Events: a `data: ` prefix, JSON after it, and a `[DONE]`
+        sentinel from the OpenAI-shaped ones. Returns None for anything with
+        nothing in it — keep-alives, blank lines, the sentinel — so the caller
+        can filter without knowing any of that.
+        """
+        text = (line or "").strip()
+        if not text or not text.startswith("data:"):
+            return None
+        payload = text[5:].strip()
+        if not payload or payload == "[DONE]":
+            return None
+        try:
+            chunk = json.loads(payload)
+        except ValueError:
+            return None
+
+        if self.api_mode == "anthropic":
+            # Anthropic names the event and puts the text one level deeper.
+            kind = chunk.get("type", "")
+            if kind == "content_block_delta":
+                delta = (chunk.get("delta") or {}).get("text", "")
+                return {"delta": delta} if delta else None
+            if kind in ("message_delta", "message_stop"):
+                usage = chunk.get("usage") or (chunk.get("message") or {}).get("usage")
+                return {"usage": {"usage": usage}} if usage else None
+            return None
+
+        if self.api_mode == "responses":
+            kind = chunk.get("type", "")
+            if kind == "response.output_text.delta":
+                delta = chunk.get("delta", "")
+                return {"delta": delta} if delta else None
+            if kind == "response.completed":
+                usage = (chunk.get("response") or {}).get("usage")
+                return {"usage": {"usage": usage}} if usage else None
+            return None
+
+        # chat_completions
+        choices = chunk.get("choices") or []
+        if choices:
+            delta = (choices[0].get("delta") or {}).get("content") or ""
+            if delta:
+                return {"delta": delta}
+        # OpenAI sends usage in a final chunk when asked to; it has no choices.
+        if chunk.get("usage"):
+            return {"usage": {"usage": chunk["usage"]}}
+        return None
 
     def read_usage(self, payload: dict[str, Any]) -> Usage:
         """Pull token counts out of this provider's response shape."""

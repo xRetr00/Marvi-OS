@@ -7,6 +7,7 @@
 //!
 //!     cargo test -p marvi-bootstrap-core --test toolchain_live -- --ignored
 
+use marvi_bootstrap_core::NODE_VERSION;
 use marvi_bootstrap_core::toolchain::{Tool, ensure_toolchain, status};
 
 #[test]
@@ -25,7 +26,7 @@ fn uv_and_node_are_installed_into_the_state_directory() {
     std::fs::create_dir_all(&state).unwrap();
 
     let mut lines = Vec::new();
-    let paths = ensure_toolchain(&state, "v22.11.0", &mut |line| {
+    let paths = ensure_toolchain(&state, NODE_VERSION, &mut |line| {
         println!("  {line}");
         lines.push(line.to_string());
     })

@@ -321,11 +321,13 @@ def test_a_cursor_of_none_returns_everything_notable(tmp_path) -> None:
 
 
 def test_the_allowlist_covers_what_the_engine_actually_writes() -> None:
-    """Triaged against a real 500-event sample, not guessed at.
+    """Checked against two sources, because neither alone is complete.
 
-    The first version noticed four of the thirteen types in the log: a phone
-    arriving home, a device dropping off the network and every gesture went
-    unseen.
+    A real 500-event log says what the engine *has* emitted; its `_emit_event`
+    calls say what it *can*. The first version of this list noticed four of the
+    thirteen types in the log, and carried four names the engine has never
+    emitted at all — `he20_occupied` and `he20_cleared` among them, which made a
+    working mmwave sensor look broken.
     """
     for noticed in (
         "room_entry",
@@ -337,6 +339,11 @@ def test_the_allowlist_covers_what_the_engine_actually_writes() -> None:
         "vision_gesture",
     ):
         assert noticed in NOTABLE_EVENTS, noticed
+
+    # Names the engine emits in neither its source nor a real log. The mmwave
+    # sensor works; it reports through `presence_cleared` with source "mmwave".
+    for invented in ("he20_occupied", "he20_cleared", "alarm_started", "alarm_cancelled"):
+        assert invented not in NOTABLE_EVENTS, invented
 
     # Deliberately excluded: ambient state, and the engine's own bookkeeping.
     # `vision_identity_state` alone was 413 of those 500 events.

@@ -423,13 +423,32 @@ async function gatewayRequest(path: string, init?: RequestInit): Promise<Runtime
   return normalized
 }
 
+/** Phases the renderer drives locally, faster than the Gateway poll. */
+const LIVE_PHASES = new Set(['wake', 'listening', 'thinking', 'speaking'])
+
 async function refreshGatewayRuntime(): Promise<RuntimeStatus> {
   try {
     const gateway = await gatewayRequest('/runtime')
+    // The Gateway owns the assistant state: the agent worker reports its phase
+    // through it, so it is the only view that knows whether Marvi is listening.
+    //
+    // This used to spread the *local* assistant and adopt only yolo,
+    // confirmation and roomEvent, so phase, caption, detail and level were
+    // frozen at whatever the process started with. That was invisible while the
+    // starting state happened to be "ready / Say Marvi" — it looked right by
+    // accident. The moment the offline default became an honest "Gateway
+    // unavailable", the app showed that forever with a Gateway that was up and
+    // answering, which is how it was reported.
+    //
+    // The exception is a live turn: wake, listening, thinking and speaking are
+    // driven by the renderer from LiveKit at a far higher rate than this
+    // two-second poll, and adopting the Gateway's slower view would stutter
+    // them. Anything else, the Gateway is right.
+    const live = LIVE_PHASES.has(runtimeStatus.assistant.phase)
     return publishRuntime({
       ...gateway,
       assistant: {
-        ...runtimeStatus.assistant,
+        ...(live ? runtimeStatus.assistant : gateway.assistant),
         yolo: gateway.assistant.yolo,
         confirmation: gateway.assistant.confirmation ?? runtimeStatus.assistant.confirmation,
         roomEvent: gateway.assistant.roomEvent
@@ -737,6 +756,20 @@ function startApp(): void {
         return { available: false, detail: 'Gateway unavailable', accounts: [] }
       }
     })
+    ipcMain.handle('marvi:get-schedules', () => gatewayJson('/schedules'))
+    ipcMain.handle('marvi:add-schedule', (_event, body) =>
+      gatewayJson('/schedules', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+    )
+    ipcMain.handle('marvi:schedule-action', (_event, id, action) =>
+      gatewayJson(
+        `/schedules/${encodeURIComponent(String(id))}/${encodeURIComponent(String(action))}`,
+        { method: 'POST' }
+      )
+    )
     ipcMain.handle('marvi:get-plugins', () => gatewayJson('/plugins'))
     // A clone plus a dependency install. Minutes, not seconds.
     ipcMain.handle('marvi:plugin-action', (_event, name, action) =>

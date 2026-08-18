@@ -24,10 +24,8 @@ const DEVICE_COPY: Record<DeviceState, string> = {
 import {
   $runtimeState,
   $voiceState,
-  VOICE_PHASES,
   applyRuntimeState,
   cycleVoicePhase,
-  type VoicePhase,
   type VoiceState
 } from './store/voice-state'
 import {
@@ -51,6 +49,7 @@ import type {
   MemoryPage,
   MindDecision,
   PluginPage,
+  SchedulePage,
   ProviderPage,
   ProviderRow,
   UpdateChannel,
@@ -75,15 +74,27 @@ import { connectVoiceRoom } from './lib/livekit-room'
  * scan every time instead of learning. Five groups, each answering a different
  * question, and no numbers.
  */
+/**
+ * The sidebar: the things you use.
+ *
+ * Everything you *configure* moved behind the gear. Eighteen destinations in
+ * one column meant scanning past ten pages you open twice a month to reach the
+ * three you open constantly.
+ */
 const NAV_GROUPS = [
   { label: 'Talk', items: ['Overview', 'Voice', 'Chat'] },
   { label: 'World', items: ['Vision', 'Room', 'Activity'] },
-  { label: 'Self', items: ['Identity', 'Memory', 'Mind'] },
-  { label: 'Extend', items: ['Providers', 'Accounts', 'Skills', 'Plugins'] },
-  { label: 'System', items: ['Setup', 'Doctor', 'Settings', 'Updates', 'About'] }
+  { label: 'Self', items: ['Identity', 'Memory', 'Mind'] }
+] as const
+
+/** Behind the gear: the things you set up. */
+const SETTINGS_GROUPS = [
+  { label: 'Connect', items: ['Providers', 'Accounts', 'Skills', 'Plugins'] },
+  { label: 'System', items: ['Preferences', 'Schedules', 'Setup', 'Doctor', 'Updates', 'About'] }
 ] as const
 
 type Page = (typeof NAV_GROUPS)[number]['items'][number]
+type SettingsPage = (typeof SETTINGS_GROUPS)[number]['items'][number]
 
 /** One line saying what the page is, shown under its title. A heading that only
  * repeats the sidebar entry spends the space without paying for it. */
@@ -96,14 +107,18 @@ const PAGE_BLURB: Record<Page, string> = {
   Activity: 'What you have been doing, as context Marvi may use',
   Identity: 'Who Marvi is, and what it has learned about you',
   Memory: 'What Marvi remembers. Yours to read, export and delete',
-  Mind: 'Why Marvi did things, and when it decided to act on its own',
+  Mind: 'Why Marvi did things, and when it decided to act on its own'
+}
+
+const SETTINGS_BLURB: Record<SettingsPage, string> = {
   Providers: 'The models Marvi can call, and what they have cost',
   Accounts: 'Connected services, and what Marvi may do with them',
   Skills: 'Instructions Marvi can load for a task',
   Plugins: 'Backends Marvi runs, installed from a repository',
+  Preferences: 'Behaviour, appearance and devices',
+  Schedules: 'Reminders and checks Marvi runs on a clock',
   Setup: 'Models, browsers and dependencies',
   Doctor: 'What is wrong, and how to fix each thing',
-  Settings: 'Behaviour, appearance and devices',
   Updates: 'Version, channel, and what changed',
   About: 'Build, licences and provenance'
 }
@@ -122,6 +137,8 @@ function MainSurface(): React.JSX.Element {
   const runtime = useStore($runtimeState)
   const translucency = useStore($translucency)
   const [page, setPage] = useState<Page>('Overview')
+  const [collapsed, setCollapsed] = useState(false)
+  const [settings, setSettings] = useState<SettingsPage | null>(null)
   const [version, setVersion] = useState('0.1.0-dev.0')
 
   useEffect(() => {
@@ -150,12 +167,6 @@ function MainSurface(): React.JSX.Element {
     window.marvi?.setTranslucency(translucency)
   }, [translucency])
 
-  const previewPhase = (phase: VoicePhase): void => {
-    haptic('selection')
-    cycleVoicePhase(phase)
-    window.marvi?.previewAssistantState($voiceState.get())
-  }
-
   const navigate = (item: Page): void => {
     if (item !== page) haptic('tap')
     setPage(item)
@@ -165,8 +176,8 @@ function MainSurface(): React.JSX.Element {
     <ShellContextMenu
       actions={[
         { label: 'Overview', onSelect: () => navigate('Overview') },
-        { label: 'Settings', onSelect: () => navigate('Settings') },
-        { label: 'About', onSelect: () => navigate('About') },
+        { label: 'Settings', onSelect: () => setSettings('Preferences') },
+        { label: 'About', onSelect: () => setSettings('About') },
         { label: 'Reload Shell', onSelect: () => window.location.reload() },
         {
           label: voice.yolo ? 'Switch to Confirm mode' : 'Switch to YOLO mode',
@@ -175,32 +186,54 @@ function MainSurface(): React.JSX.Element {
       ]}
     >
       <div className="app-shell">
-        <TitleBar page={page} />
+        <TitleBar onSettings={() => setSettings('Preferences')} page={settings ?? page} />
 
-        <div className="app-body">
+        {/* The track width comes from the same state as the sidebar's. An
+            `auto` track sizes to the item's max-content and stretches the item
+            back to fill it, so the sidebar's own `width: 64px` was correct,
+            applied, and visually ignored. */}
+        <div className="app-body" style={{ gridTemplateColumns: `${collapsed ? 64 : 224}px 1fr` }}>
           <ElectricGazeBackground />
 
-          <aside className="sidebar">
+          {/* Width inline rather than by class. The stylesheet route lost a
+              cascade race twice — first to a media query on the grid parent,
+              then in a way I could not account for with the correct rule
+              present and matching. One value, from the state that decides it,
+              with nothing to override it. */}
+          <aside
+            className={collapsed ? 'sidebar collapsed' : 'sidebar'}
+            style={{ overflow: 'hidden' }}
+          >
             <header className="brand-block">
               <BrandIcon className="brand-icon-sidebar" />
-              <div>
-                <strong>MARVI OS</strong>
-                <span>VOICE + VISION</span>
-              </div>
+              {/* "VOICE + VISION" was a tagline in a navigation column. The
+                  collapse control earns the space instead. */}
+              {!collapsed ? <strong>MARVI OS</strong> : null}
+              <button
+                aria-label={collapsed ? 'Expand the sidebar' : 'Collapse the sidebar'}
+                className="sidebar-collapse"
+                onClick={() => setCollapsed(!collapsed)}
+                type="button"
+              >
+                <span aria-hidden="true">{collapsed ? '»' : '«'}</span>
+              </button>
             </header>
 
             <nav aria-label="Main navigation">
               {NAV_GROUPS.map((group) => (
                 <div className="nav-group" key={group.label}>
-                  <h2 className="nav-group-label">{group.label.toUpperCase()}</h2>
+                  {!collapsed ? (
+                    <h2 className="nav-group-label">{group.label.toUpperCase()}</h2>
+                  ) : null}
                   {group.items.map((item) => (
                     <button
                       className={page === item ? 'nav-item active' : 'nav-item'}
                       key={item}
                       aria-current={page === item ? 'page' : undefined}
                       onClick={() => navigate(item)}
+                      title={collapsed ? item : undefined}
                     >
-                      {item.toUpperCase()}
+                      {collapsed ? item.slice(0, 2).toUpperCase() : item.toUpperCase()}
                     </button>
                   ))}
                 </div>
@@ -235,39 +268,21 @@ function MainSurface(): React.JSX.Element {
                 overflow. */}
             <div className="page-scroll">
               {page === 'Overview' ? (
-                <Overview onPreviewPhase={previewPhase} runtime={runtime} voice={voice} />
-              ) : page === 'Settings' ? (
-                <SettingsPanel runtime={runtime} />
-              ) : page === 'About' ? (
-                <AboutPanel fallbackVersion={version} runtime={runtime} />
+                <Overview runtime={runtime} voice={voice} />
               ) : page === 'Room' ? (
                 <RoomPanel runtime={runtime} />
               ) : page === 'Voice' ? (
                 <VoicePanel runtime={runtime} />
               ) : page === 'Chat' ? (
                 <Chat />
-              ) : page === 'Setup' ? (
-                <SetupPanel />
-              ) : page === 'Skills' ? (
-                <SkillsPanel />
-              ) : page === 'Plugins' ? (
-                <PluginsPanel />
-              ) : page === 'Doctor' ? (
-                <DoctorPanel />
               ) : page === 'Activity' ? (
                 <ActivityPanel />
-              ) : page === 'Accounts' ? (
-                <AccountsPanel />
-              ) : page === 'Providers' ? (
-                <ProvidersPanel />
               ) : page === 'Identity' ? (
                 <IdentityPanel />
               ) : page === 'Memory' ? (
                 <MemoryPanel />
               ) : page === 'Mind' ? (
                 <MindPanel />
-              ) : page === 'Updates' ? (
-                <UpdatesPanel version={version} />
               ) : (
                 <PagePanel page={page} version={version} />
               )}
@@ -291,6 +306,16 @@ function MainSurface(): React.JSX.Element {
             </footer>
           </main>
         </div>
+
+        {settings ? (
+          <SettingsShell
+            onClose={() => setSettings(null)}
+            onNavigate={setSettings}
+            page={settings}
+            runtime={runtime}
+            version={version}
+          />
+        ) : null}
 
         <ConnectingOverlay />
         <BootFailureOverlay />
@@ -324,12 +349,10 @@ function VoiceLevelMeter({ level }: { level: number }): React.JSX.Element {
 
 function Overview({
   runtime,
-  voice,
-  onPreviewPhase
+  voice
 }: {
   runtime: RuntimeStatus
   voice: VoiceState
-  onPreviewPhase: (phase: VoicePhase) => void
 }): React.JSX.Element {
   const services = [
     ['MARVI GATEWAY', runtime.components.gateway],
@@ -339,39 +362,48 @@ function Overview({
     ['ACCOUNTS', runtime.components.accounts]
   ] as const
 
+  const blocked = services.filter(([, service]) => service && service.state !== 'ready')
+
   return (
     <section className="overview-grid">
       <article className="panel hero-panel">
-        <div className="panel-label">01 / AMBIENT CORE</div>
-        <div className="portrait-frame">
-          <div className="portrait-glyph" aria-hidden="true">
-            <span>╭──────────────╮</span>
-            <span>│ M A R V I │</span>
-            <span>│ ◉ ◉ │</span>
-            <span>│ ─ │</span>
-            <span>╰──────────────╯</span>
-          </div>
-          <div className="core-copy">
-            <span className="eyebrow">CURRENT STATE</span>
-            <strong>{voice.phase.toUpperCase()}</strong>
-            <p>{voice.detail ?? 'Local senses armed. Waiting for a real event.'}</p>
-          </div>
+        {/* Was an ASCII face and eight buttons that previewed island states —
+            a developer toy on the first page the user sees. What belongs here
+            is what Marvi is doing and what is stopping it. */}
+        <div className="panel-label">{'// RIGHT NOW'}</div>
+        <div className="overview-now">
+          <span className="eyebrow">{voice.phase.toUpperCase()}</span>
+          <strong>{voice.caption}</strong>
+          <p>{voice.detail ?? 'Nothing is happening, which is the usual state.'}</p>
         </div>
-        <div className="phase-controls" aria-label="Island preview state">
-          {VOICE_PHASES.map((phase) => (
-            <button
-              className={voice.phase === phase ? 'phase active' : 'phase'}
-              key={phase}
-              onClick={() => onPreviewPhase(phase)}
-            >
-              {phase}
-            </button>
-          ))}
-        </div>
+
+        {blocked.length > 0 ? (
+          <div className="overview-blockers">
+            <span className="panel-label">{'// NEEDS ATTENTION'}</span>
+            {blocked.map(([name, service]) => (
+              <div className="context-line" key={name}>
+                <span>{name}</span>
+                <strong className={`state-${service?.state ?? 'offline'}`}>
+                  {service?.detail ?? 'no status received'}
+                </strong>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="overview-clear">Everything Marvi needs is running.</p>
+        )}
+
+        <AsciiRule />
+        <div className="panel-label">{'// HOW VOICE WORKS'}</div>
+        <p className="overview-note">
+          The voice session runs over LiveKit: the agent worker joins a local room and the app joins
+          the same room as a participant. Both need the Gateway, which issues the token and owns
+          every tool the agent can call.
+        </p>
       </article>
 
       <article className="panel services-panel">
-        <div className="panel-label">02 / SYSTEMS</div>
+        <div className="panel-label">{'// SYSTEMS'}</div>
         <div className="service-list">
           {services.map(([name, service]) => (
             <div className="service-row" key={name}>
@@ -386,22 +418,26 @@ function Overview({
       </article>
 
       <article className="panel event-panel">
-        <div className="panel-label">03 / LIVE CONTEXT</div>
+        <div className="panel-label">{'// LIVE CONTEXT'}</div>
         <div className="context-line">
           <span>ROOM</span>
           <strong>{runtime.components.room?.detail.toUpperCase() ?? 'OFFLINE'}</strong>
         </div>
         <div className="context-line">
           <span>VISION</span>
-          <strong>{runtime.components.vision?.state.toUpperCase() ?? 'OFFLINE'}</strong>
+          <strong>{runtime.components.vision?.detail.toUpperCase() ?? 'OFFLINE'}</strong>
         </div>
         <div className="context-line">
           <span>ACCOUNTS</span>
           <strong>{runtime.components.accounts?.detail.toUpperCase() ?? 'NOT CONNECTED'}</strong>
         </div>
         <div className="context-line">
-          <span>MEMORY</span>
-          <strong>FOUNDATION PENDING</strong>
+          <span>MICROPHONE</span>
+          <strong>{DEVICE_COPY[deviceState(runtime, 'microphone')]}</strong>
+        </div>
+        <div className="context-line">
+          <span>CAMERA</span>
+          <strong>{DEVICE_COPY[deviceState(runtime, 'camera')]}</strong>
         </div>
       </article>
     </section>
@@ -1425,68 +1461,70 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
 
   const livekit = runtime.components.livekit
   const gateway = runtime.components.gateway
+  const voiceComponent = runtime.components.voice
+
+  // The one line that answers "why is nothing happening". Component detail is
+  // written for exactly this: it names what is missing rather than restating
+  // the state.
+  const blocker =
+    gateway?.state !== 'ready'
+      ? gateway?.detail
+      : voiceComponent?.state !== 'ready'
+        ? voiceComponent?.detail
+        : livekit?.state !== 'ready'
+          ? livekit?.detail
+          : ''
 
   return (
-    <section className="single-page panel">
-      <div className="panel-label">{'// VOICE'}</div>
-      <h2>Voice</h2>
-      <p>
-        The voice session runs over LiveKit: the agent worker joins a local room, and this window
-        joins the same room as a participant. Both need the Gateway, which issues the token and owns
-        every tool the agent can call.
-      </p>
-
-      <div className="voice-orb-stage">
+    <section className="voice-page">
+      {/* The orb *is* the page. Everything that used to sit around it — what
+          LiveKit is, the service list, the microphone list — was reference
+          material competing with the one thing you came here to look at. It
+          lives on Overview now. */}
+      <div className="voice-stage">
         <VoiceOrb
-          size={220}
+          size={340}
           level={voice.level}
           active={voice.phase === 'listening' || voice.phase === 'speaking'}
         />
-        <div className="voice-orb-meta">
-          <span className="voice-orb-phase">{voice.phase.toUpperCase()}</span>
-          <span className="voice-orb-caption">{voice.caption}</span>
-        </div>
       </div>
 
-      <div className="context-line">
-        <span>SESSION</span>
-        <strong>{voice.phase.toUpperCase()}</strong>
-      </div>
-      <div className="context-line">
-        <span>GATEWAY</span>
-        <strong>{(gateway?.detail ?? 'unknown').toUpperCase()}</strong>
-      </div>
-      <div className="context-line">
-        <span>LIVEKIT</span>
-        <strong>{(livekit?.detail ?? 'unknown').toUpperCase()}</strong>
-      </div>
+      <aside className="voice-status" aria-label="Session status">
+        <span className="voice-status-phase">{voice.phase.toUpperCase()}</span>
+        <strong className="voice-status-caption">{voice.caption}</strong>
+        {voice.detail ? <p className="voice-status-detail">{voice.detail}</p> : null}
 
-      <AsciiRule />
-      <div className="panel-label">{'// LOCAL SERVICES'}</div>
-      <ServiceHealth />
+        {blocker ? <p className="voice-status-blocker">{blocker}</p> : null}
 
-      <AsciiRule />
-      <div className="panel-label">{'// MICROPHONES'}</div>
-      {deviceError ? (
-        <span className="construction">{deviceError.toUpperCase()}</span>
-      ) : devices.length === 0 ? (
-        <span className="construction">
-          NO MICROPHONE VISIBLE / GRANT MICROPHONE PERMISSION TO LIST DEVICES
-        </span>
-      ) : (
-        <div className="service-list">
-          {devices.map((device) => (
-            <div className="service-row" key={device.deviceId}>
-              <span className="service-name">
-                {(device.label || 'Unnamed input').toUpperCase()}
-              </span>
-              <span className="service-state">
-                {device.deviceId === 'default' ? 'DEFAULT' : ''}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
+        <dl className="voice-status-facts">
+          <div>
+            <dt>GATEWAY</dt>
+            <dd className={`state-${gateway?.state ?? 'offline'}`}>
+              {(gateway?.state ?? 'offline').toUpperCase()}
+            </dd>
+          </div>
+          <div>
+            <dt>LIVEKIT</dt>
+            <dd className={`state-${livekit?.state ?? 'offline'}`}>
+              {(livekit?.state ?? 'offline').toUpperCase()}
+            </dd>
+          </div>
+          <div>
+            <dt>VOICE</dt>
+            <dd className={`state-${voiceComponent?.state ?? 'offline'}`}>
+              {(voiceComponent?.state ?? 'offline').toUpperCase()}
+            </dd>
+          </div>
+          <div>
+            <dt>MICROPHONE</dt>
+            <dd>{DEVICE_COPY[deviceState(runtime, 'microphone')]}</dd>
+          </div>
+          <div>
+            <dt>INPUTS</dt>
+            <dd>{deviceError ? 'UNKNOWN' : `${devices.length} FOUND`}</dd>
+          </div>
+        </dl>
+      </aside>
     </section>
   )
 }
@@ -1825,6 +1863,165 @@ function SetupPanel(): React.JSX.Element {
         RE-CHECK
       </button>
       {page ? <small>{page.install_root}</small> : null}
+    </section>
+  )
+}
+
+function SchedulesPanel(): React.JSX.Element {
+  const [page, setPage] = useState<SchedulePage | null>(null)
+  const [name, setName] = useState('')
+  const [when, setWhen] = useState('')
+  const [message, setMessage] = useState('')
+  const [insist, setInsist] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let disposed = false
+    void (async () => {
+      const next = await window.marvi?.getSchedules()
+      if (!disposed && next) setPage(next)
+    })()
+    return () => {
+      disposed = true
+    }
+  }, [])
+
+  const add = async (): Promise<void> => {
+    setError('')
+    const next = await window.marvi?.addSchedule({ name, when, message, insist })
+    if (!next) {
+      setError('Marvi would not accept that. Check the time.')
+      return
+    }
+    setPage(next)
+    setName('')
+    setWhen('')
+    setMessage('')
+    setInsist(false)
+  }
+
+  const act = async (
+    id: number,
+    action: 'remove' | 'enable' | 'disable' | 'run'
+  ): Promise<void> => {
+    const next = await window.marvi?.scheduleAction(id, action)
+    if (next) setPage(next)
+  }
+
+  return (
+    <section className="single-page panel">
+      <div className="panel-label">{'// SCHEDULES'}</div>
+      <h2>Schedules</h2>
+      <p>
+        Reminders and scheduled checks. A schedule re-times something Marvi can already do; it
+        cannot introduce a new one. When it fires it writes an event and the usual rules decide how
+        loud it may be.
+      </p>
+
+      {error ? <span className="construction">{error.toUpperCase()}</span> : null}
+
+      <AsciiRule />
+      <div className="panel-label">{'// NEW'}</div>
+
+      <div className="schedule-form">
+        <label>
+          <span>NAME</span>
+          <input
+            value={name}
+            placeholder="wake up"
+            onChange={(event) => setName(event.target.value)}
+          />
+        </label>
+        <label>
+          <span>WHEN</span>
+          <input
+            value={when}
+            placeholder="07:30, 60 (minutes), or a cron expression"
+            onChange={(event) => setWhen(event.target.value)}
+          />
+        </label>
+        <label>
+          <span>MESSAGE</span>
+          <input
+            value={message}
+            placeholder="Time to get up"
+            onChange={(event) => setMessage(event.target.value)}
+          />
+        </label>
+        <label className="schedule-insist">
+          <input
+            type="checkbox"
+            checked={insist}
+            onChange={(event) => setInsist(event.target.checked)}
+          />
+          <span>
+            SPEAK ANYWAY
+            {/* The opt-in. Off by default because an hourly check firing out
+                loud at 3am is what quiet hours exists to prevent. */}
+            <small>Ignore quiet hours and sleep mode. For an alarm you mean.</small>
+          </span>
+        </label>
+        <button
+          className="phase"
+          type="button"
+          disabled={!name || !when}
+          onClick={() => void add()}
+        >
+          ADD
+        </button>
+      </div>
+
+      <AsciiRule />
+      <div className="panel-label">{'// SET'}</div>
+
+      <div className="service-list">
+        {(page?.schedules ?? []).map((row) => (
+          <div className="service-row" key={row.id}>
+            <span className="service-name">{row.name.toUpperCase()}</span>
+            <span
+              className={`service-state state-${
+                row.last_error ? 'error' : row.enabled ? 'ready' : 'pending'
+              }`}
+            >
+              {row.last_error ? 'FAILED' : row.enabled ? 'ON' : 'OFF'}
+              {row.insist ? ' / INSISTS' : ''}
+            </span>
+            <small>
+              {row.kind === 'interval' ? `every ${row.expression} minutes` : row.expression} /{' '}
+              {row.action}
+            </small>
+            {row.message ? <small>{row.message}</small> : null}
+            {row.last_error ? (
+              <small className="provider-cooldown">{row.last_error}</small>
+            ) : row.last_run ? (
+              <small>last run {row.last_run}</small>
+            ) : null}
+            <div className="provider-actions">
+              <button className="phase" type="button" onClick={() => void act(row.id, 'run')}>
+                RUN NOW
+              </button>
+              <button
+                className="phase"
+                type="button"
+                onClick={() => void act(row.id, row.enabled ? 'disable' : 'enable')}
+              >
+                {row.enabled ? 'PAUSE' : 'RESUME'}
+              </button>
+              <button
+                className="phase danger"
+                type="button"
+                onClick={() => void act(row.id, 'remove')}
+              >
+                REMOVE
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {(page?.schedules ?? []).length === 0 ? (
+        <span className="construction">NOTHING SCHEDULED</span>
+      ) : null}
     </section>
   )
 }
@@ -2212,30 +2409,21 @@ function ActivityPanel(): React.JSX.Element {
   )
 }
 
-function PagePanel({ page, version }: { page: Page; version: string }): React.JSX.Element {
+function PagePanel({ page }: { page: Page; version: string }): React.JSX.Element {
+  // The fallback for a sidebar page with no panel of its own. Only Vision
+  // reaches it today; everything that used to land here now has a real page or
+  // lives behind the gear.
   const descriptions: Record<Page, string> = {
     Overview: '',
-    Voice:
-      'Streaming STT, TTS, wake word, interruption, acoustic echo control, and device diagnostics.',
-    Chat: 'Typed conversation with the same Marvi the voice session reaches.',
-    Vision:
-      'Always-on local presence and gesture processing. Frames leave the PC only for an explicit vision task.',
-    Room: 'Lights, modes and presence from the room plugin. Marvi does not replace its automation authority.',
-    Plugins: 'Backends Marvi installs from a repository and runs as its own child processes.',
-    Accounts: 'Composio connections for email, LinkedIn, X, and other world-context providers.',
-    Providers: 'Model providers, credentials, models per job, and token usage.',
+    Voice: '',
+    Chat: '',
+    Room: '',
+    Activity: 'Structured local event and tool audit timeline. No hidden outbound telemetry.',
     Identity: 'SOUL.md and USER.md - who Marvi is, and who it is speaking to.',
     Memory: 'Durable facts, episodic events, retrieval controls, and forget/export operations.',
     Mind: 'Event-driven decisions, the rule behind each one, and the initiative switch.',
-    Activity: 'Structured local event and tool audit timeline. No hidden outbound telemetry.',
-    Doctor: 'What is wrong, what Marvi fixed, and what needs you.',
-    Setup: 'Models, binaries and dependencies — what is here and what is missing.',
-    Skills: 'Instructions that teach Marvi how to do something.',
-    Settings:
-      'Voice devices, wake behavior, startup, confirmation mode, and the explicit YOLO switch.',
-    Updates:
-      'Repository-owned Windows update status, release notes, channel, and explicit install handoff.',
-    About: `Marvi OS ${version}. Local-first voice and vision assistant built on LiveKit Agents.`
+    Vision:
+      'Always-on local presence and gesture processing. The room plugin owns the camera; Marvi does not run a second loop on it.'
   }
 
   return (
@@ -2251,6 +2439,95 @@ function PagePanel({ page, version }: { page: Page; version: string }): React.JS
 
 function BrandIcon({ className = '' }: { className?: string }): React.JSX.Element {
   return <img alt="Marvi OS" className={`brand-icon ${className}`} src={appIcon} />
+}
+
+/**
+ * Everything you configure, in one overlay.
+ *
+ * Deliberately plain: no background video, no bordered panels stacked inside
+ * bordered panels. Settings is a place you go to read a value and change it,
+ * and the reported problem with the old pages was text sitting directly on a
+ * moving image.
+ */
+function SettingsShell({
+  page,
+  runtime,
+  version,
+  onNavigate,
+  onClose
+}: {
+  page: SettingsPage
+  runtime: RuntimeStatus
+  version: string
+  onNavigate: (next: SettingsPage) => void
+  onClose: () => void
+}): React.JSX.Element {
+  useEffect(() => {
+    const escape = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', escape)
+    return () => window.removeEventListener('keydown', escape)
+  }, [onClose])
+
+  return (
+    <div className="settings-shell" role="dialog" aria-modal="true" aria-label="Settings">
+      <nav className="settings-rail" aria-label="Settings sections">
+        <div className="settings-rail-head">
+          <strong>SETTINGS</strong>
+          <button aria-label="Close settings" onClick={onClose} type="button">
+            ✕
+          </button>
+        </div>
+        {SETTINGS_GROUPS.map((group) => (
+          <div className="settings-group" key={group.label}>
+            <h2>{group.label.toUpperCase()}</h2>
+            {group.items.map((item) => (
+              <button
+                aria-current={page === item ? 'page' : undefined}
+                className={page === item ? 'settings-link active' : 'settings-link'}
+                key={item}
+                onClick={() => onNavigate(item)}
+                type="button"
+              >
+                {item.toUpperCase()}
+              </button>
+            ))}
+          </div>
+        ))}
+      </nav>
+
+      <div className="settings-content">
+        <header className="settings-head">
+          <h1>{page}</h1>
+          <p>{SETTINGS_BLURB[page]}</p>
+        </header>
+        <div className="settings-scroll">
+          {page === 'Providers' ? (
+            <ProvidersPanel />
+          ) : page === 'Accounts' ? (
+            <AccountsPanel />
+          ) : page === 'Skills' ? (
+            <SkillsPanel />
+          ) : page === 'Plugins' ? (
+            <PluginsPanel />
+          ) : page === 'Preferences' ? (
+            <SettingsPanel runtime={runtime} />
+          ) : page === 'Schedules' ? (
+            <SchedulesPanel />
+          ) : page === 'Setup' ? (
+            <SetupPanel />
+          ) : page === 'Doctor' ? (
+            <DoctorPanel />
+          ) : page === 'Updates' ? (
+            <UpdatesPanel version={version} />
+          ) : (
+            <AboutPanel fallbackVersion={version} runtime={runtime} />
+          )}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function SettingsPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {

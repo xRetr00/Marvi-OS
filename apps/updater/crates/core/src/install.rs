@@ -13,7 +13,22 @@ use crate::util::random_suffix;
 
 /// The Node the desktop build is known to work with. Bumping this is how a
 /// release asks for a newer toolchain.
-pub const NODE_VERSION: &str = "v22.11.0";
+/// The Node the installer provisions.
+///
+/// Must stay on the same major as `node-version` in `.github/workflows/release.yml`,
+/// and CI guards that they agree — the point being that the Node a user gets is
+/// the Node the release was gated on.
+///
+/// v22.11.0 shipped in v0.2.0 and could not build the app: every Electron and
+/// Vite package requires `>=22.12.0`, and `electron-builder install-app-deps`
+/// died with ERR_REQUIRE_ESM because `require()` of an ES module only works from
+/// 22.12 onwards. It went unnoticed because every machine that built Marvi
+/// already had a newer Node on PATH; provisioning our own is what exposed it.
+pub const NODE_VERSION: &str = "v22.23.2";
+
+/// How many times to try removing the previous packaged build. A killed
+/// process can keep a file handle open for a moment after it is gone.
+const BUILD_OUTPUT_ATTEMPTS: u32 = 5;
 
 pub struct InstallConfig {
     pub install_root: PathBuf,
@@ -226,11 +241,49 @@ pub(crate) fn build_with_toolchain(
             unsafe { std::env::set_var("PATH", merged) };
         }
     }
+    clear_build_output(root, progress);
     builder.prepare(root, progress)?;
     if !smoke_ok(root) {
         return Err("build produced no runnable runtime (smoke test failed)".to_string());
     }
     Ok(())
+}
+
+/// Remove the previous packaged build before rebuilding it.
+///
+/// electron-builder does this itself and reported
+/// `EBUSY: resource busy or locked, rmdir dist\win-unpacked` when it could
+/// not — which is what an update did, because the app being replaced runs from
+/// inside that directory and Windows holds the file until every handle closes.
+/// Killing the processes is the first half; the handles can outlive them by a
+/// moment, so this retries rather than failing on the first refusal.
+///
+/// Best-effort: if it cannot be cleared, the build is still attempted and
+/// electron-builder's own error is the honest one to report.
+fn clear_build_output(root: &Path, progress: &mut dyn FnMut(&str)) {
+    let unpacked = root.join("apps").join("desktop").join("dist").join("win-unpacked");
+    if !unpacked.exists() {
+        return;
+    }
+    for attempt in 1..=BUILD_OUTPUT_ATTEMPTS {
+        match std::fs::remove_dir_all(&unpacked) {
+            Ok(()) => {
+                progress("cleared the previous build");
+                return;
+            }
+            Err(_) if attempt < BUILD_OUTPUT_ATTEMPTS => {
+                progress(&format!(
+                    "the previous build is still in use, waiting ({attempt}/{BUILD_OUTPUT_ATTEMPTS})"
+                ));
+                std::thread::sleep(std::time::Duration::from_secs(2));
+            }
+            Err(error) => {
+                // Said out loud rather than swallowed: if the build now fails
+                // with EBUSY, this line is the reason.
+                progress(&format!("could not clear the previous build: {error}"));
+            }
+        }
+    }
 }
 
 /// Smoke test: the Electron runtime entrypoint must exist.

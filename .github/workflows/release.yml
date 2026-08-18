@@ -111,6 +111,22 @@ jobs:
         working-directory: apps/updater
         run: cargo test --workspace
 
+      - name: Guard the provisioned Node against the one CI builds with
+        shell: bash
+        run: |
+          # v0.2.0 provisioned v22.11.0 and could not build the app, while CI
+          # built it fine on whatever `node-version: 22` resolved to. The build
+          # a release is gated on has to be the build a user gets.
+          PINNED="$(grep -m1 'pub const NODE_VERSION' apps/updater/crates/core/src/install.rs \
+            | cut -d'"' -f2)"
+          PINNED_MAJOR="${PINNED#v}"; PINNED_MAJOR="${PINNED_MAJOR%%.*}"
+          CI_MAJOR="$(node --version)"; CI_MAJOR="${CI_MAJOR#v}"; CI_MAJOR="${CI_MAJOR%%.*}"
+          if [ "$PINNED_MAJOR" != "$CI_MAJOR" ]; then
+            echo "::error::the installer provisions Node $PINNED but CI builds on v$CI_MAJOR.x"
+            exit 1
+          fi
+          echo "installer provisions $PINNED; CI is on v$CI_MAJOR.x"
+
       - name: Guard bootstrap/VERSION agreement
         shell: bash
         run: |
