@@ -19,7 +19,19 @@ it is what the previous attempts skipped.
   the registry.
 - **Auxiliary is a second literal.** There is no notion of "follow the main
   model", which is what a user means by a default.
-- **Reasoning effort does not exist.** No field, no request shaping, nothing.
+- **Reasoning effort exists and is out of date.** I wrote "does not exist,
+  no field, no request shaping" in the first draft of this plan and was wrong.
+  `base.py` has `ReasoningPolicy` with `style`, `levels`, `default` and a
+  `normalise()` that clamps to what a provider accepts — the right shape. But
+  both Anthropic profiles use `style="budget_tokens"`, and `build_request`
+  emits `{"thinking": {"type": "enabled", "budget_tokens": ...}}`, which is
+  deprecated on Claude 4.6 and **rejected with a 400 on 4.7 and later**. So the
+  work is not building it; the work is `adaptive` + `effort`, and deleting the
+  `budget_tokens` style rather than extending it.
+- **Nothing streams.** `ProviderClient.call` hardcodes `stream=False`, so chat
+  waits for a whole response before showing a word. First-token latency is not
+  a voice-only concern: the streaming endpoint Phase 12 needs for voice is the
+  same one that makes chat feel immediate.
 
 ## Research
 
