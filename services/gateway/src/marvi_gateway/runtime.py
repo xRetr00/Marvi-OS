@@ -59,10 +59,27 @@ class AssistantState(BaseModel):
     detail: str | None = None
     level: float = Field(default=0.0, ge=0.0, le=1.0)
     yolo: bool = False
+    #: The last utterance each way, for the live transcript on the Voice page.
+    #: Deliberately only the latest: this is a glance while talking, not a
+    #: record. Chat is where a transcript belongs.
+    heard: str = ""
+    spoken: str = ""
     confirmation: ConfirmationRequest | None = None
     # A background room event rides its own channel so it can never take over a
     # live voice phase. The Island shows it only while idle.
     room_event: RoomEvent | None = None
+
+
+class ModelSummary(BaseModel):
+    """What is actually doing the work, by name.
+
+    The status bar says whether things are up. This says which ones — the
+    question you have when the answer sounds wrong rather than absent.
+    """
+
+    llm: str = ""
+    stt: str = ""
+    tts: str = ""
 
 
 class RuntimeStatus(BaseModel):
@@ -71,6 +88,7 @@ class RuntimeStatus(BaseModel):
     state: Literal["ready", "starting", "degraded", "offline", "error"]
     components: dict[str, ComponentStatus]
     assistant: AssistantState
+    model: ModelSummary = ModelSummary()
 
 
 class ModeUpdate(BaseModel):

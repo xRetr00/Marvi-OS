@@ -51,6 +51,7 @@ from .runtime import (
     AuditPage,
     ComponentStatus,
     ConfirmationDecision,
+    ModelSummary,
     ModeUpdate,
     RuntimeStatus,
     RuntimeStore,
@@ -703,6 +704,21 @@ def create_app(
                 )
         return fresh[-1] if fresh else None
 
+    def model_summary() -> ModelSummary:
+        """Which model each part of the voice path is using, by name."""
+        chosen = provider_client.candidates(
+            os.environ.get("MARVI_PROVIDER", "").strip() or None
+        )
+        llm = ""
+        if chosen:
+            llm = f"{chosen[0].label()} / {chosen[0].model_for('main')}"
+        voice_models = setup_module.voice_model_names(REPO_ROOT)
+        return ModelSummary(
+            llm=llm,
+            stt=voice_models.get("stt", ""),
+            tts=voice_models.get("tts", ""),
+        )
+
     def current_status() -> RuntimeStatus:
         if sidecar is not None:
             runtime_store.observe_room_event(drain_room_events())
@@ -730,6 +746,7 @@ def create_app(
             state=overall_state(components),
             components=components,
             assistant=runtime_store.assistant,
+            model=model_summary(),
         )
 
     @app.get("/health", response_model=RuntimeStatus)
@@ -989,6 +1006,26 @@ def create_app(
             # loopback, and a proxy that helpfully batches would undo the point.
             headers={"cache-control": "no-cache", "x-accel-buffering": "no"},
         )
+
+    class Transcript(BaseModel):
+        heard: str = ""
+        spoken: str = ""
+
+    @app.post("/voice/transcript", response_model=RuntimeStatus)
+    async def set_transcript(update: Transcript) -> RuntimeStatus:
+        """The Agent reporting what it heard or said.
+
+        Held on the assistant state so it rides the runtime poll the shell is
+        already making, rather than opening a second channel for two strings.
+        """
+        runtime_store.assistant = runtime_store.assistant.model_copy(
+            update={
+                key: value
+                for key, value in (("heard", update.heard), ("spoken", update.spoken))
+                if value
+            }
+        )
+        return current_status()
 
     @app.post("/latency")
     async def record_latency(sample: dict[str, Any]) -> dict[str, Any]:

@@ -1631,99 +1631,164 @@ small,
 
 /* ===== Voice =====
  *
- * The orb is the page. Everything that used to surround it — what LiveKit is,
- * the service list, the microphone list — was reference material competing
- * with the one thing the page exists to show, and it lives on Overview now.
- *
- * Status sits beside the orb rather than under it, so a glance takes in both
- * without scrolling. */
+ * The orb is the surface, header to status bar, and everything else is laid
+ * over it. Facts in a column beside it made the page a diagram of a voice
+ * assistant rather than one you look at. */
 .voice-page {
-  display: grid;
-  grid-template-columns: 1fr minmax(240px, 320px);
-  align-items: center;
-  gap: 32px;
+  position: relative;
   height: 100%;
   min-height: 0;
-  padding: 32px 40px;
+  overflow: hidden;
 }
 
-.voice-stage {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 0;
+.voice-orb-surface {
+  position: absolute;
+  inset: 0;
+  /* The pointer drives the orb's rotation, so the surface has to receive it. */
+  cursor: crosshair;
 }
 
-.voice-status {
+.voice-orb-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* The overlays do not take the pointer: the orb underneath is the thing you
+   are pointing at, and a HUD panel stealing the cursor would leave dead zones
+   where the rotation stops responding. */
+.voice-hud {
+  position: absolute;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.voice-hud-state {
+  top: 22px;
+  left: 26px;
   display: flex;
+  max-width: 46%;
   flex-direction: column;
-  gap: 6px;
-  min-width: 0;
+  gap: 4px;
 }
 
-.voice-status-phase {
-  color: var(--ui-accent);
+.voice-hud-phase {
   font-size: 11px;
+  letter-spacing: 0.18em;
+  color: var(--ui-text-secondary);
+}
+
+/* The phase has a colour and so does the orb; they are the same signal, so
+   they agree rather than competing. */
+.voice-hud-phase.phase-listening,
+.voice-hud-phase.phase-wake {
+  color: #38bdf8;
+}
+.voice-hud-phase.phase-thinking {
+  color: #c084fc;
+}
+.voice-hud-phase.phase-speaking {
+  color: #fbbf24;
+}
+.voice-hud-phase.phase-error {
+  color: var(--ui-danger);
+}
+
+.voice-hud-state strong {
+  color: var(--ui-text-emphasis);
+  font-family: 'Collapse', sans-serif;
+  font-size: 28px;
+  letter-spacing: 0.02em;
+  line-height: 1.15;
+}
+
+.voice-hud-blocker {
+  margin: 8px 0 0;
+  padding: 8px 11px;
+  border-left: 2px solid var(--ui-danger);
+  background: color-mix(in srgb, var(--ui-bg) 78%, transparent);
+  color: var(--ui-text-primary);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.voice-hud-rig {
+  top: 22px;
+  right: 26px;
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  text-align: right;
+}
+
+.voice-hud-rig > div {
+  display: grid;
+  gap: 1px;
+}
+
+.voice-hud-rig dt {
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
   letter-spacing: 0.16em;
 }
 
-.voice-status-caption {
-  color: var(--ui-text-emphasis);
-  font-family: 'Collapse', sans-serif;
-  font-size: 26px;
-  letter-spacing: 0.02em;
-}
-
-.voice-status-detail {
+.voice-hud-rig dd {
   margin: 0;
+  max-width: 300px;
+  overflow: hidden;
   color: var(--ui-text-secondary);
-  font-size: 12px;
-  line-height: 1.6;
-}
-
-/* The one line that answers "why is nothing happening". */
-.voice-status-blocker {
-  margin: 6px 0 0;
-  padding: 10px 12px;
-  border-left: 2px solid var(--ui-danger);
-  background: color-mix(in srgb, var(--ui-danger) 10%, transparent);
-  color: var(--ui-text-primary);
-  font-size: 12px;
-  line-height: 1.6;
-}
-
-.voice-status-facts {
-  display: grid;
-  gap: 8px;
-  margin: 18px 0 0;
-}
-
-.voice-status-facts > div {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  padding-bottom: 7px;
-  border-bottom: 1px solid var(--ui-stroke-tertiary);
-}
-
-.voice-status-facts dt {
-  color: var(--ui-text-tertiary);
-  font-size: 10px;
-  letter-spacing: 0.12em;
-}
-
-.voice-status-facts dd {
-  margin: 0;
-  color: var(--ui-text-primary);
   font-size: 11px;
-  letter-spacing: 0.06em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The transcript sits at the bottom, over the ground grid, where a subtitle
+   goes. Two lines at most — a glance while talking, not a record. */
+.voice-transcript {
+  position: absolute;
+  right: 26px;
+  bottom: 22px;
+  left: 26px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.voice-transcript p {
+  display: flex;
+  gap: 10px;
+  margin: 0;
+  padding: 7px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ui-bg) 72%, transparent);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.voice-transcript span {
+  flex: none;
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  line-height: 2.1;
+}
+
+.voice-heard {
+  color: var(--ui-text-secondary);
+}
+
+.voice-spoken {
+  color: var(--ui-text-emphasis);
 }
 
 @media (max-width: 980px) {
-  .voice-page {
-    grid-template-columns: 1fr;
-    align-content: start;
+  .voice-hud-state {
+    max-width: 70%;
+  }
+  .voice-hud-rig {
+    display: none;
   }
 }
 

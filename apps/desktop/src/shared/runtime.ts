@@ -113,12 +113,24 @@ export interface AuditEvent {
   detail: string | null
 }
 
+/** Which model each part of the voice path is using, by name. The status bar
+ * says whether things are up; this says which ones. */
+export interface ModelSummary {
+  llm: string
+  stt: string
+  tts: string
+}
+
 export interface AssistantState {
   phase: AssistantPhase
   caption: string
   detail: string | null
   level: number
   yolo: boolean
+  /** The last utterance each way, for the live transcript. Only the latest:
+   * a glance while talking, not a record. */
+  heard: string
+  spoken: string
   confirmation: ConfirmationRequest | null
   /** Background room event. Rendered only while idle; never steals focus. */
   roomEvent: RoomEvent | null
@@ -285,6 +297,7 @@ export interface RuntimeStatus {
   state: 'ready' | 'starting' | 'degraded' | 'offline' | 'error'
   components: Record<string, ComponentStatus>
   assistant: AssistantState
+  model: ModelSummary
 }
 
 export const DEFAULT_ASSISTANT_STATE: AssistantState = {
@@ -293,6 +306,8 @@ export const DEFAULT_ASSISTANT_STATE: AssistantState = {
   detail: null,
   level: 0,
   yolo: false,
+  heard: '',
+  spoken: '',
   confirmation: null,
   roomEvent: null
 }
@@ -312,6 +327,7 @@ export const OFFLINE_RUNTIME: RuntimeStatus = {
   // Not DEFAULT_ASSISTANT_STATE: that one is the *ready* state, and reusing it
   // here made an unreachable Marvi say "Say Marvi" and report VOICE READY in
   // the status bar. An assistant we cannot reach is in its error phase.
+  model: { llm: '', stt: '', tts: '' },
   assistant: {
     ...DEFAULT_ASSISTANT_STATE,
     phase: 'error',

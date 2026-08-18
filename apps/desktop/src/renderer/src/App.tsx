@@ -338,8 +338,7 @@ function VoiceLevelMeter({ level }: { level: number }): React.JSX.Element {
   // A shade ramp reads as a continuous meter: ░ light → ▒ → ▓ dark → █ full.
   const shades = ['░', '▒', '▓'] as const
   const partialGlyph = partial > 0 ? shades[Math.min(2, Math.floor(partial * 3))] : ''
-  const blocks =
-    '█'.repeat(full) + partialGlyph + '░'.repeat(cells - full - (partialGlyph ? 1 : 0))
+  const blocks = '█'.repeat(full) + partialGlyph + '░'.repeat(cells - full - (partialGlyph ? 1 : 0))
   return (
     <span aria-label={`Voice level ${Math.round(value * 100)}%`} className="voice-level-meter">
       {blocks}
@@ -1475,58 +1474,74 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
           ? livekit?.detail
           : ''
 
+  const mood = voice.phase
+  const speaking = voice.phase === 'speaking'
+  const listening = voice.phase === 'listening' || voice.phase === 'wake'
+
   return (
+    // The orb is the whole surface, header to status bar, and everything else
+    // is laid over it. Facts in a column beside it made the page a diagram of
+    // a voice assistant rather than one you look at.
     <section className="voice-page">
-      {/* The orb *is* the page. Everything that used to sit around it — what
-          LiveKit is, the service list, the microphone list — was reference
-          material competing with the one thing you came here to look at. It
-          lives on Overview now. */}
-      <div className="voice-stage">
-        <VoiceOrb
-          size={340}
-          level={voice.level}
-          active={voice.phase === 'listening' || voice.phase === 'speaking'}
-        />
+      <div className="voice-orb-surface">
+        <VoiceOrb active={speaking || listening} level={voice.level} phase={voice.phase} />
       </div>
 
-      <aside className="voice-status" aria-label="Session status">
-        <span className="voice-status-phase">{voice.phase.toUpperCase()}</span>
-        <strong className="voice-status-caption">{voice.caption}</strong>
-        {voice.detail ? <p className="voice-status-detail">{voice.detail}</p> : null}
+      {/* Top-left: what Marvi is doing, and what is stopping it. */}
+      <div className="voice-hud voice-hud-state">
+        <span className={`voice-hud-phase phase-${mood}`}>{voice.phase.toUpperCase()}</span>
+        <strong>{voice.caption}</strong>
+        {blocker ? <p className="voice-hud-blocker">{blocker}</p> : null}
+      </div>
 
-        {blocker ? <p className="voice-status-blocker">{blocker}</p> : null}
+      {/* Top-right: what is actually doing the work. Not repeated from the
+          status bar — that says whether things are up; this says which ones. */}
+      <dl className="voice-hud voice-hud-rig">
+        <div>
+          <dt>LLM</dt>
+          <dd>{runtime.model?.llm || 'not selected'}</dd>
+        </div>
+        <div>
+          <dt>SPEECH IN</dt>
+          <dd>{runtime.model?.stt || 'not installed'}</dd>
+        </div>
+        <div>
+          <dt>SPEECH OUT</dt>
+          <dd>{runtime.model?.tts || 'not installed'}</dd>
+        </div>
+        <div>
+          <dt>MIC</dt>
+          <dd>{deviceError ? 'unavailable' : microphoneLabel(devices)}</dd>
+        </div>
+      </dl>
 
-        <dl className="voice-status-facts">
-          <div>
-            <dt>GATEWAY</dt>
-            <dd className={`state-${gateway?.state ?? 'offline'}`}>
-              {(gateway?.state ?? 'offline').toUpperCase()}
-            </dd>
-          </div>
-          <div>
-            <dt>LIVEKIT</dt>
-            <dd className={`state-${livekit?.state ?? 'offline'}`}>
-              {(livekit?.state ?? 'offline').toUpperCase()}
-            </dd>
-          </div>
-          <div>
-            <dt>VOICE</dt>
-            <dd className={`state-${voiceComponent?.state ?? 'offline'}`}>
-              {(voiceComponent?.state ?? 'offline').toUpperCase()}
-            </dd>
-          </div>
-          <div>
-            <dt>MICROPHONE</dt>
-            <dd>{DEVICE_COPY[deviceState(runtime, 'microphone')]}</dd>
-          </div>
-          <div>
-            <dt>INPUTS</dt>
-            <dd>{deviceError ? 'UNKNOWN' : `${devices.length} FOUND`}</dd>
-          </div>
-        </dl>
-      </aside>
+      {/* Bottom: the live transcript, streaming. Two lines at most — this is a
+          glance while talking, not a record; Chat is where a transcript lives. */}
+      <div aria-live="polite" className="voice-transcript">
+        {voice.heard ? (
+          <p className="voice-heard">
+            <span>YOU</span>
+            {voice.heard}
+          </p>
+        ) : null}
+        {voice.spoken ? (
+          <p className="voice-spoken">
+            <span>MARVI</span>
+            {voice.spoken}
+          </p>
+        ) : null}
+      </div>
     </section>
   )
+}
+
+/** The input Marvi will actually use, named rather than counted. "4 found"
+ * tells you nothing about which one is live. */
+function microphoneLabel(devices: MediaDeviceInfo[]): string {
+  if (devices.length === 0) return 'none found'
+  const preferred = devices.find((device) => device.deviceId === 'default') ?? devices[0]
+  const name = (preferred.label || 'unnamed input').replace(/^Default\s*-\s*/i, '')
+  return name.length > 28 ? `${name.slice(0, 27)}…` : name
 }
 
 const AREA_ORDER = ['dependencies', 'providers', 'configuration', 'services', 'storage', 'doctor']

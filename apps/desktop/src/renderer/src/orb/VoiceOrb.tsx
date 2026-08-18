@@ -5,6 +5,8 @@
 
 import { useEffect, useRef } from 'react'
 
+import { MOOD_FOR_PHASE, RAMPS, blend, type Ramp } from './moods'
+
 const N = 2000
 const GOLDEN = Math.PI * (3 - Math.sqrt(5))
 
@@ -17,36 +19,7 @@ for (let i = 0; i < N; i += 1) {
   SPHERE.push([r * Math.cos(theta), y, r * Math.sin(theta)])
 }
 
-type RGB = [number, number, number]
-
-// orange → red → pink → magenta (0 = cool/far, 1 = hot/near)
-const STOPS: Array<[number, RGB]> = [
-  [0.0, [0xa8, 0x55, 0xf7]],
-  [0.33, [0xec, 0x48, 0x99]],
-  [0.66, [0xef, 0x44, 0x44]],
-  [1.0, [0xf9, 0x73, 0x16]]
-]
-
-function gradient(t: number): RGB {
-  const x = Math.max(0, Math.min(1, t))
-  for (let i = 0; i < STOPS.length - 1; i += 1) {
-    const [t0, c0] = STOPS[i]
-    const [t1, c1] = STOPS[i + 1]
-    if (x >= t0 && x <= t1) {
-      const f = (x - t0) / (t1 - t0)
-      return [
-        Math.round(c0[0] + (c1[0] - c0[0]) * f),
-        Math.round(c0[1] + (c1[1] - c0[1]) * f),
-        Math.round(c0[2] + (c1[2] - c0[2]) * f)
-      ]
-    }
-  }
-  return STOPS[STOPS.length - 1][1]
-}
-
-function drawGrid(ctx: CanvasRenderingContext2D, size: number): void {
-  const w = size
-  const h = size
+function drawGrid(ctx: CanvasRenderingContext2D, w: number, h: number): void {
   const horizon = h * 0.68
   const vpX = w * 0.5
   ctx.lineWidth = 1
@@ -74,26 +47,39 @@ function drawGrid(ctx: CanvasRenderingContext2D, size: number): void {
   ctx.stroke()
 }
 
-function draw(
-  ctx: CanvasRenderingContext2D,
-  size: number,
-  t: number,
-  level: number,
+interface Frame {
+  width: number
+  height: number
+  t: number
+  level: number
   active: boolean
-): void {
-  ctx.clearRect(0, 0, size, size)
-  drawGrid(ctx, size)
+  /** Mood ramps, and how far between them. */
+  from: Ramp
+  to: Ramp
+  mix: number
+  /** Pointer-driven rotation, in radians. */
+  yaw: number
+  pitch: number
+}
 
-  const cx = size / 2
-  const cy = size / 2
-  const tilt = 0.42
-  const yaw = t * 0.22
+function draw(ctx: CanvasRenderingContext2D, f: Frame): void {
+  ctx.clearRect(0, 0, f.width, f.height)
+  drawGrid(ctx, f.width, f.height)
+
+  const cx = f.width / 2
+  const cy = f.height / 2
+  // The sphere is sized off the smaller axis so a wide window makes a bigger
+  // orb rather than an ellipse cropped by the sides.
+  const reach = Math.min(f.width, f.height)
+
+  const tilt = 0.42 + f.pitch
+  const yaw = f.t * 0.22 + f.yaw
   const sy = Math.sin(yaw)
   const cyw = Math.cos(yaw)
   const st = Math.sin(tilt)
   const ct = Math.cos(tilt)
-  const breathe = active ? 0.7 + level * 1.0 : 0.7
-  const scale = size * 0.34 * (1 + level * 0.12)
+  const breathe = f.active ? 0.7 + f.level * 1.0 : 0.7
+  const scale = reach * 0.34 * (1 + f.level * 0.12)
 
   for (const [x, y, z] of SPHERE) {
     const x1 = x * cyw + z * sy
@@ -103,7 +89,7 @@ function draw(
     const depth = (z2 + 1) / 2
     const px = cx + x1 * scale
     const py = cy - y1 * scale
-    const [r, g, b] = gradient(depth)
+    const [r, g, b] = blend(f.from, f.to, f.mix, depth)
     const alpha = 0.3 + depth * 0.7
     const rad = Math.max(0.4, (0.5 + depth * 1.15) * breathe)
     ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`
@@ -114,61 +100,137 @@ function draw(
 }
 
 export function VoiceOrb({
-  size,
+  phase = 'ready',
   level = 0,
-  active = false
+  active = false,
+  interactive = true
 }: {
-  size: number
+  /** Drives the colour. Unknown phases rest on the idle ramp. */
+  phase?: string
   level?: number
   active?: boolean
+  /** Pointer rotation. Off for the small island orb, which is not a surface
+   * anyone points at. */
+  interactive?: boolean
 }): React.JSX.Element {
   const ref = useRef<HTMLCanvasElement | null>(null)
   const levelRef = useRef(level)
   const activeRef = useRef(active)
+  const phaseRef = useRef(phase)
+  // Pointer target and the eased value chasing it, so a flick of the mouse is
+  // a glide rather than a snap.
+  const aim = useRef({ yaw: 0, pitch: 0 })
+  const eased = useRef({ yaw: 0, pitch: 0 })
+
   useEffect(() => {
     levelRef.current = level
   }, [level])
   useEffect(() => {
     activeRef.current = active
   }, [active])
+  useEffect(() => {
+    phaseRef.current = phase
+  }, [phase])
 
   useEffect(() => {
     const canvas = ref.current
     if (!canvas) return
-    const dpr = Math.min(2, window.devicePixelRatio || 1)
-    canvas.width = Math.round(size * dpr)
-    canvas.height = Math.round(size * dpr)
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    let smoothed = levelRef.current
-    const paint = (t: number): void => {
-      // ease toward the live level so the orb breathes rather than jumps
-      smoothed += (levelRef.current - smoothed) * 0.12
+    // Fill whatever box the layout gives, and follow it when that changes.
+    let width = 0
+    let height = 0
+    const resize = (): void => {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2)
+      const box = canvas.parentElement?.getBoundingClientRect()
+      width = Math.max(1, Math.round(box?.width ?? canvas.clientWidth))
+      height = Math.max(1, Math.round(box?.height ?? canvas.clientHeight))
+      canvas.width = Math.round(width * dpr)
+      canvas.height = Math.round(height * dpr)
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-      draw(ctx, size, t, smoothed, activeRef.current)
     }
+    resize()
+    const observer = new ResizeObserver(resize)
+    if (canvas.parentElement) observer.observe(canvas.parentElement)
 
-    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
-      paint(0.6)
-      return
-    }
+    // Mood crossfade: the ramp we are leaving, the one we are entering, and
+    // how far across. Without this a phase change is a jump cut.
+    let from = RAMPS.idle
+    let to = RAMPS.idle
+    let mix = 1
+    let mood = 'idle'
 
     let raf = 0
-    const loop = (): void => {
-      paint(performance.now() / 1000)
+    let smoothed = levelRef.current
+    const started = performance.now()
+
+    const loop = (now: number): void => {
+      const t = (now - started) / 1000
+      smoothed += (levelRef.current - smoothed) * 0.12
+
+      const wanted = MOOD_FOR_PHASE[phaseRef.current] ?? 'idle'
+      if (wanted !== mood) {
+        // Start the new sweep from wherever the last one had reached, so
+        // changing phase twice quickly does not snap back.
+        from = mix >= 1 ? to : from
+        to = RAMPS[wanted] ?? RAMPS.idle
+        mood = wanted
+        mix = 0
+      }
+      if (mix < 1) mix = Math.min(1, mix + 0.03)
+
+      eased.current.yaw += (aim.current.yaw - eased.current.yaw) * 0.08
+      eased.current.pitch += (aim.current.pitch - eased.current.pitch) * 0.08
+
+      draw(ctx, {
+        width,
+        height,
+        t,
+        level: smoothed,
+        active: activeRef.current,
+        from,
+        to,
+        mix,
+        yaw: eased.current.yaw,
+        pitch: eased.current.pitch
+      })
       raf = requestAnimationFrame(loop)
     }
     raf = requestAnimationFrame(loop)
-    return () => cancelAnimationFrame(raf)
-  }, [size])
 
-  return (
-    <canvas
-      ref={ref}
-      className="voice-orb"
-      style={{ width: size, height: size, display: 'block' }}
-      aria-hidden="true"
-    />
-  )
+    return () => {
+      cancelAnimationFrame(raf)
+      observer.disconnect()
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!interactive) return
+    const surface = ref.current?.parentElement
+    if (!surface) return
+
+    const move = (event: PointerEvent): void => {
+      const box = surface.getBoundingClientRect()
+      // -1..1 from the centre. Yaw turns further than pitch because a sphere
+      // tipped too far shows its pole and stops reading as a sphere.
+      const nx = ((event.clientX - box.left) / box.width) * 2 - 1
+      const ny = ((event.clientY - box.top) / box.height) * 2 - 1
+      aim.current.yaw = nx * 0.9
+      aim.current.pitch = -ny * 0.35
+    }
+    const leave = (): void => {
+      aim.current.yaw = 0
+      aim.current.pitch = 0
+    }
+
+    surface.addEventListener('pointermove', move)
+    surface.addEventListener('pointerleave', leave)
+    return () => {
+      surface.removeEventListener('pointermove', move)
+      surface.removeEventListener('pointerleave', leave)
+    }
+  }, [interactive])
+
+  return <canvas className="voice-orb-canvas" ref={ref} />
 }

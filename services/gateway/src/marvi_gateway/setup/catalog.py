@@ -330,3 +330,26 @@ def for_capability(repo_root: Path, capability: str) -> list[Component]:
 def essential(repo_root: Path) -> list[Component]:
     """What the installer puts in place without asking."""
     return [c for c in load(repo_root) if c.essential]
+
+
+def voice_model_names(repo_root: Path) -> dict[str, str]:
+    """The STT and TTS model names, for display.
+
+    Read from the same manifest the installers use, so the Voice page names the
+    model that is actually installed rather than a second copy of the string
+    that can drift from it.
+    """
+    try:
+        manifest = json.loads(
+            (repo_root / "config" / "voice-models.json").read_text(encoding="utf-8")
+        )
+    except (OSError, ValueError):
+        return {}
+    names: dict[str, str] = {}
+    for job in ("stt", "tts"):
+        entry = manifest.get(job)
+        if isinstance(entry, str):
+            names[job] = entry
+        elif isinstance(entry, dict):
+            names[job] = str(entry.get("id") or "")
+    return names

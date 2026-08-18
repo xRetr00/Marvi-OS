@@ -11,7 +11,15 @@ Components are data (`config/components.json`), not code.
 from __future__ import annotations
 
 from . import firstrun, hardware, mcp, skills, store
-from .catalog import Component, FileSpec, for_capability, get, install_root, load
+from .catalog import (
+    Component,
+    FileSpec,
+    for_capability,
+    get,
+    install_root,
+    load,
+    voice_model_names,
+)
 
 # The module is `installer` and the function is `install`; naming both the
 # same shadows one with the other, which is exactly the sort of thing that
@@ -48,4 +56,5 @@ __all__ = [
     "state_of",
     "store",
     "verify",
+    "voice_model_names",
 ]

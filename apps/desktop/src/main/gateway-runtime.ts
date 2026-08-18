@@ -48,6 +48,7 @@ export function normalizeRuntimeStatus(value: unknown): RuntimeStatus | null {
     return null
   }
 
+  const model = isRecord(value.model) ? value.model : {}
   const components: RuntimeStatus['components'] = {}
   for (const [name, component] of Object.entries(value.components)) {
     if (
@@ -115,8 +116,15 @@ export function normalizeRuntimeStatus(value: unknown): RuntimeStatus | null {
       detail: typeof assistant.detail === 'string' ? assistant.detail : null,
       level: Math.max(0, Math.min(1, assistant.level)),
       yolo: assistant.yolo,
+      heard: typeof assistant.heard === 'string' ? assistant.heard : '',
+      spoken: typeof assistant.spoken === 'string' ? assistant.spoken : '',
       confirmation,
       roomEvent
+    },
+    model: {
+      llm: typeof model.llm === 'string' ? model.llm : '',
+      stt: typeof model.stt === 'string' ? model.stt : '',
+      tts: typeof model.tts === 'string' ? model.tts : ''
     }
   }
 }
