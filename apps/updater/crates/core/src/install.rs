@@ -92,10 +92,33 @@ pub fn install(cfg: &mut InstallConfig, progress: &mut dyn FnMut(&str)) -> Insta
             .unwrap_or(true);
         if non_empty {
             if git::is_work_tree(&cfg.install_root) {
-                return fail(
-                    "an existing Marvi OS checkout is already installed here; use update instead"
-                        .to_string(),
-                );
+                // Repair rather than refuse. Running the installer over an
+                // existing checkout used to fail with "use update instead",
+                // which is useless advice when the reason you reached for the
+                // installer is that updating from inside the app does not work
+                // — the only way out was to uninstall first.
+                //
+                // An update is exactly what a repair is: fetch the target,
+                // re-provision the toolchain, rebuild, roll back on failure.
+                // The checkout and everything in the state directory survive.
+                progress("Marvi is already installed here — repairing it instead");
+                let mut update = crate::update::UpdateConfig {
+                    install_root: cfg.install_root.clone(),
+                    channel: cfg.channel,
+                    state_dir: cfg.state_dir.clone(),
+                    desktop_pid: None,
+                    relaunch_exe: cfg.relaunch_exe.clone(),
+                    no_relaunch: cfg.relaunch_exe.is_none(),
+                    builder: std::mem::replace(&mut cfg.builder, Box::new(crate::builder::NpmBuildRunner::default())),
+                    provision_toolchain: cfg.provision_toolchain,
+                };
+                let out = crate::update::run_update(&mut update, progress);
+                return InstallOutcome {
+                    status: out.status,
+                    message: out.message,
+                    to: out.to,
+                    installed_at: cfg.install_root.clone(),
+                };
             }
             return fail(
                 "the install directory already exists and is not empty; choose another location"

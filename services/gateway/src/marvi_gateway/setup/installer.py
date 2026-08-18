@@ -426,7 +426,7 @@ def command_installed(component: Component, repo_root: Path) -> bool:
     return finished.returncode == 0
 
 
-def state_of(component: Component, repo_root: Path) -> dict[str, Any]:
+def state_of(component: Component, repo_root: Path, deep: bool = True) -> dict[str, Any]:
     """A component's real state, including the kinds a file map cannot describe.
 
     `Component.status()` only knows about downloaded files, so it answered
@@ -447,10 +447,14 @@ def state_of(component: Component, repo_root: Path) -> dict[str, Any]:
             # Honest: running it again is cheap and idempotent, so there is
             # nothing to report except that nobody can tell from here.
             return {"installed": False, "detail": "cannot be checked; safe to re-run", "problems": []}
+        if not deep:
+            # `command_installed` shells out with a 60s timeout. Never on a
+            # hot path.
+            return {"installed": True, "detail": "not checked", "problems": []}
         if command_installed(component, repo_root):
             return {"installed": True, "detail": "present", "problems": []}
         return {"installed": False, "detail": "not installed", "problems": []}
-    return component.status()
+    return component.status(deep=deep)
 
 
 def verify(component: Component) -> Outcome:

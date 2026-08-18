@@ -650,7 +650,10 @@ def create_app(
         missing = [
             component.title
             for component in setup_module.for_capability(REPO_ROOT, "voice")
-            if not setup_module.state_of(component, REPO_ROOT)["installed"]
+            # Shallow: this runs on every health poll, and hashing the voice
+            # models took 2.4 seconds a time — which is what made the Gateway
+            # unavailable while one of them was downloading.
+            if not setup_module.state_of(component, REPO_ROOT, deep=False)["installed"]
         ]
         if missing:
             return ComponentStatus(

@@ -53,11 +53,26 @@ export function BootFailureOverlay(): React.JSX.Element | null {
           <button
             onClick={() => {
               haptic('tap')
-              window.location.reload()
+              // Restart the Gateway, not the window. This reloaded the
+              // renderer, which the Gateway neither knows nor cares about, so
+              // the overlay came straight back and the button looked broken.
+              void window.marvi?.retryService('gateway')
             }}
             type="button"
           >
             RETRY BOOT
+          </button>
+          <button
+            onClick={() => {
+              haptic('tap')
+              // Reachable from here on purpose: a Gateway that will not start
+              // is exactly when an update is most likely to be the fix, and it
+              // was previously only offered from a page behind this overlay.
+              void window.marvi?.startUpdate()
+            }}
+            type="button"
+          >
+            UPDATE MARVI
           </button>
           <button
             onClick={() => {

@@ -423,12 +423,20 @@ async function gatewayRequest(path: string, init?: RequestInit): Promise<Runtime
   return normalized
 }
 
+/** How many consecutive failed polls before the shell calls the Gateway
+ * offline. At a two-second interval this is about ten seconds of silence,
+ * which is long enough to ride out a slow moment and short enough that a real
+ * crash still surfaces quickly. */
+const MISSES_BEFORE_OFFLINE = 5
+let missedPolls = 0
+
 /** Phases the renderer drives locally, faster than the Gateway poll. */
 const LIVE_PHASES = new Set(['wake', 'listening', 'thinking', 'speaking'])
 
 async function refreshGatewayRuntime(): Promise<RuntimeStatus> {
   try {
     const gateway = await gatewayRequest('/runtime')
+    missedPolls = 0
     // The Gateway owns the assistant state: the agent worker reports its phase
     // through it, so it is the only view that knows whether Marvi is listening.
     //
@@ -455,6 +463,13 @@ async function refreshGatewayRuntime(): Promise<RuntimeStatus> {
       }
     })
   } catch {
+    // One missed poll is not a dead Gateway. Installing a model, hashing a
+    // file, or a busy machine can all cost more than the request timeout, and
+    // declaring the whole app offline on the first miss put a boot-failure
+    // screen over a Gateway that was merely working hard — reported while a
+    // 2.4 GB model was downloading.
+    missedPolls += 1
+    if (missedPolls < MISSES_BEFORE_OFFLINE) return runtimeStatus
     return publishRuntime(offlineRuntime(app.getVersion()))
   }
 }

@@ -71,3 +71,49 @@ fn dev_install_clones_main() {
     assert_eq!(out.status, "ok", "message: {}", out.message);
     assert!(dest.join(".git").is_dir());
 }
+
+#[test]
+fn running_the_installer_over_an_existing_checkout_repairs_it() {
+    // It used to fail with "use update instead", which is useless advice when
+    // the reason you reached for the installer is that updating from inside the
+    // app does not work. The only way out was to uninstall first.
+    let repos = init_repos();
+    repos.tag("v1.0.0");
+    let state = repos._tmp.path().join("state");
+    let dest = repos._tmp.path().join("installed");
+
+    // The real repository ignores build output, so a built checkout is clean
+    // and the update's dirty-tree guard does not fire. The fixture has to say
+    // so too, or this tests the fixture rather than the repair.
+    repos.commit(".gitignore", "apps/desktop/out/
+", "ignore build output");
+    repos.tag("v1.0.1");
+
+    let mut first = install_cfg(&dest, &repos.remote, &state, FakeBuilder::ok());
+    assert_eq!(install(&mut first, &mut |_| {}).status, "ok");
+
+    // Second run over the same directory: a repair, not a refusal.
+    let mut again = install_cfg(&dest, &repos.remote, &state, FakeBuilder::ok());
+    let out = install(&mut again, &mut |_| {});
+
+    assert_eq!(out.status, "ok", "message: {}", out.message);
+    assert!(dest.join(".git").is_dir(), "the checkout survived the repair");
+}
+
+#[test]
+fn a_non_empty_directory_that_is_not_a_checkout_is_still_refused() {
+    // Repair applies to Marvi's own checkout. Someone else's files are not
+    // Marvi's to rebuild.
+    let repos = init_repos();
+    repos.tag("v1.0.0");
+    let state = repos._tmp.path().join("state");
+    let dest = repos._tmp.path().join("someone-elses-folder");
+    std::fs::create_dir_all(&dest).unwrap();
+    std::fs::write(dest.join("keep.txt"), "do not delete").unwrap();
+
+    let mut cfg = install_cfg(&dest, &repos.remote, &state, FakeBuilder::ok());
+    let out = install(&mut cfg, &mut |_| {});
+
+    assert_eq!(out.status, "failed");
+    assert!(dest.join("keep.txt").is_file());
+}

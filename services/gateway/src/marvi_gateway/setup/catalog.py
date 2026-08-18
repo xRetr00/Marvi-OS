@@ -60,7 +60,18 @@ class FileSpec:
     size: int
     sha256: str
 
-    def verify(self, base: Path) -> tuple[bool, str]:
+    def verify(self, base: Path, deep: bool = True) -> tuple[bool, str]:
+        """Check one file. `deep` hashes it; shallow checks presence and size.
+
+        Hashing a 2.4 GB model takes about two and a half seconds. That is fine
+        on the Setup page, where the user asked, and ruinous on the health
+        endpoint the shell polls every two seconds — which is what it was doing,
+        and why the Gateway went unavailable while a model downloaded: it was
+        busy re-hashing the file being written.
+
+        Size still catches the common failure. An interrupted download is short;
+        a corrupt one is the rarer case and worth a slower, explicit check.
+        """
         target = base / self.path
         if not target.exists():
             return False, "missing"
@@ -68,7 +79,7 @@ class FileSpec:
         if self.size and actual_size != self.size:
             # Cheap, and catches the common failure: an interrupted download.
             return False, f"wrong size ({actual_size} vs {self.size})"
-        if self.sha256:
+        if deep and self.sha256:
             digest = hashlib.sha256()
             with target.open("rb") as handle:
                 for chunk in iter(lambda: handle.read(1024 * 1024), b""):
@@ -127,8 +138,12 @@ class Component:
             return f"{self.base_url.rstrip('/')}/{spec.path}"
         raise ValueError(f"{self.name} is not downloadable ({self.source_type})")
 
-    def status(self) -> dict[str, Any]:
-        """Installed, partly installed, or missing — with the reason per file."""
+    def status(self, deep: bool = True) -> dict[str, Any]:
+        """Installed, partly installed, or missing — with the reason per file.
+
+        `deep=False` skips hashing, for callers on a hot path. See
+        `FileSpec.verify`.
+        """
         if self.binary:
             # The archive is verified on the way in and then thrown away, so
             # the unpacked binary is the only thing left to check.
@@ -154,11 +169,15 @@ class Component:
         base = self.target()
         problems = []
         for spec in self.files:
-            ok, reason = spec.verify(base)
+            ok, reason = spec.verify(base, deep=deep)
             if not ok:
                 problems.append({"file": spec.path, "reason": reason})
         if not problems:
-            return {"installed": True, "detail": "verified", "problems": []}
+            return {
+                "installed": True,
+                "detail": "verified" if deep else "present",
+                "problems": [],
+            }
         if len(problems) == len(self.files):
             return {"installed": False, "detail": "not installed", "problems": problems}
         return {
