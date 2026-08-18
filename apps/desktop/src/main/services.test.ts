@@ -204,3 +204,31 @@ describe('supervising a service', () => {
     supervisor.stopAll()
   }, 70_000)
 })
+
+describe('what gets written to the log files', () => {
+  it('believes a level the child already declared', async () => {
+    const { looksLikeError } = await import('./services')
+    // The regression: this line went to errors.log once per retry because it
+    // contains the word "failed", while saying INFO on its face.
+    expect(
+      looksLikeError('2026-08-18 04:26:59,539 INFO    [retry] room.get_state failed, retrying')
+    ).toBe(false)
+    expect(
+      looksLikeError('2026-08-18 04:26:59,539 ERROR   [gateway] something broke')
+    ).toBe(true)
+  })
+
+  it('still guesses for a line that declares nothing', async () => {
+    const { looksLikeError } = await import('./services')
+    expect(looksLikeError('Traceback (most recent call last):')).toBe(true)
+    expect(looksLikeError('listening on 127.0.0.1:8765')).toBe(false)
+  })
+
+  it('does not write a line the child already logged itself', async () => {
+    const { alreadyLogged } = await import('./services')
+    // The Gateway logs into the same directory, so capturing its stdout and
+    // writing it again put every line in twice.
+    expect(alreadyLogged('2026-08-18 04:26:59,539 INFO    [retry] marvi.retry — x')).toBe(true)
+    expect(alreadyLogged('npm warn EBADENGINE')).toBe(false)
+  })
+})

@@ -44,8 +44,32 @@ export interface ServiceReport {
  * Services write to stdout and stderr interchangeably - uvicorn logs INFO to
  * stderr - so the stream is a poor signal. Reading the line is a better one.
  */
-function looksLikeError(line: string): boolean {
+export function looksLikeError(line: string): boolean {
+  // A child that writes its own structured logs has already said what level a
+  // line is, and re-deciding from keywords gets it wrong: the Gateway's
+  // `INFO [retry] room.get_state failed, retrying in 0.1s` was landing in
+  // errors.log as an ERROR, once per retry, because it contains "failed".
+  //
+  // So a declared level is believed, and only an unlabelled line falls back to
+  // the keyword guess.
+  const declared = /\b(DEBUG|INFO|WARNING|ERROR|CRITICAL)\b/.exec(line)
+  if (declared) return declared[1] === 'ERROR' || declared[1] === 'CRITICAL'
   return /\b(error|traceback|exception|critical|failed|fatal)\b/i.test(line)
+}
+
+/**
+ * Has the child already written this line to Marvi's log files itself?
+ *
+ * The Gateway and the agent log into the same directory, so capturing their
+ * stdout and writing it again duplicates every line — once structured, once
+ * wrapped in `ERROR [gateway] desktop —`. The in-memory tail still keeps
+ * everything, because a crashed service's last words are what the Doctor page
+ * is for.
+ */
+export function alreadyLogged(line: string): boolean {
+  return /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}\s+(DEBUG|INFO|WARNING|ERROR|CRITICAL)\b/.test(
+    line
+  )
 }
 
 const MAX_OUTPUT_LINES = 60
@@ -96,9 +120,12 @@ class Service {
       const text = part.trimEnd()
       if (!text) continue
       this.output.push(text)
-      // Also to disk. The in-memory tail serves the Doctor page; the file is
-      // what survives a restart and what someone can actually send.
-      writeLog(this.spec.name, looksLikeError(text) ? 'ERROR' : 'INFO', text)
+      // Also to disk, unless the child already wrote it there itself. The
+      // in-memory tail serves the Doctor page; the file is what survives a
+      // restart and what someone can actually send.
+      if (!alreadyLogged(text)) {
+        writeLog(this.spec.name, looksLikeError(text) ? 'ERROR' : 'INFO', text)
+      }
     }
     if (this.output.length > MAX_OUTPUT_LINES) {
       this.output = this.output.slice(-MAX_OUTPUT_LINES)
