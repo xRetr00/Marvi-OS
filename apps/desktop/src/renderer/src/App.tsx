@@ -1,7 +1,7 @@
 import { useStore } from '@nanostores/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import appIcon from './assets/app-icon.png'
+import appIcon from './assets/app-icon.ico'
 import { BootFailureOverlay } from './components/BootFailureOverlay'
 import { AsciiRule } from './components/ui/ascii-rule'
 import { ConnectingOverlay } from './components/ConnectingOverlay'
