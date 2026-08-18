@@ -74,15 +74,27 @@ import { connectVoiceRoom } from './lib/livekit-room'
  * scan every time instead of learning. Five groups, each answering a different
  * question, and no numbers.
  */
+/**
+ * The sidebar: the things you use.
+ *
+ * Everything you *configure* moved behind the gear. Eighteen destinations in
+ * one column meant scanning past ten pages you open twice a month to reach the
+ * three you open constantly.
+ */
 const NAV_GROUPS = [
   { label: 'Talk', items: ['Overview', 'Voice', 'Chat'] },
   { label: 'World', items: ['Vision', 'Room', 'Activity'] },
-  { label: 'Self', items: ['Identity', 'Memory', 'Mind'] },
-  { label: 'Extend', items: ['Providers', 'Accounts', 'Skills', 'Plugins'] },
-  { label: 'System', items: ['Schedules', 'Setup', 'Doctor', 'Settings', 'Updates', 'About'] }
+  { label: 'Self', items: ['Identity', 'Memory', 'Mind'] }
+] as const
+
+/** Behind the gear: the things you set up. */
+const SETTINGS_GROUPS = [
+  { label: 'Connect', items: ['Providers', 'Accounts', 'Skills', 'Plugins'] },
+  { label: 'System', items: ['Preferences', 'Schedules', 'Setup', 'Doctor', 'Updates', 'About'] }
 ] as const
 
 type Page = (typeof NAV_GROUPS)[number]['items'][number]
+type SettingsPage = (typeof SETTINGS_GROUPS)[number]['items'][number]
 
 /** One line saying what the page is, shown under its title. A heading that only
  * repeats the sidebar entry spends the space without paying for it. */
@@ -95,15 +107,18 @@ const PAGE_BLURB: Record<Page, string> = {
   Activity: 'What you have been doing, as context Marvi may use',
   Identity: 'Who Marvi is, and what it has learned about you',
   Memory: 'What Marvi remembers. Yours to read, export and delete',
-  Mind: 'Why Marvi did things, and when it decided to act on its own',
+  Mind: 'Why Marvi did things, and when it decided to act on its own'
+}
+
+const SETTINGS_BLURB: Record<SettingsPage, string> = {
   Providers: 'The models Marvi can call, and what they have cost',
   Accounts: 'Connected services, and what Marvi may do with them',
   Skills: 'Instructions Marvi can load for a task',
   Plugins: 'Backends Marvi runs, installed from a repository',
+  Preferences: 'Behaviour, appearance and devices',
   Schedules: 'Reminders and checks Marvi runs on a clock',
   Setup: 'Models, browsers and dependencies',
   Doctor: 'What is wrong, and how to fix each thing',
-  Settings: 'Behaviour, appearance and devices',
   Updates: 'Version, channel, and what changed',
   About: 'Build, licences and provenance'
 }
@@ -123,6 +138,7 @@ function MainSurface(): React.JSX.Element {
   const translucency = useStore($translucency)
   const [page, setPage] = useState<Page>('Overview')
   const [collapsed, setCollapsed] = useState(false)
+  const [settings, setSettings] = useState<SettingsPage | null>(null)
   const [version, setVersion] = useState('0.1.0-dev.0')
 
   useEffect(() => {
@@ -160,8 +176,8 @@ function MainSurface(): React.JSX.Element {
     <ShellContextMenu
       actions={[
         { label: 'Overview', onSelect: () => navigate('Overview') },
-        { label: 'Settings', onSelect: () => navigate('Settings') },
-        { label: 'About', onSelect: () => navigate('About') },
+        { label: 'Settings', onSelect: () => setSettings('Preferences') },
+        { label: 'About', onSelect: () => setSettings('About') },
         { label: 'Reload Shell', onSelect: () => window.location.reload() },
         {
           label: voice.yolo ? 'Switch to Confirm mode' : 'Switch to YOLO mode',
@@ -170,7 +186,7 @@ function MainSurface(): React.JSX.Element {
       ]}
     >
       <div className="app-shell">
-        <TitleBar onSettings={() => navigate('Settings')} page={page} />
+        <TitleBar onSettings={() => setSettings('Preferences')} page={settings ?? page} />
 
         {/* The track width comes from the same state as the sidebar's. An
             `auto` track sizes to the item's max-content and stretches the item
@@ -253,40 +269,20 @@ function MainSurface(): React.JSX.Element {
             <div className="page-scroll">
               {page === 'Overview' ? (
                 <Overview runtime={runtime} voice={voice} />
-              ) : page === 'Settings' ? (
-                <SettingsPanel runtime={runtime} />
-              ) : page === 'About' ? (
-                <AboutPanel fallbackVersion={version} runtime={runtime} />
               ) : page === 'Room' ? (
                 <RoomPanel runtime={runtime} />
               ) : page === 'Voice' ? (
                 <VoicePanel runtime={runtime} />
               ) : page === 'Chat' ? (
                 <Chat />
-              ) : page === 'Setup' ? (
-                <SetupPanel />
-              ) : page === 'Skills' ? (
-                <SkillsPanel />
-              ) : page === 'Plugins' ? (
-                <PluginsPanel />
-              ) : page === 'Schedules' ? (
-                <SchedulesPanel />
-              ) : page === 'Doctor' ? (
-                <DoctorPanel />
               ) : page === 'Activity' ? (
                 <ActivityPanel />
-              ) : page === 'Accounts' ? (
-                <AccountsPanel />
-              ) : page === 'Providers' ? (
-                <ProvidersPanel />
               ) : page === 'Identity' ? (
                 <IdentityPanel />
               ) : page === 'Memory' ? (
                 <MemoryPanel />
               ) : page === 'Mind' ? (
                 <MindPanel />
-              ) : page === 'Updates' ? (
-                <UpdatesPanel version={version} />
               ) : (
                 <PagePanel page={page} version={version} />
               )}
@@ -310,6 +306,16 @@ function MainSurface(): React.JSX.Element {
             </footer>
           </main>
         </div>
+
+        {settings ? (
+          <SettingsShell
+            onClose={() => setSettings(null)}
+            onNavigate={setSettings}
+            page={settings}
+            runtime={runtime}
+            version={version}
+          />
+        ) : null}
 
         <ConnectingOverlay />
         <BootFailureOverlay />
@@ -2396,31 +2402,21 @@ function ActivityPanel(): React.JSX.Element {
   )
 }
 
-function PagePanel({ page, version }: { page: Page; version: string }): React.JSX.Element {
+function PagePanel({ page }: { page: Page; version: string }): React.JSX.Element {
+  // The fallback for a sidebar page with no panel of its own. Only Vision
+  // reaches it today; everything that used to land here now has a real page or
+  // lives behind the gear.
   const descriptions: Record<Page, string> = {
     Overview: '',
-    Voice:
-      'Streaming STT, TTS, wake word, interruption, acoustic echo control, and device diagnostics.',
-    Chat: 'Typed conversation with the same Marvi the voice session reaches.',
-    Vision:
-      'Always-on local presence and gesture processing. Frames leave the PC only for an explicit vision task.',
-    Room: 'Lights, modes and presence from the room plugin. Marvi does not replace its automation authority.',
-    Plugins: 'Backends Marvi installs from a repository and runs as its own child processes.',
-    Schedules: 'Reminders and scheduled checks, and whether each may speak through quiet hours.',
-    Accounts: 'Composio connections for email, LinkedIn, X, and other world-context providers.',
-    Providers: 'Model providers, credentials, models per job, and token usage.',
+    Voice: '',
+    Chat: '',
+    Room: '',
+    Activity: 'Structured local event and tool audit timeline. No hidden outbound telemetry.',
     Identity: 'SOUL.md and USER.md - who Marvi is, and who it is speaking to.',
     Memory: 'Durable facts, episodic events, retrieval controls, and forget/export operations.',
     Mind: 'Event-driven decisions, the rule behind each one, and the initiative switch.',
-    Activity: 'Structured local event and tool audit timeline. No hidden outbound telemetry.',
-    Doctor: 'What is wrong, what Marvi fixed, and what needs you.',
-    Setup: 'Models, binaries and dependencies — what is here and what is missing.',
-    Skills: 'Instructions that teach Marvi how to do something.',
-    Settings:
-      'Voice devices, wake behavior, startup, confirmation mode, and the explicit YOLO switch.',
-    Updates:
-      'Repository-owned Windows update status, release notes, channel, and explicit install handoff.',
-    About: `Marvi OS ${version}. Local-first voice and vision assistant built on LiveKit Agents.`
+    Vision:
+      'Always-on local presence and gesture processing. The room plugin owns the camera; Marvi does not run a second loop on it.'
   }
 
   return (
@@ -2436,6 +2432,95 @@ function PagePanel({ page, version }: { page: Page; version: string }): React.JS
 
 function BrandIcon({ className = '' }: { className?: string }): React.JSX.Element {
   return <img alt="Marvi OS" className={`brand-icon ${className}`} src={appIcon} />
+}
+
+/**
+ * Everything you configure, in one overlay.
+ *
+ * Deliberately plain: no background video, no bordered panels stacked inside
+ * bordered panels. Settings is a place you go to read a value and change it,
+ * and the reported problem with the old pages was text sitting directly on a
+ * moving image.
+ */
+function SettingsShell({
+  page,
+  runtime,
+  version,
+  onNavigate,
+  onClose
+}: {
+  page: SettingsPage
+  runtime: RuntimeStatus
+  version: string
+  onNavigate: (next: SettingsPage) => void
+  onClose: () => void
+}): React.JSX.Element {
+  useEffect(() => {
+    const escape = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', escape)
+    return () => window.removeEventListener('keydown', escape)
+  }, [onClose])
+
+  return (
+    <div className="settings-shell" role="dialog" aria-modal="true" aria-label="Settings">
+      <nav className="settings-rail" aria-label="Settings sections">
+        <div className="settings-rail-head">
+          <strong>SETTINGS</strong>
+          <button aria-label="Close settings" onClick={onClose} type="button">
+            ✕
+          </button>
+        </div>
+        {SETTINGS_GROUPS.map((group) => (
+          <div className="settings-group" key={group.label}>
+            <h2>{group.label.toUpperCase()}</h2>
+            {group.items.map((item) => (
+              <button
+                aria-current={page === item ? 'page' : undefined}
+                className={page === item ? 'settings-link active' : 'settings-link'}
+                key={item}
+                onClick={() => onNavigate(item)}
+                type="button"
+              >
+                {item.toUpperCase()}
+              </button>
+            ))}
+          </div>
+        ))}
+      </nav>
+
+      <div className="settings-content">
+        <header className="settings-head">
+          <h1>{page}</h1>
+          <p>{SETTINGS_BLURB[page]}</p>
+        </header>
+        <div className="settings-scroll">
+          {page === 'Providers' ? (
+            <ProvidersPanel />
+          ) : page === 'Accounts' ? (
+            <AccountsPanel />
+          ) : page === 'Skills' ? (
+            <SkillsPanel />
+          ) : page === 'Plugins' ? (
+            <PluginsPanel />
+          ) : page === 'Preferences' ? (
+            <SettingsPanel runtime={runtime} />
+          ) : page === 'Schedules' ? (
+            <SchedulesPanel />
+          ) : page === 'Setup' ? (
+            <SetupPanel />
+          ) : page === 'Doctor' ? (
+            <DoctorPanel />
+          ) : page === 'Updates' ? (
+            <UpdatesPanel version={version} />
+          ) : (
+            <AboutPanel fallbackVersion={version} runtime={runtime} />
+          )}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function SettingsPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {

@@ -26,6 +26,10 @@ use crate::util::random_suffix;
 /// already had a newer Node on PATH; provisioning our own is what exposed it.
 pub const NODE_VERSION: &str = "v22.23.2";
 
+/// How many times to try removing the previous packaged build. A killed
+/// process can keep a file handle open for a moment after it is gone.
+const BUILD_OUTPUT_ATTEMPTS: u32 = 5;
+
 pub struct InstallConfig {
     pub install_root: PathBuf,
     pub channel: Channel,
@@ -237,11 +241,49 @@ pub(crate) fn build_with_toolchain(
             unsafe { std::env::set_var("PATH", merged) };
         }
     }
+    clear_build_output(root, progress);
     builder.prepare(root, progress)?;
     if !smoke_ok(root) {
         return Err("build produced no runnable runtime (smoke test failed)".to_string());
     }
     Ok(())
+}
+
+/// Remove the previous packaged build before rebuilding it.
+///
+/// electron-builder does this itself and reported
+/// `EBUSY: resource busy or locked, rmdir dist\win-unpacked` when it could
+/// not — which is what an update did, because the app being replaced runs from
+/// inside that directory and Windows holds the file until every handle closes.
+/// Killing the processes is the first half; the handles can outlive them by a
+/// moment, so this retries rather than failing on the first refusal.
+///
+/// Best-effort: if it cannot be cleared, the build is still attempted and
+/// electron-builder's own error is the honest one to report.
+fn clear_build_output(root: &Path, progress: &mut dyn FnMut(&str)) {
+    let unpacked = root.join("apps").join("desktop").join("dist").join("win-unpacked");
+    if !unpacked.exists() {
+        return;
+    }
+    for attempt in 1..=BUILD_OUTPUT_ATTEMPTS {
+        match std::fs::remove_dir_all(&unpacked) {
+            Ok(()) => {
+                progress("cleared the previous build");
+                return;
+            }
+            Err(_) if attempt < BUILD_OUTPUT_ATTEMPTS => {
+                progress(&format!(
+                    "the previous build is still in use, waiting ({attempt}/{BUILD_OUTPUT_ATTEMPTS})"
+                ));
+                std::thread::sleep(std::time::Duration::from_secs(2));
+            }
+            Err(error) => {
+                // Said out loud rather than swallowed: if the build now fails
+                // with EBUSY, this line is the reason.
+                progress(&format!("could not clear the previous build: {error}"));
+            }
+        }
+    }
 }
 
 /// Smoke test: the Electron runtime entrypoint must exist.

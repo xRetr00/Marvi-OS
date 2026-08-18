@@ -1708,3 +1708,146 @@ small,
   font-size: 12px;
   line-height: 1.7;
 }
+
+/* ===== Settings =====
+ *
+ * An overlay, deliberately plain. No background video and no bordered panels
+ * stacked inside bordered panels: settings is where you go to read a value and
+ * change it, and the reported problem with these pages was text sitting
+ * directly on a moving image.
+ *
+ * Opaque rather than translucent for the same reason — this is the one surface
+ * where legibility beats atmosphere. */
+.settings-shell {
+  position: fixed;
+  z-index: 40;
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  inset: 40px 0 0;
+  background: var(--ui-bg);
+}
+
+.settings-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+  padding-bottom: 18px;
+  overflow-y: auto;
+  border-right: 1px solid var(--ui-stroke-secondary);
+}
+
+.settings-rail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 18px 14px;
+}
+
+.settings-rail-head strong {
+  color: var(--ui-text-emphasis);
+  font-size: 12px;
+  letter-spacing: 0.18em;
+}
+
+.settings-rail-head button {
+  padding: 3px 8px;
+  border: 1px solid var(--ui-stroke-secondary);
+  background: transparent;
+  color: var(--ui-text-secondary);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.settings-rail-head button:hover {
+  border-color: var(--ui-accent);
+  color: var(--ui-text-emphasis);
+}
+
+.settings-group {
+  margin-bottom: 10px;
+}
+
+.settings-group h2 {
+  margin: 0;
+  padding: 10px 18px 5px;
+  color: var(--ui-text-tertiary);
+  font-size: 10px;
+  font-weight: 450;
+  letter-spacing: 0.18em;
+}
+
+.settings-link {
+  display: block;
+  width: 100%;
+  padding: 8px 18px;
+  border: 0;
+  border-left: 2px solid transparent;
+  background: transparent;
+  color: var(--ui-text-secondary);
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-align: left;
+  cursor: pointer;
+}
+
+.settings-link:hover {
+  color: var(--ui-text-primary);
+  background: rgb(255 255 255 / 3%);
+}
+
+.settings-link.active {
+  border-left-color: var(--ui-accent);
+  color: var(--ui-text-emphasis);
+  background: rgb(255 255 255 / 4%);
+}
+
+.settings-content {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-width: 0;
+  min-height: 0;
+}
+
+.settings-head {
+  padding: 22px 32px 16px;
+  border-bottom: 1px solid var(--ui-stroke-secondary);
+}
+
+.settings-head h1 {
+  margin: 0;
+  color: var(--ui-text-emphasis);
+  font-family: 'Collapse', sans-serif;
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+.settings-head p {
+  margin: 4px 0 0;
+  color: var(--ui-text-secondary);
+  font-size: 12px;
+}
+
+.settings-scroll {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* The panels were written to be pages, each with its own frame. Inside the
+   overlay the frame is the overlay, so they lose theirs. */
+.settings-scroll .single-page,
+.settings-scroll .panel {
+  border: 0;
+  background: transparent;
+}
+
+.settings-scroll > * > .panel-label:first-child {
+  display: none;
+}
+
+.settings-scroll h2 {
+  margin-top: 0;
+}

@@ -95,9 +95,10 @@ pub fn find_strays(install_root: Option<&Path>) -> Vec<Stray> {
     let root = install_root.map(|p| p.display().to_string().to_lowercase());
     let mut found = Vec::new();
     for line in listing.lines() {
-        let Some((pid, command)) = line.split_once('|') else {
-            continue;
-        };
+        let mut fields = line.splitn(3, '|');
+        let Some(pid) = fields.next() else { continue };
+        let executable = fields.next().unwrap_or("").trim().to_lowercase();
+        let command = fields.next().unwrap_or("").trim();
         let Ok(pid) = pid.trim().parse::<u32>() else {
             continue;
         };
@@ -105,20 +106,34 @@ pub fn find_strays(install_root: Option<&Path>) -> Vec<Stray> {
             continue;
         }
         let lowered = command.to_lowercase();
-        let is_marvi = ["marvi_gateway", "marvi_agent", "livekit-server"]
+
+        // Two ways to be a stray, and the first one is why an update failed
+        // with `EBUSY: rmdir dist\win-unpacked`: the desktop's own PID had
+        // exited, but Electron's helper processes were still running *from
+        // inside the build output directory* and holding it open. A process
+        // whose executable lives under the install root is Marvi's by
+        // definition, whatever it is called.
+        let runs_from_install = root
+            .as_ref()
+            .is_some_and(|root| !executable.is_empty() && executable.starts_with(root.as_str()));
+
+        // The services are launched by `uv`, so their executable is Python
+        // somewhere else entirely and only the command line identifies them.
+        let named_service = ["marvi_gateway", "marvi_agent", "livekit-server"]
             .iter()
-            .any(|needle| lowered.contains(needle));
-        if !is_marvi {
+            .any(|needle| lowered.contains(needle))
+            && root.as_ref().is_none_or(|root| lowered.contains(root.as_str()));
+
+        if !runs_from_install && !named_service {
             continue;
-        }
-        if let Some(root) = root.as_ref() {
-            if !lowered.contains(root) {
-                continue;
-            }
         }
         found.push(Stray {
             pid,
-            command: command.trim().to_string(),
+            command: if command.is_empty() {
+                executable
+            } else {
+                command.to_string()
+            },
         });
     }
     found
