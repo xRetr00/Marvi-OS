@@ -20,6 +20,7 @@ from livekit.agents import (
 from livekit.plugins import silero
 
 from .runtime import AgentConfig, build_llm, build_local_turn_detector
+from .timing import TimedLLM
 from .tools import GatewayTools
 from .voice_models import DEFAULT_VOICE, NemotronSTT, VibeVoiceTTS
 
@@ -32,6 +33,11 @@ def voice_runtime_executable() -> Path:
         return Path(configured)
     suffix = ".exe" if os.name == "nt" else ""
     return Path(__file__).parents[3] / "voice-runtime" / "target" / "release" / f"marvi-voice-runtime{suffix}"
+
+
+def _timed_llm() -> TimedLLM:
+    config = AgentConfig.from_gateway()
+    return TimedLLM(build_llm(config), path="direct", provider=config.provider, model=config.model)
 
 
 class MarviVoiceAgent(Agent):

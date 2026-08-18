@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -208,6 +209,100 @@ class ProviderClient:
             cached=usage.cached_input > 0,
             tool_calls=profile.read_tool_calls(payload),
         )
+
+    def stream(
+        self,
+        messages: list[dict[str, Any]],
+        provider: str | ProviderProfile | None = None,
+        job: str = "main",
+        max_tokens: int | None = None,
+        effort: str | None = None,
+        cache_prefix: bool = True,
+        temperature: float | None = None,
+        tools: list[dict[str, Any]] | None = None,
+    ) -> Iterator[dict[str, Any]]:
+        """Call one provider and yield deltas as they arrive.
+
+        `call` waits for the whole response before returning a word, which is
+        why chat shows nothing until the model has finished thinking and why
+        the voice path could never have used it. Same policy — cooldowns,
+        credential handling, usage — applied to a response read incrementally.
+
+        Yields plain dicts rather than a provider's own chunk shape, because
+        two callers with different SDKs consume this: `{"delta": str}` for
+        text, then a final `{"done": True, "usage": {...}}`.
+        """
+        import httpx
+
+        profile = provider if isinstance(provider, ProviderProfile) else get(provider) if provider else None
+        if profile is None:
+            raise ProviderCallError("no provider given")
+        if not profile.configured():
+            raise ProviderNotConfiguredError(f"{profile.name} is not configured")
+
+        resting = self.resting(profile.name)
+        if resting > 0:
+            raise ProviderCallError(f"{profile.name} is cooling down for another {resting:.0f}s")
+
+        model = profile.model_for(job)  # type: ignore[arg-type]
+        body = profile.build_request(
+            messages,
+            model=model,
+            max_tokens=max_tokens,
+            stream=True,
+            effort=effort,
+            cache_prefix=cache_prefix,
+            temperature=temperature,
+            tools=tools,
+        )
+
+        client = self.http or httpx.Client(timeout=REQUEST_TIMEOUT)
+        usage = Usage()
+        try:
+            with client.stream(
+                "POST", profile.endpoint(), json=body, headers=profile.headers()
+            ) as response:
+                if response.status_code == 429:
+                    wait = self._retry_after(response)
+                    self.stand_down(profile.name, wait, "rate limited or window exhausted")
+                    raise ProviderCallError(f"{profile.name} is rate limited")
+                if response.status_code in (401, 403):
+                    self.stand_down(profile.name, MAX_COOLDOWN_SECONDS, "authentication rejected")
+                    raise ProviderCallError(f"{profile.name} rejected the credential")
+                response.raise_for_status()
+
+                for line in response.iter_lines():
+                    piece = profile.read_stream_line(line)
+                    if piece is None:
+                        continue
+                    if piece.get("usage"):
+                        usage = profile.read_usage(piece["usage"])
+                        continue
+                    if piece.get("delta"):
+                        yield {"delta": piece["delta"]}
+        except ProviderCallError:
+            raise
+        except Exception as exc:
+            self.stand_down(profile.name, DEFAULT_COOLDOWN_SECONDS, f"call failed: {exc}"[:120])
+            raise ProviderCallError(f"{profile.name} stream failed: {exc}") from exc
+        finally:
+            if self.http is None:
+                client.close()
+
+        # Recorded here rather than per chunk: a stream that was cut short still
+        # cost whatever it produced, and this is the one place that knows.
+        self.record(profile.name, usage)
+        yield {
+            "done": True,
+            "provider": profile.name,
+            "model": model,
+            "usage": {
+                "input": usage.input,
+                "output": usage.output,
+                "cached_input": usage.cached_input,
+                "billable": usage.billable,
+            },
+        }
 
     def reachable(self, profile: ProviderProfile, timeout: float = 0.4) -> bool:
         """Is there actually a server there?

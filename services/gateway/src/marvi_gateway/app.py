@@ -15,7 +15,7 @@ from fastapi import FastAPI, HTTPException
 from livekit import api
 from pydantic import BaseModel, Field
 
-from . import breadcrumb, paths
+from . import breadcrumb, latency, paths
 from . import doctor as doctor_module
 from . import plugins as plugins_module
 from . import room as room_module
@@ -919,6 +919,37 @@ def create_app(
             actions=state["actions"],
             running=bool(state["running"]),
         )
+
+    @app.post("/latency")
+    async def record_latency(sample: dict[str, Any]) -> dict[str, Any]:
+        """Take a timing sample from the Agent.
+
+        The Agent runs in its own process, so it cannot append to the recording
+        the Gateway owns. It posts instead, after the turn is over.
+        """
+        latency.record(
+            latency.Sample(
+                surface=str(sample.get("surface", "unknown")),
+                path=str(sample.get("path", "unknown")),
+                provider=str(sample.get("provider", "")),
+                model=str(sample.get("model", "")),
+                first_token_ms=sample.get("first_token_ms"),
+                total_ms=sample.get("total_ms"),
+                error=str(sample.get("error", "")),
+            )
+        )
+        return {"recorded": True}
+
+    @app.get("/latency")
+    async def read_latency(surface: str | None = None) -> dict[str, Any]:
+        return latency.summarise(surface=surface)
+
+    @app.get("/latency/compare")
+    async def compare_latency(
+        surface: str = "voice", before: str = "direct", after: str = "gateway"
+    ) -> dict[str, Any]:
+        """The Phase 12 gate, as a number rather than an opinion."""
+        return latency.compare(surface, before, after)
 
     @app.get("/schedules", response_model=SchedulePage)
     async def read_schedules() -> SchedulePage:
