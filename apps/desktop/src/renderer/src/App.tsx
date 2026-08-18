@@ -24,10 +24,8 @@ const DEVICE_COPY: Record<DeviceState, string> = {
 import {
   $runtimeState,
   $voiceState,
-  VOICE_PHASES,
   applyRuntimeState,
   cycleVoicePhase,
-  type VoicePhase,
   type VoiceState
 } from './store/voice-state'
 import {
@@ -153,12 +151,6 @@ function MainSurface(): React.JSX.Element {
     window.marvi?.setTranslucency(translucency)
   }, [translucency])
 
-  const previewPhase = (phase: VoicePhase): void => {
-    haptic('selection')
-    cycleVoicePhase(phase)
-    window.marvi?.previewAssistantState($voiceState.get())
-  }
-
   const navigate = (item: Page): void => {
     if (item !== page) haptic('tap')
     setPage(item)
@@ -194,7 +186,7 @@ function MainSurface(): React.JSX.Element {
               with nothing to override it. */}
           <aside
             className={collapsed ? 'sidebar collapsed' : 'sidebar'}
-            style={{ width: collapsed ? 64 : 224 }}
+            style={{ overflow: 'hidden' }}
           >
             <header className="brand-block">
               <BrandIcon className="brand-icon-sidebar" />
@@ -260,7 +252,7 @@ function MainSurface(): React.JSX.Element {
                 overflow. */}
             <div className="page-scroll">
               {page === 'Overview' ? (
-                <Overview onPreviewPhase={previewPhase} runtime={runtime} voice={voice} />
+                <Overview runtime={runtime} voice={voice} />
               ) : page === 'Settings' ? (
                 <SettingsPanel runtime={runtime} />
               ) : page === 'About' ? (
@@ -344,12 +336,10 @@ function VoiceLevelMeter({ level }: { level: number }): React.JSX.Element {
 
 function Overview({
   runtime,
-  voice,
-  onPreviewPhase
+  voice
 }: {
   runtime: RuntimeStatus
   voice: VoiceState
-  onPreviewPhase: (phase: VoicePhase) => void
 }): React.JSX.Element {
   const services = [
     ['MARVI GATEWAY', runtime.components.gateway],
@@ -359,39 +349,48 @@ function Overview({
     ['ACCOUNTS', runtime.components.accounts]
   ] as const
 
+  const blocked = services.filter(([, service]) => service && service.state !== 'ready')
+
   return (
     <section className="overview-grid">
       <article className="panel hero-panel">
-        <div className="panel-label">01 / AMBIENT CORE</div>
-        <div className="portrait-frame">
-          <div className="portrait-glyph" aria-hidden="true">
-            <span>╭──────────────╮</span>
-            <span>│ M A R V I │</span>
-            <span>│ ◉ ◉ │</span>
-            <span>│ ─ │</span>
-            <span>╰──────────────╯</span>
-          </div>
-          <div className="core-copy">
-            <span className="eyebrow">CURRENT STATE</span>
-            <strong>{voice.phase.toUpperCase()}</strong>
-            <p>{voice.detail ?? 'Local senses armed. Waiting for a real event.'}</p>
-          </div>
+        {/* Was an ASCII face and eight buttons that previewed island states —
+            a developer toy on the first page the user sees. What belongs here
+            is what Marvi is doing and what is stopping it. */}
+        <div className="panel-label">{'// RIGHT NOW'}</div>
+        <div className="overview-now">
+          <span className="eyebrow">{voice.phase.toUpperCase()}</span>
+          <strong>{voice.caption}</strong>
+          <p>{voice.detail ?? 'Nothing is happening, which is the usual state.'}</p>
         </div>
-        <div className="phase-controls" aria-label="Island preview state">
-          {VOICE_PHASES.map((phase) => (
-            <button
-              className={voice.phase === phase ? 'phase active' : 'phase'}
-              key={phase}
-              onClick={() => onPreviewPhase(phase)}
-            >
-              {phase}
-            </button>
-          ))}
-        </div>
+
+        {blocked.length > 0 ? (
+          <div className="overview-blockers">
+            <span className="panel-label">{'// NEEDS ATTENTION'}</span>
+            {blocked.map(([name, service]) => (
+              <div className="context-line" key={name}>
+                <span>{name}</span>
+                <strong className={`state-${service?.state ?? 'offline'}`}>
+                  {service?.detail ?? 'no status received'}
+                </strong>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="overview-clear">Everything Marvi needs is running.</p>
+        )}
+
+        <AsciiRule />
+        <div className="panel-label">{'// HOW VOICE WORKS'}</div>
+        <p className="overview-note">
+          The voice session runs over LiveKit: the agent worker joins a local room and the app joins
+          the same room as a participant. Both need the Gateway, which issues the token and owns
+          every tool the agent can call.
+        </p>
       </article>
 
       <article className="panel services-panel">
-        <div className="panel-label">02 / SYSTEMS</div>
+        <div className="panel-label">{'// SYSTEMS'}</div>
         <div className="service-list">
           {services.map(([name, service]) => (
             <div className="service-row" key={name}>
@@ -406,22 +405,26 @@ function Overview({
       </article>
 
       <article className="panel event-panel">
-        <div className="panel-label">03 / LIVE CONTEXT</div>
+        <div className="panel-label">{'// LIVE CONTEXT'}</div>
         <div className="context-line">
           <span>ROOM</span>
           <strong>{runtime.components.room?.detail.toUpperCase() ?? 'OFFLINE'}</strong>
         </div>
         <div className="context-line">
           <span>VISION</span>
-          <strong>{runtime.components.vision?.state.toUpperCase() ?? 'OFFLINE'}</strong>
+          <strong>{runtime.components.vision?.detail.toUpperCase() ?? 'OFFLINE'}</strong>
         </div>
         <div className="context-line">
           <span>ACCOUNTS</span>
           <strong>{runtime.components.accounts?.detail.toUpperCase() ?? 'NOT CONNECTED'}</strong>
         </div>
         <div className="context-line">
-          <span>MEMORY</span>
-          <strong>FOUNDATION PENDING</strong>
+          <span>MICROPHONE</span>
+          <strong>{DEVICE_COPY[deviceState(runtime, 'microphone')]}</strong>
+        </div>
+        <div className="context-line">
+          <span>CAMERA</span>
+          <strong>{DEVICE_COPY[deviceState(runtime, 'camera')]}</strong>
         </div>
       </article>
     </section>
@@ -1445,68 +1448,70 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
 
   const livekit = runtime.components.livekit
   const gateway = runtime.components.gateway
+  const voiceComponent = runtime.components.voice
+
+  // The one line that answers "why is nothing happening". Component detail is
+  // written for exactly this: it names what is missing rather than restating
+  // the state.
+  const blocker =
+    gateway?.state !== 'ready'
+      ? gateway?.detail
+      : voiceComponent?.state !== 'ready'
+        ? voiceComponent?.detail
+        : livekit?.state !== 'ready'
+          ? livekit?.detail
+          : ''
 
   return (
-    <section className="single-page panel">
-      <div className="panel-label">{'// VOICE'}</div>
-      <h2>Voice</h2>
-      <p>
-        The voice session runs over LiveKit: the agent worker joins a local room, and this window
-        joins the same room as a participant. Both need the Gateway, which issues the token and owns
-        every tool the agent can call.
-      </p>
-
-      <div className="voice-orb-stage">
+    <section className="voice-page">
+      {/* The orb *is* the page. Everything that used to sit around it — what
+          LiveKit is, the service list, the microphone list — was reference
+          material competing with the one thing you came here to look at. It
+          lives on Overview now. */}
+      <div className="voice-stage">
         <VoiceOrb
-          size={220}
+          size={340}
           level={voice.level}
           active={voice.phase === 'listening' || voice.phase === 'speaking'}
         />
-        <div className="voice-orb-meta">
-          <span className="voice-orb-phase">{voice.phase.toUpperCase()}</span>
-          <span className="voice-orb-caption">{voice.caption}</span>
-        </div>
       </div>
 
-      <div className="context-line">
-        <span>SESSION</span>
-        <strong>{voice.phase.toUpperCase()}</strong>
-      </div>
-      <div className="context-line">
-        <span>GATEWAY</span>
-        <strong>{(gateway?.detail ?? 'unknown').toUpperCase()}</strong>
-      </div>
-      <div className="context-line">
-        <span>LIVEKIT</span>
-        <strong>{(livekit?.detail ?? 'unknown').toUpperCase()}</strong>
-      </div>
+      <aside className="voice-status" aria-label="Session status">
+        <span className="voice-status-phase">{voice.phase.toUpperCase()}</span>
+        <strong className="voice-status-caption">{voice.caption}</strong>
+        {voice.detail ? <p className="voice-status-detail">{voice.detail}</p> : null}
 
-      <AsciiRule />
-      <div className="panel-label">{'// LOCAL SERVICES'}</div>
-      <ServiceHealth />
+        {blocker ? <p className="voice-status-blocker">{blocker}</p> : null}
 
-      <AsciiRule />
-      <div className="panel-label">{'// MICROPHONES'}</div>
-      {deviceError ? (
-        <span className="construction">{deviceError.toUpperCase()}</span>
-      ) : devices.length === 0 ? (
-        <span className="construction">
-          NO MICROPHONE VISIBLE / GRANT MICROPHONE PERMISSION TO LIST DEVICES
-        </span>
-      ) : (
-        <div className="service-list">
-          {devices.map((device) => (
-            <div className="service-row" key={device.deviceId}>
-              <span className="service-name">
-                {(device.label || 'Unnamed input').toUpperCase()}
-              </span>
-              <span className="service-state">
-                {device.deviceId === 'default' ? 'DEFAULT' : ''}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
+        <dl className="voice-status-facts">
+          <div>
+            <dt>GATEWAY</dt>
+            <dd className={`state-${gateway?.state ?? 'offline'}`}>
+              {(gateway?.state ?? 'offline').toUpperCase()}
+            </dd>
+          </div>
+          <div>
+            <dt>LIVEKIT</dt>
+            <dd className={`state-${livekit?.state ?? 'offline'}`}>
+              {(livekit?.state ?? 'offline').toUpperCase()}
+            </dd>
+          </div>
+          <div>
+            <dt>VOICE</dt>
+            <dd className={`state-${voiceComponent?.state ?? 'offline'}`}>
+              {(voiceComponent?.state ?? 'offline').toUpperCase()}
+            </dd>
+          </div>
+          <div>
+            <dt>MICROPHONE</dt>
+            <dd>{DEVICE_COPY[deviceState(runtime, 'microphone')]}</dd>
+          </div>
+          <div>
+            <dt>INPUTS</dt>
+            <dd>{deviceError ? 'UNKNOWN' : `${devices.length} FOUND`}</dd>
+          </div>
+        </dl>
+      </aside>
     </section>
   )
 }

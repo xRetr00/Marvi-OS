@@ -1,3 +1,5 @@
+import { useState } from 'react'
+
 import { formatRelative, titleFromMessages } from './time'
 import { useChat } from './useChat'
 import { Composer } from './components/Composer'
@@ -9,9 +11,15 @@ import './chat.css'
 /**
  * The typed conversation surface. Same Marvi as the voice session — same
  * identity, memory, tools, and confirmations — only the transport differs.
+ *
+ * The layout follows what every chat client settled on, for the same reasons:
+ * the transcript owns the window, the composer is pinned to the bottom and
+ * grows with the draft, and the session list is a drawer rather than a column
+ * permanently spending a fifth of the width on one entry.
  */
 export function Chat(): React.JSX.Element {
   const { messages, busy, available, draft, pending, setDraft, send, clear, resolve } = useChat()
+  const [drawer, setDrawer] = useState(false)
 
   const last = messages[messages.length - 1]
   const session: Session = {
@@ -22,21 +30,47 @@ export function Chat(): React.JSX.Element {
   }
 
   return (
-    <section className="single-page panel chat-page">
-      <div className="panel-label">{'// CHAT'}</div>
-      <div className="chat-layout">
-        <Sessions
-          sessions={[session]}
-          activeId="current"
-          onSelect={() => {}}
-          onNew={() => void clear()}
-        />
+    <section className="chat-page">
+      <header className="chat-bar">
+        <button
+          aria-expanded={drawer}
+          className="chat-bar-button"
+          onClick={() => setDrawer(!drawer)}
+          type="button"
+        >
+          {drawer ? 'CLOSE' : 'SESSIONS'}
+        </button>
+        <span className="chat-bar-title">{session.title}</span>
+        <button
+          className="chat-bar-button"
+          disabled={busy || messages.length === 0}
+          onClick={() => void clear()}
+          type="button"
+        >
+          NEW
+        </button>
+      </header>
+
+      {!available ? (
+        <div className="chat-unavailable">
+          NO PROVIDER CONNECTED — OPEN PROVIDERS TO CONNECT ONE
+        </div>
+      ) : null}
+
+      <div className="chat-body-area">
+        {drawer ? (
+          <Sessions
+            sessions={[session]}
+            activeId="current"
+            onSelect={() => setDrawer(false)}
+            onNew={() => {
+              void clear()
+              setDrawer(false)
+            }}
+          />
+        ) : null}
+
         <div className="chat-main">
-          {!available ? (
-            <div className="chat-unavailable">
-              NO PROVIDER CONNECTED — OPEN PROVIDERS TO CONNECT ONE
-            </div>
-          ) : null}
           <MessageList messages={messages} busy={busy} />
           {pending ? (
             <ConfirmationBar pending={pending} onResolve={(decision) => void resolve(decision)} />
@@ -45,10 +79,8 @@ export function Chat(): React.JSX.Element {
             draft={draft}
             busy={busy}
             available={available}
-            canClear={messages.length > 0}
             onDraftChange={setDraft}
             onSend={() => void send()}
-            onClear={() => void clear()}
           />
         </div>
       </div>
