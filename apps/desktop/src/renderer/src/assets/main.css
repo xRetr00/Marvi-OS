@@ -69,7 +69,12 @@ button {
 .app-body {
   position: relative;
   display: grid;
-  grid-template-columns: 224px 1fr;
+  /* `auto`, so the sidebar's own width decides the column. Collapsing used to
+     be a `:has()` rule on this element, which lost a specificity race with a
+     media query that also sets this property — the class applied, the selector
+     matched, and the column never moved. One element owning its own width has
+     no race to lose. */
+  grid-template-columns: auto 1fr;
   min-height: 0;
 }
 
@@ -86,6 +91,8 @@ button {
 
 .sidebar {
   display: flex;
+  width: 224px;
+  transition: width 140ms ease;
   min-width: 0;
   flex-direction: column;
   border-right: 1px solid var(--ui-stroke-secondary);
@@ -930,8 +937,8 @@ nav {
 }
 
 @media (max-width: 980px) {
-  .app-body {
-    grid-template-columns: 188px 1fr;
+  .sidebar {
+    width: 188px;
   }
   .overview-grid {
     grid-template-columns: 1fr;
@@ -1487,4 +1494,95 @@ nav {
   color: var(--ui-text-tertiary);
   letter-spacing: 0;
   text-transform: none;
+}
+
+/* ===== Readability =====
+ *
+ * Not "everything bold" — weight only means something if some text has more of
+ * it than the rest. The base moves from 400 to 450 so body text is solid at
+ * 11-12px on a dark ground, and the muted greys move up so a label reads as
+ * text rather than as texture. Headings keep their own weight and so still
+ * read as headings.
+ *
+ * The other half of the problem was the background video: text sat directly on
+ * a moving image with nothing between them. Panels now carry an opaque-enough
+ * ground of their own. */
+:root {
+  --ui-text-primary: #eceef0;
+  --ui-text-emphasis: #ffffff;
+  --ui-text-secondary: #b3b9c0;
+  --ui-text-tertiary: #8b929b;
+}
+
+body {
+  font-weight: 450;
+}
+
+.panel,
+.topbar,
+.statusbar,
+.single-page {
+  /* Was 86% of a near-black over a moving video, which left the video legible
+     through the text. */
+  background: color-mix(in srgb, var(--ui-bg-raised) 96%, transparent);
+}
+
+.sidebar {
+  background: color-mix(in srgb, var(--ui-bg) 96%, transparent);
+}
+
+small,
+.service-row small {
+  color: var(--ui-text-secondary);
+}
+
+/* ===== Sidebar collapse =====
+ *
+ * Last in the file on purpose. A `@media (max-width: 980px)` rule above also
+ * sets `grid-template-columns`, and media queries add no specificity — so the
+ * collapse only wins by coming after it. Placed earlier, the class applied,
+ * `:has()` matched, and the column never moved. */
+.app-body {
+  transition: grid-template-columns 140ms ease;
+}
+
+.sidebar.collapsed {
+  width: 64px;
+}
+
+.sidebar.collapsed {
+  --sidebar-collapsed: 1;
+}
+
+.brand-block {
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.sidebar-collapse {
+  padding: 4px 8px;
+  border: 1px solid var(--ui-stroke-secondary);
+  background: transparent;
+  color: var(--ui-text-secondary);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.sidebar-collapse:hover {
+  border-color: var(--ui-accent);
+  color: var(--ui-text-emphasis);
+}
+
+.sidebar.collapsed .nav-item {
+  padding: 9px 0;
+  text-align: center;
+  letter-spacing: 0.06em;
+}
+
+/* The gear sits with the window controls, so it gets their hover treatment
+   rather than the accent one a primary action would take. */
+.titlebar-control span {
+  font-size: 13px;
+  line-height: 1;
 }

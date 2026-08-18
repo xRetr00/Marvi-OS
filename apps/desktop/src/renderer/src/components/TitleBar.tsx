@@ -10,15 +10,18 @@
  */
 import { useEffect, useState } from 'react'
 
-import appIcon from '../assets/app-icon.png'
 import { haptic } from '../lib/haptics'
 
 interface TitleBarProps {
   /** Current nav page, shown in the title text. */
   page: string
+  /** Opens Settings. The gear sits with the window controls because that is
+   * where a person looks for it, and it keeps configuration out of the
+   * sidebar, which is for the things you actually use. */
+  onSettings: () => void
 }
 
-export function TitleBar({ page }: TitleBarProps): React.JSX.Element {
+export function TitleBar({ page, onSettings }: TitleBarProps): React.JSX.Element {
   const [maximized, setMaximized] = useState(false)
 
   useEffect(() => {
@@ -41,13 +44,24 @@ export function TitleBar({ page }: TitleBarProps): React.JSX.Element {
 
   return (
     <header className="titlebar" onDoubleClick={toggleMaximize}>
+      {/* The product name and icon were here and said nothing: you know which
+          app you opened. The page you are on is the useful half. */}
       <div className="titlebar-brand no-drag">
-        <img alt="Marvi OS" className="titlebar-icon" src={appIcon} />
-        <span className="titlebar-product">MARVI OS</span>
         <span className="titlebar-page">{page.toUpperCase()}</span>
       </div>
       <div className="titlebar-spacer" />
       <div className="titlebar-controls no-drag" onDoubleClick={(event) => event.stopPropagation()}>
+        <button
+          aria-label="Settings"
+          className="titlebar-control"
+          onClick={() => {
+            haptic('tap')
+            onSettings()
+          }}
+          type="button"
+        >
+          <span aria-hidden="true">⚙</span>
+        </button>
         <button aria-label="Minimize" className="titlebar-control" onClick={minimize} type="button">
           <span aria-hidden="true">−</span>
         </button>

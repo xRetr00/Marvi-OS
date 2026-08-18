@@ -213,9 +213,7 @@ describe('what gets written to the log files', () => {
     expect(
       looksLikeError('2026-08-18 04:26:59,539 INFO    [retry] room.get_state failed, retrying')
     ).toBe(false)
-    expect(
-      looksLikeError('2026-08-18 04:26:59,539 ERROR   [gateway] something broke')
-    ).toBe(true)
+    expect(looksLikeError('2026-08-18 04:26:59,539 ERROR   [gateway] something broke')).toBe(true)
   })
 
   it('still guesses for a line that declares nothing', async () => {

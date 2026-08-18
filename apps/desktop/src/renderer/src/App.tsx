@@ -124,6 +124,7 @@ function MainSurface(): React.JSX.Element {
   const runtime = useStore($runtimeState)
   const translucency = useStore($translucency)
   const [page, setPage] = useState<Page>('Overview')
+  const [collapsed, setCollapsed] = useState(false)
   const [version, setVersion] = useState('0.1.0-dev.0')
 
   useEffect(() => {
@@ -177,32 +178,54 @@ function MainSurface(): React.JSX.Element {
       ]}
     >
       <div className="app-shell">
-        <TitleBar page={page} />
+        <TitleBar onSettings={() => navigate('Settings')} page={page} />
 
-        <div className="app-body">
+        {/* The track width comes from the same state as the sidebar's. An
+            `auto` track sizes to the item's max-content and stretches the item
+            back to fill it, so the sidebar's own `width: 64px` was correct,
+            applied, and visually ignored. */}
+        <div className="app-body" style={{ gridTemplateColumns: `${collapsed ? 64 : 224}px 1fr` }}>
           <ElectricGazeBackground />
 
-          <aside className="sidebar">
+          {/* Width inline rather than by class. The stylesheet route lost a
+              cascade race twice — first to a media query on the grid parent,
+              then in a way I could not account for with the correct rule
+              present and matching. One value, from the state that decides it,
+              with nothing to override it. */}
+          <aside
+            className={collapsed ? 'sidebar collapsed' : 'sidebar'}
+            style={{ width: collapsed ? 64 : 224 }}
+          >
             <header className="brand-block">
               <BrandIcon className="brand-icon-sidebar" />
-              <div>
-                <strong>MARVI OS</strong>
-                <span>VOICE + VISION</span>
-              </div>
+              {/* "VOICE + VISION" was a tagline in a navigation column. The
+                  collapse control earns the space instead. */}
+              {!collapsed ? <strong>MARVI OS</strong> : null}
+              <button
+                aria-label={collapsed ? 'Expand the sidebar' : 'Collapse the sidebar'}
+                className="sidebar-collapse"
+                onClick={() => setCollapsed(!collapsed)}
+                type="button"
+              >
+                <span aria-hidden="true">{collapsed ? '»' : '«'}</span>
+              </button>
             </header>
 
             <nav aria-label="Main navigation">
               {NAV_GROUPS.map((group) => (
                 <div className="nav-group" key={group.label}>
-                  <h2 className="nav-group-label">{group.label.toUpperCase()}</h2>
+                  {!collapsed ? (
+                    <h2 className="nav-group-label">{group.label.toUpperCase()}</h2>
+                  ) : null}
                   {group.items.map((item) => (
                     <button
                       className={page === item ? 'nav-item active' : 'nav-item'}
                       key={item}
                       aria-current={page === item ? 'page' : undefined}
                       onClick={() => navigate(item)}
+                      title={collapsed ? item : undefined}
                     >
-                      {item.toUpperCase()}
+                      {collapsed ? item.slice(0, 2).toUpperCase() : item.toUpperCase()}
                     </button>
                   ))}
                 </div>

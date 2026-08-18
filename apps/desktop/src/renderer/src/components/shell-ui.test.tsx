@@ -14,19 +14,22 @@ afterEach(() => {
 })
 
 describe('TitleBar', () => {
-  it('paints brand, current page, and the three window controls', () => {
-    const html = renderToStaticMarkup(<TitleBar page="Overview" />)
+  it('paints the current page, a settings gear, and the window controls', () => {
+    const html = renderToStaticMarkup(<TitleBar onSettings={() => {}} page="Overview" />)
 
     expect(html).toContain('titlebar')
-    expect(html).toContain('MARVI OS')
     expect(html).toContain('OVERVIEW')
+    // The product name and icon were here and told the user which app they had
+    // already opened. The page they are on is the half worth the space.
+    expect(html).not.toContain('MARVI OS')
+    expect(html).toContain('aria-label="Settings"')
     expect(html).toContain('aria-label="Minimize"')
     expect(html).toContain('aria-label="Maximize"')
     expect(html).toContain('aria-label="Close"')
   })
 
   it('carries drag region styling hooks for the frameless window', () => {
-    const html = renderToStaticMarkup(<TitleBar page="Voice" />)
+    const html = renderToStaticMarkup(<TitleBar onSettings={() => {}} page="Voice" />)
 
     expect(html).toContain('class="titlebar"')
     expect(html).toContain('no-drag')
