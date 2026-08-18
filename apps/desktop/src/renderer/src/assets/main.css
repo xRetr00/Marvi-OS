@@ -1099,7 +1099,7 @@ nav {
 }
 
 .connecting-spinner {
-  font-size: 28px;
+  font-size: 20px;
   color: var(--ui-accent);
 }
 
@@ -1113,6 +1113,59 @@ nav {
   font-size: 10px;
   letter-spacing: 0.2em;
   color: var(--ui-text-secondary);
+}
+
+/* Block-element accordion loader ---------------------------------------- */
+@keyframes accordion-loader-slide {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(var(--loader-x));
+  }
+}
+.accordion-loader {
+  position: relative;
+  display: inline-flex;
+  height: 1em;
+  width: var(--loader-width);
+  align-items: center;
+  overflow: hidden;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  line-height: 1;
+  color: currentColor;
+  user-select: none;
+}
+.accordion-loader-track {
+  position: absolute;
+  inset: 0;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.accordion-loader-block {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  height: 100%;
+  width: 1ch;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  pointer-events: none;
+  /* Mask the track with the surrounding background so the blocks read as a
+     sweeping weight over the ░ run. */
+  background-color: var(--mask-color, var(--ui-bg));
+}
+.accordion-loader-block-0 {
+  z-index: 30;
+}
+.accordion-loader-block-1 {
+  z-index: 20;
+}
+.accordion-loader-block-2 {
+  z-index: 10;
 }
 
 /* ===== Boot failure overlay ===== */

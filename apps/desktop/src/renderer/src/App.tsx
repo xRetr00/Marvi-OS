@@ -331,11 +331,18 @@ function MainSurface(): React.JSX.Element {
  */
 function VoiceLevelMeter({ level }: { level: number }): React.JSX.Element {
   const cells = 8
-  const filled = Math.round(Math.min(1, Math.max(0, level)) * cells)
+  const value = Math.min(1, Math.max(0, level))
+  const scaled = value * cells
+  const full = Math.floor(scaled)
+  const partial = scaled - full
+  // A shade ramp reads as a continuous meter: ░ light → ▒ → ▓ dark → █ full.
+  const shades = ['░', '▒', '▓'] as const
+  const partialGlyph = partial > 0 ? shades[Math.min(2, Math.floor(partial * 3))] : ''
+  const blocks =
+    '█'.repeat(full) + partialGlyph + '░'.repeat(cells - full - (partialGlyph ? 1 : 0))
   return (
-    <span aria-label={`Voice level ${filled} of ${cells}`} className="voice-level-meter">
-      {'▮'.repeat(filled)}
-      {'▯'.repeat(cells - filled)}
+    <span aria-label={`Voice level ${Math.round(value * 100)}%`} className="voice-level-meter">
+      {blocks}
     </span>
   )
 }

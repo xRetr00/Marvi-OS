@@ -645,3 +645,14 @@ install look like a broken one.
 
 `shell-layout.test.ts` locks the layout chain and the device honesty, since both
 failures were invisible to every test that existed.
+
+## 2026-08-17 — block-element loading and meter
+
+- Added `AccordionLoader` (`components/ui/accordion-loader.tsx`): the █ ▓ ▒
+  blocks slide over a ░ track with staggered timing, adapted from a
+  user-provided shadcn-style example onto Marvi's plain CSS. It replaces the
+  `GlyphSpinner` on the boot `ConnectingOverlay`.
+- Reworked the status-bar `VoiceLevelMeter` onto the same block-element shade
+  ramp (░ → ▒ → ▓ → █) so a meter reads as one continuous density instead of
+  eight on/off cells.
+- `accordion-loader.test.ts` covers the glyphs, track, and length override.
