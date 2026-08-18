@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import socket
-from collections.abc import AsyncIterator
+import time
+from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from typing import Any, Literal
@@ -12,6 +14,7 @@ from uuid import uuid4
 
 import anyio
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 from livekit import api
 from pydantic import BaseModel, Field
 
@@ -918,6 +921,70 @@ def create_app(
             schedules=[ScheduleRow(**row) for row in state["schedules"]],
             actions=state["actions"],
             running=bool(state["running"]),
+        )
+
+    class LlmTurn(BaseModel):
+        messages: list[dict[str, Any]]
+        #: Which job this turn is, so the right model and later the right
+        #: auxiliary slot is chosen. Not a provider name: callers say what they
+        #: are doing and the Gateway decides who does it.
+        job: str = "main"
+        surface: str = "unknown"
+        max_tokens: int | None = None
+        effort: str | None = None
+        temperature: float | None = None
+        tools: list[dict[str, Any]] | None = None
+
+    @app.post("/llm")
+    async def llm_turn(turn: LlmTurn) -> StreamingResponse:
+        """One LLM turn, streamed, for any caller.
+
+        The seam. Chat, voice, mind and vision each reached a provider their own
+        way, so fallback, cooldowns and usage applied to two of the four. They
+        come here instead, and the differences between them become the `job`
+        and `surface` they declare rather than four transports.
+
+        Server-sent events, because the caller is either an Electron renderer or
+        a LiveKit worker and both speak it, and because a buffered response
+        would move first-token latency to the whole-response time — which on
+        voice is the difference this endpoint exists to avoid.
+        """
+
+        def events() -> Iterator[str]:
+            sample = latency.Sample(surface=turn.surface, path="gateway", provider="", model="")
+            started = time.perf_counter()
+            try:
+                for piece in provider_client.stream(
+                    turn.messages,
+                    job=turn.job,
+                    max_tokens=turn.max_tokens,
+                    effort=turn.effort,
+                    temperature=turn.temperature,
+                    tools=turn.tools,
+                ):
+                    if piece.get("delta") and sample.first_token_ms is None:
+                        sample.first_token_ms = (time.perf_counter() - started) * 1000
+                    if piece.get("done"):
+                        sample.provider = str(piece.get("provider", ""))
+                        sample.model = str(piece.get("model", ""))
+                    yield f"data: {json.dumps(piece)}\n\n"
+            except Exception as exc:
+                # Reported in the stream rather than as a status code: by the
+                # time a provider fails the response has usually already begun,
+                # and a caller mid-stream cannot see a header.
+                sample.error = f"{type(exc).__name__}: {exc}"[:200]
+                yield f"data: {json.dumps({'error': str(exc)[:200]})}\n\n"
+            finally:
+                sample.total_ms = (time.perf_counter() - started) * 1000
+                latency.record(sample)
+                yield "data: [DONE]\n\n"
+
+        return StreamingResponse(
+            events(),
+            media_type="text/event-stream",
+            # Nothing between here and the caller may buffer: both are on
+            # loopback, and a proxy that helpfully batches would undo the point.
+            headers={"cache-control": "no-cache", "x-accel-buffering": "no"},
         )
 
     @app.post("/latency")
