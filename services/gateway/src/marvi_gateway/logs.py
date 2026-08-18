@@ -510,6 +510,28 @@ def _install_catchers() -> None:
     warnings.showwarning = on_warning
 
 
+def is_client_hangup(context: dict[str, Any]) -> bool:
+    """Is this asyncio complaining about a client that closed abruptly?
+
+    On Windows a client dropping a connection makes the proactor transport
+    raise `ConnectionResetError` (WinError 10054) from
+    `_ProactorBasePipeTransport._call_connection_lost`, and asyncio hands it to
+    the exception handler. Nothing is wrong: an HTTP client is allowed to hang
+    up, and the Electron shell does it routinely as it abandons poll requests.
+
+    Logged as an error it produced 388 entries in one session of `errors.log`,
+    which is how a healthy Gateway came to look like a crashing one. So it is
+    recognised and dropped to debug — recognised specifically, because a
+    connection reset from somewhere that is *not* a transport teardown is a
+    real event and must keep its level.
+    """
+    exception = context.get("exception")
+    if not isinstance(exception, ConnectionResetError):
+        return False
+    message = str(context.get("message", ""))
+    return "_call_connection_lost" in message or "connection_lost" in message
+
+
 def install_asyncio_handler(loop: Any) -> None:
     """Route asyncio's own errors into the engine.
 
@@ -520,9 +542,11 @@ def install_asyncio_handler(loop: Any) -> None:
 
     def handler(_loop: Any, context: dict[str, Any]) -> None:
         exception = context.get("exception")
-        engine.error(
+        level = logging.DEBUG if is_client_hangup(context) else logging.ERROR
+        engine.log(
+            level,
             "asyncio: %s", context.get("message", "unhandled error"),
-            exc_info=exception if exception else None,
+            exc_info=exception if (exception and level >= logging.ERROR) else None,
         )
 
     loop.set_exception_handler(handler)

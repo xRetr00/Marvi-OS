@@ -12,7 +12,23 @@ them — including any added later, which is the point of having one root.
 
 from __future__ import annotations
 
+import os
+import tempfile
+
 import pytest
+
+# Set at import, before pytest collects anything.
+#
+# The fixture below covers each test, but logging configures itself once per
+# process and that happens during collection — while a module is imported, and
+# before any fixture has run. So the warnings captured at import time went to
+# the real log directory, and three "logging started" lines appeared in the
+# user's own errors.log from a test run.
+#
+# An environment variable set here is set before any of that.
+_ISOLATED_HOME = tempfile.mkdtemp(prefix="marvi-tests-")
+os.environ["MARVI_HOME"] = _ISOLATED_HOME
+os.environ["MARVI_LOG_DIR"] = os.path.join(_ISOLATED_HOME, "logs")
 
 
 @pytest.fixture(autouse=True)

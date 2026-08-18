@@ -342,3 +342,32 @@ def test_extras_are_rendered_for_machines_and_people(engine) -> None:
     assert "call complete" in line
     assert "marvi_provider='ollama'" in line
     assert "marvi_tokens=42" in line
+
+
+def test_a_client_hanging_up_is_not_an_error() -> None:
+    """388 of these filled errors.log in one session and made a healthy
+    Gateway look like a crashing one.
+
+    On Windows the proactor transport raises ConnectionResetError when a client
+    drops a connection, and an HTTP client is allowed to do that.
+    """
+    from marvi_gateway.logs import is_client_hangup
+
+    hangup = {
+        "message": "Exception in callback _ProactorBasePipeTransport._call_connection_lost()",
+        "exception": ConnectionResetError(10054, "forcibly closed by the remote host"),
+    }
+    assert is_client_hangup(hangup) is True
+
+
+def test_a_reset_that_is_not_a_transport_teardown_stays_an_error() -> None:
+    """Recognised specifically. A provider dropping mid-call is a real event."""
+    from marvi_gateway.logs import is_client_hangup
+
+    assert is_client_hangup(
+        {"message": "provider stream failed", "exception": ConnectionResetError("reset")}
+    ) is False
+    assert is_client_hangup(
+        {"message": "_call_connection_lost", "exception": RuntimeError("something else")}
+    ) is False
+    assert is_client_hangup({"message": "task exception was never retrieved"}) is False
