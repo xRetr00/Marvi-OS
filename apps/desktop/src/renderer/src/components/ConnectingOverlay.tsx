@@ -15,8 +15,8 @@ import { useStore } from '@nanostores/react'
 import { useEffect, useState } from 'react'
 
 import { $runtimeState } from '../store/voice-state'
+import { AccordionLoader } from './ui/accordion-loader'
 import { DecodeText } from './ui/decode-text'
-import { GlyphSpinner } from './ui/glyph-spinner'
 
 function prefersReducedMotion(): boolean {
   return (
@@ -60,7 +60,7 @@ export function ConnectingOverlay(): React.JSX.Element | null {
       role="status"
     >
       <div className="connecting-block">
-        <GlyphSpinner className="connecting-spinner" spinner="orbit" />
+        <AccordionLoader className="connecting-spinner" trackLength={14} />
         <DecodeText active={connecting} className="connecting-text" prefix={4} text="CONNECTING" />
         <span className="connecting-detail">
           {runtime.components.gateway?.detail.toUpperCase() ?? 'Marvi Gateway offline'}
