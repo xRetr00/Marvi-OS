@@ -139,6 +139,13 @@ pub fn resolve_commit(dir: &Path, refname: &str) -> Result<String, GitError> {
 pub enum SignatureStatus {
     Valid,
     Unsigned,
+    /// Signed, but this machine cannot check it -- no allowed-signers file, or
+    /// git not configured to use one. Distinct from [`Invalid`] on purpose: not
+    /// knowing is not the same as knowing it is bad, and conflating them turned
+    /// a missing config file into a permanently blocked update.
+    ///
+    /// [`Invalid`]: SignatureStatus::Invalid
+    Unverifiable(String),
     Invalid(String),
 }
 
@@ -148,7 +155,20 @@ pub enum SignatureStatus {
 /// is "no signature" (integrity rests on HTTPS + hash pinning), whereas a tag
 /// whose signature is present but bad is a hard failure.
 pub fn verify_tag(dir: &Path, tag: &str) -> Result<SignatureStatus, GitError> {
-    let output = Command::new("git")
+    // The signers file ships in the checkout, so point git at it rather than
+    // requiring every user to have configured one. Git has no default location
+    // for it and errors out without one.
+    //
+    // What this is worth: it proves the tag was signed by the key in the
+    // checkout you already have, so a tampered tag on the remote is caught. It
+    // does not protect against a checkout that was already replaced wholesale
+    // -- that trust comes from HTTPS and from the original install.
+    let signers = dir.join(".github").join("allowed_signers");
+    let mut command = Command::new("git");
+    if signers.is_file() {
+        command.args(["-c", &format!("gpg.ssh.allowedSignersFile={}", signers.display())]);
+    }
+    let output = no_window(&mut command)
         .args(["verify-tag", tag])
         .current_dir(dir)
         .output()
@@ -166,10 +186,20 @@ pub fn verify_tag(dir: &Path, tag: &str) -> Result<SignatureStatus, GitError> {
         .iter()
         .any(|m| lower.contains(m));
     if unsigned {
-        Ok(SignatureStatus::Unsigned)
-    } else {
-        Ok(SignatureStatus::Invalid(combined.trim().to_string()))
+        return Ok(SignatureStatus::Unsigned);
     }
+    // "gpg.ssh.allowedSignersFile needs to be configured and exist for ssh
+    // signature verification" -- git saying it lacks the means to check, not
+    // that the check failed. This is what an older checkout says about every
+    // signed tag, because the signers file only arrives with the update it is
+    // refusing to install.
+    let unverifiable = ["allowedsignersfile", "gpg failed to execute", "gpg.program"]
+        .iter()
+        .any(|m| lower.contains(m));
+    if unverifiable {
+        return Ok(SignatureStatus::Unverifiable(combined.trim().to_string()));
+    }
+    Ok(SignatureStatus::Invalid(combined.trim().to_string()))
 }
 
 /// Number of commits in `target` that are not reachable from `base`
@@ -242,5 +272,95 @@ mod tests {
         let sha = current_commit(&repo).unwrap();
         assert_eq!(sha.len(), 40);
         assert!(sha.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+}
+
+#[cfg(test)]
+mod signature_tests {
+    use super::*;
+
+    /// A signed tag in a checkout that has no allowed-signers file. This is
+    /// exactly what a machine installed before the signers file existed sees,
+    /// and it used to abort the update with "invalid signature" -- which is
+    /// both wrong and unrecoverable, since the file only arrives with the
+    /// update being refused.
+    #[test]
+    fn a_signature_we_cannot_check_is_not_a_bad_signature() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let dir = tmp.path();
+        let git = |args: &[&str]| {
+            std::process::Command::new("git")
+                .args(args)
+                .current_dir(dir)
+                .env("GIT_CONFIG_GLOBAL", "/dev/null")
+                .env("GIT_CONFIG_SYSTEM", "/dev/null")
+                .output()
+                .unwrap()
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "t@example.com"]);
+        git(&["config", "user.name", "T"]);
+        git(&["commit", "-m", "c", "--allow-empty"]);
+
+        // A key made here, so the test needs nothing from the machine.
+        let key = dir.join("k");
+        std::process::Command::new("ssh-keygen")
+            .args(["-t", "ed25519", "-N", "", "-C", "test", "-f"])
+            .arg(&key)
+            .output()
+            .unwrap();
+        git(&["config", "gpg.format", "ssh"]);
+        git(&["config", "user.signingkey", &format!("{}.pub", key.display())]);
+        let tagged = git(&["tag", "-s", "v1.0.0", "-m", "v1.0.0"]);
+        assert!(tagged.status.success(), "could not create a signed tag");
+
+        // No .github/allowed_signers anywhere: git cannot check it.
+        assert!(!dir.join(".github/allowed_signers").exists());
+
+        match verify_tag(dir, "v1.0.0").unwrap() {
+            SignatureStatus::Unverifiable(_) => {}
+            other => panic!("expected Unverifiable, got {other:?} -- this blocks the update"),
+        }
+    }
+
+    /// And with the signers file present, the same tag verifies -- so the
+    /// relaxation above did not quietly turn verification off.
+    #[test]
+    fn the_signers_file_in_the_checkout_is_used() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let dir = tmp.path();
+        let git = |args: &[&str]| {
+            std::process::Command::new("git")
+                .args(args)
+                .current_dir(dir)
+                .env("GIT_CONFIG_GLOBAL", "/dev/null")
+                .env("GIT_CONFIG_SYSTEM", "/dev/null")
+                .output()
+                .unwrap()
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "t@example.com"]);
+        git(&["config", "user.name", "T"]);
+        git(&["commit", "-m", "c", "--allow-empty"]);
+
+        let key = dir.join("k");
+        std::process::Command::new("ssh-keygen")
+            .args(["-t", "ed25519", "-N", "", "-C", "test", "-f"])
+            .arg(&key)
+            .output()
+            .unwrap();
+        git(&["config", "gpg.format", "ssh"]);
+        git(&["config", "user.signingkey", &format!("{}.pub", key.display())]);
+        git(&["tag", "-s", "v1.0.0", "-m", "v1.0.0"]);
+
+        let public = std::fs::read_to_string(format!("{}.pub", key.display())).unwrap();
+        std::fs::create_dir_all(dir.join(".github")).unwrap();
+        std::fs::write(
+            dir.join(".github/allowed_signers"),
+            format!("t@example.com namespaces=\"git\" {}", public.trim()),
+        )
+        .unwrap();
+
+        assert_eq!(verify_tag(dir, "v1.0.0").unwrap(), SignatureStatus::Valid);
     }
 }

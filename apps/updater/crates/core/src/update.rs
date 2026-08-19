@@ -270,6 +270,14 @@ fn resolve_target(
                 Ok(SignatureStatus::Unsigned) => {
                     progress(&format!("warning: release tag {tag} is unsigned"));
                 }
+                Ok(SignatureStatus::Unverifiable(detail)) => {
+                    // A warning, not a refusal. Blocking here means an
+                    // installation that cannot verify can never update -- and
+                    // the thing it is missing arrives *in* the update.
+                    progress(&format!(
+                        "warning: could not verify the signature on {tag}: {detail}"
+                    ));
+                }
                 _ => {}
             }
             let target = git::resolve_commit(root, &tag)
