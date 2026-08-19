@@ -176,6 +176,7 @@ class ProviderClient:
             cache_prefix=cache_prefix,
             temperature=temperature,
             tools=tools,
+            job=job,
         )
         client = self.http or httpx.Client(timeout=REQUEST_TIMEOUT)
         try:
@@ -254,6 +255,7 @@ class ProviderClient:
             cache_prefix=cache_prefix,
             temperature=temperature,
             tools=tools,
+            job=job,
         )
 
         client = self.http or httpx.Client(timeout=REQUEST_TIMEOUT)

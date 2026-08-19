@@ -150,6 +150,9 @@ class ProviderProfile:
 
     supports_streaming: bool = True
     supports_vision: bool = False
+    #: True for a gateway that fronts several upstream providers per model, so
+    #: the request can say which of them to prefer. OpenRouter is the one.
+    routes_upstream: bool = False
     supports_tools: bool = True
 
     cache: CachePolicy = field(default_factory=CachePolicy)
@@ -251,6 +254,7 @@ class ProviderProfile:
         cache_prefix: bool = False,
         temperature: float | None = None,
         tools: list[dict[str, Any]] | None = None,
+        job: str = "main",
     ) -> dict[str, Any]:
         """Assemble a request body in this provider's own wire format.
 
@@ -328,6 +332,15 @@ class ProviderProfile:
             body["reasoning_effort"] = normalised
         if cache_prefix and self.cache.style == "cache_key":
             body["prompt_cache_key"] = "marvi-system"
+        if self.routes_upstream:
+            # OpenRouter is a gateway: the model names a family of upstream
+            # providers with different prices and different times to first
+            # token, and choosing between them is a decision voice cares about.
+            from .openrouter import route_for
+
+            route = route_for(job).as_body()
+            if route:
+                body["provider"] = route
         if tools and self.supports_tools:
             body["tools"] = [
                 {

@@ -39,6 +39,7 @@ openrouter = register(
         default_aux_model="google/gemini-3-flash",
         default_vision_model="anthropic/claude-sonnet-5",
         supports_vision=True,
+        routes_upstream=True,
         # OpenRouter forwards `prompt_cache_key` to backends that support it and
         # ignores it elsewhere, so sending it is free.
         cache=CachePolicy(style="cache_key", min_tokens=1024),

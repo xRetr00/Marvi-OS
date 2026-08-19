@@ -44,6 +44,7 @@ from .mind import Mind
 from .policy import InitiativeSettings
 from .providers import ProviderClient, all_profiles
 from .providers import config as provider_config
+from .providers import get as provider_get
 from .providers.oauth import OAuthError, broker
 from .room import RoomSidecar, RoomUnavailableError, register_room_tools, sleep_guard
 from .runtime import (
@@ -1662,6 +1663,31 @@ def create_app(
             provider_config.update({profile.key_env[0]: ""})
         runtime_store.audit("providers", "disconnect", {"provider": name, "token": removed})
         return await providers()
+
+    @app.get("/providers/openrouter/upstreams")
+    async def openrouter_upstreams(model: str = "") -> dict[str, Any]:
+        """Who can serve a model through OpenRouter, and on what terms.
+
+        OpenRouter is a gateway: one model name, several upstream providers,
+        different prices and different speeds. This is the list behind that
+        choice.
+        """
+        from .providers import openrouter as router
+
+        profile = provider_get("openrouter")
+        if profile is None:
+            raise HTTPException(status_code=404, detail="OpenRouter is not in the registry")
+        wanted = model.strip() or profile.model_for("main")
+        return {
+            "model": wanted,
+            "route": {
+                job: router.route_for(job).as_body() for job in ("main", "voice")
+            },
+            "policies": sorted(router.POLICIES),
+            "upstreams": await anyio.to_thread.run_sync(
+                lambda: router.endpoints(wanted, profile.api_key())
+            ),
+        }
 
     @app.get("/providers/voice", response_model=VoiceProvider)
     async def voice_provider() -> VoiceProvider:
