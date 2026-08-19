@@ -1969,3 +1969,44 @@ small,
 .settings-scroll h2 {
   margin-top: 0;
 }
+
+/* ===== Command cards =====
+ *
+ * Setup and Doctor moved to the CLI, so the GUI's job is to say what to run.
+ * The command is text first and a button second: the clipboard can be refused,
+ * and a command you can read is still usable when a copy silently fails. */
+.command-card {
+  margin: 18px 0;
+}
+
+.command-card p {
+  margin: 6px 0 10px;
+  color: var(--ui-text-secondary);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.command-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 8px;
+  background: var(--ui-bg-raised);
+}
+
+.command-line code {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  color: var(--ui-text-emphasis);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.command-card code,
+.settings-scroll code {
+  color: var(--ui-text-emphasis);
+  font-family: 'JetBrains Mono', Consolas, monospace;
+}

@@ -85,7 +85,29 @@ Pop-Location
 
 git add VERSION package.json apps\desktop\package.json apps\updater\Cargo.toml apps\updater\Cargo.lock
 git commit -m "chore: release $tag"
-git tag -a $tag -m "Marvi OS $tag"
+# Signed, and explicitly rather than relying on tag.gpgsign being set on
+# whichever machine cuts the release. Every tag before v0.3.3 was unsigned:
+# commit.gpgsign was true and tag.gpgsign was not, and `git tag -a` does not
+# sign. The updater treats an unsigned release tag as a warning, so nothing
+# broke — it just never verified anything either.
+$signingKey = git config --get user.signingkey
+if (-not $signingKey) {
+  throw "No user.signingkey configured. A release tag must be signed; set it and retry."
+}
+git tag -s $tag -m "Marvi OS $tag"
+if ($LASTEXITCODE -ne 0) { throw "Signing $tag failed. The tag was not created." }
+
+# Verified here, where a failure is cheap, rather than on a user's machine
+# during an update.
+$env:GIT_CONFIG_COUNT = "1"
+$env:GIT_CONFIG_KEY_0 = "gpg.ssh.allowedSignersFile"
+$env:GIT_CONFIG_VALUE_0 = ".github/allowed_signers"
+git verify-tag $tag
+if ($LASTEXITCODE -ne 0) {
+  git tag -d $tag | Out-Null
+  throw "$tag signed but did not verify against .github/allowed_signers. Tag removed."
+}
+Write-Host "Signed and verified $tag" -ForegroundColor Green
 git push origin main
 git push origin $tag
 

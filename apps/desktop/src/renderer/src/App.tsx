@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import appIcon from './assets/app-icon.ico'
 import { BootFailureOverlay } from './components/BootFailureOverlay'
 import { AsciiRule } from './components/ui/ascii-rule'
+import { CommandCard } from './components/ui/command-card'
 import { ConnectingOverlay } from './components/ConnectingOverlay'
 import { DynamicIsland } from './components/DynamicIsland'
 import { VoiceOrb } from './orb'
@@ -39,10 +40,7 @@ import { haptic } from './lib/haptics'
 import type {
   AuditEvent,
   ConnectedAccount,
-  DoctorReport,
-  HardwareAnswer,
   IdentityStatus,
-  SetupPage,
   SkillReview,
   StoreSkill,
   InitiativeStatus,
@@ -90,7 +88,7 @@ const NAV_GROUPS = [
 /** Behind the gear: the things you set up. */
 const SETTINGS_GROUPS = [
   { label: 'Connect', items: ['Providers', 'Accounts', 'Skills', 'Plugins'] },
-  { label: 'System', items: ['Preferences', 'Schedules', 'Setup', 'Doctor', 'Updates', 'About'] }
+  { label: 'System', items: ['Preferences', 'Schedules', 'Maintenance', 'Updates', 'About'] }
 ] as const
 
 type Page = (typeof NAV_GROUPS)[number]['items'][number]
@@ -117,8 +115,7 @@ const SETTINGS_BLURB: Record<SettingsPage, string> = {
   Plugins: 'Backends Marvi runs, installed from a repository',
   Preferences: 'Behaviour, appearance and devices',
   Schedules: 'Reminders and checks Marvi runs on a clock',
-  Setup: 'Models, browsers and dependencies',
-  Doctor: 'What is wrong, and how to fix each thing',
+  Maintenance: 'Installing models and diagnosing faults, from a terminal',
   Updates: 'Version, channel, and what changed',
   About: 'Build, licences and provenance'
 }
@@ -1544,344 +1541,6 @@ function microphoneLabel(devices: MediaDeviceInfo[]): string {
   return name.length > 28 ? `${name.slice(0, 27)}…` : name
 }
 
-const AREA_ORDER = ['dependencies', 'providers', 'configuration', 'services', 'storage', 'doctor']
-
-function DoctorPanel(): React.JSX.Element {
-  const [report, setReport] = useState<DoctorReport | null>(null)
-  const [logs, setLogs] = useState<{ subsystem: string; lines: string[]; available: string[] }>({
-    subsystem: 'errors',
-    lines: [],
-    available: []
-  })
-  const [busy, setBusy] = useState('')
-  const [copied, setCopied] = useState(false)
-
-  const load = useCallback(async (): Promise<void> => {
-    const next = await window.marvi?.runDoctor()
-    setReport(next ?? null)
-  }, [])
-
-  const loadLogs = useCallback(async (subsystem: string): Promise<void> => {
-    const page = await window.marvi?.getLogs(subsystem)
-    if (page) setLogs({ subsystem, lines: page.lines, available: page.available })
-  }, [])
-
-  useEffect(() => {
-    let disposed = false
-    void (async () => {
-      const [next, page] = await Promise.all([
-        window.marvi?.runDoctor(),
-        window.marvi?.getLogs('errors')
-      ])
-      if (disposed) return
-      setReport(next ?? null)
-      if (page) setLogs({ subsystem: 'errors', lines: page.lines, available: page.available })
-    })()
-    return () => {
-      disposed = true
-    }
-  }, [])
-
-  const heal = async (includeConfirmed: boolean): Promise<void> => {
-    setBusy(includeConfirmed ? 'fixing' : 'repairing')
-    try {
-      const result = await window.marvi?.healDoctor(includeConfirmed)
-      if (result) setReport(result.report)
-    } finally {
-      setBusy('')
-    }
-  }
-
-  const copy = async (): Promise<void> => {
-    const text = await window.marvi?.copyDiagnostics()
-    if (!text) return
-    await navigator.clipboard.writeText(text)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2_000)
-  }
-
-  const findings = report?.findings ?? []
-  const fixable = findings.filter((f) => f.remedy.runnable && f.remedy.kind === 'confirm')
-  const areas = [...new Set(findings.map((f) => f.area))].sort(
-    (a, b) => AREA_ORDER.indexOf(a) - AREA_ORDER.indexOf(b)
-  )
-
-  return (
-    <section className="single-page panel">
-      <div className="panel-label">{'// DOCTOR'}</div>
-      <h2>Doctor</h2>
-      <p>
-        What is wrong, and what fixes it. Safe repairs have already run; anything that costs money,
-        takes real time, or touches another process waits for you. Some things only you can do ΓÇö
-        those say exactly where to go.
-      </p>
-
-      {report ? (
-        <div className="context-line">
-          <span>STATE</span>
-          <strong>
-            {report.summary.fail} FAILING / {report.summary.warn} WARNINGS / {report.summary.ok} OK
-          </strong>
-        </div>
-      ) : (
-        <span className="construction">RUNNING CHECKS</span>
-      )}
-
-      <div className="provider-actions doctor-actions">
-        <button className="phase" type="button" disabled={!!busy} onClick={() => void load()}>
-          RE-CHECK
-        </button>
-        <button
-          className="phase active"
-          type="button"
-          disabled={!!busy || fixable.length === 0}
-          onClick={() => void heal(true)}
-        >
-          {busy === 'fixing' ? 'FIXING' : `FIX ${fixable.length} THING(S)`}
-        </button>
-        <button className="phase" type="button" onClick={() => void copy()}>
-          {copied ? 'COPIED' : 'COPY DIAGNOSTICS'}
-        </button>
-      </div>
-
-      <AsciiRule />
-
-      {areas.map((area) => (
-        <div key={area}>
-          <div className="panel-label">{`// ${area.toUpperCase()}`}</div>
-          <div className="service-list">
-            {findings
-              .filter((finding) => finding.area === area)
-              .map((finding) => (
-                <div className="service-row" key={`${finding.area}/${finding.check}`}>
-                  <span className="service-name">{finding.check.toUpperCase()}</span>
-                  <span
-                    className={`service-state state-${
-                      finding.status === 'ok'
-                        ? 'ready'
-                        : finding.status === 'fail'
-                          ? 'error'
-                          : 'pending'
-                    }`}
-                  >
-                    {finding.status.toUpperCase()}
-                  </span>
-                  <small>{finding.detail}</small>
-
-                  {finding.status !== 'ok' && finding.remedy.kind !== 'none' ? (
-                    <small
-                      className={finding.remedy.kind === 'manual' ? 'doctor-manual' : undefined}
-                    >
-                      {finding.remedy.kind === 'manual' ? 'ΓåÆ ' : 'ΓåÆ '}
-                      {finding.remedy.action}
-                      {finding.remedy.how ? `\n${finding.remedy.how}` : ''}
-                    </small>
-                  ) : null}
-                </div>
-              ))}
-          </div>
-        </div>
-      ))}
-
-      <AsciiRule />
-      <div className="panel-label">{'// LOGS'}</div>
-      <div className="provider-actions doctor-logs-tabs">
-        {logs.available.map((name) => (
-          <button
-            key={name}
-            className={name === logs.subsystem ? 'phase active' : 'phase'}
-            type="button"
-            onClick={() => void loadLogs(name)}
-          >
-            {name.toUpperCase()}
-          </button>
-        ))}
-      </div>
-      <pre className="service-output doctor-log">
-        {logs.lines.length > 0 ? logs.lines.join('\n') : 'nothing recorded'}
-      </pre>
-    </section>
-  )
-}
-
-/** Bytes as a size someone can read. `0` reads as a dash, not "0.00 GB". */
-function gigabytes(bytes: number): string {
-  if (!bytes) return '—'
-  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(0)} KB`
-  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(0)} MB`
-  return `${(bytes / 1024 ** 3).toFixed(2)} GB`
-}
-
-function SetupPanel(): React.JSX.Element {
-  const [page, setPage] = useState<SetupPage | null>(null)
-  const [hardware, setHardware] = useState<HardwareAnswer | null>(null)
-  const [busy, setBusy] = useState('')
-
-  const load = useCallback(async (): Promise<void> => {
-    const [next, gpu] = await Promise.all([window.marvi?.getSetup(), window.marvi?.getHardware()])
-    setPage(next ?? null)
-    setHardware(gpu ?? null)
-  }, [])
-
-  useEffect(() => {
-    let disposed = false
-    void (async () => {
-      const [next, gpu] = await Promise.all([window.marvi?.getSetup(), window.marvi?.getHardware()])
-      if (disposed) return
-      setPage(next ?? null)
-      setHardware(gpu ?? null)
-    })()
-    return () => {
-      disposed = true
-    }
-  }, [])
-
-  const chooseGpu = async (useGpu: boolean): Promise<void> => {
-    setHardware((await window.marvi?.setHardware(useGpu)) ?? hardware)
-  }
-
-  const act = async (name: string, remove: boolean): Promise<void> => {
-    setBusy(name)
-    // The install request does not return until the whole download is finished,
-    // which for the voice models is several minutes. Polling the page in the
-    // meantime is what turns a frozen "WORKING" into a moving byte count.
-    const poll = remove
-      ? null
-      : setInterval(() => {
-          void window.marvi?.getSetup().then((next) => {
-            if (next) setPage(next)
-          })
-        }, 1_000)
-    try {
-      const next = remove
-        ? await window.marvi?.removeComponent(name)
-        : await window.marvi?.installComponent(name)
-      if (next) setPage(next)
-    } finally {
-      if (poll) clearInterval(poll)
-      setBusy('')
-    }
-  }
-
-  const missing = page?.plan?.install ?? []
-
-  return (
-    <section className="single-page panel">
-      <div className="panel-label">{'// SETUP'}</div>
-      <h2>Setup</h2>
-      <p>
-        Everything Marvi needs, and how much of it is here. Downloads are verified by hash, resume
-        if interrupted, and cost nothing to re-run.
-      </p>
-
-      {/* The GPU question comes first: it changes which packages get installed,
-          and answering it afterwards means a multi-gigabyte reinstall. */}
-      {hardware?.ask ? (
-        <div className="chat-confirm">
-          <span>{hardware.prompt}</span>
-          <div className="provider-actions">
-            <button className="phase active" type="button" onClick={() => void chooseGpu(true)}>
-              USE THE GPU
-            </button>
-            <button className="phase" type="button" onClick={() => void chooseGpu(false)}>
-              CPU ONLY
-            </button>
-          </div>
-        </div>
-      ) : hardware ? (
-        <div className="context-line">
-          <span>HARDWARE</span>
-          <strong>
-            {hardware.use_gpu ? 'GPU' : 'CPU'} — {hardware.reason.toUpperCase()}
-          </strong>
-        </div>
-      ) : null}
-
-      {page ? (
-        <div className="context-line">
-          <span>TO DOWNLOAD</span>
-          <strong>
-            {missing.length} ITEM(S){page.disk_detail ? ` / ${page.disk_detail.toUpperCase()}` : ''}
-          </strong>
-        </div>
-      ) : (
-        <span className="construction">READING THE CATALOG</span>
-      )}
-
-      {page && !page.disk_ok ? (
-        <span className="construction">
-          NOT ENOUGH DISK SPACE / {page.disk_detail.toUpperCase()}
-        </span>
-      ) : null}
-
-      <AsciiRule />
-
-      <div className="service-list">
-        {(page?.components ?? []).map((component) => (
-          <div className="service-row" key={component.name}>
-            <span className="service-name">{component.title.toUpperCase()}</span>
-            <span
-              className={`service-state state-${
-                component.installed ? 'ready' : busy === component.name ? 'starting' : 'pending'
-              }`}
-            >
-              {/* Not `error` when it is merely not downloaded yet. Painting
-                  every uninstalled component red made a fresh install look
-                  like a broken one. */}
-              {component.installed
-                ? 'INSTALLED'
-                : busy === component.name
-                  ? 'DOWNLOADING'
-                  : component.detail.toUpperCase()}
-            </span>
-            {component.progress ? (
-              <small className="setup-progress">
-                {component.progress.file} — {gigabytes(component.progress.bytes_done)} of{' '}
-                {gigabytes(component.progress.bytes_total)}
-              </small>
-            ) : null}
-            <small>{component.why}</small>
-            <small>
-              {component.bytes_total > 0
-                ? `${(component.bytes_total / 1024 ** 3).toFixed(2)} GB`
-                : component.kind}
-              {component.needed_for.length > 0
-                ? ` / needed for ${component.needed_for.join(', ')}`
-                : ''}
-            </small>
-            <div className="provider-actions">
-              <button
-                className="phase"
-                type="button"
-                disabled={!!busy || component.installed}
-                onClick={() => void act(component.name, false)}
-              >
-                {busy === component.name ? 'WORKING' : 'INSTALL'}
-              </button>
-              {component.installed ? (
-                <button
-                  className="phase danger"
-                  type="button"
-                  disabled={!!busy}
-                  onClick={() => void act(component.name, true)}
-                >
-                  REMOVE
-                </button>
-              ) : null}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <AsciiRule />
-      <button className="phase" type="button" onClick={() => void load()}>
-        RE-CHECK
-      </button>
-      {page ? <small>{page.install_root}</small> : null}
-    </section>
-  )
-}
-
 function SchedulesPanel(): React.JSX.Element {
   const [page, setPage] = useState<SchedulePage | null>(null)
   const [name, setName] = useState('')
@@ -2464,6 +2123,54 @@ function BrandIcon({ className = '' }: { className?: string }): React.JSX.Elemen
  * and the reported problem with the old pages was text sitting directly on a
  * moving image.
  */
+function MaintenancePanel(): React.JSX.Element {
+  return (
+    <section className="single-page panel">
+      <h2>Maintenance</h2>
+      <p>
+        Installing models and diagnosing faults run from a terminal. They are the tools you reach
+        for when Marvi is not working, and a tool that needs Marvi to be working is the wrong tool
+        for that job — the Setup page used to inspect the installation on a timer, which took the
+        Gateway down while a model was downloading.
+      </p>
+
+      <AsciiRule />
+
+      <CommandCard command="marvi doctor" title="// WHAT IS WRONG">
+        <p>
+          Checks dependencies, providers, storage, plugins and the build, and names the fix for each
+          failure. Add <code>--fix</code> to apply the ones Marvi can do itself.
+        </p>
+      </CommandCard>
+
+      <CommandCard command="marvi setup" title="// INSTALL WHAT IS MISSING">
+        <p>
+          Downloads and verifies models, browsers and dependencies. Name a capability to narrow it —{' '}
+          <code>marvi setup voice</code> — or <code>--dry-run</code> to see the plan and the
+          download size first.
+        </p>
+      </CommandCard>
+
+      <CommandCard command="marvi models list" title="// WHAT IS INSTALLED">
+        <p>
+          Every component and its state. <code>marvi models verify &lt;name&gt;</code> checks one
+          against its published hashes.
+        </p>
+      </CommandCard>
+
+      <CommandCard command="marvi diagnostics" title="// FOR A BUG REPORT">
+        <p>One redacted block with versions, component states and recent errors.</p>
+      </CommandCard>
+
+      <AsciiRule />
+      <small>
+        If <code>marvi</code> is not found, the installer puts it on PATH — open a new terminal, or
+        run the bootstrap again to repair the installation.
+      </small>
+    </section>
+  )
+}
+
 function SettingsShell({
   page,
   runtime,
@@ -2530,10 +2237,8 @@ function SettingsShell({
             <SettingsPanel runtime={runtime} />
           ) : page === 'Schedules' ? (
             <SchedulesPanel />
-          ) : page === 'Setup' ? (
-            <SetupPanel />
-          ) : page === 'Doctor' ? (
-            <DoctorPanel />
+          ) : page === 'Maintenance' ? (
+            <MaintenancePanel />
           ) : page === 'Updates' ? (
             <UpdatesPanel version={version} />
           ) : (

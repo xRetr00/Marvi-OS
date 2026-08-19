@@ -1,0 +1,9 @@
+# Who may sign a Marvi OS release tag.
+#
+# `git verify-tag` needs this file to check an SSH signature — without it the
+# signature is present and unverifiable, which is not much better than absent.
+# Both CI and the updater point `gpg.ssh.allowedSignersFile` here.
+#
+# The principal is the identity in the tag's signature, which for an SSH-signed
+# tag is the committer's email.
+shereefibrahim13@gmail.com namespaces="git" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIN/U8T7aVk87TnRzI65mYUFqtD+RS673R+rqgPuGvq7R Marvi Release Signing

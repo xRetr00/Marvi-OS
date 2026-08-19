@@ -61,6 +61,19 @@ jobs:
           echo "dry_run=$DRY_RUN" >> "$GITHUB_OUTPUT"
           echo "Releasing version=$VERSION dry_run=$DRY_RUN"
 
+      - name: Verify the release tag is signed
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          # Every tag through v0.3.2 was unsigned: commit.gpgsign was set and
+          # tag.gpgsign was not, and `git tag -a` does not sign. The updater
+          # only warned, so nothing failed and nothing was ever verified.
+          git config gpg.ssh.allowedSignersFile .github/allowed_signers
+          if ! git verify-tag "${GITHUB_REF#refs/tags/}"; then
+            echo "::error::${GITHUB_REF#refs/tags/} is not signed by a key in .github/allowed_signers."
+            exit 1
+          fi
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
