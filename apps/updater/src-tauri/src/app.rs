@@ -17,6 +17,39 @@ use crate::cli::{Cli, Mode};
 #[serde(rename_all = "camelCase")]
 struct ProgressPayload {
     stage: String,
+    /// How far along, 0-100.
+    percent: u8,
+}
+
+/// Stage text to a percentage, in the order the stages actually happen.
+///
+/// The bar has to be real, and the only honest source of "real" here is which
+/// step has started -- there is no byte count to divide. So each milestone is
+/// a step that genuinely ran, and the numbers are spaced by how long each one
+/// takes rather than evenly: `npm ci` and the build together are most of a
+/// fifteen-minute install, so they get most of the bar. Anything between two
+/// milestones holds at the lower one, which is why the log is there too.
+///
+/// Matched by prefix against the same strings the core emits. `stages_match_
+/// what_the_core_emits` below is the guard against those drifting apart.
+const MILESTONES: &[(&str, u8)] = &[
+    ("waiting for Marvi OS to exit", 2),
+    ("checking uv and Node", 4),
+    ("installing uv", 6),
+    ("installing Node", 10),
+    ("cloning", 14),
+    ("current commit", 14),
+    ("updating to", 18),
+    ("installing dependencies (npm ci)", 25),
+    ("building (npm run build:unpack)", 55),
+    ("activating installation", 95),
+];
+
+fn percent_for(stage: &str) -> Option<u8> {
+    MILESTONES
+        .iter()
+        .find(|(prefix, _)| stage.starts_with(prefix))
+        .map(|(_, percent)| *percent)
 }
 
 #[derive(Clone, Serialize)]
@@ -133,10 +166,16 @@ fn operate(handle: &AppHandle, args: Cli) {
         &format!("{:?}", args.mode).to_ascii_lowercase(),
     );
     let log_path = log.path().display().to_string();
+    // Never goes backwards. Build output is forwarded through this same
+    // closure, and a line of npm output that happens to start with an earlier
+    // milestone would otherwise rewind the bar.
+    let mut percent = 0u8;
     let mut progress = |stage: &str| {
         log.line(stage);
+        percent = percent.max(percent_for(stage).unwrap_or(0));
         let _ = handle.emit("progress", ProgressPayload {
             stage: stage.to_string(),
+            percent,
         });
     };
 
@@ -192,8 +231,64 @@ fn operate(handle: &AppHandle, args: Cli) {
         to,
     });
 
-    // Leave the final state visible for a beat, then exit. The relaunched (or
-    // freshly launched) Electron app is already on its way.
-    std::thread::sleep(std::time::Duration::from_millis(1500));
-    std::process::exit(0);
+    // No auto-close, on any outcome. It used to exit 1.5s after finishing,
+    // which was long enough to see that something had appeared and not long
+    // enough to read it -- so a failed install looked identical to a successful
+    // one: a window that flashed and went away. The window now waits for the
+    // Close button. Nothing depends on it exiting: `finish` has already cleared
+    // the in-progress marker and relaunched Marvi by this point.
+    handle.listen("close-window", |_| std::process::exit(0));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every milestone string must still be emitted by the core, or the bar
+    /// silently stops moving at whatever the last surviving one was. The core
+    /// emits these with `progress("...")` or `progress(&format!("...` , so
+    /// grepping the sources for the literal is enough to catch a rename.
+    #[test]
+    fn stages_match_what_the_core_emits() {
+        let sources: String = ["install.rs", "update.rs", "toolchain.rs", "builder.rs"]
+            .iter()
+            .map(|name| {
+                std::fs::read_to_string(
+                    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                        .join("../crates/core/src")
+                        .join(name),
+                )
+                .unwrap_or_default()
+            })
+            .collect();
+
+        for (prefix, _) in MILESTONES {
+            assert!(
+                sources.contains(prefix),
+                "no core stage starts with {prefix:?}; the progress bar will stall"
+            );
+        }
+    }
+
+    #[test]
+    fn the_bar_only_moves_forward() {
+        let mut percent = 0u8;
+        // A real sequence, including a line of build output that starts with an
+        // earlier milestone's text.
+        for stage in [
+            "checking uv and Node",
+            "installing dependencies (npm ci)",
+            "building (npm run build:unpack)",
+            "cloning something the build mentioned",
+            "activating installation",
+        ] {
+            percent = percent.max(percent_for(stage).unwrap_or(0));
+        }
+        assert_eq!(percent, 95);
+    }
+
+    #[test]
+    fn unknown_lines_do_not_move_the_bar() {
+        assert_eq!(percent_for("added 412 packages in 38s"), None);
+    }
 }

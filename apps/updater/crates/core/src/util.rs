@@ -14,6 +14,25 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 /// used to say.
 const FAILURE_CONTEXT_LINES: usize = 25;
 
+/// Windows: spawn without a console window.
+///
+/// Every helper the installer runs -- git, uv, npm, taskkill, tasklist,
+/// powershell -- is a console program, and Windows gives a console program a
+/// console. From a GUI app that means a black window flashing up for each one,
+/// several per update, which reads as the installer misbehaving. `CREATE_NO_WINDOW`
+/// suppresses it. Output is still captured over the pipes; only the window goes.
+///
+/// A no-op off Windows, where nothing pops up in the first place.
+pub fn no_window(command: &mut Command) -> &mut Command {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    command
+}
+
 /// Current process id as `u32` (Windows pids fit; truncation is fine).
 pub fn current_pid() -> u32 {
     std::process::id()
@@ -92,7 +111,7 @@ pub fn run_reporting(
     timeout: Duration,
     progress: &mut dyn FnMut(&str),
 ) -> Result<(), String> {
-    let mut child = Command::new(program)
+    let mut child = no_window(&mut Command::new(program))
         .args(args)
         .current_dir(cwd)
         .stdout(Stdio::piped())
@@ -247,7 +266,7 @@ pub fn process_alive(pid: u32) -> bool {
     // criteria." to *stdout*. Treating that as a match makes every dead process
     // look alive - which made `wait_for_exit` never return, so every update
     // aborted with "Marvi OS did not exit in time".
-    let output = Command::new("tasklist")
+    let output = no_window(&mut Command::new("tasklist"))
         .args(["/FI", &filter, "/NH", "/FO", "CSV"])
         .output();
     match output {

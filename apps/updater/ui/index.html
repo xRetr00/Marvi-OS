@@ -15,6 +15,12 @@
         <span id="stage-text">starting&hellip;</span>
       </div>
 
+      <!-- Real, not decorative: each step of the bar is a step that actually
+           ran. See MILESTONES in app.rs. -->
+      <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="bar">
+        <div class="bar-fill" id="bar-fill"></div>
+      </div>
+
       <!-- The install takes fifteen minutes. Without this the window shows one
            line the whole time, which is indistinguishable from a hang. -->
       <pre class="log" id="log" aria-live="polite"></pre>
@@ -30,6 +36,12 @@
       </div>
 
       <div class="status" id="status" hidden></div>
+
+      <!-- The window used to close itself 1.5s after finishing, which made a
+           failed install look the same as a successful one. It waits now. -->
+      <div class="ask-buttons" id="close-row" hidden>
+        <button type="button" id="close" class="primary">Close</button>
+      </div>
       <footer>
         <span>installer / updater</span>
         <span class="accent" id="channel"></span>

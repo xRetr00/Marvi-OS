@@ -20,3 +20,7 @@ runtime-data/
 .playwright-cli/
 output/
 **/target/
+
+# The signing key's passphrase, for unattended releases. Plaintext secret:
+# never committed, and `scripts/release.ps1` is the only thing that reads it.
+.release.env

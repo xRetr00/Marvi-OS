@@ -18,7 +18,9 @@ use crate::git::{self, SignatureStatus};
 use crate::marker;
 use crate::result::UpdateResult;
 use crate::tags;
+use crate::install::install_root_of;
 use crate::util;
+use crate::util::no_window;
 
 const OUT_DIR: &str = "apps/desktop/out";
 const DIST_DIR: &str = "apps/desktop/dist";
@@ -368,8 +370,18 @@ fn launch_exe(exe: Option<&Path>) {
     if !exe.exists() {
         return;
     }
-    let working_dir = exe.parent().unwrap_or(Path::new("."));
-    let _ = std::process::Command::new(exe).current_dir(working_dir).spawn();
+    // Deliberately NOT `exe.parent()`. That is `dist/win-unpacked`, and a
+    // process's current directory is an open handle on it -- which is what made
+    // the next update fail with
+    //   EBUSY: resource busy or locked, rmdir ...\dist\win-unpacked
+    // even after Marvi itself had exited, because every child Marvi spawns
+    // inherits the directory and any one of them outliving the parent by a
+    // moment keeps it pinned. Retrying could not fix that; nothing was going to
+    // let go. Running from the install root pins a directory no build touches.
+    let working_dir = install_root_of(exe);
+    let _ = no_window(&mut std::process::Command::new(exe))
+        .current_dir(working_dir)
+        .spawn();
 }
 
 fn short(sha: &str) -> &str {

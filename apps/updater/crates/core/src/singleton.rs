@@ -18,7 +18,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use crate::util::process_alive;
+use crate::util::{no_window, process_alive};
 
 const LOCK_FILE: &str = "bootstrap.lock";
 
@@ -76,7 +76,7 @@ pub fn find_strays(install_root: Option<&Path>) -> Vec<Stray> {
     if !cfg!(windows) {
         return Vec::new();
     }
-    let output = Command::new("powershell")
+    let output = no_window(&mut Command::new("powershell"))
         .args([
             "-NoProfile",
             "-Command",
@@ -145,14 +145,14 @@ pub fn find_strays(install_root: Option<&Path>) -> Vec<Stray> {
 /// Without `/T` this only ends `uv` and leaves the Python that holds the files.
 pub fn kill_tree(pid: u32) -> bool {
     if cfg!(windows) {
-        Command::new("taskkill")
+        no_window(&mut Command::new("taskkill"))
             .args(["/PID", &pid.to_string(), "/T", "/F"])
             .output()
             // 128 means it was already gone, which is the state we wanted.
             .map(|o| o.status.success() || o.status.code() == Some(128))
             .unwrap_or(false)
     } else {
-        Command::new("kill")
+        no_window(&mut Command::new("kill"))
             .args(["-9", &format!("-{pid}")])
             .status()
             .map(|s| s.success())

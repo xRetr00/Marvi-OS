@@ -9,7 +9,7 @@ use crate::channels::Channel;
 use crate::git::{self, SignatureStatus};
 use crate::result::UpdateResult;
 use crate::tags;
-use crate::util::random_suffix;
+use crate::util::{no_window, random_suffix};
 
 /// The Node the desktop build is known to work with. Bumping this is how a
 /// release asks for a newer toolchain.
@@ -319,12 +319,35 @@ pub(crate) fn smoke_ok(root: &Path) -> bool {
             .unwrap_or(false)
 }
 
-fn launch(exe: &Path) {
+/// The install root, from the packaged executable inside it.
+///
+/// `<root>/apps/desktop/dist/win-unpacked/Marvi-OS.exe` -> `<root>`. Falls back
+/// to the executable's own directory if the layout is not what we expect, which
+/// is the old behaviour and no worse than it was.
+pub(crate) fn install_root_of(exe: &Path) -> PathBuf {
+    exe.ancestors()
+        .nth(5)
+        .filter(|root| root.join("apps").is_dir())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| exe.parent().unwrap_or(Path::new(".")).to_path_buf())
+}
+
+pub(crate) fn launch(exe: &Path) {
     if !exe.exists() {
         return;
     }
-    let working_dir = exe.parent().unwrap_or(Path::new("."));
-    let _ = std::process::Command::new(exe).current_dir(working_dir).spawn();
+    // Deliberately NOT `exe.parent()`. That is `dist/win-unpacked`, and a
+    // process's current directory is an open handle on it -- which is what made
+    // the next update fail with
+    //   EBUSY: resource busy or locked, rmdir ...\dist\win-unpacked
+    // even after Marvi itself had exited, because every child Marvi spawns
+    // inherits the directory and any one of them outliving the parent by a
+    // moment keeps it pinned. Retrying could not fix that; nothing was going to
+    // let go. Running from the install root pins a directory no build touches.
+    let working_dir = install_root_of(exe);
+    let _ = no_window(&mut std::process::Command::new(exe))
+        .current_dir(working_dir)
+        .spawn();
 }
 
 /// Copy the running bootstrap into `state_dir/bin` so the installed app can
@@ -341,4 +364,35 @@ fn install_self_to_bin(state_dir: &Path) {
         return;
     }
     let _ = std::fs::copy(&exe, &dest);
+}
+
+#[cfg(test)]
+mod launch_tests {
+    use super::install_root_of;
+    use std::path::Path;
+
+    /// The relaunched app must not run from inside the build output. Its current
+    /// directory is an open handle, and the next update deletes that directory.
+    #[test]
+    fn the_relaunch_directory_is_outside_the_build_output() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        let unpacked = root.join("apps/desktop/dist/win-unpacked");
+        std::fs::create_dir_all(&unpacked).unwrap();
+
+        let working_dir = install_root_of(&unpacked.join("Marvi-OS.exe"));
+
+        assert_eq!(working_dir, root);
+        assert!(
+            !working_dir.starts_with(&unpacked),
+            "relaunching from {working_dir:?} pins the directory the next update deletes"
+        );
+    }
+
+    /// An executable somewhere unexpected still gets a directory it can run in.
+    #[test]
+    fn an_unfamiliar_layout_falls_back_to_the_executable_directory() {
+        let exe = Path::new("/somewhere/else/Marvi-OS.exe");
+        assert_eq!(install_root_of(exe), Path::new("/somewhere/else"));
+    }
 }

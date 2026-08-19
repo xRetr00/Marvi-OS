@@ -167,7 +167,10 @@ export function checkForUpdate(
     let child
     try {
       child = spawn(bootstrap, ['check', '--install-root', installRoot, '--channel', channel], {
-        stdio: ['ignore', 'pipe', 'ignore']
+        stdio: ['ignore', 'pipe', 'ignore'],
+        // No console flash. Every child here is a console program, and a GUI
+        // app spawning one gets a black window for the duration.
+        windowsHide: true
       })
     } catch {
       resolve({
@@ -247,7 +250,8 @@ export function startUpdate(options: HandoffOptions, bootstrap: string | null): 
   const { file, args } = handoffCommand(bootstrap, options)
   const child = spawn(file, args, {
     detached: true,
-    stdio: 'ignore'
+    stdio: 'ignore',
+    windowsHide: true
   })
   child.unref()
   return true

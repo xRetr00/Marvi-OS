@@ -9,6 +9,8 @@ use std::fmt;
 use std::path::Path;
 use std::process::Command;
 
+use crate::util::no_window;
+
 /// A failed git invocation, carrying the offending command and its stderr so
 /// the caller can produce an actionable message.
 #[derive(Debug, Clone)]
@@ -40,7 +42,7 @@ impl std::error::Error for GitError {}
 
 /// Run `git <args>` in `cwd`, returning trimmed stdout. Errors carry stderr.
 pub fn run(cwd: &Path, args: &[&str]) -> Result<String, GitError> {
-    let output = Command::new("git")
+    let output = no_window(&mut Command::new("git"))
         .args(args)
         .current_dir(cwd)
         .output()

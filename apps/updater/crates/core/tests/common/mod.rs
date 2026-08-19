@@ -17,6 +17,14 @@ pub struct TestRepos {
 fn git(dir: &Path, args: &[&str]) -> String {
     let out = std::process::Command::new("git")
         .args(args)
+        // Hermetic. The machine that develops Marvi signs its tags -- that is
+        // the point of the release setup -- and a global `tag.gpgsign = true`
+        // made every fixture that creates a tag fail with "unable to sign the
+        // tag", in tests that have nothing to do with signing. Pointing the
+        // global and system config at nowhere means the fixtures behave the
+        // same on a developer's machine as in CI.
+        .env("GIT_CONFIG_GLOBAL", "/dev/null")
+        .env("GIT_CONFIG_SYSTEM", "/dev/null")
         .current_dir(dir)
         .output()
         .unwrap_or_else(|e| panic!("spawn git {args:?}: {e}"));

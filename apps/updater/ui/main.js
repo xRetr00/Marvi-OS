@@ -10,6 +10,9 @@ const channelEl = document.getElementById('channel');
 const logEl = document.getElementById('log');
 const gpuAsk = document.getElementById('gpu-ask');
 const gpuPrompt = document.getElementById('gpu-prompt');
+const bar = document.getElementById('bar');
+const barFill = document.getElementById('bar-fill');
+const closeRow = document.getElementById('close-row');
 
 // An install prints thousands of lines. Keeping all of them makes the window
 // slow for no benefit; the last screenful is what anyone reads.
@@ -51,6 +54,9 @@ function bind(tauri) {
     const p = event.payload || {};
     if (!p.stage) return;
     stageText.textContent = p.stage;
+    const percent = Math.max(0, Math.min(100, Number(p.percent) || 0));
+    barFill.style.width = `${percent}%`;
+    bar.setAttribute('aria-valuenow', String(percent));
     append(p.stage);
   });
 
@@ -77,5 +83,17 @@ function bind(tauri) {
     statusEl.textContent = p.message || 'finished';
     append(p.message || 'finished');
     if (p.status) title.textContent = p.status.toUpperCase();
+    // Full only when it worked. A failure that fills the bar reads as success.
+    if (p.status === 'ok') {
+      barFill.style.width = '100%';
+      bar.setAttribute('aria-valuenow', '100');
+    }
+    barFill.classList.add(p.status === 'ok' ? 'ok' : 'failed');
+    closeRow.hidden = false;
+    document.getElementById('close').focus();
   });
+
+  // Rust exits on this rather than the window closing itself, so no extra
+  // window capability is needed for the one button this app has.
+  document.getElementById('close').onclick = () => tauri.event.emit('close-window', {});
 }

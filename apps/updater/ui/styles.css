@@ -169,3 +169,29 @@ footer {
   border-color: var(--accent);
   color: var(--accent);
 }
+
+/* Progress. Real numbers, so no indeterminate shimmer -- the bar is either
+   somewhere or it is at zero, and pretending otherwise is what the spinner
+   is for. */
+.bar {
+  height: 6px;
+  border: 1px solid var(--line, #2a2a2a);
+  background: rgba(255, 255, 255, 0.03);
+  overflow: hidden;
+  margin: 0 0 14px;
+}
+
+.bar-fill {
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+  transition: width 400ms ease;
+}
+
+.bar-fill.failed {
+  background: var(--danger, #ef4444);
+}
+
+#close-row {
+  margin-top: 12px;
+}

@@ -65,14 +65,25 @@ jobs:
         if: github.event_name == 'push'
         shell: bash
         run: |
-          # Every tag through v0.3.2 was unsigned: commit.gpgsign was set and
-          # tag.gpgsign was not, and `git tag -a` does not sign. The updater
-          # only warned, so nothing failed and nothing was ever verified.
-          git config gpg.ssh.allowedSignersFile .github/allowed_signers
-          if ! git verify-tag "${GITHUB_REF#refs/tags/}"; then
-            echo "::error::${GITHUB_REF#refs/tags/} is not signed by a key in .github/allowed_signers."
+          TAG="${GITHUB_REF#refs/tags/}"
+          # Re-fetch the tag *object*. actions/checkout leaves the ref pointing
+          # straight at the commit, so verify-tag reported "cannot verify a
+          # non-tag object of type commit" for a tag that was annotated and
+          # correctly signed on the remote. That false failure rejected a good
+          # v0.3.3.
+          git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
+          if [ "$(git cat-file -t "$TAG")" != "tag" ]; then
+            echo "::error::$TAG is lightweight. A release tag must be annotated and signed."
             exit 1
           fi
+          # Every tag through v0.3.2 was unsigned: commit.gpgsign was set,
+          # tag.gpgsign was not, and `git tag -a` does not sign.
+          git config gpg.ssh.allowedSignersFile .github/allowed_signers
+          if ! git verify-tag "$TAG"; then
+            echo "::error::$TAG is not signed by a key in .github/allowed_signers."
+            exit 1
+          fi
+          echo "$TAG is signed by a trusted key"
 
       - name: Setup Node
         uses: actions/setup-node@v4
