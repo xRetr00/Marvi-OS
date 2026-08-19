@@ -75,8 +75,12 @@ foreach ($pkg in @('package.json', 'apps\desktop\package.json')) {
 # carries the product version so `marvi-bootstrap --version` answers usefully.
 $cargo = 'apps\updater\Cargo.toml'
 $text = Get-Content $cargo -Raw
+# The guard is that the version line exists, not that it changed. Re-running a
+# release after a later step failed leaves the file already at the target
+# version, and "no change" then looked identical to "no version line" -- so a
+# retry threw "Could not find the workspace version" on a file that was fine.
+if ($text -notmatch '(?m)^version = "[^"]+"') { throw "Could not find the workspace version in $cargo." }
 $updated = [regex]::Replace($text, '(?m)^version = "[^"]+"', "version = `"$Version`"", 1)
-if ($updated -eq $text) { throw "Could not find the workspace version in $cargo." }
 Set-Content -Path $cargo -Value $updated -NoNewline
 # Cargo.lock records it too; a lockfile that disagrees fails the build.
 Push-Location apps\updater
