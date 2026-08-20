@@ -63,6 +63,67 @@ def test_room_noise_is_not_her_name() -> None:
     assert max(scored.values()) < 0.5
 
 
+def test_the_wake_word_opens_a_conversation_and_it_stays_open() -> None:
+    """A wake word starts a conversation. It is not a password on every turn.
+
+    There were two gates and both were wrong. The acoustic one closed itself
+    after thirty seconds, so a pause longer than that ended the conversation
+    mid-thought. The other lived in the agent and dropped any turn whose
+    transcript did not contain "marvi" -- silently, with nothing logged -- so
+    asking a question after being greeted did nothing at all.
+    """
+    g = gate()
+    session = FakeSession()
+    g._session = session
+
+    g._listen(reason="heard her name")
+
+    assert g.awake
+    assert session.input.audio_enabled is True
+
+    # Time passing does not end it. Only `close` does.
+    g._awake_until = 0.0 if hasattr(g, "_awake_until") else None
+    assert g.awake, "a conversation must not expire on a timer"
+
+
+def test_only_an_explicit_close_ends_it() -> None:
+    g = gate()
+    session = FakeSession()
+    g._session = session
+    g._listen(reason="test")
+
+    g.close()
+
+    assert not g.awake
+    assert session.input.audio_enabled is False
+
+
+def test_closing_twice_is_harmless() -> None:
+    """The model may say goodbye and the user may hang up at the same moment."""
+    g = gate()
+    g._session = FakeSession()
+    g._listen(reason="test")
+
+    g.close()
+    g.close()
+
+    assert not g.awake
+
+
+def test_hearing_her_name_again_mid_conversation_changes_nothing() -> None:
+    """Saying "Marvi" inside an open conversation is just a word."""
+    g = gate()
+    session = FakeSession()
+    g._session = session
+    g._listen(reason="first")
+    session.input.history.clear()
+
+    g._listen(reason="second")
+
+    assert g.awake
+    assert session.input.history == [], "the session must not be re-opened"
+
+
 def test_she_starts_deaf_and_wakes_on_her_name() -> None:
     g = gate()
     session = FakeSession()
@@ -77,43 +138,10 @@ def test_she_starts_deaf_and_wakes_on_her_name() -> None:
     assert session.input.audio_enabled is True
 
 
-def test_the_window_closes_again() -> None:
-    g = WakeGate(model_path=DEFAULT_MODEL, threshold=0.5, window=0.0)
-    session = FakeSession()
-    g._session = session
-
-    g._listen(reason="test")
-
-    # A zero-length window is already over, which is what the expiry loop
-    # checks each second.
-    assert not g.awake
-    g._sleep()
-    assert session.input.audio_enabled is False
 
 
-def test_being_spoken_to_holds_the_window_open() -> None:
-    g = gate()
-    g._session = FakeSession()
-    g._listen(reason="test")
-    first = g._awake_until
-
-    g.extend()
-
-    assert g._awake_until >= first
 
 
-def test_extending_does_not_wake_her_by_itself() -> None:
-    """`extend` runs on every transcript, and transcripts exist while asleep.
-
-    If it woke her, anything the room's STT happened to emit would open the
-    gate -- which is the wake word not being a wake word.
-    """
-    g = gate()
-    g._session = FakeSession()
-
-    g.extend()
-
-    assert not g.awake
 
 
 def test_a_missing_model_leaves_her_listening_rather_than_deaf(monkeypatch, tmp_path) -> None:

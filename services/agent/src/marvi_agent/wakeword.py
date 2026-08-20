@@ -100,9 +100,10 @@ DEBOUNCE_SECONDS = 2.0
 #: is worse than having to say her name twice.
 DEFAULT_THRESHOLD = 0.5
 
-#: How long she keeps listening after being addressed. Long enough to ask a
-#: follow-up without repeating the name, short enough that a room does not stay
-#: open all afternoon. Every utterance she hears pushes it back.
+#: Retained only so an old setting does not become an error. The window is
+#: gone: a wake word starts a conversation and the conversation ends when it is
+#: over, not on a timer. Marvi cutting someone off mid-thought because thirty
+#: seconds elapsed is not how a conversation works.
 DEFAULT_WINDOW_SECONDS = 30.0
 
 
@@ -141,7 +142,7 @@ class WakeGate:
         self.threshold = threshold
         self.window = window
         self._model = WakeWordModel(models=[str(model_path)])
-        self._awake_until = 0.0
+        self._awake = False
         self._session: AgentSession | None = None
         self._tasks: set[asyncio.Task] = set()
 
@@ -177,33 +178,41 @@ class WakeGate:
 
     @property
     def awake(self) -> bool:
-        return time.monotonic() < self._awake_until
+        """In a conversation.
+
+        A latch, not a timer. It used to be `now < deadline`, so being spoken
+        to had to keep pushing a deadline back and any gap longer than the
+        window silently closed the session mid-conversation.
+        """
+        return self._awake
 
     def _listen(self, *, reason: str, confidence: float = 0.0) -> None:
-        if not self.awake and self._session is not None:
-            log.info("wake word: listening (%s)", reason)
+        """Open the conversation. Idempotent."""
+        if self.awake:
+            return
+        self._awake = True
+        log.info("wake word: conversation open (%s)", reason)
+        if self._session is not None:
             self._session.input.set_audio_enabled(True)
-            # Told to the Gateway so the UI can acknowledge it. Without this a
-            # gate that silently is not running looks exactly like one that is
-            # running and never triggers -- both are Marvi ignoring you.
-            _report_heard(confidence)
-        self._awake_until = time.monotonic() + self.window
+        # Told to the Gateway so the UI can acknowledge it. Without this a gate
+        # that silently is not running looks exactly like one that is running
+        # and never triggers -- both are Marvi ignoring you.
+        _report_heard(confidence)
 
-    def _sleep(self) -> None:
+    def close(self) -> None:
+        """End the conversation and listen for her name again.
+
+        Called by the `end_conversation` tool, so the model decides when a
+        conversation is over from what was said rather than from a timer or a
+        list of stop-words.
+        """
+        if not self._awake:
+            return
+        self._awake = False
         if self._session is not None:
             self._session.input.set_audio_enabled(False)
-        self._awake_until = 0.0
-        log.info("wake word: back to sleep")
+        log.info("wake word: conversation closed; listening for her name")
 
-    def extend(self) -> None:
-        """Something was said to her; keep the window open.
-
-        Without this a long answer plus a follow-up would fall off the end of
-        the window mid-conversation, and she would stop hearing someone who was
-        clearly still talking to her.
-        """
-        if self.awake:
-            self._awake_until = time.monotonic() + self.window
 
     # -- running -------------------------------------------------------------
 
@@ -227,7 +236,6 @@ class WakeGate:
         def _on_track(track: rtc.Track, *_args: object) -> None:
             self._watch(track)
 
-        self._spawn(self._expire())
 
     def _watch(self, track: rtc.Track) -> None:
         if track.kind == rtc.TrackKind.KIND_AUDIO:
@@ -291,8 +299,3 @@ class WakeGate:
             with contextlib.suppress(Exception):
                 await stream.aclose()
 
-    async def _expire(self) -> None:
-        while True:
-            await asyncio.sleep(1.0)
-            if self._awake_until and not self.awake:
-                self._sleep()

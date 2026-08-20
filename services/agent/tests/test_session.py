@@ -1,28 +1,48 @@
-import time
 
 import pytest
 from livekit.agents import llm
+from livekit.agents.voice import Agent
 
 from marvi_agent.session import MarviVoiceAgent
 
 
 @pytest.mark.asyncio
-async def test_wake_word_arms_follow_up_turns() -> None:
-    agent = MarviVoiceAgent(wake_timeout=30)
-    message = llm.ChatMessage(role="user", content=["Marvi, turn on the light"])
+async def test_every_turn_reaches_the_model_once_the_session_is_open() -> None:
+    """The gate that ate the conversation.
+
+    `llm_node` used to return None unless the transcript contained "marvi",
+    which meant: say her name, the session opens, ask a question -- and the
+    question is discarded, silently, because the question did not also contain
+    her name. Nothing was logged and nothing was said. It looked like the turn
+    was never sent.
+
+    A wake word starts a conversation. It is not a password on every sentence.
+    """
+    agent = MarviVoiceAgent()
+    message = llm.ChatMessage(role="user", content=["what is the weather"])
+
     await agent.on_user_turn_completed(llm.ChatContext.empty(), message)
-    assert agent._turn_allowed is True
-    assert agent._armed_until > time.monotonic()
+
+    # No gate left to consult, and no per-turn state to get wrong.
+    assert not hasattr(agent, "_turn_allowed")
+    assert not hasattr(agent, "_armed_until")
+    assert MarviVoiceAgent.llm_node is Agent.llm_node, (
+        "llm_node must not be overridden; overriding it is how turns disappeared"
+    )
 
 
 @pytest.mark.asyncio
-async def test_background_speech_does_not_reach_llm() -> None:
-    agent = MarviVoiceAgent()
-    message = llm.ChatMessage(role="user", content=["this is background television"])
-    await agent.on_user_turn_completed(llm.ChatContext.empty(), message)
-    assert agent._turn_allowed is False
-    assert agent.llm_node(llm.ChatContext.empty(), [], object()) is None
+async def test_a_heard_turn_is_logged(caplog) -> None:
+    """So a turn that goes missing leaves a trace of having existed."""
+    import logging
 
+    agent = MarviVoiceAgent()
+    message = llm.ChatMessage(role="user", content=["turn the light on"])
+
+    with caplog.at_level(logging.INFO, logger="marvi.voice"):
+        await agent.on_user_turn_completed(llm.ChatContext.empty(), message)
+
+    assert any("turn the light on" in record.message for record in caplog.records)
 
 
 def test_a_missing_speech_engine_is_reported(tmp_path, monkeypatch, caplog) -> None:
