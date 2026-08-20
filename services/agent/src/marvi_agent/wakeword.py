@@ -41,6 +41,30 @@ if TYPE_CHECKING:
 
 log = logging.getLogger("marvi.wakeword")
 
+#: How long to wait for the Gateway to take a detection. Short: this runs on
+#: the audio path, and a slow acknowledgement must not delay Marvi answering.
+REPORT_TIMEOUT = 1.5
+
+
+def _report_heard(confidence: float) -> None:
+    """Tell the Gateway the wake word fired. Never raises.
+
+    Fire and forget. A detection that could not be reported is still a
+    detection, and Marvi listening matters more than the UI knowing about it.
+    """
+    import contextlib
+    import os
+
+    with contextlib.suppress(Exception):
+        import httpx
+
+        base = os.environ.get("MARVI_GATEWAY_URL", "http://127.0.0.1:8765").rstrip("/")
+        httpx.post(
+            f"{base}/voice/wake/heard",
+            json={"confidence": confidence},
+            timeout=REPORT_TIMEOUT,
+        )
+
 #: Ships in the repo rather than being downloaded: it is 97 KB, it is the thing
 #: that decides whether Marvi answers at all, and an assistant that cannot hear
 #: her own name until a download finishes is not an assistant yet.
@@ -134,10 +158,14 @@ class WakeGate:
     def awake(self) -> bool:
         return time.monotonic() < self._awake_until
 
-    def _listen(self, *, reason: str) -> None:
+    def _listen(self, *, reason: str, confidence: float = 0.0) -> None:
         if not self.awake and self._session is not None:
             log.info("wake word: listening (%s)", reason)
             self._session.input.set_audio_enabled(True)
+            # Told to the Gateway so the UI can acknowledge it. Without this a
+            # gate that silently is not running looks exactly like one that is
+            # running and never triggers -- both are Marvi ignoring you.
+            _report_heard(confidence)
         self._awake_until = time.monotonic() + self.window
 
     def _sleep(self) -> None:
@@ -205,7 +233,7 @@ class WakeGate:
                 scores = self._model.predict(samples)
                 best = max(scores.values(), default=0.0)
                 if best >= self.threshold:
-                    self._listen(reason=f"heard her name ({best:.2f})")
+                    self._listen(reason=f"heard her name ({best:.2f})", confidence=best)
         except asyncio.CancelledError:
             raise
         except Exception as exc:  # pragma: no cover - depends on the runtime

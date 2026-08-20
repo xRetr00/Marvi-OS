@@ -61,7 +61,8 @@ import type {
   UpdateCheck,
   UpdateResult,
   UpdateStatus,
-  VoicePage
+  VoicePage,
+  WakeStatus
 } from '../../shared/runtime'
 import { deviceLabel, deviceState } from '../../shared/runtime'
 import type { IslandAlignment, IslandPlacement } from '../../main/island-window'
@@ -1489,6 +1490,7 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
       <div className="voice-hud voice-hud-state">
         <span className={`voice-hud-phase phase-${mood}`}>{voice.phase.toUpperCase()}</span>
         <strong>{voice.caption}</strong>
+        <WakeIndicator />
         {blocker ? <p className="voice-hud-blocker">{blocker}</p> : null}
       </div>
 
@@ -1537,6 +1539,96 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
           target is a control you fight with. */}
       <ConversationBar level={voice.level} />
     </section>
+  )
+}
+
+/**
+ * Whether Marvi is listening for her name, and when she last heard it.
+ *
+ * The gate had no surface at all before this: no way to see that the model had
+ * loaded, and nothing when it fired. A gate silently not running looked
+ * exactly like one running and never triggering — both are Marvi ignoring you.
+ */
+function useWake(pollMs: number): WakeStatus | null {
+  const [wake, setWake] = useState<WakeStatus | null>(null)
+
+  useEffect(() => {
+    let gone = false
+    const read = async (): Promise<void> => {
+      const next = await window.marvi?.getWake()
+      if (!gone) setWake(next ?? null)
+    }
+    void read()
+    const timer = setInterval(() => void read(), pollMs)
+    return () => {
+      gone = true
+      clearInterval(timer)
+    }
+  }, [pollMs])
+
+  return wake
+}
+
+function WakeIndicator(): React.JSX.Element | null {
+  // Polled quickly, because the whole point is to acknowledge a detection
+  // while the person who spoke is still waiting to see whether it landed.
+  const wake = useWake(1500)
+  if (!wake || !wake.enabled) return null
+
+  if (!wake.modelPresent) {
+    return <p className="voice-hud-blocker">Wake word model missing — answering every turn</p>
+  }
+
+  return (
+    <span className={`wake-chip${wake.recentlyHeard ? ' is-heard' : ''}`}>
+      {wake.recentlyHeard
+        ? `Heard you — ${Math.round(wake.confidence * 100)}%`
+        : 'Listening for “Marvi”'}
+    </span>
+  )
+}
+
+function WakeSettings(): React.JSX.Element {
+  const wake = useWake(4000)
+
+  if (!wake) return <span className="construction">UNAVAILABLE</span>
+
+  const set = (values: Record<string, string>): void => {
+    void window.marvi?.setProviderSettings(values)
+  }
+
+  return (
+    <div className="voice-choice">
+      <button
+        aria-checked={wake.enabled}
+        className={wake.enabled ? 'mode-switch active' : 'mode-switch'}
+        onClick={() => set({ [wake.setting]: wake.enabled ? 'false' : 'true' })}
+        role="switch"
+        type="button"
+      >
+        {wake.enabled ? 'WAIT FOR “MARVI”' : 'ANSWER EVERY TURN'}
+      </button>
+
+      {wake.enabled ? (
+        <>
+          <Picker
+            options={[
+              { value: '0.35', label: 'Sensitive', detail: 'Catches you sooner, false alarms more likely' },
+              { value: '0.5', label: 'Balanced', detail: 'The default' },
+              { value: '0.7', label: 'Strict', detail: 'Say it clearly; almost never fires by accident' }
+            ]}
+            value={String(wake.threshold)}
+            onChange={(next) => set({ [wake.thresholdSetting]: next })}
+            placeholder="Balanced"
+          />
+          <p className="notice">
+            {wake.modelPresent
+              ? `Model loaded. She stays listening for ${Math.round(wake.window)}s after being addressed.`
+              : 'No model found, so Marvi answers every turn rather than going deaf.'}
+          </p>
+        </>
+      ) : null}
+    </div>
   )
 }
 
@@ -2424,6 +2516,18 @@ function SettingsPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Eleme
           </p>
         </div>
         <ServiceHealth compact />
+      </div>
+
+      <div className="settings-section">
+        <div>
+          <span className="eyebrow">{'// WAKE WORD'}</span>
+          <h2>SAYING HER NAME</h2>
+          <p>
+            Marvi listens all the time but only answers when she hears &ldquo;Marvi&rdquo;. Turn
+            this off and she answers every turn in the room.
+          </p>
+        </div>
+        <WakeSettings />
       </div>
 
       <div className="settings-section">

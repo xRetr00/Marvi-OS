@@ -1036,6 +1036,31 @@ def create_app(
         )
         return current_status()
 
+    @app.get("/voice/wake")
+    async def wake_status() -> dict[str, Any]:
+        """Whether Marvi is listening for her name, and when she last heard it.
+
+        The wake word had no surface at all: no way to see the model had
+        loaded, no way to change the threshold, and nothing when it fired -- so
+        a gate that was silently not running looked exactly like one that was
+        running and never triggered.
+        """
+        from . import wake
+
+        return wake.status()
+
+    @app.post("/voice/wake/heard")
+    async def wake_heard(event: dict[str, Any]) -> dict[str, Any]:
+        """The Agent reporting a detection.
+
+        Recorded rather than pushed: the shell already polls, and one more
+        channel for one timestamp is not worth the second connection.
+        """
+        from . import wake
+
+        wake.heard(float(event.get("confidence") or 0.0))
+        return wake.status()
+
     @app.post("/latency")
     async def record_latency(sample: dict[str, Any]) -> dict[str, Any]:
         """Take a timing sample from the Agent.

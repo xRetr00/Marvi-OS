@@ -7,6 +7,8 @@ something you can pick from.
 
 from __future__ import annotations
 
+import pathlib
+
 import pytest
 
 from marvi_gateway import voices
@@ -96,3 +98,71 @@ def test_an_installed_choice_is_not_reported_missing(voice_dir, monkeypatch) -> 
         body = client.get("/voices").json()
 
     assert body["missing"] is False
+
+
+# -- the wake word -----------------------------------------------------------
+
+
+def test_the_shipped_model_is_found() -> None:
+    """Armed means both switched on and the model actually present.
+
+    A missing model leaves Marvi answering every turn rather than deaf, so
+    "enabled but not armed" is a real state and the UI has to be able to say
+    so.
+    """
+    from marvi_gateway import wake
+
+    status = wake.status()
+
+    assert status["model_present"] is True, status["model"]
+    assert status["armed"] is True
+
+
+def test_a_detection_is_recorded_and_then_goes_stale() -> None:
+    from marvi_gateway import wake
+
+    wake.forget()
+    assert wake.status()["recently_heard"] is False
+
+    wake.heard(0.91)
+    fresh = wake.status()
+
+    assert fresh["recently_heard"] is True
+    assert fresh["confidence"] == 0.91
+    assert fresh["heard_seconds_ago"] < 1
+    wake.forget()
+
+
+def test_turning_it_off_is_reported(monkeypatch) -> None:
+    from marvi_gateway import wake
+
+    monkeypatch.setenv("MARVI_WAKE_WORD", "false")
+
+    status = wake.status()
+
+    assert status["enabled"] is False
+    assert status["armed"] is False
+
+
+def test_the_gateway_and_the_agent_agree_on_the_defaults() -> None:
+    """They are duplicated, because they run in different Python environments.
+
+    Duplicated constants drift; this is the thing that notices.
+    """
+    import re
+
+    from marvi_gateway import wake
+
+    source = (
+        pathlib.Path(__file__).resolve().parents[2]
+        / "agent"
+        / "src"
+        / "marvi_agent"
+        / "wakeword.py"
+    ).read_text(encoding="utf-8")
+
+    threshold = re.search(r"DEFAULT_THRESHOLD = ([\d.]+)", source)
+    window = re.search(r"DEFAULT_WINDOW_SECONDS = ([\d.]+)", source)
+
+    assert threshold and float(threshold.group(1)) == wake.DEFAULT_THRESHOLD
+    assert window and float(window.group(1)) == wake.DEFAULT_WINDOW_SECONDS

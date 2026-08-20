@@ -248,6 +248,23 @@ export interface VoicePage {
   voices: InstalledVoice[]
 }
 
+/** What the wake word is doing. */
+export interface WakeStatus {
+  enabled: boolean
+  model: string
+  modelPresent: boolean
+  /** Switched on *and* the model is there. A missing model leaves Marvi
+   * answering every turn rather than deaf, so those differ. */
+  armed: boolean
+  threshold: number
+  window: number
+  heardSecondsAgo: number | null
+  recentlyHeard: boolean
+  confidence: number
+  setting: string
+  thresholdSetting: string
+}
+
 export interface IdentityStatus {
   soul: string
   user: string

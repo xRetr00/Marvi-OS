@@ -2385,3 +2385,24 @@ small,
   letter-spacing: 0;
   text-transform: none;
 }
+
+/* The wake word, made visible. Silence from a gate that is not running and
+ * silence from one that is running are the same silence, and this is the only
+ * thing that tells them apart. */
+.wake-chip {
+  align-self: flex-start;
+  padding: 3px 9px;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 999px;
+  color: var(--ui-text-tertiary);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  transition:
+    color 200ms ease,
+    border-color 200ms ease;
+}
+
+.wake-chip.is-heard {
+  border-color: var(--ui-accent);
+  color: var(--ui-accent);
+}

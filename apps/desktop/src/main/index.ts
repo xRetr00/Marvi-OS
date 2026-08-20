@@ -41,7 +41,8 @@ import type {
   ProviderRow,
   RuntimeStatus,
   UpstreamPage,
-  VoicePage
+  VoicePage,
+  WakeStatus
 } from '../shared/runtime'
 
 let mainWindow: BrowserWindow | null = null
@@ -1011,6 +1012,33 @@ function startApp(): void {
         })
         if (!response.ok) return null
         return normaliseProviderPage(await response.json())
+      } catch {
+        return null
+      }
+    })
+    ipcMain.handle('marvi:get-wake', async (): Promise<WakeStatus | null> => {
+      try {
+        const response = await fetch(`${gateway()}/voice/wake`, {
+          signal: AbortSignal.timeout(5_000)
+        })
+        if (!response.ok) return null
+        const body = (await response.json()) as Record<string, never>
+        return {
+          enabled: Boolean(body.enabled),
+          model: String(body.model ?? ''),
+          modelPresent: Boolean(body.model_present),
+          armed: Boolean(body.armed),
+          threshold: Number(body.threshold ?? 0.5),
+          window: Number(body.window ?? 30),
+          heardSecondsAgo:
+            body.heard_seconds_ago === null || body.heard_seconds_ago === undefined
+              ? null
+              : Number(body.heard_seconds_ago),
+          recentlyHeard: Boolean(body.recently_heard),
+          confidence: Number(body.confidence ?? 0),
+          setting: String(body.setting ?? 'MARVI_WAKE_WORD'),
+          thresholdSetting: String(body.threshold_setting ?? 'MARVI_WAKE_THRESHOLD')
+        }
       } catch {
         return null
       }
