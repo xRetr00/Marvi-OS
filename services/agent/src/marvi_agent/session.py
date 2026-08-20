@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import time
@@ -158,10 +159,19 @@ server = AgentServer()
 @server.rtc_session()
 async def marvi_session(ctx: JobContext) -> None:
     session = build_session()
-    # Built before `start` so a failure to load the model is reported while
-    # there is still nothing to break, and attached after, because the gate
-    # flips a switch on a session that has to exist first.
-    gate = WakeGate.from_env()
+
+    # Loaded off the event loop. Three ONNX sessions are built here --
+    # mel frontend, speech embedding, classifier -- and doing that inline
+    # blocked the loop for as long as it took. The room connect handshake
+    # needs the loop responsive: LiveKit's Rust side fires ConnectCallback and
+    # waits for Python to answer, and when it does not it kills the job with
+    #
+    #   FFI Panic: timed out waiting for ReadyForRoomEventRequest
+    #
+    # sixteen seconds later, which is the whole session gone before a word is
+    # spoken.
+    gate = await asyncio.to_thread(WakeGate.from_env)
+
     await session.start(agent=MarviVoiceAgent(), room=ctx.room)
     if gate is not None:
         gate.attach(session, ctx.room)

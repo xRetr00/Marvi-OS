@@ -371,7 +371,12 @@ function startVoiceStack(): void {
   supervisor.add({
     name: 'agent',
     command: uv,
-    args: ['run', '--project', 'services/agent', 'python', '-m', 'marvi_agent.session', 'dev'],
+    // `start`, not `dev`. Dev mode is LiveKit's development runner -- it is
+    // deprecated, it prints "in-process auto-reload has been removed", and it
+    // does not warm job processes, so every job began with "no warmed process
+    // available for job, waiting for one to be created" and then ran cold.
+    // A shipped product has no business running the framework's dev server.
+    args: ['run', '--project', 'services/agent', 'python', '-m', 'marvi_agent.session', 'start'],
     cwd: repoRoot,
     env: childEnv
   })

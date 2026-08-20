@@ -208,17 +208,20 @@ class WakeGate:
     # -- running -------------------------------------------------------------
 
     def attach(self, session: AgentSession, room: rtc.Room) -> None:
-        """Start gating `session` on the audio arriving in `room`."""
+        """Start gating `session` on the audio arriving in `room`.
+
+        Nothing here touches the FFI. The room may still be completing its
+        connect handshake when this runs -- `session.start` kicks the connect
+        off as a concurrent task and returns before it finishes -- so opening
+        an audio stream on it now would be reaching into a room that is not
+        ready. Every stream is opened from `track_subscribed`, which by
+        definition fires after it is.
+        """
         self._session = session
         session.input.set_audio_enabled(False)
         log.info(
             "wake word armed (threshold %.2f, window %.0fs)", self.threshold, self.window
         )
-
-        for participant in room.remote_participants.values():
-            for publication in participant.track_publications.values():
-                if publication.track is not None:
-                    self._watch(publication.track)
 
         @room.on("track_subscribed")
         def _on_track(track: rtc.Track, *_args: object) -> None:
