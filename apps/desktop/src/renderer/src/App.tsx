@@ -5,6 +5,7 @@ import appIcon from './assets/app-icon.ico'
 import { BootFailureOverlay } from './components/BootFailureOverlay'
 import { AsciiRule } from './components/ui/ascii-rule'
 import { ModelsPanel } from './components/models-panel'
+import { Picker } from './components/ui/picker'
 import { CommandCard } from './components/ui/command-card'
 import { ConnectingOverlay } from './components/ConnectingOverlay'
 import { DynamicIsland } from './components/DynamicIsland'
@@ -27,7 +28,6 @@ import {
   $runtimeState,
   $voiceState,
   applyRuntimeState,
-  cycleVoicePhase,
   type VoiceState
 } from './store/voice-state'
 import {
@@ -41,28 +41,29 @@ import { haptic } from './lib/haptics'
 import type {
   AuditEvent,
   ConnectedAccount,
+  DeviceState,
   IdentityStatus,
-  SkillReview,
-  StoreSkill,
   InitiativeStatus,
   MemoryPage,
   MindDecision,
+  ModelPage,
   PluginPage,
-  SchedulePage,
   ProviderPage,
   ProviderRow,
+  RoomEvent,
+  RuntimeStatus,
+  SchedulePage,
+  ServiceReport,
+  SkillReview,
+  StoreSkill,
   UpdateChannel,
   UpdateCheck,
   UpdateResult,
-  UpdateStatus,
-  RoomEvent,
-  RuntimeStatus,
-  ServiceReport,
-  DeviceState
+  UpdateStatus
 } from '../../shared/runtime'
 import { deviceLabel, deviceState } from '../../shared/runtime'
 import type { IslandAlignment, IslandPlacement } from '../../main/island-window'
-import { connectVoiceRoom } from './lib/livekit-room'
+import { $voiceLink, startVoice, stopVoice } from './store/voice-session'
 
 /**
  * The sidebar, grouped by what a page is *for*.
@@ -147,17 +148,13 @@ function MainSurface(): React.JSX.Element {
   }, [])
 
   useEffect(() => {
-    let disposed = false
-    let disconnect: (() => void) | undefined
-    void connectVoiceRoom()
-      .then((room) => {
-        if (disposed) void room.disconnect()
-        else disconnect = () => void room.disconnect()
-      })
-      .catch(() => cycleVoicePhase('error'))
+    // Still automatic — an always-on assistant should be on when it opens.
+    // The difference is that the handle now lives in a store, so the voice
+    // page can end the session; before, it was trapped in this closure and
+    // quitting the app was the only way to stop Marvi listening.
+    void startVoice()
     return () => {
-      disposed = true
-      disconnect?.()
+      void stopVoice()
     }
   }, [])
 
@@ -1440,6 +1437,7 @@ function ServiceHealth({ compact = false }: { compact?: boolean }): React.JSX.El
 
 function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
   const voice = useStore($voiceState)
+  const link = useStore($voiceLink)
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([])
   const [deviceError, setDeviceError] = useState('')
 
@@ -1498,7 +1496,9 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
       <dl className="voice-hud voice-hud-rig">
         <div>
           <dt>LLM</dt>
-          <dd>{runtime.model?.llm || 'not selected'}</dd>
+          <dd>
+            <VoiceModelPicker current={runtime.model?.llm ?? ''} />
+          </dd>
         </div>
         <div>
           <dt>SPEECH IN</dt>
@@ -1513,6 +1513,29 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
           <dd>{deviceError ? 'unavailable' : microphoneLabel(devices)}</dd>
         </div>
       </dl>
+
+      {/* Bottom-left: being in the room is a thing you can stop. It used to run
+          from launch to quit with no control anywhere, which is the wrong
+          default for a microphone. */}
+      <div className="voice-hud voice-hud-session">
+        <span className={`voice-link voice-link-${link}`}>
+          {link === 'live' ? 'IN THE ROOM' : link === 'connecting' ? 'JOINING…' : 'NOT JOINED'}
+        </span>
+        {link === 'off' ? (
+          <button className="phase" type="button" onClick={() => void startVoice()}>
+            START
+          </button>
+        ) : (
+          <button
+            className="phase"
+            type="button"
+            disabled={link === 'connecting'}
+            onClick={() => void stopVoice()}
+          >
+            END
+          </button>
+        )}
+      </div>
 
       {/* Bottom: the live transcript, streaming. Two lines at most — this is a
           glance while talking, not a record; Chat is where a transcript lives. */}
@@ -1531,6 +1554,71 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
         ) : null}
       </div>
     </section>
+  )
+}
+
+/**
+ * The model answering spoken turns.
+ *
+ * Sits in the rig readout rather than in settings because it is the number you
+ * are most likely to want to change while listening to Marvi be slow. Unlike
+ * the composer's, this one is persistent: voice has no session to scope a
+ * choice to, so picking here writes the provider's configured model — the same
+ * value the Models page sets.
+ */
+function VoiceModelPicker({ current }: { current: string }): React.JSX.Element {
+  const [page, setPage] = useState<ModelPage | null>(null)
+  const [providers, setProviders] = useState<ProviderPage | null>(null)
+  const [chosen, setChosen] = useState(current)
+
+  useEffect(() => {
+    let gone = false
+    void (async () => {
+      const [models, settings] = await Promise.all([
+        window.marvi?.getModels({}),
+        window.marvi?.getProviders()
+      ])
+      if (gone) return
+      setPage(models ?? null)
+      setProviders(settings ?? null)
+    })()
+    return () => {
+      gone = true
+    }
+  }, [])
+
+  const rows = page?.providers ?? []
+  if (rows.length === 0) return <>{current || 'not selected'}</>
+
+  const options = rows.flatMap((row) =>
+    row.models.map((model) => ({
+      value: `${row.provider}::${model.id}`,
+      label: model.name,
+      detail: `${row.label} · ${model.id}`
+    }))
+  )
+
+  const active =
+    chosen && chosen.includes('::')
+      ? chosen
+      : (rows.find((row) => row.selected === (chosen || current))?.provider ?? '') +
+        '::' +
+        (chosen || current)
+
+  return (
+    <Picker
+      className="voice-model-picker"
+      options={options}
+      value={active}
+      onChange={(next) => {
+        setChosen(next)
+        const [provider, ...rest] = next.split('::')
+        const env = providers?.providers.find((row) => row.name === provider)?.env.model
+        if (env) void window.marvi?.setProviderSettings({ [env]: rest.join('::') })
+      }}
+      placeholder={current || 'not selected'}
+      searchPlaceholder="Search models…"
+    />
   )
 }
 

@@ -2172,3 +2172,45 @@ small,
   border-color: var(--ui-accent);
   color: var(--ui-accent);
 }
+
+/* Being in the room is a thing you can stop. It ran from launch to quit with
+ * no control anywhere, which is the wrong default for a microphone. */
+.voice-hud-session {
+  display: flex;
+  bottom: 24px;
+  left: 24px;
+  align-items: center;
+  gap: 10px;
+}
+
+.voice-link {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.voice-link-live {
+  color: var(--ui-accent);
+}
+
+.voice-link-connecting {
+  color: var(--ui-text-secondary);
+}
+
+.voice-link-off {
+  color: var(--ui-text-tertiary);
+}
+
+/* Inside the rig readout, so it reads as the value it replaces rather than as
+ * a form control dropped onto the orb. */
+.voice-model-picker {
+  width: auto;
+  max-width: 200px;
+  padding: 2px 6px;
+  border-color: transparent;
+  background: transparent;
+  font-size: 11px;
+}
+
+.voice-model-picker:hover:not(:disabled) {
+  border-color: var(--ui-stroke-secondary);
+}

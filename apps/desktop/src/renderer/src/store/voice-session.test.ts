@@ -1,0 +1,96 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const connect = vi.hoisted(() => vi.fn())
+
+vi.mock('../lib/livekit-room', () => ({ connectVoiceRoom: connect }))
+vi.mock('./voice-state', () => ({ cycleVoicePhase: vi.fn() }))
+
+/** Just enough Room to be started, stopped, and to hang up on its own. */
+function fakeRoom(): { disconnect: ReturnType<typeof vi.fn>; once: ReturnType<typeof vi.fn> } {
+  const handlers: Record<string, () => void> = {}
+  return {
+    disconnect: vi.fn(async () => {}),
+    once: vi.fn((event: string, handler: () => void) => {
+      handlers[event] = handler
+      return undefined
+    }),
+    // Exposed for the test that simulates the far side going away.
+    ...({ fire: (event: string) => handlers[event]?.() } as Record<string, unknown>)
+  } as never
+}
+
+describe('the voice session', () => {
+  beforeEach(async () => {
+    vi.resetModules()
+    connect.mockReset()
+  })
+
+  it('is off before anything starts it', async () => {
+    const { $voiceLink } = await import('./voice-session')
+
+    expect($voiceLink.get()).toBe('off')
+  })
+
+  it('goes live once the room connects', async () => {
+    connect.mockResolvedValue(fakeRoom())
+    const { $voiceLink, startVoice } = await import('./voice-session')
+
+    await startVoice()
+
+    expect($voiceLink.get()).toBe('live')
+  })
+
+  it('can be ended, which is the whole point', async () => {
+    // The room used to be held in a mount effect's closure, so the only way to
+    // stop Marvi listening was to quit the app.
+    const room = fakeRoom()
+    connect.mockResolvedValue(room)
+    const { $voiceLink, startVoice, stopVoice } = await import('./voice-session')
+
+    await startVoice()
+    await stopVoice()
+
+    expect(room.disconnect).toHaveBeenCalled()
+    expect($voiceLink.get()).toBe('off')
+  })
+
+  it('does not open a second room when started twice', async () => {
+    connect.mockResolvedValue(fakeRoom())
+    const { startVoice } = await import('./voice-session')
+
+    await Promise.all([startVoice(), startVoice()])
+
+    expect(connect).toHaveBeenCalledTimes(1)
+  })
+
+  it('falls back to off when the room refuses to connect', async () => {
+    connect.mockRejectedValue(new Error('no gateway'))
+    const { $voiceLink, startVoice } = await import('./voice-session')
+
+    await startVoice()
+
+    expect($voiceLink.get()).toBe('off')
+  })
+
+  it('can be started again after a failure', async () => {
+    connect.mockRejectedValueOnce(new Error('no gateway')).mockResolvedValueOnce(fakeRoom())
+    const { $voiceLink, startVoice } = await import('./voice-session')
+
+    await startVoice()
+    await startVoice()
+
+    expect($voiceLink.get()).toBe('live')
+  })
+
+  it('reports off when the far side hangs up', async () => {
+    // Otherwise the button would offer to End something already ended.
+    const room = fakeRoom() as unknown as { fire: (event: string) => void }
+    connect.mockResolvedValue(room)
+    const { $voiceLink, startVoice } = await import('./voice-session')
+
+    await startVoice()
+    room.fire('disconnected')
+
+    expect($voiceLink.get()).toBe('off')
+  })
+})
