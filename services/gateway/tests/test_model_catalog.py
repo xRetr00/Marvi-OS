@@ -189,3 +189,46 @@ def test_a_call_can_name_its_own_model_without_changing_the_default() -> None:
 
     assert asked == ["a-different-model", configured]
     assert profile.model_for("main") == configured
+
+
+# -- the endpoint ------------------------------------------------------------
+#
+# Tested separately from the catalog, because the first version of it passed
+# every catalog test above and still returned a 500: it called a registry
+# function by a name that does not exist. Ruff caught that, not the tests.
+
+
+def test_the_models_endpoint_answers() -> None:
+    from fastapi.testclient import TestClient
+
+    from marvi_gateway.app import create_app
+
+    with TestClient(create_app()) as client:
+        response = client.get("/models")
+
+    assert response.status_code == 200
+    assert isinstance(response.json()["providers"], list)
+
+
+def test_asking_for_one_provider_narrows_the_answer() -> None:
+    from fastapi.testclient import TestClient
+
+    from marvi_gateway.app import create_app
+
+    with TestClient(create_app()) as client:
+        response = client.get("/models", params={"provider": "openrouter"})
+
+    assert response.status_code == 200
+    names = {row["provider"] for row in response.json()["providers"]}
+    assert names <= {"openrouter"}
+
+
+def test_asking_for_a_provider_that_does_not_exist_says_so() -> None:
+    from fastapi.testclient import TestClient
+
+    from marvi_gateway.app import create_app
+
+    with TestClient(create_app()) as client:
+        response = client.get("/models", params={"provider": "not-a-provider"})
+
+    assert response.status_code == 404

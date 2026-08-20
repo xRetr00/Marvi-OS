@@ -43,6 +43,7 @@ from .memory import MemoryStore, register_memory_tools
 from .mind import Mind
 from .policy import InitiativeSettings
 from .providers import ProviderClient, all_profiles
+from .providers import all_profiles as provider_all
 from .providers import config as provider_config
 from .providers import get as provider_get
 from .providers.oauth import OAuthError, broker
