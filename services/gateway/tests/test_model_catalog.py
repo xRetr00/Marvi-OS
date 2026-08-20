@@ -20,6 +20,25 @@ def empty_cache():
     catalog.forget()
 
 
+@pytest.fixture
+def configured(monkeypatch):
+    """Give a provider a credential for the length of one test.
+
+    Two tests here passed locally and failed in CI because the developer
+    machine has a real OpenAI key in its environment and the runner does not.
+    A test that only passes where someone happens to be signed in is testing
+    the machine.
+    """
+
+    def configure(name: str):
+        profile = get(name)
+        for variable in profile.key_env:
+            monkeypatch.setenv(variable, "test-key")
+        return profile
+
+    return configure
+
+
 def responder(payload, status: int = 200, seen: list | None = None) -> httpx.Client:
     def handler(request: httpx.Request) -> httpx.Response:
         if seen is not None:
@@ -157,7 +176,7 @@ def test_a_failed_refresh_keeps_the_last_good_list() -> None:
     assert [card.id for card in still] == ["gpt-5"]
 
 
-def test_a_call_can_name_its_own_model_without_changing_the_default() -> None:
+def test_a_call_can_name_its_own_model_without_changing_the_default(configured) -> None:
     """The composer's picker is "try this model here", not "change my settings".
 
     An override that persisted would make the last thing anyone experimented
@@ -165,8 +184,8 @@ def test_a_call_can_name_its_own_model_without_changing_the_default() -> None:
     """
     from marvi_gateway.providers import ProviderClient
 
-    profile = get("openai")
-    configured = profile.model_for("main")
+    profile = configured("openai")
+    default_model = profile.model_for("main")
     asked: list[str] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -187,8 +206,8 @@ def test_a_call_can_name_its_own_model_without_changing_the_default() -> None:
     client.call(messages, provider=profile, model="a-different-model")
     client.call(messages, provider=profile)
 
-    assert asked == ["a-different-model", configured]
-    assert profile.model_for("main") == configured
+    assert asked == ["a-different-model", default_model]
+    assert profile.model_for("main") == default_model
 
 
 # -- the endpoint ------------------------------------------------------------
@@ -322,7 +341,7 @@ def test_the_recorded_turn_names_the_provider_that_answered(tmp_path, monkeypatc
 # -- effort as a setting -----------------------------------------------------
 
 
-def test_a_configured_effort_reaches_the_request(monkeypatch) -> None:
+def test_a_configured_effort_reaches_the_request(monkeypatch, configured) -> None:
     """Effort was a parameter nothing ever set.
 
     `call` accepted one and no caller passed it, so a provider's reasoning
@@ -333,7 +352,7 @@ def test_a_configured_effort_reaches_the_request(monkeypatch) -> None:
 
     from marvi_gateway.providers import ProviderClient
 
-    profile = get("openai")
+    profile = configured("openai")
     monkeypatch.setenv(profile.effort_setting(), "high")
     bodies: list[dict] = []
 
