@@ -23,6 +23,7 @@ from livekit.agents import (
 )
 from livekit.plugins import silero
 
+from . import observability
 from .runtime import AgentConfig, build_llm, build_local_turn_detector
 from .timing import TimedLLM
 from .tools import GatewayTools
@@ -219,19 +220,17 @@ async def marvi_session(ctx: JobContext) -> None:
     await session.start(agent=MarviVoiceAgent(), room=ctx.room)
     log.info("joined %s in %.1fs", ctx.room.name, time.monotonic() - connecting)
 
+    # Every stage of the pipeline, reported: VAD, STT, LLM, TTS, barge-in,
+    # tools, and the per-component timings that say which one is slow.
+    observability.attach(session)
+
     @session.on("conversation_item_added")
     def _spoke(event: Any) -> None:
+        # Separate from the logging above because this one leaves the process:
+        # the Voice page's transcript is fed from here.
         item = getattr(event, "item", None)
         if getattr(item, "role", "") == "assistant":
-            said = getattr(item, "text_content", "") or ""
-            log.info("said: %s", said[:200])
-            _report_transcript(spoken=said)
-
-    @session.on("error")
-    def _failed(event: Any) -> None:
-        # The one that mattered most and did not exist: a session erroring
-        # mid-turn was completely silent.
-        log.error("session error: %s", getattr(event, "error", event))
+            _report_transcript(spoken=getattr(item, "text_content", "") or "")
 
     if gate is not None:
         gate.attach(session, ctx.room)
