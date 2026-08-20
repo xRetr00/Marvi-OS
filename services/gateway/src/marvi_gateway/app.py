@@ -1603,6 +1603,7 @@ def create_app(
                     "key": p.key_env[0] if p.key_env else "",
                     "model": p.default_model_env or "",
                     "url": p.base_url_env or "",
+                    "effort": p.effort_setting(),
                 },
                 limits={
                     "style": p.limits.style,

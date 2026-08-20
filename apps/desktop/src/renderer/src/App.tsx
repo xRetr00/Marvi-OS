@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import appIcon from './assets/app-icon.ico'
 import { BootFailureOverlay } from './components/BootFailureOverlay'
 import { AsciiRule } from './components/ui/ascii-rule'
+import { ModelsPanel } from './components/models-panel'
 import { CommandCard } from './components/ui/command-card'
 import { ConnectingOverlay } from './components/ConnectingOverlay'
 import { DynamicIsland } from './components/DynamicIsland'
@@ -87,7 +88,7 @@ const NAV_GROUPS = [
 
 /** Behind the gear: the things you set up. */
 const SETTINGS_GROUPS = [
-  { label: 'Connect', items: ['Providers', 'Accounts', 'Skills', 'Plugins'] },
+  { label: 'Connect', items: ['Providers', 'Models', 'Accounts', 'Skills', 'Plugins'] },
   { label: 'System', items: ['Preferences', 'Schedules', 'Maintenance', 'Updates', 'About'] }
 ] as const
 
@@ -109,7 +110,8 @@ const PAGE_BLURB: Record<Page, string> = {
 }
 
 const SETTINGS_BLURB: Record<SettingsPage, string> = {
-  Providers: 'The models Marvi can call, and what they have cost',
+  Providers: 'Credentials, sign-in, and what each has cost',
+  Models: 'Which model answers, how hard it thinks, and who serves it',
   Accounts: 'Connected services, and what Marvi may do with them',
   Skills: 'Instructions Marvi can load for a task',
   Plugins: 'Backends Marvi runs, installed from a repository',
@@ -2227,6 +2229,8 @@ function SettingsShell({
         <div className="settings-scroll">
           {page === 'Providers' ? (
             <ProvidersPanel />
+          ) : page === 'Models' ? (
+            <ModelsPanel />
           ) : page === 'Accounts' ? (
             <AccountsPanel />
           ) : page === 'Skills' ? (

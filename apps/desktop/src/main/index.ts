@@ -157,7 +157,8 @@ function normaliseProviderPage(body: unknown): ProviderPage | null {
         env: {
           key: String((row.env as Record<string, string>)?.key ?? ''),
           model: String((row.env as Record<string, string>)?.model ?? ''),
-          url: String((row.env as Record<string, string>)?.url ?? '')
+          url: String((row.env as Record<string, string>)?.url ?? ''),
+          effort: String((row.env as Record<string, string>)?.effort ?? '')
         },
         limits: {
           style: String((row.limits as Record<string, string>)?.style ?? 'none'),
@@ -961,13 +962,23 @@ function startApp(): void {
         return { messages: [], available: false }
       }
     })
-    ipcMain.handle('marvi:send-chat', async (_event, message) => {
+    ipcMain.handle('marvi:send-chat', async (_event, message, override) => {
       if (typeof message !== 'string') return null
+      // Sent per turn and stored nowhere. The composer's picker is "try this
+      // model on this conversation", not "change the default for voice, mind
+      // and vision too".
+      const pick = (key: string): string | undefined =>
+        typeof override?.[key] === 'string' && override[key] ? override[key] : undefined
       try {
         const response = await fetch(`${gateway()}/chat`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ message }),
+          body: JSON.stringify({
+            message,
+            provider: pick('provider'),
+            model: pick('model'),
+            effort: pick('effort')
+          }),
           // A tool round trip can be slow; a short timeout would look like a bug.
           signal: AbortSignal.timeout(180_000)
         })

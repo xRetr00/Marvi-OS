@@ -15,6 +15,9 @@ export interface UseChat {
   send: () => Promise<void>
   clear: () => Promise<void>
   resolve: (decision: 'approve' | 'deny') => Promise<void>
+  /** The model this session picked, if any. Sent per turn, stored nowhere. */
+  override: { provider?: string; model?: string }
+  setOverride: (next: { provider?: string; model?: string }) => void
 }
 
 export function useChat(): UseChat {
@@ -22,6 +25,15 @@ export function useChat(): UseChat {
   const [busy, setBusy] = useState(false)
   const [available, setAvailable] = useState(true)
   const [draft, setDraft] = useState('')
+  /**
+   * A model chosen for this session only.
+   *
+   * Held in component state on purpose: it dies with the window, is written
+   * nowhere, and is sent per turn. A picker that quietly rewrote the
+   * configured default would make whatever anyone last experimented with the
+   * new model for voice, mind and vision as well.
+   */
+  const [override, setOverride] = useState<{ provider?: string; model?: string }>({})
   const [pending, setPending] = useState<PendingConfirmation | null>(null)
 
   useEffect(() => {
@@ -48,7 +60,7 @@ export function useChat(): UseChat {
       { id: -Date.now(), at: new Date().toISOString(), role: 'user', content: text, meta: {} }
     ])
     try {
-      const reply = await window.marvi?.sendChat(text)
+      const reply = await window.marvi?.sendChat(text, override)
       const page = await window.marvi?.getChat()
       if (page) setMessages(toChatMessages(page.messages))
       const confirmation = reply?.pending_confirmation
@@ -92,5 +104,17 @@ export function useChat(): UseChat {
     setPending(null)
   }, [])
 
-  return { messages, busy, available, draft, pending, setDraft, send, clear, resolve }
+  return {
+    messages,
+    busy,
+    available,
+    draft,
+    pending,
+    setDraft,
+    send,
+    clear,
+    resolve,
+    override,
+    setOverride
+  }
 }

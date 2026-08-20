@@ -170,6 +170,8 @@ class ProviderClient:
         # everything else reads -- the override lives on the call, so nothing
         # about it survives the request.
         model = model or profile.model_for(job)  # type: ignore[arg-type]
+        # An explicit effort wins; otherwise the provider's configured one.
+        effort = effort or profile.effort_for()
         body = profile.build_request(
             messages,
             model=model,
@@ -256,6 +258,8 @@ class ProviderClient:
         # everything else reads -- the override lives on the call, so nothing
         # about it survives the request.
         model = model or profile.model_for(job)  # type: ignore[arg-type]
+        # An explicit effort wins; otherwise the provider's configured one.
+        effort = effort or profile.effort_for()
         body = profile.build_request(
             messages,
             model=model,

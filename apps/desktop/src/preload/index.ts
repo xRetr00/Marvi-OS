@@ -94,8 +94,10 @@ const marvi = {
   }> => ipcRenderer.invoke('marvi:get-accounts'),
   getChat: (): Promise<{ messages: ChatEntry[]; available: boolean }> =>
     ipcRenderer.invoke('marvi:get-chat'),
-  sendChat: (message: string): Promise<ChatReply | null> =>
-    ipcRenderer.invoke('marvi:send-chat', message),
+  sendChat: (
+    message: string,
+    override?: { provider?: string; model?: string; effort?: string }
+  ): Promise<ChatReply | null> => ipcRenderer.invoke('marvi:send-chat', message, override ?? {}),
   clearChat: (): Promise<boolean> => ipcRenderer.invoke('marvi:clear-chat'),
   getSchedules: (): Promise<SchedulePage | null> => ipcRenderer.invoke('marvi:get-schedules'),
   addSchedule: (body: {

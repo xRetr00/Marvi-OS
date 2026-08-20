@@ -469,3 +469,28 @@
   color: var(--ui-text-tertiary);
   font-size: 10px;
 }
+
+/* The hint and the session model picker share the line under the field: the
+ * picker is a per-conversation choice, so it sits with the composer rather
+ * than in settings, and stays visually quieter than the field itself. */
+.chat-compose-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.chat-model-picker {
+  width: auto;
+  max-width: 240px;
+  padding: 4px 8px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--ui-text-tertiary);
+  font-size: 11px;
+}
+
+.chat-model-picker:hover:not(:disabled) {
+  border-color: var(--ui-stroke-secondary);
+  color: var(--ui-text-secondary);
+}

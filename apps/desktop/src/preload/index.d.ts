@@ -59,7 +59,10 @@ export interface MarviDesktopApi {
     accounts: ConnectedAccount[]
   }>
   getChat: () => Promise<{ messages: ChatEntry[]; available: boolean }>
-  sendChat: (message: string) => Promise<ChatReply | null>
+  sendChat: (
+    message: string,
+    override?: { provider?: string; model?: string; effort?: string }
+  ) => Promise<ChatReply | null>
   clearChat: () => Promise<boolean>
   getSchedules: () => Promise<SchedulePage | null>
   addSchedule: (body: {

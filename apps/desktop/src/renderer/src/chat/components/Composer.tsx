@@ -1,4 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+
+import type { ModelPage } from '../../../../shared/runtime'
+import { Picker, type PickerOption } from '../../components/ui/picker'
 
 /**
  * One field with its send control inside it.
@@ -14,13 +17,17 @@ export function Composer({
   busy,
   available,
   onDraftChange,
-  onSend
+  onSend,
+  override,
+  onOverrideChange
 }: {
   draft: string
   busy: boolean
   available: boolean
   onDraftChange: (next: string) => void
   onSend: () => void
+  override?: { provider?: string; model?: string }
+  onOverrideChange?: (next: { provider?: string; model?: string }) => void
 }): React.JSX.Element {
   const field = useRef<HTMLTextAreaElement | null>(null)
 
@@ -65,7 +72,75 @@ export function Composer({
           {busy ? '…' : '↑'}
         </button>
       </div>
-      <span className="chat-compose-hint">Enter sends · Shift+Enter for a new line</span>
+      <div className="chat-compose-foot">
+        <span className="chat-compose-hint">Enter sends · Shift+Enter for a new line</span>
+        {onOverrideChange ? (
+          <SessionModel value={override ?? {}} onChange={onOverrideChange} />
+        ) : null}
+      </div>
     </div>
+  )
+}
+
+
+/**
+ * The model for this conversation, and only this one.
+ *
+ * It overrides the configured default for the turns you send from here and is
+ * stored nowhere — close the window and it is gone. That is deliberate: trying
+ * a model on one conversation should not silently become the model voice, mind
+ * and vision use too.
+ */
+function SessionModel({
+  value,
+  onChange
+}: {
+  value: { provider?: string; model?: string }
+  onChange: (next: { provider?: string; model?: string }) => void
+}): React.JSX.Element | null {
+  const [page, setPage] = useState<ModelPage | null>(null)
+
+  useEffect(() => {
+    let disposed = false
+    void (async () => {
+      const next = await window.marvi?.getModels()
+      if (!disposed) setPage(next ?? null)
+    })()
+    return () => {
+      disposed = true
+    }
+  }, [])
+
+  const providers = page?.providers ?? []
+  if (providers.length === 0) return null
+
+  // Flat, because the choice is a model and the provider is a consequence of
+  // it. Two dependent dropdowns would be a step longer for the same answer.
+  const options: PickerOption[] = [
+    { value: '', label: 'Default model', detail: 'Whatever Providers is set to' },
+    ...providers.flatMap((provider) =>
+      provider.models.map((model) => ({
+        value: `${provider.provider}::${model.id}`,
+        label: model.name,
+        detail: `${provider.label} · ${model.id}`
+      }))
+    )
+  ]
+
+  const selected = value.model ? `${value.provider}::${value.model}` : ''
+
+  return (
+    <Picker
+      className="chat-model-picker"
+      options={options}
+      value={selected}
+      onChange={(next) => {
+        if (!next) return onChange({})
+        const [provider, ...rest] = next.split('::')
+        onChange({ provider, model: rest.join('::') })
+      }}
+      placeholder="Default model"
+      searchPlaceholder="Search models…"
+    />
   )
 }

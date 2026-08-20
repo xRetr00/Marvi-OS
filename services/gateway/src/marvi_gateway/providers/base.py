@@ -160,6 +160,10 @@ class ProviderProfile:
     limits: LimitPolicy = field(default_factory=LimitPolicy)
 
     default_model_env: str = ""
+    #: Where a persisted reasoning effort is read from. Derived rather than
+    #: declared on each provider: the name follows from the provider's own, and
+    #: a per-provider literal is one more thing to get wrong for no benefit.
+    effort_env: str = ""
     default_model: str = ""
     default_aux_model: str = ""
     default_vision_model: str = ""
@@ -204,6 +208,25 @@ class ProviderProfile:
             # An expired OAuth session is "connected but broken", which the
             # page reports separately. It is not configured for calling.
             return False
+
+    def effort_for(self) -> str | None:
+        """The configured reasoning effort, if this provider takes one.
+
+        Applied to every call rather than only where a caller thought to pass
+        one: effort was a parameter nothing set, so a provider's reasoning
+        settings were unreachable from the UI and every call ran at whatever
+        the provider's own default happened to be.
+        """
+        if self.reasoning.style != "effort":
+            return None
+        name = self.effort_env or f"MARVI_{self.name.replace('-', '_').upper()}_EFFORT"
+        return self.reasoning.normalise(os.environ.get(name, "").strip() or None)
+
+    def effort_setting(self) -> str:
+        """The environment variable the UI writes an effort choice to."""
+        if self.reasoning.style != "effort":
+            return ""
+        return self.effort_env or f"MARVI_{self.name.replace('-', '_').upper()}_EFFORT"
 
     def model_for(self, job: Literal["main", "aux", "vision"] = "main") -> str:
         if job == "aux" and self.default_aux_model:

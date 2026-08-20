@@ -317,3 +317,51 @@ def test_the_recorded_turn_names_the_provider_that_answered(tmp_path, monkeypatc
     # indistinguishable from a real measurement in the summary.
     assert rows[-1]["first_token_ms"] is None
     assert rows[-1]["total_ms"] > 0
+
+
+# -- effort as a setting -----------------------------------------------------
+
+
+def test_a_configured_effort_reaches_the_request(monkeypatch) -> None:
+    """Effort was a parameter nothing ever set.
+
+    `call` accepted one and no caller passed it, so a provider's reasoning
+    settings were unreachable from the UI and every call ran at whatever the
+    provider's own default happened to be.
+    """
+    import json
+
+    from marvi_gateway.providers import ProviderClient
+
+    profile = get("openai")
+    monkeypatch.setenv(profile.effort_setting(), "high")
+    bodies: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        bodies.append(json.loads(request.content))
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": "ok"}}],
+                "usage": {"prompt_tokens": 1, "completion_tokens": 1},
+            },
+        )
+
+    client = ProviderClient(http=httpx.Client(transport=httpx.MockTransport(handler)))
+    client.call([{"role": "user", "content": "hi"}], provider=profile)
+
+    assert json.dumps(bodies[0]).find("high") >= 0
+
+
+def test_an_effort_the_provider_does_not_accept_is_not_sent(monkeypatch) -> None:
+    profile = get("openai")
+    monkeypatch.setenv(profile.effort_setting(), "extreme")
+
+    assert profile.effort_for() in (*profile.reasoning.levels, None)
+    assert profile.effort_for() != "extreme"
+
+
+def test_a_provider_that_does_not_reason_has_no_effort_setting() -> None:
+    """So the UI has nothing to offer, rather than a control that does nothing."""
+    assert get("anthropic").effort_setting() == ""
+    assert get("anthropic").effort_for() is None

@@ -18,7 +18,19 @@ import './chat.css'
  * permanently spending a fifth of the width on one entry.
  */
 export function Chat(): React.JSX.Element {
-  const { messages, busy, available, draft, pending, setDraft, send, clear, resolve } = useChat()
+  const {
+    messages,
+    busy,
+    available,
+    draft,
+    pending,
+    setDraft,
+    send,
+    clear,
+    resolve,
+    override,
+    setOverride
+  } = useChat()
   const [drawer, setDrawer] = useState(false)
 
   const last = messages[messages.length - 1]
@@ -81,6 +93,8 @@ export function Chat(): React.JSX.Element {
             available={available}
             onDraftChange={setDraft}
             onSend={() => void send()}
+            override={override}
+            onOverrideChange={setOverride}
           />
         </div>
       </div>

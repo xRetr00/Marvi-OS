@@ -146,7 +146,7 @@ export interface ProviderRow {
   baseUrl: string
   models: { main: string; aux: string; vision: string }
   /** The environment variables this provider reads. Reported by the registry. */
-  env: { key: string; model: string; url: string }
+  env: { key: string; model: string; url: string; effort: string }
   limits: { style: string; windows: string[][]; readable: boolean; note: string }
   usage: { input: number; output: number; cachedInput: number; billable: number }
   cooldown: { seconds_remaining: number; reason: string } | null
