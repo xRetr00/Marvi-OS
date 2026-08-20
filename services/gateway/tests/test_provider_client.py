@@ -109,7 +109,13 @@ def test_a_429_stands_the_provider_down_for_the_stated_time() -> None:
         client.call(MESSAGES, provider="openai")
 
     # Retrying into an exhausted window is how one bad plan becomes a loop.
-    assert 115 < client.resting("openai") <= 120
+    #
+    # `pytest.approx` rather than `<= 120`: the deadline is monotonic() + 120
+    # and the remaining time is that minus monotonic() again, which does not
+    # round-trip in floating point -- CI saw 120.00000000000006 and failed by
+    # six parts in a hundred trillion. The clock resolution decides whether it
+    # happens, so it passes locally and fails on a runner.
+    assert client.resting("openai") == pytest.approx(120, abs=5)
     assert "openai" in client.cooldowns()
 
 
