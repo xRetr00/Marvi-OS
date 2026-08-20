@@ -206,13 +206,23 @@ jobs:
         working-directory: apps/updater
         run: cargo build --release -p marvi-bootstrap
 
+      # The speech-to-text engine. It is Rust, and the toolchain Marvi installs
+      # on a user's machine is uv and Node -- no cargo -- so nothing there could
+      # ever build it. Nothing did: an installed Marvi had no STT binary at all,
+      # and a voice turn reached the microphone and then stopped, because the
+      # thing that turns audio into words was never present.
+      - name: Build the voice runtime (speech to text)
+        working-directory: services/voice-runtime
+        run: cargo build --release
+
       - name: Checksums
         shell: bash
         run: |
           mkdir -p release
           cp apps/updater/target/release/marvi-bootstrap.exe release/
+          cp services/voice-runtime/target/release/marvi-voice-runtime.exe release/
           cd release
-          sha256sum marvi-bootstrap.exe > SHA256SUMS.txt
+          sha256sum marvi-bootstrap.exe marvi-voice-runtime.exe > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
       - name: Upload artifacts (dry run only)

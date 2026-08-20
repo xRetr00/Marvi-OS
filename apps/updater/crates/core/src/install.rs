@@ -230,6 +230,16 @@ pub fn install(cfg: &mut InstallConfig, progress: &mut dyn FnMut(&str)) -> Insta
         .with_range("", to.as_deref().unwrap_or(""));
     let _ = crate::result::write_result(&cfg.state_dir, &result);
 
+    // The STT engine ships as a release asset because no toolchain Marvi
+    // provisions can build Rust. Without it a voice turn reaches the
+    // microphone and stops, with nothing to turn audio into words.
+    if let Some(tag) = to.as_deref() {
+        if let Err(error) = crate::selfupdate::fetch_voice_runtime(&cfg.install_root, tag, progress)
+        {
+            progress(&format!("warning: could not fetch the voice runtime: {error}"));
+        }
+    }
+
     // Make the bootstrap available to the installed app for future updates.
     install_self_to_bin(&cfg.state_dir);
 

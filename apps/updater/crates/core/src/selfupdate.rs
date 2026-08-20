@@ -185,6 +185,74 @@ pub fn swap_in(fresh: &Path, state_dir: &Path) -> Result<(), String> {
     std::fs::rename(fresh, &target).map_err(|e| format!("could not install the updater: {e}"))
 }
 
+/// The speech-to-text engine, fetched from the release rather than built.
+///
+/// It is Rust, and the toolchain Marvi provisions is uv and Node -- there is no
+/// cargo on a user's machine, so nothing installed there could ever build it.
+/// Nothing did: an installed Marvi had no STT binary at all, and a voice turn
+/// reached the microphone and then stopped, because the thing that turns audio
+/// into words was never present. The wake word fired, the session listened,
+/// and no transcript was ever produced.
+///
+/// Verified against the same SHA256SUMS.txt as the updater. A voice runtime is
+/// a native binary that listens to a microphone; downloading one unverified is
+/// not a thing to do.
+pub fn fetch_voice_runtime(
+    install_root: &Path,
+    tag: &str,
+    progress: &mut dyn FnMut(&str),
+) -> Result<bool, String> {
+    const ASSET: &str = "marvi-voice-runtime.exe";
+
+    let remote = crate::git::remote_url(install_root).map_err(|e| e.to_string())?;
+    let Some(repo) = repo_slug(&remote) else {
+        return Ok(false);
+    };
+
+    let target = install_root
+        .join("services")
+        .join("voice-runtime")
+        .join("target")
+        .join("release")
+        .join(ASSET);
+    let staging = target.with_extension("exe.new");
+    let sums = target.with_file_name("SHA256SUMS.txt");
+    std::fs::create_dir_all(target.parent().unwrap_or(install_root))
+        .map_err(|e| format!("could not prepare the voice runtime directory: {e}"))?;
+
+    progress("fetching the speech-to-text engine");
+    download(&asset_url(&repo, tag, CHECKSUMS), &sums, install_root, progress)?;
+    let expected = read_to_string(&sums).as_deref().and_then(|s| expected_hash(s, ASSET));
+    let _ = std::fs::remove_file(&sums);
+    let Some(expected) = expected else {
+        // A release from before this asset existed. Not an error: the rest of
+        // the update is still good, and voice was no worse off than it was.
+        return Ok(false);
+    };
+
+    download(&asset_url(&repo, tag, ASSET), &staging, install_root, progress)?;
+    let actual = sha256(&staging, install_root);
+    if actual.as_deref() != Some(expected.as_str()) {
+        let _ = std::fs::remove_file(&staging);
+        return Err(format!(
+            "the downloaded voice runtime did not match its published checksum ({} vs {expected})",
+            actual.as_deref().unwrap_or("unreadable")
+        ));
+    }
+
+    // Replaced by rename, like the updater: it may be running, and Windows
+    // will move a running executable even though it will not overwrite one.
+    if target.exists() {
+        let retired = target.with_file_name(format!("marvi-voice-runtime.old-{}.exe", util::epoch_ms()));
+        let _ = std::fs::rename(&target, &retired);
+        let _ = std::fs::remove_file(&retired);
+    }
+    std::fs::rename(&staging, &target)
+        .map_err(|e| format!("could not install the voice runtime: {e}"))?;
+    progress("the speech-to-text engine is installed");
+    Ok(true)
+}
+
 /// Download the updater published with `tag` and put it in place.
 ///
 /// Returns Ok(false) when there is nothing to do or the release does not carry

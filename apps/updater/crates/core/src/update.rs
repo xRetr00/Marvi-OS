@@ -223,6 +223,13 @@ pub fn run_update(cfg: &mut UpdateConfig, progress: &mut dyn FnMut(&str)) -> Upd
     // thing over a download -- would make the machine harder to fix, not
     // easier.
     if let Some(tag) = target_ref.as_deref() {
+        // The STT engine, which no local toolchain can build. Not fatal: an
+        // update that worked and could not fetch it is still an update that
+        // worked, and voice is no worse off than before.
+        if let Err(error) = crate::selfupdate::fetch_voice_runtime(&root, tag, progress) {
+            progress(&format!("warning: could not fetch the voice runtime: {error}"));
+        }
+
         match crate::selfupdate::refresh(&cfg.state_dir, &root, tag, progress) {
             Ok(true) => progress("the updater will be the new one from the next launch"),
             Ok(false) => {}

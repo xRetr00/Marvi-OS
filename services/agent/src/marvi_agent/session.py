@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import time
 from pathlib import Path
@@ -25,15 +26,32 @@ from .tools import GatewayTools
 from .voice_models import DEFAULT_VOICE, NemotronSTT, VibeVoiceTTS
 from .wakeword import WakeGate
 
+log = logging.getLogger("marvi.voice")
+
 load_dotenv(Path(__file__).parents[2] / ".env")
 
 
 def voice_runtime_executable() -> Path:
+    """The speech-to-text engine.
+
+    Missing on an installed machine until the installer learned to fetch it:
+    it is Rust, and the toolchain Marvi provisions is uv and Node, so nothing
+    on the machine could build it. The failure was silent and looked like
+    nothing at all -- the wake word fired, the session listened, and no
+    transcript was ever produced, because the thing that turns audio into words
+    was not there.
+    """
     configured = os.environ.get("MARVI_VOICE_RUNTIME")
     if configured:
         return Path(configured)
     suffix = ".exe" if os.name == "nt" else ""
-    return Path(__file__).parents[3] / "voice-runtime" / "target" / "release" / f"marvi-voice-runtime{suffix}"
+    return (
+        Path(__file__).parents[3]
+        / "voice-runtime"
+        / "target"
+        / "release"
+        / f"marvi-voice-runtime{suffix}"
+    )
 
 
 def _timed_llm() -> TimedLLM:
@@ -102,9 +120,19 @@ def build_session() -> AgentSession:
         tts=local_tts,
         sentence_tokenizer=tokenize.basic.SentenceTokenizer(min_sentence_len=12),
     )
+    engine = voice_runtime_executable()
+    if not engine.is_file():
+        # Said out loud, once, at the point it is decided. Silence here is what
+        # made this take a week to find.
+        log.error(
+            "the speech-to-text engine is missing at %s; Marvi will hear you "
+            "and never answer. Reinstall or update to fetch it.",
+            engine,
+        )
+
     return AgentSession(
         stt=NemotronSTT(
-            executable=voice_runtime_executable(),
+            executable=engine,
             language=os.environ.get("MARVI_STT_LANGUAGE", "en-US"),
         ),
         vad=silero.VAD.load(),
