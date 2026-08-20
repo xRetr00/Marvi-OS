@@ -26,7 +26,8 @@ import type {
   UpdateCheck,
   UpdateResult,
   UpdateStatus,
-  UpstreamPage
+  UpstreamPage,
+  VoicePage
 } from '../shared/runtime'
 import type { IslandPlacement } from '../main/island-window'
 
@@ -153,6 +154,7 @@ const marvi = {
     ipcRenderer.invoke('marvi:get-models', options ?? {}),
   getUpstreams: (model?: string): Promise<UpstreamPage | null> =>
     ipcRenderer.invoke('marvi:get-upstreams', model ?? ''),
+  getVoices: (): Promise<VoicePage | null> => ipcRenderer.invoke('marvi:get-voices'),
   setProviderSettings: (values: Record<string, string>): Promise<ProviderPage | null> =>
     ipcRenderer.invoke('marvi:set-provider-settings', values),
   startOauth: (name: string): Promise<{ ok: boolean; detail: string }> =>

@@ -230,6 +230,24 @@ export interface UpstreamPage {
   upstreams: Upstream[]
 }
 
+/** One installed TTS voice. `id` is exactly what the setting takes. */
+export interface InstalledVoice {
+  id: string
+  name: string
+  language: string
+  gender: string
+}
+
+export interface VoicePage {
+  /** The environment variable a choice is written to. */
+  setting: string
+  selected: string
+  /** True when a voice was chosen and its file is no longer there — said
+   * rather than silently corrected. */
+  missing: boolean
+  voices: InstalledVoice[]
+}
+
 export interface IdentityStatus {
   soul: string
   user: string

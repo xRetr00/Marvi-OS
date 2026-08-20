@@ -25,7 +25,8 @@ import type {
   UpdateCheck,
   UpdateResult,
   UpdateStatus,
-  UpstreamPage
+  UpstreamPage,
+  VoicePage
 } from '../shared/runtime'
 import type { IslandPlacement } from '../main/island-window'
 
@@ -103,6 +104,7 @@ export interface MarviDesktopApi {
   getProviders: () => Promise<ProviderPage | null>
   getModels: (options?: { provider?: string; refresh?: boolean }) => Promise<ModelPage | null>
   getUpstreams: (model?: string) => Promise<UpstreamPage | null>
+  getVoices: () => Promise<VoicePage | null>
   setProviderSettings: (values: Record<string, string>) => Promise<ProviderPage | null>
   startOauth: (name: string) => Promise<{ ok: boolean; detail: string }>
   pollOauth: (name: string) => Promise<Record<string, unknown> | null>

@@ -59,7 +59,8 @@ import type {
   UpdateChannel,
   UpdateCheck,
   UpdateResult,
-  UpdateStatus
+  UpdateStatus,
+  VoicePage
 } from '../../shared/runtime'
 import { deviceLabel, deviceState } from '../../shared/runtime'
 import type { IslandAlignment, IslandPlacement } from '../../main/island-window'
@@ -1558,6 +1559,67 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
 }
 
 /**
+ * Which voice Marvi speaks in.
+ *
+ * Twenty-five ship with the TTS model and nothing listed any of them: the
+ * voice was an environment variable holding a filename, so choosing one meant
+ * knowing the naming convention and typing it exactly.
+ *
+ * No preview, and that is a limitation rather than an omission. These are
+ * speaker embeddings, not samples — there is no audio to play without running
+ * the TTS engine, which lives in the Agent's process and its own environment.
+ */
+function VoicePicker(): React.JSX.Element {
+  const [page, setPage] = useState<VoicePage | null>(null)
+
+  useEffect(() => {
+    let gone = false
+    void (async () => {
+      const next = await window.marvi?.getVoices()
+      if (!gone) setPage(next ?? null)
+    })()
+    return () => {
+      gone = true
+    }
+  }, [])
+
+  if (page && page.voices.length === 0) {
+    return (
+      <span className="construction">
+        NO VOICES INSTALLED. RUN THE TTS INSTALLER FROM MAINTENANCE FIRST.
+      </span>
+    )
+  }
+
+  return (
+    <div className="voice-choice">
+      <Picker
+        options={(page?.voices ?? []).map((voice) => ({
+          value: voice.id,
+          label: voice.name,
+          detail: [voice.language, voice.gender].filter(Boolean).join(' · '),
+          hint: voice.id
+        }))}
+        value={page?.selected ?? ''}
+        onChange={(next) => {
+          if (!page?.setting) return
+          setPage({ ...page, selected: next, missing: false })
+          void window.marvi?.setProviderSettings({ [page.setting]: next })
+        }}
+        placeholder="Model default"
+        searchPlaceholder="Search voices…"
+        empty="No voices installed."
+      />
+      {page?.missing ? (
+        <span className="construction">
+          {`THE CHOSEN VOICE "${page.selected}" IS NOT INSTALLED. MARVI WILL FALL BACK TO ITS DEFAULT.`}
+        </span>
+      ) : null}
+    </div>
+  )
+}
+
+/**
  * The model answering spoken turns.
  *
  * Sits in the rig readout rather than in settings because it is the number you
@@ -2380,6 +2442,17 @@ function SettingsPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Eleme
           </p>
         </div>
         <ServiceHealth compact />
+      </div>
+
+      <div className="settings-section">
+        <div>
+          <span className="eyebrow">{'// SPEECH OUT'}</span>
+          <h2>VOICE</h2>
+          <p>
+            The voices the TTS installer downloaded. Marvi speaks in the one chosen here.
+          </p>
+        </div>
+        <VoicePicker />
       </div>
 
       <div className="settings-section">

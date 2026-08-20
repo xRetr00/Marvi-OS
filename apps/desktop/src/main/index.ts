@@ -40,7 +40,8 @@ import type {
   ProviderPage,
   ProviderRow,
   RuntimeStatus,
-  UpstreamPage
+  UpstreamPage,
+  VoicePage
 } from '../shared/runtime'
 
 let mainWindow: BrowserWindow | null = null
@@ -1010,6 +1011,29 @@ function startApp(): void {
         })
         if (!response.ok) return null
         return normaliseProviderPage(await response.json())
+      } catch {
+        return null
+      }
+    })
+    ipcMain.handle('marvi:get-voices', async (): Promise<VoicePage | null> => {
+      try {
+        const response = await fetch(`${gateway()}/voices`, {
+          signal: AbortSignal.timeout(5_000)
+        })
+        if (!response.ok) return null
+        const body = (await response.json()) as Record<string, never>
+        const rows = Array.isArray(body.voices) ? (body.voices as Array<Record<string, never>>) : []
+        return {
+          setting: String(body.setting ?? ''),
+          selected: String(body.selected ?? ''),
+          missing: Boolean(body.missing),
+          voices: rows.map((row) => ({
+            id: String(row.id ?? ''),
+            name: String(row.name ?? ''),
+            language: String(row.language ?? ''),
+            gender: String(row.gender ?? '')
+          }))
+        }
       } catch {
         return null
       }

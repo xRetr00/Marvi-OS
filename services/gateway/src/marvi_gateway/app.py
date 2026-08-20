@@ -1673,6 +1673,27 @@ def create_app(
         runtime_store.audit("providers", "disconnect", {"provider": name, "token": removed})
         return await providers()
 
+    @app.get("/voices")
+    async def voice_list() -> dict[str, Any]:
+        """The voices Marvi can speak in, and which one is chosen.
+
+        The installer downloads twenty-five and nothing listed any: the voice
+        was an environment variable holding a filename, so choosing one meant
+        knowing the convention and typing it exactly.
+        """
+        from . import voices as voice_catalog
+
+        installed = voice_catalog.installed()
+        chosen = voice_catalog.selected()
+        return {
+            "setting": voice_catalog.VOICE_ENV,
+            "selected": chosen,
+            # Said rather than silently corrected: a voice chosen and then
+            # deleted should read as missing, not as though it was never picked.
+            "missing": bool(chosen) and all(v.id != chosen for v in installed),
+            "voices": [voice.as_row() for voice in installed],
+        }
+
     @app.get("/models")
     async def models(provider: str = "", refresh: bool = False) -> dict[str, Any]:
         """The models a provider actually has, for the picker to offer.
