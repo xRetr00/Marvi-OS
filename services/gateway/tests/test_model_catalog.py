@@ -232,3 +232,88 @@ def test_asking_for_a_provider_that_does_not_exist_says_so() -> None:
         response = client.get("/models", params={"provider": "not-a-provider"})
 
     assert response.status_code == 404
+
+
+# -- measurement -------------------------------------------------------------
+
+
+def test_a_chat_turn_is_recorded_for_latency(tmp_path, monkeypatch) -> None:
+    """The seam existed and was connected to nothing.
+
+    `/latency` sat at zero samples through every conversation, on both
+    surfaces, because the wrapper was written and never called. A baseline
+    nobody records is not a baseline, and the whole providers phase is gated on
+    comparing against one -- so the wiring itself is what this asserts, not the
+    numbers.
+    """
+    from marvi_gateway import latency
+    from marvi_gateway.chat import Chat, ChatStore
+    from marvi_gateway.providers import ProviderClient
+
+    recording = tmp_path / "latency.jsonl"
+    monkeypatch.setattr(latency, "recording_path", lambda: recording)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": "hello"}}],
+                "usage": {"prompt_tokens": 3, "completion_tokens": 4},
+            },
+        )
+
+    chat = Chat(
+        store=ChatStore(tmp_path / "chat.sqlite3"),
+        client=ProviderClient(http=httpx.Client(transport=httpx.MockTransport(handler))),
+    )
+
+    turn = chat.send("hello", provider="openai")
+
+    assert turn.error == ""
+    summary = latency.summarise("chat")
+    assert summary["samples"] == 1
+
+
+def test_the_recorded_turn_names_the_provider_that_answered(tmp_path, monkeypatch) -> None:
+    """Not the one that was asked for.
+
+    Fallback means those differ exactly when it matters most -- a sample
+    attributed to a provider that never ran is worse than no sample.
+    """
+    from marvi_gateway import latency
+    from marvi_gateway.chat import Chat, ChatStore
+    from marvi_gateway.providers import ProviderClient
+
+    monkeypatch.setattr(latency, "recording_path", lambda: tmp_path / "latency.jsonl")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": "hi"}}],
+                "usage": {"prompt_tokens": 1, "completion_tokens": 1},
+            },
+        )
+
+    chat = Chat(
+        store=ChatStore(tmp_path / "chat.sqlite3"),
+        client=ProviderClient(http=httpx.Client(transport=httpx.MockTransport(handler))),
+    )
+    turn = chat.send("hi", provider="openai")
+
+    rows = [
+        __import__("json").loads(line)
+        for line in (tmp_path / "latency.jsonl").read_text().splitlines()
+        if line.strip()
+    ]
+
+    # The provider that answered, not the one that was asked for: fallback
+    # makes those differ exactly when it matters, and a sample attributed to a
+    # provider that never ran is worse than no sample.
+    assert rows[-1]["provider"] == turn.provider
+    assert rows[-1]["surface"] == "chat"
+    # Chat does not stream, so there is genuinely no first token to time. None
+    # rather than a number copied from the total, which would be
+    # indistinguishable from a real measurement in the summary.
+    assert rows[-1]["first_token_ms"] is None
+    assert rows[-1]["total_ms"] > 0

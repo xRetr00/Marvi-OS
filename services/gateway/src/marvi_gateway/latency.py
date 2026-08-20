@@ -121,7 +121,7 @@ def summarise(surface: str | None = None, path: str | None = None) -> dict[str, 
     if not file.is_file():
         return {"samples": 0, "detail": "nothing recorded yet"}
 
-    groups: dict[tuple[str, str], list[float]] = {}
+    groups: dict[tuple[str, str], tuple[list[float], list[float]]] = {}
     errors = 0
     for line in file.read_text(encoding="utf-8", errors="replace").splitlines():
         try:
@@ -135,23 +135,37 @@ def summarise(surface: str | None = None, path: str | None = None) -> dict[str, 
         if row.get("error"):
             errors += 1
             continue
-        first = row.get("first_token_ms")
-        if first is None:
-            continue
-        groups.setdefault((row.get("surface", "?"), row.get("path", "?")), []).append(float(first))
+        key = (row.get("surface", "?"), row.get("path", "?"))
+        first, total = row.get("first_token_ms"), row.get("total_ms")
+        # A row with no first token is still a row. Skipping them entirely
+        # meant chat -- which does not stream, so genuinely has none -- was
+        # written to the recording and then reported as nothing recorded.
+        firsts, totals = groups.setdefault(key, ([], []))
+        if first is not None:
+            firsts.append(float(first))
+        if total is not None:
+            totals.append(float(total))
 
     return {
-        "samples": sum(len(v) for v in groups.values()),
+        "samples": sum(max(len(firsts), len(totals)) for firsts, totals in groups.values()),
         "errors": errors,
         "groups": [
             {
                 "surface": key[0],
                 "path": key[1],
-                "count": len(values),
-                "first_token_median_ms": round(statistics.median(values), 1),
-                "first_token_p95_ms": round(_percentile(values, 0.95), 1),
+                "count": max(len(firsts), len(totals)),
+                # Absent rather than zero where a surface does not stream.
+                # A zero here would read as instant rather than not measured.
+                "first_token_median_ms": (
+                    round(statistics.median(firsts), 1) if firsts else None
+                ),
+                "first_token_p95_ms": (
+                    round(_percentile(firsts, 0.95), 1) if firsts else None
+                ),
+                "total_median_ms": round(statistics.median(totals), 1) if totals else None,
+                "total_p95_ms": round(_percentile(totals, 0.95), 1) if totals else None,
             }
-            for key, values in sorted(groups.items())
+            for key, (firsts, totals) in sorted(groups.items())
         ],
     }
 

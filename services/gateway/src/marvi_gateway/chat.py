@@ -31,6 +31,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from . import latency
 from .curiosity import Curiosity, handle_tool, obvious_facts
 from .curiosity import tool_schemas as curiosity_tools
 from .identity import IdentityFiles
@@ -235,14 +236,29 @@ class Chat:
 
         for _round in range(MAX_TOOL_ROUNDS):
             try:
-                completion = self.client.call_with_fallback(
-                    self._messages(gap),
-                    preferred=provider or None,
-                    model=model or None,
-                    effort=effort or None,
-                    max_tokens=MAX_REPLY_TOKENS,
-                    tools=schemas or None,
-                )
+                # Measured, like the voice path. Chat is the other half of the
+                # comparison the providers phase is gated on, and a surface
+                # nobody is timing contributes nothing to it.
+                #
+                # `first_token_ms` stays None here rather than being faked from
+                # the total: chat does not stream yet, so there is no first
+                # token to time, and a number invented to fill the column would
+                # be indistinguishable from a real one in the summary.
+                with latency.timed(
+                    "chat", "direct", provider=provider or "", model=model or ""
+                ) as sample:
+                    completion = self.client.call_with_fallback(
+                        self._messages(gap),
+                        preferred=provider or None,
+                        model=model or None,
+                        effort=effort or None,
+                        max_tokens=MAX_REPLY_TOKENS,
+                        tools=schemas or None,
+                    )
+                    # Known only now: fallback decides which provider answered.
+                    sample.provider = completion.provider
+                    sample.model = completion.model
+                    sample.tokens = completion.usage.billable
             except ProviderCallError as exc:
                 logger.warning("chat call failed: %s", exc)
                 return ChatTurn(reply="", error=str(exc), tokens=tokens, provider=provider)

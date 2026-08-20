@@ -37,6 +37,17 @@ def voice_runtime_executable() -> Path:
 
 
 def _timed_llm() -> TimedLLM:
+    """The session's LLM, wrapped so every voice turn is measured.
+
+    This existed and was not used: `build_session` called `build_llm` directly,
+    so the seam was built and connected to nothing, and `/latency` sat at zero
+    samples through every conversation. A baseline nobody is recording is not a
+    baseline -- and the whole Phase 12 gate is a comparison against one.
+
+    `path="direct"` is the label for the current arrangement, where the Agent
+    calls the provider itself. The Gateway path reuses the same wrapper with a
+    different label, which is what makes the two comparable at all.
+    """
     config = AgentConfig.from_gateway()
     return TimedLLM(build_llm(config), path="direct", provider=config.provider, model=config.model)
 
@@ -97,7 +108,7 @@ def build_session() -> AgentSession:
             language=os.environ.get("MARVI_STT_LANGUAGE", "en-US"),
         ),
         vad=silero.VAD.load(),
-        llm=build_llm(AgentConfig.from_gateway()),
+        llm=_timed_llm(),
         tts=streaming_tts,
         turn_handling=TurnHandlingOptions(
             turn_detection=build_local_turn_detector(),
