@@ -711,11 +711,28 @@ def create_app(
                 )
         return fresh[-1] if fresh else None
 
+    def voice_candidates() -> list[Any]:
+        """Providers that could actually answer a spoken turn.
+
+        One definition, used by both the resolver the Agent asks and the
+        readout the Voice page shows. They used to differ: the readout took the
+        first configured provider with no further checks, so it named LM Studio
+        -- merely configured, not running, no model set -- while the Agent was
+        being handed OpenRouter. The page said one thing and the turn used
+        another, and the only reason it ever looked right was LM Studio being
+        in cooldown at that moment.
+        """
+        return [
+            p
+            for p in provider_client.candidates()
+            if p.api_mode == "chat_completions"
+            and p.model_for("main")
+            and provider_client.reachable(p)
+        ]
+
     def model_summary() -> ModelSummary:
         """Which model each part of the voice path is using, by name."""
-        chosen = provider_client.candidates(
-            os.environ.get("MARVI_PROVIDER", "").strip() or None
-        )
+        chosen = voice_candidates()
         llm = ""
         if chosen:
             llm = f"{chosen[0].label()} / {chosen[0].model_for('main')}"
@@ -1835,18 +1852,9 @@ def create_app(
         """
         # The LiveKit OpenAI plugin speaks chat completions, and a local server
         # that is merely configured is not the same as one that is running.
-        # A provider with no model name is not usable, however reachable it is:
-        # the Agent would build a session against an empty model and the worker
-        # would die on the first turn. That is what "LM Studio / " in the voice
-        # readout was -- a local endpoint that was configured, had no model set,
-        # and won the fallback because nothing had been chosen.
-        usable = [
-            p
-            for p in provider_client.candidates()
-            if p.api_mode == "chat_completions"
-            and p.model_for("main")
-            and provider_client.reachable(p)
-        ]
+        # The same list the Voice page's readout is built from, so the page
+        # cannot name one provider while the Agent is handed another.
+        usable = voice_candidates()
         if not usable:
             raise HTTPException(
                 status_code=503, detail="no usable provider for the voice path"

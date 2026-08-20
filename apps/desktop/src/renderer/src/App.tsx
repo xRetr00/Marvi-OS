@@ -1734,12 +1734,17 @@ function VoiceModelPicker({ current }: { current: string }): React.JSX.Element {
     }))
   )
 
+  // `current` is the readout string -- "OpenRouter / vendor/model" -- not a
+  // model id, so it can never match an option. The selection comes from what
+  // each provider reports as its configured model instead, which is the same
+  // value the Models page writes.
+  const configured = rows.find((row) => row.selected)
   const active =
     chosen && chosen.includes('::')
       ? chosen
-      : (rows.find((row) => row.selected === (chosen || current))?.provider ?? '') +
-        '::' +
-        (chosen || current)
+      : configured
+        ? `${configured.provider}::${configured.selected}`
+        : ''
 
   return (
     <Picker

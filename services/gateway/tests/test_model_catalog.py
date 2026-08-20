@@ -384,3 +384,59 @@ def test_a_provider_that_does_not_reason_has_no_effort_setting() -> None:
     """So the UI has nothing to offer, rather than a control that does nothing."""
     assert get("anthropic").effort_setting() == ""
     assert get("anthropic").effort_for() is None
+
+
+# -- one answer, not two -----------------------------------------------------
+
+
+def test_the_voice_readout_names_what_the_agent_will_actually_use(monkeypatch) -> None:
+    """They were two different resolvers and they disagreed.
+
+    `/runtime`'s readout took the first configured provider with no further
+    checks, so it named LM Studio -- configured by having a URL, not running,
+    and with no model set -- while `/providers/voice` handed the Agent
+    OpenRouter. The page said one thing and the turn used another. It only ever
+    looked right when LM Studio happened to be in cooldown.
+    """
+    from fastapi.testclient import TestClient
+
+    from marvi_gateway.app import create_app
+
+    # A local provider that is "configured" only in the sense of having a URL
+    # nothing is listening on -- exactly the shape that won before.
+    monkeypatch.setenv("MARVI_LMSTUDIO_URL", "http://127.0.0.1:1/v1")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("MARVI_OPENROUTER_MODEL", "vendor/some-model")
+
+    with TestClient(create_app()) as client:
+        readout = client.get("/runtime").json()["model"]["llm"]
+        resolved = client.get("/providers/voice")
+
+    if resolved.status_code == 503:
+        # Nothing usable at all is a coherent answer, as long as the readout
+        # agrees rather than naming something.
+        assert readout == ""
+        return
+
+    # Comparing the model rather than the provider label: the readout carries
+    # a display name ("OpenRouter") and the resolver a registry name
+    # ("openrouter"), and the model id is the part that is identical in both.
+    assert resolved.json()["model"] in readout
+
+
+def test_a_local_endpoint_with_no_model_is_never_named() -> None:
+    """It cannot answer, so naming it in the readout is a lie either way."""
+    from marvi_gateway.providers import get
+
+    lmstudio = get("lmstudio")
+
+    # The precondition for the original bug: configured, but nothing to call.
+    if lmstudio.configured() and not lmstudio.model_for("main"):
+        from fastapi.testclient import TestClient
+
+        from marvi_gateway.app import create_app
+
+        with TestClient(create_app()) as client:
+            readout = client.get("/runtime").json()["model"]["llm"]
+
+        assert "lm studio" not in readout.lower()
