@@ -148,6 +148,7 @@ class ProviderClient:
         cache_prefix: bool = True,
         temperature: float | None = None,
         tools: list[dict[str, Any]] | None = None,
+        model: str | None = None,
     ) -> Completion:
         """Call one provider. Raises rather than falling back — see `call_with_fallback`."""
         import httpx
@@ -164,7 +165,11 @@ class ProviderClient:
                 f"{profile.name} is cooling down for another {resting:.0f}s"
             )
 
-        model = profile.model_for(job)  # type: ignore[arg-type]
+        # An explicit model wins over the provider's configured default. This
+        # is how a session picks a model for itself without editing settings
+        # everything else reads -- the override lives on the call, so nothing
+        # about it survives the request.
+        model = model or profile.model_for(job)  # type: ignore[arg-type]
         body = profile.build_request(
             messages,
             model=model,
@@ -221,6 +226,7 @@ class ProviderClient:
         cache_prefix: bool = True,
         temperature: float | None = None,
         tools: list[dict[str, Any]] | None = None,
+        model: str | None = None,
     ) -> Iterator[dict[str, Any]]:
         """Call one provider and yield deltas as they arrive.
 
@@ -245,7 +251,11 @@ class ProviderClient:
         if resting > 0:
             raise ProviderCallError(f"{profile.name} is cooling down for another {resting:.0f}s")
 
-        model = profile.model_for(job)  # type: ignore[arg-type]
+        # An explicit model wins over the provider's configured default. This
+        # is how a session picks a model for itself without editing settings
+        # everything else reads -- the override lives on the call, so nothing
+        # about it survives the request.
+        model = model or profile.model_for(job)  # type: ignore[arg-type]
         body = profile.build_request(
             messages,
             model=model,

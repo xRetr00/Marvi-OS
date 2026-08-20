@@ -183,7 +183,20 @@ class Chat:
                 wire.append({"role": "user", "content": row["content"]})
         return wire
 
-    def send(self, message: str) -> ChatTurn:
+    def send(
+        self,
+        message: str,
+        provider: str | None = None,
+        model: str | None = None,
+        effort: str | None = None,
+    ) -> ChatTurn:
+        """Answer one message, optionally on a model this turn picks.
+
+        The override applies to this call and nothing else. It is deliberately
+        not written anywhere: the composer's picker is for trying a model on a
+        conversation, and a picker that silently rewrote the configured default
+        would make "just this once" the last setting anyone chose.
+        """
         text = (message or "").strip()
         if not text:
             return ChatTurn(reply="", error="empty message")
@@ -224,6 +237,9 @@ class Chat:
             try:
                 completion = self.client.call_with_fallback(
                     self._messages(gap),
+                    preferred=provider or None,
+                    model=model or None,
+                    effort=effort or None,
                     max_tokens=MAX_REPLY_TOKENS,
                     tools=schemas or None,
                 )

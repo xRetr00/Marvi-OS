@@ -226,6 +226,11 @@ class IdentityUpdate(BaseModel):
 
 class ChatMessage(BaseModel):
     message: str
+    # Set by the composer's picker, for this turn only. Absent means "whatever
+    # is configured", which is what every other caller sends.
+    provider: str | None = None
+    model: str | None = None
+    effort: str | None = None
 
 
 class ChatReply(BaseModel):
@@ -849,7 +854,9 @@ def create_app(
         # shell polls every two seconds, so it runs on a worker thread.
         import anyio
 
-        turn: ChatTurn = await anyio.to_thread.run_sync(chat.send, body.message)
+        turn: ChatTurn = await anyio.to_thread.run_sync(
+            chat.send, body.message, body.provider, body.model, body.effort
+        )
         return ChatReply(
             reply=turn.reply,
             tools_used=turn.tools_used,
@@ -1663,6 +1670,47 @@ def create_app(
             provider_config.update({profile.key_env[0]: ""})
         runtime_store.audit("providers", "disconnect", {"provider": name, "token": removed})
         return await providers()
+
+    @app.get("/models")
+    async def models(provider: str = "", refresh: bool = False) -> dict[str, Any]:
+        """The models a provider actually has, for the picker to offer.
+
+        Asked rather than assumed. A typed model name is a guess with no
+        feedback -- a typo and a retired model fail identically, and both fail
+        later, as somebody else's error message.
+
+        `efforts` is per model, not per provider, because for a gateway it has
+        to be: OpenRouter fronts models that reason and models that do not
+        under one credential, and only its own list says which is which.
+        """
+        from .providers import catalog
+
+        wanted = provider.strip()
+        profiles = [p for p in provider_all() if not wanted or p.name == wanted]
+        if wanted and not profiles:
+            raise HTTPException(status_code=404, detail=f"no provider named {wanted}")
+
+        out: list[dict[str, Any]] = []
+        for profile in profiles:
+            if not profile.configured():
+                continue
+            cards = await anyio.to_thread.run_sync(
+                lambda p=profile: catalog.models(p, refresh=refresh)
+            )
+            out.append(
+                {
+                    "provider": profile.name,
+                    "label": profile.label(),
+                    "selected": profile.model_for("main"),
+                    "routes_upstream": profile.routes_upstream,
+                    # Said plainly rather than shown as an empty dropdown: a
+                    # provider that is configured but listed nothing is a
+                    # different problem from one with no models.
+                    "reachable": bool(cards),
+                    "models": [card.as_row() for card in cards],
+                }
+            )
+        return {"providers": out}
 
     @app.get("/providers/openrouter/upstreams")
     async def openrouter_upstreams(model: str = "") -> dict[str, Any]:
