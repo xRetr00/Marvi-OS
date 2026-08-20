@@ -4,10 +4,22 @@
     <meta charset="UTF-8" />
     <title>Marvi OS</title>
     <link rel="icon" href="/src/assets/app-icon.png" />
-    <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
+    <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP
+       -
+       - `connect-src` is loopback-only and it has to be here: the renderer
+       - joins the LiveKit room itself, and that is the one thing it reaches
+       - over the network rather than through IPC. Without this rule it fell
+       - back to `default-src 'self'`, the join was blocked before it left the
+       - page, and the SDK reported it as "ConnectionError: could not establish
+       - signal connection: Failed to fetch" -- which reads like the server was
+       - down. It was answering the whole time.
+       -
+       - Ports are wildcards because LiveKit's is configurable; hosts are not,
+       - so nothing off this machine is reachable from the page.
+       -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:* http://localhost:* ws://localhost:*; media-src 'self' blob:"
     />
   </head>
 
