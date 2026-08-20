@@ -43,7 +43,11 @@ logger = logging.getLogger(__name__)
 # How many past turns to replay. Enough to hold a thread, bounded so a long
 # session does not quietly become an expensive one.
 HISTORY_TURNS = 24
-MAX_TOOL_ROUNDS = 4
+# Four was too few for anything researched: "who won the World Cup in 2026"
+# spent all of them searching and hit the wall. Bounded still, because a model
+# that loops on tools burns money and time with nothing to show, but bounded
+# where a real answer fits.
+MAX_TOOL_ROUNDS = 8
 MAX_REPLY_TOKENS = 1024
 
 SYSTEM_PROMPT = (
@@ -234,7 +238,12 @@ class Chat:
         tokens = 0
         provider = ""
 
-        for _round in range(MAX_TOOL_ROUNDS):
+        for round_number in range(MAX_TOOL_ROUNDS):
+            # The last round is offered no tools, so the model has to answer
+            # with what it gathered. Running out used to discard everything --
+            # four web searches, then an empty reply and "tool round limit
+            # reached", which tells the user nothing and wastes the work.
+            final_round = round_number == MAX_TOOL_ROUNDS - 1
             try:
                 # Measured, like the voice path. Chat is the other half of the
                 # comparison the providers phase is gated on, and a surface
@@ -253,7 +262,7 @@ class Chat:
                         model=model or None,
                         effort=effort or None,
                         max_tokens=MAX_REPLY_TOKENS,
-                        tools=schemas or None,
+                        tools=None if final_round else (schemas or None),
                     )
                     # Known only now: fallback decides which provider answered.
                     sample.provider = completion.provider
@@ -335,6 +344,9 @@ class Chat:
                 envelope = wrap_external(f"tool:{name}", outcome.get("result"))
                 self.store.append("tool", envelope.text, tool=name)
 
+        # Reached only if the final, tool-free round still came back with tool
+        # calls -- which a well-behaved model cannot do, since it was offered
+        # none. Kept as a guard rather than removed.
         return ChatTurn(
             reply="I stopped after several tool steps without reaching an answer.",
             tools_used=used,

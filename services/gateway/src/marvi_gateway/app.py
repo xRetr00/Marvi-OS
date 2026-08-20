@@ -1673,6 +1673,46 @@ def create_app(
         runtime_store.audit("providers", "disconnect", {"provider": name, "token": removed})
         return await providers()
 
+    @app.get("/voice/model")
+    async def voice_model() -> dict[str, Any]:
+        """What voice will actually call, and whether that is a good idea.
+
+        Reasoning is forced off for every voice turn, but a model that thinks
+        by default still spends its time before the first token, and the first
+        token is the whole experience of a spoken turn. This says so rather
+        than silently substituting something: which model answers is the user's
+        decision, and a UI that quietly overrides it is worse than one that
+        warns.
+        """
+        from .providers import catalog
+
+        try:
+            profile = provider_client.candidates()[0]
+        except IndexError:
+            return {"provider": "", "model": "", "warning": "No provider is available."}
+
+        model = profile.model_for("main")
+        cards = await anyio.to_thread.run_sync(lambda: catalog.models(profile))
+        card = next((c for c in cards if c.id == model), None)
+
+        warning = ""
+        suggestion = ""
+        if card is not None and card.reasons and not card.light:
+            lighter = next((c for c in cards if c.light and not c.reasons), None) or next(
+                (c for c in cards if c.light), None
+            )
+            suggestion = lighter.id if lighter else ""
+            warning = (
+                f"{card.name} reasons before it answers. Marvi turns that off for voice, "
+                "but a model built for thinking still starts slowly."
+            )
+        return {
+            "provider": profile.name,
+            "model": model,
+            "warning": warning,
+            "suggestion": suggestion,
+        }
+
     @app.get("/voices")
     async def voice_list() -> dict[str, Any]:
         """The voices Marvi can speak in, and which one is chosen.
@@ -1770,12 +1810,17 @@ def create_app(
         """
         # The LiveKit OpenAI plugin speaks chat completions, and a local server
         # that is merely configured is not the same as one that is running.
+        # A provider with no model name is not usable, however reachable it is:
+        # the Agent would build a session against an empty model and the worker
+        # would die on the first turn. That is what "LM Studio / " in the voice
+        # readout was -- a local endpoint that was configured, had no model set,
+        # and won the fallback because nothing had been chosen.
         usable = [
             p
-            for p in provider_client.candidates(
-                os.environ.get("MARVI_PROVIDER", "").strip() or None
-            )
-            if p.api_mode == "chat_completions" and provider_client.reachable(p)
+            for p in provider_client.candidates()
+            if p.api_mode == "chat_completions"
+            and p.model_for("main")
+            and provider_client.reachable(p)
         ]
         if not usable:
             raise HTTPException(

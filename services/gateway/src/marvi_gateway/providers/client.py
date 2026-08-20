@@ -21,6 +21,7 @@ serves the background mind, which has nobody waiting on a first token.
 from __future__ import annotations
 
 import logging
+import os
 import time
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -347,11 +348,27 @@ class ProviderClient:
             return False
 
     def candidates(self, preferred: str | None = None) -> list[ProviderProfile]:
-        """Configured providers, preferred first, then local, then the rest."""
+        """Configured providers, preferred first, then local, then the rest.
+
+        `MARVI_PROVIDER` is the standing preference and is honoured here when
+        no explicit one is passed. It was not, which made choosing a provider
+        do nothing: the list is sorted local-first, so a machine with LM Studio
+        configured but not running tried it, waited for the connection to be
+        refused, tried Ollama, waited again, and only then reached the provider
+        the user had actually picked. Voice fared worse -- it takes the first
+        usable candidate and got a local endpoint with no model name.
+        """
         ready = [p for p in configured_profiles() if self.resting(p.name) <= 0]
         ready.sort(key=lambda p: 0 if p.access_path == "local" else 1)
+        preferred = preferred or os.environ.get("MARVI_PROVIDER", "").strip() or None
         if preferred:
-            chosen = get(preferred)
+            try:
+                chosen = get(preferred)
+            except Exception:
+                # A setting naming a provider that no longer exists is a stale
+                # setting, not a reason to stop answering.
+                logger.warning("ignoring unknown provider %r", preferred)
+                return ready
             ready = [p for p in ready if p.name != chosen.name]
             if chosen.configured() and self.resting(chosen.name) <= 0:
                 ready.insert(0, chosen)

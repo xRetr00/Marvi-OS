@@ -266,8 +266,51 @@ def test_a_tool_loop_is_bounded(store, tmp_path) -> None:
     ).send("go")
 
     # A model that keeps calling tools forever is a bill that grows forever.
+    # This fake ignores the fact that the last round offers no tools, which a
+    # real model cannot do -- so it reaches the guard, which is the point of
+    # the guard still existing.
+    from marvi_gateway.chat import MAX_TOOL_ROUNDS
+
     assert turn.error == "tool round limit reached"
-    assert len(turn.tools_used) <= 4
+    assert len(turn.tools_used) <= MAX_TOOL_ROUNDS
+
+
+def test_the_last_round_asks_for_an_answer_instead_of_more_tools(store, tmp_path) -> None:
+    """Running out of rounds must not throw the work away.
+
+    Four web searches for "who won the World Cup in 2026" used every round and
+    returned an empty reply with "tool round limit reached" -- the searches had
+    happened, the results were in the transcript, and the user got nothing. The
+    final round is offered no tools, so the model has to answer with what it
+    gathered.
+    """
+    from marvi_gateway.chat import MAX_TOOL_ROUNDS
+    from marvi_gateway.identity import IdentityFiles
+
+    offered: list[bool] = []
+
+    def handler(request):
+        body = json.loads(request.content)
+        offered.append("tools" in body)
+        if len(offered) < MAX_TOOL_ROUNDS:
+            return httpx.Response(200, json=wants("get_room_state", {}))
+        return httpx.Response(200, json=says("The room is fine."))
+
+    chat = Chat(
+        store=store,
+        client=ProviderClient(http=httpx.Client(transport=httpx.MockTransport(handler))),
+        identity=IdentityFiles(tmp_path),
+        dispatch=lambda name, arguments: {"status": "executed", "result": "again"},
+        tool_schemas=lambda: schemas_from_registry(registry()),
+    )
+
+    turn = chat.send("who won?")
+
+    assert turn.reply == "The room is fine."
+    assert turn.error == ""
+    # Tools on every round but the last, which is what forces an answer.
+    assert offered[:-1] == [True] * (MAX_TOOL_ROUNDS - 1)
+    assert offered[-1] is False
 
 
 def test_a_failed_tool_does_not_end_the_conversation(store, tmp_path) -> None:

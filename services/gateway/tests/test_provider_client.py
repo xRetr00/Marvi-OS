@@ -312,3 +312,45 @@ def test_the_warning_says_what_the_actual_risk_is() -> None:
 
 def test_usage_arithmetic() -> None:
     assert (Usage(input=10, output=5) + Usage(input=1, output=1)).total == 17
+
+
+# -- the selected provider ---------------------------------------------------
+
+
+def test_the_selected_provider_is_tried_first(monkeypatch) -> None:
+    """MARVI_PROVIDER is the standing choice, and it was being ignored.
+
+    `candidates` sorts local-first, so a machine with LM Studio configured but
+    not running tried it, waited for the connection to be refused, tried
+    Ollama, waited again, and only then reached the provider the user had
+    actually picked. Voice never recovered at all: it takes the first usable
+    candidate and got a local endpoint with no model name.
+    """
+    monkeypatch.setenv("MARVI_PROVIDER", "openrouter")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("MARVI_LMSTUDIO_URL", "http://127.0.0.1:1234/v1")
+
+    order = [p.name for p in ProviderClient().candidates()]
+
+    assert order[0] == "openrouter"
+
+
+def test_an_explicit_choice_still_beats_the_setting(monkeypatch) -> None:
+    """The composer's per-turn picker has to win over the standing default."""
+    monkeypatch.setenv("MARVI_PROVIDER", "openrouter")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+    order = [p.name for p in ProviderClient().candidates("openai")]
+
+    assert order[0] == "openai"
+
+
+def test_a_setting_naming_a_provider_that_does_not_exist_is_ignored(monkeypatch) -> None:
+    """A stale setting is not a reason to stop answering."""
+    monkeypatch.setenv("MARVI_PROVIDER", "a-provider-that-was-removed")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+
+    order = [p.name for p in ProviderClient().candidates()]
+
+    assert "openrouter" in order

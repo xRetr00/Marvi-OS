@@ -120,7 +120,15 @@ export function ModelsPanel(): React.JSX.Element {
               detail: entry.accessPath === 'local' ? 'Runs on this machine' : undefined
             }))}
             value={provider}
-            onChange={setProvider}
+            onChange={(next) => {
+              setProvider(next)
+              // The choice has to be written, not just held on the page.
+              // MARVI_PROVIDER is what every caller reads to decide who
+              // answers; without it the picker changed a model name for a
+              // provider nothing was going to call, and turns fell through to
+              // whichever local endpoint sorted first.
+              void save({ MARVI_PROVIDER: next })
+            }}
             placeholder="Choose a provider"
             searchPlaceholder="Search providers…"
             empty="No connected providers."

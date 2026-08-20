@@ -38,6 +38,11 @@ CACHE_SECONDS = 900.0
 #: What OpenRouter names in `supported_parameters` when a model can think.
 REASONING_PARAMS = ("reasoning", "include_reasoning")
 
+#: Name fragments that mark a model built for speed rather than depth. Used to
+#: suggest a voice model, never to restrict one: the user's choice always
+#: stands, and this only decides what is offered when nothing has been chosen.
+LIGHT_TIER = ("flash", "lite", "mini", "small", "turbo", "instant", "haiku", "nano")
+
 _cache: dict[str, tuple[float, list[ModelCard]]] = {}
 
 
@@ -60,10 +65,23 @@ class ModelCard:
     def reasons(self) -> bool:
         return bool(self.efforts)
 
+    @property
+    def light(self) -> bool:
+        """Built for speed rather than depth, by its own name.
+
+        A heuristic on the name, and deliberately only that: no provider
+        publishes a "fast" flag, and the vendors are consistent enough about
+        flash/mini/lite/haiku that the name is the best signal there is. It
+        suggests, never restricts.
+        """
+        lowered = self.id.lower()
+        return any(mark in lowered for mark in LIGHT_TIER)
+
     def as_row(self) -> dict[str, Any]:
         row = asdict(self)
         row["efforts"] = list(self.efforts)
         row["reasons"] = self.reasons
+        row["light"] = self.light
         return row
 
 

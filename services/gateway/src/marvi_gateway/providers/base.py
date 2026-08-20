@@ -288,6 +288,13 @@ class ProviderProfile:
         chosen = model or self.model_for()
         limit = max_tokens or self.default_max_tokens
         wants_stream = stream and self.supports_streaming
+        # Voice never reasons. Thinking happens before the first token, and the
+        # first token is the entire experience of a spoken turn: a model that
+        # deliberates for four seconds has not been thoughtful, it has been
+        # silent. Enforced here rather than at each call site, because a rule
+        # every caller has to remember is a rule that gets forgotten.
+        if job == "voice":
+            effort = None
 
         if self.api_mode == "anthropic":
             system, chat = _split_system(messages)
@@ -306,6 +313,8 @@ class ProviderProfile:
                 body["temperature"] = temperature
             if self.reasoning.style == "budget_tokens" and effort:
                 body["thinking"] = {"type": "enabled", "budget_tokens": int(effort)}
+            elif job == "voice" and self.reasoning.style == "budget_tokens":
+                body["thinking"] = {"type": "disabled"}
             if tools and self.supports_tools:
                 body["tools"] = [
                     {
@@ -353,6 +362,10 @@ class ProviderProfile:
         normalised = self.reasoning.normalise(effort)
         if normalised:
             body["reasoning_effort"] = normalised
+        elif job == "voice" and self.reasoning.style != "none":
+            # Asked off rather than merely left unset: several models reason by
+            # default, and silence on the parameter is not the same as "do not".
+            body["reasoning"] = {"enabled": False, "exclude": True}
         if cache_prefix and self.cache.style == "cache_key":
             body["prompt_cache_key"] = "marvi-system"
         if self.routes_upstream:
