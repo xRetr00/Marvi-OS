@@ -91,6 +91,13 @@ pub fn fetch_tags(dir: &Path) -> Result<(), GitError> {
     run(dir, &["fetch", "--tags", "--force", "origin"]).map(|_| ())
 }
 
+/// Where `origin` points. Used to work out which GitHub release to fetch the
+/// updater from, so the URL follows the checkout rather than being a constant
+/// that would be wrong for a fork.
+pub fn remote_url(dir: &Path) -> Result<String, GitError> {
+    run(dir, &["remote", "get-url", "origin"]).map(|out| out.trim().to_string())
+}
+
 /// List remote tag refs (`refs/tags/...`) via `ls-remote`, without mutating
 /// the local repository. Read-only network operation for the check path.
 pub fn ls_remote_tags(dir: &Path) -> Result<Vec<String>, GitError> {

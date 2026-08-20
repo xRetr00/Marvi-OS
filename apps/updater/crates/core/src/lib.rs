@@ -13,6 +13,7 @@ pub mod journal;
 pub mod install;
 pub mod marker;
 pub mod result;
+pub mod selfupdate;
 pub mod singleton;
 pub mod tags;
 pub mod toolchain;

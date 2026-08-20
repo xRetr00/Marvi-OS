@@ -198,6 +198,25 @@ pub fn run_update(cfg: &mut UpdateConfig, progress: &mut dyn FnMut(&str)) -> Upd
 
     discard_backups(&backups);
 
+    // The updater updates itself, last, and only on a release tag -- that is
+    // the only channel with a published binary to fetch. Until now this was
+    // the one component an update could not deliver: it is a compiled binary
+    // in state/bin, an update only rebuilds the JavaScript, and the running
+    // process cannot overwrite the file it is executing. So every fix to the
+    // updater sat in the checkout until someone downloaded an installer.
+    //
+    // Never fatal. An update that worked and could not refresh the updater is
+    // still an update that worked, and the alternative -- failing the whole
+    // thing over a download -- would make the machine harder to fix, not
+    // easier.
+    if let Some(tag) = target_ref.as_deref() {
+        match crate::selfupdate::refresh(&cfg.state_dir, &root, tag, progress) {
+            Ok(true) => progress("the updater will be the new one from the next launch"),
+            Ok(false) => {}
+            Err(error) => progress(&format!("warning: could not refresh the updater: {error}")),
+        }
+    }
+
     // Also on update, not only on install. An existing installation predates
     // the handoff entirely — no `marvi` command, no shortcut, no LiveKit
     // server — and updating is how those machines get them. Every step is
