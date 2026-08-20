@@ -1782,7 +1782,7 @@ dependencies = [
 
 [[package]]
 name = "marvi-bootstrap"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "marvi-bootstrap-core",
  "serde",
@@ -1793,7 +1793,7 @@ dependencies = [
 
 [[package]]
 name = "marvi-bootstrap-core"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "semver",
  "serde",
