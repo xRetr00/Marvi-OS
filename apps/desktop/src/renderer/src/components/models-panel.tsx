@@ -1,221 +1,205 @@
 import { useEffect, useState } from 'react'
 
-import type {
-  ModelCard,
-  ModelPage,
-  ModelProvider,
-  ProviderPage,
-  UpstreamPage
-} from '../../../shared/runtime'
+import type { ModelCard, ModelProvider, ProviderPage, UpstreamPage } from '../../../shared/runtime'
 import { AsciiRule } from './ui/ascii-rule'
 import { Picker, type PickerOption } from './ui/picker'
 
 /**
  * Choosing a model, an effort, and — for a gateway — who serves it.
  *
- * Split from Providers because they answer different questions. Providers is
- * "can Marvi reach this at all": credentials, sign-in, spend. This is "what
- * should it use", which you change far more often and which has nothing to do
- * with a key.
+ * One question at a time, in the order they depend on each other. It first
+ * listed every configured provider at once, each with its own card and its own
+ * model list, which repeated the Providers page and asked five questions to
+ * answer one. A model list means nothing before a provider is chosen, so the
+ * provider is the only question on screen until it has an answer.
+ *
+ * Models are fetched for the chosen provider, when it is chosen. Loading four
+ * hundred OpenRouter models to fill a picker nobody opened is work nobody
+ * asked for.
  *
  * Everything here writes an environment variable the registry already reads,
  * so nothing is stored twice and nothing is hard-coded in the UI.
  */
 
+function contextLabel(tokens: number): string {
+  if (!tokens) return ''
+  return tokens >= 1000 ? `${Math.round(tokens / 1000)}K context` : `${tokens} context`
+}
+
 function price(model: ModelCard): string {
   // Null and zero are different: a free model is real, and a price the
   // provider never published must not read as free.
   if (model.promptPerMillion === null) return ''
-  const input = `$${model.promptPerMillion}`
   const output = model.completionPerMillion === null ? '' : ` / $${model.completionPerMillion}`
-  return `${input}${output} per M`
-}
-
-function contextLabel(tokens: number): string {
-  if (!tokens) return ''
-  return tokens >= 1000 ? `${Math.round(tokens / 1000)}K ctx` : `${tokens} ctx`
-}
-
-function modelOptions(models: ModelCard[]): PickerOption[] {
-  return models.map((model) => ({
-    value: model.id,
-    label: model.name,
-    // The id under the display name, because the id is what a provider error
-    // will name and the display name is what you recognise.
-    detail: model.id === model.name ? undefined : model.id,
-    hint: [contextLabel(model.context), price(model)].filter(Boolean).join('  ')
-  }))
+  return `$${model.promptPerMillion}${output} per M`
 }
 
 export function ModelsPanel(): React.JSX.Element {
-  const [page, setPage] = useState<ModelPage | null>(null)
   const [providers, setProviders] = useState<ProviderPage | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [provider, setProvider] = useState('')
+  const [catalog, setCatalog] = useState<ModelProvider | null>(null)
   const [error, setError] = useState('')
 
-  /**
-   * Fetch the catalog and the provider settings together.
-   *
-   * Inline in the effect rather than behind a useCallback: the lint rule that
-   * catches cascading renders cannot see through a call to another function,
-   * and hiding an await behind one to quiet it would be defeating the check
-   * rather than passing it.
-   */
   useEffect(() => {
     let gone = false
     void (async () => {
-      const [models, settings] = await Promise.all([
-        window.marvi?.getModels({}),
-        window.marvi?.getProviders()
-      ])
-      // Guarded: this reaches several providers' APIs and can outlive the page.
+      const page = await window.marvi?.getProviders()
       if (gone) return
-      setPage(models ?? null)
-      setProviders(settings ?? null)
-      setError(models ? '' : 'Marvi Gateway is unavailable')
-      setLoading(false)
+      setProviders(page ?? null)
+      setError(page ? '' : 'Marvi Gateway is unavailable.')
+      // Open on whichever provider is already answering, so the page shows the
+      // current arrangement rather than an empty form.
+      if (page?.selected) setProvider(page.selected)
     })()
     return () => {
       gone = true
     }
   }, [])
 
-  const refresh = (): void => {
-    setLoading(true)
+  useEffect(() => {
+    if (!provider) return
+    let gone = false
     void (async () => {
-      const [models, settings] = await Promise.all([
-        window.marvi?.getModels({ refresh: true }),
-        window.marvi?.getProviders()
-      ])
-      setPage(models ?? null)
-      setProviders(settings ?? null)
-      setError(models ? '' : 'Marvi Gateway is unavailable')
-      setLoading(false)
+      const page = await window.marvi?.getModels({ provider })
+      if (gone) return
+      setCatalog(page?.providers[0] ?? null)
     })()
-  }
+    return () => {
+      gone = true
+    }
+  }, [provider])
+
+  // The catalog is only this provider's when it says so. Derived rather than
+  // cleared on every change: clearing was a synchronous setState in an effect,
+  // and it also let the previous provider's models show for a frame after
+  // switching -- a list of models you cannot actually select.
+  const active = catalog?.provider === provider ? catalog : null
+  const loading = Boolean(provider) && active === null
+
+  const connected = (providers?.providers ?? []).filter((row) => row.configured)
+  const settings = providers?.settings ?? {}
+  const row = providers?.providers.find((entry) => entry.name === provider)
+
+  const model = settings[row?.env.model ?? ''] || active?.selected || ''
+  const chosen = active?.models.find((entry) => entry.id === model)
+  const effortEnv = row?.env.effort ?? ''
 
   const save = async (values: Record<string, string>): Promise<void> => {
     const next = await window.marvi?.setProviderSettings(values)
     if (next) setProviders(next)
-    else setError('Could not save; the Gateway did not accept the change')
+    else setError('Could not save. The Gateway did not accept the change.')
   }
-
-  const rows = page?.providers ?? []
 
   return (
     <section className="single-page panel">
       <div className="panel-label">{'// MODELS'}</div>
       <h2>Models</h2>
       <p>
-        Every list here is what the provider says it has, asked when this page opened rather than
-        typed from memory. Effort appears only on models that reason — the rest ignore it, and a
-        control that does nothing is worse than no control.
+        Each list is what the provider says it has, asked when you pick one rather than typed from
+        memory. Connecting a provider and managing its credentials happens in Providers.
       </p>
-
-      <div className="context-line">
-        <span>CATALOG</span>
-        <button className="phase" type="button" onClick={refresh} disabled={loading}>
-          {loading ? 'LOADING…' : 'REFRESH'}
-        </button>
-      </div>
 
       <AsciiRule />
 
-      {error ? <span className="construction">{error.toUpperCase()}</span> : null}
+      {error ? <p className="notice notice-warn">{error}</p> : null}
 
-      {!loading && rows.length === 0 && !error ? (
-        <p className="construction">
-          NO PROVIDER IS CONNECTED. OPEN PROVIDERS AND CONNECT ONE FIRST.
+      {providers && connected.length === 0 ? (
+        <p className="notice">
+          No provider is connected yet. Open Providers, connect one, and its models will be listed
+          here.
         </p>
       ) : null}
 
-      <div className="service-list">
-        {rows.map((row) => (
-          <ProviderModels
-            key={row.provider}
-            row={row}
-            effortEnv={providers?.providers.find((p) => p.name === row.provider)?.env.effort ?? ''}
-            modelEnv={providers?.providers.find((p) => p.name === row.provider)?.env.model ?? ''}
-            settings={providers?.settings ?? {}}
-            onSave={save}
+      <div className="choice-flow">
+        <div className="choice-row">
+          <span className="choice-label">PROVIDER</span>
+          <Picker
+            options={connected.map((entry) => ({
+              value: entry.name,
+              label: entry.label,
+              detail: entry.accessPath === 'local' ? 'Runs on this machine' : undefined
+            }))}
+            value={provider}
+            onChange={setProvider}
+            placeholder="Choose a provider"
+            searchPlaceholder="Search providers…"
+            empty="No connected providers."
           />
-        ))}
-      </div>
-    </section>
-  )
-}
+        </div>
 
-function ProviderModels({
-  row,
-  modelEnv,
-  effortEnv,
-  settings,
-  onSave
-}: {
-  row: ModelProvider
-  modelEnv: string
-  effortEnv: string
-  settings: Record<string, string>
-  onSave: (values: Record<string, string>) => Promise<void>
-}): React.JSX.Element {
-  const [model, setModel] = useState(row.selected)
-  const chosen = row.models.find((entry) => entry.id === model)
-  const effort = settings[effortEnv] ?? ''
+        <div className="choice-row">
+          <span className="choice-label">
+            MODEL
+            <span className="choice-hint">
+              {!provider
+                ? 'Choose a provider first'
+                : loading
+                  ? 'Asking the provider…'
+                  : active?.models.length
+                    ? `${active.models.length} available`
+                    : 'This provider listed none'}
+            </span>
+          </span>
+          <Picker
+            options={(active?.models ?? []).map(
+              (entry): PickerOption => ({
+                value: entry.id,
+                // The id under the name, because the id is what a provider
+                // error quotes back and the name is what you recognise.
+                label: entry.name,
+                detail: entry.id === entry.name ? undefined : entry.id,
+                hint: [contextLabel(entry.context), price(entry)].filter(Boolean).join('  ')
+              })
+            )}
+            value={model}
+            onChange={(next) => {
+              if (row?.env.model) void save({ [row.env.model]: next })
+            }}
+            placeholder={model || 'Choose a model'}
+            searchPlaceholder="Search models…"
+            empty="This provider listed no models."
+            disabled={!provider || loading || !active?.models.length}
+          />
+        </div>
 
-  const choose = async (next: string): Promise<void> => {
-    setModel(next)
-    if (modelEnv) await onSave({ [modelEnv]: next })
-  }
-
-  return (
-    <div className="service-card">
-      <div className="service-head">
-        <strong>{row.label}</strong>
-        <span className="panel-label">
-          {row.reachable ? `${row.models.length} MODELS` : 'LISTED NOTHING'}
-        </span>
-      </div>
-
-      {!row.reachable ? (
-        <p className="construction">
-          THIS PROVIDER IS CONFIGURED BUT RETURNED NO MODELS. THE KEY MAY BE WRONG, OR ITS API MAY
-          BE UNREACHABLE FROM HERE.
-        </p>
-      ) : null}
-
-      <label className="field">
-        <span className="panel-label">{'// MODEL'}</span>
-        <Picker
-          options={modelOptions(row.models)}
-          value={model}
-          onChange={(next) => void choose(next)}
-          placeholder={row.selected || 'Choose a model'}
-          searchPlaceholder="Search models…"
-          empty="This provider listed no models."
-          disabled={!row.reachable}
-        />
-      </label>
-
-      {chosen?.reasons && effortEnv ? (
-        <label className="field">
-          <span className="panel-label">{'// EFFORT'}</span>
+        <div className="choice-row">
+          <span className="choice-label">
+            EFFORT
+            <span className="choice-hint">
+              {!chosen
+                ? 'Choose a model first'
+                : chosen.reasons
+                  ? 'How long it thinks before answering'
+                  : 'This model does not reason'}
+            </span>
+          </span>
           <Picker
             options={[
               { value: '', label: 'Provider default' },
-              ...chosen.efforts.map((level) => ({
+              ...(chosen?.efforts ?? []).map((level) => ({
                 value: level,
                 label: level.charAt(0).toUpperCase() + level.slice(1)
               }))
             ]}
-            value={effort}
-            onChange={(next) => void onSave({ [effortEnv]: next })}
+            value={settings[effortEnv] ?? ''}
+            onChange={(next) => {
+              if (effortEnv) void save({ [effortEnv]: next })
+            }}
             placeholder="Provider default"
+            disabled={!chosen?.reasons || !effortEnv}
           />
-        </label>
-      ) : null}
+        </div>
 
-      {row.routesUpstream ? <UpstreamChoice model={model} onSave={onSave} /> : null}
-    </div>
+        {active?.routesUpstream ? <UpstreamChoice model={model} onSave={save} /> : null}
+      </div>
+
+      {active && !active.reachable ? (
+        <p className="notice notice-warn">
+          {active.label} is configured but returned no models. Its credential may be wrong, or its
+          API may not be reachable from this machine.
+        </p>
+      ) : null}
+    </section>
   )
 }
 
@@ -223,7 +207,7 @@ function ProviderModels({
  * Who actually serves an OpenRouter model.
  *
  * OpenRouter is a marketplace, not a host: one model name, several upstreams,
- * different prices and different speeds. Its default picks the cheapest
+ * different prices and different speeds. Its own default takes the cheapest
  * reliable one, which is the wrong default for voice — first-token time is the
  * whole experience of a spoken turn.
  */
@@ -239,13 +223,14 @@ function UpstreamChoice({
   const [pinned, setPinned] = useState('')
 
   useEffect(() => {
-    let disposed = false
+    if (!model) return
+    let gone = false
     void (async () => {
       const next = await window.marvi?.getUpstreams(model)
-      if (!disposed) setPage(next ?? null)
+      if (!gone) setPage(next ?? null)
     })()
     return () => {
-      disposed = true
+      gone = true
     }
   }, [model])
 
@@ -253,30 +238,39 @@ function UpstreamChoice({
 
   return (
     <>
-      <label className="field">
-        <span className="panel-label">{'// ROUTING'}</span>
+      <div className="choice-row">
+        <span className="choice-label">
+          ROUTING
+          <span className="choice-hint">Resolved per request against live numbers</span>
+        </span>
         <Picker
-          options={(page?.policies ?? ['auto', 'cheapest', 'fastest', 'throughput']).map(
-            (name) => ({
-              value: name === 'auto' ? '' : name,
-              label: name.charAt(0).toUpperCase() + name.slice(1),
-              detail:
-                name === 'fastest'
-                  ? 'Resolved per request, against numbers OpenRouter measures'
+          options={(page?.policies ?? ['auto', 'cheapest', 'fastest', 'throughput']).map((name) => ({
+            value: name === 'auto' ? '' : name,
+            label: name.charAt(0).toUpperCase() + name.slice(1),
+            detail:
+              name === 'fastest'
+                ? 'Best for voice — first-token time is the whole experience'
+                : name === 'cheapest'
+                  ? "OpenRouter's own default"
                   : undefined
-            })
-          )}
+          }))}
           value={policy}
           onChange={(next) => {
             setPolicy(next)
             void onSave({ MARVI_OPENROUTER_ROUTE: next })
           }}
           placeholder="Auto — OpenRouter decides"
+          disabled={!model}
         />
-      </label>
+      </div>
 
-      <label className="field">
-        <span className="panel-label">{'// PREFER ONE PROVIDER'}</span>
+      <div className="choice-row">
+        <span className="choice-label">
+          PREFER ONE PROVIDER
+          <span className="choice-hint">
+            {upstreams.length ? `${upstreams.length} can serve this model` : 'Optional'}
+          </span>
+        </span>
         <Picker
           options={[
             { value: '', label: 'No preference' },
@@ -286,9 +280,9 @@ function UpstreamChoice({
               detail: [
                 upstream.quantization,
                 contextLabel(upstream.context),
-                // Usually absent. OpenRouter publishes latency per endpoint
-                // and leaves most unset, so this says so rather than showing
-                // a zero that reads as instant.
+                // Usually absent. OpenRouter publishes latency per endpoint and
+                // leaves most unset, so this says so rather than showing a zero
+                // that reads as instant.
                 upstream.latencyMs === null ? 'latency unpublished' : `${upstream.latencyMs} ms`
               ]
                 .filter(Boolean)
@@ -302,10 +296,11 @@ function UpstreamChoice({
             void onSave({ MARVI_OPENROUTER_PROVIDERS: next })
           }}
           placeholder="No preference"
-          empty="OpenRouter listed no upstreams for this model."
           searchPlaceholder="Search providers…"
+          empty="OpenRouter listed no upstreams for this model."
+          disabled={!model || upstreams.length === 0}
         />
-      </label>
+      </div>
     </>
   )
 }

@@ -470,9 +470,10 @@
   font-size: 10px;
 }
 
-/* The hint and the session model picker share the line under the field: the
- * picker is a per-conversation choice, so it sits with the composer rather
- * than in settings, and stays visually quieter than the field itself. */
+/* The hint and the session pickers share the line under the field. The
+ * pickers were 240px wide holding a popover sized to their trigger, so every
+ * row read "AionLa…" over "OpenRou…" — a list of ellipses. The popover now has
+ * a floor of its own and the triggers have room for a model name. */
 .chat-compose-foot {
   display: flex;
   align-items: center;
@@ -480,17 +481,32 @@
   gap: 12px;
 }
 
-.chat-model-picker {
-  width: auto;
-  max-width: 240px;
-  padding: 4px 8px;
-  border-color: transparent;
-  background: transparent;
-  color: var(--ui-text-tertiary);
-  font-size: 11px;
+.chat-session-model {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.chat-model-picker:hover:not(:disabled) {
-  border-color: var(--ui-stroke-secondary);
+.chat-model-picker,
+.chat-effort-picker {
+  width: auto;
+  padding: 5px 10px;
+  border-color: var(--ui-stroke-tertiary);
+  background: transparent;
   color: var(--ui-text-secondary);
+  font-size: 12px;
+}
+
+.chat-model-picker {
+  max-width: 260px;
+}
+
+.chat-effort-picker {
+  max-width: 150px;
+}
+
+.chat-model-picker:hover:not(:disabled),
+.chat-effort-picker:hover:not(:disabled) {
+  border-color: var(--ui-stroke-primary);
+  color: var(--ui-text-primary);
 }

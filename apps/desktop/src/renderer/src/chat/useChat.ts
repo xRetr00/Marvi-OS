@@ -16,8 +16,8 @@ export interface UseChat {
   clear: () => Promise<void>
   resolve: (decision: 'approve' | 'deny') => Promise<void>
   /** The model this session picked, if any. Sent per turn, stored nowhere. */
-  override: { provider?: string; model?: string }
-  setOverride: (next: { provider?: string; model?: string }) => void
+  override: { provider?: string; model?: string; effort?: string }
+  setOverride: (next: { provider?: string; model?: string; effort?: string }) => void
 }
 
 export function useChat(): UseChat {
@@ -33,7 +33,9 @@ export function useChat(): UseChat {
    * configured default would make whatever anyone last experimented with the
    * new model for voice, mind and vision as well.
    */
-  const [override, setOverride] = useState<{ provider?: string; model?: string }>({})
+  const [override, setOverride] = useState<{ provider?: string; model?: string; effort?: string }>(
+    {}
+  )
   const [pending, setPending] = useState<PendingConfirmation | null>(null)
 
   useEffect(() => {

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import appIcon from './assets/app-icon.ico'
 import { BootFailureOverlay } from './components/BootFailureOverlay'
 import { AsciiRule } from './components/ui/ascii-rule'
+import { ConversationBar } from './components/conversation-bar'
 import { ModelsPanel } from './components/models-panel'
 import { Picker } from './components/ui/picker'
 import { CommandCard } from './components/ui/command-card'
@@ -64,7 +65,7 @@ import type {
 } from '../../shared/runtime'
 import { deviceLabel, deviceState } from '../../shared/runtime'
 import type { IslandAlignment, IslandPlacement } from '../../main/island-window'
-import { $voiceLink, startVoice, stopVoice } from './store/voice-session'
+import { startVoice, stopVoice } from './store/voice-session'
 
 /**
  * The sidebar, grouped by what a page is *for*.
@@ -1438,7 +1439,6 @@ function ServiceHealth({ compact = false }: { compact?: boolean }): React.JSX.El
 
 function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
   const voice = useStore($voiceState)
-  const link = useStore($voiceLink)
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([])
   const [deviceError, setDeviceError] = useState('')
 
@@ -1515,29 +1515,6 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
         </div>
       </dl>
 
-      {/* Bottom-left: being in the room is a thing you can stop. It used to run
-          from launch to quit with no control anywhere, which is the wrong
-          default for a microphone. */}
-      <div className="voice-hud voice-hud-session">
-        <span className={`voice-link voice-link-${link}`}>
-          {link === 'live' ? 'IN THE ROOM' : link === 'connecting' ? 'JOINING…' : 'NOT JOINED'}
-        </span>
-        {link === 'off' ? (
-          <button className="phase" type="button" onClick={() => void startVoice()}>
-            START
-          </button>
-        ) : (
-          <button
-            className="phase"
-            type="button"
-            disabled={link === 'connecting'}
-            onClick={() => void stopVoice()}
-          >
-            END
-          </button>
-        )}
-      </div>
-
       {/* Bottom: the live transcript, streaming. Two lines at most — this is a
           glance while talking, not a record; Chat is where a transcript lives. */}
       <div aria-live="polite" className="voice-transcript">
@@ -1554,6 +1531,11 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
           </p>
         ) : null}
       </div>
+
+      {/* Its own bar, not floating on the orb: the orb surface takes the
+          pointer for rotation, and a control sharing a surface with a drag
+          target is a control you fight with. */}
+      <ConversationBar level={voice.level} />
     </section>
   )
 }

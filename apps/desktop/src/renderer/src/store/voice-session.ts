@@ -20,6 +20,15 @@ export type VoiceLink = 'off' | 'connecting' | 'live'
 
 export const $voiceLink = atom<VoiceLink>('off')
 
+/**
+ * Whether the microphone is publishing.
+ *
+ * Separate from joining, because they are different intentions: leaving ends
+ * the conversation, muting pauses your side of one. Someone who mutes to cough
+ * does not want Marvi to forget what they were talking about.
+ */
+export const $voiceMuted = atom(false)
+
 let room: Room | null = null
 /** Guards against a second start while the first is still connecting. */
 let starting: Promise<void> | null = null
@@ -36,6 +45,9 @@ export async function startVoice(): Promise<void> {
       connected.once('disconnected', () => {
         room = null
         $voiceLink.set('off')
+        // A new call starts unmuted. Carrying mute across a hang-up means
+        // rejoining and silently not being heard.
+        $voiceMuted.set(false)
       })
       $voiceLink.set('live')
     })
@@ -55,6 +67,13 @@ export async function stopVoice(): Promise<void> {
   room = null
   $voiceLink.set('off')
   if (current) await current.disconnect()
+}
+
+export async function setMuted(muted: boolean): Promise<void> {
+  $voiceMuted.set(muted)
+  // Unpublishing rather than gating locally: a muted microphone that still
+  // sends audio is a promise the UI cannot keep.
+  await room?.localParticipant.setMicrophoneEnabled(!muted)
 }
 
 export function voiceRoom(): Room | null {

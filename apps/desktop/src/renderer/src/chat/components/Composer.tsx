@@ -26,8 +26,8 @@ export function Composer({
   available: boolean
   onDraftChange: (next: string) => void
   onSend: () => void
-  override?: { provider?: string; model?: string }
-  onOverrideChange?: (next: { provider?: string; model?: string }) => void
+  override?: { provider?: string; model?: string; effort?: string }
+  onOverrideChange?: (next: { provider?: string; model?: string; effort?: string }) => void
 }): React.JSX.Element {
   const field = useRef<HTMLTextAreaElement | null>(null)
 
@@ -95,29 +95,30 @@ function SessionModel({
   value,
   onChange
 }: {
-  value: { provider?: string; model?: string }
-  onChange: (next: { provider?: string; model?: string }) => void
+  value: { provider?: string; model?: string; effort?: string }
+  onChange: (next: { provider?: string; model?: string; effort?: string }) => void
 }): React.JSX.Element | null {
   const [page, setPage] = useState<ModelPage | null>(null)
 
   useEffect(() => {
-    let disposed = false
+    let gone = false
     void (async () => {
-      const next = await window.marvi?.getModels()
-      if (!disposed) setPage(next ?? null)
+      const next = await window.marvi?.getModels({})
+      if (!gone) setPage(next ?? null)
     })()
     return () => {
-      disposed = true
+      gone = true
     }
   }, [])
 
   const providers = page?.providers ?? []
   if (providers.length === 0) return null
 
-  // Flat, because the choice is a model and the provider is a consequence of
-  // it. Two dependent dropdowns would be a step longer for the same answer.
+  // Flat, because the choice is a model and the provider follows from it. Two
+  // dependent dropdowns would be a step longer for the same answer, and this
+  // one lives beside a text field rather than on a settings page.
   const options: PickerOption[] = [
-    { value: '', label: 'Default model', detail: 'Whatever Providers is set to' },
+    { value: '', label: 'Default model', detail: 'Whatever Models is set to' },
     ...providers.flatMap((provider) =>
       provider.models.map((model) => ({
         value: `${provider.provider}::${model.id}`,
@@ -128,19 +129,41 @@ function SessionModel({
   ]
 
   const selected = value.model ? `${value.provider}::${value.model}` : ''
+  const chosen = providers
+    .find((provider) => provider.provider === value.provider)
+    ?.models.find((model) => model.id === value.model)
 
   return (
-    <Picker
-      className="chat-model-picker"
-      options={options}
-      value={selected}
-      onChange={(next) => {
-        if (!next) return onChange({})
-        const [provider, ...rest] = next.split('::')
-        onChange({ provider, model: rest.join('::') })
-      }}
-      placeholder="Default model"
-      searchPlaceholder="Search models…"
-    />
+    <div className="chat-session-model">
+      <Picker
+        className="chat-model-picker"
+        options={options}
+        value={selected}
+        onChange={(next) => {
+          if (!next) return onChange({})
+          const [provider, ...rest] = next.split('::')
+          // Effort is dropped with the model: a level chosen for one model
+          // means nothing on another, and may not even be accepted.
+          onChange({ provider, model: rest.join('::') })
+        }}
+        placeholder="Default model"
+        searchPlaceholder="Search models…"
+      />
+      {chosen?.reasons ? (
+        <Picker
+          className="chat-effort-picker"
+          options={[
+            { value: '', label: 'Default effort' },
+            ...chosen.efforts.map((level) => ({
+              value: level,
+              label: level.charAt(0).toUpperCase() + level.slice(1)
+            }))
+          ]}
+          value={value.effort ?? ''}
+          onChange={(effort) => onChange({ ...value, effort })}
+          placeholder="Default effort"
+        />
+      ) : null}
+    </div>
   )
 }

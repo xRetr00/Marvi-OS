@@ -1643,9 +1643,13 @@ small,
 
 .voice-orb-surface {
   position: absolute;
-  inset: 0;
+  /* Stops short of the conversation bar rather than filling the page: it used
+   * to sit under the controls as well, so the crosshair followed the cursor
+   * over buttons that could not be pressed. */
+  inset: 0 0 var(--convo-bar-height) 0;
   /* The pointer drives the orb's rotation, so the surface has to receive it. */
   cursor: crosshair;
+  z-index: 1;
 }
 
 .voice-orb-canvas {
@@ -1659,8 +1663,18 @@ small,
    where the rotation stops responding. */
 .voice-hud {
   position: absolute;
+  /* The orb below takes the pointer for its rotation, so the readout must let
+   * it through. Anything interactive inside has to opt back in -- putting a
+   * button in here without that made it unclickable and left the crosshair
+   * cursor showing over it, which is the orb's cursor, not the button's. */
   pointer-events: none;
   z-index: 2;
+}
+
+.voice-hud button,
+.voice-hud .picker-trigger {
+  pointer-events: auto;
+  cursor: pointer;
 }
 
 .voice-hud-state {
@@ -2061,7 +2075,11 @@ small,
 .picker-panel {
   display: flex;
   flex-direction: column;
-  width: var(--radix-popover-trigger-width);
+  /* A floor, not the trigger's width. A 240px trigger gave a 240px popover, so
+   * a list of model names rendered as a column of ellipses -- "AionLa…" over
+   * "OpenRou…" tells you nothing about which model you are choosing. */
+  width: max(var(--radix-popover-trigger-width), 380px);
+  max-width: calc(100vw - 32px);
   max-height: min(340px, var(--radix-popover-content-available-height));
   overflow: hidden;
   border: 1px solid var(--ui-stroke-primary);
@@ -2220,4 +2238,150 @@ small,
   flex-direction: column;
   gap: 8px;
   min-width: 260px;
+}
+
+/* -- Conversation bar ------------------------------------------------------
+ * Being in the room is a call, so it gets the controls a call has. Below the
+ * orb rather than over it: the orb takes the pointer for rotation, and a
+ * button sharing a surface with a drag target is a button you fight with.
+ */
+:root {
+  --convo-bar-height: 56px;
+}
+
+.convo-bar {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  height: var(--convo-bar-height);
+  align-items: center;
+  gap: 14px;
+  padding: 0 20px;
+  border-top: 1px solid var(--ui-stroke-tertiary);
+  background: var(--ui-bg-raised);
+  z-index: 3;
+}
+
+.convo-meter {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 22px;
+}
+
+.convo-bar-tick {
+  width: 3px;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--ui-stroke-primary);
+  transform: scaleY(0.28);
+  transition:
+    transform 90ms linear,
+    background-color 160ms ease;
+}
+
+.convo-bar-tick.is-lit {
+  background: var(--ui-accent);
+}
+
+.convo-state {
+  flex: 1;
+  color: var(--ui-text-secondary);
+  font-size: 12px;
+}
+
+.convo-button {
+  padding: 7px 16px;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ui-text-primary);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.convo-button:hover:not(:disabled) {
+  border-color: var(--ui-stroke-primary);
+  color: var(--ui-text-emphasis);
+}
+
+.convo-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.convo-button.is-muted {
+  border-color: var(--ui-danger);
+  color: var(--ui-danger);
+}
+
+.convo-call {
+  border-color: var(--ui-accent);
+  color: var(--ui-accent);
+}
+
+.convo-call.is-live {
+  border-color: var(--ui-danger);
+  background: transparent;
+  color: var(--ui-danger);
+}
+
+/* Explanatory text, in sentence case at a size you can read.
+ *
+ * `.construction` is 11px letter-spaced caps, which works for a two-word
+ * label and turns a full sentence into a wall — several of them had become
+ * paragraphs of shouting. Anything longer than a label belongs here. */
+.notice {
+  margin: 0;
+  color: var(--ui-text-secondary);
+  font-family:
+    Inter,
+    -apple-system,
+    system-ui,
+    sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.notice-warn {
+  color: var(--ui-danger);
+}
+
+/* -- Progressive picker rows ----------------------------------------------
+ * One question at a time. A model list is meaningless before a provider is
+ * chosen, and an effort is meaningless before a model, so each step stays
+ * disabled until the one above it is answered. */
+.choice-flow {
+  display: flex;
+  max-width: 620px;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.choice-row {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.choice-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--ui-text-secondary);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+}
+
+.choice-hint {
+  color: var(--ui-text-tertiary);
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
 }
