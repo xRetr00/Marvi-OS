@@ -166,7 +166,20 @@ pub fn run_update(cfg: &mut UpdateConfig, progress: &mut dyn FnMut(&str)) -> Upd
     }
 
     // -- snapshot built output so a failed build cannot break relaunch -----
-    let backups = snapshot_build_output(&root);
+    // Fails the update rather than proceeding without one. Proceeding is what
+    // deleted an installation: the build output could not be moved aside, the
+    // failure was swallowed, and the rollback later had nothing to restore.
+    let backups = match snapshot_build_output(&root) {
+        Ok(backups) => backups,
+        Err(message) => {
+            let out = UpdateOutcome::new(
+                "aborted",
+                format!("{message} The installation was left untouched."),
+            );
+            finish(cfg, &out, true);
+            return out;
+        }
+    };
 
     // -- apply -------------------------------------------------------------
     progress(&format!("updating to {}", short(&target)));
@@ -350,20 +363,42 @@ struct Backup {
     backup: PathBuf,
 }
 
-fn snapshot_build_output(root: &Path) -> Vec<Backup> {
-    [OUT_DIR, DIST_DIR]
-        .iter()
-        .filter_map(|rel| {
-            let original = root.join(rel);
-            if !original.exists() {
-                return None;
+/// Move the built runtime aside so a failed build can be undone.
+///
+/// Errors rather than skipping. It used to `.ok()` a failed rename, which is
+/// how an update destroyed an installation: the desktop was still holding
+/// `dist`, so the rename failed, so no backup was recorded -- silently -- and
+/// the update carried on believing it could roll back. electron-builder then
+/// emptied `dist` itself, failed partway with EBUSY, and the rollback had
+/// nothing to put back. The app was gone and no retry brought it back.
+///
+/// A snapshot that did not happen is worse than no snapshot, because
+/// everything after it assumes the undo will work.
+fn snapshot_build_output(root: &Path) -> Result<Vec<Backup>, String> {
+    let mut backups = Vec::new();
+    for rel in [OUT_DIR, DIST_DIR] {
+        let original = root.join(rel);
+        if !original.exists() {
+            continue;
+        }
+        let backup = root.join(format!("{}.marvi-bak", rel.replace('/', "-")));
+        // A leftover from an interrupted run would fail the rename for a
+        // reason that has nothing to do with the app still running.
+        let _ = std::fs::remove_dir_all(&backup);
+        match std::fs::rename(&original, &backup) {
+            Ok(()) => backups.push(Backup { original, backup }),
+            Err(error) => {
+                // Put back whatever did move, so a refusal leaves the
+                // installation exactly as it was found.
+                restore_build_output(&backups);
+                return Err(format!(
+                    "{} could not be backed up ({error}). Marvi may still be running.",
+                    original.display()
+                ));
             }
-            let backup = root.join(format!("{}.marvi-bak", rel.replace('/', "-")));
-            std::fs::rename(&original, &backup)
-                .ok()
-                .map(|_| Backup { original, backup })
-        })
-        .collect()
+        }
+    }
+    Ok(backups)
 }
 
 fn discard_backups(backups: &[Backup]) {
@@ -413,4 +448,62 @@ fn launch_exe(exe: Option<&Path>) {
 
 fn short(sha: &str) -> &str {
     sha.get(..8).unwrap_or(sha)
+}
+
+#[cfg(test)]
+mod snapshot_tests {
+    use super::{snapshot_build_output, DIST_DIR, OUT_DIR};
+
+    /// The failure that deleted an installation.
+    ///
+    /// The desktop was still holding `dist`, so the rename failed. That was
+    /// `.ok()`d, so no backup was recorded -- silently -- and the update
+    /// carried on believing it could roll back. electron-builder then emptied
+    /// `dist` itself, failed partway with EBUSY, and the rollback had nothing
+    /// to put back.
+    #[test]
+    fn a_snapshot_that_cannot_be_taken_is_an_error_not_a_shrug() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        std::fs::create_dir_all(root.join(OUT_DIR)).unwrap();
+        std::fs::create_dir_all(root.join(DIST_DIR)).unwrap();
+
+        // The real condition: a file inside `dist` held open, which is what a
+        // running Marvi does to its own executable. Windows refuses to rename
+        // a directory out from under an open handle.
+        let held = root.join(DIST_DIR).join("win-unpacked").join("Marvi-OS.exe");
+        std::fs::create_dir_all(held.parent().unwrap()).unwrap();
+        std::fs::write(&held, b"pretend executable").unwrap();
+        let handle = std::fs::File::open(&held).unwrap();
+
+        let result = snapshot_build_output(root);
+        drop(handle);
+
+        assert!(result.is_err(), "a failed snapshot must be reported");
+        // And the one that did move is put back, so a refusal leaves the
+        // installation exactly as it was found.
+        assert!(root.join(OUT_DIR).is_dir(), "out was not restored");
+        assert!(root.join(DIST_DIR).is_dir(), "dist should be untouched");
+    }
+
+    #[test]
+    fn a_clean_snapshot_moves_both_directories_aside() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        std::fs::create_dir_all(root.join(OUT_DIR)).unwrap();
+        std::fs::create_dir_all(root.join(DIST_DIR)).unwrap();
+
+        let backups = snapshot_build_output(root).expect("nothing is holding these");
+
+        assert_eq!(backups.len(), 2);
+        assert!(!root.join(OUT_DIR).exists());
+        assert!(!root.join(DIST_DIR).exists());
+    }
+
+    #[test]
+    fn nothing_built_yet_is_not_a_failure() {
+        let tmp = tempfile::TempDir::new().unwrap();
+
+        assert_eq!(snapshot_build_output(tmp.path()).unwrap().len(), 0);
+    }
 }

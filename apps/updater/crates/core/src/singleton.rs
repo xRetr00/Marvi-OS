@@ -80,8 +80,12 @@ pub fn find_strays(install_root: Option<&Path>) -> Vec<Stray> {
         .args([
             "-NoProfile",
             "-Command",
-            "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine } | \
-             ForEach-Object { \"$($_.ProcessId)|$($_.CommandLine)\" }",
+            // Three fields, because three are parsed. It emitted two --
+            // ProcessId and CommandLine -- so the parser read the command line
+            // as the executable path and left the command empty, and neither of
+            // the checks below could match. `clear_install_root` had never
+            // stopped a single process.
+            "Get-CimInstance Win32_Process | ForEach-Object { \"$($_.ProcessId)|$($_.ExecutablePath)|$($_.CommandLine)\" }",
         ])
         .output();
     let Ok(output) = output else {
@@ -93,50 +97,64 @@ pub fn find_strays(install_root: Option<&Path>) -> Vec<Stray> {
 
     let listing = String::from_utf8_lossy(&output.stdout);
     let root = install_root.map(|p| p.display().to_string().to_lowercase());
-    let mut found = Vec::new();
-    for line in listing.lines() {
-        let mut fields = line.splitn(3, '|');
-        let Some(pid) = fields.next() else { continue };
-        let executable = fields.next().unwrap_or("").trim().to_lowercase();
-        let command = fields.next().unwrap_or("").trim();
-        let Ok(pid) = pid.trim().parse::<u32>() else {
-            continue;
-        };
-        if pid == std::process::id() {
-            continue;
-        }
-        let lowered = command.to_lowercase();
+    let self_pid = std::process::id();
+    listing
+        .lines()
+        .filter_map(|line| classify(line, root.as_deref(), self_pid))
+        .collect()
+}
 
-        // Two ways to be a stray, and the first one is why an update failed
-        // with `EBUSY: rmdir dist\win-unpacked`: the desktop's own PID had
-        // exited, but Electron's helper processes were still running *from
-        // inside the build output directory* and holding it open. A process
-        // whose executable lives under the install root is Marvi's by
-        // definition, whatever it is called.
-        let runs_from_install = root
-            .as_ref()
-            .is_some_and(|root| !executable.is_empty() && executable.starts_with(root.as_str()));
-
-        // The services are launched by `uv`, so their executable is Python
-        // somewhere else entirely and only the command line identifies them.
-        let named_service = ["marvi_gateway", "marvi_agent", "livekit-server"]
-            .iter()
-            .any(|needle| lowered.contains(needle))
-            && root.as_ref().is_none_or(|root| lowered.contains(root.as_str()));
-
-        if !runs_from_install && !named_service {
-            continue;
-        }
-        found.push(Stray {
-            pid,
-            command: if command.is_empty() {
-                executable
-            } else {
-                command.to_string()
-            },
-        });
+/// Decide whether one `pid|ExecutablePath|CommandLine` row is Marvi's.
+///
+/// Split out from the query so the matching can be tested against the real
+/// shapes Windows produces -- which is where both bugs were. The query used to
+/// emit two fields into a three-field parser, so the command line was read as
+/// the executable path and the command was always empty; and the executable
+/// check was anchored with `starts_with`, which a quoted command line can
+/// never satisfy. Between them, `clear_install_root` had never stopped a
+/// single process, and an update kept failing with EBUSY on a directory
+/// nothing had been asked to release.
+fn classify(line: &str, root: Option<&str>, self_pid: u32) -> Option<Stray> {
+    let mut fields = line.splitn(3, '|');
+    let pid = fields.next()?.trim().parse::<u32>().ok()?;
+    if pid == self_pid {
+        return None;
     }
-    found
+    let executable = fields.next().unwrap_or("").trim().to_lowercase();
+    let command = fields.next().unwrap_or("").trim();
+    let lowered = command.to_lowercase();
+
+    // A process whose executable lives under the install root is Marvi's by
+    // definition, whatever it is called -- that is how Electron's helpers, the
+    // ones holding dist\win-unpacked open, are caught.
+    //
+    // `starts_with` for the path, `contains` for the command line: Windows
+    // reports ExecutablePath bare and CommandLine quoted, so
+    //   "C:\...\win-unpacked\Marvi-OS.exe" --type=gpu-process
+    // does not start with anything but a quote.
+    let runs_from_install = root.is_some_and(|root| {
+        (!executable.is_empty() && executable.starts_with(root))
+            || (!lowered.is_empty() && lowered.contains(root))
+    });
+
+    // The services are launched by `uv`, so their executable is a Python
+    // somewhere else entirely and only the command line identifies them.
+    let named_service = ["marvi_gateway", "marvi_agent", "livekit-server"]
+        .iter()
+        .any(|needle| lowered.contains(needle))
+        && root.is_none_or(|root| lowered.contains(root));
+
+    if !runs_from_install && !named_service {
+        return None;
+    }
+    Some(Stray {
+        pid,
+        command: if command.is_empty() {
+            executable
+        } else {
+            command.to_string()
+        },
+    })
 }
 
 /// Terminate a process and everything it started.
@@ -270,5 +288,85 @@ mod tests {
         // Nothing is asserted about this machine's processes, only that the
         // probe returns without error.
         let _ = find_strays(None);
+    }
+}
+
+#[cfg(test)]
+mod stray_tests {
+    use super::classify;
+
+    const ROOT: &str = r"c:\users\x\appdata\local\marvi-os\install";
+
+    /// The exact shape that destroyed an installation.
+    ///
+    /// Electron's helper processes run from inside the build output, holding
+    /// `dist\win-unpacked` open after the main window has gone. They were
+    /// never found, so nothing released the directory, so every update failed
+    /// with EBUSY -- and one of those failures deleted the app.
+    #[test]
+    fn an_electron_helper_under_the_install_root_is_a_stray() {
+        let line = format!(
+            r#"1234|{ROOT}\apps\desktop\dist\win-unpacked\marvi-os.exe|"{ROOT}\apps\desktop\dist\win-unpacked\Marvi-OS.exe" --type=gpu-process"#
+        );
+
+        let stray = classify(&line, Some(ROOT), 1).expect("helper should be a stray");
+
+        assert_eq!(stray.pid, 1234);
+    }
+
+    /// Windows reports CommandLine quoted, so anchoring to the start of it
+    /// never matched. This is the same row with no ExecutablePath, which is
+    /// what the query used to produce for every process.
+    #[test]
+    fn a_quoted_command_line_alone_is_still_matched() {
+        let line = format!(
+            r#"1234||"{ROOT}\apps\desktop\dist\win-unpacked\Marvi-OS.exe" --type=renderer"#
+        );
+
+        assert!(classify(&line, Some(ROOT), 1).is_some());
+    }
+
+    #[test]
+    fn a_service_is_matched_by_its_command_line() {
+        let line = format!(r#"99|c:\python\python.exe|python -m marvi_gateway --root {ROOT}"#);
+
+        assert!(classify(&line, Some(ROOT), 1).is_some());
+    }
+
+    #[test]
+    fn somebody_elses_process_is_left_alone() {
+        let line = r#"77|c:\windows\explorer.exe|"C:\Windows\explorer.exe""#;
+
+        assert!(classify(line, Some(ROOT), 1).is_none());
+    }
+
+    /// A different Marvi install on the same machine is not this one's to kill.
+    #[test]
+    fn an_install_somewhere_else_is_not_a_stray() {
+        let line = r#"55|d:\other\marvi-os\install\app.exe|"D:\other\marvi-os\install\app.exe""#;
+
+        assert!(classify(line, Some(ROOT), 1).is_none());
+    }
+
+    #[test]
+    fn the_updater_does_not_report_itself() {
+        let line = format!(r#"42|{ROOT}\marvi-bootstrap.exe|"{ROOT}\marvi-bootstrap.exe" update"#);
+
+        assert!(classify(&line, Some(ROOT), 42).is_none());
+    }
+
+    #[test]
+    fn a_row_with_no_command_line_still_parses() {
+        let line = format!(r"7|{ROOT}\apps\desktop\dist\win-unpacked\marvi-os.exe|");
+
+        let stray = classify(&line, Some(ROOT), 1).expect("path alone is enough");
+
+        assert_eq!(stray.pid, 7);
+    }
+
+    #[test]
+    fn a_system_row_with_neither_field_is_ignored() {
+        assert!(classify("0||", Some(ROOT), 1).is_none());
+        assert!(classify("not-a-pid|x|y", Some(ROOT), 1).is_none());
     }
 }
