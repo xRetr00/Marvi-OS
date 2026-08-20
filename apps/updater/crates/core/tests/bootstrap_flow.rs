@@ -101,6 +101,38 @@ fn running_the_installer_over_an_existing_checkout_repairs_it() {
 }
 
 #[test]
+fn repairing_replaces_the_installed_updater() {
+    // The reported bug. The repair path returned before the copy a fresh
+    // install does, so running a newly downloaded installer left the *old*
+    // bootstrap in state/bin -- and the updater is the one component that
+    // cannot be fixed by updating, because it is what performs the update.
+    let repos = init_repos();
+    repos.tag("v1.0.0");
+    let state = repos._tmp.path().join("state");
+    let dest = repos._tmp.path().join("installed");
+    repos.commit(".gitignore", "apps/desktop/out/
+", "ignore build output");
+    repos.tag("v1.0.1");
+
+    let mut first = install_cfg(&dest, &repos.remote, &state, FakeBuilder::ok());
+    assert_eq!(install(&mut first, &mut |_| {}).status, "ok");
+
+    // Stand in for an older bootstrap sitting where the app looks for it.
+    let installed = state.join("bin").join("marvi-bootstrap.exe");
+    assert!(installed.is_file(), "the first install placed a bootstrap");
+    std::fs::write(&installed, b"an older updater").unwrap();
+
+    let mut again = install_cfg(&dest, &repos.remote, &state, FakeBuilder::ok());
+    assert_eq!(install(&mut again, &mut |_| {}).status, "ok");
+
+    assert_ne!(
+        std::fs::read(&installed).unwrap(),
+        b"an older updater",
+        "repair left the old updater in place"
+    );
+}
+
+#[test]
 fn a_non_empty_directory_that_is_not_a_checkout_is_still_refused() {
     // Repair applies to Marvi's own checkout. Someone else's files are not
     // Marvi's to rebuild.

@@ -113,6 +113,13 @@ pub fn install(cfg: &mut InstallConfig, progress: &mut dyn FnMut(&str)) -> Insta
                     provision_toolchain: cfg.provision_toolchain,
                 };
                 let out = crate::update::run_update(&mut update, progress);
+                // The repair path returns before the copy at the end of a
+                // fresh install, so repairing with a newly downloaded
+                // installer left the *old* bootstrap in place -- which meant
+                // every fix to the updater itself never reached the machine
+                // that needed it. Repair is the one path where the running
+                // binary is the new one, so it is the one path that can.
+                install_self_to_bin(&cfg.state_dir);
                 return InstallOutcome {
                     status: out.status,
                     message: out.message,
@@ -357,13 +364,37 @@ fn install_self_to_bin(state_dir: &Path) {
     let Ok(exe) = std::env::current_exe() else {
         return;
     };
+    copy_bootstrap(&exe, state_dir);
+}
+
+/// Put `exe` where the installed app looks for the updater.
+///
+/// Split from [`install_self_to_bin`] so it can be tested without being the
+/// running process -- which is also the case it has to get right: the copy is
+/// skipped when source and destination are the same file, because during an
+/// in-app update the running binary *is* the destination and Windows will not
+/// let a running executable be overwritten.
+///
+/// That skip is why an in-app update cannot deliver a new updater: the only
+/// binary it has is the old one it is already running. Repair can, because
+/// there the running binary is the freshly downloaded one.
+pub(crate) fn copy_bootstrap(exe: &Path, state_dir: &Path) -> bool {
     let dir = state_dir.join("bin");
-    let _ = std::fs::create_dir_all(&dir);
-    let dest = dir.join("marvi-bootstrap.exe");
-    if exe == dest {
-        return;
+    if std::fs::create_dir_all(&dir).is_err() {
+        return false;
     }
-    let _ = std::fs::copy(&exe, &dest);
+    let dest = dir.join("marvi-bootstrap.exe");
+    // Compared canonically: the same file reached by two different paths is
+    // still the same file, and copying it onto itself truncates it.
+    let same = std::fs::canonicalize(exe)
+        .ok()
+        .zip(std::fs::canonicalize(&dest).ok())
+        .map(|(a, b)| a == b)
+        .unwrap_or(exe == dest);
+    if same {
+        return false;
+    }
+    std::fs::copy(exe, &dest).is_ok()
 }
 
 #[cfg(test)]
@@ -394,5 +425,55 @@ mod launch_tests {
     fn an_unfamiliar_layout_falls_back_to_the_executable_directory() {
         let exe = Path::new("/somewhere/else/Marvi-OS.exe");
         assert_eq!(install_root_of(exe), Path::new("/somewhere/else"));
+    }
+}
+
+#[cfg(test)]
+mod bootstrap_copy_tests {
+    use super::copy_bootstrap;
+
+    /// Repairing with a newly downloaded installer must replace the old
+    /// updater. It did not: the repair path returns before the copy that a
+    /// fresh install does, so every fix to the updater itself never reached
+    /// the machine that needed it -- and the updater is the one component a
+    /// user cannot fix any other way.
+    #[test]
+    fn a_newer_bootstrap_replaces_the_installed_one() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let state = tmp.path().join("state");
+        let installed = state.join("bin").join("marvi-bootstrap.exe");
+        std::fs::create_dir_all(installed.parent().unwrap()).unwrap();
+        std::fs::write(&installed, b"old version").unwrap();
+
+        let fresh = tmp.path().join("downloaded.exe");
+        std::fs::write(&fresh, b"new version").unwrap();
+
+        assert!(copy_bootstrap(&fresh, &state));
+        assert_eq!(std::fs::read(&installed).unwrap(), b"new version");
+    }
+
+    #[test]
+    fn it_installs_where_none_was_before() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let state = tmp.path().join("state");
+        let fresh = tmp.path().join("downloaded.exe");
+        std::fs::write(&fresh, b"new version").unwrap();
+
+        assert!(copy_bootstrap(&fresh, &state));
+        assert!(state.join("bin").join("marvi-bootstrap.exe").is_file());
+    }
+
+    /// The in-app update case. Copying a file onto itself truncates it, which
+    /// would leave the machine with no updater at all.
+    #[test]
+    fn it_refuses_to_copy_a_file_over_itself() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let state = tmp.path().join("state");
+        let installed = state.join("bin").join("marvi-bootstrap.exe");
+        std::fs::create_dir_all(installed.parent().unwrap()).unwrap();
+        std::fs::write(&installed, b"running right now").unwrap();
+
+        assert!(!copy_bootstrap(&installed, &state));
+        assert_eq!(std::fs::read(&installed).unwrap(), b"running right now");
     }
 }
