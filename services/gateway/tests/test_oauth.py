@@ -333,3 +333,54 @@ def test_starting_twice_does_not_leak_the_first_listener(store) -> None:
         assert threading.active_count() >= 1
     finally:
         broker.cancel("codex")
+
+
+def test_an_unpolled_flow_does_not_break_the_next_one(store) -> None:
+    """The listener must not outlive the request it was opened for.
+
+    This is the CI failure that took down the v0.3.5 release, in one test. The
+    redirect port is pinned by the vendor, so every flow binds the same one. A
+    flow that was visited but never polled to completion used to leave its
+    listener open, because only `poll` closed it -- and the next flow then bound
+    the same port on top of it. On Windows that bind succeeds, and connections
+    reaching the dead socket simply hang, which is what "TimeoutError: timed
+    out" in three unrelated tests actually was.
+    """
+    first = OAuthBroker(store=store, http=token_endpoint({"access_token": "at-1"}))
+    started = first.start("codex")
+    visit(started["url"])
+    # Deliberately no poll: the browser came back and nobody asked.
+
+    second = OAuthBroker(
+        store=store,
+        http=token_endpoint({"access_token": "at-2", "expires_in": 3600}),
+    )
+    try:
+        again = second.start("codex")
+        visit(again["url"])
+
+        assert second.poll("codex")["state"] == "connected"
+        assert second.access_token("codex") == "at-2"
+    finally:
+        second.cancel("codex")
+        first.cancel("codex")
+
+
+def test_the_code_is_recorded_before_the_browser_is_answered(store) -> None:
+    """No window where the page says "Connected." and Marvi disagrees.
+
+    Whether the flag is set before or after the response is written decides it,
+    and after was a real race: the client finished reading while the server
+    thread had not yet recorded anything, so an immediate poll answered
+    "waiting for sign-in" for a sign-in that had already landed.
+    """
+    broker = OAuthBroker(store=store, http=token_endpoint({"access_token": "at"}))
+    started = broker.start("codex")
+    try:
+        visit(started["url"])
+        # No sleep, no retry. Polling the instant the browser is answered is
+        # exactly where the race lived; it is deterministic now only because
+        # the handler records the code before it writes the response.
+        assert broker.poll("codex")["state"] == "connected"
+    finally:
+        broker.cancel("codex")

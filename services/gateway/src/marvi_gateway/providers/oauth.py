@@ -149,6 +149,13 @@ def _handler_for(result: _Callback, expected_state: str, path: str):
                 if not result.code:
                     result.error = "no authorization code in the redirect"
 
+            # Recorded before the response goes out, not after. The browser
+            # reaching "Connected." has to mean Marvi already has the code --
+            # the other order let the client finish reading while this thread
+            # was still descheduled, so a poll straight afterwards answered
+            # "waiting for sign-in" for a sign-in that had already arrived.
+            result.done.set()
+
             body = (
                 b"<html><body style='font-family:sans-serif;padding:3rem'>"
                 + (
@@ -163,12 +170,29 @@ def _handler_for(result: _Callback, expected_state: str, path: str):
             self.send_header("content-length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
-            result.done.set()
 
         def log_message(self, *_args: Any) -> None:
             """Silence the default stderr access log."""
 
     return Handler
+
+
+class _CallbackServer(HTTPServer):
+    """The redirect listener, on a port the vendor pins.
+
+    `allow_reuse_address` is off, and that is the whole point of the subclass.
+    `HTTPServer` turns it on, which on Windows does not mean what it means on
+    Unix: there, SO_REUSEADDR lets a bind succeed even when another socket is
+    *actively listening* on the same port, and which of the two a connection
+    reaches is not defined. A leftover listener from an abandoned flow would
+    therefore not collide loudly -- it would quietly swallow the next sign-in,
+    which then hung until the browser gave up.
+
+    Off, a conflict raises OSError at bind, and `start` already turns that into
+    "Port ... is busy", which is both true and actionable.
+    """
+
+    allow_reuse_address = False
 
 
 # -- the flow ----------------------------------------------------------------
@@ -222,7 +246,7 @@ class OAuthBroker:
         state = _b64url(secrets.token_bytes(16))
         result = _Callback()
         try:
-            server = HTTPServer(
+            server = _CallbackServer(
                 ("127.0.0.1", config.redirect_port),
                 _handler_for(result, state, config.redirect_path),
             )
@@ -245,7 +269,19 @@ class OAuthBroker:
             params["scope"] = " ".join(config.scopes)
         url = f"{config.authorize_url}?{urllib.parse.urlencode(params)}"
 
-        thread = threading.Thread(target=server.handle_request, daemon=True)
+        def serve_once() -> None:
+            # The socket is released as soon as its one request is served,
+            # rather than waiting for `poll` or `cancel` to come and close it.
+            # Nothing guarantees either is ever called -- an abandoned flow
+            # leaves the listener up -- and on a pinned port a stray listener
+            # is the next sign-in's problem, not this one's.
+            try:
+                server.handle_request()
+            finally:
+                with contextlib.suppress(OSError):
+                    server.server_close()
+
+        thread = threading.Thread(target=serve_once, daemon=True)
         thread.start()
         with self._lock:
             self._pending[profile.name] = PendingFlow(
