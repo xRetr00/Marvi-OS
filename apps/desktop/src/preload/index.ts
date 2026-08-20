@@ -7,24 +7,26 @@ import type {
   ConnectedAccount,
   DoctorReport,
   HardwareAnswer,
+  IdentityStatus,
+  InitiativeStatus,
   McpServerRow,
+  MemoryPage,
+  MindDecision,
+  ModelPage,
   PluginPage,
+  ProviderPage,
+  RoomEvent,
+  RuntimeStatus,
   SchedulePage,
+  ServiceReport,
   SetupPage,
   SkillReview,
   StoreSkill,
-  IdentityStatus,
-  InitiativeStatus,
-  MindDecision,
   UpdateChannel,
   UpdateCheck,
   UpdateResult,
   UpdateStatus,
-  MemoryPage,
-  ProviderPage,
-  RoomEvent,
-  RuntimeStatus,
-  ServiceReport
+  UpstreamPage
 } from '../shared/runtime'
 import type { IslandPlacement } from '../main/island-window'
 
@@ -145,6 +147,10 @@ const marvi = {
     return () => ipcRenderer.removeListener('marvi:services', handler)
   },
   getProviders: (): Promise<ProviderPage | null> => ipcRenderer.invoke('marvi:get-providers'),
+  getModels: (options?: { provider?: string; refresh?: boolean }): Promise<ModelPage | null> =>
+    ipcRenderer.invoke('marvi:get-models', options ?? {}),
+  getUpstreams: (model?: string): Promise<UpstreamPage | null> =>
+    ipcRenderer.invoke('marvi:get-upstreams', model ?? ''),
   setProviderSettings: (values: Record<string, string>): Promise<ProviderPage | null> =>
     ipcRenderer.invoke('marvi:set-provider-settings', values),
   startOauth: (name: string): Promise<{ ok: boolean; detail: string }> =>

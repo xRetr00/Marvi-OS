@@ -174,6 +174,62 @@ export interface ProviderPage {
   totals: { input: number; output: number; cachedInput: number; billable: number }
 }
 
+/** One model a provider says it has, as `GET /models` reports it. */
+export interface ModelCard {
+  id: string
+  name: string
+  provider: string
+  context: number
+  /**
+   * Empty when the model cannot reason. Per model rather than per provider
+   * because a gateway fronts both kinds under one credential, so the effort
+   * control is hidden rather than offered where it would be ignored.
+   */
+  efforts: string[]
+  reasons: boolean
+  promptPerMillion: number | null
+  completionPerMillion: number | null
+  vision: boolean
+}
+
+export interface ModelProvider {
+  provider: string
+  label: string
+  /** The provider's configured default — what a turn gets without an override. */
+  selected: string
+  routesUpstream: boolean
+  /** False when the provider is configured but listed nothing, which is worth
+   * saying out loud rather than showing as an empty dropdown. */
+  reachable: boolean
+  models: ModelCard[]
+}
+
+export interface ModelPage {
+  providers: ModelProvider[]
+}
+
+/** One upstream that can serve an OpenRouter model, and on what terms. */
+export interface Upstream {
+  slug: string
+  name: string
+  context: number
+  quantization: string
+  promptPerMillion: number | null
+  completionPerMillion: number | null
+  /** Often null: OpenRouter publishes it per endpoint and leaves most unset,
+   * so the UI says "unknown" rather than pretending it is zero. */
+  latencyMs: number | null
+  throughput: number | null
+  uptime: number | null
+}
+
+export interface UpstreamPage {
+  model: string
+  route: Record<string, Record<string, unknown>>
+  policies: string[]
+  upstreams: Upstream[]
+}
+
 export interface IdentityStatus {
   soul: string
   user: string

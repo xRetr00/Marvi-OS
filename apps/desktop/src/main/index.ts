@@ -34,7 +34,14 @@ import {
   updateInProgress,
   updateStateDir
 } from './updater'
-import type { AssistantState, ProviderPage, ProviderRow, RuntimeStatus } from '../shared/runtime'
+import type {
+  AssistantState,
+  ModelPage,
+  ProviderPage,
+  ProviderRow,
+  RuntimeStatus,
+  UpstreamPage
+} from '../shared/runtime'
 
 let mainWindow: BrowserWindow | null = null
 let islandWindow: BrowserWindow | null = null
@@ -53,6 +60,70 @@ let translucencyIntensity = 0
 // main process maps it to native window opacity. Floor the most see-through
 // setting at 0.3 so it stays usable. 0 = fully opaque.
 /** The Gateway speaks snake_case; the renderer types are camelCase. */
+function normaliseModelPage(body: unknown): ModelPage | null {
+  const page = body as { providers?: Array<Record<string, never>> }
+  if (!page || !Array.isArray(page.providers)) return null
+  const number = (value: unknown): number | null =>
+    // Null and zero mean different things here: a model can genuinely be free,
+    // and a price the provider did not publish must not read as free.
+    value === null || value === undefined ? null : Number(value)
+  return {
+    providers: page.providers.map((raw) => {
+      const row = raw as Record<string, never>
+      const models = Array.isArray(row.models) ? (row.models as Array<Record<string, never>>) : []
+      return {
+        provider: String(row.provider ?? ''),
+        label: String(row.label ?? ''),
+        selected: String(row.selected ?? ''),
+        routesUpstream: Boolean(row.routes_upstream),
+        reachable: Boolean(row.reachable),
+        models: models.map((entry) => ({
+          id: String(entry.id ?? ''),
+          name: String(entry.name ?? entry.id ?? ''),
+          provider: String(entry.provider ?? row.provider ?? ''),
+          context: Number(entry.context ?? 0),
+          efforts: Array.isArray(entry.efforts) ? (entry.efforts as string[]).map(String) : [],
+          reasons: Boolean(entry.reasons),
+          promptPerMillion: number(entry.prompt_per_million),
+          completionPerMillion: number(entry.completion_per_million),
+          vision: Boolean(entry.vision)
+        }))
+      }
+    })
+  }
+}
+
+function normaliseUpstreamPage(body: unknown): UpstreamPage | null {
+  const page = body as {
+    model?: string
+    route?: Record<string, Record<string, unknown>>
+    policies?: string[]
+    upstreams?: Array<Record<string, never>>
+  }
+  if (!page || !Array.isArray(page.upstreams)) return null
+  const number = (value: unknown): number | null =>
+    value === null || value === undefined ? null : Number(value)
+  return {
+    model: String(page.model ?? ''),
+    route: page.route ?? {},
+    policies: Array.isArray(page.policies) ? page.policies.map(String) : [],
+    upstreams: page.upstreams.map((raw) => {
+      const row = raw as Record<string, never>
+      return {
+        slug: String(row.slug ?? ''),
+        name: String(row.name ?? row.slug ?? ''),
+        context: Number(row.context ?? 0),
+        quantization: String(row.quantization ?? ''),
+        promptPerMillion: number(row.prompt_per_million),
+        completionPerMillion: number(row.completion_per_million),
+        latencyMs: number(row.latency_ms),
+        throughput: number(row.throughput),
+        uptime: number(row.uptime)
+      }
+    })
+  }
+}
+
 function normaliseProviderPage(body: unknown): ProviderPage | null {
   const page = body as {
     providers?: Array<Record<string, never>>
@@ -928,6 +999,36 @@ function startApp(): void {
         })
         if (!response.ok) return null
         return normaliseProviderPage(await response.json())
+      } catch {
+        return null
+      }
+    })
+    ipcMain.handle('marvi:get-models', async (_event, options) => {
+      const provider = typeof options?.provider === 'string' ? options.provider : ''
+      const refresh = options?.refresh === true
+      const query = new URLSearchParams()
+      if (provider) query.set('provider', provider)
+      if (refresh) query.set('refresh', 'true')
+      try {
+        // Longer than the other calls on purpose: this one can reach several
+        // providers' APIs, and a picker that gives up at five seconds is a
+        // picker that looks empty on a slow network.
+        const response = await fetch(`${gateway()}/models?${query}`, {
+          signal: AbortSignal.timeout(20_000)
+        })
+        return response.ok ? normaliseModelPage(await response.json()) : null
+      } catch {
+        return null
+      }
+    })
+    ipcMain.handle('marvi:get-upstreams', async (_event, model) => {
+      const query = new URLSearchParams()
+      if (typeof model === 'string' && model) query.set('model', model)
+      try {
+        const response = await fetch(`${gateway()}/providers/openrouter/upstreams?${query}`, {
+          signal: AbortSignal.timeout(15_000)
+        })
+        return response.ok ? normaliseUpstreamPage(await response.json()) : null
       } catch {
         return null
       }

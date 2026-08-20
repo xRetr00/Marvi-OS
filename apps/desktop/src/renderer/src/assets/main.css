@@ -2010,3 +2010,165 @@ small,
   color: var(--ui-text-emphasis);
   font-family: 'JetBrains Mono', Consolas, monospace;
 }
+
+/* -- Picker ----------------------------------------------------------------
+ * The searchable dropdown behind model, upstream and voice selection. One
+ * component for all three because they have the same problem: a list too long
+ * to scroll and, before this, a text box you had to type the exact name into.
+ */
+.picker-trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 8px;
+  background: var(--ui-bg-raised);
+  color: var(--ui-text-primary);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.picker-trigger:hover:not(:disabled) {
+  border-color: var(--ui-stroke-primary);
+}
+
+.picker-trigger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.picker-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.picker-placeholder {
+  color: var(--ui-text-tertiary);
+}
+
+.picker-caret {
+  flex-shrink: 0;
+  color: var(--ui-text-tertiary);
+  font-size: 10px;
+}
+
+.picker-panel {
+  display: flex;
+  flex-direction: column;
+  width: var(--radix-popover-trigger-width);
+  max-height: min(340px, var(--radix-popover-content-available-height));
+  overflow: hidden;
+  border: 1px solid var(--ui-stroke-primary);
+  border-radius: 8px;
+  background: var(--ui-bg-raised);
+  box-shadow: var(--shadow-nous);
+  z-index: 60;
+}
+
+.picker-search {
+  padding: 10px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--ui-stroke-tertiary);
+  background: transparent;
+  color: var(--ui-text-primary);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+}
+
+.picker-list {
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.picker-empty {
+  padding: 16px 12px;
+  color: var(--ui-text-tertiary);
+  font-size: 12px;
+  text-align: center;
+}
+
+.picker-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ui-text-primary);
+  font-family: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.picker-row:hover:not(:disabled) {
+  background: var(--ui-accent-soft);
+}
+
+.picker-row.is-selected {
+  color: var(--ui-text-emphasis);
+}
+
+.picker-row-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.picker-row-label,
+.picker-row-detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.picker-row-detail {
+  color: var(--ui-text-tertiary);
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  font-size: 11px;
+}
+
+.picker-row-hint {
+  flex-shrink: 0;
+  color: var(--ui-text-secondary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.picker-check {
+  flex-shrink: 0;
+  width: 12px;
+  color: var(--ui-accent);
+}
+
+/* The one option you cannot judge by reading. Its own hit target, so hearing a
+ * voice and choosing it stay separate decisions. */
+.picker-preview {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 50%;
+  color: var(--ui-text-secondary);
+  font-size: 9px;
+}
+
+.picker-preview:hover,
+.picker-preview.is-playing {
+  border-color: var(--ui-accent);
+  color: var(--ui-accent);
+}

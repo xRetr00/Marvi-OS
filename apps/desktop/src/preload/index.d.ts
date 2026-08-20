@@ -6,24 +6,26 @@ import type {
   ConnectedAccount,
   DoctorReport,
   HardwareAnswer,
+  IdentityStatus,
+  InitiativeStatus,
   McpServerRow,
+  MemoryPage,
+  MindDecision,
+  ModelPage,
   PluginPage,
+  ProviderPage,
+  RoomEvent,
+  RuntimeStatus,
   SchedulePage,
+  ServiceReport,
   SetupPage,
   SkillReview,
   StoreSkill,
-  IdentityStatus,
-  InitiativeStatus,
-  MindDecision,
   UpdateChannel,
   UpdateCheck,
   UpdateResult,
   UpdateStatus,
-  MemoryPage,
-  ProviderPage,
-  RoomEvent,
-  RuntimeStatus,
-  ServiceReport
+  UpstreamPage
 } from '../shared/runtime'
 import type { IslandPlacement } from '../main/island-window'
 
@@ -96,6 +98,8 @@ export interface MarviDesktopApi {
   retryService: (name: string) => Promise<boolean>
   onServices: (listener: (reports: ServiceReport[]) => void) => () => void
   getProviders: () => Promise<ProviderPage | null>
+  getModels: (options?: { provider?: string; refresh?: boolean }) => Promise<ModelPage | null>
+  getUpstreams: (model?: string) => Promise<UpstreamPage | null>
   setProviderSettings: (values: Record<string, string>) => Promise<ProviderPage | null>
   startOauth: (name: string) => Promise<{ ok: boolean; detail: string }>
   pollOauth: (name: string) => Promise<Record<string, unknown> | null>
