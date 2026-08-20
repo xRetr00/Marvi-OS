@@ -1,6 +1,6 @@
 {
   "name": "marvi-os-desktop",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "description": "Always-on voice and vision shell for Marvi OS",
   "main": "./out/main/index.js",
   "author": "NeuRetro Research",
