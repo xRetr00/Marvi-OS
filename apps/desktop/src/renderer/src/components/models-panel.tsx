@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import type {
   ModelCard,
@@ -53,21 +53,46 @@ export function ModelsPanel(): React.JSX.Element {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  const load = useCallback(async (refresh = false): Promise<void> => {
-    setLoading(true)
-    const [models, page] = await Promise.all([
-      window.marvi?.getModels({ refresh }),
-      window.marvi?.getProviders()
-    ])
-    setPage(models ?? null)
-    setProviders(page ?? null)
-    setError(models ? '' : 'Marvi Gateway is unavailable')
-    setLoading(false)
+  /**
+   * Fetch the catalog and the provider settings together.
+   *
+   * Inline in the effect rather than behind a useCallback: the lint rule that
+   * catches cascading renders cannot see through a call to another function,
+   * and hiding an await behind one to quiet it would be defeating the check
+   * rather than passing it.
+   */
+  useEffect(() => {
+    let gone = false
+    void (async () => {
+      const [models, settings] = await Promise.all([
+        window.marvi?.getModels({}),
+        window.marvi?.getProviders()
+      ])
+      // Guarded: this reaches several providers' APIs and can outlive the page.
+      if (gone) return
+      setPage(models ?? null)
+      setProviders(settings ?? null)
+      setError(models ? '' : 'Marvi Gateway is unavailable')
+      setLoading(false)
+    })()
+    return () => {
+      gone = true
+    }
   }, [])
 
-  useEffect(() => {
-    void load()
-  }, [load])
+  const refresh = (): void => {
+    setLoading(true)
+    void (async () => {
+      const [models, settings] = await Promise.all([
+        window.marvi?.getModels({ refresh: true }),
+        window.marvi?.getProviders()
+      ])
+      setPage(models ?? null)
+      setProviders(settings ?? null)
+      setError(models ? '' : 'Marvi Gateway is unavailable')
+      setLoading(false)
+    })()
+  }
 
   const save = async (values: Record<string, string>): Promise<void> => {
     const next = await window.marvi?.setProviderSettings(values)
@@ -89,7 +114,7 @@ export function ModelsPanel(): React.JSX.Element {
 
       <div className="context-line">
         <span>CATALOG</span>
-        <button className="phase" type="button" onClick={() => void load(true)} disabled={loading}>
+        <button className="phase" type="button" onClick={refresh} disabled={loading}>
           {loading ? 'LOADING…' : 'REFRESH'}
         </button>
       </div>
@@ -109,9 +134,7 @@ export function ModelsPanel(): React.JSX.Element {
           <ProviderModels
             key={row.provider}
             row={row}
-            effortEnv={
-              providers?.providers.find((p) => p.name === row.provider)?.env.effort ?? ''
-            }
+            effortEnv={providers?.providers.find((p) => p.name === row.provider)?.env.effort ?? ''}
             modelEnv={providers?.providers.find((p) => p.name === row.provider)?.env.model ?? ''}
             settings={providers?.settings ?? {}}
             onSave={save}
@@ -233,14 +256,16 @@ function UpstreamChoice({
       <label className="field">
         <span className="panel-label">{'// ROUTING'}</span>
         <Picker
-          options={(page?.policies ?? ['auto', 'cheapest', 'fastest', 'throughput']).map((name) => ({
-            value: name === 'auto' ? '' : name,
-            label: name.charAt(0).toUpperCase() + name.slice(1),
-            detail:
-              name === 'fastest'
-                ? 'Resolved per request, against numbers OpenRouter measures'
-                : undefined
-          }))}
+          options={(page?.policies ?? ['auto', 'cheapest', 'fastest', 'throughput']).map(
+            (name) => ({
+              value: name === 'auto' ? '' : name,
+              label: name.charAt(0).toUpperCase() + name.slice(1),
+              detail:
+                name === 'fastest'
+                  ? 'Resolved per request, against numbers OpenRouter measures'
+                  : undefined
+            })
+          )}
           value={policy}
           onChange={(next) => {
             setPolicy(next)
@@ -268,8 +293,7 @@ function UpstreamChoice({
               ]
                 .filter(Boolean)
                 .join(' · '),
-              hint:
-                upstream.promptPerMillion === null ? '' : `$${upstream.promptPerMillion} per M`
+              hint: upstream.promptPerMillion === null ? '' : `$${upstream.promptPerMillion} per M`
             }))
           ]}
           value={pinned}
