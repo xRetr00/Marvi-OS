@@ -63,14 +63,21 @@ export function Picker({
     )
   }, [options, query])
 
-  // Cleared on close rather than on open: reopening a list you just filtered
-  // and finding your own search still there reads as the app being stuck.
-  useEffect(() => {
-    if (!open) setQuery('')
-  }, [open])
-
   return (
-    <Popover.Root open={open} onOpenChange={disabled ? undefined : setOpen}>
+    <Popover.Root
+      open={open}
+      onOpenChange={
+        disabled
+          ? undefined
+          : (next) => {
+              setOpen(next)
+              // Cleared as it closes, not in an effect watching `open`.
+              // Reopening a list you filtered earlier and finding your old
+              // search still in it reads as the app being stuck.
+              if (!next) setQuery('')
+            }
+      }
+    >
       <Popover.Trigger asChild>
         <button
           type="button"
