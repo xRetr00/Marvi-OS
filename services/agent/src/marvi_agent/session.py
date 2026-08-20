@@ -23,6 +23,7 @@ from .runtime import AgentConfig, build_llm, build_local_turn_detector
 from .timing import TimedLLM
 from .tools import GatewayTools
 from .voice_models import DEFAULT_VOICE, NemotronSTT, VibeVoiceTTS
+from .wakeword import WakeGate
 
 load_dotenv(Path(__file__).parents[2] / ".env")
 
@@ -118,7 +119,20 @@ server = AgentServer()
 @server.rtc_session()
 async def marvi_session(ctx: JobContext) -> None:
     session = build_session()
+    # Built before `start` so a failure to load the model is reported while
+    # there is still nothing to break, and attached after, because the gate
+    # flips a switch on a session that has to exist first.
+    gate = WakeGate.from_env()
     await session.start(agent=MarviVoiceAgent(), room=ctx.room)
+    if gate is not None:
+        gate.attach(session, ctx.room)
+
+        @session.on("user_input_transcribed")
+        def _heard(_event: object) -> None:
+            # She was addressed, so the window starts again from now. Without
+            # this a long answer plus a follow-up would run past the end of it
+            # and she would stop hearing someone still mid-conversation.
+            gate.extend()
 
 
 def main() -> None:

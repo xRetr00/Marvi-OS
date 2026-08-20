@@ -1,0 +1,63 @@
+# Marvi wake-word training config (livekit-wakeword)
+# Tuned to fix the false-positive problem: the old model scored ~0.79 on SILENCE.
+# The knobs below aggressively penalize false alarms and lean on the trainer's
+# built-in negatives (ACAV100M + synthetic backgrounds), so you don't have to
+# record your own audio. Train:  livekit-wakeword train marvi.yaml
+
+model_name: "marvi"
+
+# What should wake her. Keep the set tight — more variants = more surface for
+# false triggers. These cover the natural ways you'd say it.
+target_phrases:
+  - "marvi"
+  - "marvee"
+  - "marvie"
+  - "marvy"
+  - "marve"
+  - "marvin"
+  - "marfi"
+  - "marfie"
+  - "marfvy"
+  - "marfve"
+  - "hey marvi"
+  - "hi marvi"
+  - "hey marve"
+  - "hey marvy"
+  - "okay marvi"
+
+# --- Architecture -----------------------------------------------------------
+# conv_attention discriminates phonetically-similar phrases best.
+# model_size: medium is the sweet spot. The classifier runs on FROZEN audio
+# embeddings, so it's a small task — "large" tends to OVERFIT the synthetic
+# positives and can make false positives WORSE, plus it's slower to run every
+# ~16 ms forever. Do not use "large" here.
+#   tiny=16/1  small=32/1  medium=128/2  large=256/3   (layer_dim / n_blocks)
+model_type: "conv_attention"
+model_size: "medium"
+
+# --- Training length + optimization ----------------------------------------
+steps: 50000
+learning_rate: 0.0001
+weight_decay: 0.01
+label_smoothing: 0.05
+
+# --- FALSE-POSITIVE MINIMIZATION (the important part) -----------------------
+# target_fp_per_hour: the trainer doubles the negative weight between phases if
+# false-alarms/hour exceed this. Lower = stricter. 0.1 is aggressive.
+target_fp_per_hour: 0.1
+# Extra penalty on false alarms (default 1500). Higher since we bring no custom
+# room recordings — force the model to treat ambient noise as "not marvi".
+max_negative_weight: 2500.0
+
+# Lots of "ambient noise is NOT a wake word" examples (synthetic + augmented).
+n_background_samples: 800
+n_background_samples_val: 150
+
+# Per-class batch composition. ACAV100M_sample = ~2000 h of general audio used
+# as negatives (downloaded by the trainer if available); background_noise =
+# synthetic ambient. Both teach "this is not marvi".
+batch_n_per_class:
+  positive: 50
+  adversarial_negative: 50
+  ACAV100M_sample: 1024
+  background_noise: 50

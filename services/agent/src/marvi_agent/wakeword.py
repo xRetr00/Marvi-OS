@@ -1,0 +1,223 @@
+"""Wake word: Marvi hears everything, and answers to her name.
+
+An always-on assistant has a problem an on-demand one does not. The microphone
+is live in the room the whole time, so without a gate every remark in the room
+is a turn, every turn is an LLM call, and Marvi talks over conversations that
+were never addressed to her.
+
+The gate is a small ONNX classifier trained on the phrase itself
+(``wakeword/marvi.onnx``, trained with LiveKit's ``livekit-wakeword``). It runs
+locally on the audio already arriving in the room -- no extra capture, no audio
+leaving the machine, and nothing sent to a provider until she is spoken to.
+
+**Where this runs, and why here.** LiveKit's own example runs the detector on
+the client, which then connects to a room; that fits a device that is idle most
+of the day. Marvi is already in the room continuously, so the audio is already
+here, and putting the detector next to it means no second capture path and no
+ONNX runtime in the renderer. What the gate controls is therefore not whether
+audio is captured but whether the *session* listens to it: everything upstream
+of ``session.input`` runs regardless, and the STT, the LLM and the reply do not.
+
+The model is the retrained one. The first attempt scored ~0.79 on an empty
+room -- the same band as a real "marvi" -- which is another way of saying it had
+learned nothing. This one scores 0.0 on silence.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import contextlib
+import logging
+import os
+import time
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+import numpy as np
+from livekit import rtc
+
+if TYPE_CHECKING:
+    from livekit.agents import AgentSession
+
+log = logging.getLogger("marvi.wakeword")
+
+#: Ships in the repo rather than being downloaded: it is 97 KB, it is the thing
+#: that decides whether Marvi answers at all, and an assistant that cannot hear
+#: her own name until a download finishes is not an assistant yet.
+DEFAULT_MODEL = Path(__file__).resolve().parents[2] / "wakeword" / "marvi.onnx"
+
+#: The classifier wants 16 kHz mono; the room carries 48 kHz. `AudioStream`
+#: resamples on the way out, so this is the only place the rate is stated.
+SAMPLE_RATE = 16_000
+
+#: Scores above this count as her name. Deliberately not lower: the cost of a
+#: false wake is Marvi interrupting a conversation she was not part of, which
+#: is worse than having to say her name twice.
+DEFAULT_THRESHOLD = 0.5
+
+#: How long she keeps listening after being addressed. Long enough to ask a
+#: follow-up without repeating the name, short enough that a room does not stay
+#: open all afternoon. Every utterance she hears pushes it back.
+DEFAULT_WINDOW_SECONDS = 30.0
+
+
+def _flag(name: str, default: bool) -> bool:
+    raw = os.environ.get(name, "").strip().lower()
+    if not raw:
+        return default
+    return raw in ("1", "true", "yes", "on")
+
+
+def _number(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name, "") or default)
+    except ValueError:
+        log.warning("ignoring bad %s; using %s", name, default)
+        return default
+
+
+class WakeGate:
+    """Keeps a session deaf until the wake word arrives.
+
+    Not a filter on the audio -- the session's own input switch, flipped from
+    outside. That matters for interruption: once she is awake the normal turn
+    handling is entirely untouched, so barge-in, endpointing and everything else
+    behave exactly as they do without a wake word.
+    """
+
+    def __init__(
+        self,
+        model_path: Path = DEFAULT_MODEL,
+        threshold: float = DEFAULT_THRESHOLD,
+        window: float = DEFAULT_WINDOW_SECONDS,
+    ) -> None:
+        from livekit.wakeword import WakeWordModel
+
+        self.threshold = threshold
+        self.window = window
+        self._model = WakeWordModel(models=[str(model_path)])
+        self._awake_until = 0.0
+        self._session: AgentSession | None = None
+        self._tasks: set[asyncio.Task] = set()
+
+    @classmethod
+    def from_env(cls) -> WakeGate | None:
+        """The configured gate, or None when Marvi should just listen.
+
+        Off is a supported answer: on a machine in a private room, always-on is
+        the better behaviour, and forcing a wake word there only adds a step.
+        """
+        if not _flag("MARVI_WAKE_WORD", True):
+            log.info("wake word disabled; Marvi answers every turn")
+            return None
+
+        path = Path(os.environ.get("MARVI_WAKE_MODEL", "") or DEFAULT_MODEL)
+        if not path.is_file():
+            # A missing model must not make her deaf. Falling back to always-on
+            # is the safe direction to fail: too talkative beats unreachable.
+            log.warning("no wake word model at %s; Marvi answers every turn", path)
+            return None
+
+        try:
+            return cls(
+                model_path=path,
+                threshold=_number("MARVI_WAKE_THRESHOLD", DEFAULT_THRESHOLD),
+                window=_number("MARVI_WAKE_WINDOW", DEFAULT_WINDOW_SECONDS),
+            )
+        except Exception as exc:  # pragma: no cover - depends on the runtime
+            log.warning("could not load the wake word model: %s", exc)
+            return None
+
+    # -- state ---------------------------------------------------------------
+
+    @property
+    def awake(self) -> bool:
+        return time.monotonic() < self._awake_until
+
+    def _listen(self, *, reason: str) -> None:
+        if not self.awake and self._session is not None:
+            log.info("wake word: listening (%s)", reason)
+            self._session.input.set_audio_enabled(True)
+        self._awake_until = time.monotonic() + self.window
+
+    def _sleep(self) -> None:
+        if self._session is not None:
+            self._session.input.set_audio_enabled(False)
+        self._awake_until = 0.0
+        log.info("wake word: back to sleep")
+
+    def extend(self) -> None:
+        """Something was said to her; keep the window open.
+
+        Without this a long answer plus a follow-up would fall off the end of
+        the window mid-conversation, and she would stop hearing someone who was
+        clearly still talking to her.
+        """
+        if self.awake:
+            self._awake_until = time.monotonic() + self.window
+
+    # -- running -------------------------------------------------------------
+
+    def attach(self, session: AgentSession, room: rtc.Room) -> None:
+        """Start gating `session` on the audio arriving in `room`."""
+        self._session = session
+        session.input.set_audio_enabled(False)
+        log.info(
+            "wake word armed (threshold %.2f, window %.0fs)", self.threshold, self.window
+        )
+
+        for participant in room.remote_participants.values():
+            for publication in participant.track_publications.values():
+                if publication.track is not None:
+                    self._watch(publication.track)
+
+        @room.on("track_subscribed")
+        def _on_track(track: rtc.Track, *_args: object) -> None:
+            self._watch(track)
+
+        self._spawn(self._expire())
+
+    def _watch(self, track: rtc.Track) -> None:
+        if track.kind == rtc.TrackKind.KIND_AUDIO:
+            self._spawn(self._consume(track))
+
+    def _spawn(self, coro) -> None:
+        task = asyncio.create_task(coro)
+        # Held, because asyncio only keeps a weak reference and a garbage
+        # collected task stops silently -- which here means she stops listening
+        # with no error anywhere.
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+
+    async def _consume(self, track: rtc.Track) -> None:
+        stream = rtc.AudioStream.from_track(
+            track=track, sample_rate=SAMPLE_RATE, num_channels=1
+        )
+        try:
+            async for event in stream:
+                if self.awake:
+                    # No point scoring what she is already listening to, and
+                    # this is the common case once a conversation starts.
+                    continue
+                samples = np.frombuffer(event.frame.data, dtype=np.int16)
+                if not samples.size:
+                    continue
+                scores = self._model.predict(samples)
+                best = max(scores.values(), default=0.0)
+                if best >= self.threshold:
+                    self._listen(reason=f"heard her name ({best:.2f})")
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # pragma: no cover - depends on the runtime
+            # Failing open: a detector that crashes must not leave her deaf.
+            log.warning("wake word listener stopped (%s); listening always", exc)
+            self._listen(reason="detector failed")
+        finally:
+            with contextlib.suppress(Exception):
+                await stream.aclose()
+
+    async def _expire(self) -> None:
+        while True:
+            await asyncio.sleep(1.0)
+            if self._awake_until and not self.awake:
+                self._sleep()
