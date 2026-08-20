@@ -1,7 +1,7 @@
 import type { Room } from 'livekit-client'
 import { atom } from 'nanostores'
 
-import { connectVoiceRoom } from '../lib/livekit-room'
+import { connectVoiceRoom, expectDisconnect } from '../lib/livekit-room'
 import { cycleVoicePhase } from './voice-state'
 
 /**
@@ -29,12 +29,23 @@ export const $voiceLink = atom<VoiceLink>('off')
  */
 export const $voiceMuted = atom(false)
 
+/**
+ * Why joining failed, in the words of whatever refused.
+ *
+ * It used to be discarded -- `.catch(() => cycleVoicePhase('error'))` -- and
+ * the page showed that phase's canned caption, "Gateway unavailable", for
+ * every possible cause including a Gateway that was perfectly fine. A refused
+ * microphone and an unreachable server produced identical text.
+ */
+export const $voiceError = atom('')
+
 let room: Room | null = null
 /** Guards against a second start while the first is still connecting. */
 let starting: Promise<void> | null = null
 
 export async function startVoice(): Promise<void> {
   if (room || starting) return starting ?? undefined
+  $voiceError.set('')
   $voiceLink.set('connecting')
   starting = connectVoiceRoom()
     .then((connected) => {
@@ -51,9 +62,10 @@ export async function startVoice(): Promise<void> {
       })
       $voiceLink.set('live')
     })
-    .catch(() => {
+    .catch((cause: unknown) => {
       room = null
       $voiceLink.set('off')
+      $voiceError.set(cause instanceof Error ? cause.message : String(cause))
       cycleVoicePhase('error')
     })
     .finally(() => {
@@ -63,6 +75,9 @@ export async function startVoice(): Promise<void> {
 }
 
 export async function stopVoice(): Promise<void> {
+  // Tell the room layer this one is on purpose, so the disconnect is not
+  // reported as a failure.
+  expectDisconnect()
   const current = room
   room = null
   $voiceLink.set('off')

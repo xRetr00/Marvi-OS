@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const connect = vi.hoisted(() => vi.fn())
 
-vi.mock('../lib/livekit-room', () => ({ connectVoiceRoom: connect }))
+vi.mock('../lib/livekit-room', () => ({ connectVoiceRoom: connect, expectDisconnect: vi.fn() }))
 vi.mock('./voice-state', () => ({ cycleVoicePhase: vi.fn() }))
 
 /** Just enough Room to be started, stopped, and to hang up on its own. */
@@ -92,5 +92,39 @@ describe('the voice session', () => {
     room.fire('disconnected')
 
     expect($voiceLink.get()).toBe('off')
+  })
+})
+
+describe('a failure to join', () => {
+  beforeEach(async () => {
+    vi.resetModules()
+    connect.mockReset()
+  })
+
+  it('keeps the reason instead of a canned caption', async () => {
+    // It used to be swallowed -- `.catch(() => cycleVoicePhase('error'))` --
+    // and the page showed that phase's fixed text, "Gateway unavailable", for
+    // every cause including a Gateway that was fine. A refused microphone and
+    // an unreachable server read identically.
+    connect.mockRejectedValue(new Error('The microphone could not be opened: NotAllowedError'))
+    const { $voiceError, startVoice } = await import('./voice-session')
+
+    await startVoice()
+
+    expect($voiceError.get()).toContain('microphone')
+    expect($voiceError.get()).toContain('NotAllowedError')
+  })
+
+  it('clears the reason when a later attempt works', async () => {
+    connect
+      .mockRejectedValueOnce(new Error('no route to host'))
+      .mockResolvedValueOnce(fakeRoom())
+    const { $voiceError, startVoice } = await import('./voice-session')
+
+    await startVoice()
+    expect($voiceError.get()).not.toBe('')
+
+    await startVoice()
+    expect($voiceError.get()).toBe('')
   })
 })

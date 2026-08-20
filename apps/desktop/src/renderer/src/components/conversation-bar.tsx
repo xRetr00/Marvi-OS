@@ -1,7 +1,14 @@
 import { useStore } from '@nanostores/react'
 
 import { haptic } from '../lib/haptics'
-import { $voiceLink, $voiceMuted, setMuted, startVoice, stopVoice } from '../store/voice-session'
+import {
+  $voiceError,
+  $voiceLink,
+  $voiceMuted,
+  setMuted,
+  startVoice,
+  stopVoice
+} from '../store/voice-session'
 
 /**
  * The call controls: join, mute, hang up.
@@ -18,6 +25,7 @@ import { $voiceLink, $voiceMuted, setMuted, startVoice, stopVoice } from '../sto
 export function ConversationBar({ level }: { level: number }): React.JSX.Element {
   const link = useStore($voiceLink)
   const muted = useStore($voiceMuted)
+  const failure = useStore($voiceError)
   const live = link === 'live'
   const joining = link === 'connecting'
 
@@ -40,8 +48,10 @@ export function ConversationBar({ level }: { level: number }): React.JSX.Element
         })}
       </div>
 
-      <span className="convo-state">
-        {live ? 'In the room' : joining ? 'Joining…' : 'Not joined'}
+      <span className={`convo-state${failure ? ' is-failed' : ''}`}>
+        {/* The actual reason, not a phase caption. "Gateway unavailable" was
+            shown for a refused microphone on a healthy Gateway. */}
+        {failure || (live ? 'In the room' : joining ? 'Joining…' : 'Not joined')}
       </span>
 
       <button

@@ -1,4 +1,14 @@
-import { app, BrowserWindow, ipcMain, Menu, nativeImage, screen, shell, Tray } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  ipcMain,
+  Menu,
+  nativeImage,
+  screen,
+  session,
+  shell,
+  Tray
+} from 'electron'
 import { is } from '@electron-toolkit/utils'
 import { existsSync } from 'fs'
 import { join, resolve } from 'path'
@@ -62,6 +72,16 @@ let translucencyIntensity = 0
 // main process maps it to native window opacity. Floor the most see-through
 // setting at 0.3 so it stays usable. 0 = fully opaque.
 /** The Gateway speaks snake_case; the renderer types are camelCase. */
+/** Marvi's own renderer, whether packaged (file://) or the dev server. */
+function isMarviPage(url: string): boolean {
+  if (!url) return false
+  return (
+    url.startsWith('file://') ||
+    url.startsWith('http://localhost:') ||
+    url.startsWith('http://127.0.0.1:')
+  )
+}
+
 function normaliseModelPage(body: unknown): ModelPage | null {
   const page = body as { providers?: Array<Record<string, never>> }
   if (!page || !Array.isArray(page.providers)) return null
@@ -596,6 +616,23 @@ if (!app.requestSingleInstanceLock()) {
 function startApp(): void {
   app.whenReady().then(() => {
     app.setAppUserModelId('ai.neuretro.marvi-os')
+
+    // Marvi's own pages may use the microphone; nothing else may, and no page
+    // gets anything else. There was no handler at all, which leaves the
+    // decision to Electron's default and makes a refused microphone
+    // indistinguishable from a network failure at the point it is reported.
+    //
+    // Restricted to the app's own content rather than granted blanket: this is
+    // an always-on microphone, and the list of what may open it should be one
+    // entry long.
+    const allowed = new Set(['media', 'audioCapture'])
+    session.defaultSession.setPermissionRequestHandler((contents, permission, done) => {
+      done(allowed.has(permission) && isMarviPage(contents.getURL()))
+    })
+    session.defaultSession.setPermissionCheckHandler((_contents, permission, origin) =>
+      allowed.has(permission) && isMarviPage(origin)
+    )
+
     startVoiceStack()
 
     ipcMain.handle('marvi:get-version', () => app.getVersion())

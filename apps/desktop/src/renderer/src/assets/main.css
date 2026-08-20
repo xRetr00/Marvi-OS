@@ -2406,3 +2406,7 @@ small,
   border-color: var(--ui-accent);
   color: var(--ui-accent);
 }
+
+.convo-state.is-failed {
+  color: var(--ui-danger);
+}
