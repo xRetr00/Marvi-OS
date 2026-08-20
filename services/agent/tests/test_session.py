@@ -36,24 +36,24 @@ def test_a_missing_speech_engine_is_reported(tmp_path, monkeypatch, caplog) -> N
     It is now stated at the point it is decided, which is the only place that
     can tell the difference between "no speech" and "no engine".
     """
+    import contextlib
     import logging
 
     from marvi_agent import session as session_module
 
     monkeypatch.setenv("MARVI_VOICE_RUNTIME", str(tmp_path / "absent.exe"))
 
-    with caplog.at_level(logging.ERROR, logger="marvi.voice"):
-        try:
-            session_module.build_session()
-        except Exception:
-            # Building the rest of the session needs models this test has no
-            # business downloading. The log line is what is under test.
-            pass
+    # Building the rest of the session needs models this test has no business
+    # downloading; the log line is what is under test, and it is emitted before
+    # anything that can fail.
+    with caplog.at_level(logging.ERROR, logger="marvi.voice"), contextlib.suppress(Exception):
+        session_module.build_session()
 
     assert any("speech-to-text engine is missing" in record.message for record in caplog.records)
 
 
 def test_a_present_engine_says_nothing(tmp_path, monkeypatch, caplog) -> None:
+    import contextlib
     import logging
 
     from marvi_agent import session as session_module
@@ -62,10 +62,7 @@ def test_a_present_engine_says_nothing(tmp_path, monkeypatch, caplog) -> None:
     engine.write_bytes(b"pretend engine")
     monkeypatch.setenv("MARVI_VOICE_RUNTIME", str(engine))
 
-    with caplog.at_level(logging.ERROR, logger="marvi.voice"):
-        try:
-            session_module.build_session()
-        except Exception:
-            pass
+    with caplog.at_level(logging.ERROR, logger="marvi.voice"), contextlib.suppress(Exception):
+        session_module.build_session()
 
     assert not any("missing" in record.message for record in caplog.records)
