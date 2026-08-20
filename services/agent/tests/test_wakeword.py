@@ -137,3 +137,64 @@ def test_the_threshold_comes_from_the_environment(monkeypatch, value: str) -> No
 
     assert configured is not None
     assert configured.threshold == float(value)
+
+
+# -- the window --------------------------------------------------------------
+
+
+def test_the_model_needs_a_whole_window_not_a_frame() -> None:
+    """The bug that made the wake word impossible.
+
+    `predict` is stateless and scores a complete window: "~2 seconds of 16 kHz
+    audio is recommended (yields exactly 16 embeddings for the classifier).
+    Shorter chunks that lack enough data return zero scores."
+
+    Frames arriving from the room are about 10 ms, and each was being handed to
+    `predict` on its own -- so every call took the "not enough data" path and
+    returned exactly 0.0. It looked like a model correctly ignoring noise.
+
+    Exactly 0.0 from a short chunk versus a real number from a full window is
+    what tells those two apart.
+    """
+    from marvi_agent.wakeword import HOP_SAMPLES, WINDOW_SAMPLES
+
+    model = gate()._model
+    speechlike = np.random.default_rng(7).normal(0, 2000, WINDOW_SAMPLES).astype(np.int16)
+
+    short = model.predict(speechlike[:HOP_SAMPLES])
+    full = model.predict(speechlike)
+
+    assert short["marvi"] == 0.0, "a short chunk cannot be scored at all"
+    assert full["marvi"] != 0.0, "a full window must produce a real score"
+
+
+def test_the_window_is_two_seconds_at_the_rate_the_model_wants() -> None:
+    from marvi_agent.wakeword import SAMPLE_RATE, WINDOW_SAMPLES
+
+    assert SAMPLE_RATE == 16_000
+    assert WINDOW_SAMPLES == SAMPLE_RATE * 2
+
+
+def test_the_hop_is_short_enough_to_catch_a_word() -> None:
+    """The window slides by this much between scores.
+
+    A spoken "Marvi" lasts a few hundred milliseconds; a hop near the window
+    length would step straight over it.
+    """
+    from marvi_agent.wakeword import HOP_SAMPLES, SAMPLE_RATE, WINDOW_SAMPLES
+
+    assert HOP_SAMPLES <= SAMPLE_RATE // 4
+    assert HOP_SAMPLES < WINDOW_SAMPLES // 4
+
+
+def test_a_full_window_of_silence_still_does_not_wake_her() -> None:
+    """Now that windows are scored properly, silence has a real score.
+
+    It is no longer the degenerate 0.0 of a chunk too short to evaluate, so
+    this is the first time this assertion has meant anything.
+    """
+    from marvi_agent.wakeword import WINDOW_SAMPLES
+
+    scored = gate()._model.predict(np.zeros(WINDOW_SAMPLES, dtype=np.int16))
+
+    assert 0.0 < scored["marvi"] < 0.5

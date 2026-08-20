@@ -74,6 +74,27 @@ DEFAULT_MODEL = Path(__file__).resolve().parents[2] / "wakeword" / "marvi.onnx"
 #: resamples on the way out, so this is the only place the rate is stated.
 SAMPLE_RATE = 16_000
 
+#: The model is stateless and scores a whole window at a time. Its own
+#: docstring: "pass a complete audio window each time. ~2 seconds of 16 kHz
+#: audio is recommended (yields exactly 16 embeddings for the classifier).
+#: Shorter chunks that lack enough data return zero scores."
+#:
+#: This was the bug. Frames arriving from the room are about 10 ms, and each
+#: was handed to `predict` on its own -- far short of the 16 embeddings the
+#: classifier needs, so every call returned exactly 0.0 and the wake word could
+#: never fire. It looked like a model correctly ignoring noise.
+WINDOW_SAMPLES = SAMPLE_RATE * 2
+
+#: How far the window slides between scores. Matches the reference listener's
+#: 80 ms frame: often enough to catch a word wherever it falls, rare enough
+#: that the ONNX run is not the agent's main occupation.
+HOP_SAMPLES = SAMPLE_RATE // 1000 * 80
+
+#: Minimum gap between detections, so one utterance is one wake. The window
+#: slides in 80 ms steps and a spoken "Marvi" stays inside it for over a
+#: second, which without this would score again on every hop.
+DEBOUNCE_SECONDS = 2.0
+
 #: Scores above this count as her name. Deliberately not lower: the cost of a
 #: false wake is Marvi interrupting a conversation she was not part of, which
 #: is worse than having to say her name twice.
@@ -221,18 +242,41 @@ class WakeGate:
         stream = rtc.AudioStream.from_track(
             track=track, sample_rate=SAMPLE_RATE, num_channels=1
         )
+        # A rolling two seconds, scored every 80 ms. Both numbers come from the
+        # model: it is stateless, so it needs the whole window each time.
+        window = np.zeros(0, dtype=np.int16)
+        since_last_score = 0
+        last_fired = 0.0
         try:
             async for event in stream:
                 if self.awake:
                     # No point scoring what she is already listening to, and
-                    # this is the common case once a conversation starts.
+                    # this is the common case once a conversation starts. The
+                    # window is dropped so a fresh one is built on waking --
+                    # otherwise the first score after sleeping would be against
+                    # two seconds of her own reply.
+                    window = np.zeros(0, dtype=np.int16)
+                    since_last_score = 0
                     continue
+
                 samples = np.frombuffer(event.frame.data, dtype=np.int16)
                 if not samples.size:
                     continue
-                scores = self._model.predict(samples)
+                window = np.concatenate((window, samples))[-WINDOW_SAMPLES:]
+                since_last_score += samples.size
+                if window.size < WINDOW_SAMPLES or since_last_score < HOP_SAMPLES:
+                    continue
+                since_last_score = 0
+
+                if time.monotonic() - last_fired < DEBOUNCE_SECONDS:
+                    continue
+
+                # Off the event loop: the ONNX run is CPU-bound, and blocking
+                # here would stall the audio the session is trying to hear.
+                scores = await asyncio.to_thread(self._model.predict, window)
                 best = max(scores.values(), default=0.0)
                 if best >= self.threshold:
+                    last_fired = time.monotonic()
                     self._listen(reason=f"heard her name ({best:.2f})", confidence=best)
         except asyncio.CancelledError:
             raise
