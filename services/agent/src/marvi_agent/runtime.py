@@ -66,9 +66,28 @@ class AgentConfig:
         )
 
 
+#: How long a spoken reply may be, in tokens.
+#:
+#: Set because leaving it unset asks for the model's entire context. The plugin
+#: sent no limit, so OpenRouter saw a request for 65,536 tokens, reserved credit
+#: for all of them, and refused every voice turn:
+#:
+#:     402: This request requires more credits, or fewer max_tokens. You
+#:     requested up to 65536 tokens, but can only afford 14191.
+#:
+#: It is also just wrong for voice. Three hundred tokens is around a minute of
+#: speech, and a spoken answer longer than that is one nobody asked for.
+VOICE_REPLY_TOKENS = 300
+
+
 def build_llm(config: AgentConfig) -> openai.LLM:
     """Every provider Marvi speaks to on the voice path is OpenAI-compatible."""
-    return openai.LLM(model=config.model, base_url=config.base_url, api_key=config.api_key)
+    return openai.LLM(
+        model=config.model,
+        base_url=config.base_url,
+        api_key=config.api_key,
+        max_completion_tokens=VOICE_REPLY_TOKENS,
+    )
 
 
 def build_local_turn_detector() -> str:

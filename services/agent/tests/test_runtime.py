@@ -77,3 +77,23 @@ def test_end_of_turn_is_decided_locally() -> None:
 
     assert mode == "vad", "end of turn must not depend on a service this install cannot reach"
     assert isinstance(mode, str), "a detector object here means a network round trip per turn"
+
+
+def test_a_spoken_reply_is_bounded() -> None:
+    """Unset means the model's whole context, and the provider charges for it.
+
+    The plugin sent no limit, so OpenRouter saw a request for 65,536 tokens,
+    reserved credit against all of them, and refused every voice turn:
+
+        402: This request requires more credits, or fewer max_tokens. You
+        requested up to 65536 tokens, but can only afford 14191.
+
+    It is also wrong on its own terms. Three hundred tokens is about a minute
+    of speech, and a spoken answer longer than that is one nobody asked for.
+    """
+    from marvi_agent.runtime import VOICE_REPLY_TOKENS, AgentConfig, build_llm
+
+    model = build_llm(AgentConfig(api_key="k", model="m", base_url="https://x/v1"))
+
+    assert 0 < VOICE_REPLY_TOKENS <= 1000
+    assert model._opts.max_completion_tokens == VOICE_REPLY_TOKENS
