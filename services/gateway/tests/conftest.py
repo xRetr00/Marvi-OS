@@ -53,6 +53,24 @@ def isolate_marvi_home(tmp_path_factory, monkeypatch):
         "MARVI_MCP_CONFIG",
     ):
         monkeypatch.delenv(leaked, raising=False)
+
+    # And every provider credential.
+    #
+    # These are read from the environment, so a developer with a real key gets
+    # a configured provider and CI does not -- the suite then passes locally
+    # and fails on push, which is the worst way to find out. Sixteen tests did
+    # exactly that. A test that needs a provider must say so and supply its
+    # own, so the answer is the same on every machine.
+    from marvi_gateway.providers import all_profiles
+
+    for provider in all_profiles():
+        for name in provider.key_env:
+            monkeypatch.delenv(name, raising=False)
+        if provider.base_url_env:
+            monkeypatch.delenv(provider.base_url_env, raising=False)
+        monkeypatch.delenv(provider.enabled_setting(), raising=False)
+    monkeypatch.delenv("MARVI_PROVIDER", raising=False)
+
     yield home
 
     # Logging is process-global: a listener left running from one test writes
@@ -60,3 +78,29 @@ def isolate_marvi_home(tmp_path_factory, monkeypatch):
     from marvi_gateway import logs
 
     logs.shutdown()
+
+
+@pytest.fixture
+def configured(monkeypatch):
+    """Give a provider a credential for the length of one test.
+
+    The counterpart to the credential-stripping above. Nothing is configured
+    unless a test says it is, and a test that needs a provider gets a fake key
+    rather than whichever real one happens to be in the environment -- so the
+    answer is the same on a developer machine and on a runner with no keys at
+    all.
+    """
+
+    def configure(name: str = "openai"):
+        from marvi_gateway.providers import get
+
+        profile = get(name)
+        for variable in profile.key_env:
+            monkeypatch.setenv(variable, "test-key")
+        # Local providers need the switch as well as a URL: a reachable
+        # endpoint is not a connection, and `configured()` says so.
+        if profile.enabled_setting():
+            monkeypatch.setenv(profile.enabled_setting(), "true")
+        return profile
+
+    return configure

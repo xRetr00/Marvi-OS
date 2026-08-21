@@ -20,25 +20,6 @@ def empty_cache():
     catalog.forget()
 
 
-@pytest.fixture
-def configured(monkeypatch):
-    """Give a provider a credential for the length of one test.
-
-    Two tests here passed locally and failed in CI because the developer
-    machine has a real OpenAI key in its environment and the runner does not.
-    A test that only passes where someone happens to be signed in is testing
-    the machine.
-    """
-
-    def configure(name: str):
-        profile = get(name)
-        for variable in profile.key_env:
-            monkeypatch.setenv(variable, "test-key")
-        return profile
-
-    return configure
-
-
 def responder(payload, status: int = 200, seen: list | None = None) -> httpx.Client:
     def handler(request: httpx.Request) -> httpx.Response:
         if seen is not None:
@@ -256,7 +237,7 @@ def test_asking_for_a_provider_that_does_not_exist_says_so() -> None:
 # -- measurement -------------------------------------------------------------
 
 
-def test_a_chat_turn_is_recorded_for_latency(tmp_path, monkeypatch) -> None:
+def test_a_chat_turn_is_recorded_for_latency(tmp_path, monkeypatch, configured) -> None:
     """The seam existed and was connected to nothing.
 
     `/latency` sat at zero samples through every conversation, on both
@@ -268,6 +249,8 @@ def test_a_chat_turn_is_recorded_for_latency(tmp_path, monkeypatch) -> None:
     from marvi_gateway import latency
     from marvi_gateway.chat import Chat, ChatStore
     from marvi_gateway.providers import ProviderClient
+
+    configured()
 
     recording = tmp_path / "latency.jsonl"
     monkeypatch.setattr(latency, "recording_path", lambda: recording)
@@ -293,7 +276,7 @@ def test_a_chat_turn_is_recorded_for_latency(tmp_path, monkeypatch) -> None:
     assert summary["samples"] == 1
 
 
-def test_the_recorded_turn_names_the_provider_that_answered(tmp_path, monkeypatch) -> None:
+def test_the_recorded_turn_names_the_provider_that_answered(tmp_path, monkeypatch, configured) -> None:
     """Not the one that was asked for.
 
     Fallback means those differ exactly when it matters most -- a sample
@@ -302,6 +285,8 @@ def test_the_recorded_turn_names_the_provider_that_answered(tmp_path, monkeypatc
     from marvi_gateway import latency
     from marvi_gateway.chat import Chat, ChatStore
     from marvi_gateway.providers import ProviderClient
+
+    configured()
 
     monkeypatch.setattr(latency, "recording_path", lambda: tmp_path / "latency.jsonl")
 

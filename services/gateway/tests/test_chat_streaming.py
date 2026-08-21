@@ -42,6 +42,17 @@ def chat_with(tmp_path, body: str, **kwargs) -> Chat:
     )
 
 
+@pytest.fixture(autouse=True)
+def a_provider_to_stream_from(configured):
+    """Every test here streams from somewhere, so all of them need one.
+
+    The transport is a mock, but the provider still has to be *chosen*, and
+    nothing is chosen unless it is configured. These passed on a machine with a
+    real key in its environment and failed on a runner without one.
+    """
+    configured()
+
+
 ANSWER = sse(
     '{"choices":[{"delta":{"content":"The "}}]}',
     '{"choices":[{"delta":{"content":"light "}}]}',

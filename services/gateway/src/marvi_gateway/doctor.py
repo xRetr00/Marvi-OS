@@ -270,8 +270,26 @@ def check_provider_reachable() -> Finding:
     if usable:
         return Finding("provider reachable", "providers", "ok", ", ".join(usable))
     if not configured_profiles():
+        # This became reachable when a local URL stopped counting as a
+        # connection: with nothing connected there is no provider to reach, and
+        # the check failed silently with nothing to do about it. A failing
+        # check that does not say how to fix it is the one kind doctor exists
+        # to prevent.
         return Finding(
-            "provider reachable", "providers", "fail", "nothing configured to reach"
+            "provider reachable",
+            "providers",
+            "fail",
+            "nothing configured to reach",
+            Remedy(
+                kind="manual",
+                action="Connect a provider",
+                how=(
+                    "Open Providers and connect one. A hosted provider needs an "
+                    "API key; a local one needs its server running and the "
+                    "Connect button pressed, which fetches its models to prove "
+                    "it answers."
+                ),
+            ),
         )
     return Finding(
         "provider reachable",
