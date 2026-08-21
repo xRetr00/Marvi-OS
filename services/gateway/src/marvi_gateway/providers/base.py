@@ -461,7 +461,13 @@ class ProviderProfile:
             # Anthropic names the event and puts the text one level deeper.
             kind = chunk.get("type", "")
             if kind == "content_block_delta":
-                delta = (chunk.get("delta") or {}).get("text", "")
+                block = chunk.get("delta") or {}
+                # Thinking arrives interleaved with the answer and must never
+                # be spoken or shown as the reply.
+                if block.get("type") == "thinking_delta":
+                    thought = block.get("thinking", "")
+                    return {"reasoning": thought} if thought else None
+                delta = block.get("text", "")
                 return {"delta": delta} if delta else None
             if kind in ("message_delta", "message_stop"):
                 usage = chunk.get("usage") or (chunk.get("message") or {}).get("usage")
@@ -473,6 +479,12 @@ class ProviderProfile:
             if kind == "response.output_text.delta":
                 delta = chunk.get("delta", "")
                 return {"delta": delta} if delta else None
+            if kind in (
+                "response.reasoning_text.delta",
+                "response.reasoning_summary_text.delta",
+            ):
+                thought = chunk.get("delta", "")
+                return {"reasoning": thought} if thought else None
             if kind == "response.completed":
                 usage = (chunk.get("response") or {}).get("usage")
                 return {"usage": {"usage": usage}} if usage else None
@@ -481,9 +493,35 @@ class ProviderProfile:
         # chat_completions
         choices = chunk.get("choices") or []
         if choices:
-            delta = (choices[0].get("delta") or {}).get("content") or ""
-            if delta:
-                return {"delta": delta}
+            delta = choices[0].get("delta") or {}
+            text = delta.get("content") or ""
+            if text:
+                return {"delta": text}
+
+            # Reasoning, in the three shapes the OpenAI-compatible world uses.
+            # OpenRouter documents `reasoning_details` -- a list of typed parts
+            # -- and also sends a plain `reasoning` string; DeepSeek calls it
+            # `reasoning_content`. Checked against OpenRouter's own reasoning
+            # docs rather than guessed.
+            details = delta.get("reasoning_details") or []
+            if details:
+                thought = "".join(
+                    str(part.get("text") or "")
+                    for part in details
+                    if isinstance(part, dict) and "text" in part
+                )
+                if thought:
+                    return {"reasoning": thought}
+            thought = delta.get("reasoning") or delta.get("reasoning_content") or ""
+            if thought:
+                return {"reasoning": str(thought)}
+
+            # Tool calls arrive in fragments: an index, and a name or a slice
+            # of the argument JSON. Passed through whole for the caller to
+            # reassemble, because only it knows when the round is over.
+            calls = delta.get("tool_calls")
+            if calls:
+                return {"tool_calls": calls}
         # OpenAI sends usage in a final chunk when asked to; it has no choices.
         if chunk.get("usage"):
             return {"usage": {"usage": chunk["usage"]}}

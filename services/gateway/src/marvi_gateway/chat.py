@@ -25,7 +25,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -187,6 +187,197 @@ class Chat:
                 # Results re-enter as observations, still labelled.
                 wire.append({"role": "user", "content": row["content"]})
         return wire
+
+    def _run_tool(self, name: str, arguments: Any) -> dict[str, Any]:
+        """Dispatch one tool call and describe what happened.
+
+        Shared by the streaming turn and the blocking one so a tool behaves
+        identically either way -- including the confirmation stop, which is the
+        one outcome that must never be narrated as though it had already
+        happened.
+        """
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments or "{}")
+            except ValueError:
+                arguments = {}
+        if not isinstance(arguments, dict):
+            arguments = {}
+
+        own_notes = {"remember_about_user", "forget_about_user"}
+        if name in own_notes:
+            if self.curiosity is None:
+                return {"text": "", "pending_confirmation": None}
+            outcome = handle_tool(self.curiosity, name, arguments)
+            return {
+                "text": wrap_external(f"tool:{name}", outcome.get("result")).text,
+                "pending_confirmation": None,
+            }
+
+        if self.dispatch is None:
+            return {
+                "text": wrap_external(
+                    f"tool:{name}", "tools are not available in this session"
+                ).text,
+                "pending_confirmation": None,
+            }
+
+        outcome = self.dispatch(name, arguments)
+        if outcome.get("status") == "confirmation_required":
+            note = f"{name} needs your confirmation before it runs."
+            self.store.append("assistant", note, pending=name)
+            return {
+                "text": note,
+                "pending_confirmation": {
+                    "tool": name,
+                    "token": outcome.get("token"),
+                    "arguments": arguments,
+                },
+            }
+
+        # A tool result can carry text somebody else wrote, so it comes back
+        # enveloped rather than inlined as trusted narration.
+        return {
+            "text": wrap_external(f"tool:{name}", outcome.get("result")).text,
+            "pending_confirmation": None,
+        }
+
+    def send_stream(
+        self,
+        message: str,
+        provider: str | None = None,
+        model: str | None = None,
+        effort: str | None = None,
+    ) -> Iterator[dict[str, Any]]:
+        """One chat turn, yielded as it happens.
+
+        Events, in the order they can occur:
+
+            {"reasoning": str}  a slice of the model's thinking
+            {"delta": str}      a slice of the answer
+            {"tool": str}       a tool that ran, by name
+            {"done": ...}       the turn is over, with usage and any error
+
+        The answer is never assembled before the caller sees it. That is the
+        whole point: `send` waits for the last token before returning the
+        first, which is a second or more of nothing on chat and the entire
+        experience of a spoken turn.
+
+        Reasoning is a separate event all the way out. It must not be spoken,
+        must not reach a TTS, and belongs in its own place in a transcript --
+        collapsing it into the answer would put a model's private working into
+        Marvi's mouth.
+        """
+        text = (message or "").strip()
+        if not text:
+            yield {"done": True, "error": "empty message", "tokens": 0, "provider": ""}
+            return
+        if not self.available():
+            yield {
+                "done": True,
+                "error": "No provider is connected. Open Providers and connect one.",
+                "tokens": 0,
+                "provider": "",
+            }
+            return
+
+        self.store.append("user", text)
+        schemas = list(self.tool_schemas() if self.tool_schemas else [])
+        if self.curiosity is not None:
+            schemas += curiosity_tools()
+
+        answer: list[str] = []
+        used: list[str] = []
+        tokens = 0
+        answered = ""
+
+        for round_number in range(MAX_TOOL_ROUNDS):
+            final_round = round_number == MAX_TOOL_ROUNDS - 1
+            calls: list[dict[str, Any]] = []
+            answer = []
+            try:
+                # Timed like the blocking path, and now with a real first
+                # token: chat can finally be compared against voice on the one
+                # measure that matters for both.
+                with latency.timed(
+                    "chat", "stream", provider=provider or "", model=model or ""
+                ) as sample:
+                    for event in self.client.stream_with_fallback(
+                        self._messages(None),
+                        preferred=provider or None,
+                        model=model or None,
+                        effort=effort or None,
+                        max_tokens=MAX_REPLY_TOKENS,
+                        tools=None if final_round else (schemas or None),
+                    ):
+                        if event.get("provider"):
+                            answered = event["provider"]
+                            sample.provider = answered
+                            continue
+                        if event.get("reasoning"):
+                            yield {"reasoning": event["reasoning"]}
+                            continue
+                        if event.get("delta"):
+                            sample.mark_first_token()
+                            answer.append(event["delta"])
+                            yield {"delta": event["delta"]}
+                            continue
+                        if event.get("tool_calls"):
+                            calls = event["tool_calls"]
+                            continue
+                        if event.get("done"):
+                            tokens += int((event.get("usage") or {}).get("billable", 0))
+            except ProviderCallError as exc:
+                logger.warning("streamed chat call failed: %s", exc)
+                yield {
+                    "done": True,
+                    "error": str(exc),
+                    "tokens": tokens,
+                    "provider": answered,
+                }
+                return
+
+            if not calls:
+                reply = "".join(answer).strip()
+                self.store.append("assistant", reply, provider=answered, tokens=tokens)
+                if self.memory is not None and reply:
+                    self.memory.remember(text[:200], reply[:2000], kind="episodic")
+                yield {
+                    "done": True,
+                    "reply": reply,
+                    "tools_used": used,
+                    "tokens": tokens,
+                    "provider": answered,
+                    "error": "",
+                }
+                return
+
+            for call in calls:
+                name = str(call.get("name") or "")
+                used.append(name)
+                yield {"tool": name}
+                outcome = self._run_tool(name, call.get("arguments") or "{}")
+                if outcome.get("pending_confirmation"):
+                    yield {
+                        "done": True,
+                        "reply": "",
+                        "tools_used": used,
+                        "tokens": tokens,
+                        "provider": answered,
+                        "pending_confirmation": outcome["pending_confirmation"],
+                        "error": "",
+                    }
+                    return
+                self.store.append("tool", str(outcome.get("text", "")), tool=name)
+
+        yield {
+            "done": True,
+            "reply": "I stopped after several tool steps without reaching an answer.",
+            "tools_used": used,
+            "tokens": tokens,
+            "provider": answered,
+            "error": "tool round limit reached",
+        }
 
     def send(
         self,

@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 import socket
+import threading
 import time
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager, suppress
@@ -882,6 +883,56 @@ def create_app(
             tokens=turn.tokens,
             provider=turn.provider,
             error=turn.error,
+        )
+
+    @app.post("/chat/stream")
+    async def chat_stream(body: ChatMessage) -> StreamingResponse:
+        """One chat turn, as Server-Sent Events.
+
+        The answer reaches the window as it is written rather than after it is
+        finished. `POST /chat` still exists and still blocks, because the
+        Island and the confirmation flow both want a whole turn -- but the chat
+        window uses this.
+
+        Reasoning is its own event and never merged into the answer: it must
+        not be spoken, must not reach a TTS, and belongs in its own place in a
+        transcript.
+        """
+        if chat is None:
+            raise HTTPException(status_code=503, detail="chat is not available")
+
+        async def events() -> AsyncIterator[str]:
+            # The turn is synchronous and talks to a provider, so it runs on a
+            # worker thread; blocking the loop here would stall the health
+            # endpoint the shell polls every two seconds.
+            queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
+            loop = asyncio.get_running_loop()
+
+            def produce() -> None:
+                try:
+                    for event in chat.send_stream(
+                        body.message, body.provider, body.model, body.effort
+                    ):
+                        loop.call_soon_threadsafe(queue.put_nowait, event)
+                except Exception as exc:  # pragma: no cover - defensive
+                    loop.call_soon_threadsafe(
+                        queue.put_nowait, {"done": True, "error": str(exc)}
+                    )
+                finally:
+                    loop.call_soon_threadsafe(queue.put_nowait, None)
+
+            await anyio.to_thread.run_sync(lambda: threading.Thread(target=produce).start())
+            while True:
+                event = await queue.get()
+                if event is None:
+                    break
+                yield f"data: {json.dumps(event)}" + chr(10) + chr(10)
+
+        return StreamingResponse(
+            events(),
+            media_type="text/event-stream",
+            # Nothing between here and the window may hold a chunk back.
+            headers={"cache-control": "no-cache", "x-accel-buffering": "no"},
         )
 
     @app.delete("/chat", response_model=ChatHistory)

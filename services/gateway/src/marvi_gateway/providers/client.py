@@ -37,6 +37,31 @@ from .base import (
 
 logger = logging.getLogger(__name__)
 
+
+def _merge_tool_calls(pending: dict[int, dict[str, Any]], fragments: list[Any]) -> None:
+    """Reassemble streamed tool calls in place.
+
+    A provider sends a tool call in pieces: the name once, then the argument
+    JSON a few characters at a time, each tagged with the index of the call it
+    belongs to. Concatenating by index is the whole job -- but the arguments
+    are only valid JSON once the last fragment has arrived, which is why the
+    caller sees them at the end of the round and not before.
+    """
+    for fragment in fragments:
+        if not isinstance(fragment, dict):
+            continue
+        index = int(fragment.get("index") or 0)
+        call = pending.setdefault(
+            index, {"id": "", "name": "", "arguments": ""}
+        )
+        if fragment.get("id"):
+            call["id"] = fragment["id"]
+        function = fragment.get("function") or {}
+        if function.get("name"):
+            call["name"] = function["name"]
+        if function.get("arguments"):
+            call["arguments"] += function["arguments"]
+
 REQUEST_TIMEOUT = 60.0
 DEFAULT_COOLDOWN_SECONDS = 300.0
 MAX_COOLDOWN_SECONDS = 6 * 60 * 60
@@ -275,6 +300,10 @@ class ProviderClient:
 
         client = self.http or httpx.Client(timeout=REQUEST_TIMEOUT)
         usage = Usage()
+        # Tool calls arrive as fragments across many chunks and are only
+        # meaningful once the round ends, so they are assembled here and
+        # yielded whole at the end rather than dribbled out.
+        pending_calls: dict[int, dict[str, Any]] = {}
         try:
             with client.stream(
                 "POST", profile.endpoint(), json=body, headers=profile.headers()
@@ -297,6 +326,13 @@ class ProviderClient:
                         continue
                     if piece.get("delta"):
                         yield {"delta": piece["delta"]}
+                    elif piece.get("reasoning"):
+                        # Kept apart from the answer all the way through.
+                        # Reasoning must never be spoken, never sent to a TTS,
+                        # and shown separately when it is shown at all.
+                        yield {"reasoning": piece["reasoning"]}
+                    elif piece.get("tool_calls"):
+                        _merge_tool_calls(pending_calls, piece["tool_calls"])
         except ProviderCallError:
             raise
         except Exception as exc:
@@ -305,6 +341,9 @@ class ProviderClient:
         finally:
             if self.http is None:
                 client.close()
+
+        if pending_calls:
+            yield {"tool_calls": [pending_calls[i] for i in sorted(pending_calls)]}
 
         # Recorded here rather than per chunk: a stream that was cut short still
         # cost whatever it produced, and this is the one place that knows.
@@ -373,6 +412,48 @@ class ProviderClient:
             if chosen.configured() and self.resting(chosen.name) <= 0:
                 ready.insert(0, chosen)
         return ready
+
+    def stream_with_fallback(
+        self, messages: list[dict[str, Any]], preferred: str | None = None, **kwargs: Any
+    ) -> Iterator[dict[str, Any]]:
+        """Stream from the first provider that answers.
+
+        Fallback happens *before the first delta* and is a hard error after it.
+        Once bytes have reached the caller, moving to another provider is no
+        longer transparent: the user has already seen half a sentence, and
+        silently continuing it in a different model's voice is worse than
+        failing. So the first chunk is what commits the choice.
+
+        The provider that answered is announced as `{"provider": name}` before
+        any content, because the caller cannot know it in advance and has to
+        attribute what follows.
+        """
+        attempts = self.candidates(preferred)
+        if not attempts:
+            raise AllProvidersExhaustedError(
+                "No provider is available; all are unconfigured or cooling down."
+            )
+
+        last: Exception | None = None
+        for profile in attempts:
+            started = False
+            try:
+                for event in self.stream(messages, provider=profile, **kwargs):
+                    if not started:
+                        started = True
+                        yield {"provider": profile.name}
+                    yield event
+                return
+            except Exception as exc:
+                if started:
+                    # Committed. The caller has seen this provider's words.
+                    raise
+                logger.warning("provider %s could not start: %s", profile.name, exc)
+                last = exc
+
+        raise ProviderCallError(
+            f"No provider could start a stream; last error: {last}"
+        )
 
     def call_with_fallback(
         self, messages: list[dict[str, Any]], preferred: str | None = None, **kwargs: Any
