@@ -18,9 +18,8 @@ import {
  * that, because "is it hearing me" is the question you actually have when
  * nothing seems to be happening.
  *
- * It sits in its own bar rather than floating over the orb because the orb
- * surface takes the pointer for rotation, and controls that share a surface
- * with a drag target are controls you fight with.
+ * It sits in its own bar so the live visual and the actions have separate,
+ * predictable targets.
  */
 export function ConversationBar({ level }: { level: number }): React.JSX.Element {
   const link = useStore($voiceLink)
@@ -51,7 +50,7 @@ export function ConversationBar({ level }: { level: number }): React.JSX.Element
       <span className={`convo-state${failure ? ' is-failed' : ''}`}>
         {/* The actual reason, not a phase caption. "Gateway unavailable" was
             shown for a refused microphone on a healthy Gateway. */}
-        {failure || (live ? 'In the room' : joining ? 'Joining…' : 'Not joined')}
+        {failure || (live ? 'LIVE' : joining ? 'JOINING…' : 'OFFLINE')}
       </span>
 
       <button
@@ -65,7 +64,7 @@ export function ConversationBar({ level }: { level: number }): React.JSX.Element
           void setMuted(!muted)
         }}
       >
-        {muted ? 'Unmute' : 'Mute'}
+        {muted ? 'UNMUTE' : 'MUTE'}
       </button>
 
       <button
@@ -78,7 +77,7 @@ export function ConversationBar({ level }: { level: number }): React.JSX.Element
           void (live ? stopVoice() : startVoice())
         }}
       >
-        {live || joining ? 'Leave' : 'Join'}
+        {live || joining ? 'LEAVE' : 'JOIN'}
       </button>
     </div>
   )

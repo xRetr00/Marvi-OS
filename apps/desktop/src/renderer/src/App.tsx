@@ -25,12 +25,7 @@ const DEVICE_COPY: Record<DeviceState, string> = {
   off: 'OFF',
   unknown: 'UNKNOWN'
 }
-import {
-  $runtimeState,
-  $voiceState,
-  applyRuntimeState,
-  type VoiceState
-} from './store/voice-state'
+import { $runtimeState, $voiceState, applyRuntimeState, type VoiceState } from './store/voice-state'
 import {
   $backgroundMode,
   setBackgroundMode,
@@ -85,9 +80,9 @@ import { startVoice, stopVoice } from './store/voice-session'
  * three you open constantly.
  */
 const NAV_GROUPS = [
-  { label: 'Talk', items: ['Overview', 'Voice', 'Chat'] },
-  { label: 'World', items: ['Vision', 'Room', 'Activity'] },
-  { label: 'Self', items: ['Identity', 'Memory', 'Mind'] }
+  { label: 'Core', items: ['Overview', 'Voice', 'Chat'] },
+  { label: 'Context', items: ['Vision', 'Room', 'Activity'] },
+  { label: 'Memory', items: ['Identity', 'Memory', 'Mind'] }
 ] as const
 
 /** Behind the gear: the things you set up. */
@@ -99,31 +94,29 @@ const SETTINGS_GROUPS = [
 type Page = (typeof NAV_GROUPS)[number]['items'][number]
 type SettingsPage = (typeof SETTINGS_GROUPS)[number]['items'][number]
 
-/** One line saying what the page is, shown under its title. A heading that only
- * repeats the sidebar entry spends the space without paying for it. */
-const PAGE_BLURB: Record<Page, string> = {
-  Overview: 'Everything at a glance, and what is not working',
-  Voice: 'The live session, and what Marvi heard',
-  Chat: 'The same assistant, typed',
-  Vision: 'Who Marvi recognises, and what it does about visitors',
-  Room: 'Lights, modes and presence, from the room plugin',
-  Activity: 'What you have been doing, as context Marvi may use',
-  Identity: 'Who Marvi is, and what it has learned about you',
-  Memory: 'What Marvi remembers. Yours to read, export and delete',
-  Mind: 'Why Marvi did things, and when it decided to act on its own'
+const NAV_CODES: Record<Page, string> = {
+  Overview: 'OV',
+  Voice: 'VO',
+  Chat: 'CH',
+  Vision: 'VI',
+  Room: 'RM',
+  Activity: 'AC',
+  Identity: 'ID',
+  Memory: 'ME',
+  Mind: 'MI'
 }
 
 const SETTINGS_BLURB: Record<SettingsPage, string> = {
-  Providers: 'Credentials, sign-in, and what each has cost',
-  Models: 'Which model answers, how hard it thinks, and who serves it',
-  Accounts: 'Connected services, and what Marvi may do with them',
-  Skills: 'Instructions Marvi can load for a task',
-  Plugins: 'Backends Marvi runs, installed from a repository',
-  Preferences: 'Behaviour, appearance and devices',
-  Schedules: 'Reminders and checks Marvi runs on a clock',
-  Maintenance: 'Installing models and diagnosing faults, from a terminal',
-  Updates: 'Version, channel, and what changed',
-  About: 'Build, licences and provenance'
+  Providers: 'API access and usage',
+  Models: 'Active model and effort',
+  Accounts: 'Connected services',
+  Skills: 'Task instructions',
+  Plugins: 'Installed backends',
+  Preferences: 'Devices and appearance',
+  Schedules: 'Timed tasks',
+  Maintenance: 'Install and diagnose',
+  Updates: 'Version and channel',
+  About: 'Build and licences'
 }
 
 interface BuildInfo {
@@ -191,7 +184,7 @@ function MainSurface(): React.JSX.Element {
             `auto` track sizes to the item's max-content and stretches the item
             back to fill it, so the sidebar's own `width: 64px` was correct,
             applied, and visually ignored. */}
-        <div className="app-body" style={{ gridTemplateColumns: `${collapsed ? 64 : 224}px 1fr` }}>
+        <div className="app-body" style={{ gridTemplateColumns: `${collapsed ? 60 : 204}px 1fr` }}>
           <ElectricGazeBackground />
 
           {/* Width inline rather than by class. The stylesheet route lost a
@@ -205,16 +198,14 @@ function MainSurface(): React.JSX.Element {
           >
             <header className="brand-block">
               <BrandIcon className="brand-icon-sidebar" />
-              {/* "VOICE + VISION" was a tagline in a navigation column. The
-                  collapse control earns the space instead. */}
-              {!collapsed ? <strong>MARVI OS</strong> : null}
+              {!collapsed ? <strong>MARVI</strong> : null}
               <button
                 aria-label={collapsed ? 'Expand the sidebar' : 'Collapse the sidebar'}
                 className="sidebar-collapse"
                 onClick={() => setCollapsed(!collapsed)}
                 type="button"
               >
-                <span aria-hidden="true">{collapsed ? '»' : '«'}</span>
+                <span aria-hidden="true">{collapsed ? '[>]' : '[<]'}</span>
               </button>
             </header>
 
@@ -232,7 +223,10 @@ function MainSurface(): React.JSX.Element {
                       onClick={() => navigate(item)}
                       title={collapsed ? item : undefined}
                     >
-                      {collapsed ? item.slice(0, 2).toUpperCase() : item.toUpperCase()}
+                      <span className="nav-code" aria-hidden="true">
+                        {NAV_CODES[item]}
+                      </span>
+                      {!collapsed ? <span className="nav-label">{item}</span> : null}
                     </button>
                   ))}
                 </div>
@@ -241,25 +235,20 @@ function MainSurface(): React.JSX.Element {
 
             <div className="sidebar-foot">
               <span className={runtime.state === 'ready' ? 'pulse-dot' : ''} />{' '}
-              {runtime.state === 'ready' ? 'ALWAYS ON' : runtime.state.toUpperCase()}
-              <small>
-                {/* Local processing is the claim worth making, and it is true
-                    whatever state the Gateway is in. Whether the devices are
-                    live is the status bar's job, and it now answers honestly. */}
-                MIC + CAMERA STAY ON THIS MACHINE
-              </small>
+              {runtime.state === 'ready' ? 'LOCAL / READY' : runtime.state.toUpperCase()}
+              <small>MIC + CAM / ON DEVICE</small>
             </div>
           </aside>
 
           <main className="content">
             <header className="topbar">
               <div>
-                <span className="eyebrow">
-                  {`// ${(NAV_GROUPS.find((g) => (g.items as readonly string[]).includes(page))?.label ?? '').toUpperCase()}`}
-                </span>
+                <span className="eyebrow">MARVI::{NAV_CODES[page]}</span>
                 <h1>{page}</h1>
               </div>
-              <p className="topbar-blurb">{PAGE_BLURB[page]}</p>
+              <span className="topbar-state">
+                {voice.phase.toUpperCase()} / {voice.caption}
+              </span>
             </header>
 
             {/* One scroll region for every page, so the top bar and status bar
@@ -288,20 +277,38 @@ function MainSurface(): React.JSX.Element {
             </div>
 
             <footer className="statusbar">
-              <span>
-                <i className={`status-${runtime.state}`} /> GATEWAY {runtime.state.toUpperCase()}
-              </span>
-              <span>LIVEKIT {runtime.components.livekit?.state.toUpperCase() ?? 'UNKNOWN'}</span>
-              <span>VOICE {voice.phase.toUpperCase()}</span>
+              <button className="status-item" onClick={() => navigate('Overview')} type="button">
+                <i className={`status-${runtime.state}`} /> GW:{runtime.state.toUpperCase()}
+              </button>
+              <button className="status-item" onClick={() => navigate('Voice')} type="button">
+                RTC:{runtime.components.livekit?.state.toUpperCase() ?? 'UNKNOWN'}
+              </button>
+              <button className="status-item" onClick={() => navigate('Voice')} type="button">
+                VOICE:{voice.phase.toUpperCase()}
+              </button>
               <VoiceLevelMeter level={voice.level} />
-              <span>
-                MIC {deviceLabel(deviceState(runtime, 'microphone'))} / CAM{' '}
+              <button
+                className="status-item"
+                onClick={() => setSettings('Preferences')}
+                type="button"
+              >
+                MIC:{deviceLabel(deviceState(runtime, 'microphone'))} CAM:
                 {deviceLabel(deviceState(runtime, 'camera'))}
-              </span>
-              <span className={voice.yolo ? 'status-yolo' : ''}>
-                {voice.yolo ? '⚡ YOLO' : 'CONFIRM'}
-              </span>
-              <span className="status-version">MARVI OS {version}</span>
+              </button>
+              <button
+                className={`status-item${voice.yolo ? ' status-yolo' : ''}`}
+                onClick={() => setSettings('Preferences')}
+                type="button"
+              >
+                MODE:{voice.yolo ? 'YOLO' : 'CONFIRM'}
+              </button>
+              <button
+                className="status-item status-version"
+                onClick={() => setSettings('About')}
+                type="button"
+              >
+                v{version}
+              </button>
             </footer>
           </main>
         </div>
@@ -368,7 +375,7 @@ function Overview({
         {/* Was an ASCII face and eight buttons that previewed island states —
             a developer toy on the first page the user sees. What belongs here
             is what Marvi is doing and what is stopping it. */}
-        <div className="panel-label">{'// RIGHT NOW'}</div>
+        <div className="panel-label">[ NOW ]</div>
         <div className="overview-now">
           <span className="eyebrow">{voice.phase.toUpperCase()}</span>
           <strong>{voice.caption}</strong>
@@ -377,7 +384,7 @@ function Overview({
 
         {blocked.length > 0 ? (
           <div className="overview-blockers">
-            <span className="panel-label">{'// NEEDS ATTENTION'}</span>
+            <span className="panel-label">[ CHECK ]</span>
             {blocked.map(([name, service]) => (
               <div className="context-line" key={name}>
                 <span>{name}</span>
@@ -388,20 +395,16 @@ function Overview({
             ))}
           </div>
         ) : (
-          <p className="overview-clear">Everything Marvi needs is running.</p>
+          <p className="overview-clear">All systems ready.</p>
         )}
 
         <AsciiRule />
-        <div className="panel-label">{'// HOW VOICE WORKS'}</div>
-        <p className="overview-note">
-          The voice session runs over LiveKit: the agent worker joins a local room and the app joins
-          the same room as a participant. Both need the Gateway, which issues the token and owns
-          every tool the agent can call.
-        </p>
+        <div className="panel-label">[ VOICE PATH ]</div>
+        <p className="overview-note">MICROPHONE → LIVEKIT → MARVI GATEWAY → VOICE</p>
       </article>
 
       <article className="panel services-panel">
-        <div className="panel-label">{'// SYSTEMS'}</div>
+        <div className="panel-label">[ SYSTEMS ]</div>
         <div className="service-list">
           {services.map(([name, service]) => (
             <div className="service-row" key={name}>
@@ -416,7 +419,7 @@ function Overview({
       </article>
 
       <article className="panel event-panel">
-        <div className="panel-label">{'// LIVE CONTEXT'}</div>
+        <div className="panel-label">[ CONTEXT ]</div>
         <div className="context-line">
           <span>ROOM</span>
           <strong>{runtime.components.room?.detail.toUpperCase() ?? 'OFFLINE'}</strong>
@@ -1478,9 +1481,6 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
   const listening = voice.phase === 'listening' || voice.phase === 'wake'
 
   return (
-    // The orb is the whole surface, header to status bar, and everything else
-    // is laid over it. Facts in a column beside it made the page a diagram of
-    // a voice assistant rather than one you look at.
     <section className="voice-page">
       <div className="voice-orb-surface">
         <VoiceOrb active={speaking || listening} level={voice.level} phase={voice.phase} />
@@ -1534,9 +1534,6 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
         ) : null}
       </div>
 
-      {/* Its own bar, not floating on the orb: the orb surface takes the
-          pointer for rotation, and a control sharing a surface with a drag
-          target is a control you fight with. */}
       <ConversationBar level={voice.level} />
     </section>
   )
@@ -1613,9 +1610,17 @@ function WakeSettings(): React.JSX.Element {
         <>
           <Picker
             options={[
-              { value: '0.35', label: 'Sensitive', detail: 'Catches you sooner, false alarms more likely' },
+              {
+                value: '0.35',
+                label: 'Sensitive',
+                detail: 'Catches you sooner, false alarms more likely'
+              },
               { value: '0.5', label: 'Balanced', detail: 'The default' },
-              { value: '0.7', label: 'Strict', detail: 'Say it clearly; almost never fires by accident' }
+              {
+                value: '0.7',
+                label: 'Strict',
+                detail: 'Say it clearly; almost never fires by accident'
+              }
             ]}
             value={String(wake.threshold)}
             onChange={(next) => set({ [wake.thresholdSetting]: next })}
@@ -2539,9 +2544,7 @@ function SettingsPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Eleme
         <div>
           <span className="eyebrow">{'// SPEECH OUT'}</span>
           <h2>VOICE</h2>
-          <p>
-            The voices the TTS installer downloaded. Marvi speaks in the one chosen here.
-          </p>
+          <p>The voices the TTS installer downloaded. Marvi speaks in the one chosen here.</p>
         </div>
         <VoicePicker />
       </div>

@@ -18,6 +18,7 @@ import { OFFLINE_RUNTIME, deviceLabel, deviceState } from '../../shared/runtime'
 // `\n.selector {` finds nothing there for a reason that has nothing to do with
 // what it is testing.
 const css = readFileSync(join(__dirname, 'assets/main.css'), 'utf8').replace(/\r\n/g, '\n')
+const voiceOrb = readFileSync(join(__dirname, 'orb/VoiceOrb.tsx'), 'utf8')
 
 /** The rule block for a selector, so a moved property still fails the test. */
 function block(selector: string): string {
@@ -63,6 +64,12 @@ describe('shell layout', () => {
     // like a maze.
     expect(css).not.toContain('ascii-divider')
     expect(block('.ascii-rule-fill')).toContain('overflow: hidden')
+  })
+
+  it('keeps the voice orb audio-driven instead of pointer-driven', () => {
+    expect(css).not.toContain('cursor: crosshair')
+    expect(voiceOrb).not.toContain('pointermove')
+    expect(voiceOrb).not.toContain('PointerEvent')
   })
 })
 

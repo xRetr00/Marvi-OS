@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { MOOD_FOR_PHASE, RAMPS, blend } from './moods'
+import { coherentWaveScale } from './wave'
 
 describe('orb mood', () => {
   it('gives every live phase its own colour', () => {
@@ -24,6 +25,26 @@ describe('orb mood', () => {
       const other = blend(RAMPS[mood], RAMPS[mood], 1, 1)
       expect(other).not.toEqual(errorNear)
     }
+  })
+})
+
+describe('voice-driven wave', () => {
+  const point = [0.62, 0.35, -0.7] as const
+
+  it('is motionless without audio energy', () => {
+    expect(coherentWaveScale(point, 0, 0)).toBe(1)
+    expect(coherentWaveScale(point, 100, 0)).toBe(1)
+  })
+
+  it('is deterministic and bounded', () => {
+    const first = coherentWaveScale(point, 2.4, 0.8)
+    expect(coherentWaveScale(point, 2.4, 0.8)).toBe(first)
+    expect(first).toBeGreaterThanOrEqual(0.86)
+    expect(first).toBeLessThanOrEqual(1.14)
+  })
+
+  it('moves as a travelling field when voice advances it', () => {
+    expect(coherentWaveScale(point, 0.5, 0.9)).not.toBe(coherentWaveScale(point, 1.5, 0.9))
   })
 })
 
