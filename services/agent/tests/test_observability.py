@@ -58,7 +58,7 @@ def test_every_stage_is_wired(session: FakeSession) -> None:
         "overlapping_speech",  # barge-in
         "agent_false_interruption",
         "function_tools_executed",
-        "metrics_collected",
+        "session_usage_updated",
         "user_transcription_timeout",
         "error",
         "close",
@@ -84,34 +84,8 @@ def test_a_transcript_that_never_arrives_is_a_warning(session: FakeSession, capl
     assert any(r.levelno == logging.WARNING for r in caplog.records)
 
 
-def test_llm_timing_reports_time_to_first_token(session: FakeSession, caplog) -> None:
-    """The number that decides whether a spoken turn feels quick."""
-    # Named to match, because the dispatch is on the class name -- the same
-    # way the SDK's own metric types are told apart.
-    class LLMMetrics:
-        ttft, duration = 0.412, 1.9
-        prompt_tokens, completion_tokens, cancelled = 1200, 40, False
-
-    metric = LLMMetrics()
-
-    with caplog.at_level(logging.INFO, logger="marvi.voice"):
-        session.fire("metrics_collected", SimpleNamespace(metrics=metric))
-
-    line = " ".join(r.getMessage() for r in caplog.records)
-    assert "412ms" in line
-    assert "ttft" in line
 
 
-def test_tts_timing_reports_time_to_first_byte(session: FakeSession, caplog) -> None:
-    class TTSMetrics:
-        ttfb, duration, audio_duration, cancelled = 0.25, 1.1, 3.0, False
-
-    metric = TTSMetrics()
-
-    with caplog.at_level(logging.INFO, logger="marvi.voice"):
-        session.fire("metrics_collected", SimpleNamespace(metrics=metric))
-
-    assert "250ms" in " ".join(r.getMessage() for r in caplog.records)
 
 
 def test_a_pipeline_error_is_logged_as_an_error(session: FakeSession, caplog) -> None:
@@ -133,9 +107,12 @@ def test_a_malformed_event_does_not_break_the_conversation(session: FakeSession)
         session.fire(event, None)
 
 
-def test_unknown_metrics_do_not_raise() -> None:
-    observability._log_metrics(SimpleNamespace())
-    observability._log_metrics(None)
+def test_a_malformed_metrics_report_does_not_raise() -> None:
+    """The report is a TypedDict off a message, so anything can arrive."""
+    observability._log_turn_metrics("assistant", None)
+    observability._log_turn_metrics("assistant", {})
+    observability._log_turn_metrics("user", "not a dict")
+    observability._log_turn_metrics("assistant", {"e2e_latency": "nonsense"})
 
 
 def test_durations_read_in_milliseconds() -> None:
@@ -150,3 +127,63 @@ def test_long_transcripts_are_trimmed() -> None:
 
     assert len(trimmed) <= observability.EXCERPT + 1
     assert trimmed.endswith("…")
+
+
+def test_a_reply_reports_the_timings_that_matter(session: FakeSession, caplog) -> None:
+    """Per-turn metrics, from the message they belong to.
+
+    They used to come from `metrics_collected`, which the SDK deprecates -- and
+    which it said in the log the first time this module ran, the logging
+    catching a fault in itself.
+
+    `e2e_latency` is the one a person actually feels: from finishing speaking
+    to hearing a word back.
+    """
+    item = SimpleNamespace(
+        role="assistant",
+        text_content="the light is on",
+        metrics={
+            "llm_node_ttft": 0.412,
+            "tts_node_ttfb": 0.25,
+            "playback_latency": 0.08,
+            "e2e_latency": 0.95,
+        },
+    )
+
+    with caplog.at_level(logging.INFO, logger="marvi.voice"):
+        session.fire("conversation_item_added", SimpleNamespace(item=item))
+
+    line = " ".join(r.getMessage() for r in caplog.records)
+    assert "412ms" in line
+    assert "250ms" in line
+    assert "950ms" in line, "end-to-end latency is the number a person feels"
+
+
+def test_a_user_turn_reports_how_long_marvi_waited(session: FakeSession, caplog) -> None:
+    item = SimpleNamespace(
+        role="user",
+        text_content="turn the light on",
+        metrics={"transcription_delay": 0.12, "end_of_turn_delay": 0.48},
+    )
+
+    with caplog.at_level(logging.INFO, logger="marvi.voice"):
+        session.fire("conversation_item_added", SimpleNamespace(item=item))
+
+    assert "480ms" in " ".join(r.getMessage() for r in caplog.records)
+
+
+def test_a_turn_without_metrics_is_still_logged(session: FakeSession, caplog) -> None:
+    """Metrics are optional on the message; the transcript is not."""
+    item = SimpleNamespace(role="assistant", text_content="hello", metrics=None)
+
+    with caplog.at_level(logging.INFO, logger="marvi.voice"):
+        session.fire("conversation_item_added", SimpleNamespace(item=item))
+
+    assert any("hello" in r.getMessage() for r in caplog.records)
+
+
+def test_the_deprecated_metrics_event_is_not_used() -> None:
+    """It warns on every session and is going away."""
+    import inspect
+
+    assert "metrics_collected" not in inspect.getsource(observability.attach)

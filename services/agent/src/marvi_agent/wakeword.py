@@ -228,9 +228,10 @@ class WakeGate:
         """
         self._session = session
         session.input.set_audio_enabled(False)
-        log.info(
-            "wake word armed (threshold %.2f, window %.0fs)", self.threshold, self.window
-        )
+        # No window in the message: there is no window any more. It said
+        # "window 30s" while the conversation stayed open until closed, which
+        # is a log line describing code that was deleted.
+        log.info("wake word armed (threshold %.2f)", self.threshold)
 
         @room.on("track_subscribed")
         def _on_track(track: rtc.Track, *_args: object) -> None:

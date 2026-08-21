@@ -193,7 +193,18 @@ def build_session() -> tuple[AgentSession, Callable[[], None]]:
             endpointing={"mode": "dynamic", "min_delay": 0.25, "max_delay": 2.0},
             interruption={
                 "enabled": True,
-                "mode": "adaptive",
+                # "vad", not "adaptive". Adaptive barge-in gatekeeps by holding
+                # and flushing transcripts against word timings, so it needs an
+                # STT that reports them -- `aligned_transcript`. Nemotron gives
+                # us text and a language and nothing else, so asking for
+                # adaptive earned a warning on every single session:
+                #
+                #   interruption_detection is provided, but it's not compatible
+                #   with the current configuration and will be disabled
+                #
+                # and left the real behaviour unstated. VAD interruption is what
+                # this pipeline can actually do, so it is what it now asks for.
+                "mode": "vad",
                 "min_duration": 0.25,
                 "false_interruption_timeout": 1.2,
                 "resume_false_interruption": True,

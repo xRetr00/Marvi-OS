@@ -23,11 +23,14 @@ printed says which stage it stopped at.
 Between them: barge-in (`overlapping_speech`), a barge-in that turned out to be
 nothing (`agent_false_interruption`), and tool calls.
 
-**Metrics are the useful half.** `metrics_collected` carries per-component
-timings — LLM `ttft`, TTS `ttfb`, the end-of-utterance delays that decide how
-long a pause feels — which is both what diagnoses a slow turn and what the
-latency work needs. They are logged at INFO because a voice turn is not a hot
-loop; there are a handful of these per exchange, not thousands.
+**Metrics are the useful half.** Each turn carries its own timings — LLM time
+to first token, TTS time to first byte, playback, and `e2e_latency`, which is
+the only one a person actually feels: from them finishing speaking to hearing a
+word back. That is what diagnoses a slow turn and what the latency work needs.
+
+They come off `ChatMessage.metrics` rather than the `metrics_collected` event,
+which the SDK deprecates — and which it told us in the log the first time this
+ran, this module catching a fault in itself.
 """
 
 from __future__ import annotations
@@ -103,6 +106,7 @@ def attach(session: AgentSession) -> None:
         item = getattr(event, "item", None)
         role = getattr(item, "role", "?")
         log.info("turn: %s said %s", role, _excerpt(getattr(item, "text_content", "")))
+        _log_turn_metrics(role, getattr(item, "metrics", None) or {})
 
     @session.on("function_tools_executed")
     def _tools(event: Any) -> None:
@@ -128,59 +132,43 @@ def attach(session: AgentSession) -> None:
     def _close(event: Any) -> None:
         log.info("session closed (%s)", getattr(event, "reason", "?"))
 
-    @session.on("metrics_collected")
-    def _metrics(event: Any) -> None:
-        _log_metrics(getattr(event, "metrics", None))
+    @session.on("session_usage_updated")
+    def _usage(event: Any) -> None:
+        log.info("usage: %s", getattr(event, "usage", event))
 
 
-def _log_metrics(metric: Any) -> None:
-    """One line per component, in the terms that component is judged on."""
-    if metric is None:
+def _log_turn_metrics(role: str, report: Any) -> None:
+    """Per-turn timings, from the message they belong to.
+
+    `metrics_collected` was the obvious place for this and the SDK deprecates
+    it -- it said so in the log the first time this ran, which is the logging
+    catching a fault in itself. Timings ride on the ChatMessage now, so they
+    arrive attached to the turn they describe rather than as a loose stream to
+    be correlated.
+    """
+    if not isinstance(report, dict) or not report:
         return
-    kind = type(metric).__name__
 
-    if kind == "LLMMetrics":
-        # Time to first token is the number for voice: a turn starts speaking
-        # when the first token arrives, and total duration barely shows.
-        log.info(
-            "llm: ttft %s, total %s, %s prompt + %s completion tokens%s",
-            _ms(getattr(metric, "ttft", None)),
-            _ms(getattr(metric, "duration", None)),
-            getattr(metric, "prompt_tokens", "?"),
-            getattr(metric, "completion_tokens", "?"),
-            " (cancelled)" if getattr(metric, "cancelled", False) else "",
-        )
-    elif kind == "TTSMetrics":
-        log.info(
-            "tts: ttfb %s, generated %s of audio in %s%s",
-            _ms(getattr(metric, "ttfb", None)),
-            _ms(getattr(metric, "audio_duration", None)),
-            _ms(getattr(metric, "duration", None)),
-            " (cancelled)" if getattr(metric, "cancelled", False) else "",
-        )
-    elif kind == "STTMetrics":
-        log.info(
-            "stt: %s of audio transcribed in %s",
-            _ms(getattr(metric, "audio_duration", None)),
-            _ms(getattr(metric, "duration", None)),
-        )
-    elif kind == "EOUMetrics":
+    if role == "user":
         # How long Marvi waits after you stop talking. Too long feels rude;
         # too short cuts you off mid-sentence.
         log.info(
-            "turn-taking: end of utterance %s, transcript %s behind",
-            _ms(getattr(metric, "end_of_utterance_delay", None)),
-            _ms(getattr(metric, "transcription_delay", None)),
+            "turn-taking: transcript %s behind, end of turn %s",
+            _ms(report.get("transcription_delay")),
+            _ms(report.get("end_of_turn_delay")),
         )
-    elif kind == "VADMetrics":
-        # Idle time only; the per-frame inference count would drown everything.
-        log.debug("vad: idle %s", _ms(getattr(metric, "idle_time", None)))
-    elif kind == "InterruptionMetrics":
-        log.info(
-            "barge-in: %s interruptions, %s backchannels, detected in %s",
-            getattr(metric, "num_interruptions", "?"),
-            getattr(metric, "num_backchannels", "?"),
-            _ms(getattr(metric, "detection_delay", None)),
-        )
-    else:
-        log.debug("metrics: %s", metric)
+        return
+
+    # The three numbers that decide whether a spoken reply feels quick, and
+    # the one that actually matters to a person: e2e, which is everything from
+    # them finishing to hearing a word back.
+    log.info(
+        "reply: llm ttft %s, tts ttfb %s, playback %s, end to end %s",
+        _ms(report.get("llm_node_ttft")),
+        _ms(report.get("tts_node_ttfb")),
+        _ms(report.get("playback_latency")),
+        _ms(report.get("e2e_latency")),
+    )
+    tps = report.get("llm_node_tps")
+    if tps:
+        log.debug("reply: %.1f tokens/second", tps)
