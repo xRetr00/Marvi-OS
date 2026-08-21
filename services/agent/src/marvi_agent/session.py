@@ -315,10 +315,13 @@ async def marvi_session(ctx: JobContext) -> None:
     await asyncio.to_thread(warm)
     log.info("speech models loaded in %.1fs", time.monotonic() - warming)
 
-    connecting = time.monotonic()
-    await session.start(agent=MarviVoiceAgent(), room=ctx.room)
-    log.info("joined %s in %.1fs, listening", ctx.room.name, time.monotonic() - connecting)
-
+    # Attached before the session starts, not after.
+    #
+    # `start()` sets the agent to `listening` before it returns, so handlers
+    # registered afterwards miss the first transition -- the one that says the
+    # session came up at all, and the first line anyone looks for when it did
+    # not.
+    #
     # Every stage of the pipeline, reported: VAD, STT, LLM, TTS, barge-in,
     # tools, and the per-turn timings that say which one is slow.
     observability.attach(session)
@@ -337,6 +340,10 @@ async def marvi_session(ctx: JobContext) -> None:
         if getattr(item, "role", "") == "assistant":
             _report_transcript(spoken=getattr(item, "text_content", "") or "")
 
+    connecting = time.monotonic()
+    await session.start(agent=MarviVoiceAgent(), room=ctx.room)
+    log.info("joined %s in %.1fs, listening", ctx.room.name, time.monotonic() - connecting)
+
     # How a conversation ends: the model decides, from what was said.
     #
     # Not a list of stop-words. "Stop" in the middle of a sentence about
@@ -351,9 +358,34 @@ async def marvi_session(ctx: JobContext) -> None:
         that's all, thanks, you can go, later. Say a short farewell first.
         Do not call it because of a pause.
         """
-        log.info("the model ended the conversation")
-        await session.aclose()
-        return "the conversation is closed"
+        log.info("the model is ending the conversation")
+
+        # Deliberately not `await session.aclose()`.
+        #
+        # `aclose` drains the current activity and waits for the speech in
+        # flight. This tool *is* part of that activity and that speech, so
+        # awaiting it here waits for itself. What it does not deadlock on it
+        # cuts off: `aclose` force-interrupts, which would kill the farewell
+        # this tool exists to let her say.
+        #
+        # The framework's own `beta.tools.end_call` takes the other route, and
+        # this follows it: hand the model its cue, let the reply play, and shut
+        # the session down when that speech handle is done. A non-realtime LLM
+        # reuses the same handle for the tool reply, so the farewell is spoken
+        # before anything closes.
+        context.speech_handle.add_done_callback(lambda _: session.shutdown())
+        return "say a short goodbye; the conversation ends after it"
+
+    @session.on("close")
+    def _job_over(event: Any) -> None:
+        # Closing the session does not end the job -- nothing in the SDK does
+        # that for you, which is why the framework's own end-call tool shuts
+        # the job down by hand. Without this the process stays resident holding
+        # a worker slot after the conversation is over, and stale workers are
+        # exactly what stopped jobs being dispatched before.
+        reason = getattr(getattr(event, "reason", None), "value", "session closed")
+        log.info("session closed (%s); ending the job", reason)
+        ctx.shutdown(reason=str(reason))
 
     # `update_tools` is on the Agent, not the session -- checked against the
     # installed 1.6.10 rather than assumed.

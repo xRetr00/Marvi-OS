@@ -33,7 +33,18 @@ class NemotronSTT(stt.STT):
     """Stateful native streaming STT backed by the Rust parakeet-rs sidecar."""
 
     def __init__(self, *, executable: Path, model_dir: Path = NEMOTRON_MODEL, language: str = "en-US"):
-        super().__init__(capabilities=stt.STTCapabilities(streaming=True, interim_results=True))
+        super().__init__(
+            capabilities=stt.STTCapabilities(
+                streaming=True,
+                interim_results=True,
+                # `recognize()` raises here, and the default is True.
+                # Nothing in the framework asks yet, so this is a claim
+                # rather than a fault -- but a capability that is
+                # declared and not implemented is a fault waiting for a
+                # caller.
+                offline_recognize=False,
+            )
+        )
         self._executable = executable
         self._model_dir = model_dir
         self._language = language
@@ -355,9 +366,14 @@ class VibeVoiceTTS(tts.TTS):
 
 class _VibeVoiceChunkedStream(tts.ChunkedStream):
     async def _run(self, output_emitter: tts.AudioEmitter) -> None:
+        # `stream=False`: this path synthesises one whole utterance. A
+        # streaming emitter refuses every push until a segment is opened, and
+        # this one never opened one -- so it produced no audio at all, and the
+        # refusal was logged inside the emitter's own task where nothing was
+        # watching.
         output_emitter.initialize(
             request_id=str(uuid.uuid4()), sample_rate=24_000, num_channels=1,
-            mime_type="audio/pcm", frame_size_ms=20, stream=True,
+            mime_type="audio/pcm", frame_size_ms=20, stream=False,
         )
         stop = threading.Event()
         queue: asyncio.Queue[bytes | BaseException | None] = asyncio.Queue()
@@ -429,11 +445,31 @@ class _VibeVoiceSynthesizeStream(tts.SynthesizeStream):
             stream=True,
         )
         buffer = ""
+        # A streaming emitter refuses audio outside a segment, and says so by
+        # raising inside its own task -- logged there, never where anyone was
+        # looking. Marvi pushed every byte of every reply without opening one,
+        # so she produced no audio at all and it read from outside as the model
+        # having nothing to say.
+        #
+        # Opened lazily rather than up front: a segment that is started and
+        # never filled still has to be ended, and the clause splitter cannot
+        # promise there will be anything to say.
+        open_segment = False
 
         async def speak(text: str) -> None:
+            nonlocal open_segment
             if not text.strip():
                 return
+            if not open_segment:
+                output_emitter.start_segment(segment_id=str(uuid.uuid4()))
+                open_segment = True
             await _pump(self._tts._engine, text, output_emitter)
+
+        def close_segment() -> None:
+            nonlocal open_segment
+            if open_segment:
+                output_emitter.end_segment()
+                open_segment = False
 
         async for item in self._input_ch:
             if isinstance(item, self._FlushSentinel):
@@ -441,7 +477,7 @@ class _VibeVoiceSynthesizeStream(tts.SynthesizeStream):
                 # however short. Holding it back would drop the last words.
                 await speak(buffer)
                 buffer = ""
-                output_emitter.flush()
+                close_segment()
                 continue
 
             buffer += item
@@ -452,6 +488,7 @@ class _VibeVoiceSynthesizeStream(tts.SynthesizeStream):
                 await speak(clause)
 
         await speak(buffer)
+        close_segment()
         output_emitter.end_input()
 
 
