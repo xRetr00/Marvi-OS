@@ -19,6 +19,9 @@ interface LiveKitConnection {
 
 const AGENT_STATE_ATTRIBUTE = 'lk.agent.state'
 
+/** Long enough for a cold worker to warm; short enough to still be an answer. */
+const AGENT_JOIN_GRACE_MS = 12_000
+
 function publishPhase(phase: Parameters<typeof cycleVoicePhase>[0]): void {
   cycleVoicePhase(phase)
   window.marvi.publishVoiceState($voiceState.get())
@@ -161,5 +164,25 @@ export async function connectVoiceRoom(): Promise<Room> {
   if (micTrack) stopLevel = streamMicLevel(micTrack)
   room.on(RoomEvent.Disconnected, () => stopLevel?.())
   if (room.state === ConnectionState.Connected) publishPhase('ready')
+
+  // Every phase after this comes from the agent's `lk.agent.state`. If no
+  // agent takes the job, none ever arrives and the orb sits on READY saying
+  // "Say Marvi" -- identical to an agent that is up and waiting for you to
+  // speak. That ambiguity hid a dispatch failure for days, so say it instead.
+  const waiting = window.setTimeout(() => {
+    const agent = [...room.remoteParticipants.values()].some(
+      (participant) => participant.attributes[AGENT_STATE_ATTRIBUTE]
+    )
+    if (agent || room.state !== ConnectionState.Connected) return
+    cycleVoicePhase('error')
+    $voiceState.set({
+      ...$voiceState.get(),
+      caption: 'No agent joined',
+      detail: 'The worker did not take the job'
+    })
+    window.marvi.publishVoiceState($voiceState.get())
+  }, AGENT_JOIN_GRACE_MS)
+  room.on(RoomEvent.Disconnected, () => window.clearTimeout(waiting))
+  room.on(RoomEvent.ParticipantConnected, () => window.clearTimeout(waiting))
   return room
 }
