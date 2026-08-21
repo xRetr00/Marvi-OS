@@ -7,6 +7,7 @@ import json
 import os
 import subprocess
 import threading
+import time
 import uuid
 from collections.abc import Iterator
 from pathlib import Path
@@ -70,6 +71,8 @@ class NemotronStream(stt.RecognizeStream):
         self._nemotron = stt
         self._process: asyncio.subprocess.Process | None = None
         self._transcript = ""
+        # When the last word arrived, so silence can end the utterance.
+        self._spoke_at = time.monotonic()
 
     async def _send(self, payload: dict[str, str]) -> dict[str, Any]:
         if not self._process or not self._process.stdin or not self._process.stdout:
@@ -86,6 +89,11 @@ class NemotronStream(stt.RecognizeStream):
         if not response.get("ok"):
             raise VoiceRuntimeError(response.get("error", "Nemotron inference failed"))
         return response
+
+    #: Silence after speech before the utterance is called finished. Shorter
+    #: than the session's endpointing window, so the final lands before the
+    #: turn is given up on, and long enough not to cut a pause mid-sentence.
+    _SILENCE = 0.6
 
     def _emit(self, event_type: stt.SpeechEventType, text: str) -> None:
         self._event_ch.send_nowait(
@@ -128,7 +136,28 @@ class NemotronStream(stt.RecognizeStream):
                 delta = response.get("text", "")
                 if delta:
                     self._transcript += delta
+                    self._spoke_at = time.monotonic()
                     self._emit(stt.SpeechEventType.INTERIM_TRANSCRIPT, self._transcript.strip())
+                elif self._transcript.strip() and (
+                    time.monotonic() - self._spoke_at >= self._SILENCE
+                ):
+                    # Finality decided here, because nothing else decides it.
+                    #
+                    # A streaming STT is expected to say when an utterance is
+                    # over; this one only did so on an explicit flush, and
+                    # LiveKit never flushes an STT stream -- it flushes VAD and
+                    # waits for the recogniser to declare a final of its own.
+                    # So the transcript grew forever as interim results:
+                    #
+                    #   stt (partial): Hello Marvel, how you doing?  Are you here?
+                    #
+                    # perfectly recognised, and never acted on, because as far
+                    # as the session was concerned the sentence had not ended.
+                    #
+                    # Audio keeps arriving during silence, so this is checked on
+                    # the frames that carry none rather than on a timer.
+                    self._emit(stt.SpeechEventType.FINAL_TRANSCRIPT, self._transcript.strip())
+                    self._transcript = ""
         finally:
             if self._process.returncode is None:
                 self._process.terminate()
