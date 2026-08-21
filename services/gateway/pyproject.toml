@@ -20,6 +20,10 @@ dependencies = [
     "onnxruntime>=1.17,<2",
     "fastapi>=0.116,<1",
     "httpx>=0.28,<1",
+    # `marvi setup` renders its screen with this. Already present
+    # transitively; declared because depending on somebody else's
+    # dependency is how a working install breaks on an unrelated bump.
+    "rich>=13,<15",
     "playwright>=1.49,<2",
     "livekit-api>=1,<2",
     "uvicorn[standard]>=0.35,<1",

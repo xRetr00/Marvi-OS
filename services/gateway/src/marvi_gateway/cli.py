@@ -265,6 +265,15 @@ def cmd_plugin(args: argparse.Namespace) -> int:
 # -- setup ---------------------------------------------------------------------
 
 
+def _wants_tui(args: argparse.Namespace) -> bool:
+    """Only the bare interactive form. Everything else is the CLI it was."""
+    if args.what or args.yes or args.essential or args.dry_run:
+        return False
+    from .setup import tui
+
+    return tui.available()
+
+
 def _selected(args: argparse.Namespace) -> list[setup_module.Component]:
     root = repo_root()
     everything = setup_module.load(root)
@@ -282,6 +291,22 @@ def _selected(args: argparse.Namespace) -> list[setup_module.Component]:
 
 
 def cmd_setup(args: argparse.Namespace) -> int:
+    """Install what is missing.
+
+    A bare `marvi setup` from a terminal opens the screen; anything else --
+    named components, `--yes`, `--essential`, `--dry-run`, a pipe, CI -- takes
+    the same path it always did. So no scripted invocation changes, and the one
+    a person types stops requiring them to know the answers first.
+    """
+    if _wants_tui(args):
+        from .setup import tui
+
+        return tui.run(
+            components=setup_module.load(repo_root()),
+            plan=setup_module.plan,
+            install=setup_module.install,
+            root=repo_root(),
+        )
     components = _selected(args)
     if not components:
         return 1
