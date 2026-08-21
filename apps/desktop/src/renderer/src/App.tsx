@@ -1,5 +1,6 @@
 import { useStore } from '@nanostores/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 
 import appIcon from './assets/app-icon.ico'
 import { BootFailureOverlay } from './components/BootFailureOverlay'
@@ -19,6 +20,7 @@ import { Chat } from './chat'
 import { AbstractIcon, type AbstractIconName } from './components/abstract-icon'
 import { MessageTiming } from './components/message-timing'
 import { AboutUpdates, VersionPopover } from './components/update-controls'
+import { PageLead } from './components/page-lead'
 
 /** Settings shows the device rows in full words. "ALWAYS ON" was printed
  * unconditionally, including with the Gateway offline; "?" is the honest answer
@@ -136,18 +138,6 @@ const SETTINGS_ICONS: Record<SettingsPage, AbstractIconName> = {
   About: 'about'
 }
 
-const SETTINGS_BLURB: Record<SettingsPage, string> = {
-  Providers: 'API access and usage',
-  Models: 'Active model and effort',
-  Accounts: 'Connected services',
-  Skills: 'Task instructions',
-  Plugins: 'Installed backends',
-  Preferences: 'Devices and appearance',
-  Schedules: 'Timed tasks',
-  Maintenance: 'Install and diagnose',
-  About: 'Build and licences'
-}
-
 interface BuildInfo {
   version: string
   commit: string
@@ -213,6 +203,19 @@ function MainSurface(): React.JSX.Element {
     setPage(item)
   }
 
+  const toggleSidebar = (): void => {
+    const next = !collapsed
+    haptic('selection')
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (!document.startViewTransition || reduceMotion) {
+      setCollapsed(next)
+      return
+    }
+    document.startViewTransition(() => {
+      flushSync(() => setCollapsed(next))
+    })
+  }
+
   return (
     <ShellContextMenu
       actions={[
@@ -255,11 +258,15 @@ function MainSurface(): React.JSX.Element {
               ) : null}
               <button
                 aria-label={collapsed ? 'Expand the sidebar' : 'Collapse the sidebar'}
+                aria-pressed={collapsed}
                 className="sidebar-collapse"
-                onClick={() => setCollapsed(!collapsed)}
+                onClick={toggleSidebar}
+                title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
                 type="button"
               >
-                <span aria-hidden="true">{collapsed ? '[>]' : '[<]'}</span>
+                <svg aria-hidden="true" fill="none" viewBox="0 0 20 20">
+                  <path d="M4 3v14M15 5l-5 5 5 5" />
+                </svg>
               </button>
             </header>
 
@@ -407,56 +414,78 @@ function Overview({
   voice: VoiceState
 }): React.JSX.Element {
   const services = [
-    ['MARVI GATEWAY', runtime.components.gateway],
-    ['LIVEKIT', runtime.components.livekit],
-    ['VOICE', runtime.components.voice],
-    ['SMART ROOM', runtime.components.room],
-    ['ACCOUNTS', runtime.components.accounts]
+    ['MARVI GATEWAY', runtime.components.gateway, 'overview'],
+    ['LIVEKIT', runtime.components.livekit, 'activity'],
+    ['VOICE', runtime.components.voice, 'voice'],
+    ['SMART ROOM', runtime.components.room, 'room'],
+    ['ACCOUNTS', runtime.components.accounts, 'accounts']
   ] as const
 
-  const blocked = services.filter(([, service]) => service && service.state !== 'ready')
+  const path = [
+    ['MICROPHONE', 'voice'],
+    ['LIVEKIT', 'activity'],
+    ['MARVI GATEWAY', 'overview'],
+    ['VOICE', 'voice']
+  ] as const
+
+  const context = [
+    ['ROOM', runtime.components.room?.detail.toUpperCase() ?? 'OFFLINE', 'room'],
+    ['VISION', runtime.components.vision?.detail.toUpperCase() ?? 'OFFLINE', 'vision'],
+    ['ACCOUNTS', runtime.components.accounts?.detail.toUpperCase() ?? 'NOT CONNECTED', 'accounts'],
+    ['MICROPHONE', DEVICE_COPY[deviceState(runtime, 'microphone')], 'voice'],
+    ['CAMERA', DEVICE_COPY[deviceState(runtime, 'camera')], 'vision']
+  ] as const
 
   return (
-    <section className="overview-grid">
-      <article className="panel hero-panel">
-        {/* Was an ASCII face and eight buttons that previewed island states —
-            a developer toy on the first page the user sees. What belongs here
-            is what Marvi is doing and what is stopping it. */}
-        <div className="panel-label">[ NOW ]</div>
-        <div className="overview-now">
-          <span className="eyebrow">{voice.phase.toUpperCase()}</span>
-          <strong>{voice.caption}</strong>
-          <p>{voice.detail ?? 'Nothing is happening, which is the usual state.'}</p>
-        </div>
-
-        {blocked.length > 0 ? (
-          <div className="overview-blockers">
-            <span className="panel-label">[ CHECK ]</span>
-            {blocked.map(([name, service]) => (
-              <div className="context-line" key={name}>
-                <span>{name}</span>
-                <strong className={`state-${service?.state ?? 'offline'}`}>
-                  {service?.detail ?? 'no status received'}
-                </strong>
-              </div>
-            ))}
+    <section className="overview-dashboard">
+      <article className="dashboard-card current-state-card">
+        <header className="dashboard-card-head">
+          <span className="module-index">01</span>
+          <span>CURRENT STATE</span>
+        </header>
+        <div className="current-state-body">
+          <span className="current-state-icon">
+            <AbstractIcon name="overview" size={34} />
+          </span>
+          <div>
+            <span className={`state-badge state-${runtime.state}`}>
+              {voice.phase.toUpperCase()}
+            </span>
+            <strong>{voice.caption}</strong>
+            <p>{voice.detail ?? 'Standing by.'}</p>
           </div>
-        ) : (
-          <p className="overview-clear">All systems ready.</p>
-        )}
-
-        <AsciiRule />
-        <div className="panel-label">[ VOICE PATH ]</div>
-        <p className="overview-note">MICROPHONE → LIVEKIT → MARVI GATEWAY → VOICE</p>
+        </div>
       </article>
 
-      <article className="panel services-panel">
-        <div className="panel-label">[ SYSTEMS ]</div>
-        <div className="service-list">
-          {services.map(([name, service]) => (
-            <div className="service-row" key={name}>
-              <span className="service-name">{name}</span>
-              <span className={`service-state state-${service?.state ?? 'offline'}`}>
+      <article className="dashboard-card voice-path-card">
+        <header className="dashboard-card-head">
+          <span className="module-index">02</span>
+          <span>VOICE PATH</span>
+        </header>
+        <div className="voice-path-steps">
+          {path.map(([label, icon], index) => (
+            <div className="voice-path-step" key={label}>
+              <span className="voice-path-icon">
+                <AbstractIcon name={icon} size={22} />
+              </span>
+              <strong>{label}</strong>
+              {index < path.length - 1 ? <span className="path-arrow">→</span> : null}
+            </div>
+          ))}
+        </div>
+      </article>
+
+      <article className="dashboard-card service-health-card">
+        <header className="dashboard-card-head">
+          <span className="module-index">03</span>
+          <span>SERVICE HEALTH</span>
+        </header>
+        <div className="service-health-grid">
+          {services.map(([name, service, icon]) => (
+            <div className="service-health-cell" key={name}>
+              <AbstractIcon name={icon} size={24} />
+              <strong>{name}</strong>
+              <span className={`state-badge state-${service?.state ?? 'offline'}`}>
                 {(service?.state ?? 'offline').toUpperCase()}
               </span>
               <small>{service?.detail ?? 'No status received'}</small>
@@ -465,27 +494,19 @@ function Overview({
         </div>
       </article>
 
-      <article className="panel event-panel">
-        <div className="panel-label">[ CONTEXT ]</div>
-        <div className="context-line">
-          <span>ROOM</span>
-          <strong>{runtime.components.room?.detail.toUpperCase() ?? 'OFFLINE'}</strong>
-        </div>
-        <div className="context-line">
-          <span>VISION</span>
-          <strong>{runtime.components.vision?.detail.toUpperCase() ?? 'OFFLINE'}</strong>
-        </div>
-        <div className="context-line">
-          <span>ACCOUNTS</span>
-          <strong>{runtime.components.accounts?.detail.toUpperCase() ?? 'NOT CONNECTED'}</strong>
-        </div>
-        <div className="context-line">
-          <span>MICROPHONE</span>
-          <strong>{DEVICE_COPY[deviceState(runtime, 'microphone')]}</strong>
-        </div>
-        <div className="context-line">
-          <span>CAMERA</span>
-          <strong>{DEVICE_COPY[deviceState(runtime, 'camera')]}</strong>
+      <article className="dashboard-card context-card">
+        <header className="dashboard-card-head">
+          <span className="module-index">04</span>
+          <span>CONTEXT</span>
+        </header>
+        <div className="context-card-list">
+          {context.map(([label, value, icon]) => (
+            <div className="context-card-cell" key={label}>
+              <AbstractIcon name={icon} size={22} />
+              <span>{label}</span>
+              <strong>{value}</strong>
+            </div>
+          ))}
         </div>
       </article>
     </section>
@@ -555,9 +576,11 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
 
   return (
     <section className="single-page panel">
-      <div className="panel-label">{'// ROOM'}</div>
-      <h2>Room</h2>
-      <p>Live room state from the Smart Room sidecar.</p>
+      <PageLead
+        description="Live room state from the Smart Room sidecar."
+        icon="room"
+        title="Room"
+      />
 
       <div className="context-line">
         <span>SIDECAR</span>
@@ -635,9 +658,11 @@ function MindPanel(): React.JSX.Element {
 
   return (
     <section className="single-page panel">
-      <div className="panel-label">{'// MIND'}</div>
-      <h2>Mind</h2>
-      <p>Recent autonomous decisions and the rule behind each one.</p>
+      <PageLead
+        description="Recent autonomous decisions and the rule behind each one."
+        icon="mind"
+        title="Mind"
+      />
 
       <div className="context-line">
         <span>INITIATIVE</span>
@@ -718,9 +743,11 @@ function MemoryPanel(): React.JSX.Element {
 
   return (
     <section className="single-page panel">
-      <div className="panel-label">{'// MEMORY'}</div>
-      <h2>Memory</h2>
-      <p>Review or delete what Marvi remembers on this machine.</p>
+      <PageLead
+        description="Review or delete what Marvi remembers on this machine."
+        icon="memory"
+        title="Memory"
+      />
 
       <div className="context-line">
         <span>ENTRIES</span>
@@ -795,9 +822,11 @@ function AccountsPanel(): React.JSX.Element {
 
   return (
     <section className="single-page panel">
-      <div className="panel-label">{'// ACCOUNTS'}</div>
-      <h2>Accounts</h2>
-      <p>Services connected through Composio.</p>
+      <PageLead
+        description="Services connected through Composio."
+        icon="accounts"
+        title="Accounts"
+      />
 
       <div className="context-line">
         <span>COMPOSIO</span>
@@ -1112,9 +1141,11 @@ function ProvidersPanel(): React.JSX.Element {
 
   return (
     <section className="single-page panel">
-      <div className="panel-label">{'// PROVIDERS'}</div>
-      <h2>Providers</h2>
-      <p>Connect a model service and choose where Marvi runs each request.</p>
+      <PageLead
+        description="Connect a model service and choose where Marvi runs each request."
+        icon="providers"
+        title="Providers"
+      />
 
       {page ? (
         <MessageTiming
@@ -1189,9 +1220,11 @@ function IdentityPanel(): React.JSX.Element {
 
   return (
     <section className="single-page panel">
-      <div className="panel-label">{'// IDENTITY'}</div>
-      <h2>Identity</h2>
-      <p>Edit Marvi&apos;s identity and your standing preferences.</p>
+      <PageLead
+        description="Edit Marvi's identity and your standing preferences."
+        icon="identity"
+        title="Identity"
+      />
 
       {identity ? (
         <div className="context-line">
@@ -1720,9 +1753,11 @@ function SchedulesPanel(): React.JSX.Element {
 
   return (
     <section className="single-page panel">
-      <div className="panel-label">{'// SCHEDULES'}</div>
-      <h2>Schedules</h2>
-      <p>Tasks Marvi runs at a specific time.</p>
+      <PageLead
+        description="Tasks Marvi runs at a specific time."
+        icon="schedules"
+        title="Schedules"
+      />
 
       {error ? <span className="construction">{error.toUpperCase()}</span> : null}
 
@@ -1871,9 +1906,11 @@ function PluginsPanel(): React.JSX.Element {
 
   return (
     <section className="single-page panel">
-      <div className="panel-label">{'// PLUGINS'}</div>
-      <h2>Plugins</h2>
-      <p>Long-running local services that extend Marvi.</p>
+      <PageLead
+        description="Long-running local services that extend Marvi."
+        icon="plugins"
+        title="Plugins"
+      />
 
       {error ? <span className="construction">{error.toUpperCase()}</span> : null}
 
@@ -2062,9 +2099,11 @@ function SkillsPanel(): React.JSX.Element {
 
   return (
     <section className="single-page panel">
-      <div className="panel-label">{'// SKILLS'}</div>
-      <h2>Skills</h2>
-      <p>Instructions that teach Marvi how to complete specific work.</p>
+      <PageLead
+        description="Instructions that teach Marvi how to complete specific work."
+        icon="skills"
+        title="Skills"
+      />
 
       <div className="context-line">
         <span>SOURCES</span>
@@ -2174,9 +2213,11 @@ function ActivityPanel(): React.JSX.Element {
 
   return (
     <section className="single-page panel">
-      <div className="panel-label">{'// ACTIVITY'}</div>
-      <h2>Activity</h2>
-      <p>Local history of tool requests, approvals, and results.</p>
+      <PageLead
+        description="Local history of tool requests, approvals, and results."
+        icon="activity"
+        title="Activity"
+      />
       <AsciiRule />
 
       {events.length === 0 ? (
@@ -2222,9 +2263,7 @@ function PagePanel({ page }: { page: Page; version: string }): React.JSX.Element
 
   return (
     <section className="single-page panel">
-      <div className="panel-label">{`// ${page.toUpperCase()}`}</div>
-      <h2>{page}</h2>
-      <p>{descriptions[page]}</p>
+      <PageLead description={descriptions[page]} icon={NAV_ICONS[page]} title={page} />
       <AsciiRule />
       <span className="construction">FOUNDATION ONLINE / FEATURE MODULE PENDING</span>
     </section>
@@ -2246,8 +2285,11 @@ function BrandIcon({ className = '' }: { className?: string }): React.JSX.Elemen
 function MaintenancePanel(): React.JSX.Element {
   return (
     <section className="single-page panel">
-      <h2>Maintenance</h2>
-      <p>Repair the local runtime or install missing models from a terminal.</p>
+      <PageLead
+        description="Repair the local runtime or install missing models from a terminal."
+        icon="maintenance"
+        title="Maintenance"
+      />
 
       <AsciiRule />
 
@@ -2325,13 +2367,6 @@ function SettingsShell({
       </nav>
 
       <div className="settings-content">
-        <header className="settings-head">
-          <div className="settings-head-title">
-            <AbstractIcon name={SETTINGS_ICONS[page]} size={20} />
-            <h1>{page}</h1>
-          </div>
-          <p>{SETTINGS_BLURB[page]}</p>
-        </header>
         <div className="settings-scroll">
           {page === 'Providers' ? (
             <ProvidersPanel />
@@ -2386,6 +2421,11 @@ function SettingsPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Eleme
 
   return (
     <section className="settings-page" aria-label="Marvi OS settings">
+      <PageLead
+        description="Devices, interaction mode, appearance, and Island placement."
+        icon="preferences"
+        title="Preferences"
+      />
       <div className="settings-section settings-services">
         <div>
           <span className="eyebrow">{'// LOCAL SERVICES'}</span>

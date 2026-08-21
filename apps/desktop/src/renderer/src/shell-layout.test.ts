@@ -78,6 +78,22 @@ describe('shell layout', () => {
     expect(app).toContain('<AboutUpdates version={build.version} />')
     expect(app).not.toContain('about-provenance')
   })
+
+  it('organises Overview as four labelled dashboard modules', () => {
+    expect(app).toContain('overview-dashboard')
+    expect(app).toContain('CURRENT STATE')
+    expect(app).toContain('VOICE PATH')
+    expect(app).toContain('SERVICE HEALTH')
+    expect(app).toContain('CONTEXT')
+    expect(css).toContain('grid-template-columns: repeat(12, minmax(0, 1fr))')
+  })
+
+  it('uses a real collapse glyph and compositor view transition', () => {
+    expect(app).toContain('document.startViewTransition')
+    expect(app).toContain('aria-pressed={collapsed}')
+    expect(app).not.toContain("collapsed ? '[>]' : '[<]'")
+    expect(css).toContain('view-transition-name: marvi-sidebar')
+  })
 })
 
 describe('what the shell claims about the devices', () => {

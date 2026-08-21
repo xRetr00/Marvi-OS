@@ -132,8 +132,10 @@ The main window uses a fixed shell:
 The sidebar is navigation, not a second dashboard. Every destination uses a
 purpose-built abstract line icon, a plain label, and a short code. The expanded
 rail includes a compact brand descriptor; the collapsed rail keeps the icons
-and active indicator legible. The bottom status bar is always present and
-shows compact authoritative health:
+and active indicator legible. Collapse uses a narrow directional rail control,
+not bracket text. Chromium View Transitions move the sidebar and content as
+compositor snapshots; reduced-motion users get an immediate state change. The
+bottom status bar is always present and shows compact authoritative health:
 
 - Marvi Gateway
 - LiveKit transport
@@ -156,6 +158,19 @@ it accumulates across chat and voice turns without inventing token estimates.
 Chat latency measures request-to-reply time; voice latency measures the active
 listen/wake-to-speaking transition. Turn and duration counters continue while
 the renderer session remains open.
+
+Overview is the denser operational exception to the otherwise simple pages. It
+uses four numbered modules: Current State, Voice Path, Service Health, and
+Context. Every value sits in a labeled field, status badge, or bounded cell;
+there is no loose status prose. Other pages except Voice and Chat use one
+compact labeled lead card followed by simple bordered value rows and lists.
+Do not repeat the Overview dashboard density on configuration and history
+pages. Voice and Chat retain their purpose-built interaction layouts.
+
+Desktop haptics use `web-haptics` with its documented debug audio-transducer
+path enabled. Electron on Windows does not expose the mobile Vibration API, so
+disabling that path makes otherwise valid triggers silent. Haptic failures are
+non-blocking and never interrupt the action that requested feedback.
 
 ## Island micro-events
 

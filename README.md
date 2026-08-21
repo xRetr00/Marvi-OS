@@ -29,6 +29,8 @@ Current implemented desktop surfaces:
 - Collapse wordmark + readable JetBrains Mono monochrome design system;
 - shared Provider, Chat, and Voice session telemetry for authoritative token
   deltas, turns, latency, and elapsed time;
+- a card-organized Overview plus simpler labeled page modules, an animated
+  sidebar rail control, and audible desktop haptic feedback;
 - passive `76×8` top-edge Island seed that expands for active voice states;
 - canonical app icon rendered in the app, tray, taskbar/package, sidebar, and About.
 - action, notification, error, confirmation, and persistent YOLO Island states;

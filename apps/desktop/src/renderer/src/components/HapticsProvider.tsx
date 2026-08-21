@@ -11,10 +11,10 @@
 import { useEffect, type ReactNode } from 'react'
 import { useWebHaptics } from 'web-haptics/react'
 
-import { registerHapticTrigger } from '../lib/haptics'
+import { DESKTOP_HAPTICS_OPTIONS, registerHapticTrigger } from '../lib/haptics'
 
 export function HapticsProvider({ children }: { children: ReactNode }): React.JSX.Element {
-  const { trigger } = useWebHaptics({ debug: false, showSwitch: false })
+  const { trigger } = useWebHaptics(DESKTOP_HAPTICS_OPTIONS)
 
   useEffect(() => {
     registerHapticTrigger(trigger)

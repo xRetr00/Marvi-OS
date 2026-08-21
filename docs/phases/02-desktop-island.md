@@ -41,6 +41,10 @@ surface and its native-window behavior can be proven without the voice engine.
   updater controls and the redundant Updates destination is removed.
 - Shared session telemetry on Provider, Chat, and Voice: authoritative token
   deltas, combined turn count, last latency, and continuously elapsed duration.
+- Four-module Overview dashboard with labeled cards and a simpler lead-card +
+  value-row hierarchy across every non-Voice/non-Chat page.
+- Directional sidebar rail control with compositor View Transition motion,
+  reduced-motion fallback, and working desktop audio-transducer haptics.
 
 ## Design-source review
 
@@ -92,6 +96,8 @@ frame.
   renderer geometry; local artifacts are under ignored `output/playwright/`.
 - Focused renderer ESLint, typecheck, and 167-test suite passed for the
   navigation/update/session-telemetry refinement on 2026-08-21.
+- Production build, focused renderer ESLint, and 172 tests passed for the
+  approved card hierarchy, sidebar transition, and haptics repair on 2026-08-21.
 - Development Electron upper-bound (main + Island): 536.3 MB aggregate working
   set and 1.562 CPU-seconds over 5 seconds. No dedicated CUDA allocation was
   reported; release idle profiling remains a Phase 7 optimization gate.

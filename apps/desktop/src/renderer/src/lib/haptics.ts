@@ -7,7 +7,7 @@
  * Provenance: the predecessor desktop's haptics module +
  * components/haptics-provider.tsx (see docs/UPSTREAM.md).
  */
-import type { HapticInput, TriggerOptions } from 'web-haptics'
+import type { HapticInput, TriggerOptions, WebHapticsOptions } from 'web-haptics'
 
 export type HapticIntent = 'tap' | 'selection' | 'open' | 'close' | 'success' | 'error' | 'warning'
 
@@ -36,7 +36,14 @@ const PATTERNS: Record<HapticIntent, HapticConfig> = {
   warning: { pattern: [{ duration: 34, intensity: 0.62 }] }
 }
 
-type TriggerFn = (pattern: HapticInput, options?: TriggerOptions) => void
+/** Electron on Windows has no Vibration API. The upstream library's debug
+ * path is its documented audio-transducer fallback for desktop feedback. */
+export const DESKTOP_HAPTICS_OPTIONS: WebHapticsOptions = {
+  debug: true,
+  showSwitch: false
+}
+
+type TriggerFn = (pattern: HapticInput, options?: TriggerOptions) => Promise<void> | undefined
 
 let trigger: TriggerFn | null = null
 
@@ -48,7 +55,7 @@ export function haptic(intent: HapticIntent): void {
   if (!trigger) return
   const config = PATTERNS[intent]
   try {
-    trigger(config.pattern, config.options)
+    void Promise.resolve(trigger(config.pattern, config.options)).catch(() => undefined)
   } catch {
     // Audio device vanished mid-gesture — never let feedback break UI actions.
   }
