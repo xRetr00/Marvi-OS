@@ -1191,6 +1191,26 @@ function startApp(): void {
         return null
       }
     })
+    ipcMain.handle('marvi:connect-local', async (_event, name) => {
+      if (typeof name !== 'string' || !name) return null
+      try {
+        const response = await fetch(`${gateway()}/providers/${name}/connect`, {
+          method: 'POST',
+          // Long enough for a local server that is starting up, short enough
+          // that a wrong port does not hang the button.
+          signal: AbortSignal.timeout(20_000)
+        })
+        if (!response.ok) return { connected: false, models: 0, detail: 'the Gateway refused' }
+        const body = (await response.json()) as Record<string, never>
+        return {
+          connected: Boolean(body.connected),
+          models: Number(body.models ?? 0),
+          detail: String(body.detail ?? '')
+        }
+      } catch {
+        return { connected: false, models: 0, detail: 'could not reach the Gateway' }
+      }
+    })
     ipcMain.handle('marvi:get-models', async (_event, options) => {
       const provider = typeof options?.provider === 'string' ? options.provider : ''
       const refresh = options?.refresh === true

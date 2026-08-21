@@ -196,12 +196,28 @@ class ProviderProfile:
                 return value
         return None
 
+    def enabled_setting(self) -> str:
+        """Where a local provider records that it was actually connected."""
+        return f"MARVI_{self.name.replace('-', '_').upper()}_ENABLED"
+
     def configured(self) -> bool:
-        """Local providers need only an endpoint; the rest need a credential."""
+        """Reachable and chosen, not merely present.
+
+        A local provider used to count as configured because it had a default
+        base URL -- which every one of them ships with. So LM Studio and Ollama
+        were permanently "connected" on a machine where neither was running,
+        won the fallback ordering, and answered turns with nothing behind them.
+        That is how a voice session ended up resolved to "LM Studio /" with no
+        model at all.
+
+        They need connecting now, like everything else: pressing Connect probes
+        the endpoint, and only a real model list writes the flag this reads.
+        """
         if not self.base_url():
             return False
         if self.auth_type == "none":
-            return True
+            raw = os.environ.get(self.enabled_setting(), "").strip().lower()
+            return raw in ("1", "true", "yes", "on")
         try:
             return bool(self.api_key())
         except Exception:

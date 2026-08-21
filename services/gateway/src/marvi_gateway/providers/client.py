@@ -408,9 +408,23 @@ class ProviderClient:
                 # setting, not a reason to stop answering.
                 logger.warning("ignoring unknown provider %r", preferred)
                 return ready
-            ready = [p for p in ready if p.name != chosen.name]
-            if chosen.configured() and self.resting(chosen.name) <= 0:
-                ready.insert(0, chosen)
+            if not chosen.configured():
+                logger.warning(
+                    "%s is selected but not configured; falling back", chosen.name
+                )
+                return ready
+            if self.resting(chosen.name) > 0:
+                # Cooling down. Falling through is the point of a cooldown --
+                # but it is the only case that overrides an explicit choice.
+                logger.warning("%s is cooling down; falling back", chosen.name)
+                return [p for p in ready if p.name != chosen.name]
+
+            # Locked. A provider chosen in the Models page answers, or nothing
+            # does. Keeping the others behind it meant a turn could quietly be
+            # answered by something the user never picked -- which is how
+            # replies came back from LM Studio while the page said OpenRouter,
+            # and why the same turn could use a different model each time.
+            return [chosen]
         return ready
 
     def stream_with_fallback(

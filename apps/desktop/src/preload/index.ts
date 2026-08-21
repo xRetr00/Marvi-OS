@@ -171,6 +171,11 @@ const marvi = {
     return () => ipcRenderer.removeListener('marvi:services', handler)
   },
   getProviders: (): Promise<ProviderPage | null> => ipcRenderer.invoke('marvi:get-providers'),
+  /** Probe a local provider and mark it connected only if it answers. */
+  connectLocal: (
+    name: string
+  ): Promise<{ connected: boolean; models: number; detail: string } | null> =>
+    ipcRenderer.invoke('marvi:connect-local', name),
   getModels: (options?: { provider?: string; refresh?: boolean }): Promise<ModelPage | null> =>
     ipcRenderer.invoke('marvi:get-models', options ?? {}),
   getUpstreams: (model?: string): Promise<UpstreamPage | null> =>

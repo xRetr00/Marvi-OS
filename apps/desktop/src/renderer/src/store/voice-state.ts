@@ -16,7 +16,11 @@ const PHASE_COPY: Record<AssistantPhase, { caption: string; detail: string | nul
   ready: { caption: 'Say Marvi', detail: null },
   wake: { caption: 'I am here', detail: 'Wake word accepted' },
   listening: { caption: 'Listening', detail: 'Talk naturally' },
-  thinking: { caption: 'Thinking', detail: 'Connecting context' },
+  // Reasoning is forced off for voice, so there is nothing to think about --
+  // this is the gap between the question ending and the first word coming
+  // back, and calling it "Thinking" invites you to wait for deliberation that
+  // is not happening. It should be brief enough to barely register.
+  thinking: { caption: 'One moment', detail: null },
   speaking: { caption: 'Speaking', detail: 'Talk to interrupt' },
   action: { caption: 'Turning on the room light', detail: 'Smart Room' },
   notification: { caption: 'New message from Alex', detail: 'World context' },

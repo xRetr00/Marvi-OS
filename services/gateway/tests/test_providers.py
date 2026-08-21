@@ -84,9 +84,24 @@ def test_nothing_is_hardcoded_at_the_call_site(monkeypatch) -> None:
     assert ollama.model_for() == "llama4:latest"
 
 
-def test_local_providers_need_no_key(monkeypatch) -> None:
+def test_local_providers_need_no_key_but_do_need_connecting(monkeypatch) -> None:
+    """A default URL is not a connection.
+
+    Every local provider ships with one, so treating it as evidence left LM
+    Studio and Ollama permanently connected on machines where neither was
+    running -- winning the fallback and answering turns with nothing behind
+    them. They still need no credential; they need to have answered.
+    """
+    profile = get("ollama")
     monkeypatch.delenv("MARVI_OLLAMA_URL", raising=False)
-    assert get("ollama").configured() is True
+    monkeypatch.delenv(profile.enabled_setting(), raising=False)
+
+    assert profile.base_url()
+    assert profile.configured() is False
+
+    # Connecting is what the probe writes once a model list comes back.
+    monkeypatch.setenv(profile.enabled_setting(), "true")
+    assert profile.configured() is True
 
 
 def test_a_key_provider_is_unconfigured_without_one(monkeypatch) -> None:
@@ -101,11 +116,26 @@ def test_a_local_provider_with_no_endpoint_is_unconfigured(monkeypatch) -> None:
     assert get("llamacpp").configured() is False
 
 
-def test_selection_prefers_local(monkeypatch) -> None:
+def test_selection_prefers_a_connected_local_provider(monkeypatch) -> None:
+    """Local still wins by default -- once it is actually connected.
+
+    It costs nothing and works offline, which is the right default; the change
+    is that it has to exist first.
+    """
     monkeypatch.delenv("MARVI_PROVIDER", raising=False)
     monkeypatch.setenv("OPENCODE_GO_API_KEY", "k")
-    # Local costs nothing and works offline, so it wins by default.
+    monkeypatch.setenv(get("ollama").enabled_setting(), "true")
+
     assert select().access_path == "local"
+
+
+def test_an_unconnected_local_provider_is_not_selected(monkeypatch) -> None:
+    monkeypatch.delenv("MARVI_PROVIDER", raising=False)
+    monkeypatch.setenv("OPENCODE_GO_API_KEY", "k")
+    for name in ("ollama", "lmstudio", "llamacpp"):
+        monkeypatch.delenv(get(name).enabled_setting(), raising=False)
+
+    assert select().access_path != "local"
 
 
 def test_an_explicit_choice_wins(monkeypatch) -> None:

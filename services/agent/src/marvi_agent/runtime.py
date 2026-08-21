@@ -38,6 +38,9 @@ class AgentConfig:
     model: str
     base_url: str
     provider: str = "unknown"
+    #: The model's context window, as the provider reports it. Zero when it
+    #: does not, in which case the reply cap stands on its own.
+    context: int = 0
 
     @classmethod
     def from_gateway(cls, client: httpx.Client | None = None) -> AgentConfig:
@@ -63,6 +66,7 @@ class AgentConfig:
             model=body["model"],
             base_url=body["base_url"],
             provider=body.get("provider", "unknown"),
+            context=int(body.get("context") or 0),
         )
 
 
@@ -80,13 +84,32 @@ class AgentConfig:
 VOICE_REPLY_TOKENS = 300
 
 
+def reply_tokens(context: int) -> int:
+    """How long a spoken reply may be, given what the model can hold.
+
+    Never the whole context. Leaving the cap unset asked for exactly that --
+    the plugin sends the model's maximum -- so OpenRouter reserved credit
+    against 65,536 tokens and refused every voice turn with a 402.
+
+    The context window now comes from the provider's own model list rather
+    than being assumed, and the reply is a small fraction of it: a spoken
+    answer is a minute of speech, not a document. A model that reports no
+    context simply gets the default.
+    """
+    if context <= 0:
+        return VOICE_REPLY_TOKENS
+    # A twentieth, floored at something worth saying and capped where a spoken
+    # answer stops being one.
+    return max(VOICE_REPLY_TOKENS, min(context // 20, 1024))
+
+
 def build_llm(config: AgentConfig) -> openai.LLM:
     """Every provider Marvi speaks to on the voice path is OpenAI-compatible."""
     return openai.LLM(
         model=config.model,
         base_url=config.base_url,
         api_key=config.api_key,
-        max_completion_tokens=VOICE_REPLY_TOKENS,
+        max_completion_tokens=reply_tokens(config.context),
     )
 
 

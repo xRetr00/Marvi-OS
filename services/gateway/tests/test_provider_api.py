@@ -209,7 +209,16 @@ def test_the_voice_path_only_gets_a_chat_completions_provider(client) -> None:
     )
     assert client.get("/providers/voice").status_code == 503
 
+    # And it stays 503 while Anthropic is the selection: a provider chosen in
+    # the Models page is locked in, so voice fails loudly rather than quietly
+    # answering from something the user never picked.
     client.put("/providers/settings", json={"values": {"OPENAI_API_KEY": "k"}})
+    refused = client.get("/providers/voice")
+    assert refused.status_code == 503
+    assert "cannot drive" in refused.json()["detail"]
+
+    # Choosing one that can drive voice resolves it.
+    client.put("/providers/settings", json={"values": {"MARVI_PROVIDER": "openai"}})
     assert client.get("/providers/voice").json()["provider"] != "anthropic"
 
 

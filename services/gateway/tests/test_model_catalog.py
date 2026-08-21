@@ -440,3 +440,71 @@ def test_a_local_endpoint_with_no_model_is_never_named() -> None:
             readout = client.get("/runtime").json()["model"]["llm"]
 
         assert "lm studio" not in readout.lower()
+
+
+# -- a provider is connected when it answers ---------------------------------
+
+
+def test_a_local_provider_is_not_connected_by_having_a_url(monkeypatch) -> None:
+    """The bug behind every "LM Studio" surprise in this project.
+
+    Local providers ship with a default base URL, and having one used to count
+    as configured. So LM Studio and Ollama were permanently connected on a
+    machine where neither was running, won the fallback ordering, and answered
+    turns with nothing behind them -- which is how a voice session resolved to
+    "LM Studio /" with no model at all.
+    """
+    profile = get("lmstudio")
+    monkeypatch.delenv(profile.enabled_setting(), raising=False)
+
+    assert profile.base_url(), "it still has a URL"
+    assert profile.configured() is False, "but a URL is not a connection"
+
+
+def test_connecting_a_local_provider_makes_it_configured(monkeypatch) -> None:
+    profile = get("ollama")
+    monkeypatch.setenv(profile.enabled_setting(), "true")
+
+    assert profile.configured() is True
+
+
+def test_the_selected_provider_is_the_only_candidate(monkeypatch) -> None:
+    """Locked, not merely preferred.
+
+    Keeping the others behind the chosen one meant a turn could quietly be
+    answered by something never picked -- replies coming back from LM Studio
+    while the page said OpenRouter, and the same question answered by a
+    different model each time.
+    """
+    from marvi_gateway.providers import ProviderClient
+
+    monkeypatch.setenv("MARVI_PROVIDER", "openrouter")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv(get("lmstudio").enabled_setting(), "true")
+
+    assert [p.name for p in ProviderClient().candidates()] == ["openrouter"]
+
+
+def test_a_selection_that_is_not_configured_does_not_strand_marvi(monkeypatch) -> None:
+    """A stale choice is not a reason to stop answering."""
+    from marvi_gateway.providers import ProviderClient
+
+    monkeypatch.setenv("MARVI_PROVIDER", "anthropic")
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+
+    names = [p.name for p in ProviderClient().candidates()]
+
+    assert "openrouter" in names
+
+
+def test_the_context_window_comes_from_the_provider() -> None:
+    """Rather than being assumed, or left for the plugin to maximise."""
+    profile = get("openrouter")
+    http = responder(
+        {"data": [{"id": "vendor/model", "context_length": 128000}]}
+    )
+
+    (card,) = catalog.fetch(profile, http=http)
+
+    assert card.context == 128000

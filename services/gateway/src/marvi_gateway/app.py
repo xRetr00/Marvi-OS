@@ -210,6 +210,11 @@ class VoiceProvider(BaseModel):
     base_url: str
     model: str
     api_key: str
+    #: What the provider says this model can hold, from its own model list.
+    #: Zero when it did not say. The Agent sizes a reply against this rather
+    #: than letting the plugin ask for the whole context -- which is what made
+    #: OpenRouter reserve credit for 65,536 tokens and refuse every turn.
+    context: int = 0
 
 
 class IdentityStatus(BaseModel):
@@ -1772,6 +1777,44 @@ def create_app(
         """Poll the flow. Never blocks, and never returns the token itself."""
         return broker().poll(name)
 
+    @app.post("/providers/{name}/connect")
+    async def connect_local(name: str) -> dict[str, Any]:
+        """Connect a local provider by proving it answers.
+
+        Pressing Connect asks the endpoint for its model list. Only a real list
+        marks it connected -- a base URL is not evidence of anything, and
+        treating one as evidence is what left LM Studio permanently "connected"
+        on a machine where it was not running, winning the fallback and
+        answering turns with nothing behind it.
+        """
+        from .providers import catalog
+
+        profile = provider_get(name)
+        if profile is None:
+            raise HTTPException(status_code=404, detail=f"no provider named {name}")
+        if profile.auth_type != "none":
+            raise HTTPException(
+                status_code=400,
+                detail=f"{profile.label()} connects with a credential, not a probe",
+            )
+
+        models = await anyio.to_thread.run_sync(
+            lambda: catalog.fetch(profile)
+        )
+        if not models:
+            # Left disconnected on purpose. Saying "connected" for an endpoint
+            # that did not answer is the whole bug.
+            provider_config.update({profile.enabled_setting(): ""})
+            return {
+                "connected": False,
+                "models": 0,
+                "detail": f"{profile.base_url()} did not answer with a model list",
+            }
+
+        provider_config.update({profile.enabled_setting(): "true"})
+        catalog.forget(profile.name)
+        return {"connected": True, "models": len(models), "detail": ""}
+
     @app.post("/providers/{name}/disconnect", response_model=ProviderPage)
     async def disconnect_provider(name: str) -> ProviderPage:
         removed = broker().disconnect(name)
@@ -1923,15 +1966,34 @@ def create_app(
         # cannot name one provider while the Agent is handed another.
         usable = voice_candidates()
         if not usable:
+            # Say which provider and why. A locked selection that cannot drive
+            # voice is a deliberate outcome, not a mystery -- and "no usable
+            # provider" sends someone looking at their microphone.
+            selected = os.environ.get("MARVI_PROVIDER", "").strip()
+            profile = provider_get(selected) if selected else None
+            if profile is not None:
+                reason = (
+                    f"{profile.label()} speaks {profile.api_mode.replace('_', ' ')}, "
+                    "which the voice path cannot drive"
+                    if profile.api_mode != "chat_completions"
+                    else f"{profile.label()} has no model set or is unreachable"
+                )
+                raise HTTPException(status_code=503, detail=reason)
             raise HTTPException(
                 status_code=503, detail="no usable provider for the voice path"
             )
+        from .providers import catalog
+
         chosen = usable[0]
+        model = chosen.model_for("main")
+        cards = await anyio.to_thread.run_sync(lambda: catalog.models(chosen))
+        card = next((c for c in cards if c.id == model), None)
         return VoiceProvider(
             provider=chosen.name,
             base_url=chosen.base_url() or "",
-            model=chosen.model_for("main"),
+            model=model,
             api_key=chosen.api_key() or "local",
+            context=card.context if card else 0,
         )
 
     @app.get("/identity", response_model=IdentityStatus)

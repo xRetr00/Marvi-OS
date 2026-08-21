@@ -963,9 +963,11 @@ function ProviderCard({
     }
   }
 
-  // A local provider is configured the moment it has a default URL, which is
-  // not the same as running. Saying CONNECTED for an Ollama that is not
-  // started sends the user looking for the fault everywhere except the cause.
+  // A local provider is connected only once it has answered with a model
+  // list. It used to count the moment it had a default URL -- which every one
+  // of them ships with -- so LM Studio and Ollama read CONNECTED on a machine
+  // where neither was running, won the fallback, and answered turns with
+  // nothing behind them.
   const offline = provider.reachable === false
   const ready = provider.configured && !offline
 
@@ -988,6 +990,9 @@ function ProviderCard({
           Nothing is listening on {provider.baseUrl} — start it, or point{' '}
           {provider.env.url || 'the URL'} somewhere else.
         </small>
+      ) : null}
+      {provider.accessPath === 'local' && !provider.configured ? (
+        <LocalConnect name={provider.name} label={provider.label} onDone={onRefresh} />
       ) : null}
       <small>
         {ACCESS_LABEL[provider.accessPath]} / {provider.apiMode.replace(/_/g, ' ').toUpperCase()} /{' '}
@@ -1210,6 +1215,48 @@ function ProvidersPanel(): React.JSX.Element {
         )
       })}
     </section>
+  )
+}
+
+/**
+ * Connect a local provider by asking it for its models.
+ *
+ * A base URL is not evidence that anything is there. The only proof that
+ * matters is a model list coming back, so that is what the button waits for --
+ * and a provider that does not answer stays disconnected and says why.
+ */
+function LocalConnect({
+  name,
+  label,
+  onDone
+}: {
+  name: string
+  label: string
+  onDone: () => void
+}): React.JSX.Element {
+  const [busy, setBusy] = useState(false)
+  const [detail, setDetail] = useState('')
+
+  const connect = async (): Promise<void> => {
+    setBusy(true)
+    setDetail('')
+    const result = await window.marvi?.connectLocal(name)
+    setBusy(false)
+    if (result?.connected) {
+      setDetail(`${label} answered with ${result.models} models.`)
+      onDone()
+      return
+    }
+    setDetail(result?.detail || `${label} did not answer.`)
+  }
+
+  return (
+    <div className="provider-connect">
+      <button className="phase" disabled={busy} onClick={() => void connect()} type="button">
+        {busy ? 'ASKING…' : 'CONNECT'}
+      </button>
+      {detail ? <small className="provider-cooldown">{detail}</small> : null}
+    </div>
   )
 }
 
@@ -1480,17 +1527,20 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
 
       {/* Bottom: the live transcript, streaming. Two lines at most — this is a
           glance while talking, not a record; Chat is where a transcript lives. */}
+      {/* Under the orb: what is being recognised right now, word by word. The
+          Agent posts interim results as well as finals, so this fills in while
+          you are still speaking rather than appearing whole afterwards. */}
       <div aria-live="polite" className="voice-transcript">
         {voice.heard ? (
           <p className="voice-heard">
             <span>YOU</span>
-            {voice.heard}
+            <StreamingWords text={voice.heard} live={voice.phase === 'listening'} />
           </p>
         ) : null}
         {voice.spoken ? (
           <p className="voice-spoken">
             <span>MARVI</span>
-            {voice.spoken}
+            <StreamingWords text={voice.spoken} live={voice.phase === 'speaking'} />
           </p>
         ) : null}
       </div>
@@ -1726,6 +1776,32 @@ function VoiceModelPicker({ current }: { current: string }): React.JSX.Element {
       placeholder={current || 'not selected'}
       searchPlaceholder="Search models…"
     />
+  )
+}
+
+/**
+ * Words appearing as they arrive.
+ *
+ * The newest few are highlighted briefly, so a transcript that is still being
+ * recognised reads as in-progress rather than as a finished sentence. Driven
+ * by the text actually growing -- not a timer replaying a complete string,
+ * which looks like streaming and tells you nothing.
+ */
+function StreamingWords({ text, live }: { text: string; live: boolean }): React.JSX.Element {
+  const words = text.split(/\s+/).filter(Boolean)
+
+  return (
+    <>
+      {words.map((word, index) => (
+        <span
+          className={live && index >= words.length - 2 ? 'voice-word is-fresh' : 'voice-word'}
+          key={`${index}-${word}`}
+        >
+          {word}{' '}
+        </span>
+      ))}
+      {live ? <span aria-hidden="true" className="voice-caret" /> : null}
+    </>
   )
 }
 

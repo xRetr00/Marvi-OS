@@ -3880,3 +3880,35 @@ body {
     animation: none;
   }
 }
+
+.provider-connect {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+/* The live transcript under the orb. Freshly recognised words are brighter for
+ * a moment, so a sentence still being heard reads as in progress. */
+.voice-word {
+  transition: color 600ms ease;
+}
+
+.voice-word.is-fresh {
+  color: var(--ui-accent);
+}
+
+.voice-caret {
+  display: inline-block;
+  width: 2px;
+  height: 0.9em;
+  margin-bottom: -0.1em;
+  background: var(--ui-accent);
+  animation: chat-cursor-blink 1s steps(2, start) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-caret {
+    animation: none;
+  }
+}

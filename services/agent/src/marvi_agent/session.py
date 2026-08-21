@@ -323,6 +323,12 @@ async def marvi_session(ctx: JobContext) -> None:
     # tools, and the per-turn timings that say which one is slow.
     observability.attach(session)
 
+    @session.on("user_input_transcribed")
+    def _heard_live(event: Any) -> None:
+        # Interim as well as final: the point is to show words appearing while
+        # they are still being recognised, not a sentence arriving at once.
+        _report_transcript(heard=getattr(event, "transcript", "") or "")
+
     @session.on("conversation_item_added")
     def _spoke(event: Any) -> None:
         # Separate from the logging above because this one leaves the process:

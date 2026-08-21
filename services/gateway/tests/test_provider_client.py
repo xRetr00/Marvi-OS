@@ -154,7 +154,11 @@ def test_cooldown_expires() -> None:
 # -- failover ---------------------------------------------------------------
 
 
-def test_a_dead_provider_falls_through_to_the_next() -> None:
+def test_a_dead_provider_falls_through_to_the_next(monkeypatch) -> None:
+    from marvi_gateway.providers import get
+
+    monkeypatch.setenv(get("ollama").enabled_setting(), "true")
+    monkeypatch.delenv("MARVI_PROVIDER", raising=False)
     calls: list[str] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -167,7 +171,9 @@ def test_a_dead_provider_falls_through_to_the_next() -> None:
     client = ProviderClient(http=httpx.Client(transport=httpx.MockTransport(handler)))
     result = client.call_with_fallback(MESSAGES)
 
-    # Local is tried first, fails, is cooled down, and a hosted one answers.
+    # A connected local provider is tried first, fails, is cooled down, and a
+    # hosted one answers. Fallback still works -- what changed is that an
+    # unconnected local provider is not in the list to be tried at all.
     assert result.provider == "openai"
     assert result.text == "from the fallback"
     assert len(calls) >= 2
@@ -180,7 +186,14 @@ def test_everything_exhausted_is_a_clear_error() -> None:
         client.call_with_fallback(MESSAGES)
 
 
-def test_candidates_skip_resting_providers() -> None:
+def test_candidates_skip_resting_providers(monkeypatch) -> None:
+    from marvi_gateway.providers import get
+
+    # Connected first: a local provider is no longer a candidate merely for
+    # having a default URL.
+    monkeypatch.setenv(get("ollama").enabled_setting(), "true")
+    monkeypatch.delenv("MARVI_PROVIDER", raising=False)
+
     client = ProviderClient()
     before = {p.name for p in client.candidates()}
     client.stand_down("ollama", 300, "test")

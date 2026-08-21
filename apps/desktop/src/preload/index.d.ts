@@ -109,6 +109,9 @@ export interface MarviDesktopApi {
   retryService: (name: string) => Promise<boolean>
   onServices: (listener: (reports: ServiceReport[]) => void) => () => void
   getProviders: () => Promise<ProviderPage | null>
+  connectLocal: (
+    name: string
+  ) => Promise<{ connected: boolean; models: number; detail: string } | null>
   getModels: (options?: { provider?: string; refresh?: boolean }) => Promise<ModelPage | null>
   getUpstreams: (model?: string) => Promise<UpstreamPage | null>
   getVoices: () => Promise<VoicePage | null>

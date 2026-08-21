@@ -73,6 +73,8 @@ class NemotronStream(stt.RecognizeStream):
         self._transcript = ""
         # When the last word arrived, so silence can end the utterance.
         self._spoke_at = time.monotonic()
+        # Until when late text belongs to an utterance already finished.
+        self._settled_until = 0.0
 
     async def _send(self, payload: dict[str, str]) -> dict[str, Any]:
         if not self._process or not self._process.stdin or not self._process.stdout:
@@ -94,6 +96,22 @@ class NemotronStream(stt.RecognizeStream):
     #: than the session's endpointing window, so the final lands before the
     #: turn is given up on, and long enough not to cut a pause mid-sentence.
     _SILENCE = 0.6
+
+    #: After finalising, text belonging to the utterance just closed is
+    #: discarded for this long.
+    #:
+    #: The recogniser lags the audio -- it has lookahead, and it is fed frames
+    #: that were captured before the silence was noticed -- so words keep
+    #: arriving after the sentence is over. They used to open a *second* turn
+    #: carrying the tail of the first:
+    #:
+    #:     stt: Hello Marvi, how you doing hello
+    #:     stage: listening -> thinking
+    #:     stt: , how you doing          <- the same sentence, again
+    #:     stage: thinking -> listening  <- and the real turn is cancelled
+    #:
+    #: which is the loop: every answer interrupted by an echo of the question.
+    _TAIL = 1.5
 
     def _emit(self, event_type: stt.SpeechEventType, text: str) -> None:
         self._event_ch.send_nowait(
@@ -127,6 +145,7 @@ class NemotronStream(stt.RecognizeStream):
                     if self._transcript.strip():
                         self._emit(stt.SpeechEventType.FINAL_TRANSCRIPT, self._transcript.strip())
                     self._transcript = ""
+                    self._settled_until = time.monotonic() + self._TAIL
                     # The runtime keeps decoder state across `audio` calls --
                     # that is what makes it incremental -- so ending an
                     # utterance here without clearing it leaves the next one
@@ -142,6 +161,10 @@ class NemotronStream(stt.RecognizeStream):
                     {"op": "audio", "pcm16": base64.b64encode(pcm).decode("ascii")}
                 )
                 delta = response.get("text", "")
+                if delta and time.monotonic() < self._settled_until:
+                    # The tail of a sentence already answered. Dropping it is
+                    # the difference between a conversation and a loop.
+                    continue
                 if delta:
                     self._transcript += delta
                     self._spoke_at = time.monotonic()
@@ -166,6 +189,11 @@ class NemotronStream(stt.RecognizeStream):
                     # the frames that carry none rather than on a timer.
                     self._emit(stt.SpeechEventType.FINAL_TRANSCRIPT, self._transcript.strip())
                     self._transcript = ""
+                    self._settled_until = time.monotonic() + self._TAIL
+                    # The runtime keeps decoder state across audio calls, so an
+                    # utterance that ends without clearing it leaves the next one
+                    # continuing the last.
+                    await self._send({"op": "reset"})
         finally:
             if self._process.returncode is None:
                 self._process.terminate()
