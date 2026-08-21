@@ -656,3 +656,23 @@ failures were invisible to every test that existed.
   ramp (░ → ▒ → ▓ → █) so a meter reads as one continuous density instead of
   eight on/off cells.
 - `accordion-loader.test.ts` covers the glyphs, track, and length override.
+
+## 2026-08-21 — readable shell, update access, and session telemetry
+
+- Replaced the overly decorative application typography with explicit roles:
+  Collapse remains the MARVI wordmark while JetBrains Mono carries every
+  heading, paragraph, control, and data value at readable sizes and spacing.
+- Rebuilt the sidebar around a small custom abstract SVG icon language, clearer
+  brand block, active rail, and useful collapsed state. No icon dependency or
+  runtime asset was added.
+- Kept the status-bar visual treatment and made its version label actionable.
+  The popover shows build metadata, channel, updater state, and the guarded
+  update handoff. About now owns the same full controls; the redundant Updates
+  destination and upstream marketing copy were removed.
+- Adapted the user-provided `MessageTiming` pattern to the renderer's existing
+  plain-CSS system. Provider, Chat, and Voice share session tokens, turns, last
+  latency, and elapsed time. Token counts use Gateway provider-total deltas;
+  they are not estimated from message text.
+- Added component/store coverage for streaming timing presentation, provider
+  baselines, combined chat/voice turns, voice phase deduplication, and duration
+  formatting.

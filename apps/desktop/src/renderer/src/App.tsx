@@ -16,6 +16,9 @@ import { HapticsProvider } from './components/HapticsProvider'
 import { TitleBar } from './components/TitleBar'
 import { ShellContextMenu } from './components/ui/shell-context-menu'
 import { Chat } from './chat'
+import { AbstractIcon, type AbstractIconName } from './components/abstract-icon'
+import { MessageTiming } from './components/message-timing'
+import { AboutUpdates, VersionPopover } from './components/update-controls'
 
 /** Settings shows the device rows in full words. "ALWAYS ON" was printed
  * unconditionally, including with the Gateway offline; "?" is the honest answer
@@ -33,6 +36,13 @@ import {
   $backgroundOpacity
 } from './store/background'
 import { $translucency, setTranslucency } from './store/translucency'
+import {
+  $sessionMetrics,
+  observeVoicePhase,
+  sessionTimingStats,
+  tickSession,
+  updateSessionUsage
+} from './store/session-metrics'
 import { haptic } from './lib/haptics'
 import type {
   AuditEvent,
@@ -52,10 +62,6 @@ import type {
   ServiceReport,
   SkillReview,
   StoreSkill,
-  UpdateChannel,
-  UpdateCheck,
-  UpdateResult,
-  UpdateStatus,
   VoicePage,
   WakeStatus
 } from '../../shared/runtime'
@@ -88,7 +94,7 @@ const NAV_GROUPS = [
 /** Behind the gear: the things you set up. */
 const SETTINGS_GROUPS = [
   { label: 'Connect', items: ['Providers', 'Models', 'Accounts', 'Skills', 'Plugins'] },
-  { label: 'System', items: ['Preferences', 'Schedules', 'Maintenance', 'Updates', 'About'] }
+  { label: 'System', items: ['Preferences', 'Schedules', 'Maintenance', 'About'] }
 ] as const
 
 type Page = (typeof NAV_GROUPS)[number]['items'][number]
@@ -106,6 +112,30 @@ const NAV_CODES: Record<Page, string> = {
   Mind: 'MI'
 }
 
+const NAV_ICONS: Record<Page, AbstractIconName> = {
+  Overview: 'overview',
+  Voice: 'voice',
+  Chat: 'chat',
+  Vision: 'vision',
+  Room: 'room',
+  Activity: 'activity',
+  Identity: 'identity',
+  Memory: 'memory',
+  Mind: 'mind'
+}
+
+const SETTINGS_ICONS: Record<SettingsPage, AbstractIconName> = {
+  Providers: 'providers',
+  Models: 'models',
+  Accounts: 'accounts',
+  Skills: 'skills',
+  Plugins: 'plugins',
+  Preferences: 'preferences',
+  Schedules: 'schedules',
+  Maintenance: 'maintenance',
+  About: 'about'
+}
+
 const SETTINGS_BLURB: Record<SettingsPage, string> = {
   Providers: 'API access and usage',
   Models: 'Active model and effort',
@@ -115,7 +145,6 @@ const SETTINGS_BLURB: Record<SettingsPage, string> = {
   Preferences: 'Devices and appearance',
   Schedules: 'Timed tasks',
   Maintenance: 'Install and diagnose',
-  Updates: 'Version and channel',
   About: 'Build and licences'
 }
 
@@ -142,6 +171,26 @@ function MainSurface(): React.JSX.Element {
     void window.marvi?.getRuntime().then(applyRuntimeState)
     return window.marvi?.onRuntime(applyRuntimeState)
   }, [])
+
+  useEffect(() => {
+    let disposed = false
+    const poll = async (): Promise<void> => {
+      const providerPage = await window.marvi?.getProviders()
+      if (!disposed && providerPage) updateSessionUsage(providerPage.totals)
+    }
+    void poll()
+    const usageTimer = setInterval(() => void poll(), 4_000)
+    const clockTimer = setInterval(() => tickSession(), 1_000)
+    return () => {
+      disposed = true
+      clearInterval(usageTimer)
+      clearInterval(clockTimer)
+    }
+  }, [])
+
+  useEffect(() => {
+    observeVoicePhase(voice.phase)
+  }, [voice.phase])
 
   useEffect(() => {
     // Still automatic — an always-on assistant should be on when it opens.
@@ -184,7 +233,7 @@ function MainSurface(): React.JSX.Element {
             `auto` track sizes to the item's max-content and stretches the item
             back to fill it, so the sidebar's own `width: 64px` was correct,
             applied, and visually ignored. */}
-        <div className="app-body" style={{ gridTemplateColumns: `${collapsed ? 60 : 204}px 1fr` }}>
+        <div className="app-body" style={{ gridTemplateColumns: `${collapsed ? 68 : 238}px 1fr` }}>
           <ElectricGazeBackground />
 
           {/* Width inline rather than by class. The stylesheet route lost a
@@ -198,7 +247,12 @@ function MainSurface(): React.JSX.Element {
           >
             <header className="brand-block">
               <BrandIcon className="brand-icon-sidebar" />
-              {!collapsed ? <strong>MARVI</strong> : null}
+              {!collapsed ? (
+                <span className="brand-copy">
+                  <strong>MARVI</strong>
+                  <small>LOCAL INTELLIGENCE</small>
+                </span>
+              ) : null}
               <button
                 aria-label={collapsed ? 'Expand the sidebar' : 'Collapse the sidebar'}
                 className="sidebar-collapse"
@@ -223,10 +277,9 @@ function MainSurface(): React.JSX.Element {
                       onClick={() => navigate(item)}
                       title={collapsed ? item : undefined}
                     >
-                      <span className="nav-code" aria-hidden="true">
-                        {NAV_CODES[item]}
-                      </span>
+                      <AbstractIcon className="nav-icon" name={NAV_ICONS[item]} size={17} />
                       {!collapsed ? <span className="nav-label">{item}</span> : null}
+                      {!collapsed ? <span className="nav-code">{NAV_CODES[item]}</span> : null}
                     </button>
                   ))}
                 </div>
@@ -243,7 +296,7 @@ function MainSurface(): React.JSX.Element {
           <main className="content">
             <header className="topbar">
               <div>
-                <span className="eyebrow">MARVI::{NAV_CODES[page]}</span>
+                <AbstractIcon className="topbar-icon" name={NAV_ICONS[page]} size={20} />
                 <h1>{page}</h1>
               </div>
               <span className="topbar-state">
@@ -302,13 +355,7 @@ function MainSurface(): React.JSX.Element {
               >
                 MODE:{voice.yolo ? 'YOLO' : 'CONFIRM'}
               </button>
-              <button
-                className="status-item status-version"
-                onClick={() => setSettings('About')}
-                type="button"
-              >
-                v{version}
-              </button>
+              <VersionPopover version={version} onOpenAbout={() => setSettings('About')} />
             </footer>
           </main>
         </div>
@@ -510,10 +557,7 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
     <section className="single-page panel">
       <div className="panel-label">{'// ROOM'}</div>
       <h2>Room</h2>
-      <p>
-        Live state from the smart-room sidecar. Marvi OS reads and requests; the sidecar keeps every
-        device, automation, and history record.
-      </p>
+      <p>Live room state from the Smart Room sidecar.</p>
 
       <div className="context-line">
         <span>SIDECAR</span>
@@ -560,144 +604,6 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
   )
 }
 
-function UpdatesPanel({ version }: { version: string }): React.JSX.Element {
-  const [status, setStatus] = useState<UpdateStatus | null>(null)
-  const [result, setResult] = useState<UpdateResult | null>(null)
-  const [check, setCheck] = useState<UpdateCheck | null>(null)
-  const [checking, setChecking] = useState(false)
-  const [confirming, setConfirming] = useState(false)
-
-  useEffect(() => {
-    let disposed = false
-    void (async () => {
-      const [next, last] = await Promise.all([
-        window.marvi?.getUpdateStatus(),
-        window.marvi?.consumeUpdateResult()
-      ])
-      if (disposed) return
-      if (next) setStatus(next)
-      // Surfaced once, on the first launch after an update ran.
-      if (last) setResult(last)
-    })()
-    return () => {
-      disposed = true
-    }
-  }, [])
-
-  const runCheck = useCallback(async (): Promise<void> => {
-    setChecking(true)
-    const outcome = await window.marvi?.checkForUpdate()
-    setCheck(outcome ?? null)
-    setChecking(false)
-  }, [])
-
-  const chooseChannel = useCallback(
-    async (channel: UpdateChannel): Promise<void> => {
-      await window.marvi?.setUpdateChannel(channel)
-      setCheck(null)
-      setStatus((current) => (current ? { ...current, channel } : current))
-      void runCheck()
-    },
-    [runCheck]
-  )
-
-  const channel = status?.channel ?? 'release'
-
-  return (
-    <section className="single-page panel">
-      <div className="panel-label">{'// UPDATES'}</div>
-      <h2>Updates</h2>
-      <p>
-        Marvi OS updates itself from its own checkout, so each update also refreshes the code that
-        performs the next one. The app quits, updates, and comes back. If anything fails the
-        previous version is restored.
-      </p>
-
-      <div className="context-line">
-        <span>VERSION</span>
-        <strong>{version}</strong>
-      </div>
-      <div className="context-line">
-        <span>CHANNEL</span>
-        <strong>{channel.toUpperCase()}</strong>
-      </div>
-      <div className="context-line">
-        <span>SELF-UPDATE</span>
-        <strong>{status?.supported ? 'AVAILABLE' : 'NOT A GIT INSTALL'}</strong>
-      </div>
-      {status?.inProgress ? (
-        <div className="context-line">
-          <span>STATE</span>
-          <strong>UPDATE IN PROGRESS</strong>
-        </div>
-      ) : null}
-
-      {result ? (
-        <div className="context-line">
-          <span>LAST UPDATE</span>
-          <strong>
-            {result.status.toUpperCase()} — {result.message.toUpperCase()}
-          </strong>
-        </div>
-      ) : null}
-
-      {check ? (
-        <div className="context-line">
-          <span>AVAILABLE</span>
-          <strong>
-            {check.error
-              ? check.error.toUpperCase()
-              : check.upToDate
-                ? 'UP TO DATE'
-                : check.channel === 'dev'
-                  ? `${check.behindBy} COMMITS BEHIND MAIN`
-                  : `RELEASE ${(check.targetRef ?? '').toUpperCase()} AVAILABLE`}
-          </strong>
-        </div>
-      ) : null}
-
-      <div className="phase-controls">
-        <button
-          className={channel === 'release' ? 'phase active' : 'phase'}
-          onClick={() => void chooseChannel('release')}
-        >
-          release
-        </button>
-        <button
-          className={channel === 'dev' ? 'phase active' : 'phase'}
-          onClick={() => void chooseChannel('dev')}
-        >
-          dev
-        </button>
-        <button className="phase" onClick={() => void runCheck()} disabled={checking}>
-          {checking ? 'checking…' : 'check'}
-        </button>
-      </div>
-
-      <div className="phase-controls">
-        {!status?.supported ? (
-          <span className="construction">
-            THIS BUILD CANNOT SELF-UPDATE; REINSTALL FROM A RELEASE
-          </span>
-        ) : confirming ? (
-          <>
-            <button className="phase active" onClick={() => void window.marvi?.startUpdate()}>
-              quit and update
-            </button>
-            <button className="phase" onClick={() => setConfirming(false)}>
-              cancel
-            </button>
-          </>
-        ) : (
-          <button className="phase" onClick={() => setConfirming(true)}>
-            install update
-          </button>
-        )}
-      </div>
-    </section>
-  )
-}
-
 function MindPanel(): React.JSX.Element {
   const [status, setStatus] = useState<InitiativeStatus | null>(null)
   const [decisions, setDecisions] = useState<MindDecision[]>([])
@@ -731,11 +637,7 @@ function MindPanel(): React.JSX.Element {
     <section className="single-page panel">
       <div className="panel-label">{'// MIND'}</div>
       <h2>Mind</h2>
-      <p>
-        Marvi decides from the event journal, not from a timer. Every decision below names the rule
-        that caused it — including the decisions to stay quiet. Pausing stops decisions but keeps
-        observing, so nothing is lost while initiative is off.
-      </p>
+      <p>Recent autonomous decisions and the rule behind each one.</p>
 
       <div className="context-line">
         <span>INITIATIVE</span>
@@ -818,11 +720,7 @@ function MemoryPanel(): React.JSX.Element {
     <section className="single-page panel">
       <div className="panel-label">{'// MEMORY'}</div>
       <h2>Memory</h2>
-      <p>
-        A local SQLite store on this machine. Nothing is uploaded and no embedding model runs.
-        Entries taken from email or the web stay marked untrusted and are re-wrapped whenever Marvi
-        reads them back.
-      </p>
+      <p>Review or delete what Marvi remembers on this machine.</p>
 
       <div className="context-line">
         <span>ENTRIES</span>
@@ -899,10 +797,7 @@ function AccountsPanel(): React.JSX.Element {
     <section className="single-page panel">
       <div className="panel-label">{'// ACCOUNTS'}</div>
       <h2>Accounts</h2>
-      <p>
-        Connections are owned by Composio. Marvi OS holds no provider passwords and never runs an
-        OAuth flow — connect or reconnect an account in Composio and it appears here.
-      </p>
+      <p>Services connected through Composio.</p>
 
       <div className="context-line">
         <span>COMPOSIO</span>
@@ -1177,6 +1072,7 @@ function ProviderCard({
 function ProvidersPanel(): React.JSX.Element {
   const [page, setPage] = useState<ProviderPage | null>(null)
   const [error, setError] = useState('')
+  const sessionMetrics = useStore($sessionMetrics)
 
   // Used by a card after a sign-in completes, so the page reflects it at once
   // rather than on the next poll.
@@ -1218,22 +1114,22 @@ function ProvidersPanel(): React.JSX.Element {
     <section className="single-page panel">
       <div className="panel-label">{'// PROVIDERS'}</div>
       <h2>Providers</h2>
-      <p>
-        Keys are written to a local settings file and never leave this machine. Budget is counted in
-        tokens rather than money, because that is the one number every provider reports the same way
-        — and the only one a subscription plan reports at all.
-      </p>
+      <p>Connect a model service and choose where Marvi runs each request.</p>
 
       {page ? (
-        <div className="context-line">
-          <span>TOKENS USED</span>
-          <strong>
-            {page.totals.billable.toLocaleString()} BILLABLE
-            {page.totals.cachedInput > 0
-              ? ` / ${page.totals.cachedInput.toLocaleString()} CACHED`
-              : ''}
-          </strong>
-        </div>
+        <MessageTiming
+          aria-label="Provider usage"
+          className="provider-timing"
+          stats={[
+            { label: 'INPUT', value: page.totals.input.toLocaleString() },
+            { label: 'OUTPUT', value: page.totals.output.toLocaleString() },
+            { label: 'CACHED', value: page.totals.cachedInput.toLocaleString() },
+            {
+              label: 'THIS SESSION',
+              value: sessionMetrics.ready ? sessionMetrics.billableTokens.toLocaleString() : '—'
+            }
+          ]}
+        />
       ) : null}
 
       <AsciiRule />
@@ -1295,11 +1191,7 @@ function IdentityPanel(): React.JSX.Element {
     <section className="single-page panel">
       <div className="panel-label">{'// IDENTITY'}</div>
       <h2>Identity</h2>
-      <p>
-        Two files that go into every prompt: who Marvi is, and who it is speaking to. Anything true
-        only sometimes belongs in Memory instead — this is what is true on every single turn, and
-        every token here is paid on every turn including the voice path.
-      </p>
+      <p>Edit Marvi&apos;s identity and your standing preferences.</p>
 
       {identity ? (
         <div className="context-line">
@@ -1443,6 +1335,7 @@ function ServiceHealth({ compact = false }: { compact?: boolean }): React.JSX.El
 
 function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
   const voice = useStore($voiceState)
+  const sessionMetrics = useStore($sessionMetrics)
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([])
   const [deviceError, setDeviceError] = useState('')
 
@@ -1516,6 +1409,13 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
           <dd>{deviceError ? 'unavailable' : microphoneLabel(devices)}</dd>
         </div>
       </dl>
+
+      <MessageTiming
+        aria-label="Voice session metrics"
+        className="voice-session-timing"
+        stats={sessionTimingStats(sessionMetrics)}
+        streaming={speaking || listening}
+      />
 
       {/* Bottom: the live transcript, streaming. Two lines at most — this is a
           glance while talking, not a record; Chat is where a transcript lives. */}
@@ -1822,11 +1722,7 @@ function SchedulesPanel(): React.JSX.Element {
     <section className="single-page panel">
       <div className="panel-label">{'// SCHEDULES'}</div>
       <h2>Schedules</h2>
-      <p>
-        Reminders and scheduled checks. A schedule re-times something Marvi can already do; it
-        cannot introduce a new one. When it fires it writes an event and the usual rules decide how
-        loud it may be.
-      </p>
+      <p>Tasks Marvi runs at a specific time.</p>
 
       {error ? <span className="construction">{error.toUpperCase()}</span> : null}
 
@@ -1977,11 +1873,7 @@ function PluginsPanel(): React.JSX.Element {
     <section className="single-page panel">
       <div className="panel-label">{'// PLUGINS'}</div>
       <h2>Plugins</h2>
-      <p>
-        Backends Marvi runs. A plugin is not a skill and not an MCP server: it ships a long-running
-        process of its own and registers tools that talk to it. Its code runs inside Marvi and its
-        dependencies install into Marvi, so adding one is a decision, not a download.
-      </p>
+      <p>Long-running local services that extend Marvi.</p>
 
       {error ? <span className="construction">{error.toUpperCase()}</span> : null}
 
@@ -2172,11 +2064,7 @@ function SkillsPanel(): React.JSX.Element {
     <section className="single-page panel">
       <div className="panel-label">{'// SKILLS'}</div>
       <h2>Skills</h2>
-      <p>
-        Instructions that teach Marvi how to do something. A skill shapes behaviour, so you see what
-        it says before it is installed — and a skill can never grant itself a tool it was not
-        already allowed.
-      </p>
+      <p>Instructions that teach Marvi how to complete specific work.</p>
 
       <div className="context-line">
         <span>SOURCES</span>
@@ -2288,10 +2176,7 @@ function ActivityPanel(): React.JSX.Element {
     <section className="single-page panel">
       <div className="panel-label">{'// ACTIVITY'}</div>
       <h2>Activity</h2>
-      <p>
-        Append-only local audit of every tool decision. Nothing here is sent anywhere; YOLO
-        executions are recorded exactly like confirmed ones.
-      </p>
+      <p>Local history of tool requests, approvals, and results.</p>
       <AsciiRule />
 
       {events.length === 0 ? (
@@ -2328,12 +2213,11 @@ function PagePanel({ page }: { page: Page; version: string }): React.JSX.Element
     Voice: '',
     Chat: '',
     Room: '',
-    Activity: 'Structured local event and tool audit timeline. No hidden outbound telemetry.',
-    Identity: 'SOUL.md and USER.md - who Marvi is, and who it is speaking to.',
-    Memory: 'Durable facts, episodic events, retrieval controls, and forget/export operations.',
-    Mind: 'Event-driven decisions, the rule behind each one, and the initiative switch.',
-    Vision:
-      'Always-on local presence and gesture processing. The room plugin owns the camera; Marvi does not run a second loop on it.'
+    Activity: 'Local event and tool history.',
+    Identity: "Marvi's identity and your standing preferences.",
+    Memory: 'What Marvi remembers on this machine.',
+    Mind: 'Autonomous decisions and initiative controls.',
+    Vision: 'Local presence and gesture processing from the room camera.'
   }
 
   return (
@@ -2363,45 +2247,29 @@ function MaintenancePanel(): React.JSX.Element {
   return (
     <section className="single-page panel">
       <h2>Maintenance</h2>
-      <p>
-        Installing models and diagnosing faults run from a terminal. They are the tools you reach
-        for when Marvi is not working, and a tool that needs Marvi to be working is the wrong tool
-        for that job — the Setup page used to inspect the installation on a timer, which took the
-        Gateway down while a model was downloading.
-      </p>
+      <p>Repair the local runtime or install missing models from a terminal.</p>
 
       <AsciiRule />
 
       <CommandCard command="marvi doctor" title="// WHAT IS WRONG">
-        <p>
-          Checks dependencies, providers, storage, plugins and the build, and names the fix for each
-          failure. Add <code>--fix</code> to apply the ones Marvi can do itself.
-        </p>
+        <p>Checks the local stack and names each fix.</p>
       </CommandCard>
 
       <CommandCard command="marvi setup" title="// INSTALL WHAT IS MISSING">
-        <p>
-          Downloads and verifies models, browsers and dependencies. Name a capability to narrow it —{' '}
-          <code>marvi setup voice</code> — or <code>--dry-run</code> to see the plan and the
-          download size first.
-        </p>
+        <p>Installs missing models, browsers, and dependencies.</p>
       </CommandCard>
 
       <CommandCard command="marvi models list" title="// WHAT IS INSTALLED">
-        <p>
-          Every component and its state. <code>marvi models verify &lt;name&gt;</code> checks one
-          against its published hashes.
-        </p>
+        <p>Shows installed components and their verification state.</p>
       </CommandCard>
 
       <CommandCard command="marvi diagnostics" title="// FOR A BUG REPORT">
-        <p>One redacted block with versions, component states and recent errors.</p>
+        <p>Copies a redacted bug-report summary.</p>
       </CommandCard>
 
       <AsciiRule />
       <small>
-        If <code>marvi</code> is not found, the installer puts it on PATH — open a new terminal, or
-        run the bootstrap again to repair the installation.
+        If <code>marvi</code> is missing from PATH, open a new terminal or rerun the installer.
       </small>
     </section>
   )
@@ -2448,6 +2316,7 @@ function SettingsShell({
                 onClick={() => onNavigate(item)}
                 type="button"
               >
+                <AbstractIcon name={SETTINGS_ICONS[item]} size={16} />
                 {item.toUpperCase()}
               </button>
             ))}
@@ -2457,7 +2326,10 @@ function SettingsShell({
 
       <div className="settings-content">
         <header className="settings-head">
-          <h1>{page}</h1>
+          <div className="settings-head-title">
+            <AbstractIcon name={SETTINGS_ICONS[page]} size={20} />
+            <h1>{page}</h1>
+          </div>
           <p>{SETTINGS_BLURB[page]}</p>
         </header>
         <div className="settings-scroll">
@@ -2477,8 +2349,6 @@ function SettingsShell({
             <SchedulesPanel />
           ) : page === 'Maintenance' ? (
             <MaintenancePanel />
-          ) : page === 'Updates' ? (
-            <UpdatesPanel version={version} />
           ) : (
             <AboutPanel fallbackVersion={version} runtime={runtime} />
           )}
@@ -2729,15 +2599,12 @@ function AboutPanel({
           </div>
         ))}
       </dl>
+      <AboutUpdates version={build.version} />
       <div className="about-actions">
-        <button disabled type="button">
-          CHECK FOR UPDATES / PENDING
-        </button>
-        <button disabled type="button">
-          EXPORT DIAGNOSTICS / PENDING
+        <button onClick={() => void window.marvi?.copyDiagnostics()} type="button">
+          COPY DIAGNOSTICS
         </button>
       </div>
-      <p className="about-provenance">UPSTREAM PROVENANCE AND LICENSES / docs/UPSTREAM.md</p>
     </section>
   )
 }

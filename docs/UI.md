@@ -20,8 +20,10 @@ Palette:
 
 Blue is a status signal, not a general decorative gradient. Avoid colorful
 cards. Use monospaced typography, ASCII separators, compact uppercase labels,
-and crisp one-pixel geometry. Do not add scanlines, blur, chromatic aberration,
-or noise that reduces legibility.
+thin abstract line icons, and crisp one-pixel geometry. Collapse is reserved
+for the product wordmark; headings, prose, controls, and data use JetBrains
+Mono with readable size, weight, line height, and tracking. Do not add
+scanlines, blur, chromatic aberration, or noise that reduces legibility.
 
 ## Application icon and repository artwork
 
@@ -64,7 +66,9 @@ never fetched at runtime. Backdrop opacity and translucency are persisted
 per-machine. Reduced-motion users get static text and no exit choreography.
 
 The status bar keeps the persistent readouts and adds a live voice-level
-meter (8 ASCII cells) so the shell reads "alive" at a glance.
+meter (8 ASCII cells) so the shell reads "alive" at a glance. Its version
+label is a button that opens compact build/update details without navigating
+away from the current task.
 
 ## Dynamic Island
 
@@ -113,23 +117,23 @@ The main window uses a fixed shell:
 ┌ MARVI OS ────────────────────────────────────────────────────────────────┐
 │ SIDEBAR        │ CURRENT VIEW                                           │
 │                │                                                        │
-│ Overview       │                                                        │
-│ Activity       │                                                        │
-│ World          │                                                        │
-│ Room           │                                                        │
-│ Memory         │                                                        │
-│ Integrations   │                                                        │
-│ Voice & Vision │                                                        │
-│ Settings       │                                                        │
-│ Updates        │                                                        │
-│ About          │                                                        │
+│ ◇ Overview     │                                                        │
+│ ◉ Voice        │                                                        │
+│ ⌁ Chat         │                                                        │
+│ ⬡ Vision       │                                                        │
+│ ⌂ Room         │                                                        │
+│ ≋ Activity     │                                                        │
+│ ...            │                                                        │
 ├────────────────┴────────────────────────────────────────────────────────┤
 │ ● GATEWAY  ● VOICE  ● VISION  ● ROOM   MODEL   MODE   v0.1.0          │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-The sidebar is navigation, not a second dashboard. The bottom status bar is
-always present and shows compact authoritative health:
+The sidebar is navigation, not a second dashboard. Every destination uses a
+purpose-built abstract line icon, a plain label, and a short code. The expanded
+rail includes a compact brand descriptor; the collapsed rail keeps the icons
+and active indicator legible. The bottom status bar is always present and
+shows compact authoritative health:
 
 - Marvi Gateway
 - LiveKit transport
@@ -140,8 +144,18 @@ always present and shows compact authoritative health:
 - Confirm or YOLO mode
 - version/update indicator
 
-Status items open the relevant view; they do not create nested popovers with
-duplicated settings.
+Health items open the relevant view. The version item is the sole exception:
+it opens a compact popover with version, channel, commit, build time, last
+update result, and check/update actions. Full update controls live in About;
+there is no separate Updates settings destination.
+
+Provider, Chat, and Voice show the same session timing strip. Provider totals
+are authoritative Gateway values. The displayed session token count is the
+delta from the first provider snapshot after this renderer session starts, so
+it accumulates across chat and voice turns without inventing token estimates.
+Chat latency measures request-to-reply time; voice latency measures the active
+listen/wake-to-speaking transition. Turn and duration counters continue while
+the renderer session remains open.
 
 ## Island micro-events
 
@@ -191,8 +205,8 @@ About uses the app icon, not the repository banner. It contains:
 - Git commit, build time, architecture, and update channel;
 - Marvi Gateway and LiveKit versions;
 - selected STT/TTS model and revision;
-- upstream license/provenance link;
-- Check for Updates and diagnostics export actions.
+- update channel, check, download/handoff, and last-result controls;
+- diagnostics export action.
 
 The sidebar and status bar remain visible in About.
 

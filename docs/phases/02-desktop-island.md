@@ -35,6 +35,12 @@ surface and its native-window behavior can be proven without the voice engine.
   Island placement, with accessible switch/pressed semantics.
 - Real Gateway/component, microphone, camera, phase, mode, and version data in
   the persistent status bar.
+- Icon-led sidebar navigation with a Marvi-specific abstract line language and
+  Collapse restricted to branding so application text remains readable.
+- Version status button with compact build/update details; About owns the full
+  updater controls and the redundant Updates destination is removed.
+- Shared session telemetry on Provider, Chat, and Voice: authoritative token
+  deltas, combined turn count, last latency, and continuously elapsed duration.
 
 ## Design-source review
 
@@ -84,6 +90,8 @@ frame.
   Gateway-owned mode and exact-token confirmation behavior.
 - Playwright visual inspection passed for Overview and Settings at the target
   renderer geometry; local artifacts are under ignored `output/playwright/`.
+- Focused renderer ESLint, typecheck, and 167-test suite passed for the
+  navigation/update/session-telemetry refinement on 2026-08-21.
 - Development Electron upper-bound (main + Island): 536.3 MB aggregate working
   set and 1.562 CPU-seconds over 5 seconds. No dedicated CUDA allocation was
   reported; release idle profiling remains a Phase 7 optimization gate.

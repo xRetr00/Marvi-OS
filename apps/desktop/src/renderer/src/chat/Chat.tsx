@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useStore } from '@nanostores/react'
 
 import { formatRelative, titleFromMessages } from './time'
 import { useChat } from './useChat'
@@ -7,6 +8,8 @@ import { ConfirmationBar } from './components/ConfirmationBar'
 import { MessageList } from './components/MessageList'
 import { Sessions, type Session } from './components/Sessions'
 import './chat.css'
+import { MessageTiming } from '../components/message-timing'
+import { $sessionMetrics, sessionTimingStats } from '../store/session-metrics'
 
 /**
  * The typed conversation surface. Same Marvi as the voice session — same
@@ -18,6 +21,7 @@ import './chat.css'
  * permanently spending a fifth of the width on one entry.
  */
 export function Chat(): React.JSX.Element {
+  const sessionMetrics = useStore($sessionMetrics)
   const {
     messages,
     busy,
@@ -53,6 +57,12 @@ export function Chat(): React.JSX.Element {
           {drawer ? 'CLOSE' : 'SESSIONS'}
         </button>
         <span className="chat-bar-title">{session.title}</span>
+        <MessageTiming
+          aria-label="Chat session metrics"
+          className="chat-session-timing"
+          stats={sessionTimingStats(sessionMetrics)}
+          streaming={busy}
+        />
         <button
           className="chat-bar-button"
           disabled={busy || messages.length === 0}
