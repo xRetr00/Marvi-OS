@@ -1,11 +1,12 @@
-// The Voice-page orb: a dense glowing particle sphere in the orange→red→pink→
-// magenta family, on a faint perspective ground grid, camera slightly above
-// front. It "breathes" with the live voice level — energy, not decoration.
-// Distinct from the island orb (which uses the vendored thinking-orbs states).
+// The Voice-page orb: one coherent dotted surface. Audio pushes a travelling
+// wave through the whole sphere; there is no per-dot noise and no pointer
+// steering. Silence therefore has a stable shape and speech has readable
+// motion instead of particle jitter.
 
 import { useEffect, useRef } from 'react'
 
 import { MOOD_FOR_PHASE, RAMPS, blend, type Ramp } from './moods'
+import { coherentWaveScale } from './wave'
 
 const N = 2000
 const GOLDEN = Math.PI * (3 - Math.sqrt(5))
@@ -20,27 +21,27 @@ for (let i = 0; i < N; i += 1) {
 }
 
 function drawGrid(ctx: CanvasRenderingContext2D, w: number, h: number): void {
-  const horizon = h * 0.68
+  const horizon = h * 0.72
   const vpX = w * 0.5
   ctx.lineWidth = 1
-  for (let i = 0; i <= 14; i += 1) {
-    const x = (i / 14) * w
-    ctx.strokeStyle = 'rgba(249,115,22,0.10)'
+  for (let i = 0; i <= 10; i += 1) {
+    const x = (i / 10) * w
+    ctx.strokeStyle = 'rgba(48,50,54,0.34)'
     ctx.beginPath()
     ctx.moveTo(vpX, horizon)
     ctx.lineTo(x, h)
     ctx.stroke()
   }
-  for (let j = 1; j <= 7; j += 1) {
-    const t = j / 7
+  for (let j = 1; j <= 5; j += 1) {
+    const t = j / 5
     const y = horizon + (h - horizon) * (t * t)
-    ctx.strokeStyle = 'rgba(249,115,22,0.12)'
+    ctx.strokeStyle = 'rgba(48,50,54,0.28)'
     ctx.beginPath()
     ctx.moveTo(0, y)
     ctx.lineTo(w, y)
     ctx.stroke()
   }
-  ctx.strokeStyle = 'rgba(249,115,22,0.16)'
+  ctx.strokeStyle = 'rgba(20,126,193,0.24)'
   ctx.beginPath()
   ctx.moveTo(0, horizon)
   ctx.lineTo(w, horizon)
@@ -50,16 +51,13 @@ function drawGrid(ctx: CanvasRenderingContext2D, w: number, h: number): void {
 interface Frame {
   width: number
   height: number
-  t: number
+  wavePhase: number
   level: number
   active: boolean
   /** Mood ramps, and how far between them. */
   from: Ramp
   to: Ramp
   mix: number
-  /** Pointer-driven rotation, in radians. */
-  yaw: number
-  pitch: number
 }
 
 function draw(ctx: CanvasRenderingContext2D, f: Frame): void {
@@ -72,26 +70,34 @@ function draw(ctx: CanvasRenderingContext2D, f: Frame): void {
   // orb rather than an ellipse cropped by the sides.
   const reach = Math.min(f.width, f.height)
 
-  const tilt = 0.42 + f.pitch
-  const yaw = f.t * 0.22 + f.yaw
+  const tilt = 0.42
+  // Rotation advances from the same audio envelope as the wave. There is no
+  // idle spin: when the room is silent, the orb is silent too.
+  const yaw = f.wavePhase * 0.055
   const sy = Math.sin(yaw)
   const cyw = Math.cos(yaw)
   const st = Math.sin(tilt)
   const ct = Math.cos(tilt)
-  const breathe = f.active ? 0.7 + f.level * 1.0 : 0.7
-  const scale = reach * 0.34 * (1 + f.level * 0.12)
+  const energy = f.active ? Math.min(1, Math.max(0, f.level) * 1.35) : 0
+  const dotScale = 0.72 + energy * 0.82
+  const scale = reach * 0.33
 
-  for (const [x, y, z] of SPHERE) {
-    const x1 = x * cyw + z * sy
-    const z1 = -x * sy + z * cyw
-    const y1 = y * ct - z1 * st
-    const z2 = y * st + z1 * ct
+  for (const point of SPHERE) {
+    const [x, y, z] = point
+    const wave = coherentWaveScale(point, f.wavePhase, energy)
+    const wx = x * wave
+    const wy = y * wave
+    const wz = z * wave
+    const x1 = wx * cyw + wz * sy
+    const z1 = -wx * sy + wz * cyw
+    const y1 = wy * ct - z1 * st
+    const z2 = wy * st + z1 * ct
     const depth = (z2 + 1) / 2
     const px = cx + x1 * scale
     const py = cy - y1 * scale
     const [r, g, b] = blend(f.from, f.to, f.mix, depth)
     const alpha = 0.3 + depth * 0.7
-    const rad = Math.max(0.4, (0.5 + depth * 1.15) * breathe)
+    const rad = Math.max(0.42, (0.5 + depth * 1.05) * dotScale)
     ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`
     ctx.beginPath()
     ctx.arc(px, py, rad, 0, Math.PI * 2)
@@ -102,25 +108,17 @@ function draw(ctx: CanvasRenderingContext2D, f: Frame): void {
 export function VoiceOrb({
   phase = 'ready',
   level = 0,
-  active = false,
-  interactive = true
+  active = false
 }: {
   /** Drives the colour. Unknown phases rest on the idle ramp. */
   phase?: string
   level?: number
   active?: boolean
-  /** Pointer rotation. Off for the small island orb, which is not a surface
-   * anyone points at. */
-  interactive?: boolean
 }): React.JSX.Element {
   const ref = useRef<HTMLCanvasElement | null>(null)
   const levelRef = useRef(level)
   const activeRef = useRef(active)
   const phaseRef = useRef(phase)
-  // Pointer target and the eased value chasing it, so a flick of the mouse is
-  // a glide rather than a snap.
-  const aim = useRef({ yaw: 0, pitch: 0 })
-  const eased = useRef({ yaw: 0, pitch: 0 })
 
   useEffect(() => {
     levelRef.current = level
@@ -163,11 +161,18 @@ export function VoiceOrb({
 
     let raf = 0
     let smoothed = levelRef.current
-    const started = performance.now()
+    let last = performance.now()
+    let wavePhase = 0
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
     const loop = (now: number): void => {
-      const t = (now - started) / 1000
+      const delta = Math.min(0.05, Math.max(0, (now - last) / 1000))
+      last = now
       smoothed += (levelRef.current - smoothed) * 0.12
+      const audioEnergy = activeRef.current ? Math.max(0, Math.min(1, smoothed)) : 0
+      if (!reducedMotion && audioEnergy > 0.01) {
+        wavePhase += delta * (0.8 + audioEnergy * 4.2)
+      }
 
       const wanted = MOOD_FOR_PHASE[phaseRef.current] ?? 'idle'
       if (wanted !== mood) {
@@ -180,20 +185,15 @@ export function VoiceOrb({
       }
       if (mix < 1) mix = Math.min(1, mix + 0.03)
 
-      eased.current.yaw += (aim.current.yaw - eased.current.yaw) * 0.08
-      eased.current.pitch += (aim.current.pitch - eased.current.pitch) * 0.08
-
       draw(ctx, {
         width,
         height,
-        t,
+        wavePhase,
         level: smoothed,
         active: activeRef.current,
         from,
         to,
-        mix,
-        yaw: eased.current.yaw,
-        pitch: eased.current.pitch
+        mix
       })
       raf = requestAnimationFrame(loop)
     }
@@ -205,32 +205,5 @@ export function VoiceOrb({
     }
   }, [])
 
-  useEffect(() => {
-    if (!interactive) return
-    const surface = ref.current?.parentElement
-    if (!surface) return
-
-    const move = (event: PointerEvent): void => {
-      const box = surface.getBoundingClientRect()
-      // -1..1 from the centre. Yaw turns further than pitch because a sphere
-      // tipped too far shows its pole and stops reading as a sphere.
-      const nx = ((event.clientX - box.left) / box.width) * 2 - 1
-      const ny = ((event.clientY - box.top) / box.height) * 2 - 1
-      aim.current.yaw = nx * 0.9
-      aim.current.pitch = -ny * 0.35
-    }
-    const leave = (): void => {
-      aim.current.yaw = 0
-      aim.current.pitch = 0
-    }
-
-    surface.addEventListener('pointermove', move)
-    surface.addEventListener('pointerleave', leave)
-    return () => {
-      surface.removeEventListener('pointermove', move)
-      surface.removeEventListener('pointerleave', leave)
-    }
-  }, [interactive])
-
-  return <canvas className="voice-orb-canvas" ref={ref} />
+  return <canvas aria-label="Voice activity orb" className="voice-orb-canvas" ref={ref} />
 }

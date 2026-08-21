@@ -1643,12 +1643,9 @@ small,
 
 .voice-orb-surface {
   position: absolute;
-  /* Stops short of the conversation bar rather than filling the page: it used
-   * to sit under the controls as well, so the crosshair followed the cursor
-   * over buttons that could not be pressed. */
+  /* Stops short of the conversation bar rather than filling the page. */
   inset: 0 0 var(--convo-bar-height) 0;
-  /* The pointer drives the orb's rotation, so the surface has to receive it. */
-  cursor: crosshair;
+  cursor: default;
   z-index: 1;
 }
 
@@ -1658,15 +1655,9 @@ small,
   height: 100%;
 }
 
-/* The overlays do not take the pointer: the orb underneath is the thing you
-   are pointing at, and a HUD panel stealing the cursor would leave dead zones
-   where the rotation stops responding. */
+/* Readouts do not intercept the controls beneath them. */
 .voice-hud {
   position: absolute;
-  /* The orb below takes the pointer for its rotation, so the readout must let
-   * it through. Anything interactive inside has to opt back in -- putting a
-   * button in here without that made it unclickable and left the crosshair
-   * cursor showing over it, which is the orb's cursor, not the button's. */
   pointer-events: none;
   z-index: 2;
 }
@@ -2241,9 +2232,7 @@ small,
 }
 
 /* -- Conversation bar ------------------------------------------------------
- * Being in the room is a call, so it gets the controls a call has. Below the
- * orb rather than over it: the orb takes the pointer for rotation, and a
- * button sharing a surface with a drag target is a button you fight with.
+ * Being in the room is a call, so it gets the controls a call has.
  */
 :root {
   --convo-bar-height: 56px;
@@ -2409,4 +2398,317 @@ small,
 
 .convo-state.is-failed {
   color: var(--ui-danger);
+}
+
+/* ===== Terminal control-center pass =====================================
+ * One vocabulary, one-pixel construction, no dashboard decoration. Blue is
+ * kept for live state; text and controls stay bone/graphite. */
+
+.content {
+  grid-template-rows: 66px 1fr 32px;
+}
+
+.brand-block {
+  height: 72px;
+  padding: 0 14px;
+  border-bottom-color: var(--ui-stroke-primary);
+}
+
+.brand-icon-sidebar {
+  width: 34px;
+  height: 34px;
+  border-radius: 3px;
+}
+
+.brand-block strong {
+  margin-right: auto;
+  font-size: 15px;
+  letter-spacing: 0.13em;
+}
+
+.sidebar-collapse {
+  padding: 4px;
+  border: 0;
+  color: var(--ui-text-tertiary);
+  font-size: 10px;
+}
+
+.sidebar nav {
+  padding: 10px 8px;
+}
+
+.nav-group {
+  margin: 0 0 10px;
+}
+
+.nav-group-label {
+  padding: 9px 8px 5px;
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+}
+
+.nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 31px;
+  margin: 0;
+  padding: 0 9px;
+  border: 0;
+  color: var(--ui-text-secondary);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.nav-code {
+  width: 2ch;
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+  letter-spacing: 0;
+}
+
+.nav-item:hover {
+  background: var(--ui-bg-raised);
+}
+
+.nav-item.active {
+  color: var(--ui-text-emphasis);
+  background: var(--ui-bg-raised);
+}
+
+.nav-item.active::before {
+  content: '>';
+  position: absolute;
+  left: -1px;
+  color: var(--ui-accent);
+}
+
+.nav-item.active .nav-code {
+  color: var(--ui-accent);
+}
+
+.sidebar.collapsed .brand-block {
+  justify-content: center;
+  padding: 0;
+}
+
+.sidebar.collapsed .brand-icon-sidebar {
+  display: none;
+}
+
+.sidebar.collapsed .sidebar-collapse {
+  margin: 0;
+}
+
+.sidebar.collapsed .nav-item {
+  justify-content: center;
+  padding: 0;
+}
+
+.sidebar-foot {
+  gap: 7px;
+  padding: 12px 14px;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+
+.sidebar-foot small {
+  color: var(--ui-text-tertiary);
+  font-size: 8px;
+  letter-spacing: 0.04em;
+}
+
+.topbar {
+  flex-wrap: nowrap;
+  padding: 0 22px;
+  background: var(--ui-bg-raised);
+}
+
+.topbar > div {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.topbar .eyebrow {
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+
+.topbar h1 {
+  margin: 0;
+  font-size: 19px;
+  letter-spacing: 0.1em;
+}
+
+.topbar-state {
+  max-width: 48%;
+  overflow: hidden;
+  color: var(--ui-text-secondary);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panel-label {
+  padding: 10px 12px;
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+}
+
+.statusbar {
+  gap: 0;
+  padding: 0 10px;
+  overflow: hidden;
+  border-top-color: var(--ui-stroke-primary);
+  background: var(--ui-bg);
+  font-size: 8px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.status-item {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px;
+  border: 0;
+  border-right: 1px solid var(--ui-stroke-tertiary);
+  background: transparent;
+  color: var(--ui-text-secondary);
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+
+.status-item:hover,
+.status-item:focus-visible {
+  outline: none;
+  background: var(--ui-bg-raised);
+  color: var(--ui-text-emphasis);
+}
+
+.status-version {
+  margin-left: auto;
+  border-right: 0;
+}
+
+.voice-level-meter {
+  padding: 0 10px;
+  color: var(--ui-accent);
+}
+
+/* The orb is an instrument, not a pointer target. */
+.voice-orb-surface {
+  inset: 12px 12px calc(var(--convo-bar-height) + 12px);
+  border: 1px solid var(--ui-stroke-tertiary);
+  cursor: default;
+}
+
+.voice-orb-surface::before {
+  content: '+ VOICE FIELD';
+  position: absolute;
+  top: -6px;
+  left: 12px;
+  z-index: 2;
+  padding: 0 6px;
+  background: var(--ui-bg);
+  color: var(--ui-text-tertiary);
+  font-size: 8px;
+  letter-spacing: 0.12em;
+}
+
+.voice-hud-state {
+  top: 32px;
+  left: 36px;
+}
+
+.voice-hud-rig {
+  top: 32px;
+  right: 36px;
+}
+
+.voice-hud-phase,
+.voice-hud-phase.phase-listening,
+.voice-hud-phase.phase-wake,
+.voice-hud-phase.phase-thinking,
+.voice-hud-phase.phase-speaking {
+  color: var(--ui-accent);
+}
+
+.voice-hud-state strong {
+  font-size: 25px;
+}
+
+.wake-chip,
+.voice-transcript p,
+.voice-hud-blocker,
+.convo-button {
+  border-radius: 0;
+}
+
+.voice-transcript {
+  right: 36px;
+  bottom: 30px;
+  left: 36px;
+}
+
+.voice-transcript p {
+  padding: 6px 9px;
+  border-left: 1px solid var(--ui-stroke-primary);
+  background: color-mix(in srgb, var(--ui-bg) 92%, transparent);
+  font-size: 12px;
+}
+
+.convo-bar {
+  gap: 12px;
+  padding: 0 14px;
+  border-top-color: var(--ui-stroke-primary);
+  background: var(--ui-bg);
+}
+
+.convo-bar-tick {
+  width: 2px;
+  border-radius: 0;
+}
+
+.convo-state {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+}
+
+.convo-button {
+  min-width: 76px;
+  padding: 7px 12px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+}
+
+.convo-button::before {
+  content: '[ ';
+}
+
+.convo-button::after {
+  content: ' ]';
+}
+
+button:focus-visible,
+.picker-trigger:focus-visible {
+  outline: 1px solid var(--ui-accent);
+  outline-offset: -2px;
+}
+
+@media (max-width: 860px) {
+  .topbar-state,
+  .statusbar .voice-level-meter,
+  .statusbar .status-item:nth-of-type(2) {
+    display: none;
+  }
 }
