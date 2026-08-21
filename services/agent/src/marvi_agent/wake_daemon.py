@@ -135,7 +135,7 @@ def join(confidence: float, app: str = "") -> None:
         if sys.platform == "win32":
             creation = subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS
         subprocess.Popen(command, creationflags=creation, close_fds=True)
-    except Exception as exc:  # noqa: BLE001 - a bad path must not kill the listener
+    except Exception as exc:
         log.warning("could not start or signal the app: %s", exc)
 
 
