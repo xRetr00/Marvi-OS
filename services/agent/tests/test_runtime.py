@@ -59,3 +59,21 @@ def test_worker_refuses_to_fake_an_unselected_voice_stack() -> None:
         require_selected_voice_adapters(stt=None, tts=None)
 
     require_selected_voice_adapters(stt=object(), tts=object())
+
+
+def test_end_of_turn_is_decided_locally() -> None:
+    """A cloud call in the turn loop of a local-first assistant.
+
+    `inference.TurnDetector` takes base_url, api_key and api_secret and asks
+    LiveKit Inference. Marvi runs against a self-hosted LiveKit with local
+    keys, so it could never reach it — and it failed silently in the worst
+    possible way: end of turn never resolved, the STT stream was never
+    flushed, no FINAL_TRANSCRIPT was emitted, and speech recognised perfectly
+    stayed interim forever while the model was never called.
+    """
+    from marvi_agent.runtime import build_local_turn_detector
+
+    mode = build_local_turn_detector()
+
+    assert mode == "vad", "end of turn must not depend on a service this install cannot reach"
+    assert isinstance(mode, str), "a detector object here means a network round trip per turn"

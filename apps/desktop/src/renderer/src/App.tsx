@@ -61,7 +61,7 @@ import type {
 } from '../../shared/runtime'
 import { deviceLabel, deviceState } from '../../shared/runtime'
 import type { IslandAlignment, IslandPlacement } from '../../main/island-window'
-import { startVoice, stopVoice } from './store/voice-session'
+import { $voiceLink, stopVoice } from './store/voice-session'
 
 /**
  * The sidebar, grouped by what a page is *for*.
@@ -144,11 +144,18 @@ function MainSurface(): React.JSX.Element {
   }, [])
 
   useEffect(() => {
-    // Still automatic — an always-on assistant should be on when it opens.
-    // The difference is that the handle now lives in a store, so the voice
-    // page can end the session; before, it was trapped in this closure and
-    // quitting the app was the only way to stop Marvi listening.
-    void startVoice()
+    // Deliberately does not join. Marvi used to enter the room the moment the
+    // app opened and stay there, which meant speech recognition running and a
+    // model listening for as long as the window was open — a cost with no
+    // conversation attached to it.
+    //
+    // A session is something you start: the Join button, or the wake word,
+    // which is the same act without a keyboard. Both mean "listen now".
+    //
+    // It also fixed a race. The agent needs about twenty seconds to load its
+    // speech models before it can accept work, and joining on open created
+    // the room well inside that window — so no worker was available, no job
+    // dispatched, and the page sat on READY with nothing behind it.
     return () => {
       void stopVoice()
     }
@@ -1443,6 +1450,7 @@ function ServiceHealth({ compact = false }: { compact?: boolean }): React.JSX.El
 
 function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
   const voice = useStore($voiceState)
+  const link = useStore($voiceLink)
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([])
   const [deviceError, setDeviceError] = useState('')
 
@@ -1488,8 +1496,12 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
 
       {/* Top-left: what Marvi is doing, and what is stopping it. */}
       <div className="voice-hud voice-hud-state">
-        <span className={`voice-hud-phase phase-${mood}`}>{voice.phase.toUpperCase()}</span>
-        <strong>{voice.caption}</strong>
+        {/* Not joined is its own state, and saying READY for it was a lie: the
+            page claimed Marvi was listening while nothing was in the room. */}
+        <span className={`voice-hud-phase phase-${link === 'live' ? mood : 'idle'}`}>
+          {link === 'live' ? voice.phase.toUpperCase() : link === 'connecting' ? 'JOINING' : 'IDLE'}
+        </span>
+        <strong>{link === 'live' ? voice.caption : 'Press Join to start listening'}</strong>
         <WakeIndicator />
         {blocker ? <p className="voice-hud-blocker">{blocker}</p> : null}
       </div>

@@ -15,7 +15,6 @@ import os
 from dataclasses import dataclass
 
 import httpx
-from livekit.agents import inference
 from livekit.plugins import openai
 
 RESOLVE_TIMEOUT = 8.0
@@ -72,9 +71,29 @@ def build_llm(config: AgentConfig) -> openai.LLM:
     return openai.LLM(model=config.model, base_url=config.base_url, api_key=config.api_key)
 
 
-def build_local_turn_detector() -> inference.TurnDetector:
-    """Pin end-of-turn inference to the local CPU model; never auto-select cloud v1."""
-    return inference.TurnDetector(version="v1-mini")
+def build_local_turn_detector() -> str:
+    """End of turn from VAD silence, decided on this machine.
+
+    It used to return `inference.TurnDetector(version="v1-mini")` under a
+    docstring calling it "the local CPU model". It is not: it takes base_url,
+    api_key and api_secret, and it asks LiveKit Inference. Marvi runs against a
+    self-hosted LiveKit with local keys, so it could never reach it -- and the
+    failure was silent in exactly the worst way.
+
+    End of turn never resolved, so the STT stream was never flushed, so no
+    FINAL_TRANSCRIPT was ever emitted. Speech was recognised perfectly and
+    stayed as interim results forever:
+
+        stt (partial): Hey Morvey, are you listening to me?  Are you here?
+
+    and the model was never called, because as far as the session was
+    concerned the user had not stopped speaking.
+
+    "vad" is a first-class mode and it is local. A cloud dependency in the turn
+    loop of a local-first assistant was the wrong choice regardless of whether
+    it worked.
+    """
+    return "vad"
 
 
 def require_selected_voice_adapters(stt: object | None, tts: object | None) -> None:
