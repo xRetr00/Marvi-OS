@@ -230,3 +230,37 @@ describe('what gets written to the log files', () => {
     expect(alreadyLogged('npm warn EBADENGINE')).toBe(false)
   })
 })
+
+describe('a restart that would leave the old process running', () => {
+  /**
+   * Five agent workers ended up registered against one LiveKit server. A job
+   * dispatched to a stale one never ran, so voice sat on READY forever, and
+   * nothing in the UI could show why.
+   */
+  it('sweeps a previous copy of the service before starting a new one', async () => {
+    const swept: Array<[string | undefined, RegExp | undefined]> = []
+    vi.doMock('./processes', async () => ({
+      ...(await vi.importActual<typeof import('./processes')>('./processes')),
+      killStrays: (installRoot?: string, match?: RegExp) => {
+        swept.push([installRoot, match])
+        return 1
+      }
+    }))
+
+    const { ServiceSupervisor: Supervisor } = await import('./services')
+    const supervisor = new Supervisor(() => {})
+    supervisor.add({
+      name: 'agent',
+      command: process.execPath,
+      args: ['-e', 'setTimeout(() => {}, 60000)'],
+      cwd: root,
+      installRoot: root,
+      match: /marvi_agent/i
+    })
+
+    supervisor.startAll()
+    supervisor.stopAllNow()
+
+    expect(swept).toEqual([[root, /marvi_agent/i]])
+  })
+})

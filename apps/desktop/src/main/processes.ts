@@ -92,7 +92,7 @@ export function isAlive(pid: number | undefined): boolean {
  * command line containing `marvi_gateway` or `marvi_agent` is unambiguously
  * ours. Nothing else on the machine is touched.
  */
-export function findStrays(installRoot?: string): Array<{ pid: number; command: string }> {
+export function findStrays(installRoot?: string, match?: RegExp): Array<{ pid: number; command: string }> {
   if (!isWindows()) return []
   try {
     const output = execFileSync(
@@ -100,25 +100,40 @@ export function findStrays(installRoot?: string): Array<{ pid: number; command: 
       [
         '-NoProfile',
         '-Command',
-        'Get-CimInstance Win32_Process | Where-Object { $_.CommandLine } | ' +
-          'ForEach-Object { "$($_.ProcessId)|$($_.CommandLine)" }'
+        // ExecutablePath as well as CommandLine. The agent is launched as
+        // `uv run --project services/agent ...` -- a relative path -- so its
+        // command line never contains the install root, the filter below
+        // dropped it, and every restart left the old worker running. Three
+        // agents ended up registered against one LiveKit server, and a job
+        // dispatched to a stale one simply never ran.
+        'Get-CimInstance Win32_Process | ' +
+          'ForEach-Object { "$($_.ProcessId)|$($_.ExecutablePath)|$($_.CommandLine)" }'
       ],
       { encoding: 'utf8', windowsHide: true, timeout: 15_000 }
     )
-    const mine = /marvi_gateway|marvi_agent|livekit-server/i
+    const mine = match ?? /marvi_gateway|marvi_agent|livekit-server/i
     return output
       .split(/\r?\n/)
       .map((line) => {
-        const split = line.indexOf('|')
-        if (split < 1) return null
-        const pid = Number(line.slice(0, split))
-        const command = line.slice(split + 1)
+        const parts = line.split('|')
+        if (parts.length < 3) return null
+        const pid = Number(parts[0])
+        const executable = parts[1] ?? ''
+        const command = parts.slice(2).join('|')
         if (!Number.isFinite(pid) || pid === process.pid) return null
         if (!mine.test(command)) return null
         // When an install root is given, only processes running out of *that*
         // checkout count. A second checkout someone is developing in is theirs.
-        if (installRoot && !command.toLowerCase().includes(installRoot.toLowerCase())) {
-          return null
+        //
+        // Matched against the executable path as well as the command line: a
+        // service started with a relative --project path carries the root in
+        // neither its arguments nor its name, and only the interpreter's own
+        // location says where it came from.
+        if (installRoot) {
+          const root = installRoot.toLowerCase()
+          const inside =
+            command.toLowerCase().includes(root) || executable.toLowerCase().startsWith(root)
+          if (!inside) return null
         }
         return { pid, command }
       })
@@ -129,9 +144,9 @@ export function findStrays(installRoot?: string): Array<{ pid: number; command: 
 }
 
 /** Kill anything left from a previous session. Returns how many were stopped. */
-export function killStrays(installRoot?: string): number {
+export function killStrays(installRoot?: string, match?: RegExp): number {
   let stopped = 0
-  for (const stray of findStrays(installRoot)) {
+  for (const stray of findStrays(installRoot, match)) {
     if (killTree(stray.pid, true)) stopped += 1
   }
   return stopped

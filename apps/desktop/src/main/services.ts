@@ -4,7 +4,7 @@ import { join } from 'node:path'
 
 import { stateDir } from './config'
 import { log as writeLog } from './logger'
-import { groupSpawnOptions, isAlive, killTree, stopTree } from './processes'
+import { groupSpawnOptions, isAlive, killStrays, killTree, stopTree } from './processes'
 
 /**
  * Starting the local services, and knowing when they did not start.
@@ -88,6 +88,14 @@ export interface ServiceSpec {
   /** Skip silently when false — an optional service, not a failure. */
   when?: () => boolean
   env?: Record<string, string>
+  /** Where this installation lives, so another checkout is left alone. */
+  installRoot?: string
+  /**
+   * How to recognise this service among running processes, for sweeping a
+   * previous copy before starting a new one. Without it a restart leaves the
+   * old process running and they accumulate.
+   */
+  match?: RegExp
 }
 
 class Service {
@@ -140,6 +148,19 @@ class Service {
       return
     }
     this.stopping = false
+
+    // Anything of this service still running from before. A restart that
+    // leaves the old one alive gets two, and a crash-restart loop gets more:
+    // five agent workers ended up registered against one LiveKit server, and a
+    // job dispatched to a stale one never ran, so voice sat on READY forever.
+    //
+    // Killing the tree we know about is not enough -- `uv` launches Python as
+    // a grandchild and a killed parent can leave it -- so this sweeps by name.
+    const leftover = killStrays(this.spec.installRoot, this.spec.match)
+    if (leftover > 0) {
+      this.log(`stopped ${leftover} leftover process(es) before starting`)
+    }
+
     this.state = 'starting'
     this.detail = `launching ${this.spec.command}`
     this.onChange()

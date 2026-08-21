@@ -83,3 +83,29 @@ describe('process trees', () => {
     expect(groupSpawnOptions().detached).toBe(!isWindows)
   })
 })
+
+describe('finding leftover Marvi processes', () => {
+  // Forward slashes here on purpose: the comparison is what is under test, and
+  // Windows paths in a test literal are mostly a study in escaping.
+  const root = 'c:/users/x/appdata/local/marvi-os/install'
+
+  it('matches a service started with a relative project path', () => {
+    // The agent runs as `uv run --project services/agent ...`, so the install
+    // root appears nowhere in its arguments. Filtering on the command line
+    // alone dropped it, nothing swept it, and every restart added another
+    // worker -- three registered against one LiveKit server, and a job
+    // dispatched to a stale one simply never ran.
+    const executable = `${root}/.venv/scripts/python.exe`
+    const command = 'uv run --project services/agent python -m marvi_agent.session start'
+
+    expect(command.toLowerCase().includes(root)).toBe(false)
+    expect(executable.toLowerCase().startsWith(root)).toBe(true)
+  })
+
+  it('leaves another checkout alone', () => {
+    // A developer's second checkout is theirs, not this installation's.
+    const executable = 'd:/marvi-os/.venv/scripts/python.exe'
+
+    expect(executable.toLowerCase().startsWith(root)).toBe(false)
+  })
+})

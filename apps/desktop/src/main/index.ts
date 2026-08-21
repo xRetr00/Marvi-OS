@@ -345,6 +345,9 @@ function startVoiceStack(): void {
 
   supervisor.add({
     name: 'livekit',
+    // Swept before starting, so a restart never leaves two.
+    match: /livekit-server/i,
+    installRoot: repoRoot ?? undefined,
     command: livekit,
     // `--keys` rather than `--dev`'s published devkey/secret pair. See
     // livekitCredentials().
@@ -356,6 +359,9 @@ function startVoiceStack(): void {
   })
   supervisor.add({
     name: 'gateway',
+    // Swept before starting, so a restart never leaves two.
+    match: /marvi_gateway/i,
+    installRoot: repoRoot ?? undefined,
     command: uv,
     args: [
       'run',
@@ -373,6 +379,9 @@ function startVoiceStack(): void {
   })
   supervisor.add({
     name: 'agent',
+    // Swept before starting, so a restart never leaves two.
+    match: /marvi_agent\.session/i,
+    installRoot: repoRoot ?? undefined,
     command: uv,
     // `start`, not `dev`. Dev mode is LiveKit's development runner -- it is
     // deprecated, it prints "in-process auto-reload has been removed", and it
