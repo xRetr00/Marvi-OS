@@ -14,7 +14,19 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from marvi_agent import wakeword
 from marvi_agent.wakeword import DEFAULT_MODEL, WakeGate
+
+
+@pytest.fixture(autouse=True)
+def no_live_gateway(monkeypatch):
+    """Settings come from the Gateway now, and a test must not ask a real one.
+
+    Without this the suite passed or failed depending on whether Marvi was
+    running on the machine and what its wake word was set to -- which is a test
+    of the developer's desktop, not of the code.
+    """
+    monkeypatch.setattr(wakeword, "_gateway_settings", dict)
 
 
 class FakeInput:
@@ -226,3 +238,44 @@ def test_a_full_window_of_silence_still_does_not_wake_her() -> None:
     scored = gate()._model.predict(np.zeros(WINDOW_SAMPLES, dtype=np.int16))
 
     assert 0.0 < scored["marvi"] < 0.5
+
+
+# -- where the setting comes from --------------------------------------------
+
+
+def test_the_gateway_setting_wins_over_the_environment(monkeypatch) -> None:
+    """The switch in Settings has to reach a process that cannot see it.
+
+    The Agent runs separately and its environment is fixed when the desktop
+    spawns it, so turning the wake word off in the UI changed a file this
+    process never read. It armed anyway, muted the session's audio input, and
+    the microphone went to a session that was not listening: no speech, no
+    transcript, and nothing to say why.
+    """
+    monkeypatch.setenv("MARVI_WAKE_WORD", "true")
+    monkeypatch.setattr(wakeword, "_gateway_settings", lambda: {"enabled": False})
+
+    assert WakeGate.from_env() is None
+
+
+def test_the_gateway_threshold_is_used(monkeypatch) -> None:
+    monkeypatch.setattr(
+        wakeword, "_gateway_settings", lambda: {"enabled": True, "threshold": 0.8}
+    )
+
+    gate = WakeGate.from_env()
+
+    assert gate is not None
+    assert gate.threshold == 0.8
+
+
+def test_an_unreachable_gateway_falls_back_to_the_environment(monkeypatch) -> None:
+    """A network blip must not leave Marvi permanently deaf."""
+    monkeypatch.setattr(wakeword, "_gateway_settings", dict)
+    monkeypatch.setenv("MARVI_WAKE_WORD", "true")
+    monkeypatch.setenv("MARVI_WAKE_THRESHOLD", "0.6")
+
+    gate = WakeGate.from_env()
+
+    assert gate is not None
+    assert gate.threshold == 0.6

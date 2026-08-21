@@ -14,6 +14,7 @@ from livekit.agents import (
     AgentServer,
     AgentSession,
     JobContext,
+    JobProcess,
     RunContext,
     TurnHandlingOptions,
     cli,
@@ -149,7 +150,35 @@ class MarviVoiceAgent(Agent):
         _report_transcript(heard=text)
 
 
-def build_session() -> tuple[AgentSession, Callable[[], None]]:
+def prewarm(proc: JobProcess) -> None:
+    """Load the speech models once per worker process, before any job arrives.
+
+    They used to load inside the session: 6.8 seconds every time somebody
+    joined, paid while they waited to speak. A phone call does not spend seven
+    seconds connecting, and this is meant to feel like one.
+
+    LiveKit prewarms these processes at worker start precisely so heavy setup
+    happens off the critical path. Loading here means a job that arrives finds
+    the model already resident and starts speaking immediately.
+    """
+    started = time.monotonic()
+    voice = os.environ.get("MARVI_TTS_VOICE", DEFAULT_VOICE)
+    engine = VibeVoiceTTS(voice=voice)
+    try:
+        engine.prewarm()
+    except Exception as exc:  # pragma: no cover - depends on the models on disk
+        # Not fatal. A job can still load it, slowly; refusing to start the
+        # worker over this would take voice down entirely.
+        log.warning("could not prewarm the speech models: %s", exc)
+        return
+    proc.userdata["tts"] = engine
+    proc.userdata["tts_voice"] = voice
+    # Silero is small but not free, and it is loaded on the same critical path.
+    proc.userdata["vad"] = silero.VAD.load()
+    log.info("speech models ready in %.1fs, before any call", time.monotonic() - started)
+
+
+def build_session(proc: JobProcess | None = None) -> tuple[AgentSession, Callable[[], None]]:
     """The session, and a callable that loads its models.
 
     Returned separately rather than loaded here, because loading them is slow
@@ -165,7 +194,15 @@ def build_session() -> tuple[AgentSession, Callable[[], None]]:
     starting, so the loop stays answerable and the first spoken reply does not
     pay for the load either.
     """
-    local_tts = VibeVoiceTTS(voice=os.environ.get("MARVI_TTS_VOICE", DEFAULT_VOICE))
+    voice = os.environ.get("MARVI_TTS_VOICE", DEFAULT_VOICE)
+    warmed = (proc.userdata if proc else {}) or {}
+    # Reused only when it is the same voice: a voice changed in Settings must
+    # not be answered in the previous one.
+    local_tts = (
+        warmed.get("tts")
+        if warmed.get("tts") is not None and warmed.get("tts_voice") == voice
+        else VibeVoiceTTS(voice=voice)
+    )
     streaming_tts = tts.StreamAdapter(
         tts=local_tts,
         sentence_tokenizer=tokenize.basic.SentenceTokenizer(min_sentence_len=12),
@@ -185,7 +222,7 @@ def build_session() -> tuple[AgentSession, Callable[[], None]]:
             executable=engine,
             language=os.environ.get("MARVI_STT_LANGUAGE", "en-US"),
         ),
-        vad=silero.VAD.load(),
+        vad=warmed.get("vad") or silero.VAD.load(),
         llm=_timed_llm(),
         tts=streaming_tts,
         turn_handling=TurnHandlingOptions(
@@ -213,13 +250,13 @@ def build_session() -> tuple[AgentSession, Callable[[], None]]:
     )
 
     def warm() -> None:
-        """Load the speech models. Slow, and safe to run in a thread."""
+        """Load anything the prewarm did not. Usually a no-op now."""
         local_tts.prewarm()
 
     return session, warm
 
 
-server = AgentServer()
+server = AgentServer(setup_fnc=prewarm)
 
 
 @server.rtc_session()
@@ -234,7 +271,7 @@ async def marvi_session(ctx: JobContext) -> None:
     started = time.monotonic()
     log.info("job %s starting for room %s", ctx.job.id, ctx.room.name)
 
-    session, warm = build_session()
+    session, warm = build_session(ctx.proc)
     log.info("session built in %.1fs", time.monotonic() - started)
 
     # Off the event loop, and before the room connect. This is the fix for

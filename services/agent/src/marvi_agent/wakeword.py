@@ -46,6 +46,26 @@ log = logging.getLogger("marvi.wakeword")
 REPORT_TIMEOUT = 1.5
 
 
+def _gateway_settings() -> dict:
+    """What the UI has been told, asked of the one process that knows.
+
+    Empty when the Gateway cannot be reached, so the environment decides and
+    Marvi still starts. A wake word that fails closed on a network blip would
+    leave her permanently deaf.
+    """
+    import contextlib
+    import os as _os
+
+    with contextlib.suppress(Exception):
+        import httpx
+
+        base = _os.environ.get("MARVI_GATEWAY_URL", "http://127.0.0.1:8765").rstrip("/")
+        body = httpx.get(f"{base}/voice/wake", timeout=REPORT_TIMEOUT).json()
+        if isinstance(body, dict):
+            return body
+    return {}
+
+
 def _report_heard(confidence: float) -> None:
     """Tell the Gateway the wake word fired. Never raises.
 
@@ -150,14 +170,25 @@ class WakeGate:
     def from_env(cls) -> WakeGate | None:
         """The configured gate, or None when Marvi should just listen.
 
-        Off is a supported answer: on a machine in a private room, always-on is
-        the better behaviour, and forcing a wake word there only adds a step.
+        Settings come from the Gateway, with the environment as the fallback.
+        That is not a preference -- it is the only way the switch in the UI can
+        reach here at all. The Agent is a separate process whose environment is
+        fixed when the desktop spawns it, so turning the wake word off in
+        Settings changed a file this process never reads. It armed anyway,
+        muted the session's audio input, and the microphone went to a session
+        that was not listening: VAD saw nothing, went `away`, and no transcript
+        was ever produced. It looked exactly like broken speech recognition.
         """
-        if not _flag("MARVI_WAKE_WORD", True):
-            log.info("wake word disabled; Marvi answers every turn")
+        settings = _gateway_settings()
+
+        enabled = settings.get("enabled")
+        if enabled is None:
+            enabled = _flag("MARVI_WAKE_WORD", True)
+        if not enabled:
+            log.info("wake word off; Marvi answers from the moment she joins")
             return None
 
-        path = Path(os.environ.get("MARVI_WAKE_MODEL", "") or DEFAULT_MODEL)
+        path = Path(str(settings.get("model") or "") or os.environ.get("MARVI_WAKE_MODEL", "") or DEFAULT_MODEL)
         if not path.is_file():
             # A missing model must not make her deaf. Falling back to always-on
             # is the safe direction to fail: too talkative beats unreachable.
@@ -165,9 +196,12 @@ class WakeGate:
             return None
 
         try:
+            threshold = settings.get("threshold")
             return cls(
                 model_path=path,
-                threshold=_number("MARVI_WAKE_THRESHOLD", DEFAULT_THRESHOLD),
+                threshold=float(threshold)
+                if threshold is not None
+                else _number("MARVI_WAKE_THRESHOLD", DEFAULT_THRESHOLD),
                 window=_number("MARVI_WAKE_WINDOW", DEFAULT_WINDOW_SECONDS),
             )
         except Exception as exc:  # pragma: no cover - depends on the runtime
