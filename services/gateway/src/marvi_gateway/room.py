@@ -542,6 +542,7 @@ def register_room_tools(registry, sidecar: RoomSidecar) -> None:
             name="room_set_mode",
             description="Change the room mode",
             arguments={"mode": str},
+            describes={"mode": "The room mode to switch to. Use room_state to see valid names."},
             sensitive=True,
             handler=room_set_mode,
         )
@@ -552,6 +553,14 @@ def register_room_tools(registry, sidecar: RoomSidecar) -> None:
             description="Change the room light",
             arguments={"on": bool},
             optional={"brightness": int, "color_temp": int},
+            describes={
+                "on": "True to switch the light on, False to switch it off.",
+                "brightness": "Percent, 1 to 100. Omit to leave unchanged.",
+                "color_temp": (
+                    "Kelvin, roughly 2000 (warm) to 6500 (cold). "
+                    "Omit to leave unchanged."
+                ),
+            },
             sensitive=True,
             handler=room_set_light,
         )

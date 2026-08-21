@@ -43,13 +43,52 @@ logger = logging.getLogger(__name__)
 
 # How many past turns to replay. Enough to hold a thread, bounded so a long
 # session does not quietly become an expensive one.
+#: How many exchanges to replay, counted in *turns* rather than rows.
+#:
+#: It used to be rows, and a tool-heavy exchange is many rows: one question
+#: that takes six tool calls is seven of them. Two of those evicted the whole
+#: conversation before it, and at the extreme a single turn could push out the
+#: question it was still answering.
 HISTORY_TURNS = 24
+#: Rows to read in order to find those turns. Generous, and still bounded --
+#: the store caps this at 200 either way.
+HISTORY_ROWS = 200
+#: How many remembered notes may ride along with a turn, and how much room they
+#: share. Small on purpose: recall is meant to remind, not to reintroduce the
+#: whole archive on every message.
+RECALL_LIMIT = 5
+RECALL_CHARS = 1200
 # Four was too few for anything researched: "who won the World Cup in 2026"
 # spent all of them searching and hit the wall. Bounded still, because a model
 # that loops on tools burns money and time with nothing to show, but bounded
 # where a real answer fits.
 MAX_TOOL_ROUNDS = 8
+#: How long a written reply may be when the model's context is not known.
 MAX_REPLY_TOKENS = 1024
+
+
+def reply_tokens(provider: str, model: str) -> int:
+    """How long a reply may be, given what the model can hold.
+
+    Fixed at 1024 before, while voice already sized its replies from the
+    context window the provider reports with each model -- so the two surfaces
+    disagreed about the same model. A small model got asked for more than it
+    could give back, and a large one was capped for no reason.
+
+    A twentieth of the window, floored at the old default so nothing gets
+    shorter than it was, and capped where a chat reply stops being one.
+    """
+    if not provider or not model:
+        return MAX_REPLY_TOKENS
+    try:
+        from .providers.catalog import known_context
+
+        context = known_context(provider, model)
+    except Exception:  # pragma: no cover - a missing catalog is not a failure
+        return MAX_REPLY_TOKENS
+    if context <= 0:
+        return MAX_REPLY_TOKENS
+    return max(MAX_REPLY_TOKENS, min(context // 20, 4096))
 
 SYSTEM_PROMPT = (
     "You are Marvi, answering in a typed chat window on the user's own machine. "
@@ -168,7 +207,51 @@ class Chat:
     def available(self) -> bool:
         return bool(self.client.candidates())
 
-    def _system(self, gap: Any = None) -> str:
+    def _recall(self, text: str) -> str:
+        """What Marvi already knows that bears on this message.
+
+        Memory was written after every reply and never read again. The only way
+        back in was the `memory_search` tool -- so recall cost a whole extra
+        round trip, and happened only when the model thought to ask. Anything
+        it had been told and not asked about was, in practice, forgotten.
+
+        Searched rather than dumped: the store grows without limit and the
+        prompt does not. Untrusted entries arrive already enveloped by the
+        memory layer, so the boundary they came with survives recall.
+        """
+        if self.memory is None or not text.strip():
+            return ""
+        try:
+            found = self.memory.search(text, limit=RECALL_LIMIT)
+        except Exception as exc:  # pragma: no cover - depends on the store
+            logger.warning("recall unavailable: %s", exc)
+            return ""
+
+        lines: list[str] = []
+        spent = 0
+        for entry in found:
+            body = str(entry.get("body") or "").strip()
+            if not body:
+                continue
+            subject = str(entry.get("subject") or "").strip()
+            line = f"- {subject}: {body}" if subject else f"- {body}"
+            if spent + len(line) > RECALL_CHARS:
+                break
+            lines.append(line)
+            spent += len(line)
+        if not lines:
+            return ""
+        nl = chr(10)
+        return (
+            "# What you remember"
+            + nl + nl
+            + nl.join(lines)
+            + nl + nl
+            + "Your own notes from earlier. They may be out of date; prefer "
+            "what the user says now, and do not repeat them back unprompted."
+        )
+
+    def _system(self, gap: Any = None, recalled: str = "") -> str:
         # Identity leads, then the chat brief. Identity is byte-identical every
         # turn, which is what makes the prefix cacheable.
         brief = SYSTEM_PROMPT
@@ -191,7 +274,24 @@ class Chat:
         lines = self._plugin_context()
         if lines:
             brief = "\n\n".join([brief, *lines])
+        # Recall last, and after the identity block for the same reason:
+        # it is different on every turn and would break the cacheable prefix.
+        if recalled:
+            brief = "\n\n".join([brief, recalled])
         return self.identity.compose(brief)
+
+    def _recent(self) -> list[dict[str, Any]]:
+        """The last `HISTORY_TURNS` exchanges, whole.
+
+        Counted from the user messages backwards, so everything belonging to a
+        turn travels with it. Trimming by row instead let one tool-heavy
+        exchange evict the conversation it was part of.
+        """
+        rows = self.store.history(limit=HISTORY_ROWS)
+        starts = [i for i, row in enumerate(rows) if row["role"] == "user"]
+        if len(starts) <= HISTORY_TURNS:
+            return rows
+        return rows[starts[-HISTORY_TURNS] :]
 
     def _plugin_context(self) -> list[str]:
         """Never raises.
@@ -209,44 +309,88 @@ class Chat:
             logger.warning("plugin context unavailable: %s", exc)
             return []
 
-    def _messages(self, gap: Any = None) -> list[dict[str, Any]]:
-        wire: list[dict[str, Any]] = [{"role": "system", "content": self._system(gap)}]
-        for row in self.store.history():
+    def _messages(self, gap: Any = None, recalled: str = "") -> list[dict[str, Any]]:
+        """The conversation, in the neutral shape `build_request` translates.
+
+        Tool calls go back the way every provider documents them: the assistant
+        message that asked, carrying its `tool_calls`, and then each result as
+        its own message naming the `tool_call_id` it answers.
+
+        Marvi used to replay neither -- only the result, as an observation with
+        no author. The model saw an answer to a question it had no record of
+        asking, so it asked again, to the round limit.
+
+        The OpenAI-style shape is the neutral one here because two of the three
+        APIs are close to it; `build_request` turns it into Anthropic's content
+        blocks and the Responses API's items.
+        """
+        wire: list[dict[str, Any]] = [
+            {"role": "system", "content": self._system(gap, recalled)}
+        ]
+        for row in self._recent():
             if row["role"] in ("user", "assistant"):
                 wire.append({"role": row["role"], "content": row["content"]})
             elif row["role"] == "tool":
-                # Two messages, not one.
-                #
-                # Only the result used to be replayed, as an observation with
-                # no author -- so the model saw the answer to a question it had
-                # no memory of asking, and asked it again. That is a loop to
-                # the round limit: eight round trips and eight times the tokens
-                # for one answer, with the tool run eight times on the way.
-                #
-                # Derived from the row rather than stored as its own: the call
-                # is already in the result's metadata, and a second row would
-                # appear in the transcript as something Marvi said out loud.
-                called = self._describe_call(row["meta"])
-                if called:
-                    wire.append({"role": "assistant", "content": called})
-                # The result re-enters as an observation, still labelled.
-                wire.append({"role": "user", "content": row["content"]})
+                meta = row["meta"] if isinstance(row["meta"], dict) else {}
+                name = str(meta.get("tool") or "")
+                if not name:
+                    # A row from before calls were recorded. Still worth
+                    # replaying; there is just nothing to attribute it to.
+                    wire.append({"role": "user", "content": row["content"]})
+                    continue
+                call_id = str(meta.get("call_id") or f"call_{row['id']}")
+                arguments = meta.get("arguments")
+                wire.append(
+                    {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": call_id,
+                                "type": "function",
+                                "function": {
+                                    "name": name,
+                                    "arguments": json.dumps(
+                                        arguments if isinstance(arguments, dict) else {}
+                                    ),
+                                },
+                            }
+                        ],
+                    }
+                )
+                wire.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": call_id,
+                        "name": name,
+                        "content": row["content"],
+                    }
+                )
         return wire
 
     @staticmethod
-    def _describe_call(meta: Any) -> str:
-        """How the model is reminded of a call it made, in its own voice."""
-        if not isinstance(meta, dict) or not meta.get("tool"):
-            return ""
-        arguments = meta.get("arguments")
-        if isinstance(arguments, dict) and arguments:
-            try:
-                rendered = json.dumps(arguments, sort_keys=True)[:400]
-            except (TypeError, ValueError):
-                rendered = ""
-            if rendered:
-                return f"I called the tool {meta['tool']} with {rendered}."
-        return f"I called the tool {meta['tool']}."
+    def _tool_failed(name: str, arguments: Any, error: str) -> dict[str, Any]:
+        """What the model is told when a tool did not run.
+
+        Stated as an outcome rather than wrapped as untrusted content: this is
+        Marvi's own report of its own tool, not something a third party wrote.
+        The error text itself can still carry anything, so it is enveloped
+        inside the report.
+        """
+        detail = wrap_external(f"tool:{name}", error or "no reason given").text
+        return {
+            "text": (
+                f"The tool {name} failed and did nothing. "
+                "Do not tell the user it succeeded. "
+                "Either correct the arguments and try once more, or explain "
+                "plainly what could not be done."
+            )
+            + chr(10)
+            + detail,
+            "pending_confirmation": None,
+            "arguments": arguments,
+            "failed": True,
+        }
 
     def _curiosity_turn(self, text: str, turns: int) -> Any:
         """Learn what was said plainly, and decide whether to ask one question.
@@ -308,7 +452,23 @@ class Chat:
                 "arguments": arguments,
             }
 
-        outcome = self.dispatch(name, arguments)
+        try:
+            outcome = self.dispatch(name, arguments)
+        except Exception as exc:
+            # A tool that raises used to take the whole turn with it. The model
+            # is the one that can recover -- by fixing an argument, or by
+            # telling the user plainly -- and it can only do that if it is told.
+            logger.warning("tool %s raised: %s", name, exc)
+            return self._tool_failed(name, arguments, str(exc))
+
+        if outcome.get("status") == "failed":
+            # Previously this fell through and sent the model `null` inside an
+            # envelope: indistinguishable from a tool that succeeded and had
+            # nothing to say. It could not correct a bad argument because it
+            # never learnt the argument was bad, and it could narrate an action
+            # as done that had actually been refused.
+            return self._tool_failed(name, arguments, str(outcome.get("error") or ""))
+
         if outcome.get("status") == "confirmation_required":
             note = f"{name} needs your confirmation before it runs."
             self.store.append("assistant", note, pending=name)
@@ -380,6 +540,7 @@ class Chat:
         turns = sum(1 for row in self.store.history() if row["role"] == "user")
         self.store.append("user", text)
         gap = self._curiosity_turn(text, turns)
+        recalled = self._recall(text)
         schemas = list(self.tool_schemas() if self.tool_schemas else [])
         if self.curiosity is not None:
             schemas += curiosity_tools()
@@ -408,11 +569,11 @@ class Chat:
                     "chat", "stream", provider=provider or "", model=model or ""
                 ) as sample:
                     stream = self.client.stream_with_fallback(
-                        self._messages(gap),
+                        self._messages(gap, recalled),
                         preferred=provider or None,
                         model=model or None,
                         effort=effort or None,
-                        max_tokens=MAX_REPLY_TOKENS,
+                        max_tokens=reply_tokens(provider or "", model or ""),
                         tools=None if final_round else (schemas or None),
                     )
                     for event in stream:
@@ -518,6 +679,10 @@ class Chat:
                     str(outcome.get("text", "")),
                     tool=name,
                     arguments=outcome.get("arguments"),
+                    # The provider's own id for this call, so the result can
+                    # name the call it answers.
+                    call_id=call.get("id"),
+                    failed=bool(outcome.get("failed")),
                 )
 
         yield {
@@ -557,6 +722,7 @@ class Chat:
         self.store.append("user", text)
 
         gap = self._curiosity_turn(text, turns)
+        recalled = self._recall(text)
 
         schemas = list(self.tool_schemas() if self.tool_schemas else [])
         if self.curiosity is not None:
@@ -584,11 +750,11 @@ class Chat:
                     "chat", "direct", provider=provider or "", model=model or ""
                 ) as sample:
                     completion = self.client.call_with_fallback(
-                        self._messages(gap),
+                        self._messages(gap, recalled),
                         preferred=provider or None,
                         model=model or None,
                         effort=effort or None,
-                        max_tokens=MAX_REPLY_TOKENS,
+                        max_tokens=reply_tokens(provider or "", model or ""),
                         tools=None if final_round else (schemas or None),
                     )
                     # Known only now: fallback decides which provider answered.
@@ -691,10 +857,16 @@ def schemas_from_registry(registry: Any) -> list[dict[str, Any]]:
     json_types = {str: "string", int: "integer", float: "number", bool: "boolean"}
     described: list[dict[str, Any]] = []
     for spec in registry:
-        properties = {
-            key: {"type": json_types.get(kind, "string")}
-            for key, kind in {**spec.arguments, **spec.optional}.items()
-        }
+        describes = getattr(spec, "describes", None) or {}
+        properties: dict[str, dict[str, Any]] = {}
+        for key, kind in {**spec.arguments, **spec.optional}.items():
+            field: dict[str, Any] = {"type": json_types.get(kind, "string")}
+            # "Explicitly describe the purpose of the function and each
+            # parameter (and its format)" -- OpenAI's function-calling guide.
+            # Without this the model had the argument's name and nothing else.
+            if describes.get(key):
+                field["description"] = describes[key]
+            properties[key] = field
         described.append(
             {
                 "name": spec.name,

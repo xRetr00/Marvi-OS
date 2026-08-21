@@ -36,6 +36,14 @@ class ToolSpec:
     # An external write reaches outside this machine and cannot be undone by
     # repeating it — a sent email is not a light switch. These are deduplicated.
     external: bool = False
+    #: What each argument means, by name, for the model choosing values for it.
+    #:
+    #: Every schema went out as a bare `{"type": "string"}`, so the model had
+    #: only the argument's name to go on — and both API guides say the same
+    #: thing: describe the purpose of each parameter and its format. This is
+    #: where that description lives. Optional, so a tool that has not been
+    #: given one still registers; the name alone is what it always had.
+    describes: dict[str, str] = field(default_factory=dict)
 
     def summary(self, arguments: dict[str, Any]) -> str:
         """One short human line for the Island and the audit trail."""

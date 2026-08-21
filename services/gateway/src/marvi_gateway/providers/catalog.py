@@ -180,6 +180,22 @@ def models(profile: ProviderProfile, *, http: Any = None, refresh: bool = False)
     return hit[1]
 
 
+def known_context(provider: str, model: str) -> int:
+    """The model's context window, if it is already known. Never fetches.
+
+    Read from what a previous listing cached rather than by asking. This is
+    called while assembling a prompt, and a network round trip there would put
+    the provider's availability in front of every turn -- so an unknown model
+    simply reports 0 and the caller uses its default.
+    """
+    for age, cards in ((_cache.get(provider) or (0.0, [])),):
+        del age
+        for card in cards:
+            if card.id == model:
+                return int(card.context or 0)
+    return 0
+
+
 def forget(name: str | None = None) -> None:
     """Drop cached lists — after a credential changes, or on explicit refresh."""
     if name is None:

@@ -258,6 +258,10 @@ def register_web_tools(registry, web: WebTools) -> None:
             description="Search the web",
             arguments={"query": str},
             optional={"limit": int},
+            describes={
+                "query": "What to search for, phrased as a person would type it.",
+                "limit": "How many results to return. Defaults to a handful.",
+            },
             sensitive=False,
             handler=web_search,
         )
@@ -267,6 +271,7 @@ def register_web_tools(registry, web: WebTools) -> None:
             name="web_extract",
             description="Read the text of a web page",
             arguments={"url": str},
+            describes={"url": "Full URL including the scheme, e.g. https://example.com/page."},
             sensitive=False,
             handler=web_extract,
         )
@@ -276,6 +281,7 @@ def register_web_tools(registry, web: WebTools) -> None:
             name="web_fetch",
             description="Fetch a URL exactly as served",
             arguments={"url": str},
+            describes={"url": "Full URL including the scheme. Returns the raw body, not text."},
             sensitive=False,
             handler=web_fetch,
         )

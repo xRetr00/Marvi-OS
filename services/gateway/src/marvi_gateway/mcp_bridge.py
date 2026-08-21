@@ -41,23 +41,38 @@ JSON_TYPES: dict[str, type] = {
 }
 
 
-def schema_arguments(schema: Any) -> tuple[dict[str, type], dict[str, type]]:
-    """Split an MCP inputSchema into required and optional argument types."""
+def schema_arguments(
+    schema: Any,
+) -> tuple[dict[str, type], dict[str, type], dict[str, str]]:
+    """Split an MCP inputSchema into required types, optional types, and prose.
+
+    The descriptions were being dropped. An MCP server writes them for exactly
+    the audience that needs them -- a model choosing what to pass -- and Marvi
+    read the types and threw the sentences away, leaving the model with an
+    argument name and nothing else.
+    """
     if not isinstance(schema, dict):
-        return {}, {}
+        return {}, {}, {}
     properties = schema.get("properties")
     if not isinstance(properties, dict):
-        return {}, {}
+        return {}, {}, {}
     required_names = {n for n in (schema.get("required") or []) if isinstance(n, str)}
     required: dict[str, type] = {}
     optional: dict[str, type] = {}
+    describes: dict[str, str] = {}
     for name, definition in properties.items():
         declared = (definition or {}).get("type") if isinstance(definition, dict) else None
         if isinstance(declared, list):  # e.g. ["string", "null"]
             declared = next((d for d in declared if d != "null"), None)
         python_type = JSON_TYPES.get(declared or "", str)
         (required if name in required_names else optional)[name] = python_type
-    return required, optional
+        if isinstance(definition, dict):
+            said = definition.get("description")
+            if isinstance(said, str) and said.strip():
+                # Bounded like the tool description above it: a server that
+                # writes an essay per argument must not eat the prompt.
+                describes[name] = said.strip()[:200]
+    return required, optional, describes
 
 
 class McpUnavailableError(Exception):
@@ -179,7 +194,7 @@ def register_mcp_tools(registry, bridge: McpBridge) -> None:
         server = entry["server"]
         for tool in entry["tools"]:
             name = f"mcp__{server}__{tool['name']}"
-            required, optional = schema_arguments(tool.get("schema"))
+            required, optional, describes = schema_arguments(tool.get("schema"))
 
             def handler(_server=server, _tool=tool["name"], **arguments):
                 result = bridge.call(_server, _tool, arguments)
@@ -192,6 +207,7 @@ def register_mcp_tools(registry, bridge: McpBridge) -> None:
                     description=tool["description"] or f"{server} {tool['name']}",
                     arguments=required,
                     optional=optional,
+                    describes=describes,
                     sensitive=not tool["read_only"],
                     handler=handler,
                 )

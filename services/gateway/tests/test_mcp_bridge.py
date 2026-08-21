@@ -94,11 +94,11 @@ def test_servers_without_a_name_are_ignored(monkeypatch) -> None:
 
 
 def test_json_schema_becomes_exact_argument_types() -> None:
-    required, optional = schema_arguments(
+    required, optional, describes = schema_arguments(
         {
             "type": "object",
             "properties": {
-                "path": {"type": "string"},
+                "path": {"type": "string", "description": "Where to look"},
                 "depth": {"type": "integer"},
                 "ratio": {"type": "number"},
                 "deep": {"type": "boolean"},
@@ -109,12 +109,15 @@ def test_json_schema_becomes_exact_argument_types() -> None:
     )
     assert required == {"path": str, "depth": int}
     assert optional == {"ratio": float, "deep": bool, "extra": str}
+    # The server wrote this for the model choosing a value; it used to be
+    # read for its type and then thrown away.
+    assert describes == {"path": "Where to look"}
 
 
 def test_a_missing_or_odd_schema_is_not_a_crash() -> None:
-    assert schema_arguments(None) == ({}, {})
-    assert schema_arguments({"type": "object"}) == ({}, {})
-    assert schema_arguments({"properties": {"x": None}}) == ({}, {"x": str})
+    assert schema_arguments(None) == ({}, {}, {})
+    assert schema_arguments({"type": "object"}) == ({}, {}, {})
+    assert schema_arguments({"properties": {"x": None}}) == ({}, {"x": str}, {})
 
 
 # -- policy -----------------------------------------------------------------

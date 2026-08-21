@@ -317,11 +317,12 @@ def test_the_model_is_told_what_it_already_called(tmp_path) -> None:
     list(chat.send_stream("turn the light on"))
 
     assert len(bodies) == 2, "the fake answers a call then an answer"
-    second = bodies[1]["messages"]
-    assistant = [m for m in second if m["role"] == "assistant"]
+    asked = [m for m in bodies[1]["messages"] if m.get("tool_calls")]
 
-    assert assistant, "round two shows no record of the model having acted"
-    assert "set_light" in " ".join(m["content"] for m in assistant)
+    assert asked, "round two shows no record of the model having acted"
+    # The exact wire shape is asserted in test_tool_protocol; here it is only
+    # that the model can see it acted at all.
+    assert asked[0]["tool_calls"][0]["function"]["name"] == "set_light"
 
 
 def test_the_tool_result_is_still_replayed(tmp_path) -> None:
@@ -406,3 +407,62 @@ def test_the_streaming_path_still_learns_and_asks(tmp_path) -> None:
     list(chat.send_stream("my name is Sam"))
 
     assert curiosity.state()["name"]["value"] == "Sam", "a name said plainly was not learnt"
+
+
+def test_what_marvi_remembers_reaches_the_prompt(tmp_path) -> None:
+    """Memory was written after every reply and never read again.
+
+    The only way back in was the `memory_search` tool, so recall cost an extra
+    round trip and happened only when the model thought to ask -- everything
+    Marvi had been told and not asked about was, in practice, forgotten.
+    """
+    from marvi_gateway.memory import MemoryStore
+
+    memory = MemoryStore(tmp_path / "memory.sqlite3")
+    memory.remember("coffee", "the user takes their coffee black", kind="semantic")
+
+    bodies: list = []
+    chat = Chat(
+        store=ChatStore(tmp_path / "chat.sqlite3"),
+        client=ProviderClient(http=rounds(bodies, ANSWER)),
+        memory=memory,
+    )
+
+    list(chat.send_stream("how do I take my coffee?"))
+
+    assert "takes their coffee black" in bodies[0]["messages"][0]["content"]
+
+
+def test_recall_that_finds_nothing_adds_nothing(tmp_path) -> None:
+    """An empty section is prompt spent saying "nothing"."""
+    from marvi_gateway.memory import MemoryStore
+
+    memory = MemoryStore(tmp_path / "memory.sqlite3")
+    bodies: list = []
+    chat = Chat(
+        store=ChatStore(tmp_path / "chat.sqlite3"),
+        client=ProviderClient(http=rounds(bodies, ANSWER)),
+        memory=memory,
+    )
+
+    list(chat.send_stream("something never mentioned before"))
+
+    assert "What you remember" not in bodies[0]["messages"][0]["content"]
+
+
+def test_a_broken_memory_store_does_not_end_the_turn(tmp_path) -> None:
+    class Broken:
+        def search(self, *_args, **_kwargs):
+            raise RuntimeError("the index is gone")
+
+        def remember(self, *_args, **_kwargs):
+            return 0
+
+    bodies: list = []
+    chat = Chat(
+        store=ChatStore(tmp_path / "chat.sqlite3"),
+        client=ProviderClient(http=rounds(bodies, ANSWER)),
+        memory=Broken(),
+    )
+
+    assert list(chat.send_stream("hello"))[-1]["reply"] == "The light is on."

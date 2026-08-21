@@ -420,6 +420,10 @@ def register_memory_tools(registry, memory: MemoryStore) -> None:
             name="memory_remember",
             description="Remember a durable fact",
             arguments={"subject": str, "body": str},
+            describes={
+                "subject": "What the fact is about, in a word or two. Used to find it later.",
+                "body": "The fact itself, in one sentence, in the third person.",
+            },
             sensitive=False,
             handler=memory_remember,
         )
@@ -429,6 +433,7 @@ def register_memory_tools(registry, memory: MemoryStore) -> None:
             name="memory_search",
             description="Search what Marvi remembers",
             arguments={"query": str},
+            describes={"query": "Words to look for. Plain phrasing, not a search syntax."},
             sensitive=False,
             handler=memory_search,
         )
@@ -438,6 +443,12 @@ def register_memory_tools(registry, memory: MemoryStore) -> None:
             name="memory_forget",
             description="Forget everything matching a phrase",
             arguments={"query": str},
+            describes={
+                "query": (
+                    "Phrase to match. Everything matching it is deleted, "
+                    "so be specific."
+                )
+            },
             sensitive=True,
             handler=memory_forget,
         )
@@ -447,6 +458,11 @@ def register_memory_tools(registry, memory: MemoryStore) -> None:
             name="memory_link",
             description="Record a relationship between two things",
             arguments={"subject": str, "predicate": str, "target": str},
+            describes={
+                "subject": "The thing the relationship starts from.",
+                "predicate": "The relationship, as a short verb phrase, e.g. 'works at'.",
+                "target": "The thing the relationship points to.",
+            },
             sensitive=False,
             handler=memory_link,
         )
@@ -456,6 +472,7 @@ def register_memory_tools(registry, memory: MemoryStore) -> None:
             name="memory_neighbours",
             description="Read what is connected to something",
             arguments={"name": str},
+            describes={"name": "The subject or target whose connections to read."},
             sensitive=False,
             handler=memory_neighbours,
         )

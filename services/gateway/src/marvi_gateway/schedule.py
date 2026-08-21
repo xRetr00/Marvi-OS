@@ -455,6 +455,17 @@ def register_schedule_tools(registry: Any, scheduler: Scheduler) -> None:
             description="Set a reminder or a scheduled check",
             arguments={"name": str, "when": str},
             optional={"message": str, "action": str, "insist": bool},
+            describes={
+                "name": "Short label for the reminder, shown to the user.",
+                "when": (
+                    "When to fire. Either a cron expression "
+                    "(minute hour day month weekday, e.g. '30 7 * * 1-5') "
+                    "or a plain time like 'in 20 minutes' or 'tomorrow 09:00'."
+                ),
+                "message": "What to say when it fires.",
+                "action": "Name of a tool to run instead of speaking.",
+                "insist": "Repeat until acknowledged, rather than saying it once.",
+            },
             # Confirmed: a schedule is a standing instruction that will act
             # again later, which is exactly the kind of thing worth agreeing to
             # once rather than discovering at seven in the morning.
@@ -464,6 +475,7 @@ def register_schedule_tools(registry: Any, scheduler: Scheduler) -> None:
     )
     registry.register(
         ToolSpec(
+            describes={"id": "The schedule id from schedule_list."},
             name="schedule_remove",
             description="Cancel a reminder",
             arguments={"id": int},

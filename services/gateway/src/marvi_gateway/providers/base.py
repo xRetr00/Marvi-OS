@@ -314,6 +314,7 @@ class ProviderProfile:
 
         if self.api_mode == "anthropic":
             system, chat = _split_system(messages)
+            chat = _as_anthropic(chat)
             body: dict[str, Any] = {"model": chosen, "messages": chat}
             if system:
                 # Anthropic marks cache breakpoints on content blocks, so the
@@ -343,7 +344,7 @@ class ProviderProfile:
             return body
 
         if self.api_mode == "responses":
-            body = {"model": chosen, "input": messages}
+            body = {"model": chosen, "input": _as_responses(messages)}
             if limit:
                 body["max_output_tokens"] = limit
             if wants_stream:
@@ -585,6 +586,107 @@ class ProviderProfile:
         if not choices:
             return ""
         return (choices[0].get("message") or {}).get("content") or ""
+
+
+def _tool_calls_of(message: dict[str, Any]) -> list[dict[str, Any]]:
+    calls = message.get("tool_calls")
+    return calls if isinstance(calls, list) else []
+
+
+def _arguments_of(call: dict[str, Any]) -> dict[str, Any]:
+    """A call's arguments as an object.
+
+    On the wire they are a JSON string, because that is how models emit them
+    incrementally. Anthropic and the Responses API want them parsed.
+    """
+    import json as _json
+
+    raw = (call.get("function") or {}).get("arguments")
+    if isinstance(raw, dict):
+        return raw
+    try:
+        parsed = _json.loads(raw or "{}")
+    except (TypeError, ValueError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _as_anthropic(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The same round trip, in Anthropic's content blocks.
+
+    A call is a `tool_use` block on the assistant turn; a result is a
+    `tool_result` block on a user turn, naming the id it answers.
+    """
+    out: list[dict[str, Any]] = []
+    for message in messages:
+        calls = _tool_calls_of(message)
+        if calls:
+            out.append(
+                {
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": call.get("id") or "",
+                            "name": (call.get("function") or {}).get("name") or "",
+                            "input": _arguments_of(call),
+                        }
+                        for call in calls
+                    ],
+                }
+            )
+            continue
+        if message.get("role") == "tool":
+            out.append(
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": message.get("tool_call_id") or "",
+                            "content": str(message.get("content") or ""),
+                        }
+                    ],
+                }
+            )
+            continue
+        out.append(message)
+    return out
+
+
+def _as_responses(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The same round trip, as Responses API items.
+
+    A call is a `function_call` item and a result a `function_call_output`,
+    both keyed by `call_id` rather than by message order.
+    """
+    import json as _json
+
+    out: list[dict[str, Any]] = []
+    for message in messages:
+        calls = _tool_calls_of(message)
+        if calls:
+            for call in calls:
+                out.append(
+                    {
+                        "type": "function_call",
+                        "call_id": call.get("id") or "",
+                        "name": (call.get("function") or {}).get("name") or "",
+                        "arguments": _json.dumps(_arguments_of(call)),
+                    }
+                )
+            continue
+        if message.get("role") == "tool":
+            out.append(
+                {
+                    "type": "function_call_output",
+                    "call_id": message.get("tool_call_id") or "",
+                    "output": str(message.get("content") or ""),
+                }
+            )
+            continue
+        out.append(message)
+    return out
 
 
 def _split_system(messages: list[dict[str, Any]]) -> tuple[str, list[dict[str, Any]]]:
