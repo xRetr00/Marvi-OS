@@ -1,6 +1,6 @@
 # Real Streaming
 
-**Status:** planned, not started
+**Status:** phases A-C shipped. D (cancellation) outstanding.
 **Depends on:** the provider seam (done), `/llm` SSE (exists, unused)
 
 Marvi does not stream. Chat waits for the whole reply and then prints it, and
@@ -11,6 +11,36 @@ starts talking, and right now that silence is the model's entire generation
 time.
 
 This is the plan for fixing it properly, once.
+
+## What shipped
+
+* **A - chat streams text.** `POST /chat/stream` yields Server-Sent Events and
+  `Chat.send_stream` is a generator, so each token leaves the provider without
+  waiting for the last. Fallback resolves before the first delta and is a hard
+  error after it: once the user has seen half a sentence, continuing it in
+  another model's voice is worse than failing. Chat records a real first-token
+  time, so it can finally be compared with voice.
+* **B - reasoning is separated and shown.** Its own event from the wire to the
+  window, never merged into the answer, collapsed above it in chat. Five
+  envelopes, verified rather than guessed: OpenRouter's documented
+  `reasoning_details` and its plain `reasoning`, DeepSeek's `reasoning_content`,
+  the Responses API's `response.reasoning_text.delta`, and Anthropic's
+  `thinking_delta`.
+* **C - voice speaks from the stream.** The TTS declares itself streaming and
+  synthesises a clause at a time, pushing audio as the engine produces it. The
+  StreamAdapter is gone: it batched into sentences of at least twelve
+  characters, so a short reply waited for words that were never coming.
+
+Tool calls stream too, reassembled from the fragments a provider sends them in
+and handed over whole, because the arguments are only valid JSON after the last
+fragment arrives.
+
+## What is left
+
+**D - cancellation.** Interrupting Marvi should close the provider connection
+rather than drain it; a new message should supersede an in-flight one; closing
+the window should cancel. Today an abandoned stream keeps generating and is
+billed in full.
 
 ## Why it is not just a UI change
 
