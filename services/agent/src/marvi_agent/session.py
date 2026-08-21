@@ -4,6 +4,7 @@ import asyncio
 import logging
 import os
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -148,7 +149,22 @@ class MarviVoiceAgent(Agent):
         _report_transcript(heard=text)
 
 
-def build_session() -> AgentSession:
+def build_session() -> tuple[AgentSession, Callable[[], None]]:
+    """The session, and a callable that loads its models.
+
+    Returned separately rather than loaded here, because loading them is slow
+    and where it happens decides whether voice works at all. VibeVoice pulls in
+    Qwen2.5-0.5B on its first use, which took sixteen seconds on the event loop
+    during `session.start` -- long enough that LiveKit's Rust side gave up
+    waiting for Python to answer its connect handshake and killed the job:
+
+        FFI Panic: timed out waiting for ReadyForRoomEventRequest
+                   after ConnectCallback
+
+    Every voice session died there. The caller runs this in a thread before
+    starting, so the loop stays answerable and the first spoken reply does not
+    pay for the load either.
+    """
     local_tts = VibeVoiceTTS(voice=os.environ.get("MARVI_TTS_VOICE", DEFAULT_VOICE))
     streaming_tts = tts.StreamAdapter(
         tts=local_tts,
@@ -164,7 +180,7 @@ def build_session() -> AgentSession:
             engine,
         )
 
-    return AgentSession(
+    session = AgentSession(
         stt=NemotronSTT(
             executable=engine,
             language=os.environ.get("MARVI_STT_LANGUAGE", "en-US"),
@@ -185,6 +201,12 @@ def build_session() -> AgentSession:
         ),
     )
 
+    def warm() -> None:
+        """Load the speech models. Slow, and safe to run in a thread."""
+        local_tts.prewarm()
+
+    return session, warm
+
 
 server = AgentServer()
 
@@ -201,8 +223,16 @@ async def marvi_session(ctx: JobContext) -> None:
     started = time.monotonic()
     log.info("job %s starting for room %s", ctx.job.id, ctx.room.name)
 
-    session = build_session()
+    session, warm = build_session()
     log.info("session built in %.1fs", time.monotonic() - started)
+
+    # Off the event loop, and before the room connect. This is the fix for
+    # every voice session dying at sixteen seconds: the TTS model was loading
+    # inline during `session.start`, so nothing answered LiveKit's connect
+    # handshake and the job was killed.
+    warming = time.monotonic()
+    await asyncio.to_thread(warm)
+    log.info("speech models loaded in %.1fs", time.monotonic() - warming)
 
     # Loaded off the event loop. Three ONNX sessions are built here --
     # mel frontend, speech embedding, classifier -- and doing that inline

@@ -86,3 +86,44 @@ def test_a_present_engine_says_nothing(tmp_path, monkeypatch, caplog) -> None:
         session_module.build_session()
 
     assert not any("missing" in record.message for record in caplog.records)
+
+
+def test_the_session_and_its_model_loading_are_separable() -> None:
+    """Loading the speech models must be something the caller can move.
+
+    VibeVoice pulls in Qwen2.5-0.5B on first use. Loading it inline during
+    `session.start` blocked the event loop for sixteen seconds, so nothing
+    answered LiveKit's connect handshake and the Rust side killed the job:
+
+        FFI Panic: timed out waiting for ReadyForRoomEventRequest
+
+    Every voice session died there. The load is a separate callable so the
+    entrypoint can run it in a thread, before the room connects.
+    """
+    import inspect
+
+    from marvi_agent import session as session_module
+
+    signature = inspect.signature(session_module.build_session)
+
+    assert "tuple" in str(signature.return_annotation), (
+        "build_session must hand back the warm-up separately from the session"
+    )
+
+
+def test_the_entrypoint_warms_off_the_event_loop() -> None:
+    """In a thread, and before `session.start` -- both halves matter.
+
+    In the thread but after start is still a blocked handshake; before start
+    but on the loop is the original bug.
+    """
+    import inspect
+
+    from marvi_agent import session as session_module
+
+    source = inspect.getsource(session_module.marvi_session)
+
+    assert "asyncio.to_thread(warm)" in source, "the load must not run on the event loop"
+    assert source.index("to_thread(warm)") < source.index("session.start("), (
+        "the models must be loaded before the room connect, not after"
+    )
