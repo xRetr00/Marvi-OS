@@ -9,6 +9,10 @@ import { MOOD_FOR_PHASE, RAMPS, blend, type Ramp } from './moods'
 import { coherentWaveScale } from './wave'
 
 const N = 2000
+
+/** How fast the wave travels with no voice behind it. Slow enough to be
+ * ambient, fast enough that the surface is never still. */
+const IDLE_DRIFT = 0.45
 const GOLDEN = Math.PI * (3 - Math.sqrt(5))
 
 // Fibonacci lattice on the unit sphere.
@@ -71,8 +75,8 @@ function draw(ctx: CanvasRenderingContext2D, f: Frame): void {
   const reach = Math.min(f.width, f.height)
 
   const tilt = 0.42
-  // Rotation advances from the same audio envelope as the wave. There is no
-  // idle spin: when the room is silent, the orb is silent too.
+  // Rotation rides the same phase as the wave, so a silent orb still turns --
+  // slowly, because the phase itself advances slowly without voice.
   const yaw = f.wavePhase * 0.055
   const sy = Math.sin(yaw)
   const cyw = Math.cos(yaw)
@@ -170,8 +174,11 @@ export function VoiceOrb({
       last = now
       smoothed += (levelRef.current - smoothed) * 0.12
       const audioEnergy = activeRef.current ? Math.max(0, Math.min(1, smoothed)) : 0
-      if (!reducedMotion && audioEnergy > 0.01) {
-        wavePhase += delta * (0.8 + audioEnergy * 4.2)
+      // Always advancing, just slowly when nothing is being said. Gating the
+      // phase on audio froze the orb solid outside a conversation, which is
+      // most of the time the page is open.
+      if (!reducedMotion) {
+        wavePhase += delta * (IDLE_DRIFT + audioEnergy * 4.2)
       }
 
       const wanted = MOOD_FOR_PHASE[phaseRef.current] ?? 'idle'

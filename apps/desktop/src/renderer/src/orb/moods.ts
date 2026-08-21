@@ -2,8 +2,14 @@
 // data and two functions rather than a view — and because Fast Refresh only
 // works when a file exports components alone.
 //
-// The shell stays monochrome and reserves blue for live status. Phase changes
-// therefore alter intensity and depth, not the whole product palette.
+// The orb is the fastest signal on the Voice page: colour is legible across a
+// room, and a label has to be read.
+//
+// A monochrome pass through here left every working state ending in bone --
+// idle at #e7e7e3, speaking at #fafaf8 -- so the orb read as a white ball
+// whatever Marvi was doing. The shell staying monochrome is right; the orb is
+// the one thing on that page whose entire job is to say which state this is,
+// and it cannot do that in one colour.
 
 export type RGB = [number, number, number]
 
@@ -13,30 +19,32 @@ export type RGB = [number, number, number]
 export type Ramp = Array<[number, RGB]>
 
 export const RAMPS: Record<string, Ramp> = {
-  // Resting: cool graphite into bone.
+  // Resting: the original orange â†’ red â†’ pink â†’ magenta.
   idle: [
-    [0.0, [0x34, 0x38, 0x3d]],
-    [0.55, [0x78, 0x7e, 0x86]],
-    [1.0, [0xe7, 0xe7, 0xe3]]
+    [0.0, [0xa8, 0x55, 0xf7]],
+    [0.33, [0xec, 0x48, 0x99]],
+    [0.66, [0xef, 0x44, 0x44]],
+    [1.0, [0xf9, 0x73, 0x16]]
   ],
   // Listening: cool and awake, so it reads as "your turn".
   listening: [
-    [0.0, [0x0b, 0x35, 0x50]],
-    [0.55, [0x14, 0x7e, 0xc1]],
-    [1.0, [0xb8, 0xd9, 0xec]]
+    [0.0, [0x1e, 0x3a, 0x8a]],
+    [0.4, [0x25, 0x63, 0xeb]],
+    [0.75, [0x38, 0xbd, 0xf8]],
+    [1.0, [0xa5, 0xf3, 0xfc]]
   ],
-  // Thinking: denser steel, within the same status family.
+  // Thinking: held, low-energy violet.
   thinking: [
-    [0.0, [0x19, 0x2c, 0x38]],
-    [0.55, [0x3f, 0x78, 0x99]],
-    [1.0, [0xd5, 0xe5, 0xee]]
+    [0.0, [0x31, 0x27, 0x6b]],
+    [0.5, [0x6d, 0x28, 0xd9]],
+    [1.0, [0xc0, 0x84, 0xfc]]
   ],
-  // Speaking: high-contrast bone with a restrained blue core.
+  // Speaking: warm and bright, the loudest state.
   speaking: [
-    [0.0, [0x0f, 0x4f, 0x75]],
-    [0.45, [0x14, 0x7e, 0xc1]],
-    [0.78, [0xb9, 0xd8, 0xea]],
-    [1.0, [0xfa, 0xfa, 0xf8]]
+    [0.0, [0x7c, 0x2d, 0x12]],
+    [0.4, [0xea, 0x58, 0x0c]],
+    [0.75, [0xfb, 0xbf, 0x24]],
+    [1.0, [0xfe, 0xf3, 0xc7]]
   ],
   // Error: unmistakable, and not a colour any working state uses.
   error: [

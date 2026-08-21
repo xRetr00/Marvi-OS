@@ -31,9 +31,21 @@ describe('orb mood', () => {
 describe('voice-driven wave', () => {
   const point = [0.62, 0.35, -0.7] as const
 
-  it('is motionless without audio energy', () => {
-    expect(coherentWaveScale(point, 0, 0)).toBe(1)
-    expect(coherentWaveScale(point, 100, 0)).toBe(1)
+  it('still breathes when nobody is speaking', () => {
+    // It used to return a flat 1 at zero energy, which froze the orb solid
+    // whenever the room was quiet -- most of the time the page is open. A
+    // resting swell says Marvi is running; silence is not the same as off.
+    const resting = coherentWaveScale(point, 1.2, 0)
+
+    expect(resting).not.toBe(1)
+    expect(Math.abs(resting - 1)).toBeLessThan(0.05)
+  })
+
+  it('answers voice with more movement than silence', () => {
+    const quiet = Math.abs(coherentWaveScale(point, 1.2, 0) - 1)
+    const loud = Math.abs(coherentWaveScale(point, 1.2, 1) - 1)
+
+    expect(loud).toBeGreaterThan(quiet * 2)
   })
 
   it('is deterministic and bounded', () => {
@@ -80,5 +92,33 @@ describe('mood crossfade', () => {
         expect(channel).toBeLessThanOrEqual(255)
       }
     }
+  })
+})
+
+describe('the orb says which state it is in', () => {
+  /** Distance from grey. Zero is a shade of white or black. */
+  const saturation = ([r, g, b]: readonly number[]): number =>
+    Math.max(r, g, b) - Math.min(r, g, b)
+
+  it('never resolves a working state to white', () => {
+    // A monochrome pass left every ramp ending in bone — idle at #e7e7e3,
+    // speaking at #fafaf8 — so the orb was a white ball whatever Marvi was
+    // doing. Colour is the whole job of this element.
+    for (const phase of ['idle', 'listening', 'thinking', 'speaking'] as const) {
+      const ramp = RAMPS[phase]
+      const brightest = ramp[ramp.length - 1][1]
+      expect(saturation(brightest), `${phase} ends in a neutral`).toBeGreaterThan(24)
+    }
+  })
+
+  it('gives the live states visibly different colour', () => {
+    // Not just different numbers: different enough to tell apart across a room,
+    // which is the reason the orb exists rather than a label.
+    const mid = (phase: string): number[] => blend(RAMPS[phase], RAMPS[phase], 0, 0.6)
+    const listening = mid('listening')
+    const speaking = mid('speaking')
+
+    const apart = listening.reduce((sum, c, i) => sum + Math.abs(c - speaking[i]), 0)
+    expect(apart).toBeGreaterThan(120)
   })
 })

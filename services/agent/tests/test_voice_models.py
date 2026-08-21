@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from marvi_agent.voice_models import DEFAULT_VOICE, NemotronSTT, VibeVoiceTTS
 
 
@@ -22,3 +24,48 @@ def test_vibevoice_exposes_installed_presets(tmp_path: Path) -> None:
     assert adapter.num_channels == 1
     assert adapter.voices == [DEFAULT_VOICE, "en-Emma_woman"]
 
+
+
+def test_a_speaker_prompt_loads_on_modern_pytorch(tmp_path) -> None:
+    """PyTorch 2.6 changed `torch.load` and it stopped voice speaking at all.
+
+    The default for `weights_only` flipped to True, and a speaker prompt is a
+    dict subclass the safe unpickler refuses to fill:
+
+        Can only SETITEMS for dict, collections.OrderedDict,
+        collections.Counter, but got BaseModelOutputWithPast
+
+    Allowlisting the classes does not help -- the restriction is on SETITEMS
+    itself. This reproduces the shape that failed, so the loader cannot quietly
+    go back to a setting that cannot read Marvi's own voices.
+    """
+    import pickle
+
+    import torch
+    from transformers.modeling_outputs import BaseModelOutputWithPast
+
+    prompt = BaseModelOutputWithPast(last_hidden_state=torch.zeros(1, 2, 3))
+    path = tmp_path / "en-Test_man.pt"
+    torch.save(prompt, path)
+
+    # The specific failure, not any failure: a blind `Exception` here would
+    # still pass if torch started refusing the file for an unrelated reason.
+    with pytest.raises(pickle.UnpicklingError, match=r"[Ww]eights only"):
+        torch.load(path, map_location="cpu", weights_only=True)
+
+    loaded = torch.load(path, map_location="cpu", weights_only=False)
+
+    assert loaded is not None
+
+
+def test_the_loader_does_not_ask_for_weights_only() -> None:
+    """Guarding the call itself, since the failure is silent until speech."""
+    import inspect
+
+    from marvi_agent import voice_models
+
+    source = inspect.getsource(voice_models)
+
+    assert "weights_only=True" not in source, (
+        "a speaker prompt cannot be read with weights_only=True"
+    )

@@ -155,8 +155,6 @@ class _VibeVoiceEngine:
         if self._loaded:
             return
         import torch
-        from transformers.cache_utils import DynamicCache
-        from transformers.modeling_outputs import BaseModelOutputWithPast
         from vibevoice.modular.modeling_vibevoice_streaming_inference import (
             VibeVoiceStreamingForConditionalGenerationInference,
         )
@@ -181,10 +179,25 @@ class _VibeVoiceEngine:
             )
         self._model.eval()
         self._model.set_ddpm_inference_steps(num_steps=self.inference_steps)
-        with torch.serialization.safe_globals([BaseModelOutputWithPast, DynamicCache]):
-            self._prompt = torch.load(
-                self.voices_dir / f"{self.voice}.pt", map_location="cuda", weights_only=True
-            )
+        # `weights_only=False`, deliberately, and this is the whole reason
+        # voice failed to speak on PyTorch 2.6+:
+        #
+        #   _pickle.UnpicklingError: Weights only load failed ...
+        #   Can only SETITEMS for dict, collections.OrderedDict,
+        #   collections.Counter, but got BaseModelOutputWithPast
+        #
+        # 2.6 flipped the default to True. Allowlisting the classes is not
+        # enough -- the safe unpickler refuses SETITEMS on any dict subclass it
+        # does not know, and a speaker prompt is exactly that.
+        #
+        # What is being trusted: these `.pt` files are sparse-checked-out from
+        # Microsoft's VibeVoice repository at a *pinned commit*, so their
+        # contents are fixed by that SHA. It is the same trust already placed
+        # in the model weights sitting beside them -- not a new exposure, and
+        # not a file from anywhere a user or a provider can reach.
+        self._prompt = torch.load(
+            self.voices_dir / f"{self.voice}.pt", map_location="cuda", weights_only=False
+        )
         self._loaded = True
 
     def synthesize(self, text: str, stop: threading.Event) -> Iterator[bytes]:
