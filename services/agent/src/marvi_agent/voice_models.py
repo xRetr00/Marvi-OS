@@ -295,6 +295,14 @@ class _VibeVoiceEngine:
                     tokenizer=self._processor.tokenizer,
                     generation_config={"do_sample": False}, audio_streamer=streamer,
                     stop_check_fn=stop.is_set, verbose=False, refresh_negative=True,
+                    # VibeVoice draws a tqdm bar unless told not to, and
+                    # `verbose=False` does not cover it. It writes a line per
+                    # generation step to stderr, which the desktop reads over a
+                    # pipe and keeps -- three hundred lines and a megabyte of
+                    # agent.log for one spoken reply, with the write happening
+                    # inside the loop that is already struggling to keep up with
+                    # realtime. It also buries every line worth reading.
+                    show_progress_bar=False,
                     all_prefilled_outputs=copy.deepcopy(self._prompt),
                 )
             except BaseException as exc:
@@ -414,6 +422,19 @@ _CLAUSE_END = ".!?…\n"
 #: that a short reply is not held back waiting for words that never come.
 MIN_SPEAKABLE = 4
 
+#: How much audio to bank before the first word is heard, in seconds.
+#:
+#: The engine runs near real time on a good card and below it on a busy one,
+#: and a producer even slightly behind the player empties it -- heard as a reply
+#: arriving word, gap, word. This is the slack that absorbs that.
+#:
+#: Tunable because the right value is a property of the machine, not of Marvi:
+#: a card that generates faster than real time needs none of this, and one that
+#: does not needs more than is worth waiting for.
+LEAD_SECONDS = float(os.environ.get("MARVI_TTS_LEAD_SECONDS", "0.6") or 0.6)
+#: 24 kHz, mono, 32-bit float samples as the engine emits them.
+_LEAD_BYTES = int(24_000 * 4 * max(0.0, LEAD_SECONDS))
+
 
 def _next_clause(buffer: str) -> tuple[str, str]:
     """Split off the first speakable clause, if there is one.
@@ -455,6 +476,41 @@ class _VibeVoiceSynthesizeStream(tts.SynthesizeStream):
         # never filled still has to be ended, and the clause splitter cannot
         # promise there will be anything to say.
         open_segment = False
+        # A cushion at the head of each reply.
+        #
+        # The room plays audio in real time. This engine produces it at around
+        # one times real time on a good card and below that on a busy one, and
+        # a producer that is even slightly behind its consumer runs the player
+        # dry -- which is heard as a reply arriving word, gap, word.
+        #
+        # Holding back the first fraction of a second buys that much slack for
+        # everything after it, at the cost of starting that much later. It
+        # smooths jitter; it cannot manufacture throughput, so a long reply from
+        # an engine genuinely below real time will still catch up with it.
+        lead = _LEAD_BYTES
+        held: list[bytes] = []
+        released = False
+
+        def release(chunk: bytes) -> None:
+            nonlocal released
+            if released:
+                output_emitter.push(chunk)
+                return
+            held.append(chunk)
+            if sum(len(piece) for piece in held) < lead:
+                return
+            for piece in held:
+                output_emitter.push(piece)
+            held.clear()
+            released = True
+
+        def drain() -> None:
+            """Whatever is still held when the reply ends. It is the reply."""
+            nonlocal released
+            for piece in held:
+                output_emitter.push(piece)
+            held.clear()
+            released = True
 
         async def speak(text: str) -> None:
             nonlocal open_segment
@@ -463,13 +519,16 @@ class _VibeVoiceSynthesizeStream(tts.SynthesizeStream):
             if not open_segment:
                 output_emitter.start_segment(segment_id=str(uuid.uuid4()))
                 open_segment = True
-            await _pump(self._tts._engine, text, output_emitter)
+            await _pump(self._tts._engine, text, release)
 
         def close_segment() -> None:
-            nonlocal open_segment
+            nonlocal open_segment, released
             if open_segment:
+                drain()
                 output_emitter.end_segment()
                 open_segment = False
+            # The next segment is a new reply and buys its own cushion.
+            released = False
 
         async for item in self._input_ch:
             if isinstance(item, self._FlushSentinel):
@@ -492,7 +551,7 @@ class _VibeVoiceSynthesizeStream(tts.SynthesizeStream):
         output_emitter.end_input()
 
 
-async def _pump(engine: Any, text: str, output_emitter: tts.AudioEmitter) -> None:
+async def _pump(engine: Any, text: str, release: Any) -> None:
     """Synthesise one clause, pushing audio as the model produces it.
 
     The engine is synchronous and CPU-bound, so it runs on a thread and hands
@@ -522,7 +581,7 @@ async def _pump(engine: Any, text: str, output_emitter: tts.AudioEmitter) -> Non
                 break
             if isinstance(item, BaseException):
                 raise item
-            output_emitter.push(item)
+            release(item)
     finally:
         stop.set()
         await asyncio.to_thread(worker.join)

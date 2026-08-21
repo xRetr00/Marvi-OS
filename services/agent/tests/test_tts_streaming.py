@@ -124,3 +124,75 @@ async def test_the_non_streaming_path_produces_audio_too(engine) -> None:
     await stream.aclose()
 
     assert frames, "the chunked TTS emitted no audio at all"
+
+
+# -- the cushion -------------------------------------------------------------
+
+
+class LongEngine(FakeEngine):
+    """Enough audio to pass the lead and keep going."""
+
+    def synthesize(self, text: str, stop):
+        self.spoken.append(text)
+        for _ in range(40):
+            yield b"\x00\x01" * 2400  # 0.05s of 24kHz float32 per chunk
+
+
+def samples(frames) -> int:
+    return sum(f.frame.samples_per_channel for f in frames)
+
+
+async def test_the_cushion_delays_audio_without_losing_any() -> None:
+    """Holding back the first fraction of a second is only acceptable if every
+    byte still arrives. A buffer that drops its contents is worse than none."""
+    engine = LongEngine()
+    speaker = tts_with(engine)
+    stream = speaker.stream()
+
+    stream.push_text("Hello there.")
+    stream.end_input()
+
+    frames = await collect(stream)
+    await stream.aclose()
+
+    # 40 chunks of 2400 float32 samples: what the engine produced is what the
+    # room hears, cushion or not.
+    assert samples(frames) == 40 * 2400
+
+
+async def test_a_reply_shorter_than_the_cushion_is_still_spoken(engine) -> None:
+    """The whole reply fits inside the lead, so nothing ever crosses the
+    threshold that releases it. It must be drained at the end regardless --
+    otherwise "Yes." is silence."""
+    speaker = tts_with(engine)
+    stream = speaker.stream()
+
+    stream.push_text("Yes.")
+    stream.end_input()
+
+    frames = await collect(stream)
+    await stream.aclose()
+
+    assert samples(frames) == 2 * 1200
+
+
+async def test_a_flush_mid_reply_delivers_everything_before_it() -> None:
+    """One stream carries one segment.
+
+    LiveKit deprecated handling several in a single `SynthesizeStream` and drops
+    the text of any after the first, so the cushion only ever has one reply to
+    hold. What a flush must not do is strand what was already pushed.
+    """
+    engine = LongEngine()
+    speaker = tts_with(engine)
+    stream = speaker.stream()
+
+    stream.push_text("Only this one.")
+    stream.flush()
+    stream.end_input()
+
+    frames = await collect(stream)
+    await stream.aclose()
+
+    assert samples(frames) == 40 * 2400
+    assert engine.spoken == ["Only this one."]
