@@ -30,7 +30,6 @@ from .runtime import AgentConfig, build_llm, build_local_turn_detector
 from .timing import TimedLLM
 from .tools import GatewayTools
 from .voice_models import DEFAULT_VOICE, NemotronSTT, VibeVoiceTTS
-from .wakeword import WakeGate
 
 log = logging.getLogger("marvi.voice")
 
@@ -41,6 +40,29 @@ REPORT_TIMEOUT = 1.5
 
 def gateway_url() -> str:
     return os.environ.get("MARVI_GATEWAY_URL", "http://127.0.0.1:8765").rstrip("/")
+
+
+def configured_voice() -> str:
+    """Which voice Marvi speaks in, asked of the Gateway.
+
+    Same hole as the wake word had: the Agent is a separate process whose
+    environment is fixed when the desktop spawns it, so choosing a voice in
+    Preferences wrote to something this process never reads and Marvi kept
+    speaking in the old one. The environment stays as the fallback, so a
+    Gateway that is briefly unreachable does not leave her mute.
+    """
+    import contextlib
+
+    with contextlib.suppress(Exception):
+        import httpx
+
+        body = httpx.get(f"{gateway_url()}/voices", timeout=REPORT_TIMEOUT).json()
+        chosen = str(body.get("selected") or "")
+        # Reported missing when the file is gone; falling back beats failing to
+        # speak because a voice was deleted.
+        if chosen and not body.get("missing"):
+            return chosen
+    return os.environ.get("MARVI_TTS_VOICE", DEFAULT_VOICE)
 
 
 def _report_transcript(*, heard: str = "", spoken: str = "") -> None:
@@ -162,7 +184,7 @@ def prewarm(proc: JobProcess) -> None:
     the model already resident and starts speaking immediately.
     """
     started = time.monotonic()
-    voice = os.environ.get("MARVI_TTS_VOICE", DEFAULT_VOICE)
+    voice = configured_voice()
     engine = VibeVoiceTTS(voice=voice)
     try:
         engine.prewarm()
@@ -194,7 +216,7 @@ def build_session(proc: JobProcess | None = None) -> tuple[AgentSession, Callabl
     starting, so the loop stays answerable and the first spoken reply does not
     pay for the load either.
     """
-    voice = os.environ.get("MARVI_TTS_VOICE", DEFAULT_VOICE)
+    voice = configured_voice()
     warmed = (proc.userdata if proc else {}) or {}
     # Reused only when it is the same voice: a voice changed in Settings must
     # not be answered in the previous one.
@@ -256,7 +278,19 @@ def build_session(proc: JobProcess | None = None) -> tuple[AgentSession, Callabl
     return session, warm
 
 
-server = AgentServer(setup_fnc=prewarm)
+server = AgentServer(
+    setup_fnc=prewarm,
+    # One. This is one person's desktop, not a fleet: Marvi holds one
+    # conversation at a time, and the default of four had four processes each
+    # loading a 0.5B speech model at once, competing for the same GPU.
+    num_idle_processes=1,
+    # Ten seconds is the default and a speech model does not load in ten
+    # seconds. Prewarming inside that budget failed every runner with a bare
+    # TimeoutError -- "error initializing process", four times, and then no
+    # worker at all. Loading the models early is right; pretending it is fast
+    # is not.
+    initialize_process_timeout=180.0,
+)
 
 
 @server.rtc_session()
@@ -282,24 +316,12 @@ async def marvi_session(ctx: JobContext) -> None:
     await asyncio.to_thread(warm)
     log.info("speech models loaded in %.1fs", time.monotonic() - warming)
 
-    # Loaded off the event loop. Three ONNX sessions are built here --
-    # mel frontend, speech embedding, classifier -- and doing that inline
-    # blocked the loop for as long as it took. The room connect handshake
-    # needs the loop responsive: LiveKit's Rust side fires ConnectCallback and
-    # waits for Python to answer, and when it does not it kills the job with
-    #
-    #   FFI Panic: timed out waiting for ReadyForRoomEventRequest
-    #
-    # sixteen seconds later, which is the whole session gone before a word is
-    # spoken.
-    gate = await asyncio.to_thread(WakeGate.from_env)
-
     connecting = time.monotonic()
     await session.start(agent=MarviVoiceAgent(), room=ctx.room)
-    log.info("joined %s in %.1fs", ctx.room.name, time.monotonic() - connecting)
+    log.info("joined %s in %.1fs, listening", ctx.room.name, time.monotonic() - connecting)
 
     # Every stage of the pipeline, reported: VAD, STT, LLM, TTS, barge-in,
-    # tools, and the per-component timings that say which one is slow.
+    # tools, and the per-turn timings that say which one is slow.
     observability.attach(session)
 
     @session.on("conversation_item_added")
@@ -309,12 +331,6 @@ async def marvi_session(ctx: JobContext) -> None:
         item = getattr(event, "item", None)
         if getattr(item, "role", "") == "assistant":
             _report_transcript(spoken=getattr(item, "text_content", "") or "")
-
-    if gate is not None:
-        gate.attach(session, ctx.room)
-        log.info("wake word armed; Marvi waits to be called")
-    else:
-        log.info("no wake word; Marvi answers from the moment she joins")
 
     # How a conversation ends: the model decides, from what was said.
     #
@@ -331,12 +347,7 @@ async def marvi_session(ctx: JobContext) -> None:
         Do not call it because of a pause.
         """
         log.info("the model ended the conversation")
-        if gate is not None:
-            gate.close()
-        else:
-            # With no wake word there is nothing to fall back to, so ending
-            # the conversation means leaving the room.
-            await session.aclose()
+        await session.aclose()
         return "the conversation is closed"
 
     # `update_tools` is on the Agent, not the session -- checked against the

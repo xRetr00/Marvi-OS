@@ -127,3 +127,58 @@ def test_the_entrypoint_warms_off_the_event_loop() -> None:
     assert source.index("to_thread(warm)") < source.index("session.start("), (
         "the models must be loaded before the room connect, not after"
     )
+
+
+def test_nothing_mutes_the_session_input() -> None:
+    """The bug that made speech look broken.
+
+    The wake word lived in the Agent and gated `session.input`, so joining a
+    room produced a session with its microphone switched off. VAD saw nothing,
+    went `away`, and STT was never handed anything -- indistinguishable from
+    speech recognition being broken, which is where we spent days looking.
+
+    A wake word is a hands-free Join. It belongs on the side that can join,
+    and a session that exists is a session that is listening.
+    """
+    import inspect
+
+    from marvi_agent import session as session_module
+
+    source = inspect.getsource(session_module)
+
+    assert "set_audio_enabled" not in source, (
+        "the session must never mute its own input; a wake word is not a gate"
+    )
+    assert "WakeGate" not in source
+
+
+def test_the_voice_comes_from_the_gateway(monkeypatch) -> None:
+    """Preferences must reach a process that cannot see them.
+
+    The Agent's environment is fixed when the desktop spawns it, so choosing a
+    voice wrote to something it never read and Marvi kept the old one.
+    """
+    import inspect
+
+    from marvi_agent import session as session_module
+
+    source = inspect.getsource(session_module.configured_voice)
+
+    assert "/voices" in source, "the voice must be asked of the Gateway"
+    assert "MARVI_TTS_VOICE" in source, "and the environment must remain a fallback"
+
+
+def test_a_deleted_voice_falls_back_rather_than_failing(monkeypatch) -> None:
+    """Reported missing by the Gateway; better a default voice than none."""
+    from marvi_agent import session as session_module
+
+    monkeypatch.setenv("MARVI_TTS_VOICE", "en-Fallback_man")
+
+    class Gone:
+        @staticmethod
+        def json():
+            return {"selected": "en-Deleted_woman", "missing": True}
+
+    monkeypatch.setattr("httpx.get", lambda *a, **k: Gone())
+
+    assert session_module.configured_voice() == "en-Fallback_man"
