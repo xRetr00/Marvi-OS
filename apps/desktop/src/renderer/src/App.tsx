@@ -70,7 +70,7 @@ import type {
 } from '../../shared/runtime'
 import { deviceLabel, deviceState } from '../../shared/runtime'
 import type { IslandAlignment, IslandPlacement } from '../../main/island-window'
-import { $voiceLink, stopVoice } from './store/voice-session'
+import { $voiceLink, startVoice, stopVoice } from './store/voice-session'
 
 /**
  * The sidebar, grouped by what a page is *for*.
@@ -365,6 +365,7 @@ function MainSurface(): React.JSX.Element {
                   VOICE:{voice.phase.toUpperCase()}
                 </button>
               </UiTooltip>
+              <WakeStatusItem onOpen={() => navigate('Voice')} />
               <VoiceLevelMeter level={voice.level} />
               <UiTooltip label="Open microphone and camera settings" side="top">
                 <button
@@ -1577,27 +1578,80 @@ function useWake(pollMs: number): WakeStatus | null {
   return wake
 }
 
+/**
+ * What the wake word is doing, in three words, in the status bar.
+ *
+ * Three states rather than a light that is on or off, because the one worth
+ * seeing is the middle one. ON means it will start at your next login. LIVE
+ * means it is holding the microphone right now. A listener registered but not
+ * running is the failure that used to be invisible — she simply never answered
+ * and nothing anywhere said why.
+ */
+function WakeStatusItem({ onOpen }: { onOpen: () => void }): React.JSX.Element | null {
+  const wake = useWake(3000)
+  if (!wake) return null
+
+  const { autostart, running } = wake.listener
+  const heard = wake.recentlyHeard
+  const label = heard ? 'HEARD' : running ? 'LIVE' : autostart ? 'STARTING' : 'OFF'
+  const tooltip = heard
+    ? `Heard her name at ${Math.round(wake.confidence * 100)}% confidence`
+    : running
+      ? 'Listening for “Marvi” — say it to join hands-free'
+      : autostart
+        ? 'Registered to start at login, but not running right now'
+        : 'Not listening. Turn it on in Voice settings.'
+
+  return (
+    <UiTooltip label={tooltip} side="top">
+      <button
+        className={`status-item${heard ? ' status-yolo' : ''}`}
+        onClick={onOpen}
+        type="button"
+      >
+        WAKE:{label}
+      </button>
+    </UiTooltip>
+  )
+}
+
 function WakeIndicator(): React.JSX.Element | null {
   // Polled quickly, because the whole point is to acknowledge a detection
   // while the person who spoke is still waiting to see whether it landed.
   const wake = useWake(1500)
-  if (!wake || !wake.enabled) return null
+  if (!wake) return null
 
   if (!wake.modelPresent) {
-    return <p className="voice-hud-blocker">Wake word model missing — answering every turn</p>
+    return <p className="voice-hud-blocker">Wake word model missing — press Join instead</p>
   }
+  if (!wake.listener.autostart) return null
 
   return (
     <span className={`wake-chip${wake.recentlyHeard ? ' is-heard' : ''}`}>
       {wake.recentlyHeard
         ? `Heard you — ${Math.round(wake.confidence * 100)}%`
-        : 'Listening for “Marvi”'}
+        : wake.listener.running
+          ? 'Listening for “Marvi”'
+          : 'Wake word not running'}
     </span>
   )
 }
 
+/**
+ * The wake word switch, which now controls the thing it says it does.
+ *
+ * It used to set `MARVI_WAKE_WORD`, an environment variable read by a gate
+ * inside the voice session — so it only ever decided which of the turns you
+ * had already joined for counted, and did nothing at all when Marvi was
+ * closed. The switch now registers the standalone listener to start at login,
+ * which is the only arrangement in which a wake word means anything.
+ */
 function WakeSettings(): React.JSX.Element {
   const wake = useWake(4000)
+  // Held locally so the switch moves on the click rather than on the next
+  // poll. Turning it on shells out to the registry and can take a moment.
+  const [busy, setBusy] = useState(false)
+  const [pending, setPending] = useState<boolean | null>(null)
 
   if (!wake) return <span className="construction">UNAVAILABLE</span>
 
@@ -1605,19 +1659,32 @@ function WakeSettings(): React.JSX.Element {
     void window.marvi?.setProviderSettings(values)
   }
 
+  const on = pending ?? wake.listener.autostart
+  const toggle = async (): Promise<void> => {
+    setBusy(true)
+    setPending(!on)
+    try {
+      const next = await window.marvi?.setWakeAutostart(!on)
+      setPending(next?.autostart ?? !on)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="voice-choice">
       <button
-        aria-checked={wake.enabled}
-        className={wake.enabled ? 'mode-switch active' : 'mode-switch'}
-        onClick={() => set({ [wake.setting]: wake.enabled ? 'false' : 'true' })}
+        aria-checked={on}
+        className={on ? 'mode-switch active' : 'mode-switch'}
+        disabled={busy}
+        onClick={() => void toggle()}
         role="switch"
         type="button"
       >
-        {wake.enabled ? 'WAIT FOR “MARVI”' : 'ANSWER EVERY TURN'}
+        {on ? 'LISTENING FOR “MARVI”' : 'OFF — PRESS JOIN'}
       </button>
 
-      {wake.enabled ? (
+      {on ? (
         <>
           <Picker
             options={[
@@ -1638,9 +1705,12 @@ function WakeSettings(): React.JSX.Element {
             placeholder="Balanced"
           />
           <p className="notice">
-            {wake.modelPresent
-              ? `Model loaded. She stays listening for ${Math.round(wake.window)}s after being addressed.`
-              : 'No model found, so Marvi answers every turn rather than going deaf.'}
+            {!wake.modelPresent
+              ? 'No wake word model found, so there is nothing to listen with.'
+              : wake.listener.running
+                ? 'Running now, and at every login. Saying “Marvi” joins the same way pressing Join does — and opens Marvi first if she is closed.'
+                : wake.listener.error ||
+                  'Registered to start at login. It is not running yet; give it a moment.'}
           </p>
         </>
       ) : null}
@@ -2805,6 +2875,24 @@ function IslandSurface(): React.JSX.Element {
   )
 }
 
+/**
+ * Saying her name joins, exactly as pressing Join does.
+ *
+ * Two ways in, because the listener fires against whichever Marvi exists at
+ * the time. If she was already open, the main process forwards the event and
+ * this window hears it. If the listener started her, the event happened before
+ * any window existed, so the launch flag carries it instead — consumed rather
+ * than read, or every navigation would rejoin.
+ */
+function useWakeJoin(): void {
+  useEffect(() => {
+    void (async () => {
+      if (await window.marvi?.consumeWakeLaunch()) void startVoice()
+    })()
+    return window.marvi?.onWakeJoin(() => void startVoice())
+  }, [])
+}
+
 export default function App(): React.JSX.Element {
   const surface = new URLSearchParams(window.location.search).get('surface')
   return surface === 'island' ? (
@@ -2812,8 +2900,16 @@ export default function App(): React.JSX.Element {
   ) : (
     <TooltipProvider>
       <HapticsProvider>
+        <WakeJoin />
         <MainSurface />
       </HapticsProvider>
     </TooltipProvider>
   )
+}
+
+/** Only on the main surface. The island loads the same bundle, and both
+ *  windows racing to consume the launch flag would join in the wrong one. */
+function WakeJoin(): null {
+  useWakeJoin()
+  return null
 }

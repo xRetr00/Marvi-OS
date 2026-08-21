@@ -1,3 +1,6 @@
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
+
 import {
   app,
   BrowserWindow,
@@ -395,6 +398,52 @@ function startVoiceStack(): void {
   supervisor.startAll()
 }
 
+const execFileAsync = promisify(execFile)
+
+/**
+ * Turn the login-time wake word listener on or off, and say what it is doing.
+ *
+ * Shelled out to the Agent's own module rather than written from here. The
+ * registry work is one implementation in one place, and this side has the two
+ * things that side cannot know: where `uv` is, and where this executable
+ * actually lives -- which changes on every update.
+ */
+async function wakeAutostart(
+  action: 'enable' | 'disable' | 'status'
+): Promise<{ autostart: boolean; running: boolean }> {
+  const fallback = { autostart: false, running: false }
+  const uv = findUv()
+  if (!repoRoot || !uv) return fallback
+  const args = [
+    'run',
+    '--project',
+    'services/agent',
+    'python',
+    '-m',
+    'marvi_agent.wake_autostart',
+    action
+  ]
+  if (action === 'enable') args.push('--app', app.getPath('exe'))
+  try {
+    const { stdout } = await execFileAsync(uv, args, {
+      cwd: repoRoot,
+      windowsHide: true,
+      // The registered command is baked at this moment and then run by the
+      // login shell, which has its own PATH and almost certainly not `uv` on
+      // it. Passing the resolved path through means the registration holds an
+      // absolute one rather than a name that only resolves in here.
+      env: { ...process.env, MARVI_UV_PATH: uv }
+    })
+    const parsed = JSON.parse(stdout || '{}') as Record<string, unknown>
+    // `registered` is the command line; its presence is the answer.
+    const autostart =
+      action === 'disable' ? false : Boolean(parsed['registered'] || parsed['autostart'])
+    return { autostart, running: autostart }
+  } catch {
+    return fallback
+  }
+}
+
 function rendererUrl(surface: 'main' | 'island'): string {
   return `${process.env['ELECTRON_RENDERER_URL']}?surface=${surface}`
 }
@@ -617,10 +666,38 @@ function createTray(): Tray {
 // in a way that looks like a bug rather than like a second copy, and both would
 // write to the same databases. Electron's lock is the cheapest way to make that
 // impossible; the second launch just surfaces the first.
+/**
+ * The wake word listener runs at login as its own process, and when it hears
+ * her name it runs `Marvi.exe --wake`. That one command covers both cases: if
+ * Marvi is closed it starts her, and if she is open the single-instance lock
+ * hands the argument to the copy already running instead of starting a second.
+ *
+ * So the listener never has to ask whether Marvi is running -- a question it
+ * would have to answer racily, and wrongly during the seconds she is starting.
+ */
+const WAKE_FLAG = '--wake'
+
+/** Set when the app was launched *by* the wake word, for the renderer to read
+ *  once it is ready. A join cannot be requested before there is a window. */
+let launchedByWake = process.argv.includes(WAKE_FLAG)
+
+function requestWakeJoin(): void {
+  showMainWindow()
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.focus()
+    mainWindow.webContents.send('marvi:wake-join')
+  }
+}
+
 if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
-  app.on('second-instance', () => {
+  app.on('second-instance', (_event, argv) => {
+    if (argv.includes(WAKE_FLAG)) {
+      requestWakeJoin()
+      return
+    }
     showMainWindow()
     if (mainWindow && !mainWindow.isDestroyed()) {
       if (mainWindow.isMinimized()) mainWindow.restore()
@@ -1171,11 +1248,28 @@ function startApp(): void {
           recentlyHeard: Boolean(body.recently_heard),
           confidence: Number(body.confidence ?? 0),
           setting: String(body.setting ?? 'MARVI_WAKE_WORD'),
-          thresholdSetting: String(body.threshold_setting ?? 'MARVI_WAKE_THRESHOLD')
+          thresholdSetting: String(body.threshold_setting ?? 'MARVI_WAKE_THRESHOLD'),
+          listener: {
+            autostart: Boolean((body.listener as Record<string, unknown>)?.['autostart']),
+            running: Boolean((body.listener as Record<string, unknown>)?.['running']),
+            error: String((body.listener as Record<string, unknown>)?.['error'] ?? '')
+          }
         }
       } catch {
         return null
       }
+    })
+    ipcMain.handle('marvi:consume-wake-launch', () => {
+      // Consumed rather than read: the renderer reloads on navigation, and a
+      // flag that stayed set would rejoin the room every time it did.
+      const was = launchedByWake
+      launchedByWake = false
+      return was
+    })
+    ipcMain.handle('marvi:get-wake-autostart', async () => wakeAutostart('status'))
+    ipcMain.handle('marvi:set-wake-autostart', async (_event, enabled) => {
+      if (typeof enabled !== 'boolean') return wakeAutostart('status')
+      return wakeAutostart(enabled ? 'enable' : 'disable')
     })
     ipcMain.handle('marvi:get-voices', async (): Promise<VoicePage | null> => {
       try {

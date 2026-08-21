@@ -71,6 +71,24 @@ const marvi = {
     ipcRenderer.on('marvi:runtime-state', wrapped)
     return () => ipcRenderer.removeListener('marvi:runtime-state', wrapped)
   },
+  /**
+   * The wake word fired. Either Marvi was just started by it, or she was
+   * already open and the listener handed the argument to this instance -- the
+   * renderer does not need to know which, because both mean the same thing:
+   * join, now, as though Join had been pressed.
+   */
+  onWakeJoin: (listener: () => void): (() => void) => {
+    const wrapped = (): void => listener()
+    ipcRenderer.on('marvi:wake-join', wrapped)
+    return () => ipcRenderer.removeListener('marvi:wake-join', wrapped)
+  },
+  /** True when this launch was the wake word's doing, for a renderer that was
+   *  not listening yet when it happened. */
+  consumeWakeLaunch: (): Promise<boolean> => ipcRenderer.invoke('marvi:consume-wake-launch'),
+  getWakeAutostart: (): Promise<{ autostart: boolean; running: boolean }> =>
+    ipcRenderer.invoke('marvi:get-wake-autostart'),
+  setWakeAutostart: (enabled: boolean): Promise<{ autostart: boolean; running: boolean }> =>
+    ipcRenderer.invoke('marvi:set-wake-autostart', enabled),
   setYolo: (yolo: boolean): Promise<RuntimeStatus> => ipcRenderer.invoke('marvi:set-yolo', yolo),
   getAudit: (): Promise<AuditEvent[]> => ipcRenderer.invoke('marvi:get-audit'),
   getRoomEvents: (): Promise<RoomEvent[]> => ipcRenderer.invoke('marvi:get-room-events'),

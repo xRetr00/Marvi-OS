@@ -41,6 +41,10 @@ export interface MarviDesktopApi {
   getIslandPlacement: () => Promise<IslandPlacement>
   setIslandPlacement: (placement: IslandPlacement) => Promise<IslandPlacement>
   onRuntime: (listener: (state: RuntimeStatus) => void) => () => void
+  onWakeJoin: (listener: () => void) => () => void
+  consumeWakeLaunch: () => Promise<boolean>
+  getWakeAutostart: () => Promise<{ autostart: boolean; running: boolean }>
+  setWakeAutostart: (enabled: boolean) => Promise<{ autostart: boolean; running: boolean }>
   setYolo: (yolo: boolean) => Promise<RuntimeStatus>
   getAudit: () => Promise<AuditEvent[]>
   getRoomEvents: () => Promise<RoomEvent[]>

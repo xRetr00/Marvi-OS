@@ -14,6 +14,10 @@ dependencies = [
     "livekit-wakeword>=0.2",
     "numpy>=2,<3",
     "python-dotenv>=1,<2",
+    # The wake word listener holds the microphone directly. It runs before
+    # LiveKit exists, so it cannot borrow the room's audio the way the
+    # in-session detector did.
+    "sounddevice>=0.5,<1",
     "torch==2.13.0",
     "transformers==4.51.3",
     "vibevoice @ git+https://github.com/microsoft/VibeVoice.git@94da20d98b2fa7688e9cbfaf7692ddb4954f7600",

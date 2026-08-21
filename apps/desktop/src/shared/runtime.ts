@@ -263,6 +263,19 @@ export interface WakeStatus {
   confidence: number
   setting: string
   thresholdSetting: string
+  /**
+   * The standalone listener that runs at login, which is the only part of the
+   * wake word that can hear you before Marvi is open.
+   *
+   * `autostart` and `running` are separately reported on purpose: registered
+   * but not running is the failure that matters, and folding them into one
+   * boolean makes a listener that crashed look like one nobody has spoken to.
+   */
+  listener: {
+    autostart: boolean
+    running: boolean
+    error: string
+  }
 }
 
 export interface IdentityStatus {

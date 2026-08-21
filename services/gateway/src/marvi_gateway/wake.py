@@ -18,6 +18,8 @@ which is not a thing to keep.
 
 from __future__ import annotations
 
+import contextlib
+import json
 import os
 import time
 from pathlib import Path
@@ -81,12 +83,86 @@ def forget() -> None:
     _confidence = 0.0
 
 
+#: A heartbeat older than this means the listener died rather than stopped.
+#: Three times its write interval, so one slow write is not a death.
+LISTENER_STALE_SECONDS = 15.0
+
+#: Mirrors `marvi_agent.wake_autostart`. Duplicated because the Agent runs in a
+#: different Python environment and this process cannot import it; the test
+#: below fails if the two drift.
+RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
+VALUE_NAME = "MarviWakeWord"
+
+
+def listener_state_path() -> Path:
+    """Where the standalone listener writes that it is alive."""
+    from .paths import root
+
+    return root() / "state" / "wake.json"
+
+
+def registered() -> str:
+    """The login command, or empty.
+
+    Read live rather than cached: the user can turn this off from anywhere,
+    including outside Marvi, and a cached "on" would be a lie that survives.
+    """
+    if os.name != "nt":
+        return ""
+    try:
+        import winreg
+
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as key:
+            value, _ = winreg.QueryValueEx(key, VALUE_NAME)
+        return str(value)
+    except (FileNotFoundError, OSError, ImportError):
+        return ""
+
+
+def listener() -> dict[str, Any]:
+    """What the always-on listener is doing, if anything.
+
+    This is the distinction the status bar exists to make. "Registered" means
+    it will start at login. "Running" means it is listening *now*. They come
+    apart in the case that matters -- registered but crashed -- and that case
+    used to be invisible, which is how a wake word that had not run for days
+    looked exactly like one nobody had said the word to.
+    """
+    command = registered()
+    state: dict[str, Any] = {}
+    with contextlib.suppress(Exception):
+        state = json.loads(listener_state_path().read_text(encoding="utf-8"))
+
+    beat = state.get("heartbeat")
+    fresh = isinstance(beat, int | float) and (time.time() - beat) <= LISTENER_STALE_SECONDS
+    heard_at = state.get("heard_at")
+    return {
+        "autostart": bool(command),
+        "command": command,
+        "running": bool(state.get("running")) and fresh,
+        "pid": state.get("pid"),
+        "started_at": state.get("started_at"),
+        "heartbeat": beat,
+        "heard_at": heard_at,
+        "confidence": state.get("confidence", 0.0),
+        "error": state.get("error", ""),
+    }
+
+
 def status() -> dict[str, Any]:
     path = model_path()
     enabled = _flag("MARVI_WAKE_WORD", True)
     present = path.is_file()
-    age = None if _heard_at is None else time.time() - _heard_at
+    live = listener()
+    # The standalone listener does not post detections -- it may fire while the
+    # Gateway is not even running, which is the whole point of it -- so its file
+    # is the more recent truth whenever it has one.
+    last = _heard_at
+    if isinstance(live.get("heard_at"), int | float):
+        last = max(last or 0.0, float(live["heard_at"]))
+    age = None if last is None else time.time() - last
     return {
+        "listener": live,
         "enabled": enabled,
         "model": str(path),
         "model_present": present,
@@ -96,7 +172,7 @@ def status() -> dict[str, Any]:
         "armed": enabled and present,
         "threshold": _number("MARVI_WAKE_THRESHOLD", DEFAULT_THRESHOLD),
         "window": _number("MARVI_WAKE_WINDOW", DEFAULT_WINDOW_SECONDS),
-        "heard_at": _heard_at,
+        "heard_at": last,
         "heard_seconds_ago": age,
         "recently_heard": age is not None and age <= RECENT_SECONDS,
         "confidence": _confidence,
