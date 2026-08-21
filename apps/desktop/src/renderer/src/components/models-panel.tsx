@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import type { ModelCard, ModelProvider, ProviderPage, UpstreamPage } from '../../../shared/runtime'
+import { PageLead } from './page-lead'
 import { AsciiRule } from './ui/ascii-rule'
 import { Picker, type PickerOption } from './ui/picker'
 
@@ -92,12 +93,11 @@ export function ModelsPanel(): React.JSX.Element {
 
   return (
     <section className="single-page panel">
-      <div className="panel-label">{'// MODELS'}</div>
-      <h2>Models</h2>
-      <p>
-        Each list is what the provider says it has, asked when you pick one rather than typed from
-        memory. Connecting a provider and managing its credentials happens in Providers.
-      </p>
+      <PageLead
+        description="Choose the provider, model, and reasoning effort Marvi should use."
+        icon="models"
+        title="Models"
+      />
 
       <AsciiRule />
 

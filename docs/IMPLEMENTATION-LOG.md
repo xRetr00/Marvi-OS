@@ -676,3 +676,19 @@ failures were invisible to every test that existed.
 - Added component/store coverage for streaming timing presentation, provider
   baselines, combined chat/voice turns, voice phase deduplication, and duration
   formatting.
+
+## 2026-08-21 — approved card hierarchy and desktop haptics
+
+- Applied the approved four-module Overview layout: Current State, Voice Path,
+  Service Health, and Context. Status text now lives in labeled cards, badges,
+  or bounded value cells rather than floating across the page.
+- Kept Voice and Chat purpose-built. Every other page now starts with one
+  compact icon/label lead card and follows with simple bordered values, lists,
+  or controls instead of copying Overview's dashboard density everywhere.
+- Replaced the sidebar's literal `[<]` / `[>]` control with a directional rail
+  glyph. Chromium View Transitions animate the sidebar/content snapshots with
+  compositor transforms; reduced-motion users skip the transition.
+- Fixed silent Windows feedback. `web-haptics` was initialized with `debug:
+  false`, leaving Electron on a mobile-only Vibration API path. Its documented
+  desktop audio-transducer path is now enabled, and rejected audio triggers are
+  contained so device loss cannot interrupt a UI action.
