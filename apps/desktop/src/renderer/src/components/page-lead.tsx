@@ -21,6 +21,9 @@ export function PageLead({
         <h2>{title}</h2>
         <p>{description}</p>
       </div>
+      <span className="page-lead-module" aria-hidden="true">
+        MODULE / {title.toUpperCase()}
+      </span>
     </header>
   )
 }

@@ -692,3 +692,17 @@ failures were invisible to every test that existed.
   false`, leaving Electron on a mobile-only Vibration API path. Its documented
   desktop audio-transducer path is now enabled, and rejected audio triggers are
   contained so device loss cannot interrupt a UI action.
+
+## 2026-08-21 — shell-control and secondary-module polish
+
+- Restored the canonical Marvi mark in the collapsed sidebar; a stale late CSS
+  override had hidden the image while leaving its brand cell empty.
+- Added one Radix-backed tooltip surface for ambiguous shell actions. Title-bar
+  controls, the sidebar rail control, and navigation now expose the same help
+  treatment to pointer and keyboard users while retaining accessible names.
+- Replaced platform text glyphs in the frameless title bar and settings close
+  action with a consistent purpose-built SVG family and complete hover, focus,
+  active, close-danger, and reduced-motion states.
+- Strengthened non-Voice/non-Chat pages with corner-marked lead modules,
+  bounded active sections, indexed rows, and restrained interaction feedback.
+  Overview remains the only dense dashboard; Voice and Chat remain unchanged.

@@ -21,6 +21,7 @@ import { AbstractIcon, type AbstractIconName } from './components/abstract-icon'
 import { MessageTiming } from './components/message-timing'
 import { AboutUpdates, VersionPopover } from './components/update-controls'
 import { PageLead } from './components/page-lead'
+import { TooltipProvider, UiTooltip } from './components/ui/tooltip'
 
 /** Settings shows the device rows in full words. "ALWAYS ON" was printed
  * unconditionally, including with the Gateway offline; "?" is the honest answer
@@ -263,18 +264,17 @@ function MainSurface(): React.JSX.Element {
                   <small>LOCAL INTELLIGENCE</small>
                 </span>
               ) : null}
-              <button
-                aria-label={collapsed ? 'Expand the sidebar' : 'Collapse the sidebar'}
-                aria-pressed={collapsed}
-                className="sidebar-collapse"
-                onClick={toggleSidebar}
-                title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-                type="button"
-              >
-                <svg aria-hidden="true" fill="none" viewBox="0 0 20 20">
-                  <path d="M4 3v14M15 5l-5 5 5 5" />
-                </svg>
-              </button>
+              <UiTooltip label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} side="right">
+                <button
+                  aria-label={collapsed ? 'Expand the sidebar' : 'Collapse the sidebar'}
+                  aria-pressed={collapsed}
+                  className="sidebar-collapse"
+                  onClick={toggleSidebar}
+                  type="button"
+                >
+                  <AbstractIcon name="panel" size={16} />
+                </button>
+              </UiTooltip>
             </header>
 
             <nav aria-label="Main navigation">
@@ -284,23 +284,29 @@ function MainSurface(): React.JSX.Element {
                     <h2 className="nav-group-label">{group.label.toUpperCase()}</h2>
                   ) : null}
                   {group.items.map((item) => (
-                    <button
-                      className={page === item ? 'nav-item active' : 'nav-item'}
-                      key={item}
-                      aria-current={page === item ? 'page' : undefined}
-                      onClick={() => navigate(item)}
-                      title={collapsed ? item : undefined}
-                    >
-                      <AbstractIcon className="nav-icon" name={NAV_ICONS[item]} size={17} />
-                      {!collapsed ? <span className="nav-label">{item}</span> : null}
-                      {!collapsed ? <span className="nav-code">{NAV_CODES[item]}</span> : null}
-                    </button>
+                    <UiTooltip key={item} label={item} side="right">
+                      <button
+                        className={page === item ? 'nav-item active' : 'nav-item'}
+                        aria-label={item}
+                        aria-current={page === item ? 'page' : undefined}
+                        onClick={() => navigate(item)}
+                      >
+                        <AbstractIcon className="nav-icon" name={NAV_ICONS[item]} size={17} />
+                        {!collapsed ? <span className="nav-label">{item}</span> : null}
+                        {!collapsed ? <span className="nav-code">{NAV_CODES[item]}</span> : null}
+                      </button>
+                    </UiTooltip>
                   ))}
                 </div>
               ))}
             </nav>
 
-            <div className="sidebar-foot">
+            <div
+              aria-label={
+                runtime.state === 'ready' ? 'Local runtime ready' : `Runtime ${runtime.state}`
+              }
+              className="sidebar-foot"
+            >
               <span className={runtime.state === 'ready' ? 'pulse-dot' : ''} />{' '}
               {runtime.state === 'ready' ? 'LOCAL / READY' : runtime.state.toUpperCase()}
               <small>MIC + CAM / ON DEVICE</small>
@@ -344,31 +350,41 @@ function MainSurface(): React.JSX.Element {
             </div>
 
             <footer className="statusbar">
-              <button className="status-item" onClick={() => navigate('Overview')} type="button">
-                <i className={`status-${runtime.state}`} /> GW:{runtime.state.toUpperCase()}
-              </button>
-              <button className="status-item" onClick={() => navigate('Voice')} type="button">
-                RTC:{runtime.components.livekit?.state.toUpperCase() ?? 'UNKNOWN'}
-              </button>
-              <button className="status-item" onClick={() => navigate('Voice')} type="button">
-                VOICE:{voice.phase.toUpperCase()}
-              </button>
+              <UiTooltip label="Open Gateway health" side="top">
+                <button className="status-item" onClick={() => navigate('Overview')} type="button">
+                  <i className={`status-${runtime.state}`} /> GW:{runtime.state.toUpperCase()}
+                </button>
+              </UiTooltip>
+              <UiTooltip label="Open realtime transport" side="top">
+                <button className="status-item" onClick={() => navigate('Voice')} type="button">
+                  RTC:{runtime.components.livekit?.state.toUpperCase() ?? 'UNKNOWN'}
+                </button>
+              </UiTooltip>
+              <UiTooltip label="Open voice session" side="top">
+                <button className="status-item" onClick={() => navigate('Voice')} type="button">
+                  VOICE:{voice.phase.toUpperCase()}
+                </button>
+              </UiTooltip>
               <VoiceLevelMeter level={voice.level} />
-              <button
-                className="status-item"
-                onClick={() => setSettings('Preferences')}
-                type="button"
-              >
-                MIC:{deviceLabel(deviceState(runtime, 'microphone'))} CAM:
-                {deviceLabel(deviceState(runtime, 'camera'))}
-              </button>
-              <button
-                className={`status-item${voice.yolo ? ' status-yolo' : ''}`}
-                onClick={() => setSettings('Preferences')}
-                type="button"
-              >
-                MODE:{voice.yolo ? 'YOLO' : 'CONFIRM'}
-              </button>
+              <UiTooltip label="Open microphone and camera settings" side="top">
+                <button
+                  className="status-item"
+                  onClick={() => setSettings('Preferences')}
+                  type="button"
+                >
+                  MIC:{deviceLabel(deviceState(runtime, 'microphone'))} CAM:
+                  {deviceLabel(deviceState(runtime, 'camera'))}
+                </button>
+              </UiTooltip>
+              <UiTooltip label="Open confirmation mode settings" side="top">
+                <button
+                  className={`status-item${voice.yolo ? ' status-yolo' : ''}`}
+                  onClick={() => setSettings('Preferences')}
+                  type="button"
+                >
+                  MODE:{voice.yolo ? 'YOLO' : 'CONFIRM'}
+                </button>
+              </UiTooltip>
               <VersionPopover version={version} onOpenAbout={() => setSettings('About')} />
             </footer>
           </main>
@@ -2355,9 +2371,11 @@ function SettingsShell({
       <nav className="settings-rail" aria-label="Settings sections">
         <div className="settings-rail-head">
           <strong>SETTINGS</strong>
-          <button aria-label="Close settings" onClick={onClose} type="button">
-            ✕
-          </button>
+          <UiTooltip label="Close settings" side="right">
+            <button aria-label="Close settings" onClick={onClose} type="button">
+              <AbstractIcon name="close" size={14} />
+            </button>
+          </UiTooltip>
         </div>
         {SETTINGS_GROUPS.map((group) => (
           <div className="settings-group" key={group.label}>
@@ -2716,8 +2734,10 @@ export default function App(): React.JSX.Element {
   return surface === 'island' ? (
     <IslandSurface />
   ) : (
-    <HapticsProvider>
-      <MainSurface />
-    </HapticsProvider>
+    <TooltipProvider>
+      <HapticsProvider>
+        <MainSurface />
+      </HapticsProvider>
+    </TooltipProvider>
   )
 }
