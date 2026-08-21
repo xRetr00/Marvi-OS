@@ -127,6 +127,14 @@ class NemotronStream(stt.RecognizeStream):
                     if self._transcript.strip():
                         self._emit(stt.SpeechEventType.FINAL_TRANSCRIPT, self._transcript.strip())
                     self._transcript = ""
+                    # The runtime keeps decoder state across `audio` calls --
+                    # that is what makes it incremental -- so ending an
+                    # utterance here without clearing it leaves the next one
+                    # continuing the last. It shows up as a transcript that
+                    # repeats what was already said:
+                    #
+                    #   Are you here?  Are you here?
+                    await self._send({"op": "reset"})
                     continue
 
                 pcm = bytes(item.data)
@@ -276,7 +284,18 @@ class _VibeVoiceEngine:
 class VibeVoiceTTS(tts.TTS):
     def __init__(self, *, root: Path = VIBEVOICE_ROOT, voice: str = DEFAULT_VOICE, inference_steps: int = 3):
         super().__init__(
-            capabilities=tts.TTSCapabilities(streaming=False), sample_rate=24_000, num_channels=1
+            # Streaming, natively. It used to declare False and be wrapped in
+            # LiveKit's StreamAdapter, which batches tokens into sentences of
+            # at least twelve characters before synthesising anything -- so
+            # "Yes." waited for more words that were never coming, and every
+            # reply paid that delay before its first sound.
+            #
+            # The model itself takes a whole utterance, not tokens, so some
+            # batching is unavoidable; owning it means the first clause can be
+            # spoken as soon as it is one.
+            capabilities=tts.TTSCapabilities(streaming=True),
+            sample_rate=24_000,
+            num_channels=1,
         )
         self._engine = _VibeVoiceEngine(root / "model", root / "voices", voice, inference_steps)
 
@@ -299,6 +318,11 @@ class VibeVoiceTTS(tts.TTS):
         self, text: str, *, conn_options: APIConnectOptions = DEFAULT_API_CONNECT_OPTIONS
     ) -> _VibeVoiceChunkedStream:
         return _VibeVoiceChunkedStream(tts=self, input_text=text, conn_options=conn_options)
+
+    def stream(
+        self, *, conn_options: APIConnectOptions = DEFAULT_API_CONNECT_OPTIONS
+    ) -> _VibeVoiceSynthesizeStream:
+        return _VibeVoiceSynthesizeStream(tts=self, conn_options=conn_options)
 
 
 class _VibeVoiceChunkedStream(tts.ChunkedStream):
@@ -334,3 +358,106 @@ class _VibeVoiceChunkedStream(tts.ChunkedStream):
         finally:
             stop.set()
             await asyncio.to_thread(worker.join)
+
+
+#: Punctuation that ends something worth speaking. A clause is enough: waiting
+#: for a full stop means the first sound of a two-sentence reply arrives after
+#: the model has written both.
+_CLAUSE_END = ".!?…\n"
+
+#: Below this, a fragment is not worth synthesising on its own -- "Yes" spoken
+#: alone and then "it is" spoken alone sounds like two answers. Small enough
+#: that a short reply is not held back waiting for words that never come.
+MIN_SPEAKABLE = 4
+
+
+def _next_clause(buffer: str) -> tuple[str, str]:
+    """Split off the first speakable clause, if there is one.
+
+    Returns `(clause, rest)`; an empty clause means nothing is ready yet.
+    """
+    for index, character in enumerate(buffer):
+        if character in _CLAUSE_END and index + 1 >= MIN_SPEAKABLE:
+            return buffer[: index + 1].strip(), buffer[index + 1 :]
+    return "", buffer
+
+
+class _VibeVoiceSynthesizeStream(tts.SynthesizeStream):
+    """Speak a reply while it is still being written.
+
+    Tokens arrive from the LLM one at a time; audio for the first clause is
+    generated and played while the rest of the sentence is still being
+    produced. That is the whole difference between a voice that answers and a
+    voice that pauses to compose.
+    """
+
+    async def _run(self, output_emitter: tts.AudioEmitter) -> None:
+        output_emitter.initialize(
+            request_id=str(uuid.uuid4()),
+            sample_rate=24_000,
+            num_channels=1,
+            mime_type="audio/pcm",
+            frame_size_ms=20,
+            stream=True,
+        )
+        buffer = ""
+
+        async def speak(text: str) -> None:
+            if not text.strip():
+                return
+            await _pump(self._tts._engine, text, output_emitter)
+
+        async for item in self._input_ch:
+            if isinstance(item, self._FlushSentinel):
+                # End of a segment: whatever is left is a clause of its own,
+                # however short. Holding it back would drop the last words.
+                await speak(buffer)
+                buffer = ""
+                output_emitter.flush()
+                continue
+
+            buffer += item
+            while True:
+                clause, buffer = _next_clause(buffer)
+                if not clause:
+                    break
+                await speak(clause)
+
+        await speak(buffer)
+        output_emitter.end_input()
+
+
+async def _pump(engine: Any, text: str, output_emitter: tts.AudioEmitter) -> None:
+    """Synthesise one clause, pushing audio as the model produces it.
+
+    The engine is synchronous and CPU-bound, so it runs on a thread and hands
+    chunks back through a queue. Each is pushed the moment it arrives rather
+    than after the clause is finished -- the same reason the clause is spoken
+    before the sentence is.
+    """
+    stop = threading.Event()
+    queue: asyncio.Queue[bytes | BaseException | None] = asyncio.Queue()
+    loop = asyncio.get_running_loop()
+
+    def produce() -> None:
+        try:
+            for chunk in engine.synthesize(text, stop):
+                loop.call_soon_threadsafe(queue.put_nowait, chunk)
+        except BaseException as exc:
+            loop.call_soon_threadsafe(queue.put_nowait, exc)
+        finally:
+            loop.call_soon_threadsafe(queue.put_nowait, None)
+
+    worker = threading.Thread(target=produce, daemon=True)
+    worker.start()
+    try:
+        while True:
+            item = await queue.get()
+            if item is None:
+                break
+            if isinstance(item, BaseException):
+                raise item
+            output_emitter.push(item)
+    finally:
+        stop.set()
+        await asyncio.to_thread(worker.join)

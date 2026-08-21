@@ -20,8 +20,6 @@ from livekit.agents import (
     cli,
     function_tool,
     llm,
-    tokenize,
-    tts,
 )
 from livekit.plugins import silero
 
@@ -225,10 +223,11 @@ def build_session(proc: JobProcess | None = None) -> tuple[AgentSession, Callabl
         if warmed.get("tts") is not None and warmed.get("tts_voice") == voice
         else VibeVoiceTTS(voice=voice)
     )
-    streaming_tts = tts.StreamAdapter(
-        tts=local_tts,
-        sentence_tokenizer=tokenize.basic.SentenceTokenizer(min_sentence_len=12),
-    )
+    # No StreamAdapter. It exists to make a non-streaming TTS usable, by
+    # batching tokens into sentences of at least twelve characters before
+    # synthesising -- so "Yes." waited for words that were never coming, and
+    # every reply paid that delay before its first sound. The engine speaks a
+    # clause at a time now and owns its own batching.
     engine = voice_runtime_executable()
     if not engine.is_file():
         # Said out loud, once, at the point it is decided. Silence here is what
@@ -246,7 +245,7 @@ def build_session(proc: JobProcess | None = None) -> tuple[AgentSession, Callabl
         ),
         vad=warmed.get("vad") or silero.VAD.load(),
         llm=_timed_llm(),
-        tts=streaming_tts,
+        tts=local_tts,
         turn_handling=TurnHandlingOptions(
             turn_detection=build_local_turn_detector(),
             endpointing={"mode": "dynamic", "min_delay": 0.25, "max_delay": 2.0},
