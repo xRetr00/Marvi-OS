@@ -656,3 +656,53 @@ failures were invisible to every test that existed.
   ramp (░ → ▒ → ▓ → █) so a meter reads as one continuous density instead of
   eight on/off cells.
 - `accordion-loader.test.ts` covers the glyphs, track, and length override.
+
+## 2026-08-21 — readable shell, update access, and session telemetry
+
+- Replaced the overly decorative application typography with explicit roles:
+  Collapse remains the MARVI wordmark while JetBrains Mono carries every
+  heading, paragraph, control, and data value at readable sizes and spacing.
+- Rebuilt the sidebar around a small custom abstract SVG icon language, clearer
+  brand block, active rail, and useful collapsed state. No icon dependency or
+  runtime asset was added.
+- Kept the status-bar visual treatment and made its version label actionable.
+  The popover shows build metadata, channel, updater state, and the guarded
+  update handoff. About now owns the same full controls; the redundant Updates
+  destination and upstream marketing copy were removed.
+- Adapted the user-provided `MessageTiming` pattern to the renderer's existing
+  plain-CSS system. Provider, Chat, and Voice share session tokens, turns, last
+  latency, and elapsed time. Token counts use Gateway provider-total deltas;
+  they are not estimated from message text.
+- Added component/store coverage for streaming timing presentation, provider
+  baselines, combined chat/voice turns, voice phase deduplication, and duration
+  formatting.
+
+## 2026-08-21 — approved card hierarchy and desktop haptics
+
+- Applied the approved four-module Overview layout: Current State, Voice Path,
+  Service Health, and Context. Status text now lives in labeled cards, badges,
+  or bounded value cells rather than floating across the page.
+- Kept Voice and Chat purpose-built. Every other page now starts with one
+  compact icon/label lead card and follows with simple bordered values, lists,
+  or controls instead of copying Overview's dashboard density everywhere.
+- Replaced the sidebar's literal `[<]` / `[>]` control with a directional rail
+  glyph. Chromium View Transitions animate the sidebar/content snapshots with
+  compositor transforms; reduced-motion users skip the transition.
+- Fixed silent Windows feedback. `web-haptics` was initialized with `debug:
+  false`, leaving Electron on a mobile-only Vibration API path. Its documented
+  desktop audio-transducer path is now enabled, and rejected audio triggers are
+  contained so device loss cannot interrupt a UI action.
+
+## 2026-08-21 — shell-control and secondary-module polish
+
+- Restored the canonical Marvi mark in the collapsed sidebar; a stale late CSS
+  override had hidden the image while leaving its brand cell empty.
+- Added one Radix-backed tooltip surface for ambiguous shell actions. Title-bar
+  controls, the sidebar rail control, and navigation now expose the same help
+  treatment to pointer and keyboard users while retaining accessible names.
+- Replaced platform text glyphs in the frameless title bar and settings close
+  action with a consistent purpose-built SVG family and complete hover, focus,
+  active, close-danger, and reduced-motion states.
+- Strengthened non-Voice/non-Chat pages with corner-marked lead modules,
+  bounded active sections, indexed rows, and restrained interaction feedback.
+  Overview remains the only dense dashboard; Voice and Chat remain unchanged.

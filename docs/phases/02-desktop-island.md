@@ -35,6 +35,19 @@ surface and its native-window behavior can be proven without the voice engine.
   Island placement, with accessible switch/pressed semantics.
 - Real Gateway/component, microphone, camera, phase, mode, and version data in
   the persistent status bar.
+- Icon-led sidebar navigation with a Marvi-specific abstract line language and
+  Collapse restricted to branding so application text remains readable.
+- Version status button with compact build/update details; About owns the full
+  updater controls and the redundant Updates destination is removed.
+- Shared session telemetry on Provider, Chat, and Voice: authoritative token
+  deltas, combined turn count, last latency, and continuously elapsed duration.
+- Four-module Overview dashboard with labeled cards and a simpler lead-card +
+  value-row hierarchy across every non-Voice/non-Chat page.
+- Directional sidebar rail control with compositor View Transition motion,
+  reduced-motion fallback, and working desktop audio-transducer haptics.
+- Canonical Marvi mark retained in the collapsed rail, shared accessible
+  tooltips for ambiguous shell actions, modern abstract SVG window controls,
+  and richer editorial module treatment on secondary pages.
 
 ## Design-source review
 
@@ -84,6 +97,14 @@ frame.
   Gateway-owned mode and exact-token confirmation behavior.
 - Playwright visual inspection passed for Overview and Settings at the target
   renderer geometry; local artifacts are under ignored `output/playwright/`.
+- Focused renderer ESLint, typecheck, and 167-test suite passed for the
+  navigation/update/session-telemetry refinement on 2026-08-21.
+- Production build, focused renderer ESLint, and 172 tests passed for the
+  approved card hierarchy, sidebar transition, and haptics repair on 2026-08-21.
+- Production build, focused renderer ESLint, and 174 tests passed for the
+  shell-control/secondary-module polish on 2026-08-21. Playwright inspection
+  covered expanded Overview, collapsed logo/navigation tooltip, Room, and
+  Maintenance at 1920×1040 with zero browser errors or warnings.
 - Development Electron upper-bound (main + Island): 536.3 MB aggregate working
   set and 1.562 CPU-seconds over 5 seconds. No dedicated CUDA allocation was
   reported; release idle profiling remains a Phase 7 optimization gate.

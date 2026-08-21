@@ -20,8 +20,10 @@ Palette:
 
 Blue is a status signal, not a general decorative gradient. Avoid colorful
 cards. Use monospaced typography, ASCII separators, compact uppercase labels,
-and crisp one-pixel geometry. Do not add scanlines, blur, chromatic aberration,
-or noise that reduces legibility.
+thin abstract line icons, and crisp one-pixel geometry. Collapse is reserved
+for the product wordmark; headings, prose, controls, and data use JetBrains
+Mono with readable size, weight, line height, and tracking. Do not add
+scanlines, blur, chromatic aberration, or noise that reduces legibility.
 
 ## Application icon and repository artwork
 
@@ -64,7 +66,9 @@ never fetched at runtime. Backdrop opacity and translucency are persisted
 per-machine. Reduced-motion users get static text and no exit choreography.
 
 The status bar keeps the persistent readouts and adds a live voice-level
-meter (8 ASCII cells) so the shell reads "alive" at a glance.
+meter (8 ASCII cells) so the shell reads "alive" at a glance. Its version
+label is a button that opens compact build/update details without navigating
+away from the current task.
 
 ## Dynamic Island
 
@@ -113,23 +117,26 @@ The main window uses a fixed shell:
 ┌ MARVI OS ────────────────────────────────────────────────────────────────┐
 │ SIDEBAR        │ CURRENT VIEW                                           │
 │                │                                                        │
-│ Overview       │                                                        │
-│ Activity       │                                                        │
-│ World          │                                                        │
-│ Room           │                                                        │
-│ Memory         │                                                        │
-│ Integrations   │                                                        │
-│ Voice & Vision │                                                        │
-│ Settings       │                                                        │
-│ Updates        │                                                        │
-│ About          │                                                        │
+│ ◇ Overview     │                                                        │
+│ ◉ Voice        │                                                        │
+│ ⌁ Chat         │                                                        │
+│ ⬡ Vision       │                                                        │
+│ ⌂ Room         │                                                        │
+│ ≋ Activity     │                                                        │
+│ ...            │                                                        │
 ├────────────────┴────────────────────────────────────────────────────────┤
 │ ● GATEWAY  ● VOICE  ● VISION  ● ROOM   MODEL   MODE   v0.1.0          │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-The sidebar is navigation, not a second dashboard. The bottom status bar is
-always present and shows compact authoritative health:
+The sidebar is navigation, not a second dashboard. Every destination uses a
+purpose-built abstract line icon, a plain label, and a short code. The expanded
+rail includes a compact brand descriptor; the collapsed rail keeps the icons
+and active indicator legible, and keeps the canonical Marvi mark in its brand
+cell so the compact rail never becomes anonymous. Collapse uses a narrow panel
+glyph rail control, not bracket text. Chromium View Transitions move the sidebar and content as
+compositor snapshots; reduced-motion users get an immediate state change. The
+bottom status bar is always present and shows compact authoritative health:
 
 - Marvi Gateway
 - LiveKit transport
@@ -140,8 +147,39 @@ always present and shows compact authoritative health:
 - Confirm or YOLO mode
 - version/update indicator
 
-Status items open the relevant view; they do not create nested popovers with
-duplicated settings.
+Health items open the relevant view. The version item is the sole exception:
+it opens a compact popover with version, channel, commit, build time, last
+update result, and check/update actions. Full update controls live in About;
+there is no separate Updates settings destination.
+
+Provider, Chat, and Voice show the same session timing strip. Provider totals
+are authoritative Gateway values. The displayed session token count is the
+delta from the first provider snapshot after this renderer session starts, so
+it accumulates across chat and voice turns without inventing token estimates.
+Chat latency measures request-to-reply time; voice latency measures the active
+listen/wake-to-speaking transition. Turn and duration counters continue while
+the renderer session remains open.
+
+Overview is the denser operational exception to the otherwise simple pages. It
+uses four numbered modules: Current State, Voice Path, Service Health, and
+Context. Every value sits in a labeled field, status badge, or bounded cell;
+there is no loose status prose. Other pages except Voice and Chat use one
+compact labeled lead card followed by simple bordered value rows and lists.
+Those secondary pages use a quieter editorial module stack: corner-marked lead,
+bounded active module, indexed value rows, and restrained hover feedback. Do
+not repeat the Overview dashboard density on configuration and history pages.
+Voice and Chat retain their purpose-built interaction layouts.
+
+Icon-only and ambiguous shell controls use the shared accessible tooltip
+surface. Tooltips appear on hover and keyboard focus after a short delay, use
+the same one-pixel geometry as the shell, and never replace an accessible name.
+The title bar, compact navigation rail, and settings close control use one
+matching abstract SVG language; platform-symbol text glyphs are not used.
+
+Desktop haptics use `web-haptics` with its documented debug audio-transducer
+path enabled. Electron on Windows does not expose the mobile Vibration API, so
+disabling that path makes otherwise valid triggers silent. Haptic failures are
+non-blocking and never interrupt the action that requested feedback.
 
 ## Island micro-events
 
@@ -191,8 +229,8 @@ About uses the app icon, not the repository banner. It contains:
 - Git commit, build time, architecture, and update channel;
 - Marvi Gateway and LiveKit versions;
 - selected STT/TTS model and revision;
-- upstream license/provenance link;
-- Check for Updates and diagnostics export actions.
+- update channel, check, download/handoff, and last-result controls;
+- diagnostics export action.
 
 The sidebar and status bar remain visible in About.
 

@@ -6,6 +6,7 @@ import { ConnectingOverlay } from './ConnectingOverlay'
 import { TitleBar } from './TitleBar'
 import { GlyphSpinner } from './ui/glyph-spinner'
 import { DecodeText } from './ui/decode-text'
+import { TooltipProvider } from './ui/tooltip'
 import { OFFLINE_RUNTIME } from '../../../shared/runtime'
 import { $runtimeState } from '../store/voice-state'
 
@@ -14,8 +15,12 @@ afterEach(() => {
 })
 
 describe('TitleBar', () => {
-  it('paints the current page, a settings gear, and the window controls', () => {
-    const html = renderToStaticMarkup(<TitleBar onSettings={() => {}} page="Overview" />)
+  it('paints the current page and a consistent SVG control set', () => {
+    const html = renderToStaticMarkup(
+      <TooltipProvider>
+        <TitleBar onSettings={() => {}} page="Overview" />
+      </TooltipProvider>
+    )
 
     expect(html).toContain('titlebar')
     expect(html).toContain('OVERVIEW')
@@ -26,10 +31,18 @@ describe('TitleBar', () => {
     expect(html).toContain('aria-label="Minimize"')
     expect(html).toContain('aria-label="Maximize"')
     expect(html).toContain('aria-label="Close"')
+    expect(html.match(/<svg/g)).toHaveLength(4)
+    expect(html).not.toContain('⚙')
+    expect(html).not.toContain('✕')
+    expect(html).not.toContain('▢')
   })
 
   it('carries drag region styling hooks for the frameless window', () => {
-    const html = renderToStaticMarkup(<TitleBar onSettings={() => {}} page="Voice" />)
+    const html = renderToStaticMarkup(
+      <TooltipProvider>
+        <TitleBar onSettings={() => {}} page="Voice" />
+      </TooltipProvider>
+    )
 
     expect(html).toContain('class="titlebar"')
     expect(html).toContain('no-drag')
