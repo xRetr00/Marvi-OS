@@ -9,6 +9,7 @@ import {
   setUpdateChannel
 } from '../store/update-state'
 import { AbstractIcon } from './abstract-icon'
+import { UiTooltip } from './ui/tooltip'
 
 function availableText(): string {
   const check = $updateView.get().check
@@ -84,11 +85,17 @@ export function VersionPopover({
           .then((info) => setBuild({ commit: info.commit, buildTime: info.buildTime }))
       }}
     >
-      <Popover.Trigger asChild>
-        <button className="status-item status-version" type="button">
-          v{version}
-        </button>
-      </Popover.Trigger>
+      <UiTooltip label="Version and update details" side="top">
+        <Popover.Trigger asChild>
+          <button
+            aria-label={`Version ${version}. Open update details`}
+            className="status-item status-version"
+            type="button"
+          >
+            v{version}
+          </button>
+        </Popover.Trigger>
+      </UiTooltip>
       <Popover.Portal>
         <Popover.Content align="end" className="version-popover" side="top" sideOffset={7}>
           <header className="version-popover-head">

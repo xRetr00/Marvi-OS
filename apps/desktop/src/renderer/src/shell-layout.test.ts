@@ -94,6 +94,21 @@ describe('shell layout', () => {
     expect(app).not.toContain("collapsed ? '[>]' : '[<]'")
     expect(css).toContain('view-transition-name: marvi-sidebar')
   })
+
+  it('keeps Marvi visible in the compact rail and provides contextual help', () => {
+    expect(css).toContain('.sidebar.collapsed .brand-icon-sidebar')
+    const compactLogoRule = css.slice(css.lastIndexOf('.sidebar.collapsed .brand-icon-sidebar'))
+    expect(compactLogoRule.slice(0, compactLogoRule.indexOf('}'))).toContain('display: block')
+    expect(app).toContain('<TooltipProvider>')
+    expect(app).toContain("label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}")
+    expect(css).toContain('.ui-tooltip')
+  })
+
+  it('gives secondary pages a bounded module hierarchy', () => {
+    expect(css).toContain("content: '+  ACTIVE MODULE'")
+    expect(css).toContain('.page-lead-module')
+    expect(css).toContain('.single-page.panel > .service-list')
+  })
 })
 
 describe('what the shell claims about the devices', () => {

@@ -11,6 +11,8 @@
 import { useEffect, useState } from 'react'
 
 import { haptic } from '../lib/haptics'
+import { AbstractIcon } from './abstract-icon'
+import { UiTooltip } from './ui/tooltip'
 
 interface TitleBarProps {
   /** Current nav page, shown in the title text. */
@@ -51,31 +53,49 @@ export function TitleBar({ page, onSettings }: TitleBarProps): React.JSX.Element
       </div>
       <div className="titlebar-spacer" />
       <div className="titlebar-controls no-drag" onDoubleClick={(event) => event.stopPropagation()}>
-        <button
-          aria-label="Settings"
-          className="titlebar-control"
-          onClick={() => {
-            haptic('tap')
-            onSettings()
-          }}
-          type="button"
-        >
-          <span aria-hidden="true">⚙</span>
-        </button>
-        <button aria-label="Minimize" className="titlebar-control" onClick={minimize} type="button">
-          <span aria-hidden="true">−</span>
-        </button>
-        <button
-          aria-label={maximized ? 'Restore' : 'Maximize'}
-          className="titlebar-control"
-          onClick={toggleMaximize}
-          type="button"
-        >
-          <span aria-hidden="true">{maximized ? '❐' : '▢'}</span>
-        </button>
-        <button aria-label="Close" className="titlebar-control close" onClick={close} type="button">
-          <span aria-hidden="true">✕</span>
-        </button>
+        <UiTooltip label="Open settings" side="bottom">
+          <button
+            aria-label="Settings"
+            className="titlebar-control settings"
+            onClick={() => {
+              haptic('tap')
+              onSettings()
+            }}
+            type="button"
+          >
+            <AbstractIcon name="settings" size={15} />
+          </button>
+        </UiTooltip>
+        <UiTooltip label="Minimize window" side="bottom">
+          <button
+            aria-label="Minimize"
+            className="titlebar-control"
+            onClick={minimize}
+            type="button"
+          >
+            <AbstractIcon name="minimize" size={15} />
+          </button>
+        </UiTooltip>
+        <UiTooltip label={maximized ? 'Restore window' : 'Maximize window'} side="bottom">
+          <button
+            aria-label={maximized ? 'Restore' : 'Maximize'}
+            className="titlebar-control"
+            onClick={toggleMaximize}
+            type="button"
+          >
+            <AbstractIcon name={maximized ? 'restore' : 'maximize'} size={15} />
+          </button>
+        </UiTooltip>
+        <UiTooltip label="Close window" side="bottom">
+          <button
+            aria-label="Close"
+            className="titlebar-control close"
+            onClick={close}
+            type="button"
+          >
+            <AbstractIcon name="close" size={15} />
+          </button>
+        </UiTooltip>
       </div>
     </header>
   )
