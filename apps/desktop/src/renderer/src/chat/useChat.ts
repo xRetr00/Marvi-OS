@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import { toChatMessages, type ChatMessage, type PendingConfirmation } from './types'
+import { recordChatTurn } from '../store/session-metrics'
 
 export interface UseChat {
   messages: ChatMessage[]
@@ -61,8 +62,10 @@ export function useChat(): UseChat {
       ...current,
       { id: -Date.now(), at: new Date().toISOString(), role: 'user', content: text, meta: {} }
     ])
+    const startedAt = performance.now()
     try {
       const reply = await window.marvi?.sendChat(text, override)
+      if (reply) recordChatTurn(performance.now() - startedAt)
       const page = await window.marvi?.getChat()
       if (page) setMessages(toChatMessages(page.messages))
       const confirmation = reply?.pending_confirmation
@@ -89,7 +92,7 @@ export function useChat(): UseChat {
     } finally {
       setBusy(false)
     }
-  }, [draft, busy])
+  }, [draft, busy, override])
 
   const resolve = useCallback(
     async (decision: 'approve' | 'deny'): Promise<void> => {

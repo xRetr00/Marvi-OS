@@ -2712,3 +2712,462 @@ button:focus-visible,
     display: none;
   }
 }
+
+/* ===== Legibility + icon language =======================================
+ * Collapse is a wordmark face. Ordinary headings use JetBrains Mono Bold so
+ * letters stay intact at Windows scaling, while labels and body copy keep
+ * readable sizes and restrained tracking. */
+
+body {
+  font-weight: 400;
+}
+
+.topbar h1,
+.single-page h2,
+.settings-head h1,
+.settings-section h2,
+.about-identity h2,
+.voice-hud-state strong,
+.overview-now strong,
+.core-copy strong {
+  font-family: 'JetBrains Mono', 'Cascadia Mono', Consolas, monospace;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+}
+
+.topbar h1 {
+  font-size: 18px;
+  text-transform: none;
+}
+
+.single-page h2 {
+  margin: 32px 44px 10px;
+  font-size: 22px;
+  text-transform: none;
+}
+
+.single-page p,
+.settings-section p,
+.command-card p,
+.about-identity p,
+.overview-note,
+.overview-now p,
+.overview-clear {
+  max-width: 72ch;
+  color: var(--ui-text-secondary);
+  font-size: 13px;
+  line-height: 1.55;
+  letter-spacing: -0.01em;
+}
+
+.panel-label,
+.nav-group-label,
+.settings-group h2,
+.service-state,
+.construction {
+  letter-spacing: 0.08em;
+}
+
+.panel-label,
+.nav-group-label,
+.settings-group h2 {
+  font-size: 10px;
+}
+
+.service-row small,
+.context-line span,
+.context-line strong,
+.about-facts dt,
+.about-facts dd {
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+/* Sidebar: icon-led, spacious enough to scan, with secondary codes kept as
+ * quiet orientation aids instead of acting as the icon themselves. */
+.sidebar {
+  border-right-color: var(--ui-stroke-primary);
+  background:
+    linear-gradient(135deg, rgb(255 255 255 / 1.5%) 0 1px, transparent 1px 18px),
+    color-mix(in srgb, var(--ui-bg) 98%, transparent);
+  background-size: 18px 18px;
+}
+
+.brand-block {
+  height: 82px;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 0 16px;
+}
+
+.brand-icon-sidebar {
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--ui-stroke-primary);
+  border-radius: 0;
+}
+
+.brand-copy {
+  display: flex !important;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 !important;
+  color: inherit !important;
+}
+
+.brand-copy strong {
+  margin: 0;
+  font-family: 'Collapse', sans-serif;
+  font-size: 15px;
+  letter-spacing: 0.12em;
+}
+
+.brand-copy small {
+  color: var(--ui-text-tertiary);
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.sidebar-collapse {
+  flex: none;
+  width: 25px;
+  height: 25px;
+  border: 1px solid var(--ui-stroke-secondary);
+  background: var(--ui-bg);
+}
+
+.sidebar nav {
+  padding: 10px 9px 18px;
+}
+
+.nav-group {
+  position: relative;
+  margin-bottom: 14px;
+  padding-left: 5px;
+}
+
+.nav-group::before {
+  content: '';
+  position: absolute;
+  top: 31px;
+  bottom: 5px;
+  left: 12px;
+  width: 1px;
+  background: var(--ui-stroke-tertiary);
+}
+
+.nav-group-label {
+  padding: 8px 10px 7px;
+}
+
+.nav-item {
+  gap: 11px;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  font-size: 12px;
+  letter-spacing: -0.01em;
+  text-transform: none;
+}
+
+.nav-item::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 7px;
+  width: 11px;
+  height: 1px;
+  background: var(--ui-stroke-tertiary);
+}
+
+.nav-icon {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  padding: 2px;
+  background: var(--ui-bg);
+  color: var(--ui-text-tertiary);
+}
+
+.nav-label {
+  flex: 1;
+  text-align: left;
+}
+
+.nav-code {
+  width: auto;
+  color: var(--ui-text-tertiary);
+  font-size: 8px;
+  letter-spacing: 0.06em;
+}
+
+.nav-item.active {
+  border-color: var(--ui-stroke-secondary);
+  background: linear-gradient(90deg, var(--ui-accent-soft), var(--ui-bg-raised) 74%);
+}
+
+.nav-item.active::before {
+  content: '';
+  top: 7px;
+  bottom: 7px;
+  left: -6px;
+  width: 2px;
+  background: var(--ui-accent);
+}
+
+.nav-item.active .nav-icon,
+.nav-item.active .nav-code {
+  color: var(--ui-accent);
+}
+
+.sidebar.collapsed .nav-group {
+  padding-left: 0;
+}
+
+.sidebar.collapsed .nav-group::before,
+.sidebar.collapsed .nav-item::after {
+  display: none;
+}
+
+.sidebar.collapsed .nav-icon {
+  background: transparent;
+}
+
+.sidebar-foot {
+  min-height: 58px;
+  background: var(--ui-bg-raised);
+}
+
+.topbar > div {
+  align-items: center;
+}
+
+.topbar-icon {
+  color: var(--ui-accent);
+}
+
+.settings-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  font-size: 11px;
+}
+
+.settings-link svg {
+  flex: none;
+  color: var(--ui-text-tertiary);
+}
+
+.settings-link.active svg {
+  color: var(--ui-accent);
+}
+
+.settings-head-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-head-title svg {
+  color: var(--ui-accent);
+}
+
+/* Supplied message timing pattern, expressed in the repository's plain CSS. */
+.message-timing {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px 14px;
+  color: var(--ui-text-tertiary);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.message-timing-icon {
+  color: var(--ui-text-tertiary);
+}
+
+.message-timing-stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.message-timing-label {
+  color: var(--ui-text-tertiary);
+}
+
+.message-timing-value {
+  color: var(--ui-text-secondary);
+}
+
+.message-timing.is-streaming .message-timing-icon,
+.message-timing.is-streaming .message-timing-value {
+  color: var(--ui-accent);
+}
+
+.provider-timing {
+  margin: 22px 44px 0;
+  padding: 12px 14px;
+  border-block: 1px solid var(--ui-stroke-tertiary);
+  background: var(--ui-bg-raised);
+}
+
+.voice-session-timing {
+  position: absolute;
+  top: 34px;
+  left: 50%;
+  z-index: 3;
+  max-width: 46%;
+  transform: translateX(-50%);
+}
+
+/* Version popover and About share the same update state and actions. */
+.version-popover {
+  z-index: 80;
+  width: 330px;
+  padding: 16px;
+  border: 1px solid var(--ui-stroke-primary);
+  background: var(--ui-bg-raised);
+  box-shadow: var(--shadow-nous);
+}
+
+.version-popover-head,
+.about-updates > header {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.version-popover-head > svg,
+.about-updates > header > svg {
+  color: var(--ui-accent);
+}
+
+.version-popover-head div,
+.about-updates > header div {
+  display: grid;
+  gap: 3px;
+}
+
+.version-popover-head strong,
+.about-updates h3 {
+  margin: 0;
+  color: var(--ui-text-emphasis);
+  font-size: 13px;
+}
+
+.version-popover-head span,
+.about-updates p {
+  margin: 0;
+  color: var(--ui-text-tertiary);
+  font-size: 10px;
+}
+
+.version-popover-facts {
+  margin: 14px 0;
+}
+
+.version-popover-facts > div {
+  display: grid;
+  grid-template-columns: 78px 1fr;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--ui-stroke-tertiary);
+}
+
+.version-popover-facts dt,
+.version-popover-facts dd {
+  margin: 0;
+  font-size: 10px;
+}
+
+.version-popover-facts dt {
+  color: var(--ui-text-tertiary);
+}
+
+.version-popover-facts dd {
+  color: var(--ui-text-secondary);
+}
+
+.version-popover-arrow {
+  fill: var(--ui-stroke-primary);
+}
+
+.update-actions,
+.update-channel {
+  display: flex;
+  gap: 8px;
+}
+
+.ui-button,
+.version-about-link {
+  min-height: 31px;
+  padding: 0 11px;
+  border: 1px solid var(--ui-stroke-secondary);
+  background: transparent;
+  color: var(--ui-text-secondary);
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.ui-button:hover:not(:disabled),
+.version-about-link:hover {
+  border-color: var(--ui-accent);
+  color: var(--ui-text-emphasis);
+}
+
+.ui-button.primary,
+.ui-button.active {
+  border-color: var(--ui-accent);
+  background: var(--ui-accent-soft);
+  color: var(--ui-text-emphasis);
+}
+
+.ui-button:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
+
+.version-about-link {
+  width: 100%;
+  margin-top: 10px;
+  border: 0;
+  text-align: right;
+}
+
+.about-updates {
+  max-width: 760px;
+  margin: 28px 0;
+  padding: 18px 0;
+  border-block: 1px solid var(--ui-stroke-secondary);
+}
+
+.about-update-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 26px;
+  margin: 18px 0;
+  color: var(--ui-text-tertiary);
+  font-size: 10px;
+}
+
+.about-update-facts strong {
+  color: var(--ui-text-primary);
+  font-weight: 400;
+}
+
+.about-updates .update-channel {
+  margin-bottom: 10px;
+}
+
+@media (max-width: 1100px) {
+  .voice-session-timing {
+    display: none;
+  }
+}

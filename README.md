@@ -4,8 +4,9 @@
 
 Marvi OS is a local-first, always-on Windows voice and vision assistant. Its
 primary interface is a compact Dynamic Island; its main window is a monochrome
-control center for settings, integrations, memory, activity, room state,
-updates, and About.
+control center for settings, integrations, memory, activity, room state, and
+About. Version details and update actions are available from the status bar
+and About rather than a separate update page.
 
 The repository banner is repository artwork only. It must never be embedded in
 the desktop application. The desktop icon source is
@@ -24,8 +25,10 @@ loudspeaker double-talk test plus the 60-minute duplex soak.
 Current implemented desktop surfaces:
 
 - tray-owned application lifetime and control-center window;
-- sidebar, persistent status bar, overview, and About build information;
-- Collapse + JetBrains Mono monochrome design system;
+- icon-led sidebar, persistent status bar, overview, and About build/update information;
+- Collapse wordmark + readable JetBrains Mono monochrome design system;
+- shared Provider, Chat, and Voice session telemetry for authoritative token
+  deltas, turns, latency, and elapsed time;
 - passive `76×8` top-edge Island seed that expands for active voice states;
 - canonical app icon rendered in the app, tray, taskbar/package, sidebar, and About.
 - action, notification, error, confirmation, and persistent YOLO Island states;

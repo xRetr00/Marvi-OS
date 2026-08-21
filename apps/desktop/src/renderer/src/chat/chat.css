@@ -32,6 +32,16 @@
   white-space: nowrap;
 }
 
+.chat-session-timing {
+  flex: none;
+}
+
+@media (max-width: 1050px) {
+  .chat-session-timing .message-timing-stat:nth-of-type(-n + 2) {
+    display: none;
+  }
+}
+
 .chat-bar-button {
   padding: 6px 12px;
   border: 1px solid var(--ui-stroke-secondary);

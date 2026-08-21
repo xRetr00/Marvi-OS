@@ -19,6 +19,7 @@ import { OFFLINE_RUNTIME, deviceLabel, deviceState } from '../../shared/runtime'
 // what it is testing.
 const css = readFileSync(join(__dirname, 'assets/main.css'), 'utf8').replace(/\r\n/g, '\n')
 const voiceOrb = readFileSync(join(__dirname, 'orb/VoiceOrb.tsx'), 'utf8')
+const app = readFileSync(join(__dirname, 'App.tsx'), 'utf8')
 
 /** The rule block for a selector, so a moved property still fails the test. */
 function block(selector: string): string {
@@ -70,6 +71,12 @@ describe('shell layout', () => {
     expect(css).not.toContain('cursor: crosshair')
     expect(voiceOrb).not.toContain('pointermove')
     expect(voiceOrb).not.toContain('PointerEvent')
+  })
+
+  it('puts updates in About instead of a second settings destination', () => {
+    expect(app).not.toContain("'Maintenance', 'Updates', 'About'")
+    expect(app).toContain('<AboutUpdates version={build.version} />')
+    expect(app).not.toContain('about-provenance')
   })
 })
 
