@@ -12,6 +12,9 @@ would put a model's private working into Marvi's mouth.
 
 from __future__ import annotations
 
+import json
+from typing import ClassVar
+
 import httpx
 import pytest
 
@@ -271,3 +274,135 @@ def test_a_turn_nobody_cancels_runs_to_the_end(tmp_path) -> None:
 
     assert events[-1].get("cancelled") is not True
     assert events[-1]["reply"] == "The light is on."
+
+
+# -- what the model remembers of its own actions -----------------------------
+
+
+def rounds(bodies: list, *replies: str) -> httpx.Client:
+    """A provider that answers each round from `replies`, recording requests."""
+    seen = iter(replies)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        bodies.append(json.loads(request.content))
+        return httpx.Response(
+            200, text=next(seen), headers={"content-type": "text/event-stream"}
+        )
+
+    return httpx.Client(transport=httpx.MockTransport(handler))
+
+
+CALL = sse(
+    '{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"c1",'
+    '"function":{"name":"set_light","arguments":"{\\"on\\":true}"}}]}}]}'
+)
+
+
+def test_the_model_is_told_what_it_already_called(tmp_path) -> None:
+    """Otherwise it calls the same tool again, and again, to the round limit.
+
+    Only the tool *result* was replayed, as an observation with no author. The
+    model's own decision to call the tool was never recorded, so on the next
+    round it saw a result it had no memory of asking for -- and asked again.
+    Eight rounds of that is eight round trips and eight times the tokens for
+    one answer.
+    """
+    bodies: list = []
+    chat = Chat(
+        store=ChatStore(tmp_path / "chat.sqlite3"),
+        client=ProviderClient(http=rounds(bodies, CALL, ANSWER)),
+        dispatch=lambda name, arguments: {"status": "executed", "result": "on"},
+    )
+
+    list(chat.send_stream("turn the light on"))
+
+    assert len(bodies) == 2, "the fake answers a call then an answer"
+    second = bodies[1]["messages"]
+    assistant = [m for m in second if m["role"] == "assistant"]
+
+    assert assistant, "round two shows no record of the model having acted"
+    assert "set_light" in " ".join(m["content"] for m in assistant)
+
+
+def test_the_tool_result_is_still_replayed(tmp_path) -> None:
+    """The record of the call must not displace what the call returned."""
+    bodies: list = []
+    chat = Chat(
+        store=ChatStore(tmp_path / "chat.sqlite3"),
+        client=ProviderClient(http=rounds(bodies, CALL, ANSWER)),
+        dispatch=lambda name, arguments: {"status": "executed", "result": "the light is on"},
+    )
+
+    list(chat.send_stream("turn the light on"))
+
+    assert "the light is on" in json.dumps(bodies[1]["messages"])
+
+
+def test_what_the_plugins_already_know_reaches_the_prompt(tmp_path) -> None:
+    """`plugins.context_lines` existed, was documented, and had no caller.
+
+    The room engine offers a context line carrying its own vision block --
+    whether the owner is visible, what they appear to be doing. Marvi collected
+    the provider and never called it, so it ran a second camera pipeline while
+    ignoring the answer it already had.
+    """
+
+    class Plugin:
+        name = "room"
+
+        class context:  # noqa: N801 - mirrors the plugin contract's shape
+            context_providers: ClassVar = {"room": lambda: "the owner is at the desk"}
+
+    bodies: list = []
+    chat = Chat(
+        store=ChatStore(tmp_path / "chat.sqlite3"),
+        client=ProviderClient(http=rounds(bodies, ANSWER)),
+        plugins=[Plugin()],
+    )
+
+    list(chat.send_stream("what am I doing?"))
+
+    assert "the owner is at the desk" in bodies[0]["messages"][0]["content"]
+
+
+def test_a_plugin_that_throws_does_not_take_the_turn_down(tmp_path) -> None:
+    class Broken:
+        name = "broken"
+
+        class context:  # noqa: N801
+            context_providers: ClassVar = {"boom": lambda: 1 / 0}
+
+    bodies: list = []
+    chat = Chat(
+        store=ChatStore(tmp_path / "chat.sqlite3"),
+        client=ProviderClient(http=rounds(bodies, ANSWER)),
+        plugins=[Broken()],
+    )
+
+    assert list(chat.send_stream("hello"))[-1]["reply"] == "The light is on."
+
+
+def test_the_streaming_path_still_learns_and_asks(tmp_path) -> None:
+    """It did not, from the moment streaming became the path chat takes.
+
+    `send` ran the curiosity turn; `send_stream` passed a null gap and never
+    called `learn` or `may_ask`. So Marvi stopped noticing a name offered
+    plainly and stopped ever asking its one question, silently.
+    """
+    from marvi_gateway.curiosity import Curiosity
+    from marvi_gateway.identity import IdentityFiles
+
+    curiosity = Curiosity(
+        path=tmp_path / "curiosity.sqlite3",
+        identity=IdentityFiles(directory=tmp_path / "identity"),
+    )
+    bodies: list = []
+    chat = Chat(
+        store=ChatStore(tmp_path / "chat.sqlite3"),
+        client=ProviderClient(http=rounds(bodies, ANSWER)),
+        curiosity=curiosity,
+    )
+
+    list(chat.send_stream("my name is Sam"))
+
+    assert curiosity.state()["name"]["value"] == "Sam", "a name said plainly was not learnt"

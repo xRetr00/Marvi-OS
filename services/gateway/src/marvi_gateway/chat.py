@@ -177,7 +177,37 @@ class Chat:
             # legitimately changes: it carries at most one question, and only
             # when the rate limit allows one.
             brief = brief + "\n\n" + self.curiosity.guidance(gap)
+        # What the loaded plugins already know, in a line each.
+        #
+        # `plugins.context_lines` was written for exactly this, documented as
+        # the thing that stops Marvi running a second camera pipeline while
+        # ignoring what the room engine already sees -- and it had no caller
+        # anywhere. The plugins were passed in here and never read, so the gap
+        # its own docstring describes was still wide open.
+        #
+        # Appended after the identity block for the same reason curiosity is:
+        # this changes every turn, and putting it first would break the
+        # cacheable prefix.
+        lines = self._plugin_context()
+        if lines:
+            brief = "\n\n".join([brief, *lines])
         return self.identity.compose(brief)
+
+    def _plugin_context(self) -> list[str]:
+        """Never raises.
+
+        A plugin with nothing to say, or a broken one, must not be the reason
+        a turn fails -- this runs on the prompt path of every turn.
+        """
+        if not self.plugins:
+            return []
+        try:
+            from .plugins import context_lines
+
+            return context_lines(self.plugins)
+        except Exception as exc:  # pragma: no cover - depends on the plugins
+            logger.warning("plugin context unavailable: %s", exc)
+            return []
 
     def _messages(self, gap: Any = None) -> list[dict[str, Any]]:
         wire: list[dict[str, Any]] = [{"role": "system", "content": self._system(gap)}]
@@ -185,9 +215,62 @@ class Chat:
             if row["role"] in ("user", "assistant"):
                 wire.append({"role": row["role"], "content": row["content"]})
             elif row["role"] == "tool":
-                # Results re-enter as observations, still labelled.
+                # Two messages, not one.
+                #
+                # Only the result used to be replayed, as an observation with
+                # no author -- so the model saw the answer to a question it had
+                # no memory of asking, and asked it again. That is a loop to
+                # the round limit: eight round trips and eight times the tokens
+                # for one answer, with the tool run eight times on the way.
+                #
+                # Derived from the row rather than stored as its own: the call
+                # is already in the result's metadata, and a second row would
+                # appear in the transcript as something Marvi said out loud.
+                called = self._describe_call(row["meta"])
+                if called:
+                    wire.append({"role": "assistant", "content": called})
+                # The result re-enters as an observation, still labelled.
                 wire.append({"role": "user", "content": row["content"]})
         return wire
+
+    @staticmethod
+    def _describe_call(meta: Any) -> str:
+        """How the model is reminded of a call it made, in its own voice."""
+        if not isinstance(meta, dict) or not meta.get("tool"):
+            return ""
+        arguments = meta.get("arguments")
+        if isinstance(arguments, dict) and arguments:
+            try:
+                rendered = json.dumps(arguments, sort_keys=True)[:400]
+            except (TypeError, ValueError):
+                rendered = ""
+            if rendered:
+                return f"I called the tool {meta['tool']} with {rendered}."
+        return f"I called the tool {meta['tool']}."
+
+    def _curiosity_turn(self, text: str, turns: int) -> Any:
+        """Learn what was said plainly, and decide whether to ask one question.
+
+        Lifted out of `send` because `send_stream` never had it. Streaming is
+        the path chat actually takes now, so from the moment it shipped Marvi
+        stopped noticing a name offered plainly and stopped ever asking its one
+        question -- with nothing to show that anything had changed.
+        """
+        if self.curiosity is None:
+            return None
+        # A name offered plainly should not depend on a model call going well,
+        # so the unmistakable phrasings are caught directly.
+        for key, value in obvious_facts(text).items():
+            self.curiosity.learn(key, value)
+        gap = self.curiosity.may_ask(turns)
+        if gap is not None:
+            # The cooldown starts when the question is *offered*, not when the
+            # model is detected to have asked it. Detecting that is guesswork,
+            # and guessing wrong in this direction means asking again next turn
+            # -- the behaviour that makes an assistant unbearable. Burning an
+            # unused window is harmless: the gap comes round again.
+            self.curiosity.mark_asked(gap.key)
+        return gap
 
     def _run_tool(self, name: str, arguments: Any) -> dict[str, Any]:
         """Dispatch one tool call and describe what happened.
@@ -208,11 +291,12 @@ class Chat:
         own_notes = {"remember_about_user", "forget_about_user"}
         if name in own_notes:
             if self.curiosity is None:
-                return {"text": "", "pending_confirmation": None}
+                return {"text": "", "pending_confirmation": None, "arguments": arguments}
             outcome = handle_tool(self.curiosity, name, arguments)
             return {
                 "text": wrap_external(f"tool:{name}", outcome.get("result")).text,
                 "pending_confirmation": None,
+                "arguments": arguments,
             }
 
         if self.dispatch is None:
@@ -221,6 +305,7 @@ class Chat:
                     f"tool:{name}", "tools are not available in this session"
                 ).text,
                 "pending_confirmation": None,
+                "arguments": arguments,
             }
 
         outcome = self.dispatch(name, arguments)
@@ -241,6 +326,9 @@ class Chat:
         return {
             "text": wrap_external(f"tool:{name}", outcome.get("result")).text,
             "pending_confirmation": None,
+            # Carried back so the transcript can remind the model what it
+            # asked for, not just what came back.
+            "arguments": arguments,
         }
 
     def send_stream(
@@ -289,7 +377,9 @@ class Chat:
             }
             return
 
+        turns = sum(1 for row in self.store.history() if row["role"] == "user")
         self.store.append("user", text)
+        gap = self._curiosity_turn(text, turns)
         schemas = list(self.tool_schemas() if self.tool_schemas else [])
         if self.curiosity is not None:
             schemas += curiosity_tools()
@@ -318,7 +408,7 @@ class Chat:
                     "chat", "stream", provider=provider or "", model=model or ""
                 ) as sample:
                     stream = self.client.stream_with_fallback(
-                        self._messages(None),
+                        self._messages(gap),
                         preferred=provider or None,
                         model=model or None,
                         effort=effort or None,
@@ -423,7 +513,12 @@ class Chat:
                         "error": "",
                     }
                     return
-                self.store.append("tool", str(outcome.get("text", "")), tool=name)
+                self.store.append(
+                    "tool",
+                    str(outcome.get("text", "")),
+                    tool=name,
+                    arguments=outcome.get("arguments"),
+                )
 
         yield {
             "done": True,
@@ -461,21 +556,7 @@ class Chat:
         turns = sum(1 for row in history if row["role"] == "user")
         self.store.append("user", text)
 
-        gap = None
-        if self.curiosity is not None:
-            # A name offered plainly should not depend on a model call going
-            # well, so the unmistakable phrasings are caught directly.
-            for key, value in obvious_facts(text).items():
-                self.curiosity.learn(key, value)
-            gap = self.curiosity.may_ask(turns)
-            if gap is not None:
-                # The cooldown starts when the question is *offered*, not when
-                # the model is detected to have asked it. Detecting that is
-                # guesswork, and guessing wrong in this direction means asking
-                # again on the next turn — which is the behaviour that makes an
-                # assistant unbearable. Burning an unused window is harmless:
-                # the gap stays open and comes round again.
-                self.curiosity.mark_asked(gap.key)
+        gap = self._curiosity_turn(text, turns)
 
         schemas = list(self.tool_schemas() if self.tool_schemas else [])
         if self.curiosity is not None:
@@ -548,6 +629,7 @@ class Chat:
                     "tool",
                     wrap_external(f"tool:{name}", outcome.get("result")).text,
                     tool=name,
+                    arguments=call.get("arguments") or {},
                 )
 
             router_calls = [c for c in calls if c.get("name") not in own_notes]
@@ -588,7 +670,9 @@ class Chat:
                 # A tool result can carry text somebody else wrote, so it comes
                 # back enveloped rather than inlined as trusted narration.
                 envelope = wrap_external(f"tool:{name}", outcome.get("result"))
-                self.store.append("tool", envelope.text, tool=name)
+                self.store.append(
+                    "tool", envelope.text, tool=name, arguments=arguments
+                )
 
         # Reached only if the final, tool-free round still came back with tool
         # calls -- which a well-behaved model cannot do, since it was offered

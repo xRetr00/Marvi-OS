@@ -100,6 +100,44 @@ class ProviderClient:
     http: Any = None
     _cooldowns: dict[str, _Cooldown] = field(default_factory=dict)
     _usage: dict[str, Usage] = field(default_factory=dict)
+    _pool: Any = None
+
+    # -- connections ---------------------------------------------------------
+
+    def _client(self) -> Any:
+        """One pooled client for the life of the process.
+
+        Every call used to build its own `httpx.Client` and close it in a
+        `finally`. Correct, and it threw away the connection each time: a fresh
+        TCP and TLS handshake before the first token of every turn, and again
+        on every tool round, which is up to eight per answer. That is the one
+        measure both surfaces are judged on, spent on setup that was already
+        paid for a moment earlier.
+
+        An injected `http` still wins, because that is how the tests hand in a
+        mock transport.
+        """
+        if self.http is not None:
+            return self.http
+        if self._pool is None:
+            import httpx
+
+            self._pool = httpx.Client(
+                timeout=REQUEST_TIMEOUT,
+                # Kept warm across turns, and bounded so an idle Marvi is not
+                # holding sockets open to every provider it has ever tried.
+                limits=httpx.Limits(
+                    max_keepalive_connections=4,
+                    max_connections=8,
+                    keepalive_expiry=90.0,
+                ),
+            )
+        return self._pool
+
+    def close(self) -> None:
+        if self._pool is not None:
+            self._pool.close()
+            self._pool = None
 
     # -- cooldown ------------------------------------------------------------
 
@@ -177,7 +215,6 @@ class ProviderClient:
         model: str | None = None,
     ) -> Completion:
         """Call one provider. Raises rather than falling back — see `call_with_fallback`."""
-        import httpx
 
         profile = provider if isinstance(provider, ProviderProfile) else get(provider) if provider else None
         if profile is None:
@@ -211,7 +248,7 @@ class ProviderClient:
             tools=tools,
             job=job,
         )
-        client = self.http or httpx.Client(timeout=REQUEST_TIMEOUT)
+        client = self._client()
         try:
             response = client.post(profile.endpoint(), json=body, headers=profile.headers())
             if response.status_code == 429:
@@ -229,9 +266,6 @@ class ProviderClient:
         except Exception as exc:
             self.stand_down(profile.name, DEFAULT_COOLDOWN_SECONDS, f"call failed: {exc}"[:120])
             raise ProviderCallError(f"{profile.name} call failed: {exc}") from exc
-        finally:
-            if self.http is None:
-                client.close()
 
         usage = profile.read_usage(payload)
         self.record(profile.name, usage)
@@ -267,7 +301,6 @@ class ProviderClient:
         two callers with different SDKs consume this: `{"delta": str}` for
         text, then a final `{"done": True, "usage": {...}}`.
         """
-        import httpx
 
         profile = provider if isinstance(provider, ProviderProfile) else get(provider) if provider else None
         if profile is None:
@@ -298,7 +331,7 @@ class ProviderClient:
             job=job,
         )
 
-        client = self.http or httpx.Client(timeout=REQUEST_TIMEOUT)
+        client = self._client()
         usage = Usage()
         # Tool calls arrive as fragments across many chunks and are only
         # meaningful once the round ends, so they are assembled here and
@@ -338,9 +371,6 @@ class ProviderClient:
         except Exception as exc:
             self.stand_down(profile.name, DEFAULT_COOLDOWN_SECONDS, f"call failed: {exc}"[:120])
             raise ProviderCallError(f"{profile.name} stream failed: {exc}") from exc
-        finally:
-            if self.http is None:
-                client.close()
 
         if pending_calls:
             yield {"tool_calls": [pending_calls[i] for i in sorted(pending_calls)]}
