@@ -100,6 +100,24 @@ const marvi = {
     message: string,
     override?: { provider?: string; model?: string; effort?: string }
   ): Promise<ChatReply | null> => ipcRenderer.invoke('marvi:send-chat', message, override ?? {}),
+  /**
+   * Start a streamed turn. Events arrive on `onChatDelta`, not here.
+   *
+   * An IPC handler resolves once, which is the opposite of streaming, so the
+   * turn is pushed and this only reports whether it began.
+   */
+  streamChat: (
+    message: string,
+    override?: { provider?: string; model?: string; effort?: string }
+  ): Promise<boolean> => ipcRenderer.invoke('marvi:stream-chat', message, override ?? {}),
+  onChatDelta: (listener: (event: Record<string, unknown>) => void): (() => void) => {
+    const wrapped = (_event: unknown, payload: Record<string, unknown>): void =>
+      listener(payload)
+    ipcRenderer.on('marvi:chat-delta', wrapped)
+    return () => {
+      ipcRenderer.removeListener('marvi:chat-delta', wrapped)
+    }
+  },
   clearChat: (): Promise<boolean> => ipcRenderer.invoke('marvi:clear-chat'),
   getSchedules: (): Promise<SchedulePage | null> => ipcRenderer.invoke('marvi:get-schedules'),
   addSchedule: (body: {

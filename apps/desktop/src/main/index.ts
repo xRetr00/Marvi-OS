@@ -82,6 +82,9 @@ function isMarviPage(url: string): boolean {
   )
 }
 
+/** Server-Sent Events separate frames with a blank line. */
+const SSE_FRAME_SEPARATOR = String.fromCharCode(10, 10)
+
 function normaliseModelPage(body: unknown): ModelPage | null {
   const page = body as { providers?: Array<Record<string, never>> }
   if (!page || !Array.isArray(page.providers)) return null
@@ -1004,6 +1007,65 @@ function startApp(): void {
         return response.ok ? await response.json() : { messages: [], available: false }
       } catch {
         return { messages: [], available: false }
+      }
+    })
+    ipcMain.handle('marvi:stream-chat', async (event, message, override) => {
+      if (typeof message !== 'string') return false
+      const pick = (key: string): string | undefined =>
+        typeof override?.[key] === 'string' && override[key] ? override[key] : undefined
+
+      // A turn is pushed as it happens rather than returned when it is over,
+      // because an IPC handler resolves once and streaming is the opposite of
+      // that. Each event goes straight to the window that asked for it.
+      const send = (payload: unknown): void => {
+        if (!event.sender.isDestroyed()) event.sender.send('marvi:chat-delta', payload)
+      }
+
+      try {
+        const response = await fetch(`${gateway()}/chat/stream`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            message,
+            provider: pick('provider'),
+            model: pick('model'),
+            effort: pick('effort')
+          }),
+          // No timeout. A tool round can be slow and the turn reports its own
+          // completion; cutting the socket mid-answer would look like Marvi
+          // stopping mid-sentence.
+          signal: undefined
+        })
+        if (!response.ok || !response.body) {
+          send({ done: true, error: `the Gateway refused the turn (${response.status})` })
+          return false
+        }
+
+        const reader = response.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+        for (;;) {
+          const { done, value } = await reader.read()
+          if (done) break
+          buffer += decoder.decode(value, { stream: true })
+          // SSE frames are separated by a blank line, and a chunk can split
+          // one anywhere, so whatever trails the last separator is kept.
+          const frames = buffer.split(SSE_FRAME_SEPARATOR)
+          buffer = frames.pop() ?? ''
+          for (const frame of frames) {
+            const line = frame.trim()
+            if (!line.startsWith('data:')) continue
+            try {
+              send(JSON.parse(line.slice(5).trim()))
+            } catch {
+              // A frame that will not parse is not worth ending a turn over.
+            }
+          }
+        }
+        return true
+      } catch (cause) {
+        send({ done: true, error: cause instanceof Error ? cause.message : String(cause) })
+        return false
       }
     })
     ipcMain.handle('marvi:send-chat', async (_event, message, override) => {

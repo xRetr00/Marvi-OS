@@ -58,38 +58,65 @@ export function useChat(): UseChat {
     setBusy(true)
     // Echo the user's line immediately; waiting for the round trip makes the
     // window feel frozen.
+    const userId = -Date.now()
+    const replyId = userId - 1
     setMessages((current) => [
       ...current,
-      { id: -Date.now(), at: new Date().toISOString(), role: 'user', content: text, meta: {} }
+      { id: userId, at: new Date().toISOString(), role: 'user', content: text, meta: {} },
+      // The reply exists before it has any words in it, so the tokens have
+      // somewhere to land as they arrive.
+      {
+        id: replyId,
+        at: new Date().toISOString(),
+        role: 'assistant',
+        content: '',
+        meta: { streaming: true }
+      }
     ])
+
     const startedAt = performance.now()
+    let answer = ''
+    let reasoning = ''
+    let firstTokenAt = 0
+
+    const stop = window.marvi?.onChatDelta((event) => {
+      if (typeof event.delta === 'string') {
+        if (!firstTokenAt) firstTokenAt = performance.now()
+        answer += event.delta
+      } else if (typeof event.reasoning === 'string') {
+        // Kept apart from the answer. It is not what Marvi said.
+        reasoning += event.reasoning
+      } else if (typeof event.tool === 'string') {
+        setMessages((current) =>
+          current.map((message) =>
+            message.id === replyId
+              ? { ...message, meta: { ...message.meta, tool: String(event.tool) } }
+              : message
+          )
+        )
+        return
+      } else if (event.done) {
+        return
+      }
+
+      setMessages((current) =>
+        current.map((message) =>
+          message.id === replyId
+            ? { ...message, content: answer, meta: { ...message.meta, reasoning, streaming: true } }
+            : message
+        )
+      )
+    })
+
     try {
-      const reply = await window.marvi?.sendChat(text, override)
-      if (reply) recordChatTurn(performance.now() - startedAt)
+      await window.marvi?.streamChat(text, override)
+      if (firstTokenAt) recordChatTurn(firstTokenAt - startedAt)
+      // The transcript is authoritative once the turn is over: it carries the
+      // provider, the token count, and anything a tool wrote.
       const page = await window.marvi?.getChat()
       if (page) setMessages(toChatMessages(page.messages))
-      const confirmation = reply?.pending_confirmation
-      setPending(
-        confirmation
-          ? {
-              tool: String(confirmation.tool ?? ''),
-              token: String(confirmation.token ?? '')
-            }
-          : null
-      )
-      if (reply?.error) {
-        setMessages((current) => [
-          ...current,
-          {
-            id: -Date.now(),
-            at: new Date().toISOString(),
-            role: 'error',
-            content: reply.error,
-            meta: {}
-          }
-        ])
-      }
     } finally {
+      stop?.()
       setBusy(false)
     }
   }, [draft, busy, override])

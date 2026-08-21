@@ -65,6 +65,11 @@ export interface MarviDesktopApi {
     message: string,
     override?: { provider?: string; model?: string; effort?: string }
   ) => Promise<ChatReply | null>
+  streamChat: (
+    message: string,
+    override?: { provider?: string; model?: string; effort?: string }
+  ) => Promise<boolean>
+  onChatDelta: (listener: (event: Record<string, unknown>) => void) => () => void
   clearChat: () => Promise<boolean>
   getSchedules: () => Promise<SchedulePage | null>
   addSchedule: (body: {

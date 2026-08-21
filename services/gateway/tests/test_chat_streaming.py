@@ -189,7 +189,7 @@ def test_the_turn_is_timed_with_a_real_first_token(tmp_path, monkeypatch) -> Non
 def test_the_other_reasoning_field_names_are_understood(tmp_path, field: str) -> None:
     """OpenRouter sends `reasoning`; DeepSeek calls it `reasoning_content`."""
     body = sse(
-        '{"choices":[{"delta":{"%s":"mulling"}}]}' % field,
+        '{"choices":[{"delta":{' + f'"{field}"' + ':"mulling"}}]}',
         '{"choices":[{"delta":{"content":"ok"}}]}',
     )
 

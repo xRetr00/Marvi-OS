@@ -520,3 +520,60 @@
   border-color: var(--ui-stroke-primary);
   color: var(--ui-text-primary);
 }
+
+/* Streaming: a cursor while tokens are still arriving, and the model's
+ * thinking kept out of the answer.
+ *
+ * The reasoning block is collapsed because it is working, not a reply — but it
+ * is present, because on a thinking model it is most of what was paid for and
+ * invisible cost is the kind people get angry about. */
+.chat-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-bottom: -0.15em;
+  margin-left: 2px;
+  border-radius: 1px;
+  background: var(--ui-accent);
+  animation: chat-cursor-blink 1s steps(2, start) infinite;
+}
+
+@keyframes chat-cursor-blink {
+  to {
+    visibility: hidden;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-cursor {
+    animation: none;
+  }
+}
+
+.chat-reasoning {
+  margin-bottom: 6px;
+}
+
+.chat-reasoning-toggle {
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--ui-text-tertiary);
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.chat-reasoning-toggle:hover {
+  color: var(--ui-text-secondary);
+}
+
+.chat-reasoning-body {
+  margin: 4px 0 0;
+  padding: 8px 10px;
+  border-left: 2px solid var(--ui-stroke-secondary);
+  color: var(--ui-text-tertiary);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
