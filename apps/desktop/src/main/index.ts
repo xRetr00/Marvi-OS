@@ -1009,8 +1009,22 @@ function startApp(): void {
         return { messages: [], available: false }
       }
     })
+    // At most one turn in flight. A second message supersedes the first
+    // rather than racing it into the same window, and aborting closes the
+    // socket -- which the Gateway sees, and passes on to the provider.
+    let inFlight: AbortController | null = null
+
+    ipcMain.handle('marvi:cancel-chat', () => {
+      inFlight?.abort()
+      inFlight = null
+      return true
+    })
+
     ipcMain.handle('marvi:stream-chat', async (event, message, override) => {
       if (typeof message !== 'string') return false
+      inFlight?.abort()
+      const controller = new AbortController()
+      inFlight = controller
       const pick = (key: string): string | undefined =>
         typeof override?.[key] === 'string' && override[key] ? override[key] : undefined
 
@@ -1033,8 +1047,8 @@ function startApp(): void {
           }),
           // No timeout. A tool round can be slow and the turn reports its own
           // completion; cutting the socket mid-answer would look like Marvi
-          // stopping mid-sentence.
-          signal: undefined
+          // stopping mid-sentence. Cancellation is deliberate, not a clock.
+          signal: controller.signal
         })
         if (!response.ok || !response.body) {
           send({ done: true, error: `the Gateway refused the turn (${response.status})` })
@@ -1064,8 +1078,15 @@ function startApp(): void {
         }
         return true
       } catch (cause) {
+        if (controller.signal.aborted) {
+          // Asked for. Not a failure, and not worth an error in the window.
+          send({ done: true, cancelled: true, error: '' })
+          return true
+        }
         send({ done: true, error: cause instanceof Error ? cause.message : String(cause) })
         return false
+      } finally {
+        if (inFlight === controller) inFlight = null
       }
     })
     ipcMain.handle('marvi:send-chat', async (_event, message, override) => {

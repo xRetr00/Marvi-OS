@@ -18,6 +18,7 @@ export function Composer({
   available,
   onDraftChange,
   onSend,
+  onCancel,
   override,
   onOverrideChange
 }: {
@@ -26,6 +27,7 @@ export function Composer({
   available: boolean
   onDraftChange: (next: string) => void
   onSend: () => void
+  onCancel?: () => void
   override?: { provider?: string; model?: string; effort?: string }
   onOverrideChange?: (next: { provider?: string; model?: string; effort?: string }) => void
 }): React.JSX.Element {
@@ -62,15 +64,23 @@ export function Composer({
             }
           }}
         />
-        <button
-          aria-label="Send"
-          className="chat-send"
-          disabled={!ready}
-          onClick={onSend}
-          type="button"
-        >
-          {busy ? '…' : '↑'}
-        </button>
+        {busy && onCancel ? (
+          // While a reply is streaming the same control stops it. A turn
+          // nobody wants any more is still being generated and still billed.
+          <button aria-label="Stop" className="chat-send" onClick={onCancel} type="button">
+            ■
+          </button>
+        ) : (
+          <button
+            aria-label="Send"
+            className="chat-send"
+            disabled={!ready}
+            onClick={onSend}
+            type="button"
+          >
+            ↑
+          </button>
+        )}
       </div>
       <div className="chat-compose-foot">
         <span className="chat-compose-hint">Enter sends · Shift+Enter for a new line</span>

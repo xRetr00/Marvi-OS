@@ -110,6 +110,8 @@ const marvi = {
     message: string,
     override?: { provider?: string; model?: string; effort?: string }
   ): Promise<boolean> => ipcRenderer.invoke('marvi:stream-chat', message, override ?? {}),
+  /** Stop the turn in flight. Closes the provider connection, not just the UI. */
+  cancelChat: (): Promise<boolean> => ipcRenderer.invoke('marvi:cancel-chat'),
   onChatDelta: (listener: (event: Record<string, unknown>) => void): (() => void) => {
     const wrapped = (_event: unknown, payload: Record<string, unknown>): void =>
       listener(payload)

@@ -196,3 +196,67 @@ def test_the_other_reasoning_field_names_are_understood(tmp_path, field: str) ->
     events = list(chat_with(tmp_path, body).send_stream("go"))
 
     assert any(e.get("reasoning") == "mulling" for e in events)
+
+
+# -- cancellation ------------------------------------------------------------
+
+
+def test_a_cancelled_turn_stops_asking_the_provider(tmp_path) -> None:
+    """An abandoned stream that keeps generating is billed in full.
+
+    The window closes, the reader goes away, and without this the provider
+    carries on writing an answer nobody will ever see -- and charges for it.
+    Cancelling closes the connection rather than draining it.
+    """
+    body = sse(*[f'{{"choices":[{{"delta":{{"content":"word{n} "}}}}]}}' for n in range(50)])
+    chat = Chat(
+        store=ChatStore(tmp_path / "chat.sqlite3"),
+        client=ProviderClient(http=responder(body)),
+    )
+
+    delivered = 0
+
+    def cancelled() -> bool:
+        # Give up after a few words, the way a person closing a window does.
+        return delivered >= 3
+
+    events = []
+    for event in chat.send_stream("go", cancelled=cancelled):
+        events.append(event)
+        if "delta" in event:
+            delivered += 1
+
+    done = events[-1]
+    assert done["cancelled"] is True
+    assert done["error"] == "", "cancelling is not a failure"
+    assert sum(1 for e in events if "delta" in e) < 10, "the other forty were never read"
+
+
+def test_what_arrived_before_a_cancel_is_kept(tmp_path) -> None:
+    """Half an answer is still worth keeping; it was already on screen."""
+    body = sse(*[f'{{"choices":[{{"delta":{{"content":"w{n} "}}}}]}}' for n in range(20)])
+    chat = Chat(
+        store=ChatStore(tmp_path / "chat.sqlite3"),
+        client=ProviderClient(http=responder(body)),
+    )
+
+    seen = 0
+
+    def cancelled() -> bool:
+        return seen >= 2
+
+    events = []
+    for event in chat.send_stream("go", cancelled=cancelled):
+        events.append(event)
+        if "delta" in event:
+            seen += 1
+
+    assert events[-1]["reply"].startswith("w0")
+
+
+def test_a_turn_nobody_cancels_runs_to_the_end(tmp_path) -> None:
+    """The guard must not fire on its own."""
+    events = list(chat_with(tmp_path, ANSWER).send_stream("go"))
+
+    assert events[-1].get("cancelled") is not True
+    assert events[-1]["reply"] == "The light is on."

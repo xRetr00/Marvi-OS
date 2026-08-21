@@ -32,6 +32,7 @@ export function Chat(): React.JSX.Element {
     send,
     clear,
     resolve,
+    cancel,
     override,
     setOverride
   } = useChat()
@@ -103,6 +104,7 @@ export function Chat(): React.JSX.Element {
             available={available}
             onDraftChange={setDraft}
             onSend={() => void send()}
+            onCancel={() => void cancel()}
             override={override}
             onOverrideChange={setOverride}
           />

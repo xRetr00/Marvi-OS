@@ -14,7 +14,7 @@ from urllib.parse import urlparse
 from uuid import uuid4
 
 import anyio
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from livekit import api
 from pydantic import BaseModel, Field
@@ -886,7 +886,7 @@ def create_app(
         )
 
     @app.post("/chat/stream")
-    async def chat_stream(body: ChatMessage) -> StreamingResponse:
+    async def chat_stream(body: ChatMessage, request: Request) -> StreamingResponse:
         """One chat turn, as Server-Sent Events.
 
         The answer reaches the window as it is written rather than after it is
@@ -907,11 +907,19 @@ def create_app(
             # endpoint the shell polls every two seconds.
             queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
             loop = asyncio.get_running_loop()
+            # The thread cannot see the client leave, so it is told. Without
+            # this the window closes, the generator here is torn down, and the
+            # provider keeps generating into nothing -- billed in full.
+            stop = threading.Event()
 
             def produce() -> None:
                 try:
                     for event in chat.send_stream(
-                        body.message, body.provider, body.model, body.effort
+                        body.message,
+                        body.provider,
+                        body.model,
+                        body.effort,
+                        cancelled=stop.is_set,
                     ):
                         loop.call_soon_threadsafe(queue.put_nowait, event)
                 except Exception as exc:  # pragma: no cover - defensive
@@ -922,11 +930,19 @@ def create_app(
                     loop.call_soon_threadsafe(queue.put_nowait, None)
 
             await anyio.to_thread.run_sync(lambda: threading.Thread(target=produce).start())
-            while True:
-                event = await queue.get()
-                if event is None:
-                    break
-                yield f"data: {json.dumps(event)}" + chr(10) + chr(10)
+            try:
+                while True:
+                    if await request.is_disconnected():
+                        stop.set()
+                        break
+                    event = await queue.get()
+                    if event is None:
+                        break
+                    yield f"data: {json.dumps(event)}" + chr(10) + chr(10)
+            finally:
+                # Covers every way out: a client that vanished, a generator
+                # closed by the server, an exception on the way through.
+                stop.set()
 
         return StreamingResponse(
             events(),

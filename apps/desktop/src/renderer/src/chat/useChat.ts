@@ -16,6 +16,8 @@ export interface UseChat {
   send: () => Promise<void>
   clear: () => Promise<void>
   resolve: (decision: 'approve' | 'deny') => Promise<void>
+  /** Stop the turn in flight, closing the provider connection. */
+  cancel: () => Promise<void>
   /** The model this session picked, if any. Sent per turn, stored nowhere. */
   override: { provider?: string; model?: string; effort?: string }
   setOverride: (next: { provider?: string; model?: string; effort?: string }) => void
@@ -121,6 +123,16 @@ export function useChat(): UseChat {
     }
   }, [draft, busy, override])
 
+  const cancel = useCallback(async (): Promise<void> => {
+    // Closes the provider connection, not just the view. A turn nobody is
+    // reading is still being generated and still being paid for.
+    await window.marvi?.cancelChat()
+  }, [])
+
+  // Leaving the page abandons the turn. Without this it runs to completion
+  // against a window that has gone.
+  useEffect(() => () => void window.marvi?.cancelChat(), [])
+
   const resolve = useCallback(
     async (decision: 'approve' | 'deny'): Promise<void> => {
       if (!pending) return
@@ -146,6 +158,7 @@ export function useChat(): UseChat {
     send,
     clear,
     resolve,
+    cancel,
     override,
     setOverride
   }

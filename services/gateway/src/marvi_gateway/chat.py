@@ -25,6 +25,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
+import time
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -248,6 +249,7 @@ class Chat:
         provider: str | None = None,
         model: str | None = None,
         effort: str | None = None,
+        cancelled: Callable[[], bool] | None = None,
     ) -> Iterator[dict[str, Any]]:
         """One chat turn, yielded as it happens.
 
@@ -267,7 +269,13 @@ class Chat:
         must not reach a TTS, and belongs in its own place in a transcript --
         collapsing it into the answer would put a model's private working into
         Marvi's mouth.
+
+        `cancelled` is checked between events. Returning True closes the
+        provider's connection rather than draining it -- an abandoned stream
+        that keeps generating is billed in full, and the window that asked for
+        it has already gone.
         """
+        stop = cancelled or (lambda: False)
         text = (message or "").strip()
         if not text:
             yield {"done": True, "error": "empty message", "tokens": 0, "provider": ""}
@@ -290,6 +298,13 @@ class Chat:
         used: list[str] = []
         tokens = 0
         answered = ""
+        # Counted so a real turn can prove it streamed. One delta carrying the
+        # whole reply and forty deltas carrying a word each produce identical
+        # text, and only the count tells them apart.
+        deltas = 0
+        reasoning_deltas = 0
+        began = time.monotonic()
+        first_token: float | None = None
 
         for round_number in range(MAX_TOOL_ROUNDS):
             final_round = round_number == MAX_TOOL_ROUNDS - 1
@@ -302,23 +317,50 @@ class Chat:
                 with latency.timed(
                     "chat", "stream", provider=provider or "", model=model or ""
                 ) as sample:
-                    for event in self.client.stream_with_fallback(
+                    stream = self.client.stream_with_fallback(
                         self._messages(None),
                         preferred=provider or None,
                         model=model or None,
                         effort=effort or None,
                         max_tokens=MAX_REPLY_TOKENS,
                         tools=None if final_round else (schemas or None),
-                    ):
+                    )
+                    for event in stream:
+                        if stop():
+                            # Closing the generator unwinds the `with` around
+                            # the HTTP response, which closes the connection --
+                            # the provider stops generating rather than
+                            # finishing into a void.
+                            stream.close()
+                            logger.info("chat stream cancelled after %d chars", len("".join(answer)))
+                            yield {
+                                "done": True,
+                                "reply": "".join(answer).strip(),
+                                "tools_used": used,
+                                "tokens": tokens,
+                                "provider": answered,
+                                "cancelled": True,
+                                "error": "",
+                            }
+                            return
                         if event.get("provider"):
                             answered = event["provider"]
                             sample.provider = answered
                             continue
                         if event.get("reasoning"):
+                            reasoning_deltas += 1
                             yield {"reasoning": event["reasoning"]}
                             continue
                         if event.get("delta"):
                             sample.mark_first_token()
+                            if first_token is None:
+                                first_token = (time.monotonic() - began) * 1000
+                                logger.info(
+                                    "chat stream: first token in %.0fms from %s",
+                                    first_token,
+                                    answered or "?",
+                                )
+                            deltas += 1
                             answer.append(event["delta"])
                             yield {"delta": event["delta"]}
                             continue
@@ -339,6 +381,19 @@ class Chat:
 
             if not calls:
                 reply = "".join(answer).strip()
+                # The line that proves it, in one place, for a real provider:
+                # how many pieces the answer arrived in, and how long the first
+                # one took. A blocking turn would read "1 delta".
+                logger.info(
+                    "chat stream: %d deltas, %d reasoning, %d chars, first token %s, "
+                    "total %.0fms, provider %s",
+                    deltas,
+                    reasoning_deltas,
+                    len(reply),
+                    f"{first_token:.0f}ms" if first_token is not None else "never",
+                    (time.monotonic() - began) * 1000,
+                    answered or "?",
+                )
                 self.store.append("assistant", reply, provider=answered, tokens=tokens)
                 if self.memory is not None and reply:
                     self.memory.remember(text[:200], reply[:2000], kind="episodic")
