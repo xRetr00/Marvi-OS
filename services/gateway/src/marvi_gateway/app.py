@@ -32,8 +32,7 @@ from .browser import BrowserSession, browser_enabled, register_browser_tools
 from .chat import Chat, ChatStore, ChatTurn, schemas_from_registry
 from .curiosity import Curiosity, seed_identity
 from .deliberate import deliberator_from_env
-from .identity import register_identity_tools,  # noqa: F401
-from .identity import IdentityFiles, plan_warning
+from .identity import IdentityFiles, plan_warning, register_identity_tools
 from .ingest import AccountIngest
 from .initiative import Initiative
 from .journal import EventJournal
