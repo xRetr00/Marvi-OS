@@ -28,7 +28,7 @@ from . import observability
 from .runtime import AgentConfig, build_llm, build_local_turn_detector
 from .timing import TimedLLM
 from .tools import GatewayTools
-from .voice_models import DEFAULT_VOICE, NemotronSTT, VibeVoiceTTS
+from .voice_models import KOKORO_DEFAULT_VOICE, KokoroTTS, NemotronSTT
 
 log = logging.getLogger("marvi.voice")
 
@@ -61,7 +61,7 @@ def configured_voice() -> str:
         # speak because a voice was deleted.
         if chosen and not body.get("missing"):
             return chosen
-    return os.environ.get("MARVI_TTS_VOICE", DEFAULT_VOICE)
+    return os.environ.get("MARVI_TTS_VOICE", KOKORO_DEFAULT_VOICE)
 
 
 def _report_transcript(*, heard: str = "", spoken: str = "") -> None:
@@ -207,7 +207,7 @@ def prewarm(proc: JobProcess) -> None:
     """
     started = time.monotonic()
     voice = configured_voice()
-    engine = VibeVoiceTTS(voice=voice)
+    engine = KokoroTTS(voice=voice)
     try:
         engine.prewarm()
     except Exception as exc:  # pragma: no cover - depends on the models on disk
@@ -245,7 +245,7 @@ def build_session(proc: JobProcess | None = None) -> tuple[AgentSession, Callabl
     local_tts = (
         warmed.get("tts")
         if warmed.get("tts") is not None and warmed.get("tts_voice") == voice
-        else VibeVoiceTTS(voice=voice)
+        else KokoroTTS(voice=voice)
     )
     # No StreamAdapter. It exists to make a non-streaming TTS usable, by
     # batching tokens into sentences of at least twelve characters before

@@ -22,85 +22,53 @@ def voice_dir(tmp_path, monkeypatch):
     return directory
 
 
-def test_a_name_becomes_a_language_a_person_and_a_gender(voice_dir) -> None:
-    (voice_dir / "en-Carter_man.pt").touch()
+def test_every_voice_is_named_for_a_person_and_a_place() -> None:
+    """The picker shows these, so they have to read as choices rather than as
+    identifiers: Michael, English (American), man."""
+    found = voices.installed()
 
-    (voice,) = voices.installed()
-
-    assert voice.id == "en-Carter_man"
-    assert voice.name == "Carter"
-    assert voice.language == "English"
-    assert voice.gender == "man"
+    assert found, "the list is part of the model and can never be empty"
+    for voice in found:
+        assert voice.name and voice.name[0].isupper()
+        assert "English" in voice.language
+        assert voice.gender in ("man", "woman")
 
 
 def test_the_id_is_what_the_setting_takes() -> None:
-    """Not the filename and not the display name -- the stem, exactly."""
-    assert voices._parse("jp-Spk1_woman").id == "jp-Spk1_woman"
+    """What the picker writes has to be what the engine accepts."""
+    ids = {voice.id for voice in voices.installed()}
+
+    assert "am_michael" in ids
+    assert all(id_.startswith(("a", "b")) for id_ in ids)
 
 
-def test_an_unknown_language_shows_as_itself(voice_dir) -> None:
-    """A voice must be selectable whether or not the table knows its language."""
-    (voice_dir / "xx-Someone_woman.pt").touch()
+def test_there_is_no_such_thing_as_no_voices_now() -> None:
+    """The engine changed and this state went with it.
 
-    (voice,) = voices.installed()
-
-    assert voice.language == "xx"
-    assert voice.name == "Someone"
-
-
-def test_a_name_that_breaks_the_convention_is_still_offered(voice_dir) -> None:
-    """It is installed and speakable, so hiding it helps nobody."""
-    (voice_dir / "custom.pt").touch()
-
-    (voice,) = voices.installed()
-
-    assert voice.id == "custom"
-    assert voice.name == "custom"
+    VibeVoice took speaker prompts off disk, so a fresh install had none until
+    a multi-gigabyte download finished, and every caller had to handle "none
+    installed". Kokoro's voices are part of an 82M checkpoint.
+    """
+    assert len(voices.installed()) >= 10
 
 
-def test_no_voices_installed_is_an_answer_not_an_error(voice_dir) -> None:
-    """A fresh install has none: the TTS model is a multi-gigabyte download."""
-    assert voices.installed() == []
+def test_a_voice_left_over_from_the_old_engine_is_reported_missing(monkeypatch) -> None:
+    """Every install that ran Marvi before carries one.
 
-
-def test_a_missing_directory_does_not_raise(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr(voices, "voices_dir", lambda: tmp_path / "absent")
-
-    assert voices.installed() == []
-
-
-def test_a_chosen_voice_that_was_deleted_is_reported_missing(voice_dir, monkeypatch) -> None:
-    """Rather than silently corrected. The choice happened; the file did not."""
-    from fastapi.testclient import TestClient
-
-    from marvi_gateway.app import create_app
-
-    (voice_dir / "en-Carter_man.pt").touch()
-    monkeypatch.setenv(voices.VOICE_ENV, "en-Gone_woman")
-
-    with TestClient(create_app()) as client:
-        body = client.get("/voices").json()
-
-    assert body["missing"] is True
-    assert body["selected"] == "en-Gone_woman"
-    assert [row["id"] for row in body["voices"]] == ["en-Carter_man"]
-
-
-def test_an_installed_choice_is_not_reported_missing(voice_dir, monkeypatch) -> None:
-    from fastapi.testclient import TestClient
-
-    from marvi_gateway.app import create_app
-
-    (voice_dir / "en-Carter_man.pt").touch()
+    `en-Carter_man` was a VibeVoice speaker prompt and Kokoro has never heard
+    of it. It must read as a choice that no longer exists, so the UI offers a
+    new one, rather than as a voice that is merely not downloaded yet.
+    """
     monkeypatch.setenv(voices.VOICE_ENV, "en-Carter_man")
 
-    with TestClient(create_app()) as client:
-        body = client.get("/voices").json()
-
-    assert body["missing"] is False
+    assert voices.selected() == "en-Carter_man"
+    assert voices.selected() not in {v.id for v in voices.installed()}
 
 
-# -- the wake word -----------------------------------------------------------
+def test_a_current_choice_is_not_reported_missing(monkeypatch) -> None:
+    monkeypatch.setenv(voices.VOICE_ENV, "bf_emma")
+
+    assert voices.selected() in {v.id for v in voices.installed()}
 
 
 def test_the_shipped_model_is_found() -> None:

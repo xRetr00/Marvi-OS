@@ -14,6 +14,14 @@ dependencies = [
     "livekit-wakeword>=0.2",
     "numpy>=2,<3",
     "python-dotenv>=1,<2",
+    # The speech engine. 82M against VibeVoice's 0.5B, and on this card it
+    # measured 34.7x real time against 1.17x -- the margin is the point, not
+    # the speed: 1.17x has none left once the recogniser wants the GPU too.
+    "kokoro>=0.9,<1",
+    # Kokoro's grapheme-to-phoneme needs this spaCy model, and
+    # `spacy download` reports success while installing nothing a uv
+    # environment can see. Named as a dependency so it is actually there.
+    "en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl",
     # The wake word listener holds the microphone directly. It runs before
     # LiveKit exists, so it cannot borrow the room's audio the way the
     # in-session detector did.

@@ -3,3 +3,14 @@ members = ["services/agent", "services/gateway"]
 
 [tool.uv]
 constraint-dependencies = ["yarl<1.24"]
+# Kokoro's grapheme-to-phoneme pulls `misaki[en]`, which drags in spaCy's
+# curated-transformers stack. Its native extension has no wheel past CPython
+# 3.12 and needs a C compiler to build, which a Windows install does not have.
+# Kokoro only reaches for it under `trf=True`, and Marvi runs the default
+# `trf=False` path, so the requirement is overridden with a marker that can
+# never match. Here rather than in the Agent because uv reads overrides from
+# the workspace root and silently ignores them in a member.
+override-dependencies = [
+    "spacy-curated-transformers ; sys_platform == 'no-such-platform'",
+    "curated-tokenizers ; sys_platform == 'no-such-platform'",
+]

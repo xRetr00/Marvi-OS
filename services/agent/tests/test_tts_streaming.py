@@ -250,3 +250,51 @@ def test_audio_within_range_is_left_alone() -> None:
 
     assert over == 0
     assert np.frombuffer(pcm, dtype=np.int16).tolist() == [32767, -32767, 0]
+
+
+# -- the engine swap ---------------------------------------------------------
+
+
+def test_a_voice_from_the_old_engine_does_not_kill_speech() -> None:
+    """Every install that ran Marvi before carries one.
+
+    `en-Carter_man` was a VibeVoice speaker prompt; Kokoro has never heard of
+    it. Passing it through would raise on the first spoken turn of the first
+    session after an update -- voice silently dead, for a reason nowhere near
+    where anyone would look.
+    """
+    from marvi_agent.voice_models import KOKORO_DEFAULT_VOICE, resolve_voice
+
+    assert resolve_voice("en-Carter_man") == KOKORO_DEFAULT_VOICE
+    assert resolve_voice("") == KOKORO_DEFAULT_VOICE
+
+
+def test_a_voice_the_engine_has_is_left_alone() -> None:
+    from marvi_agent.voice_models import resolve_voice
+
+    assert resolve_voice("bf_emma") == "bf_emma"
+
+
+def test_the_two_services_offer_the_same_voices() -> None:
+    """The picker writes what the engine reads. They are in different packages
+    and different Python environments, so nothing but a test keeps them level.
+    """
+    import re
+    from pathlib import Path
+
+    from marvi_agent.voice_models import KOKORO_VOICES
+
+    gateway = (
+        Path(__file__).resolve().parents[3]
+        / "services"
+        / "gateway"
+        / "src"
+        / "marvi_gateway"
+        / "voices.py"
+    ).read_text(encoding="utf-8")
+    offered = set(re.findall(r'\("([ab][fm]_[a-z]+)"', gateway))
+
+    assert offered == set(KOKORO_VOICES), (
+        f"only in the Gateway: {offered - set(KOKORO_VOICES)}; "
+        f"only in the Agent: {set(KOKORO_VOICES) - offered}"
+    )

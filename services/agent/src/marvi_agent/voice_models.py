@@ -28,6 +28,25 @@ NEMOTRON_MODEL = (
 VIBEVOICE_ROOT = APP_DATA / "models/tts/vibevoice-realtime-0.5b"
 DEFAULT_VOICE = "en-Carter_man"
 
+#: Kokoro ships fixed voices rather than speaker prompts. `a` is American
+#: English, `b` British; the letter after the underscore is the model's own
+#: naming, not a grade.
+KOKORO_VOICES = (
+    "af_heart",
+    "af_bella",
+    "af_nicole",
+    "af_sarah",
+    "af_sky",
+    "am_adam",
+    "am_michael",
+    "bf_emma",
+    "bf_isabella",
+    "bm_george",
+    "bm_lewis",
+)
+KOKORO_DEFAULT_VOICE = "am_michael"
+_KOKORO: dict[tuple[str, str, int], _KokoroEngine] = {}
+
 
 class VoiceRuntimeError(RuntimeError):
     pass
@@ -457,6 +476,139 @@ class _VibeVoiceEngine:
                 log.info("tts: %d samples clipped", clipped[0])
         if errors:
             raise errors[0]
+
+
+def resolve_voice(voice: str) -> str:
+    """A voice this engine actually has, whatever was asked for.
+
+    Every install that has run Marvi before carries a VibeVoice speaker name in
+    its settings -- `en-Carter_man` and the like -- and Kokoro has never heard
+    of it. Handing that through would raise on the first spoken turn of the
+    first session after an update: voice silently dead, for a reason nowhere
+    near where it would be looked for.
+
+    So an unknown name falls back and says so, once, rather than failing.
+    """
+    if voice in KOKORO_VOICES:
+        return voice
+    if voice:
+        log.warning(
+            "unknown voice %r; speaking as %s. Pick one in Settings: %s",
+            voice,
+            KOKORO_DEFAULT_VOICE,
+            ", ".join(KOKORO_VOICES),
+        )
+    return KOKORO_DEFAULT_VOICE
+
+
+class _KokoroEngine:
+    """Kokoro, behind the same interface the streaming adapter already drives.
+
+    Chosen on measurement rather than on size. On this card, same sentence:
+
+        Kokoro 82M       34.72x real time, first sound 234ms,  709MB
+        VibeVoice 0.5B    1.17x real time, first sound 144ms, 2685MB
+        Chatterbox        0.97x real time, first sound 6406ms
+        Qwen3-TTS 0.6B    0.33x real time, first sound 31922ms
+
+    VibeVoice is not slow -- it clears real time alone, and reaches the first
+    sound soonest of the four because it genuinely streams. What it does not
+    have is margin. Seventeen percent disappears the moment the recogniser
+    wants the same card, which is exactly what happened: in a real session it
+    measured 0.80x, and below one the room runs out of audio and the reply
+    arrives in pieces. Thirty-four times cannot be pushed under one by anything
+    Marvi will plausibly run beside it.
+
+    One pipeline per voice for the life of the process, for the same reason the
+    other engine caches: a second copy is a second copy of the weights.
+    """
+
+    sample_rate = 24_000
+
+    def __init__(self, voice: str = KOKORO_DEFAULT_VOICE) -> None:
+        self.voice = resolve_voice(voice)
+        self._pipeline: Any = None
+        self._speaking = threading.Lock()
+
+    @classmethod
+    def shared(cls, voice: str) -> _KokoroEngine:
+        key = ("kokoro", resolve_voice(voice), 0)
+        with _ENGINE_LOCK:
+            engine = _KOKORO.get(key)
+            if engine is None:
+                engine = cls(voice)
+                _KOKORO[key] = engine
+            return engine
+
+    @property
+    def voices(self) -> list[str]:
+        return list(KOKORO_VOICES)
+
+    def load(self) -> None:
+        if self._pipeline is not None:
+            return
+        import torch
+        from kokoro import KPipeline
+
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        # `lang_code="a"` is Kokoro's American English. The voice carries the
+        # accent; this selects the grapheme-to-phoneme rules.
+        self._pipeline = KPipeline(lang_code="a", device=device)
+        # First call compiles and warms; doing it here keeps it off the first
+        # spoken turn, which is where it would be felt.
+        list(self._pipeline("Warm up.", voice=self.voice))
+
+    def synthesize(self, text: str, stop: threading.Event) -> Iterator[bytes]:
+        with self._speaking:
+            yield from self._synthesize(text, stop)
+
+    def _synthesize(self, text: str, stop: threading.Event) -> Iterator[bytes]:
+        self.load()
+        for _graphemes, _phonemes, audio in self._pipeline(text, voice=self.voice):
+            if stop.is_set():
+                break
+            samples = np.asarray(audio, dtype=np.float32).reshape(-1)
+            pcm, over = to_pcm(samples)
+            if over:
+                log.info("tts: %d samples clipped", over)
+            yield pcm
+
+
+class KokoroTTS(tts.TTS):
+    """The speech engine Marvi speaks with."""
+
+    def __init__(self, *, voice: str = KOKORO_DEFAULT_VOICE) -> None:
+        super().__init__(
+            capabilities=tts.TTSCapabilities(streaming=True),
+            sample_rate=24_000,
+            num_channels=1,
+        )
+        self._engine = _KokoroEngine.shared(voice)
+
+    @property
+    def model(self) -> str:
+        return "kokoro-82M"
+
+    @property
+    def provider(self) -> str:
+        return "hexgrad"
+
+    @property
+    def voices(self) -> list[str]:
+        return self._engine.voices
+
+    def prewarm(self) -> None:
+        self._engine.load()
+
+    def synthesize(
+        self, text: str, *, conn_options: APIConnectOptions = DEFAULT_API_CONNECT_OPTIONS
+    ) -> _VibeVoiceChunkedStream:
+        return _VibeVoiceChunkedStream(tts=self, input_text=text, conn_options=conn_options)
+
+    def stream(
+        self, *, conn_options: APIConnectOptions = DEFAULT_API_CONNECT_OPTIONS
+    ) -> _VibeVoiceSynthesizeStream:
+        return _VibeVoiceSynthesizeStream(tts=self, conn_options=conn_options)
 
 
 class VibeVoiceTTS(tts.TTS):

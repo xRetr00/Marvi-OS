@@ -91,20 +91,40 @@ def voices_dir() -> Path:
     return paths.root() / VOICES_DIR
 
 
-def installed() -> list[Voice]:
-    """Every downloaded voice, or an empty list if none are.
+#: Kokoro's voices, which ship with the model rather than as separate files.
+#:
+#: The engine changed and the shape of a "voice" changed with it. VibeVoice
+#: took a speaker prompt off disk, so the picker listed a directory; Kokoro has
+#: a fixed set baked into an 82M checkpoint, so the picker lists these. The
+#: prefix is the model's own convention: `a` American, `b` British, then `f` or
+#: `m`.
+KOKORO_VOICES = (
+    ("am_michael", "Michael", "English (American)", "man"),
+    ("am_adam", "Adam", "English (American)", "man"),
+    ("af_heart", "Heart", "English (American)", "woman"),
+    ("af_bella", "Bella", "English (American)", "woman"),
+    ("af_nicole", "Nicole", "English (American)", "woman"),
+    ("af_sarah", "Sarah", "English (American)", "woman"),
+    ("af_sky", "Sky", "English (American)", "woman"),
+    ("bm_george", "George", "English (British)", "man"),
+    ("bm_lewis", "Lewis", "English (British)", "man"),
+    ("bf_emma", "Emma", "English (British)", "woman"),
+    ("bf_isabella", "Isabella", "English (British)", "woman"),
+)
 
-    Empty is a real answer -- the TTS model is a multi-gigabyte download and a
-    fresh install has none -- so the caller says "install the voice model"
-    rather than treating it as an error.
+
+def installed() -> list[Voice]:
+    """Every voice Marvi can speak in.
+
+    No longer a directory listing. The speech engine is Kokoro, whose voices
+    are part of the checkpoint rather than files somebody downloads -- so this
+    is a fixed list, and it is never empty, which removes the "install the
+    voice model before you can choose one" state entirely.
     """
-    directory = voices_dir()
-    try:
-        stems = sorted(path.stem for path in directory.glob("*.pt"))
-    except OSError as exc:
-        log.warning("could not read the voices directory: %s", exc)
-        return []
-    return [_parse(stem) for stem in stems]
+    return [
+        Voice(id=voice, name=name, language=language, gender=gender)
+        for voice, name, language, gender in KOKORO_VOICES
+    ]
 
 
 def selected() -> str:
