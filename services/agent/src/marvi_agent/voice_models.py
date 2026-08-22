@@ -161,11 +161,16 @@ class NemotronStream(stt.RecognizeStream):
 
     #: How much audio to keep while paused, in seconds.
     #:
-    #: Enough to hold the words somebody interrupts with -- the VAD notices them
-    #: and stops the reply, but by then they have been speaking for a moment,
-    #: and that moment is usually the whole point of interrupting. Bounded
-    #: because a pause that is never lifted must not grow without limit.
-    _HOLD_SECONDS = 3.0
+    #: Enough to hold the start of an interruption -- the VAD notices speech
+    #: within about a quarter of a second and stops the reply, so half a second
+    #: covers the onset with room to spare.
+    #:
+    #: It was three, and three was wrong in a way that made things worse rather
+    #: than merely wasteful. Audio captured while Marvi speaks is mostly Marvi,
+    #: leaking back through the microphone, so a long hold flushed seconds of
+    #: her own voice into the recogniser the moment she stopped: a spike of work
+    #: at exactly the wrong time, transcribing words nobody said to her.
+    _HOLD_SECONDS = 0.5
 
     def _buffered(self) -> float:
         """Seconds of audio held back. 16 kHz mono int16: two bytes a sample."""

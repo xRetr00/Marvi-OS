@@ -64,9 +64,15 @@ def test_pausing_drops_what_was_already_recognised() -> None:
     assert not live._held
 
 
-def test_the_hold_is_bounded() -> None:
-    """A pause that is never lifted must not grow without limit."""
-    assert NemotronStream._HOLD_SECONDS <= 5.0
+def test_the_hold_is_short_enough_not_to_be_mostly_echo() -> None:
+    """Audio captured while Marvi speaks is mostly Marvi.
+
+    A long hold flushes seconds of her own voice into the recogniser the moment
+    she stops -- a spike of work at the worst possible time, spent transcribing
+    words nobody said to her. The VAD notices an interruption within about a
+    quarter of a second, so the onset is all that needs keeping.
+    """
+    assert NemotronStream._HOLD_SECONDS <= 1.0
 
 
 def test_seconds_held_is_measured_in_the_right_units() -> None:
