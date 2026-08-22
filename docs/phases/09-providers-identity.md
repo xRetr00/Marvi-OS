@@ -191,6 +191,12 @@ prefix genuinely costs less, and the guard should see that rather than a flat
 per-call estimate. The journal migrates its `cost` column to `tokens`; older
 rows count as zero, which is the harmless direction.
 
+The accounting surface was completed on 2026-08-23: response counters now
+persist atomically in `usage.json`, including daily UTC buckets, and direct
+LiveKit voice usage returns to the Gateway as cumulative-event deltas. The
+dedicated Usage page is the sole UI source of truth; Providers no longer
+duplicates totals.
+
 **Step 3b — OpenAI and Anthropic. Done.** Both metered APIs plus the Codex and
 Claude Code plan profiles, covering all three wire shapes. A client that records
 usage, cools providers down on 429 with `Retry-After`, and fails over. Identity
@@ -227,6 +233,10 @@ Settings are written to `providers.env` and applied to the process immediately,
 so a change takes effect with no restart. Credentials are masked on the way out
 and never reach the audit log. A local server that is configured but not running
 is not offered to the voice path — being "configured" only means it has a URL.
+Official provider-account lookups now live on Usage: OpenRouter current-key
+spend, DeepSeek balance, DeepInfra monthly billing, and optional OpenAI and
+Anthropic organization costs via separate admin credentials. Unsupported
+plans remain explicitly local-counter only.
 
 **Step 9 — identity files and composer. Done.** `SOUL.md` and `USER.md` are
 readable and writable from the Identity page, which shows the token budget and
@@ -237,6 +247,9 @@ says when a file has been truncated. Marvi never writes `SOUL.md` itself.
 | Evidence | State |
 |---|---|
 | Token budget binds identically on an API, a plan, and a local model | **done** — one client, one `billable` number |
+| Usage survives Gateway/renderer restart without storing content | **done** — atomic counter-only ledger; persistence tests pass |
+| Direct voice turns appear once in the same ledger | **done** — LiveKit cumulative values are delta-reported and covered by tests |
+| Usage page remains readable at desktop size | **done** — Playwright visual QA at 1440×900, including indeterminate loading state |
 | A 429 with `Retry-After` cools that provider down and fails over | **done** |
 | An expired token surfaces as "reconnect"; reconnecting needs no restart | **done** — and distinct from never-connected |
 | Marvi handles no provider password anywhere in the OAuth flow | **done** — no field exists to type one into |

@@ -58,6 +58,9 @@ Current implemented desktop surfaces:
   only what was never useful;
 - account event ingestion that deduplicates by provider id and never blocks the
   voice path;
+- a content-free, durable usage ledger shared by Chat, Voice, background work,
+  and local models, with a dedicated Usage page and optional reconciliation
+  against official provider account APIs;
 - web search, fetch, and extract with an SSRF guard, plus file, terminal, and
   process tools confined to an allowlisted workspace root, and MCP servers
   routed through the Gateway so they inherit confirmation and audit;

@@ -43,11 +43,12 @@ from .mcp_bridge import McpBridge, register_mcp_tools
 from .memory import MemoryStore, register_memory_tools
 from .mind import Mind
 from .policy import InitiativeSettings
-from .providers import ProviderClient, all_profiles
+from .providers import ProviderClient, ProviderError, all_profiles
 from .providers import all_profiles as provider_all
 from .providers import config as provider_config
 from .providers import get as provider_get
 from .providers.oauth import OAuthError, broker
+from .providers.usage import collect_accounts
 from .room import RoomSidecar, RoomUnavailableError, register_room_tools, sleep_guard
 from .runtime import (
     ArgumentsMutatedError,
@@ -188,6 +189,24 @@ class ProviderPage(BaseModel):
     selected: str | None
     settings: dict[str, str]
     totals: dict[str, int]
+
+
+class UsagePage(BaseModel):
+    """The one public usage contract: durable Marvi work plus provider accounts."""
+
+    totals: dict[str, int]
+    providers: list[dict[str, Any]]
+    daily: list[dict[str, Any]]
+    account: dict[str, dict[str, Any]]
+    updated_at: str | None
+
+
+class UsageRecord(BaseModel):
+    provider: str
+    input: int = 0
+    output: int = 0
+    cached_input: int = 0
+    reasoning: int = 0
 
 
 class OAuthStart(BaseModel):
@@ -463,7 +482,8 @@ def create_app(
     if moved:
         configure_logging()
         get_logger("setup").info(
-            "moved %d item(s) out of the old folder", len(moved),
+            "moved %d item(s) out of the old folder",
+            len(moved),
             extra={"marvi_moved": ", ".join(moved)},
         )
     # What an install from before the speech engine changed still carries: a
@@ -557,9 +577,15 @@ def create_app(
             ingest=ingest,
             memory=memory,
             faces=faces,
-            room_state=(lambda: {"present": bool(
-                ((sidecar.snapshot() or {}).get("presence") or {}).get("detected", True)
-            )}) if sidecar is not None else None,
+            room_state=(
+                lambda: {
+                    "present": bool(
+                        ((sidecar.snapshot() or {}).get("presence") or {}).get("detected", True)
+                    )
+                }
+            )
+            if sidecar is not None
+            else None,
         )
         if browser_enabled():
             # A headless browser is a real resource cost, so it stays off until
@@ -581,6 +607,7 @@ def create_app(
             # Routed here rather than attached to the Agent so MCP tools
             # inherit confirmation, audit, and idempotency (ADR-016).
             register_mcp_tools(tool_registry, mcp)
+
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         # The background mind starts with the Gateway and stops with it, so a
@@ -674,9 +701,7 @@ def create_app(
         implying it knows more than it does.
         """
         if not livekit_ready:
-            return ComponentStatus(
-                state="pending", detail="no LiveKit server to carry the session"
-            )
+            return ComponentStatus(state="pending", detail="no LiveKit server to carry the session")
         missing = [
             component.title
             for component in setup_module.for_capability(REPO_ROOT, "voice")
@@ -786,21 +811,22 @@ def create_app(
             runtime_store.observe_room_event(drain_room_events())
         livekit_ready = livekit_is_ready()
         components = {
-                "gateway": ComponentStatus(state="ready", detail="local facade online"),
-                "livekit": ComponentStatus(
-                    state="ready" if livekit_ready else "pending",
-                    detail="local server online" if livekit_ready else "local server not running",
+            "gateway": ComponentStatus(state="ready", detail="local facade online"),
+            "livekit": ComponentStatus(
+                state="ready" if livekit_ready else "pending",
+                detail="local server online" if livekit_ready else "local server not running",
+            ),
+            "voice": voice_status(livekit_ready),
+            "vision": ComponentStatus(
+                state="ready" if faces is not None else "pending",
+                detail=(
+                    f"buffalo_l on CPU, owner: {faces.owner_name() or 'not enrolled'}"
+                    if faces is not None
+                    else "set MARVI_VISION to enable"
                 ),
-                "voice": voice_status(livekit_ready),
-                "vision": ComponentStatus(
-                    state="ready" if faces is not None else "pending",
-                    detail=(
-                        f"buffalo_l on CPU, owner: {faces.owner_name() or 'not enrolled'}"
-                        if faces is not None else "set MARVI_VISION to enable"
-                    ),
-                ),
-                "accounts": accounts_status(),
-                "room": room_status(),
+            ),
+            "accounts": accounts_status(),
+            "room": room_status(),
         }
         return RuntimeStatus(
             product="Marvi OS",
@@ -831,9 +857,7 @@ def create_app(
             .with_identity(identity)
             .with_name("Marvi OS Desktop")
             .with_grants(
-                api.VideoGrants(
-                    room_join=True, room=room, can_publish=True, can_subscribe=True
-                )
+                api.VideoGrants(room_join=True, room=room, can_publish=True, can_subscribe=True)
             )
             .to_jwt()
         )
@@ -876,9 +900,7 @@ def create_app(
 
         runtime_store.audit("requested", spec.name, checked, detail="via chat")
         write_key = (
-            runtime_store.external_write_key(spec.name, checked, None)
-            if spec.external
-            else None
+            runtime_store.external_write_key(spec.name, checked, None) if spec.external else None
         )
         if spec.sensitive and not runtime_store.assistant.yolo:
             request = runtime_store.issue_confirmation(
@@ -960,9 +982,7 @@ def create_app(
                     ):
                         loop.call_soon_threadsafe(queue.put_nowait, event)
                 except Exception as exc:  # pragma: no cover - defensive
-                    loop.call_soon_threadsafe(
-                        queue.put_nowait, {"done": True, "error": str(exc)}
-                    )
+                    loop.call_soon_threadsafe(queue.put_nowait, {"done": True, "error": str(exc)})
                 finally:
                     loop.call_soon_threadsafe(queue.put_nowait, None)
 
@@ -1308,9 +1328,7 @@ def create_app(
     @app.post("/plugins/{name}/update", response_model=PluginPage)
     async def update_plugin(name: str) -> PluginPage:
         try:
-            detail = await anyio.to_thread.run_sync(
-                lambda: plugins_module.update(name, REPO_ROOT)
-            )
+            detail = await anyio.to_thread.run_sync(lambda: plugins_module.update(name, REPO_ROOT))
         except plugins_module.PluginError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
         runtime_store.audit("plugin", "update", {"plugin": name, "detail": detail})
@@ -1455,9 +1473,7 @@ def create_app(
         from .setup import store
 
         return await anyio.to_thread.run_sync(
-            lambda: store.review_remote(
-                REPO_ROOT, request.repo, request.path, tool_registry
-            )
+            lambda: store.review_remote(REPO_ROOT, request.repo, request.path, tool_registry)
         )
 
     @app.post("/skills/install")
@@ -1525,9 +1541,7 @@ def create_app(
 
         write_key: str | None = None
         if spec.external:
-            write_key = runtime_store.external_write_key(
-                spec.name, arguments, call.idempotency_key
-            )
+            write_key = runtime_store.external_write_key(spec.name, arguments, call.idempotency_key)
             already_done, previous = runtime_store.completed_external_write(write_key)
             if already_done:
                 # Checked before confirmation on purpose: the action already
@@ -1561,9 +1575,7 @@ def create_app(
         return run_tool(spec, arguments, write_key)
 
     @app.post("/confirmations/{token}", response_model=ToolInvocation)
-    async def resolve_confirmation(
-        token: str, decision: ConfirmationDecision
-    ) -> ToolInvocation:
+    async def resolve_confirmation(token: str, decision: ConfirmationDecision) -> ToolInvocation:
         try:
             pending = runtime_store.take_confirmation(token, decision.arguments)
         except ArgumentsMutatedError as exc:
@@ -1579,14 +1591,10 @@ def create_app(
             runtime_store.settle_confirmation(
                 token, caption="Action denied", action=spec.description
             )
-            return ToolInvocation(
-                status="denied", tool=pending.tool, runtime=current_status()
-            )
+            return ToolInvocation(status="denied", tool=pending.tool, runtime=current_status())
 
         runtime_store.audit("approved", pending.tool, pending.arguments)
-        runtime_store.settle_confirmation(
-            token, caption="Action approved", action=spec.description
-        )
+        runtime_store.settle_confirmation(token, caption="Action approved", action=spec.description)
         return run_tool(spec, pending.arguments, pending.write_key)
 
     @app.get("/memory", response_model=MemoryPage)
@@ -1607,9 +1615,7 @@ def create_app(
             return IngestResult(ingested=[], skipped=0, errors=["accounts not configured"])
         result = ingest.poll()
         if result["ingested"]:
-            runtime_store.audit(
-                "ingested", "accounts", {"count": len(result["ingested"])}
-            )
+            runtime_store.audit("ingested", "accounts", {"count": len(result["ingested"])})
         return IngestResult(**{k: v for k, v in result.items() if k != "at"})
 
     @app.post("/memory/reflect", response_model=ReflectResult)
@@ -1640,15 +1646,27 @@ def create_app(
     @app.get("/initiative", response_model=InitiativeStatus)
     async def initiative_status() -> InitiativeStatus:
         if initiative is None:
-            return InitiativeStatus(paused=True, running=False, pending_events=0,
-                                    last_runs={}, last_errors={}, settings={})
+            return InitiativeStatus(
+                paused=True,
+                running=False,
+                pending_events=0,
+                last_runs={},
+                last_errors={},
+                settings={},
+            )
         return InitiativeStatus(**initiative.status())
 
     @app.put("/initiative", response_model=InitiativeStatus)
     async def set_initiative(update: InitiativeUpdate) -> InitiativeStatus:
         if initiative is None:
-            return InitiativeStatus(paused=True, running=False, pending_events=0,
-                                    last_runs={}, last_errors={}, settings={})
+            return InitiativeStatus(
+                paused=True,
+                running=False,
+                pending_events=0,
+                last_runs={},
+                last_errors={},
+                settings={},
+            )
         changed: dict[str, Any] = {}
         if update.paused is not None:
             initiative.set_paused(update.paused)
@@ -1742,7 +1760,8 @@ def create_app(
 
     @app.get("/providers", response_model=ProviderPage)
     async def providers() -> ProviderPage:
-        usage = provider_client.usage_by_provider()
+        snapshot = provider_client.ledger.snapshot()
+        usage = snapshot["providers"]
         cooling = provider_client.cooldowns()
         # Probed together: a handful of dead endpoints in sequence is a
         # visible pause on a page the user opens to find out what is wrong.
@@ -1775,7 +1794,9 @@ def create_app(
                     "readable": p.limits.readable,
                     "note": p.limits.note,
                 },
-                usage=usage.get(p.name, {"input": 0, "output": 0, "cached_input": 0, "billable": 0}),
+                usage=usage.get(
+                    p.name, {"input": 0, "output": 0, "cached_input": 0, "billable": 0}
+                ),
                 cooldown=cooling.get(p.name),
                 oauth=broker().status(p),
                 # Shown before connecting, not after. See docs/PROVIDERS.md.
@@ -1784,18 +1805,88 @@ def create_app(
             )
             for p in all_profiles()
         ]
-        total = provider_client.usage()
         return ProviderPage(
             providers=rows,
             selected=os.environ.get("MARVI_PROVIDER", "").strip() or None,
             settings=provider_config.visible(),
-            totals={
-                "input": total.input,
-                "output": total.output,
-                "cached_input": total.cached_input,
-                "billable": total.billable,
-            },
+            totals=snapshot["totals"],
         )
+
+    @app.get("/usage", response_model=UsagePage)
+    async def usage_page(refresh: bool = True) -> UsagePage:
+        """Usage owned by Marvi, with optional provider-account reconciliation.
+
+        Account lookups run together off the event loop. A missing admin key is
+        reported as an unavailable scope by the row metadata, never as zero.
+        """
+        snapshot = provider_client.ledger.snapshot()
+        accounts = await anyio.to_thread.run_sync(collect_accounts) if refresh else {}
+        local = snapshot["providers"]
+        rows = []
+        for profile in all_profiles():
+            rows.append(
+                {
+                    "name": profile.name,
+                    "label": profile.label(),
+                    "access_path": profile.access_path,
+                    "configured": profile.configured(),
+                    "usage": local.get(
+                        profile.name,
+                        {
+                            "input": 0,
+                            "output": 0,
+                            "cached_input": 0,
+                            "reasoning": 0,
+                            "billable": 0,
+                        },
+                    ),
+                    "account": accounts.get(
+                        "openai" if profile.name == "openai-responses" else profile.name
+                    ),
+                    "account_collection": {
+                        "openrouter": "API key scope via GET /api/v1/key",
+                        "deepseek": "Account balance via GET /user/balance",
+                        "deepinfra": "Account month via GET /payment/usage",
+                        "openai": "Organization costs when OPENAI_ADMIN_KEY is set",
+                        "openai-responses": "Shared OpenAI organization; see OpenAI row",
+                        "anthropic": "Organization costs when ANTHROPIC_ADMIN_KEY is set",
+                    }.get(
+                        profile.name,
+                        (
+                            "Local response counters; no billed account"
+                            if profile.access_path == "local"
+                            else "No official account usage API available to Marvi"
+                        ),
+                    ),
+                }
+            )
+        return UsagePage(
+            totals=snapshot["totals"],
+            providers=rows,
+            daily=snapshot["daily"],
+            account=accounts,
+            updated_at=snapshot["updated_at"],
+        )
+
+    @app.post("/usage")
+    async def record_external_usage(record: UsageRecord) -> dict[str, bool]:
+        """Accept counters from the local voice worker's direct provider path."""
+        try:
+            profile = provider_get(record.provider)
+        except ProviderError:
+            raise HTTPException(status_code=400, detail="unknown provider") from None
+        from .providers import Usage
+
+        provider_client.record(
+            profile.name,
+            Usage(
+                input=max(0, record.input),
+                output=max(0, record.output),
+                cached_input=max(0, record.cached_input),
+                reasoning=max(0, record.reasoning),
+            ),
+        )
+        return {"recorded": True}
 
     @app.put("/providers/settings", response_model=ProviderPage)
     async def set_provider_settings(update: ProviderSettingsUpdate) -> ProviderPage:
@@ -1807,7 +1898,8 @@ def create_app(
         for name in list(provider_client.cooldowns()):
             provider_client.clear_cooldown(name)
         runtime_store.audit(
-            "providers", "settings",
+            "providers",
+            "settings",
             # Never audit the values; several of them are credentials.
             {"changed": sorted(update.values)},
         )
@@ -1848,9 +1940,7 @@ def create_app(
                 detail=f"{profile.label()} connects with a credential, not a probe",
             )
 
-        models = await anyio.to_thread.run_sync(
-            lambda: catalog.fetch(profile)
-        )
+        models = await anyio.to_thread.run_sync(lambda: catalog.fetch(profile))
         if not models:
             # Left disconnected on purpose. Saying "connected" for an endpoint
             # that did not answer is the whole bug.
@@ -1993,9 +2083,7 @@ def create_app(
         wanted = model.strip() or profile.model_for("main")
         return {
             "model": wanted,
-            "route": {
-                job: router.route_for(job).as_body() for job in ("main", "voice")
-            },
+            "route": {job: router.route_for(job).as_body() for job in ("main", "voice")},
             "policies": sorted(router.POLICIES),
             "upstreams": await anyio.to_thread.run_sync(
                 lambda: router.endpoints(wanted, profile.api_key())
@@ -2029,9 +2117,7 @@ def create_app(
                     else f"{profile.label()} has no model set or is unreachable"
                 )
                 raise HTTPException(status_code=503, detail=reason)
-            raise HTTPException(
-                status_code=503, detail="no usable provider for the voice path"
-            )
+            raise HTTPException(status_code=503, detail="no usable provider for the voice path")
         from .providers import catalog
 
         chosen = usable[0]
@@ -2080,7 +2166,8 @@ def create_app(
         if update.user is not None:
             identity.write_user(update.user)
         runtime_store.audit(
-            "identity", "write",
+            "identity",
+            "write",
             {"soul": update.soul is not None, "user": update.user is not None},
         )
         return await read_identity()

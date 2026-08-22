@@ -10,25 +10,25 @@ from the control center without a rebuild.
 
 ## Status
 
-| Provider | Path | Auth | API shape | Status |
-|---|---|---|---|---|
-| Ollama | local | none | chat completions | **implemented** |
-| LM Studio | local | none | chat completions | **implemented** |
-| llama.cpp / vLLM | local | none | chat completions | **implemented** |
-| OpenCode Zen | api | api key | chat completions | **implemented** |
-| OpenCode Go | plan | api key | chat completions | **implemented** |
-| OpenAI | api | api key | chat completions | **implemented** |
-| OpenAI (Responses) | api | api key | responses | **implemented** |
-| Anthropic | api | api key | messages | **implemented** |
-| Codex | plan | `oauth_external` | responses | **implemented, needs a client ID** |
-| Claude Code | plan | `oauth_external` | messages | **implemented, needs a client ID** |
-| OpenRouter | api | api key | chat completions | **implemented** |
-| DeepInfra | api | api key | chat completions | **implemented** |
-| DeepSeek | api | api key | chat completions | **implemented** |
-| GitHub Copilot | plan | token exchange | chat completions | planned |
-| Qwen | plan | `oauth_external` | chat completions | planned |
-| xAI, Nous | api/plan | `oauth_device_code` | chat completions | planned |
-| Alibaba, Kimi coding plans | plan | mixed | chat completions | planned |
+| Provider                   | Path     | Auth                | API shape        | Status                             |
+| -------------------------- | -------- | ------------------- | ---------------- | ---------------------------------- |
+| Ollama                     | local    | none                | chat completions | **implemented**                    |
+| LM Studio                  | local    | none                | chat completions | **implemented**                    |
+| llama.cpp / vLLM           | local    | none                | chat completions | **implemented**                    |
+| OpenCode Zen               | api      | api key             | chat completions | **implemented**                    |
+| OpenCode Go                | plan     | api key             | chat completions | **implemented**                    |
+| OpenAI                     | api      | api key             | chat completions | **implemented**                    |
+| OpenAI (Responses)         | api      | api key             | responses        | **implemented**                    |
+| Anthropic                  | api      | api key             | messages         | **implemented**                    |
+| Codex                      | plan     | `oauth_external`    | responses        | **implemented, needs a client ID** |
+| Claude Code                | plan     | `oauth_external`    | messages         | **implemented, needs a client ID** |
+| OpenRouter                 | api      | api key             | chat completions | **implemented**                    |
+| DeepInfra                  | api      | api key             | chat completions | **implemented**                    |
+| DeepSeek                   | api      | api key             | chat completions | **implemented**                    |
+| GitHub Copilot             | plan     | token exchange      | chat completions | planned                            |
+| Qwen                       | plan     | `oauth_external`    | chat completions | planned                            |
+| xAI, Nous                  | api/plan | `oauth_device_code` | chat completions | planned                            |
+| Alibaba, Kimi coding plans | plan     | mixed               | chat completions | planned                            |
 
 ## Implemented
 
@@ -42,10 +42,10 @@ working with the network down, the only ones with no privacy question, and the
 only ones that cost nothing. That makes local the default choice when several
 providers are configured, and the right home for auxiliary work.
 
-| | Ollama | LM Studio | llama.cpp / vLLM |
-|---|---|---|---|
-| URL env | `MARVI_OLLAMA_URL` | `MARVI_LMSTUDIO_URL` | `MARVI_LOCAL_OPENAI_URL` |
-| default | `localhost:11434/v1` | `localhost:1234/v1` | none — must be set |
+|           | Ollama               | LM Studio              | llama.cpp / vLLM           |
+| --------- | -------------------- | ---------------------- | -------------------------- |
+| URL env   | `MARVI_OLLAMA_URL`   | `MARVI_LMSTUDIO_URL`   | `MARVI_LOCAL_OPENAI_URL`   |
+| default   | `localhost:11434/v1` | `localhost:1234/v1`    | none — must be set         |
 | model env | `MARVI_OLLAMA_MODEL` | `MARVI_LMSTUDIO_MODEL` | `MARVI_LOCAL_OPENAI_MODEL` |
 
 **Needs:** the server running. Nothing else.
@@ -91,9 +91,11 @@ client in place, a provider is now genuinely just a profile.
 
 `OPENROUTER_API_KEY`, `DEEPINFRA_API_KEY`, `DEEPSEEK_API_KEY`.
 
-Two are worth knowing about. **OpenRouter is the only provider Marvi can read a
-balance from** (`GET /credits`), so its card can show a real number rather than
-"check your dashboard". **DeepSeek reports its cache differently**: no
+Three are worth knowing about. **OpenRouter publishes per-key spend and limits**
+at `GET /api/v1/key`; **DeepSeek publishes account balances** at
+`GET /user/balance`; and **DeepInfra publishes monthly billing usage** at
+`GET /payment/usage`. These values appear on Usage, explicitly separated from
+Marvi's own request ledger. **DeepSeek reports its cache differently**: no
 `prompt_tokens_details`, but `prompt_cache_hit_tokens` and
 `prompt_cache_miss_tokens` instead. Reading only the OpenAI shape would bill
 every cached token as fresh on the provider that caches hardest, so `read_usage`
@@ -152,9 +154,9 @@ starting.
 One client (`providers/client.py`) executes every call, which is why three
 things fall out of one implementation:
 
-- **Token accounting** — usage recorded per provider in its own shape and
-  normalised, so the budget binds identically on an API, a plan, and a local
-  model. `usage_by_provider()` is what the page displays.
+- **Token accounting** — usage recorded per provider in its own shape,
+  normalised, and atomically persisted to `%LOCALAPPDATA%\Marvi-OS\usage.json`.
+  The file contains UTC dates and counters only; never prompts or responses.
 - **Cooldown** — a 429 with `Retry-After` stands the provider down until its
   window resets. Retrying into an exhausted plan is how one bad afternoon turns
   into a quota-burning loop. A rejected credential cools down for six hours,
@@ -163,9 +165,10 @@ things fall out of one implementation:
   Anything that fails is already resting, so the next attempt does not return
   to it.
 
-Streaming is deliberately not implemented here: the voice path streams through
-LiveKit's client, which already owns interruption and playout. This client
-serves the background mind, where nobody is waiting on a first token.
+Voice streams through LiveKit's client, which owns interruption and playout.
+Because that direct low-latency path bypasses `ProviderClient`, LiveKit's
+cumulative `session_usage_updated` values are sent to the Gateway as deltas.
+Each voice turn therefore reaches the same durable ledger exactly once.
 
 ## Chat and voice are one Marvi
 
@@ -215,16 +218,16 @@ real risk: account suspension, not a warning email.
 
 ## Planned, and what each one needs
 
-| Provider | Needs before it can be added |
-|---|---|
-| OpenRouter, DeepInfra, DeepSeek | an API key; all OpenAI-compatible, so the profile is the whole job |
-| OpenAI | a key; plus Responses-API support if used for reasoning models |
-| Anthropic | a key; `messages` shape and explicit cache breakpoints |
-| Codex | OAuth against `auth.openai.com/oauth/token`, token storage and refresh, and the Responses shape |
-| Claude Code | OAuth, plus the 5-hour and weekly window display |
-| GitHub Copilot | token exchange from a GitHub token, and seat verification |
-| Qwen | OAuth against `chat.qwen.ai/api/v1/oauth2/token` |
-| xAI, Nous | device-code flow with polling |
+| Provider                        | Needs before it can be added                                                                    |
+| ------------------------------- | ----------------------------------------------------------------------------------------------- |
+| OpenRouter, DeepInfra, DeepSeek | an API key; all OpenAI-compatible, so the profile is the whole job                              |
+| OpenAI                          | a key; plus Responses-API support if used for reasoning models                                  |
+| Anthropic                       | a key; `messages` shape and explicit cache breakpoints                                          |
+| Codex                           | OAuth against `auth.openai.com/oauth/token`, token storage and refresh, and the Responses shape |
+| Claude Code                     | OAuth, plus the 5-hour and weekly window display                                                |
+| GitHub Copilot                  | token exchange from a GitHub token, and seat verification                                       |
+| Qwen                            | OAuth against `chat.qwen.ai/api/v1/oauth2/token`                                                |
+| xAI, Nous                       | device-code flow with polling                                                                   |
 
 **Open question for every plan provider:** whether driving a coding-plan
 subscription from an ambient assistant is within that plan's terms. This is a
@@ -240,11 +243,11 @@ is a real abstraction and not a URL plus a key.
 
 Three wire formats, not three URLs:
 
-| Mode | Endpoint | System prompt | Token limit field |
-|---|---|---|---|
-| `chat_completions` | `/chat/completions` | a message with `role: system` | `max_tokens` |
-| `responses` | `/responses` | inside `input` | `max_output_tokens` |
-| `anthropic` | `/v1/messages` | a separate `system` block | `max_tokens` (required) |
+| Mode               | Endpoint            | System prompt                 | Token limit field       |
+| ------------------ | ------------------- | ----------------------------- | ----------------------- |
+| `chat_completions` | `/chat/completions` | a message with `role: system` | `max_tokens`            |
+| `responses`        | `/responses`        | inside `input`                | `max_output_tokens`     |
+| `anthropic`        | `/v1/messages`      | a separate `system` block     | `max_tokens` (required) |
 
 Anthropic also authenticates with `x-api-key` and an `anthropic-version` header
 rather than a bearer token.
@@ -277,12 +280,12 @@ turn**. Paying full price for them each time is pure waste. A cached input token
 costs a fraction of a fresh one, so caching directly reduces the number that the
 budget guard counts.
 
-| Style | How | Used by |
-|---|---|---|
-| `none` | nothing sent | local providers |
-| `cache_key` | `prompt_cache_key`, stable across turns | OpenAI-compatible, OpenCode |
-| `explicit_breakpoints` | `cache_control: {type: ephemeral}` on a content block | Anthropic |
-| `automatic` | provider caches without being asked | some vendors |
+| Style                  | How                                                   | Used by                     |
+| ---------------------- | ----------------------------------------------------- | --------------------------- |
+| `none`                 | nothing sent                                          | local providers             |
+| `cache_key`            | `prompt_cache_key`, stable across turns               | OpenAI-compatible, OpenCode |
+| `explicit_breakpoints` | `cache_control: {type: ephemeral}` on a content block | Anthropic                   |
+| `automatic`            | provider caches without being asked                   | some vendors                |
 
 `Usage` separates `cached_input` from `input` precisely so this is visible:
 
@@ -310,6 +313,35 @@ where it does not.
 
 A `429` with `Retry-After` is treated as **window exhaustion**: cool that
 provider down until reset and fail over, rather than retrying into a wall.
+
+## Usage sources
+
+The dedicated Usage page is the only usage surface. Providers configures
+connections; it does not carry a second set of counters. The page separates:
+
+- **Marvi ledger** — response usage for Chat, background work, local models,
+  and voice-session deltas. This is durable, content-free, and limited to work
+  this installation performed.
+- **Provider account** — optional remote values that can include other clients.
+  OpenRouter uses the configured API key. DeepSeek and DeepInfra use their
+  configured API keys. OpenAI requires `OPENAI_ADMIN_KEY`; Anthropic requires
+  `ANTHROPIC_ADMIN_KEY`. A missing admin key is “unavailable”, never zero.
+
+Official contracts used by the collectors:
+
+- OpenAI organization usage/costs: <https://platform.openai.com/docs/api-reference/usage>
+- Anthropic organization reports: <https://docs.anthropic.com/en/api/admin-api/usage-cost/get-messages-usage-report>
+- OpenRouter current key: <https://openrouter.ai/docs/api/api-reference/api-keys/get-current-key>
+- DeepInfra billing usage: <https://docs.deepinfra.com/api-reference/billing/usage>
+- DeepSeek balance: <https://api-docs.deepseek.com/api/get-user-balance>
+- Ollama response metrics: <https://docs.ollama.com/api/usage>
+- LM Studio compatibility: <https://lmstudio.ai/docs/developer/openai-compat>
+- llama.cpp usage object: <https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md>
+- OpenCode Go limits: <https://opencode.ai/docs/go/>
+
+Codex, Claude Code, OpenCode Zen, and OpenCode Go do not expose a supported
+account-usage API for this integration. Marvi records response tokens and does
+not scrape dashboards or mistake a published plan cap for remaining usage.
 
 ## Verifying a provider for real
 

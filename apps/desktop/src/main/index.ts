@@ -52,6 +52,7 @@ import type {
   ModelPage,
   ProviderPage,
   ProviderRow,
+  UsagePage,
   RuntimeStatus,
   UpstreamPage,
   VoicePage,
@@ -204,6 +205,62 @@ function normaliseProviderPage(body: unknown): ProviderPage | null {
     selected: page.selected ?? null,
     settings: page.settings ?? {},
     totals: usage(page.totals)
+  }
+}
+
+function normaliseUsagePage(body: unknown): UsagePage | null {
+  const page = body as Record<string, unknown>
+  if (!page || !Array.isArray(page.providers) || !Array.isArray(page.daily)) return null
+  const counters = (raw: unknown): UsagePage['totals'] => {
+    const row = (raw ?? {}) as Record<string, unknown>
+    return {
+      input: Number(row.input ?? 0),
+      output: Number(row.output ?? 0),
+      cachedInput: Number(row.cached_input ?? 0),
+      reasoning: Number(row.reasoning ?? 0),
+      billable: Number(row.billable ?? 0)
+    }
+  }
+  const account = (raw: unknown): UsagePage['providers'][number]['account'] => {
+    if (!raw || typeof raw !== 'object') return null
+    const value = raw as Record<string, unknown>
+    return {
+      state: value.state === 'error' ? 'error' : 'ready',
+      scope: value.scope ? String(value.scope) : undefined,
+      currency: value.currency ? String(value.currency) : undefined,
+      spent: value.spent == null ? null : Number(value.spent),
+      periodSpent: value.period_spent == null ? null : Number(value.period_spent),
+      remaining: value.remaining == null ? null : Number(value.remaining),
+      limit: value.limit == null ? null : Number(value.limit),
+      balances: Array.isArray(value.balances)
+        ? value.balances.map((row) => ({
+            currency: String((row as Record<string, unknown>).currency ?? ''),
+            remaining: String((row as Record<string, unknown>).remaining ?? '')
+          }))
+        : undefined,
+      detail: value.detail ? String(value.detail) : undefined
+    }
+  }
+  return {
+    totals: counters(page.totals),
+    providers: page.providers.map((raw) => {
+      const row = raw as Record<string, unknown>
+      return {
+        name: String(row.name ?? ''),
+        label: String(row.label ?? ''),
+        accessPath: (row.access_path ?? 'api') as 'api' | 'plan' | 'local',
+        configured: Boolean(row.configured),
+        usage: counters(row.usage),
+        account: account(row.account),
+        accountCollection: String(row.account_collection ?? '')
+      }
+    }),
+    daily: page.daily.map((raw) => {
+      const row = raw as Record<string, unknown>
+      return { date: String(row.date ?? ''), ...counters(row) }
+    }),
+    account: {},
+    updatedAt: page.updated_at ? String(page.updated_at) : null
   }
 }
 
@@ -723,8 +780,8 @@ function startApp(): void {
     session.defaultSession.setPermissionRequestHandler((contents, permission, done) => {
       done(allowed.has(permission) && isMarviPage(contents.getURL()))
     })
-    session.defaultSession.setPermissionCheckHandler((_contents, permission, origin) =>
-      allowed.has(permission) && isMarviPage(origin)
+    session.defaultSession.setPermissionCheckHandler(
+      (_contents, permission, origin) => allowed.has(permission) && isMarviPage(origin)
     )
 
     startVoiceStack()
@@ -1223,6 +1280,16 @@ function startApp(): void {
         })
         if (!response.ok) return null
         return normaliseProviderPage(await response.json())
+      } catch {
+        return null
+      }
+    })
+    ipcMain.handle('marvi:get-usage', async (_event, refresh = true) => {
+      try {
+        const response = await fetch(`${gateway()}/usage?refresh=${refresh ? 'true' : 'false'}`, {
+          signal: AbortSignal.timeout(refresh ? 12_000 : 5_000)
+        })
+        return response.ok ? normaliseUsagePage(await response.json()) : null
       } catch {
         return null
       }

@@ -168,7 +168,7 @@ Validation evidence and the resulting commit are recorded in
   in instruction position. Injection-pattern detection reports to the audit and
   never sanitises; content is always preserved verbatim (ADR-015).
 - Added external-write idempotency. Tools declare `external=True`; the router
-  checks the key *before* asking for confirmation, so a duplicate never becomes
+  checks the key _before_ asking for confirmation, so a duplicate never becomes
   a second decision about something already done. A failed write stays
   retryable, and YOLO removes the prompt but not the deduplication.
 - Integrated the official Composio SDK behind a thin adapter, verifying the call
@@ -194,6 +194,7 @@ Validation evidence and the resulting commit are recorded in
 - 111 Python tests, 22 desktop tests, ruff, ESLint, typecheck, and the
   production build all pass. Phase 5 stays in progress: no real outbound write
   has been sent, and account event ingestion is not built.
+
 ## 2026-08-16 — Desktop shell UI/UX: frameless chrome and the predecessor assistant-adapted surfaces
 
 - Removed the native Windows title bar (`frame:false`, `titleBarStyle:'hidden'`)
@@ -236,7 +237,7 @@ Validation evidence and the resulting commit are recorded in
   only stale, never-recalled episodes. 31 memory tests.
 - Corrected ADR-014 with ADR-014a. The original evaluated Letta as a
   self-hosted memory server; the supported integration is
-  `openai.LLM.with_letta`, which makes Letta the *LLM* and owner of memory
+  `openai.LLM.with_letta`, which makes Letta the _LLM_ and owner of memory
   blocks and sleep-time agents. The dependency argument does not apply to the
   cloud path, but routing conversation to `api.letta.com` still conflicts with
   local-first and displaces OpenCode Go, and no `LETTA_API_KEY` is configured.
@@ -253,6 +254,7 @@ Validation evidence and the resulting commit are recorded in
   sensitive unless it declares a read-only hint.
 - 183 Python tests and 22 desktop tests pass; ruff, ESLint, typecheck, and the
   production build are clean. Live surface: 24 tools, 10 of them sensitive.
+
 ## 2026-08-16 — Build script and tag-driven release workflow
 
 - `scripts/build-desktop.ps1`: local Windows build with the CI gates
@@ -529,7 +531,7 @@ the only kind of test that would have caught it.
 
 **The installer stopped at "it builds".** A built checkout is not an
 installation: there was no LiveKit server, no `marvi` command, and no shortcut.
-`handoff.rs` now runs four steps after the build, on install *and* on update
+`handoff.rs` now runs four steps after the build, on install _and_ on update
 (an existing installation predates all of it, and updating is how those
 machines get it): record the GPU answer, `marvi setup --essential`, write a
 `marvi` shim and prepend it to `PATH`, create shortcuts. Each is best-effort
@@ -634,13 +636,13 @@ that owns the device and answers `unknown` when the Gateway cannot be reached.
 worker available" — forever, whatever was true — which is what made `VOICE
 STARTING` in the status bar mean nothing; it now reports whether a session
 could actually happen and names what is missing. And `OFFLINE_RUNTIME` reused
-the *ready* assistant state, so an unreachable Marvi said "Say Marvi".
+the _ready_ assistant state, so an unreachable Marvi said "Say Marvi".
 
 **A 2.5 GB download that said only "WORKING".** No progress was plumbed at all:
 the install endpoint blocks for the whole download and returned only when done.
 The installer's `progress` callback now writes to a readout the `/setup` page
 reports, and the panel polls it during an install. Components that were merely
-not downloaded yet were also painted in the *error* colour, which made a fresh
+not downloaded yet were also painted in the _error_ colour, which made a fresh
 install look like a broken one.
 
 `shell-layout.test.ts` locks the layout chain and the device honesty, since both
@@ -689,7 +691,7 @@ failures were invisible to every test that existed.
   glyph. Chromium View Transitions animate the sidebar/content snapshots with
   compositor transforms; reduced-motion users skip the transition.
 - Fixed silent Windows feedback. `web-haptics` was initialized with `debug:
-  false`, leaving Electron on a mobile-only Vibration API path. Its documented
+false`, leaving Electron on a mobile-only Vibration API path. Its documented
   desktop audio-transducer path is now enabled, and rejected audio triggers are
   contained so device loss cannot interrupt a UI action.
 
@@ -706,3 +708,21 @@ failures were invisible to every test that existed.
 - Strengthened non-Voice/non-Chat pages with corner-marked lead modules,
   bounded active sections, indexed rows, and restrained interaction feedback.
   Overview remains the only dense dashboard; Voice and Chat remain unchanged.
+
+## 2026-08-23 — durable usage source of truth
+
+- Added a Gateway-owned, atomic JSON usage ledger with per-provider totals and
+  UTC daily buckets. It stores counters only and survives process restarts.
+- Connected direct LiveKit voice usage as deltas from the cumulative session
+  event, preventing both missed voice turns and duplicate counts. Chat and
+  background work record on their existing common provider-client path.
+- Added the dedicated Usage settings page and removed duplicate totals from
+  Providers. The page distinguishes installation-local tokens from optional
+  provider-account spend/balance scopes and never displays missing data as zero.
+- Implemented official collectors for OpenRouter, DeepSeek, DeepInfra, and
+  optional OpenAI/Anthropic admin credentials. Unsupported account scopes are
+  labelled plainly; no dashboard is scraped.
+- Adapted the supplied contribution grid into a 365-day UTC usage map and the
+  supplied loading reference into a deterministic Processing Card. The
+  unrelated game mode, external brand, random progress, and extra dependency
+  were deliberately not carried over.

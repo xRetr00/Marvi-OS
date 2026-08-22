@@ -43,13 +43,11 @@ openrouter = register(
         # OpenRouter forwards `prompt_cache_key` to backends that support it and
         # ignores it elsewhere, so sending it is free.
         cache=CachePolicy(style="cache_key", min_tokens=1024),
-        reasoning=ReasoningPolicy(
-            style="effort", levels=("low", "medium", "high"), default="low"
-        ),
+        reasoning=ReasoningPolicy(style="effort", levels=("low", "medium", "high"), default="low"),
         limits=LimitPolicy(
             style="credit",
             readable=True,
-            note="Credit balance is readable from /credits.",
+            note="Per-key spend and limits are readable from /api/v1/key.",
         ),
         default_max_tokens=4096,
     )
@@ -75,8 +73,8 @@ deepinfra = register(
         reasoning=ReasoningPolicy(style="none"),
         limits=LimitPolicy(
             style="credit",
-            readable=False,
-            note="Balance and spend are shown in the DeepInfra dashboard.",
+            readable=True,
+            note="Monthly account cost is readable from /payment/usage.",
         ),
         default_max_tokens=4096,
     )
@@ -103,8 +101,8 @@ deepseek = register(
         reasoning=ReasoningPolicy(style="none"),
         limits=LimitPolicy(
             style="credit",
-            readable=False,
-            note="Balance is shown in the DeepSeek platform console.",
+            readable=True,
+            note="Account balance is readable from /user/balance.",
         ),
         default_max_tokens=4096,
     )

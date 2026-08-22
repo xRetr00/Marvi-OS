@@ -35,7 +35,9 @@ ran, this module catching a fault in itself.
 
 from __future__ import annotations
 
+import contextlib
 import logging
+import os
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -62,7 +64,35 @@ def _ms(seconds: object) -> str:
         return "?"
 
 
-def attach(session: AgentSession) -> None:
+def _number(value: Any, *names: str) -> int:
+    for name in names:
+        raw = value.get(name) if isinstance(value, dict) else getattr(value, name, None)
+        if raw is not None:
+            with contextlib.suppress(TypeError, ValueError):
+                return max(0, int(raw))
+    return 0
+
+
+def _report_usage(provider: str, usage: Any, previous: dict[str, int]) -> dict[str, int]:
+    """Send only the delta from LiveKit's cumulative session usage event."""
+    current = {
+        "input": _number(usage, "llm_prompt_tokens", "input_tokens", "prompt_tokens"),
+        "output": _number(usage, "llm_completion_tokens", "output_tokens", "completion_tokens"),
+        "cached_input": _number(usage, "llm_cached_prompt_tokens", "cached_input_tokens"),
+        "reasoning": _number(usage, "llm_reasoning_tokens", "reasoning_tokens"),
+    }
+    delta = {name: max(0, value - previous.get(name, 0)) for name, value in current.items()}
+    if provider and any(delta.values()):
+        with contextlib.suppress(Exception):
+            import httpx
+
+            base = os.environ.get("MARVI_GATEWAY_URL", "http://127.0.0.1:8765").rstrip("/")
+            httpx.post(f"{base}/usage", json={"provider": provider, **delta}, timeout=2.0)
+    return current
+
+
+def attach(session: AgentSession, provider: str = "") -> None:
+    last_usage: dict[str, int] = {}
     """Wire every pipeline stage to the log. Never raises.
 
     Handlers are deliberately defensive: this is diagnostics, and a bad
@@ -151,7 +181,10 @@ def attach(session: AgentSession) -> None:
 
     @session.on("session_usage_updated")
     def _usage(event: Any) -> None:
-        log.info("usage: %s", getattr(event, "usage", event))
+        nonlocal last_usage
+        usage = getattr(event, "usage", event)
+        log.info("usage: %s", usage)
+        last_usage = _report_usage(provider, usage, last_usage)
 
 
 def _log_turn_metrics(role: str, report: Any) -> None:

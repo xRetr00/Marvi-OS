@@ -174,6 +174,48 @@ export interface ProviderPage {
   totals: { input: number; output: number; cachedInput: number; billable: number }
 }
 
+export interface UsageCounters {
+  input: number
+  output: number
+  cachedInput: number
+  reasoning: number
+  billable: number
+}
+
+export interface UsageAccount {
+  state: 'ready' | 'error'
+  scope?: string
+  currency?: string
+  spent?: number | null
+  periodSpent?: number | null
+  remaining?: number | null
+  limit?: number | null
+  balances?: Array<{ currency: string; remaining: string }>
+  detail?: string
+}
+
+export interface UsageProvider {
+  name: string
+  label: string
+  accessPath: 'api' | 'plan' | 'local'
+  configured: boolean
+  usage: UsageCounters
+  account: UsageAccount | null
+  accountCollection: string
+}
+
+export interface UsageDay extends UsageCounters {
+  date: string
+}
+
+export interface UsagePage {
+  totals: UsageCounters
+  providers: UsageProvider[]
+  daily: UsageDay[]
+  account: Record<string, UsageAccount>
+  updatedAt: string | null
+}
+
 /** One model a provider says it has, as `GET /models` reports it. */
 export interface ModelCard {
   id: string

@@ -81,6 +81,7 @@ def _report_transcript(*, heard: str = "", spoken: str = "") -> None:
             timeout=REPORT_TIMEOUT,
         )
 
+
 load_dotenv(Path(__file__).parents[2] / ".env")
 
 
@@ -369,7 +370,10 @@ async def marvi_session(ctx: JobContext) -> None:
     #
     # Every stage of the pipeline, reported: VAD, STT, LLM, TTS, barge-in,
     # tools, and the per-turn timings that say which one is slow.
-    observability.attach(session)
+    # Direct voice inference bypasses ProviderClient for latency. LiveKit's
+    # cumulative usage event is therefore reported back to the Gateway as
+    # per-event deltas, so Usage still counts every voice turn exactly once.
+    observability.attach(session, provider=getattr(session.llm, "_provider", ""))
 
     @session.on("user_input_transcribed")
     def _heard_live(event: Any) -> None:
@@ -463,7 +467,6 @@ async def marvi_session(ctx: JobContext) -> None:
     catalogue = await GatewayTools().from_gateway()
     await agent.update_tools([*agent.tools, end_conversation, *catalogue])
     log.info("%d tools available, including end_conversation", len(agent.tools))
-
 
 
 @server.on("worker_started")

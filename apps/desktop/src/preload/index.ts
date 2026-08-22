@@ -15,6 +15,7 @@ import type {
   ModelPage,
   PluginPage,
   ProviderPage,
+  UsagePage,
   RoomEvent,
   RuntimeStatus,
   SchedulePage,
@@ -131,8 +132,7 @@ const marvi = {
   /** Stop the turn in flight. Closes the provider connection, not just the UI. */
   cancelChat: (): Promise<boolean> => ipcRenderer.invoke('marvi:cancel-chat'),
   onChatDelta: (listener: (event: Record<string, unknown>) => void): (() => void) => {
-    const wrapped = (_event: unknown, payload: Record<string, unknown>): void =>
-      listener(payload)
+    const wrapped = (_event: unknown, payload: Record<string, unknown>): void => listener(payload)
     ipcRenderer.on('marvi:chat-delta', wrapped)
     return () => {
       ipcRenderer.removeListener('marvi:chat-delta', wrapped)
@@ -189,6 +189,8 @@ const marvi = {
     return () => ipcRenderer.removeListener('marvi:services', handler)
   },
   getProviders: (): Promise<ProviderPage | null> => ipcRenderer.invoke('marvi:get-providers'),
+  getUsage: (refresh = true): Promise<UsagePage | null> =>
+    ipcRenderer.invoke('marvi:get-usage', refresh),
   /** Probe a local provider and mark it connected only if it answers. */
   connectLocal: (
     name: string

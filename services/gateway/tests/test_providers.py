@@ -338,9 +338,13 @@ def test_deepseeks_own_cache_counters_are_understood() -> None:
     assert usage.billable == 150
 
 
-def test_openrouter_is_the_one_provider_whose_balance_is_readable() -> None:
+def test_official_account_usage_endpoints_are_marked_readable() -> None:
     assert get("openrouter").limits.readable is True
-    assert get("deepseek").limits.readable is False
+    assert get("deepseek").limits.readable is True
+    assert get("deepinfra").limits.readable is True
+    assert get("openai").limits.readable is True
+    assert get("anthropic").limits.readable is True
+    assert get("opencode-go").limits.readable is False
 
 
 def test_missing_usage_is_zero_not_a_crash() -> None:

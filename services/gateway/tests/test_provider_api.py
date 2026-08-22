@@ -90,6 +90,23 @@ def test_the_page_lists_every_provider_with_its_billing(client) -> None:
     assert body["totals"]["billable"] == 0
 
 
+def test_usage_is_a_dedicated_durable_page(client) -> None:
+    recorded = client.post(
+        "/usage", json={"provider": "openai", "input": 100, "output": 20, "cached_input": 80}
+    )
+    body = client.get("/usage?refresh=false").json()
+
+    assert recorded.json() == {"recorded": True}
+    assert body["totals"]["billable"] == 40
+    assert (
+        next(row for row in body["providers"] if row["name"] == "openai")["usage"]["input"] == 100
+    )
+
+
+def test_usage_rejects_unknown_provider(client) -> None:
+    assert client.post("/usage", json={"provider": "made-up", "input": 10}).status_code == 400
+
+
 def test_plan_providers_carry_the_terms_warning(client) -> None:
     rows = {p["name"]: p for p in client.get("/providers").json()["providers"]}
 
@@ -156,9 +173,7 @@ def test_connecting_a_plan_without_its_client_id_explains_itself(client) -> None
     assert "MARVI_CODEX_CLIENT_ID" in response.json()["detail"]
 
 
-def test_starting_a_flow_returns_a_url_to_open_and_never_a_secret(
-    client, monkeypatch
-) -> None:
+def test_starting_a_flow_returns_a_url_to_open_and_never_a_secret(client, monkeypatch) -> None:
     monkeypatch.setenv("MARVI_CODEX_CLIENT_ID", "client-abc")
     body = client.post("/providers/codex/oauth/start").json()
 

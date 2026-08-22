@@ -14,6 +14,7 @@ import type {
   ModelPage,
   PluginPage,
   ProviderPage,
+  UsagePage,
   RoomEvent,
   RuntimeStatus,
   SchedulePage,
@@ -113,6 +114,7 @@ export interface MarviDesktopApi {
   retryService: (name: string) => Promise<boolean>
   onServices: (listener: (reports: ServiceReport[]) => void) => () => void
   getProviders: () => Promise<ProviderPage | null>
+  getUsage: (refresh?: boolean) => Promise<UsagePage | null>
   connectLocal: (
     name: string
   ) => Promise<{ connected: boolean; models: number; detail: string } | null>

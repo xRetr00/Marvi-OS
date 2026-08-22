@@ -7,16 +7,16 @@ icon artwork without displaying the repository banner in the application.
 
 Palette:
 
-| Token | Value | Use |
-|---|---:|---|
-| `void` | `#050505` | primary background |
-| `obsidian` | `#0A0A0B` | raised surfaces |
-| `graphite` | `#17181A` | borders and separators |
-| `ash` | `#72767D` | secondary labels |
-| `bone` | `#E7E7E3` | primary text/glyphs |
-| `white` | `#FAFAF8` | active highlights |
-| `signal` | `#147EC1` | restrained status accent from the icon |
-| `danger` | `#D85B5B` | destructive/error only |
+| Token      |     Value | Use                                    |
+| ---------- | --------: | -------------------------------------- |
+| `void`     | `#050505` | primary background                     |
+| `obsidian` | `#0A0A0B` | raised surfaces                        |
+| `graphite` | `#17181A` | borders and separators                 |
+| `ash`      | `#72767D` | secondary labels                       |
+| `bone`     | `#E7E7E3` | primary text/glyphs                    |
+| `white`    | `#FAFAF8` | active highlights                      |
+| `signal`   | `#147EC1` | restrained status accent from the icon |
+| `danger`   | `#D85B5B` | destructive/error only                 |
 
 Blue is a status signal, not a general decorative gradient. Avoid colorful
 cards. Use monospaced typography, ASCII separators, compact uppercase labels,
@@ -77,15 +77,15 @@ content that requires attention.
 
 Target sizes at 100% scaling:
 
-| State | Size | Content |
-|---|---:|---|
-| sleep | `76×8` | recessed top-edge seed; only a short light line remains visible |
-| listening | `210×38` | `LISTEN`, compact live waveform |
-| thinking | `230×40` | `THINK`, low-cost ASCII pulse |
-| speaking | `250×42` | `SPEAK`, output waveform, interrupt hint |
-| action | `280×46` | tool glyph, short verb, progress |
-| notification | up to `320×64` | one concise world/room event |
-| confirmation | up to `360×92` | exact action summary, approve/deny |
+| State        |           Size | Content                                                         |
+| ------------ | -------------: | --------------------------------------------------------------- |
+| sleep        |         `76×8` | recessed top-edge seed; only a short light line remains visible |
+| listening    |       `210×38` | `LISTEN`, compact live waveform                                 |
+| thinking     |       `230×40` | `THINK`, low-cost ASCII pulse                                   |
+| speaking     |       `250×42` | `SPEAK`, output waveform, interrupt hint                        |
+| action       |       `280×46` | tool glyph, short verb, progress                                |
+| notification | up to `320×64` | one concise world/room event                                    |
+| confirmation | up to `360×92` | exact action summary, approve/deny                              |
 
 Rules:
 
@@ -152,9 +152,10 @@ it opens a compact popover with version, channel, commit, build time, last
 update result, and check/update actions. Full update controls live in About;
 there is no separate Updates settings destination.
 
-Provider, Chat, and Voice show the same session timing strip. Provider totals
-are authoritative Gateway values. The displayed session token count is the
-delta from the first provider snapshot after this renderer session starts, so
+Chat and Voice show the same session timing strip. Usage is the sole source of
+truth for durable provider and session counters; Providers only configures
+connections. The displayed session token count is the delta from the first
+Gateway usage snapshot after this renderer session starts, so
 it accumulates across chat and voice turns without inventing token estimates.
 Chat latency measures request-to-reply time; voice latency measures the active
 listen/wake-to-speaking transition. Turn and duration counters continue while
@@ -169,6 +170,14 @@ Those secondary pages use a quieter editorial module stack: corner-marked lead,
 bounded active module, indexed value rows, and restrained hover feedback. Do
 not repeat the Overview dashboard density on configuration and history pages.
 Voice and Chat retain their purpose-built interaction layouts.
+
+Async page work uses the shared Processing Card. It shows a real percentage
+only when the underlying operation reports one; otherwise the scan and moving
+bar are explicitly indeterminate. The visual is adapted from the supplied
+reference into Marvi's monochrome/blue vocabulary, contains no external brand,
+and never advances a fake random counter. Usage adapts the supplied calendar
+concept into UTC daily token buckets without its external GitHub fetch or game
+mode.
 
 Icon-only and ambiguous shell controls use the shared accessible tooltip
 surface. Tooltips appear on hover and keyboard focus after a short delay, use

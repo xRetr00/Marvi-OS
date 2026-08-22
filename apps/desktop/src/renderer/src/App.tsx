@@ -7,6 +7,8 @@ import { BootFailureOverlay } from './components/BootFailureOverlay'
 import { AsciiRule } from './components/ui/ascii-rule'
 import { ConversationBar } from './components/conversation-bar'
 import { ModelsPanel } from './components/models-panel'
+import { UsagePanel } from './components/usage-panel'
+import { ProcessingCard } from './components/ui/processing-card'
 import { Picker } from './components/ui/picker'
 import { CommandCard } from './components/ui/command-card'
 import { ConnectingOverlay } from './components/ConnectingOverlay'
@@ -97,7 +99,7 @@ const NAV_GROUPS = [
 
 /** Behind the gear: the things you set up. */
 const SETTINGS_GROUPS = [
-  { label: 'Connect', items: ['Providers', 'Models', 'Accounts', 'Skills', 'Plugins'] },
+  { label: 'Connect', items: ['Providers', 'Models', 'Usage', 'Accounts', 'Skills', 'Plugins'] },
   { label: 'System', items: ['Preferences', 'Schedules', 'Maintenance', 'About'] }
 ] as const
 
@@ -131,6 +133,7 @@ const NAV_ICONS: Record<Page, AbstractIconName> = {
 const SETTINGS_ICONS: Record<SettingsPage, AbstractIconName> = {
   Providers: 'providers',
   Models: 'models',
+  Usage: 'activity',
   Accounts: 'accounts',
   Skills: 'skills',
   Plugins: 'plugins',
@@ -167,8 +170,8 @@ function MainSurface(): React.JSX.Element {
   useEffect(() => {
     let disposed = false
     const poll = async (): Promise<void> => {
-      const providerPage = await window.marvi?.getProviders()
-      if (!disposed && providerPage) updateSessionUsage(providerPage.totals)
+      const usage = await window.marvi?.getUsage(false)
+      if (!disposed && usage) updateSessionUsage(usage.totals)
     }
     void poll()
     const usageTimer = setInterval(() => void poll(), 4_000)
@@ -827,6 +830,7 @@ function AccountsPanel(): React.JSX.Element {
   const [accounts, setAccounts] = useState<ConnectedAccount[]>([])
   const [detail, setDetail] = useState('Loading')
   const [available, setAvailable] = useState(true)
+  const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
     let disposed = false
@@ -836,6 +840,7 @@ function AccountsPanel(): React.JSX.Element {
       setAccounts(page.accounts)
       setDetail(page.detail)
       setAvailable(page.available)
+      setLoaded(true)
     }
     void load()
     const timer = setInterval(() => void load(), 30_000)
@@ -853,14 +858,22 @@ function AccountsPanel(): React.JSX.Element {
         title="Accounts"
       />
 
-      <div className="context-line">
-        <span>COMPOSIO</span>
-        <strong>{available ? detail.toUpperCase() : 'NOT CONFIGURED'}</strong>
-      </div>
+      {!loaded ? (
+        <ProcessingCard
+          compact
+          detail="Checking Composio for connected accounts."
+          title="Loading accounts"
+        />
+      ) : (
+        <div className="context-line">
+          <span>COMPOSIO</span>
+          <strong>{available ? detail.toUpperCase() : 'NOT CONFIGURED'}</strong>
+        </div>
+      )}
 
       <AsciiRule />
 
-      {accounts.length === 0 ? (
+      {loaded && accounts.length === 0 ? (
         <span className="construction">
           {available ? 'NO ACCOUNTS CONNECTED' : 'SET COMPOSIO_API_KEY TO ENABLE ACCOUNTS'}
         </span>
@@ -1011,15 +1024,6 @@ function ProviderCard({
         </small>
       ) : null}
 
-      {provider.usage.billable > 0 ? (
-        <small>
-          {provider.usage.billable.toLocaleString()} billable tokens
-          {provider.usage.cachedInput > 0
-            ? ` / ${provider.usage.cachedInput.toLocaleString()} served from cache`
-            : ''}
-        </small>
-      ) : null}
-
       <button className="phase" type="button" onClick={() => setOpen(!open)}>
         {open ? 'CLOSE' : provider.configured ? 'EDIT' : 'CONNECT'}
       </button>
@@ -1131,7 +1135,6 @@ function ProviderCard({
 function ProvidersPanel(): React.JSX.Element {
   const [page, setPage] = useState<ProviderPage | null>(null)
   const [error, setError] = useState('')
-  const sessionMetrics = useStore($sessionMetrics)
 
   // Used by a card after a sign-in completes, so the page reflects it at once
   // rather than on the next poll.
@@ -1177,24 +1180,15 @@ function ProvidersPanel(): React.JSX.Element {
         title="Providers"
       />
 
-      {page ? (
-        <MessageTiming
-          aria-label="Provider usage"
-          className="provider-timing"
-          stats={[
-            { label: 'INPUT', value: page.totals.input.toLocaleString() },
-            { label: 'OUTPUT', value: page.totals.output.toLocaleString() },
-            { label: 'CACHED', value: page.totals.cachedInput.toLocaleString() },
-            {
-              label: 'THIS SESSION',
-              value: sessionMetrics.ready ? sessionMetrics.billableTokens.toLocaleString() : '—'
-            }
-          ]}
-        />
-      ) : null}
-
       <AsciiRule />
 
+      {!page && !error ? (
+        <ProcessingCard
+          compact
+          detail="Checking configured endpoints and connection state."
+          title="Loading providers"
+        />
+      ) : null}
       {error ? <span className="construction">{error.toUpperCase()}</span> : null}
 
       {groups.map(([label, path]) => {
@@ -2043,6 +2037,14 @@ function SchedulesPanel(): React.JSX.Element {
       <AsciiRule />
       <div className="panel-label">{'// SET'}</div>
 
+      {!page ? (
+        <ProcessingCard
+          compact
+          detail="Reading the local schedule registry."
+          title="Loading schedules"
+        />
+      ) : null}
+
       <div className="service-list">
         {(page?.schedules ?? []).map((row) => (
           <div className="service-row" key={row.id}>
@@ -2088,7 +2090,7 @@ function SchedulesPanel(): React.JSX.Element {
         ))}
       </div>
 
-      {(page?.schedules ?? []).length === 0 ? (
+      {page && page.schedules.length === 0 ? (
         <span className="construction">NOTHING SCHEDULED</span>
       ) : null}
     </section>
@@ -2143,6 +2145,14 @@ function PluginsPanel(): React.JSX.Element {
       {error ? <span className="construction">{error.toUpperCase()}</span> : null}
 
       <AsciiRule />
+
+      {!page ? (
+        <ProcessingCard
+          compact
+          detail="Reading declared plugins and their local state."
+          title="Loading plugins"
+        />
+      ) : null}
 
       <div className="service-list">
         {(page?.plugins ?? []).map((plugin) => (
@@ -2264,12 +2274,14 @@ function SkillsPanel(): React.JSX.Element {
   const [filter, setFilter] = useState('')
   const [review, setReview] = useState<SkillReview | null>(null)
   const [busy, setBusy] = useState('')
+  const [loaded, setLoaded] = useState(false)
 
   const load = useCallback(async (): Promise<void> => {
     const page = await window.marvi?.getSkillStore()
     if (page) {
       setStore(page.skills)
       setSources(page.sources)
+      setLoaded(true)
     }
   }, [])
 
@@ -2280,6 +2292,7 @@ function SkillsPanel(): React.JSX.Element {
       if (disposed || !page) return
       setStore(page.skills)
       setSources(page.sources)
+      setLoaded(true)
     })()
     return () => {
       disposed = true
@@ -2381,8 +2394,14 @@ function SkillsPanel(): React.JSX.Element {
         </div>
       ) : null}
 
-      {store.length === 0 ? (
-        <span className="construction">LOADING THE STORE</span>
+      {!loaded ? (
+        <ProcessingCard
+          compact
+          detail="Reading configured skill sources and installed packages."
+          title="Loading skill store"
+        />
+      ) : store.length === 0 ? (
+        <span className="construction">NO SKILLS AVAILABLE</span>
       ) : (
         <div className="service-list">
           {shown.map((skill) => (
@@ -2602,6 +2621,8 @@ function SettingsShell({
             <ProvidersPanel />
           ) : page === 'Models' ? (
             <ModelsPanel />
+          ) : page === 'Usage' ? (
+            <UsagePanel />
           ) : page === 'Accounts' ? (
             <AccountsPanel />
           ) : page === 'Skills' ? (

@@ -51,6 +51,7 @@ def isolate_marvi_home(tmp_path_factory, monkeypatch):
         "MARVI_VISION_DIR",
         "MARVI_SKILLS_DIR",
         "MARVI_MCP_CONFIG",
+        "MARVI_USAGE_LEDGER",
     ):
         monkeypatch.delenv(leaked, raising=False)
 
@@ -70,6 +71,8 @@ def isolate_marvi_home(tmp_path_factory, monkeypatch):
             monkeypatch.delenv(provider.base_url_env, raising=False)
         monkeypatch.delenv(provider.enabled_setting(), raising=False)
     monkeypatch.delenv("MARVI_PROVIDER", raising=False)
+    monkeypatch.delenv("OPENAI_ADMIN_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_ADMIN_KEY", raising=False)
 
     yield home
 

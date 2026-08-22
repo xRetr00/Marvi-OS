@@ -4,6 +4,7 @@ import type { ModelCard, ModelProvider, ProviderPage, UpstreamPage } from '../..
 import { PageLead } from './page-lead'
 import { AsciiRule } from './ui/ascii-rule'
 import { Picker, type PickerOption } from './ui/picker'
+import { ProcessingCard } from './ui/processing-card'
 
 /**
  * Choosing a model, an effort, and — for a gateway — who serves it.
@@ -101,6 +102,14 @@ export function ModelsPanel(): React.JSX.Element {
 
       <AsciiRule />
 
+      {!providers && !error ? (
+        <ProcessingCard
+          compact
+          detail="Reading connected providers and the active model."
+          title="Loading models"
+        />
+      ) : null}
+
       {error ? <p className="notice notice-warn">{error}</p> : null}
 
       {providers && connected.length === 0 ? (
@@ -149,16 +158,14 @@ export function ModelsPanel(): React.JSX.Element {
             </span>
           </span>
           <Picker
-            options={(active?.models ?? []).map(
-              (entry): PickerOption => ({
-                value: entry.id,
-                // The id under the name, because the id is what a provider
-                // error quotes back and the name is what you recognise.
-                label: entry.name,
-                detail: entry.id === entry.name ? undefined : entry.id,
-                hint: [contextLabel(entry.context), price(entry)].filter(Boolean).join('  ')
-              })
-            )}
+            options={(active?.models ?? []).map((entry): PickerOption => ({
+              value: entry.id,
+              // The id under the name, because the id is what a provider
+              // error quotes back and the name is what you recognise.
+              label: entry.name,
+              detail: entry.id === entry.name ? undefined : entry.id,
+              hint: [contextLabel(entry.context), price(entry)].filter(Boolean).join('  ')
+            }))}
             value={model}
             onChange={(next) => {
               if (row?.env.model) void save({ [row.env.model]: next })
@@ -200,6 +207,14 @@ export function ModelsPanel(): React.JSX.Element {
 
         {active?.routesUpstream ? <UpstreamChoice model={model} onSave={save} /> : null}
       </div>
+
+      {loading ? (
+        <ProcessingCard
+          compact
+          detail={`${row?.label ?? 'Provider'} is returning its current model catalog.`}
+          title="Fetching model catalog"
+        />
+      ) : null}
 
       {active && !active.reachable ? (
         <p className="notice notice-warn">
@@ -252,16 +267,18 @@ function UpstreamChoice({
           <span className="choice-hint">Resolved per request against live numbers</span>
         </span>
         <Picker
-          options={(page?.policies ?? ['auto', 'cheapest', 'fastest', 'throughput']).map((name) => ({
-            value: name === 'auto' ? '' : name,
-            label: name.charAt(0).toUpperCase() + name.slice(1),
-            detail:
-              name === 'fastest'
-                ? 'Best for voice — first-token time is the whole experience'
-                : name === 'cheapest'
-                  ? "OpenRouter's own default"
-                  : undefined
-          }))}
+          options={(page?.policies ?? ['auto', 'cheapest', 'fastest', 'throughput']).map(
+            (name) => ({
+              value: name === 'auto' ? '' : name,
+              label: name.charAt(0).toUpperCase() + name.slice(1),
+              detail:
+                name === 'fastest'
+                  ? 'Best for voice — first-token time is the whole experience'
+                  : name === 'cheapest'
+                    ? "OpenRouter's own default"
+                    : undefined
+            })
+          )}
           value={policy}
           onChange={(next) => {
             setPolicy(next)
