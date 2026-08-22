@@ -102,16 +102,37 @@ def test_a_spoken_reply_is_bounded() -> None:
 # -- what the voice request actually carries ---------------------------------
 
 
-def test_voice_asks_openrouter_for_the_fastest_upstream() -> None:
-    """The Gateway has always routed voice by latency. The Agent calls the
-    provider itself, so that setting never reached a spoken turn."""
+def test_the_configured_route_is_used_rather_than_one_invented_here() -> None:
+    """The Agent used to hardcode `sort: latency`.
+
+    That duplicated a policy the Gateway already computes from a setting the
+    user can change, and pinned a constraint the numbers do not support: best
+    first-token times are the same with it and without, and what varies by
+    twenty times run to run is which upstream OpenRouter picks.
+    """
+    from marvi_agent.runtime import AgentConfig, voice_body
+
+    body = voice_body(
+        AgentConfig(
+            api_key="k",
+            model="m",
+            base_url="https://openrouter.ai/api/v1",
+            route={"sort": "throughput"},
+        )
+    )
+
+    assert body["provider"] == {"sort": "throughput"}
+
+
+def test_no_configured_route_means_no_routing_field() -> None:
+    """Letting OpenRouter choose is a valid answer and the default one."""
     from marvi_agent.runtime import AgentConfig, voice_body
 
     body = voice_body(
         AgentConfig(api_key="k", model="m", base_url="https://openrouter.ai/api/v1")
     )
 
-    assert body["provider"] == {"sort": "latency"}
+    assert "provider" not in body
 
 
 def test_voice_asks_for_reasoning_to_be_off() -> None:

@@ -12,7 +12,7 @@ registry in `marvi_gateway.providers` stays the single source of truth.
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import httpx
 from livekit.plugins import openai
@@ -41,6 +41,8 @@ class AgentConfig:
     #: The model's context window, as the provider reports it. Zero when it
     #: does not, in which case the reply cap stands on its own.
     context: int = 0
+    #: Upstream routing, as configured. Empty for a provider that has none.
+    route: dict = field(default_factory=dict)
 
     @classmethod
     def from_gateway(cls, client: httpx.Client | None = None) -> AgentConfig:
@@ -67,6 +69,7 @@ class AgentConfig:
             base_url=body["base_url"],
             provider=body.get("provider", "unknown"),
             context=int(body.get("context") or 0),
+            route=body.get("route") or {},
         )
 
 
@@ -127,10 +130,16 @@ def voice_body(config: AgentConfig) -> dict:
     """
     if "openrouter.ai" not in config.base_url.lower():
         return {}
-    return {
-        "provider": {"sort": "latency"},
-        "reasoning": {"enabled": False, "exclude": True},
-    }
+    body: dict = {"reasoning": {"enabled": False, "exclude": True}}
+    # Whatever the Gateway was configured with, rather than a policy invented
+    # here. This used to hardcode `sort: latency`, which duplicated a setting
+    # the user can change and pinned a constraint the numbers do not support:
+    # best-case first-token times are the same with it and without, and what
+    # actually varies -- by twenty times, run to run -- is which upstream
+    # OpenRouter happens to pick.
+    if config.route:
+        body["provider"] = config.route
+    return body
 
 
 def build_llm(config: AgentConfig) -> openai.LLM:

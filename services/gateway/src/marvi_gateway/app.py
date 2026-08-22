@@ -215,6 +215,12 @@ class VoiceProvider(BaseModel):
     #: than letting the plugin ask for the whole context -- which is what made
     #: OpenRouter reserve credit for 65,536 tokens and refuse every turn.
     context: int = 0
+    #: The upstream routing this provider was configured for on the voice job.
+    #:
+    #: Sent rather than invented on the far side. The Agent was hardcoding
+    #: `sort: latency`, which duplicated this policy, ignored the setting the
+    #: user can change, and pinned a constraint the measurements do not support.
+    route: dict[str, Any] = {}
 
 
 class IdentityStatus(BaseModel):
@@ -2025,12 +2031,26 @@ def create_app(
         model = chosen.model_for("main")
         cards = await anyio.to_thread.run_sync(lambda: catalog.models(chosen))
         card = next((c for c in cards if c.id == model), None)
+        # The routing the user chose, rather than one the Agent invents.
+        #
+        # The Agent holds the credential and calls the provider directly, so it
+        # was hardcoding `sort: latency` -- duplicating a policy that already
+        # lives here, ignoring `MARVI_OPENROUTER_ROUTE_VOICE`, and pinning a
+        # constraint measurement does not support. Best-case first-token times
+        # are the same with it and without; what varies is which upstream
+        # OpenRouter picks, and that varies by twenty times either way.
+        route: dict[str, Any] = {}
+        if chosen.routes_upstream:
+            from .providers.openrouter import route_for
+
+            route = route_for("voice").as_body()
         return VoiceProvider(
             provider=chosen.name,
             base_url=chosen.base_url() or "",
             model=model,
             api_key=chosen.api_key() or "local",
             context=card.context if card else 0,
+            route=route,
         )
 
     @app.get("/identity", response_model=IdentityStatus)
