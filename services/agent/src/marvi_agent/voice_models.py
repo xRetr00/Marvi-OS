@@ -475,6 +475,9 @@ MIN_SPEAKABLE = 4
 LEAD_SECONDS = float(os.environ.get("MARVI_TTS_LEAD_SECONDS", "0.6") or 0.6)
 #: 24 kHz, mono, 32-bit float samples as the engine emits them.
 _LEAD_BYTES = int(24_000 * 4 * max(0.0, LEAD_SECONDS))
+#: However slow the engine, speaking starts by now. A cushion that takes
+#: longer to fill than the gaps it exists to hide is not a cushion.
+_LEAD_TIMEOUT = float(os.environ.get("MARVI_TTS_LEAD_TIMEOUT", "0.7") or 0.7)
 
 
 def _next_clause(buffer: str) -> tuple[str, str]:
@@ -543,7 +546,17 @@ class _VibeVoiceSynthesizeStream(tts.SynthesizeStream):
                 output_emitter.push(chunk)
                 return
             held.append(chunk)
-            if sum(len(piece) for piece in held) < lead:
+            # Bounded by time as well as by size, and this is the important
+            # half. Banking six hundred milliseconds of audio from an engine
+            # running at a quarter of real time takes two and a half seconds --
+            # so the cushion meant to smooth the reply was instead the longest
+            # part of the wait before it started. Time to first byte went from
+            # 232ms to 1801ms in the logs, which is the cushion, not the model.
+            #
+            # Whichever comes first: enough audio to be worth having, or long
+            # enough that waiting is worse than the gaps it prevents.
+            waited = time.monotonic() - began
+            if sum(len(piece) for piece in held) < lead and waited < _LEAD_TIMEOUT:
                 return
             for piece in held:
                 output_emitter.push(piece)

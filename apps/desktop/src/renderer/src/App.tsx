@@ -1528,7 +1528,7 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
         streaming={speaking || listening}
       />
 
-      <ConversationBar level={voice.level} />
+      <ConversationBar level={voice.level} warming={voiceComponent?.state === 'starting'} />
     </section>
   )
 }
@@ -1861,13 +1861,17 @@ function Subtitles(): React.JSX.Element | null {
       {heard ? (
         <p className={`voice-line is-you${heard.final ? '' : ' is-live'}`} key={heard.id}>
           <span className="voice-who">YOU</span>
-          <StreamingWords text={heard.text} live={!heard.final} />
+          <span className="voice-words">
+            <StreamingWords text={heard.text} live={!heard.final} />
+          </span>
         </p>
       ) : null}
       {spoken ? (
         <p className={`voice-line is-marvi${spoken.final ? '' : ' is-live'}`} key={spoken.id}>
           <span className="voice-who">MARVI</span>
-          <StreamingWords text={spoken.text} live={!spoken.final} />
+          <span className="voice-words">
+            <StreamingWords text={spoken.text} live={!spoken.final} />
+          </span>
         </p>
       ) : null}
     </div>

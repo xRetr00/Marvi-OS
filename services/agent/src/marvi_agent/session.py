@@ -410,8 +410,14 @@ async def marvi_session(ctx: JobContext) -> None:
 
     # `update_tools` is on the Agent, not the session -- checked against the
     # installed 1.6.10 rather than assumed.
+    #
+    # The Gateway's whole catalogue joins the seven written here by hand. Voice
+    # had those seven and chat had seventeen, kept in step by nobody -- so
+    # asking out loud for a web search got "I don't have a web search tool",
+    # which was true, while typing the same question worked.
     agent = session.current_agent
-    await agent.update_tools([*agent.tools, end_conversation])
+    catalogue = await GatewayTools().from_gateway()
+    await agent.update_tools([*agent.tools, end_conversation, *catalogue])
     log.info("%d tools available, including end_conversation", len(agent.tools))
 
 

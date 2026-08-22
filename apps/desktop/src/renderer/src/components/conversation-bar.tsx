@@ -21,7 +21,21 @@ import {
  * It sits in its own bar so the live visual and the actions have separate,
  * predictable targets.
  */
-export function ConversationBar({ level }: { level: number }): React.JSX.Element {
+export function ConversationBar({
+  level,
+  warming = false
+}: {
+  level: number
+  /**
+   * The worker is loading its speech models and cannot take a job yet.
+   *
+   * Pressing Join during this produced a session with no agent in it, and no
+   * way to recover: LiveKit dispatches when the room is created, and does not
+   * dispatch again when a worker registers eighteen seconds later. So the
+   * button says what it is waiting for rather than failing quietly.
+   */
+  warming?: boolean
+}): React.JSX.Element {
   const link = useStore($voiceLink)
   const muted = useStore($voiceMuted)
   const failure = useStore($voiceError)
@@ -50,7 +64,7 @@ export function ConversationBar({ level }: { level: number }): React.JSX.Element
       <span className={`convo-state${failure ? ' is-failed' : ''}`}>
         {/* The actual reason, not a phase caption. "Gateway unavailable" was
             shown for a refused microphone on a healthy Gateway. */}
-        {failure || (live ? 'LIVE' : joining ? 'JOINING…' : 'OFFLINE')}
+        {failure || (live ? 'LIVE' : joining ? 'JOINING…' : warming ? 'WARMING UP…' : 'OFFLINE')}
       </span>
 
       <button
@@ -70,14 +84,17 @@ export function ConversationBar({ level }: { level: number }): React.JSX.Element
       <button
         type="button"
         className={`convo-button convo-call${live || joining ? ' is-live' : ''}`}
-        disabled={joining}
-        aria-label={live ? 'Leave the room' : 'Join the room'}
+        disabled={joining || (warming && !live)}
+        aria-label={
+          live ? 'Leave the room' : warming ? 'Waiting for the voice worker' : 'Join the room'
+        }
+        title={warming ? 'The speech models are still loading' : undefined}
         onClick={() => {
           haptic('tap')
           void (live ? stopVoice() : startVoice())
         }}
       >
-        {live || joining ? 'LEAVE' : 'JOIN'}
+        {live || joining ? 'LEAVE' : warming ? 'WARMING' : 'JOIN'}
       </button>
     </div>
   )

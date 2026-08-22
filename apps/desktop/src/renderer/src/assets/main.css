@@ -3938,7 +3938,11 @@ body {
   display: flex;
   gap: 10px;
   align-items: baseline;
-  max-width: 46ch;
+  /* Wraps rather than running off the side. A flex item will not shrink below
+   * its content by default, so a long reply pushed the line past the edge of
+   * the window instead of breaking -- `min-width: 0` on the text is what lets
+   * it. */
+  max-width: min(46ch, 100%);
   margin: 0;
   padding: 8px 14px;
   border-left: 1px solid var(--ui-stroke-primary);
@@ -3964,6 +3968,14 @@ body {
  * looks settled while it is not is the one thing subtitles must not do. */
 .voice-line.is-live {
   border-left-color: var(--ui-accent);
+}
+
+/* The words, which is everything after the speaker label. Given its own box so
+ * it can shrink and wrap; without this the label and the text are two rigid
+ * flex items and the line grows past the window. */
+.voice-words {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .voice-who {

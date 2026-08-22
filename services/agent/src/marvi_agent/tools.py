@@ -12,11 +12,14 @@ type hints and the docstring, `RunContext` is excluded from that schema, and a
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any
 
 import httpx
 from livekit.agents import RunContext, ToolError, function_tool
+
+log = logging.getLogger("marvi.voice")
 
 DEFAULT_GATEWAY_URL = "http://127.0.0.1:8765"
 REQUEST_TIMEOUT = 12.0
@@ -179,7 +182,12 @@ class GatewayTools:
         return "Cancelled."
 
     def as_list(self) -> list[Any]:
-        """Bound tools for `Agent(tools=...)`. Kept small on purpose."""
+        """The hand-written tools: the room, memory, and the confirmation pair.
+
+        These are written out rather than discovered because their wording is
+        tuned for speech -- a spoken "turn the light on" should not have to
+        survive a schema written for a typed interface.
+        """
         return [
             self.room_state,
             self.room_light,
@@ -189,3 +197,84 @@ class GatewayTools:
             self.approve_pending_action,
             self.deny_pending_action,
         ]
+
+    #: Tools the Agent already words better itself, or that make no sense spoken.
+    #:
+    #: The room and memory tools below are hand-written for speech. Anything
+    #: needing a file path or a URL read aloud is not a spoken tool at all.
+    SPOKEN_BADLY = frozenset(
+        {
+            "room_state",
+            "room_set_light",
+            "room_set_mode",
+            "memory_search",
+            "memory_remember",
+            "memory_forget",
+            "web_fetch",
+        }
+    )
+
+    async def from_gateway(self) -> list[Any]:
+        """Every other tool the Gateway has, built from its own catalogue.
+
+        Voice had seven tools and chat had seventeen, maintained by hand in two
+        places -- so asking Marvi out loud to search the web got "I don't have a
+        web search tool", truthfully, while the same question typed worked. Any
+        tool added since, and every MCP server, reached one surface only.
+
+        Built from `/tools` rather than duplicated again: the Gateway already
+        publishes each tool's schema for exactly this, and every call goes back
+        through `/tools/{name}`, which is the one path with the confirmation
+        flow and the audit line on it.
+
+        Never raises. Voice with the seven it wrote itself is worse than voice
+        with all of them, and far better than no voice at all.
+        """
+        from livekit.agents import function_tool
+
+        client = self._client or httpx.AsyncClient(timeout=REQUEST_TIMEOUT)
+        try:
+            response = await client.get(f"{self._base_url}/tools")
+            response.raise_for_status()
+            catalogue = response.json().get("tools") or []
+        except Exception as exc:
+            log.warning("could not read the tool catalogue: %s", exc)
+            return []
+        finally:
+            if self._client is None:
+                await client.aclose()
+
+        built: list[Any] = []
+        for entry in catalogue:
+            name = str(entry.get("name") or "")
+            if not name or name in self.SPOKEN_BADLY:
+                continue
+            required = [a for a in (entry.get("arguments") or []) if isinstance(a, str)]
+            optional = [a for a in (entry.get("optional") or []) if isinstance(a, str)]
+
+            def caller(raw_arguments: dict[str, Any], _name: str = name) -> Any:
+                return self._call(_name, raw_arguments)
+
+            built.append(
+                function_tool(
+                    caller,
+                    raw_schema={
+                        "name": name,
+                        "description": str(entry.get("description") or name),
+                        "parameters": {
+                            "type": "object",
+                            # The Gateway reports argument names and which are
+                            # required. It does not report their types here, and
+                            # a string the handler coerces beats a type invented
+                            # on this side and rejected on the other.
+                            "properties": {
+                                argument: {"type": "string"}
+                                for argument in [*required, *optional]
+                            },
+                            "required": required,
+                        },
+                    },
+                )
+            )
+        log.info("%d tools from the Gateway, on top of the spoken ones", len(built))
+        return built
