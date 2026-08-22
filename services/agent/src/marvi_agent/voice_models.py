@@ -4,6 +4,7 @@ import asyncio
 import base64
 import copy
 import json
+import logging
 import os
 import subprocess
 import threading
@@ -16,6 +17,8 @@ from typing import Any
 import numpy as np
 from livekit.agents import DEFAULT_API_CONNECT_OPTIONS, APIConnectOptions, stt, tts
 from livekit.agents.types import NOT_GIVEN, NotGivenOr
+
+log = logging.getLogger("marvi.voice")
 
 APP_DATA = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local")) / "Marvi-OS"
 NEMOTRON_MODEL = (
@@ -211,6 +214,20 @@ class NemotronStream(stt.RecognizeStream):
                 await self._process.wait()
 
 
+#: One loaded model per voice, for the life of the process.
+#:
+#: LiveKit runs jobs as threads on Windows, and it prewarms a replacement the
+#: moment a job takes the warm one -- so a second `VibeVoiceTTS` was built and
+#: loaded a second copy of the model onto the card about ten seconds into every
+#: conversation. Two copies of the weights in VRAM, and twenty seconds of GPU
+#: work spent loading the spare *while the first one was trying to speak*.
+#:
+#: Same process, so a dict is all it takes. Keyed by voice because changing the
+#: voice in Settings must still produce a different one.
+_ENGINES: dict[tuple[str, str, int], _VibeVoiceEngine] = {}
+_ENGINE_LOCK = threading.Lock()
+
+
 class _VibeVoiceEngine:
     """Minimal adapter around Microsoft's official streaming inference classes."""
 
@@ -222,6 +239,24 @@ class _VibeVoiceEngine:
         self.voice = voice
         self.inference_steps = inference_steps
         self._loaded = False
+        # One reply at a time through one model. Marvi holds one conversation
+        # at a time by design, but a shared engine makes that an assumption
+        # rather than a fact, and two generations interleaving through the same
+        # weights would produce audio belonging to neither.
+        self._speaking = threading.Lock()
+
+    @classmethod
+    def shared(
+        cls, model_dir: Path, voices_dir: Path, voice: str, inference_steps: int
+    ) -> _VibeVoiceEngine:
+        """The engine for this voice, loading it only if nobody has yet."""
+        key = (str(model_dir), voice, inference_steps)
+        with _ENGINE_LOCK:
+            engine = _ENGINES.get(key)
+            if engine is None:
+                engine = cls(model_dir, voices_dir, voice, inference_steps)
+                _ENGINES[key] = engine
+            return engine
 
     @property
     def voices(self) -> list[str]:
@@ -277,6 +312,10 @@ class _VibeVoiceEngine:
         self._loaded = True
 
     def synthesize(self, text: str, stop: threading.Event) -> Iterator[bytes]:
+        with self._speaking:
+            yield from self._synthesize(text, stop)
+
+    def _synthesize(self, text: str, stop: threading.Event) -> Iterator[bytes]:
         self.load()
         from vibevoice.modular.streamer import AudioStreamer
 
@@ -344,7 +383,9 @@ class VibeVoiceTTS(tts.TTS):
             sample_rate=24_000,
             num_channels=1,
         )
-        self._engine = _VibeVoiceEngine(root / "model", root / "voices", voice, inference_steps)
+        self._engine = _VibeVoiceEngine.shared(
+            root / "model", root / "voices", voice, inference_steps
+        )
 
     @property
     def model(self) -> str:
@@ -476,6 +517,10 @@ class _VibeVoiceSynthesizeStream(tts.SynthesizeStream):
         # never filled still has to be ended, and the clause splitter cannot
         # promise there will be anything to say.
         open_segment = False
+        began = time.monotonic()
+        # Boxed so the release closure can add to it without another
+        # nonlocal declaration.
+        pushed = [0]
         # A cushion at the head of each reply.
         #
         # The room plays audio in real time. This engine produces it at around
@@ -493,6 +538,7 @@ class _VibeVoiceSynthesizeStream(tts.SynthesizeStream):
 
         def release(chunk: bytes) -> None:
             nonlocal released
+            pushed[0] += len(chunk)
             if released:
                 output_emitter.push(chunk)
                 return
@@ -549,6 +595,26 @@ class _VibeVoiceSynthesizeStream(tts.SynthesizeStream):
         await speak(buffer)
         close_segment()
         output_emitter.end_input()
+
+        # The number that says whether the reply was heard in one piece.
+        #
+        # The room plays audio at exactly real time, so anything below 1.0
+        # here means the engine produced it slower than the room consumed
+        # it, the player ran dry, and the reply arrived word, gap, word.
+        # Working that out the first time took an afternoon and a log full
+        # of progress bars. It is one line now.
+        spent = time.monotonic() - began
+        produced = pushed[0] / (24_000 * 4)
+        if spent > 0 and produced > 0:
+            log.info(
+                "tts: %.1fs of audio in %.1fs (%.2fx real time)%s",
+                produced,
+                spent,
+                produced / spent,
+                ""
+                if produced / spent >= 1.0
+                else "  <- below real time, expect gaps",
+            )
 
 
 async def _pump(engine: Any, text: str, release: Any) -> None:
