@@ -114,6 +114,33 @@ class IdentityFiles:
         self.soul_path.write_text(text.strip() + "\n", encoding="utf-8")
         return estimate_tokens(text)
 
+    def note_about_user(self, fact: str) -> str:
+        """Add one standing fact about the user, keeping what is there.
+
+        USER.md is the only context that reaches every prompt on every
+        surface, and until now nothing could add to it but the settings
+        pane. A durable fact said out loud -- "I am the developer" -- went
+        to the memory store instead, which is searched per turn and easily
+        missed, so Marvi could be told who she was talking to and still not
+        know it next time.
+
+        Appended, never rewritten. This is a file the user edits by hand,
+        and a tool that replaced it would eventually replace something they
+        wrote. Repeats are skipped so the same fact said twice appears once.
+        """
+        fact = " ".join(fact.split()).strip(" -")
+        if not fact:
+            return "nothing to add"
+        current = self._read(self.user_path)
+        if fact.lower() in current.lower():
+            return "already known"
+        newline = chr(10)
+        head = current.rstrip()
+        body = (head + newline if head else "") + "- " + fact
+        self.user_path.parent.mkdir(parents=True, exist_ok=True)
+        self.user_path.write_text(body + newline, encoding="utf-8")
+        return "noted"
+
     def write_user(self, text: str) -> int:
         self.user_path.write_text(text.strip() + "\n", encoding="utf-8")
         return estimate_tokens(text)
@@ -169,3 +196,44 @@ def plan_warning(profile: object) -> str | None:
     honest thing is to say so once, clearly, before they connect.
     """
     return PLAN_TERMS_WARNING if getattr(profile, "access_path", "") == "plan" else None
+
+
+def register_identity_tools(registry, identity: IdentityFiles) -> None:
+    """One tool: write a standing fact about the user where it will be read.
+
+    Memory and USER.md are different things and the difference matters. Memory
+    is searched -- a fact only surfaces when a turn happens to look like it.
+    USER.md is in every prompt on every surface, every time. "I am the
+    developer" belongs in the second and was going to the first, so Marvi could
+    be told who she was talking to and not know it the next time.
+
+    Not confirmed, deliberately. This appends one line to a file the user can
+    read and edit, on their own machine, about themselves -- asking permission
+    to remember something they just said is the kind of politeness that makes
+    an assistant tiring. Removing it is `forget_about_user` and a text editor.
+    """
+    from .tools import ToolSpec
+
+    def note_about_user(fact: str) -> dict[str, object]:
+        return {"outcome": identity.note_about_user(fact)}
+
+    registry.register(
+        ToolSpec(
+            name="note_about_user",
+            description=(
+                "Record a standing fact about the user so it is remembered in "
+                "every future conversation. For things that stay true -- their "
+                "name, their role, how they like to be answered. Not for "
+                "passing details or anything about the current task."
+            ),
+            arguments={"fact": str},
+            describes={
+                "fact": (
+                    "One short sentence in the third person, e.g. "
+                    "'is the developer of Marvi' or 'prefers short answers'."
+                )
+            },
+            sensitive=False,
+            handler=note_about_user,
+        )
+    )

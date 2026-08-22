@@ -32,6 +32,7 @@ from .browser import BrowserSession, browser_enabled, register_browser_tools
 from .chat import Chat, ChatStore, ChatTurn, schemas_from_registry
 from .curiosity import Curiosity, seed_identity
 from .deliberate import deliberator_from_env
+from .identity import register_identity_tools,  # noqa: F401
 from .identity import IdentityFiles, plan_warning
 from .ingest import AccountIngest
 from .initiative import Initiative
@@ -515,6 +516,9 @@ def create_app(
             register_account_tools(tool_registry, accounts)
         memory = MemoryStore()
         register_memory_tools(tool_registry, memory)
+        # Standing facts about the user go where every prompt reads them,
+        # rather than into a store that only surfaces on a matching search.
+        register_identity_tools(tool_registry, identity)
         if accounts.available():
             ingest = AccountIngest(accounts, memory)
         register_web_tools(tool_registry, WebTools())
