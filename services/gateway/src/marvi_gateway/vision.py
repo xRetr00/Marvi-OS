@@ -1,11 +1,8 @@
 """Local vision: who is here, and who was here while you were out.
 
-Design notes, since this deliberately diverges from the room sidecar's pipeline
-rather than copying it:
+Current design notes for Marvi's on-demand camera path:
 
-* **Inference is motion-gated.** The sidecar runs a continuous analysis loop; a
-  camera pointed at an empty room burns CPU forever to learn nothing. Here a
-  cheap frame difference decides whether the expensive model runs at all, which
+* **Inference is motion-gated.** A cheap frame difference decides whether the expensive model runs at all, which
   is the same cheap-signals-first escalation `REAL-AGENCY.md` already asks for.
 * **Everything runs on the CPU.** The voice stack already holds 4.245 GiB and
   `AGENTS.md` requires 2 GB of headroom, so vision must not compete for VRAM.
@@ -325,12 +322,10 @@ class VisionService:
     def available(self) -> bool:
         """Whether Marvi should run its own camera loop.
 
-        **The room plugin owns the camera.** Its engine already runs a vision
-        pipeline — person count, owner visibility, activity, sleep state,
-        gestures — and running a second one on the same device means two
-        processes competing for it and two answers to "is the owner here" that
-        can disagree. The room's answers reach Marvi through the plugin's
-        context line instead.
+        A room plugin may explicitly declare an active vision block in its
+        state. If it does, Marvi avoids opening the same camera. The current
+        independent Smart Room plugin does not yet declare or implement that
+        pipeline, so this on-demand service remains eligible when enabled.
 
         So this stays off while the room plugin is providing vision, even if
         `MARVI_VISION` is set. Setting `MARVI_VISION_OWNS_CAMERA` overrides it,

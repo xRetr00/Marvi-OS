@@ -105,6 +105,15 @@ def test_trusted_events_may_reach_their_ceiling() -> None:
     assert verdict.rule == "allowed"
 
 
+def test_smart_room_delivery_events_may_speak() -> None:
+    for kind in ("alarm_requested", "room_welcome", "visitor_report"):
+        event = {
+            "source": "room", "kind": kind, "summary": kind,
+            "trusted": True, "payload": {}, "id": kind,
+        }
+        assert evaluate(event, world(), wanted="speak").surface == "speak"
+
+
 def test_marvi_does_not_talk_over_a_live_conversation() -> None:
     verdict = evaluate(alarm(), world(conversation_active=True), wanted="speak")
     assert verdict.surface == "activity"

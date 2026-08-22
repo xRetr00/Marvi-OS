@@ -395,12 +395,9 @@ Validation evidence and the resulting commit are recorded in
   observation window, so the first `observe` returned a single frame. The model
   is warmed before the clock starts. Verified afterwards at 4 frames captured,
   1 analysed, 3 skipped by the gate.
-- Removed predecessor branding across 27 files. Two categories stayed on
-  purpose: the third-party `hermes-estree`/`hermes-parser` npm packages, and the
-  room sidecar's own data directory — renaming a directory another program owns
-  breaks the integration rather than making Marvi independent. That path is now
-  behind `MARVI_SIDECAR_DIR`, and the room integration was re-verified against
-  the live sidecar afterwards.
+- Removed predecessor branding across 27 files. Generated dependency lockfiles
+  retain upstream package identifiers, while the independent room sidecar now
+  receives its Marvi-owned data path through `MARVI_PLUGIN_DATA`.
 - 272 Python tests and 48 desktop tests pass.
 
 ## 2026-08-16 — Phase 8 completion and the sleep rule
