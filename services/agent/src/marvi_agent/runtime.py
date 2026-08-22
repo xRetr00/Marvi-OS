@@ -103,13 +103,45 @@ def reply_tokens(context: int) -> int:
     return max(VOICE_REPLY_TOKENS, min(context // 20, 1024))
 
 
+def voice_body(config: AgentConfig) -> dict:
+    """Extra request fields the voice path needs and was not sending.
+
+    The Gateway asks for both of these on a voice turn. The Agent does not go
+    through the Gateway -- it holds the credential and calls the provider
+    itself -- so neither was reaching the wire, and the settings existed
+    without ever applying to the surface they were written for.
+
+    **Latency routing.** OpenRouter is a gateway: one model name is a family of
+    upstreams with different times to first token, and it will pick on price
+    unless told otherwise. `sort: latency` is what "voice wants the fastest
+    provider" has to look like on the request.
+
+    **Reasoning off.** Thinking happens before the first token, and the first
+    token is the entire experience of a spoken turn -- a model that deliberates
+    for four seconds has not been thoughtful, it has been silent. Asked off
+    explicitly rather than left unset, because several models reason by default
+    and silence on the parameter is not the same as "do not".
+
+    Only for OpenRouter: these are its fields, and sending them to an endpoint
+    that does not know them is a request some servers reject outright.
+    """
+    if "openrouter.ai" not in config.base_url.lower():
+        return {}
+    return {
+        "provider": {"sort": "latency"},
+        "reasoning": {"enabled": False, "exclude": True},
+    }
+
+
 def build_llm(config: AgentConfig) -> openai.LLM:
     """Every provider Marvi speaks to on the voice path is OpenAI-compatible."""
+    extra = voice_body(config)
     return openai.LLM(
         model=config.model,
         base_url=config.base_url,
         api_key=config.api_key,
         max_completion_tokens=reply_tokens(config.context),
+        **({"extra_body": extra} if extra else {}),
     )
 
 

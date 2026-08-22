@@ -97,3 +97,40 @@ def test_a_spoken_reply_is_bounded() -> None:
 
     assert 0 < VOICE_REPLY_TOKENS <= 1000
     assert model._opts.max_completion_tokens == VOICE_REPLY_TOKENS
+
+
+# -- what the voice request actually carries ---------------------------------
+
+
+def test_voice_asks_openrouter_for_the_fastest_upstream() -> None:
+    """The Gateway has always routed voice by latency. The Agent calls the
+    provider itself, so that setting never reached a spoken turn."""
+    from marvi_agent.runtime import AgentConfig, voice_body
+
+    body = voice_body(
+        AgentConfig(api_key="k", model="m", base_url="https://openrouter.ai/api/v1")
+    )
+
+    assert body["provider"] == {"sort": "latency"}
+
+
+def test_voice_asks_for_reasoning_to_be_off() -> None:
+    """Thinking happens before the first token, and the first token is the
+    whole experience of a spoken turn."""
+    from marvi_agent.runtime import AgentConfig, voice_body
+
+    body = voice_body(
+        AgentConfig(api_key="k", model="m", base_url="https://openrouter.ai/api/v1")
+    )
+
+    assert body["reasoning"] == {"enabled": False, "exclude": True}
+
+
+def test_another_provider_is_sent_none_of_it() -> None:
+    """These are OpenRouter's fields. Some servers reject a body they do not
+    recognise, which would take voice down for a local model."""
+    from marvi_agent.runtime import AgentConfig, voice_body
+
+    assert voice_body(
+        AgentConfig(api_key="k", model="m", base_url="http://127.0.0.1:1234/v1")
+    ) == {}
