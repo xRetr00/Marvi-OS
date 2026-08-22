@@ -57,7 +57,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let model_dir = args
         .next()
         .ok_or("usage: marvi-voice-runtime <model-dir> [language]")?;
-    let language = args.next().unwrap_or_else(|| "tr-TR".to_owned());
+    // en-US, not tr-TR. The locale is a prompt the model is conditioned on,
+    // so a wrong one is not a no-op -- it asks a multilingual recogniser to
+    // hear the wrong language. Marvi always passes one explicitly; this is
+    // the default for running the binary by hand, and it was somebody's
+    // machine leaking into the source.
+    let language = args.next().unwrap_or_else(|| "en-US".to_owned());
 
     let execution = ExecutionConfig::new().with_execution_provider(ExecutionProvider::Cuda);
     let mut model = Nemotron::from_pretrained(model_dir, Some(execution))?;

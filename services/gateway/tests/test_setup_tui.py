@@ -111,10 +111,15 @@ def test_every_capability_names_settings_that_the_code_reads() -> None:
     """
     from pathlib import Path
 
-    source_root = Path(tui.__file__).resolve().parents[1]
+    # Both services, because the screen configures both. The spoken language is
+    # read by the Agent, not the Gateway, and scanning only one package made
+    # this fail for a setting that is entirely real.
+    gateway = Path(tui.__file__).resolve().parents[1]
+    services = gateway.parents[2]
     everything = " ".join(
         path.read_text(encoding="utf-8", errors="replace")
-        for path in source_root.rglob("*.py")
+        for root in (gateway, services / "agent" / "src")
+        for path in root.rglob("*.py")
         if path.name != "tui.py"
     )
     for capability in tui.CAPABILITIES:

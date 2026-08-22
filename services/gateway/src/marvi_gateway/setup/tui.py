@@ -116,6 +116,24 @@ CAPABILITIES: tuple[Capability, ...] = (
         ),
     ),
     Capability(
+        key="speech",
+        title="Speech recognition",
+        why="Which English the recogniser is told to expect.",
+        settings=(
+            Setting(
+                "MARVI_STT_LANGUAGE",
+                "Spoken language",
+                (
+                    "A locale the model knows, e.g. en-US or en-GB. It is a "
+                    "prompt the model is conditioned on, not a hint -- en-GB is "
+                    "a genuinely different one and often better for English "
+                    "that is not American. 'en' is an alias for en-US."
+                ),
+                default="en-US",
+            ),
+        ),
+    ),
+    Capability(
         key="wake",
         title="Wake word",
         why="Saying 'Marvi' joins hands-free, the same as pressing Join.",

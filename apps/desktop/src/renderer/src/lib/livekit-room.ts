@@ -89,6 +89,35 @@ async function waitForGateway(attempts = 30): Promise<void> {
   throw new Error('Marvi Gateway did not become ready')
 }
 
+/**
+ * What the browser does to the microphone before the recogniser hears it.
+ *
+ * Echo cancellation stays on always: without it Marvi's own voice comes back
+ * through the microphone, and the VAD reads that as you interrupting her.
+ *
+ * The other two are a real trade and they default off now. Noise suppression
+ * and automatic gain are tuned for a human listener -- they remove what sounds
+ * like noise and even out what sounds too quiet, and both throw away the
+ * phonetic detail a recogniser is using. A model that benchmarks at 6.9% word
+ * error rate on clean audio does not turn "any tool" into "any too cool" on its
+ * own; the audio reaching it has usually been processed first.
+ *
+ * Kept as switches rather than a decision, because the right answer depends on
+ * the room: a noisy one may well want them back.
+ */
+function micProcessing(): { echoCancellation: boolean; noiseSuppression: boolean; autoGainControl: boolean; channelCount: number } {
+  const on = (key: string, fallback: boolean): boolean => {
+    const raw = window.localStorage?.getItem(key)
+    return raw === null || raw === undefined ? fallback : raw === 'true'
+  }
+  return {
+    echoCancellation: true,
+    noiseSuppression: on('marvi.mic.noiseSuppression', false),
+    autoGainControl: on('marvi.mic.autoGainControl', false),
+    channelCount: 1
+  }
+}
+
 /** Set while `stopVoice` is hanging up, so the disconnect is not an error. */
 let deliberate = false
 
@@ -122,12 +151,7 @@ export async function connectVoiceRoom(): Promise<Room> {
   const room = new Room({
     adaptiveStream: true,
     dynacast: true,
-    audioCaptureDefaults: {
-      autoGainControl: true,
-      echoCancellation: true,
-      noiseSuppression: true,
-      channelCount: 1
-    }
+    audioCaptureDefaults: micProcessing()
   })
   room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack) => {
     if (track.kind === Track.Kind.Audio) track.attach()
@@ -166,12 +190,7 @@ export async function connectVoiceRoom(): Promise<Room> {
   // operating system for the microphone, and "could not join" for a refused
   // permission sends you looking in entirely the wrong place.
   try {
-    await room.localParticipant.setMicrophoneEnabled(true, {
-      echoCancellation: true,
-      noiseSuppression: true,
-      autoGainControl: true,
-      channelCount: 1
-    })
+    await room.localParticipant.setMicrophoneEnabled(true, micProcessing())
   } catch (cause) {
     await room.disconnect()
     throw new Error(`The microphone could not be opened: ${describe(cause)}`)
