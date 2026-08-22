@@ -1698,6 +1698,25 @@ small,
 .voice-hud-phase.phase-error {
   color: var(--ui-danger);
 }
+/* Loading the speech models. Pulsing rather than static, because the one thing
+   this must not look like is a settled state -- a session joined during it
+   showed LISTENING and heard nothing. */
+.voice-hud-phase.phase-starting {
+  color: #fbbf24;
+  animation: phase-warming 1.4s ease-in-out infinite;
+}
+
+@keyframes phase-warming {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-hud-phase.phase-starting {
+    animation: none;
+  }
+}
 
 .voice-hud-state strong {
   color: var(--ui-text-emphasis);

@@ -1466,6 +1466,10 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
   // The one line that answers "why is nothing happening". Component detail is
   // written for exactly this: it names what is missing rather than restating
   // the state.
+  // The worker is loading its speech models. Shown wherever the eye lands,
+  // because a session joined during it looks identical to a working one.
+  const warming = voiceComponent?.state === 'starting'
+
   const blocker =
     gateway?.state !== 'ready'
       ? gateway?.detail
@@ -1490,10 +1494,30 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
       <div className="voice-hud voice-hud-state">
         {/* Not joined is its own state, and saying READY for it was a lie: the
             page claimed Marvi was listening while nothing was in the room. */}
-        <span className={`voice-hud-phase phase-${link === 'live' ? mood : 'idle'}`}>
-          {link === 'live' ? voice.phase.toUpperCase() : link === 'connecting' ? 'JOINING' : 'IDLE'}
+        <span
+          className={`voice-hud-phase phase-${
+            warming ? 'starting' : link === 'live' ? mood : 'idle'
+          }`}
+        >
+          {warming
+            ? 'WARMING UP'
+            : link === 'live'
+              ? voice.phase.toUpperCase()
+              : link === 'connecting'
+                ? 'JOINING'
+                : 'IDLE'}
         </span>
-        <strong>{link === 'live' ? voice.caption : 'Press Join to start listening'}</strong>
+        {/* Said here as well as on the button, because this is where the eye
+            is. Joining before the models finish loading produced a session
+            that showed LISTENING and heard nothing -- you could talk into it
+            for as long as you liked. */}
+        <strong>
+          {warming
+            ? 'Loading the speech models — she cannot hear you yet'
+            : link === 'live'
+              ? voice.caption
+              : 'Press Join to start listening'}
+        </strong>
         <WakeIndicator />
         {blocker ? <p className="voice-hud-blocker">{blocker}</p> : null}
       </div>
@@ -1528,7 +1552,7 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
         streaming={speaking || listening}
       />
 
-      <ConversationBar level={voice.level} warming={voiceComponent?.state === 'starting'} />
+      <ConversationBar level={voice.level} warming={warming} />
     </section>
   )
 }

@@ -136,6 +136,18 @@ export async function connectVoiceRoom(): Promise<Room> {
     if (participant instanceof RemoteParticipant) applyAgentState(participant)
   })
   room.on(RoomEvent.ParticipantConnected, applyAgentState)
+  room.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
+    // The agent left, so the conversation is over -- leave with it.
+    //
+    // `end_conversation` closed the agent's session and ended its job, and
+    // nothing told this side. The room stayed connected with the microphone
+    // live, and the last agent state ever published was `listening`, so the
+    // page went on saying Listening to somebody who had gone. You could talk
+    // into it indefinitely.
+    if (!participant.attributes?.[AGENT_STATE_ATTRIBUTE]) return
+    expectDisconnect()
+    void room.disconnect()
+  })
   room.on(RoomEvent.Disconnected, () => {
     // Not an error by itself. Leaving is a disconnect, and publishing the
     // error phase for one made pressing Leave display "Gateway unavailable" --
