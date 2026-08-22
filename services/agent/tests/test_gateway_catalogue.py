@@ -9,7 +9,6 @@ worked. Every tool added since, and every MCP server, reached one surface only.
 from __future__ import annotations
 
 import httpx
-import pytest
 
 from marvi_agent.tools import GatewayTools
 
