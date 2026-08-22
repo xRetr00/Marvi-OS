@@ -19,7 +19,7 @@ from fastapi.responses import StreamingResponse
 from livekit import api
 from pydantic import BaseModel, Field
 
-from . import breadcrumb, latency, paths
+from . import breadcrumb, latency, paths, upgrade
 from . import doctor as doctor_module
 from . import plugins as plugins_module
 from . import room as room_module
@@ -466,6 +466,13 @@ def create_app(
             "moved %d item(s) out of the old folder", len(moved),
             extra={"marvi_moved": ", ".join(moved)},
         )
+    # What an install from before the speech engine changed still carries: a
+    # setting naming a voice that no longer exists, and two gigabytes of model
+    # nothing loads. The first is rewritten, the second only reported -- see
+    # `upgrade`.
+    for note in upgrade.run():
+        get_logger("setup").info("upgrade: %s", note)
+
     breadcrumb.install("gateway")
     last_crashes = breadcrumb.report_and_clear()
     provider_client = ProviderClient()

@@ -1536,8 +1536,13 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
           <dd>{runtime.model?.stt || 'not installed'}</dd>
         </div>
         <div>
+          {/* The voice, chosen here rather than three clicks away in Settings.
+              It is the one thing about speech output anybody changes, and the
+              page where you hear it is the page to change it on. */}
           <dt>SPEECH OUT</dt>
-          <dd>{runtime.model?.tts || 'not installed'}</dd>
+          <dd>
+            <VoicePicker />
+          </dd>
         </div>
         <div>
           <dt>MIC</dt>
@@ -2673,15 +2678,6 @@ function SettingsPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Eleme
           </p>
         </div>
         <WakeSettings />
-      </div>
-
-      <div className="settings-section">
-        <div>
-          <span className="eyebrow">{'// SPEECH OUT'}</span>
-          <h2>VOICE</h2>
-          <p>The voices the TTS installer downloaded. Marvi speaks in the one chosen here.</p>
-        </div>
-        <VoicePicker />
       </div>
 
       <div className="settings-section">

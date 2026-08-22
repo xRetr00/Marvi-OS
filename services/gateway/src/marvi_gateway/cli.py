@@ -369,6 +369,32 @@ def cmd_models(args: argparse.Namespace) -> int:
     root = repo_root()
     components = setup_module.load(root)
 
+    if args.action == "prune":
+        # Model directories nothing loads any more. Named separately from
+        # `remove` because there is no component to name: these are left over
+        # from a version that had one, and `remove` takes a component name.
+        import shutil
+
+        from . import upgrade
+
+        leftovers = upgrade.reclaimable()
+        if not leftovers:
+            print("Nothing to reclaim.")
+            return 0
+        for entry in leftovers:
+            print(f"  {entry.path}  {entry.gigabytes:.1f} GB — {entry.why}")
+        total = sum(entry.gigabytes for entry in leftovers)
+        if not args.yes and not _confirm(f"Delete {total:.1f} GB?"):
+            return 0
+        for entry in leftovers:
+            try:
+                shutil.rmtree(entry.path)
+                print(f"  removed {entry.path.name}")
+            except OSError as exc:
+                print(f"  could not remove {entry.path}: {exc}", file=sys.stderr)
+                return 1
+        return 0
+
     if args.action == "list":
         for component in components:
             state = setup_module.state_of(component, root)
@@ -633,7 +659,9 @@ def build_parser() -> argparse.ArgumentParser:
     setup_cmd.set_defaults(handler=cmd_setup)
 
     models = sub.add_parser("models", help="list, verify, install or remove components")
-    models.add_argument("action", choices=["list", "verify", "install", "remove"])
+    models.add_argument(
+        "action", choices=["list", "verify", "install", "remove", "prune"]
+    )
     models.add_argument("name", nargs="?")
     models.add_argument("--force", action="store_true", help="re-download even if verified")
     models.add_argument("--yes", "-y", action="store_true")

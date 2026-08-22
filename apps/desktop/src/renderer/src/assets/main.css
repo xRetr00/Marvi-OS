@@ -4048,3 +4048,24 @@ body {
     font-size: 13px;
   }
 }
+
+/* The voice picker lives in the readout on the Voice page now, beside the model
+ * it speaks with. The panel is right-aligned and its rows clip long text, so
+ * the trigger is pulled back into line rather than inheriting either. The
+ * dropdown itself is portalled, so `overflow: hidden` above never reaches it. */
+.voice-hud-rig .voice-choice,
+.voice-hud-rig .picker-trigger {
+  justify-content: flex-end;
+  width: auto;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 11px;
+  text-align: right;
+}
+
+.voice-hud-rig dd:has(.picker-trigger) {
+  overflow: visible;
+  pointer-events: auto;
+}
