@@ -66,3 +66,34 @@ def test_the_tool_writes_through_the_registry(identity) -> None:
     registry.execute(spec, registry.validate(spec, {"fact": "is the developer"}))
 
     assert "is the developer" in identity.user_path.read_text()
+
+
+def test_a_note_survives_curiosity_regenerating_the_file(tmp_path, identity) -> None:
+    """The two writers to USER.md have to coexist.
+
+    Curiosity does not append to this file, it *regenerates* it from its own
+    store, keeping only what sits under a heading it did not write. A note
+    appended as a bare line at the end is dropped the next time Marvi learns
+    anything -- so the fact would be recorded, and then quietly disappear, which
+    is worse than never recording it.
+    """
+    from marvi_gateway.curiosity import Curiosity
+
+    curiosity = Curiosity(path=tmp_path / "curiosity.sqlite3", identity=identity)
+    identity.note_about_user("is the developer of Marvi")
+
+    # Anything that makes curiosity rewrite the file.
+    curiosity.learn("name", "Sam")
+
+    body = identity.user_path.read_text()
+    assert "is the developer of Marvi" in body, "the note was wiped by the rewrite"
+    assert "Sam" in body, "and curiosity's own answer is still there"
+
+
+def test_notes_accumulate_under_one_heading(identity) -> None:
+    identity.note_about_user("is the developer")
+    identity.note_about_user("prefers short answers")
+
+    body = identity.user_path.read_text()
+    assert body.count(identity.NOTES_HEADING) == 1
+    assert body.index("is the developer") < body.index("prefers short answers")

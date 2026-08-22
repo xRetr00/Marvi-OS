@@ -114,19 +114,28 @@ class IdentityFiles:
         self.soul_path.write_text(text.strip() + "\n", encoding="utf-8")
         return estimate_tokens(text)
 
+    #: The heading notes live under.
+    #:
+    #: Under a heading, and specifically one Marvi's curiosity does not own,
+    #: because that half of the system *regenerates* USER.md from its own store
+    #: and keeps only what sits beneath a heading it did not write. Bare lines
+    #: appended at the end are dropped the next time it learns anything -- so a
+    #: fact recorded here would quietly disappear later, which is worse than
+    #: never recording it.
+    NOTES_HEADING = "## Notes"
+
     def note_about_user(self, fact: str) -> str:
         """Add one standing fact about the user, keeping what is there.
 
-        USER.md is the only context that reaches every prompt on every
-        surface, and until now nothing could add to it but the settings
-        pane. A durable fact said out loud -- "I am the developer" -- went
-        to the memory store instead, which is searched per turn and easily
-        missed, so Marvi could be told who she was talking to and still not
-        know it next time.
+        USER.md is the only context that reaches every prompt on every surface,
+        and until now nothing could add to it but the settings pane. A durable
+        fact said out loud -- "I am the developer" -- went to the memory store
+        instead, which is searched per turn and easily missed, so Marvi could be
+        told who she was talking to and still not know it next time.
 
-        Appended, never rewritten. This is a file the user edits by hand,
-        and a tool that replaced it would eventually replace something they
-        wrote. Repeats are skipped so the same fact said twice appears once.
+        Appended, never rewritten. This is a file the user edits by hand, and a
+        tool that replaced it would eventually replace something they wrote.
+        Repeats are skipped so the same fact said twice appears once.
         """
         fact = " ".join(fact.split()).strip(" -")
         if not fact:
@@ -134,9 +143,24 @@ class IdentityFiles:
         current = self._read(self.user_path)
         if fact.lower() in current.lower():
             return "already known"
+
         newline = chr(10)
-        head = current.rstrip()
-        body = (head + newline if head else "") + "- " + fact
+        line = "- " + fact
+        if self.NOTES_HEADING in current:
+            lines = current.rstrip().splitlines()
+            at = max(i for i, text in enumerate(lines) if text.strip() == self.NOTES_HEADING)
+            # After the heading's existing entries, not immediately under it, so
+            # notes read in the order they were learnt.
+            end = at + 1
+            while end < len(lines) and not lines[end].startswith("## "):
+                end += 1
+            lines.insert(end, line)
+            body = newline.join(lines)
+        else:
+            head = current.rstrip()
+            block = self.NOTES_HEADING + newline + newline + line
+            body = (head + newline + newline if head else "") + block
+
         self.user_path.parent.mkdir(parents=True, exist_ok=True)
         self.user_path.write_text(body + newline, encoding="utf-8")
         return "noted"
