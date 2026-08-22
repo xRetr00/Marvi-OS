@@ -27,7 +27,7 @@ dependencies = [
     # in-session detector did.
     "sounddevice>=0.5,<1",
     "torch==2.13.0",
-    "transformers==4.51.3",
+    "transformers==5.5.0",
     "vibevoice @ git+https://github.com/microsoft/VibeVoice.git@94da20d98b2fa7688e9cbfaf7692ddb4954f7600",
 ]
 
