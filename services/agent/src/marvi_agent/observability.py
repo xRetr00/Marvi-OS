@@ -36,6 +36,7 @@ ran, this module catching a fault in itself.
 from __future__ import annotations
 
 import logging
+import time
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -69,20 +70,36 @@ def attach(session: AgentSession) -> None:
     reason it exists is that the conversation was already failing silently.
     """
 
+    # When the user stopped talking. The gap between that and Marvi starting
+    # to think is dead air nothing else measures: the per-turn metrics begin at
+    # the LLM call, so everything spent deciding the turn was over -- the STT
+    # waiting out its silence, then endpointing waiting out its own -- was
+    # invisible, and it is the part a person actually experiences as a pause.
+    stopped: list[float] = []
+
     @session.on("user_state_changed")
     def _user_state(event: Any) -> None:
         # VAD. "listening -> speaking" is the first sign Marvi hears anything
         # at all; if this never fires, no audio is reaching the session and
         # nothing downstream will happen.
-        log.info("vad: user %s -> %s", getattr(event, "old_state", "?"), getattr(event, "new_state", "?"))
+        old = getattr(event, "old_state", "?")
+        new = getattr(event, "new_state", "?")
+        if old == "speaking":
+            stopped[:] = [time.monotonic()]
+        log.info("vad: user %s -> %s", old, new)
 
     @session.on("agent_state_changed")
     def _agent_state(event: Any) -> None:
         # The pipeline stage, in one line: idle -> listening -> thinking ->
         # speaking. Whichever one it stops at is the one that broke.
-        log.info(
-            "stage: %s -> %s", getattr(event, "old_state", "?"), getattr(event, "new_state", "?")
-        )
+        new = getattr(event, "new_state", "?")
+        if new == "thinking" and stopped:
+            log.info(
+                "turn: %.0fms from the user stopping to Marvi starting",
+                (time.monotonic() - stopped[0]) * 1000,
+            )
+            stopped.clear()
+        log.info("stage: %s -> %s", getattr(event, "old_state", "?"), new)
 
     @session.on("user_input_transcribed")
     def _transcribed(event: Any) -> None:
