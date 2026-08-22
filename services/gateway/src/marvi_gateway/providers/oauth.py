@@ -26,10 +26,13 @@ from __future__ import annotations
 
 import base64
 import contextlib
+import errno
 import hashlib
 import logging
 import os
 import secrets
+import selectors
+import socket
 import threading
 import time
 import urllib.parse
@@ -195,6 +198,45 @@ class _CallbackServer(HTTPServer):
     allow_reuse_address = False
 
 
+class _CallbackServer6(_CallbackServer):
+    """The same listener, on the IPv6 loopback.
+
+    `redirect_uri` says the literal "localhost" because that is the string the
+    vendor registered, and on Windows "localhost" resolves to ::1 first. With
+    only 127.0.0.1 bound, the browser's v6 attempt was not refused promptly --
+    it sat for about two seconds before falling back -- so every sign-in paid
+    that before the redirect was even seen. Binding both is still loopback
+    only: IPV6_V6ONLY keeps this socket off the v4 wildcard.
+    """
+
+    address_family = socket.AF_INET6
+
+    def server_bind(self) -> None:
+        self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
+        super().server_bind()
+
+
+# Windows reports a busy port under its own errno, which is not errno.EADDRINUSE.
+_ADDRESS_IN_USE = {errno.EADDRINUSE, getattr(errno, "WSAEADDRINUSE", errno.EADDRINUSE)}
+
+
+def _loopback_listeners(port: int, handler: Any) -> list[HTTPServer]:
+    """Both loopback addresses, so whichever "localhost" means is answered."""
+    servers: list[HTTPServer] = [_CallbackServer(("127.0.0.1", port), handler)]
+    try:
+        servers.append(_CallbackServer6(("::1", port), handler))
+    except OSError as exc:
+        # A box with no IPv6 is fine; the v4 socket alone still answers. A
+        # *busy* v6 port is the stray-listener case `_CallbackServer` is about,
+        # and has to be as loud here as it is on v4.
+        if exc.errno in _ADDRESS_IN_USE:
+            for server in servers:
+                with contextlib.suppress(OSError):
+                    server.server_close()
+            raise
+    return servers
+
+
 # -- the flow ----------------------------------------------------------------
 
 
@@ -206,7 +248,15 @@ class PendingFlow:
     url: str
     started: float
     result: _Callback
-    server: HTTPServer
+    servers: list[HTTPServer]
+
+
+def _close(servers: list[HTTPServer]) -> None:
+    """Reverse order, so the v4 port frees last: a caller waiting to rebind
+    watches that one, and seeing it free has to mean both are gone."""
+    for server in reversed(servers):
+        with contextlib.suppress(OSError):
+            server.server_close()
 
 
 class OAuthBroker:
@@ -246,8 +296,8 @@ class OAuthBroker:
         state = _b64url(secrets.token_bytes(16))
         result = _Callback()
         try:
-            server = _CallbackServer(
-                ("127.0.0.1", config.redirect_port),
+            servers = _loopback_listeners(
+                config.redirect_port,
                 _handler_for(result, state, config.redirect_path),
             )
         except OSError as exc:
@@ -270,16 +320,27 @@ class OAuthBroker:
         url = f"{config.authorize_url}?{urllib.parse.urlencode(params)}"
 
         def serve_once() -> None:
-            # The socket is released as soon as its one request is served,
-            # rather than waiting for `poll` or `cancel` to come and close it.
-            # Nothing guarantees either is ever called -- an abandoned flow
-            # leaves the listener up -- and on a pinned port a stray listener
-            # is the next sign-in's problem, not this one's.
+            # Still exactly one request: whichever loopback socket the browser
+            # reaches serves the callback, and then both close. The sockets are
+            # released as soon as that request is served, rather than waiting
+            # for `poll` or `cancel` to come and close them. Nothing guarantees
+            # either is ever called -- an abandoned flow leaves the listener up
+            # -- and on a pinned port a stray listener is the next sign-in's
+            # problem, not this one's.
             try:
-                server.handle_request()
+                with selectors.DefaultSelector() as selector:
+                    for server in servers:
+                        selector.register(server, selectors.EVENT_READ)
+                    ready = selector.select()
+                for key, _events in ready[:1]:
+                    key.fileobj.handle_request()
+            except (OSError, ValueError):
+                # `cancel` closes these sockets out from under the select. That
+                # is an abandoned flow, not something worth a stack trace on a
+                # daemon thread nobody is watching.
+                pass
             finally:
-                with contextlib.suppress(OSError):
-                    server.server_close()
+                _close(servers)
 
         thread = threading.Thread(target=serve_once, daemon=True)
         thread.start()
@@ -291,7 +352,7 @@ class OAuthBroker:
                 url=url,
                 started=time.monotonic(),
                 result=result,
-                server=server,
+                servers=servers,
             )
         return {"url": url, "redirect_uri": config.redirect_uri()}
 
@@ -299,8 +360,7 @@ class OAuthBroker:
         with self._lock:
             flow = self._pending.pop(name, None)
         if flow is not None:
-            with contextlib.suppress(OSError):
-                flow.server.server_close()
+            _close(flow.servers)
 
     def pending(self, name: str) -> bool:
         with self._lock:

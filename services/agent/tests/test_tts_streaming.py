@@ -196,3 +196,57 @@ async def test_a_flush_mid_reply_delivers_everything_before_it() -> None:
 
     assert samples(frames) == 40 * 2400
     assert engine.spoken == ["Only this one."]
+
+
+# -- the shattering ----------------------------------------------------------
+
+
+def test_a_chunk_boundary_does_not_change_the_gain() -> None:
+    """Speech that "comes out shattered or cut".
+
+    Each buffer used to be divided by its own peak whenever that peak exceeded
+    one. Per buffer: one peaking at 1.4 was scaled down and the next, peaking at
+    0.9, was not, so the gain stepped at the boundary between them. A step in
+    gain mid-waveform is a discontinuity, which is a click, and a click at every
+    buffer boundary is speech that shatters.
+
+    Nothing about where the model hands over a buffer means anything
+    acoustically, so the same samples must come out the same however they were
+    divided up.
+    """
+    import numpy as np
+
+    from marvi_agent.voice_models import to_pcm
+
+    # Overshoots in its first half and not its second -- exactly the case the
+    # old code treated as two recordings needing different gain.
+    loud = np.full(600, 1.4, dtype=np.float32)
+    quiet = np.full(600, 0.9, dtype=np.float32)
+
+    whole, _ = to_pcm(np.concatenate([loud, quiet]))
+    split = to_pcm(loud)[0] + to_pcm(quiet)[0]
+
+    assert whole == split, "the same audio differs depending on where it was cut"
+
+
+def test_overshoot_is_counted_rather_than_hidden() -> None:
+    """If the model really does overshoot often that is worth knowing, and
+    worth fixing at the model rather than papering over per buffer."""
+    import numpy as np
+
+    from marvi_agent.voice_models import to_pcm
+
+    _, over = to_pcm(np.array([0.5, 1.4, -1.9, 0.2], dtype=np.float32))
+
+    assert over == 2
+
+
+def test_audio_within_range_is_left_alone() -> None:
+    import numpy as np
+
+    from marvi_agent.voice_models import to_pcm
+
+    pcm, over = to_pcm(np.array([1.0, -1.0, 0.0], dtype=np.float32))
+
+    assert over == 0
+    assert np.frombuffer(pcm, dtype=np.int16).tolist() == [32767, -32767, 0]

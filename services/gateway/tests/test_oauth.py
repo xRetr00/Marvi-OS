@@ -165,6 +165,23 @@ def test_the_listener_serves_one_request_and_stops(store) -> None:
         urllib.request.urlopen(redirect["redirect_uri"], timeout=2).read()
 
 
+def test_the_redirect_to_localhost_is_answered_without_the_ipv6_stall(store) -> None:
+    """`redirect_uri` is the literal "localhost" the vendor registered, and on
+    Windows that resolves to ::1 first. With only 127.0.0.1 bound, the v6
+    attempt was not refused promptly -- ~2s per sign-in, before the redirect
+    was even seen."""
+    broker = OAuthBroker(store=store, http=token_endpoint({"access_token": "at"}))
+    started = broker.start("codex")
+    try:
+        began = time.monotonic()
+        visit(started["url"])
+        elapsed = time.monotonic() - began
+    finally:
+        broker.poll("codex")
+
+    assert elapsed < 0.1, f"the localhost redirect took {elapsed:.3f}s"
+
+
 def test_a_provider_rejection_is_reported_not_swallowed(store) -> None:
     broker = OAuthBroker(store=store, http=token_endpoint({"error": "bad"}, status=400))
     started = broker.start("codex")

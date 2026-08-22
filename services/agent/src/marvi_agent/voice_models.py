@@ -228,6 +228,24 @@ _ENGINES: dict[tuple[str, str, int], _VibeVoiceEngine] = {}
 _ENGINE_LOCK = threading.Lock()
 
 
+def to_pcm(audio: Any) -> tuple[bytes, int]:
+    """One buffer of float samples as 24 kHz mono int16, and how many clipped.
+
+    Clipped, never normalised, and that is the whole reason it is its own
+    function. This used to divide each buffer by its own peak whenever that peak
+    exceeded one -- per buffer, so one peaking at 1.4 was scaled down and the
+    next, peaking at 0.9, was not. A step in gain at the boundary between them
+    is a discontinuity in the middle of a waveform, which is a click, and a
+    click at every buffer boundary is speech that shatters.
+
+    Nothing about where the model hands over a buffer means anything
+    acoustically. Clipping the rare overshoot distorts a few samples; rescaling
+    the audio either side of an arbitrary line distorts every boundary.
+    """
+    over = int(np.count_nonzero(np.abs(audio) > 1.0))
+    return (np.clip(audio, -1, 1) * 32767).astype(np.int16).tobytes(), over
+
+
 class _VibeVoiceEngine:
     """Minimal adapter around Microsoft's official streaming inference classes."""
 
@@ -348,21 +366,25 @@ class _VibeVoiceEngine:
                 errors.append(exc)
                 streamer.end()
 
+        # Counted rather than corrected: if the model really does overshoot
+        # often, that is worth knowing about and worth fixing at the model, not
+        # papered over per buffer.
+        clipped = [0]
         worker = threading.Thread(target=generate, daemon=True)
         worker.start()
         try:
             for chunk in streamer.get_stream(0):
                 if stop.is_set():
                     break
-                audio = chunk.detach().cpu().float().numpy().reshape(-1)
-                peak = float(np.max(np.abs(audio))) if audio.size else 0.0
-                if peak > 1.0:
-                    audio /= peak
-                yield (np.clip(audio, -1, 1) * 32767).astype(np.int16).tobytes()
+                pcm, over = to_pcm(chunk.detach().cpu().float().numpy().reshape(-1))
+                clipped[0] += over
+                yield pcm
         finally:
             stop.set()
             streamer.end()
             worker.join()
+            if clipped[0]:
+                log.info("tts: %d samples clipped", clipped[0])
         if errors:
             raise errors[0]
 
@@ -474,7 +496,11 @@ MIN_SPEAKABLE = 4
 #: does not needs more than is worth waiting for.
 LEAD_SECONDS = float(os.environ.get("MARVI_TTS_LEAD_SECONDS", "0.6") or 0.6)
 #: 24 kHz, mono, 32-bit float samples as the engine emits them.
-_LEAD_BYTES = int(24_000 * 4 * max(0.0, LEAD_SECONDS))
+#: 24 kHz, mono, int16 -- two bytes a sample. This said four, so the cushion
+#: was twice the size it claimed and the realtime factor below reported half
+#: the truth: a reply logged at 0.24x was really running at 0.48x.
+_BYTES_PER_SECOND = 24_000 * 2
+_LEAD_BYTES = int(_BYTES_PER_SECOND * max(0.0, LEAD_SECONDS))
 #: However slow the engine, speaking starts by now. A cushion that takes
 #: longer to fill than the gaps it exists to hide is not a cushion.
 _LEAD_TIMEOUT = float(os.environ.get("MARVI_TTS_LEAD_TIMEOUT", "0.7") or 0.7)
@@ -617,7 +643,7 @@ class _VibeVoiceSynthesizeStream(tts.SynthesizeStream):
         # Working that out the first time took an afternoon and a log full
         # of progress bars. It is one line now.
         spent = time.monotonic() - began
-        produced = pushed[0] / (24_000 * 4)
+        produced = pushed[0] / _BYTES_PER_SECOND
         if spent > 0 and produced > 0:
             log.info(
                 "tts: %.1fs of audio in %.1fs (%.2fx real time)%s",
