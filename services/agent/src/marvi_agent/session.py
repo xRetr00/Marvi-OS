@@ -397,6 +397,26 @@ async def marvi_session(ctx: JobContext) -> None:
         context.speech_handle.add_done_callback(lambda _: session.shutdown())
         return "say a short goodbye; the conversation ends after it"
 
+    # The recogniser sits out while Marvi speaks.
+    #
+    # It is a CUDA model, and so is the speech synthesis, and there is one card.
+    # They competed hardest at the worst moment: synthesis already runs close to
+    # real time and drops below it under load, and below real time the room runs
+    # out of audio and the reply arrives in pieces.
+    #
+    # This costs nothing that matters. Interruption is detected by the VAD, not
+    # by the recogniser -- LiveKit's own documentation is explicit that "the
+    # session's bundled VAD continues to handle interruption detection" -- so
+    # barge-in is untouched, and the audio through the pause is held rather than
+    # dropped, so cutting in does not lose the words you cut in with.
+    speech_stt = session.stt
+    if hasattr(speech_stt, "set_transcribing"):
+
+        @session.on("agent_state_changed")
+        def _recogniser(event: Any) -> None:
+            speaking = getattr(event, "new_state", "") == "speaking"
+            speech_stt.set_transcribing(not speaking)
+
     @session.on("close")
     def _job_over(event: Any) -> None:
         # Closing the session does not end the job -- nothing in the SDK does

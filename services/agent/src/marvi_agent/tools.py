@@ -29,8 +29,32 @@ def gateway_base_url() -> str:
     return os.environ.get("MARVI_GATEWAY_URL", DEFAULT_GATEWAY_URL).rstrip("/")
 
 
+#: How much of a tool result the model gets. Long enough for search results to
+#: be usable, short enough that nothing reads a page aloud.
+MAX_RESULT_CHARS = 900
+
+#: Keys that say a call worked rather than what it answered.
+#:
+#: "ok True" is not an answer, it is the absence of one, and reading it out is
+#: worse than saying "Done." -- which is what a tool that succeeded and returned
+#: nothing has actually done.
+BOOKKEEPING = frozenset({"ok", "success", "status", "accepted", "applied", "changed"})
+
+
 def describe(result: Any) -> str:
-    """Keep tool output short; a voice turn should not read JSON aloud."""
+    """What the model is told a tool returned.
+
+    Everything that was not a room state used to come back as the literal
+    string "Done." -- the result was thrown away before the model ever saw it.
+    That was survivable while voice had five hand-written tools whose answers
+    were room state or nothing, and it broke the moment the Gateway's whole
+    catalogue came through here: a web search returned "Done.", which the model
+    read as confirmation of whatever it had already guessed, and said so.
+
+    So: render it. Compactly, because a spoken turn should not read JSON aloud,
+    but render it -- a tool whose answer is discarded is worse than a tool that
+    does not exist, because the model believes it worked.
+    """
     if isinstance(result, dict):
         state = result.get("state")
         if isinstance(state, dict):
@@ -47,7 +71,38 @@ def describe(result: Any) -> str:
                 f"Room ({freshness}): light {lit}, mode {modes.get('active_mode', 'unknown')}, "
                 f"{'someone is present' if presence.get('detected') else 'nobody detected'}."
             )
-    return "Done."
+    rendered = _render(result)
+    return rendered[:MAX_RESULT_CHARS] if rendered else "Done."
+
+
+def _render(value: Any, depth: int = 0) -> str:
+    """A value as a short line of prose. Depth-bounded against nested results."""
+    if value is None or value == "" or value == [] or value == {}:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, bool | int | float):
+        return str(value)
+    if depth > 2:
+        return ""
+    if isinstance(value, list):
+        parts = [_render(item, depth + 1) for item in value[:5]]
+        return "; ".join(part for part in parts if part)
+    if isinstance(value, dict):
+        # The common shape from a search or a listing: the payload is one key
+        # and the rest is bookkeeping.
+        for key in ("results", "items", "entries", "text", "content", "answer"):
+            if key in value:
+                inner = _render(value[key], depth + 1)
+                if inner:
+                    return inner
+        parts = [
+            f"{key} {_render(item, depth + 1)}"
+            for key, item in list(value.items())[:6]
+            if key not in BOOKKEEPING and _render(item, depth + 1)
+        ]
+        return ", ".join(parts)
+    return str(value)
 
 
 class GatewayTools:

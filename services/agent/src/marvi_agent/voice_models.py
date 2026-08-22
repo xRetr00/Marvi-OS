@@ -10,6 +10,7 @@ import subprocess
 import threading
 import time
 import uuid
+from collections import deque
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -74,6 +75,23 @@ class NemotronSTT(stt.STT):
         self._streams.add(stream)
         return stream
 
+    def set_transcribing(self, on: bool) -> None:
+        """Whether to run recognition on the audio arriving right now.
+
+        Off while Marvi speaks. Not off *listening* -- the audio keeps flowing
+        and the VAD keeps watching it, which is what detects an interruption;
+        LiveKit's own documentation is explicit that "the session's bundled VAD
+        continues to handle interruption detection". What stops is the
+        recogniser, which on this machine is a CUDA model competing with the
+        speech synthesis for the same card at the exact moment synthesis is the
+        thing that cannot keep up.
+
+        Audio through the pause is kept, not dropped, so somebody who cuts in
+        does not lose the words they cut in with.
+        """
+        for stream in tuple(self._streams):
+            stream.set_transcribing(on)
+
     async def aclose(self) -> None:
         await asyncio.gather(*(stream.aclose() for stream in tuple(self._streams)))
         self._streams.clear()
@@ -89,6 +107,11 @@ class NemotronStream(stt.RecognizeStream):
         self._spoke_at = time.monotonic()
         # Until when late text belongs to an utterance already finished.
         self._settled_until = 0.0
+        # Recognition runs unless Marvi is speaking. See `set_transcribing`.
+        self._transcribing = True
+        # Audio captured while paused, kept so an interruption does not lose
+        # the words it was made with.
+        self._held: deque[bytes] = deque()
 
     async def _send(self, payload: dict[str, str]) -> dict[str, Any]:
         if not self._process or not self._process.stdin or not self._process.stdout:
@@ -136,6 +159,26 @@ class NemotronStream(stt.RecognizeStream):
             )
         )
 
+    #: How much audio to keep while paused, in seconds.
+    #:
+    #: Enough to hold the words somebody interrupts with -- the VAD notices them
+    #: and stops the reply, but by then they have been speaking for a moment,
+    #: and that moment is usually the whole point of interrupting. Bounded
+    #: because a pause that is never lifted must not grow without limit.
+    _HOLD_SECONDS = 3.0
+
+    def _buffered(self) -> float:
+        """Seconds of audio held back. 16 kHz mono int16: two bytes a sample."""
+        return sum(len(chunk) for chunk in self._held) / (16_000 * 2)
+
+    def set_transcribing(self, on: bool) -> None:
+        # Resuming does not clear the backlog -- it is flushed with the next
+        # frame, which is the whole reason it was kept. Pausing does, because
+        # audio from before Marvi started speaking has already been recognised.
+        if not on:
+            self._held.clear()
+        self._transcribing = on
+
     async def _run(self) -> None:
         flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
         self._process = await asyncio.create_subprocess_exec(
@@ -171,6 +214,28 @@ class NemotronStream(stt.RecognizeStream):
                     continue
 
                 pcm = bytes(item.data)
+                if not self._transcribing:
+                    # Marvi is speaking. The audio keeps arriving and the VAD
+                    # keeps watching it -- that is what notices an interruption
+                    # -- but the recogniser sits out, because on this machine it
+                    # is a CUDA model competing with speech synthesis for one
+                    # card at the moment synthesis cannot keep up.
+                    #
+                    # Held rather than dropped: by the time the VAD stops the
+                    # reply, whoever cut in has been talking for a moment, and
+                    # that moment is usually the point of cutting in.
+                    self._held.append(pcm)
+                    while self._buffered() > self._HOLD_SECONDS:
+                        self._held.popleft()
+                    continue
+
+                if self._held:
+                    # Everything said during the pause, in order, before
+                    # anything said after it.
+                    backlog = b"".join(self._held)
+                    self._held.clear()
+                    pcm = backlog + pcm
+
                 response = await self._send(
                     {"op": "audio", "pcm16": base64.b64encode(pcm).decode("ascii")}
                 )
