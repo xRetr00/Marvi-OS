@@ -674,7 +674,23 @@ def create_app(
                 state="pending",
                 detail=f"not installed: {', '.join(missing[:3])} — run `marvi setup voice`",
             )
-        return ComponentStatus(state="ready", detail="LiveKit up, voice models installed")
+        # The worker itself, which the Gateway could not see until the Agent
+        # started telling it.
+        #
+        # This is the difference between "voice can happen" and "voice can
+        # happen right now". A job is dispatched when the room is created, so a
+        # Join pressed before the worker has registered gets no agent -- and
+        # LiveKit does not go back and dispatch one when it turns up eighteen
+        # seconds later. The session simply sits there with nobody in it.
+        from . import agent_ready
+
+        live = agent_ready.status()
+        if not live["ready"]:
+            return ComponentStatus(
+                state="starting",
+                detail=live["detail"] or "the voice worker is still starting",
+            )
+        return ComponentStatus(state="ready", detail="LiveKit up, worker registered")
 
     def drain_room_events() -> dict[str, Any] | None:
         """Journal every room event since the last poll. Returns the newest.
@@ -1124,6 +1140,24 @@ def create_app(
             }
         )
         return current_status()
+
+    @app.post("/voice/agent")
+    async def set_agent_ready(update: dict[str, Any]) -> dict[str, Any]:
+        """The Agent saying whether its worker is registered.
+
+        The Gateway has no other way to know. It can see LiveKit running and
+        the models installed, and it reported "ready" on that basis -- which is
+        why Join was pressable during the eighteen seconds the worker spends
+        loading speech models, and why pressing it then produced a session with
+        no agent in it and no way to recover.
+        """
+        from . import agent_ready
+
+        agent_ready.set(
+            bool(update.get("ready")),
+            detail=str(update.get("detail") or ""),
+        )
+        return agent_ready.status()
 
     @app.get("/voice/wake")
     async def wake_status() -> dict[str, Any]:

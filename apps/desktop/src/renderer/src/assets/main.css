@@ -3912,3 +3912,108 @@ body {
     animation: none;
   }
 }
+
+/* ===== Subtitles ===== */
+
+/* Under the orb, where subtitles go.
+ *
+ * The transcript used to sit at the bottom of the page, below the model table
+ * and the session metrics, which is a long way from the thing it is describing.
+ * Reading it meant looking away from the orb you were talking to. */
+.voice-subtitles {
+  position: absolute;
+  right: 0;
+  bottom: 14%;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8%;
+  pointer-events: none;
+}
+
+.voice-line {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  max-width: 46ch;
+  margin: 0;
+  padding: 8px 14px;
+  border-left: 1px solid var(--ui-stroke-primary);
+  background: color-mix(in srgb, var(--ui-bg) 88%, transparent);
+  font-size: 14px;
+  line-height: 1.55;
+  text-align: left;
+  /* Each line arrives rather than appearing. Short and eased-out, so it reads
+   * as the words catching up with the voice rather than as a UI animation. */
+  animation: subtitle-in 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.voice-line.is-you {
+  color: var(--ui-text-secondary);
+}
+
+.voice-line.is-marvi {
+  color: var(--ui-text-emphasis);
+  border-left-color: var(--ui-accent);
+}
+
+/* Still being revised: the recogniser may yet change its mind, and a line that
+ * looks settled while it is not is the one thing subtitles must not do. */
+.voice-line.is-live {
+  border-left-color: var(--ui-accent);
+}
+
+.voice-who {
+  flex: none;
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  line-height: 2.4;
+}
+
+@keyframes subtitle-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* A word settles from the accent colour into the body colour as it stops being
+ * the newest thing said. The transition is on .voice-word already; this is the
+ * arrival. */
+.voice-subtitles .voice-word {
+  animation: subtitle-word-in 220ms ease both;
+}
+
+@keyframes subtitle-word-in {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-line,
+  .voice-subtitles .voice-word {
+    animation: none;
+  }
+}
+
+@media (max-width: 980px) {
+  .voice-subtitles {
+    bottom: 10%;
+    padding: 0 4%;
+  }
+  .voice-line {
+    font-size: 13px;
+  }
+}

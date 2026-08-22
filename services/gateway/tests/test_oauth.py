@@ -11,7 +11,9 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import socket
 import threading
+import time
 import urllib.parse
 import urllib.request
 from datetime import UTC, datetime, timedelta
@@ -54,6 +56,33 @@ def visit(url: str) -> None:
     params = dict(urllib.parse.parse_qsl(urllib.parse.urlparse(url).query))
     back = f"{params['redirect_uri']}?code=auth-code-1&state={urllib.parse.quote(params['state'])}"
     urllib.request.urlopen(back, timeout=5).read()
+
+
+def wait_for_the_listener_to_close(port: int, timeout: float = 10.0) -> None:
+    """Block until the redirect port can be bound again.
+
+    `start` hands the listener to a thread that closes the socket once its one
+    request has been served, so the release is not observable at the moment
+    `visit` returns -- under load that thread can sit descheduled between
+    answering the browser and reaching its `finally`. Binding a moment too
+    early is WinError 10048, and that was this test's flake.
+
+    Bounded, and with no reuse flag, so it is still the same check: a listener
+    that really does outlive its request never frees the port, and this raises
+    instead of papering over the v0.3.5 regression.
+    """
+    deadline = time.monotonic() + timeout
+    while True:
+        probe = socket.socket()
+        try:
+            probe.bind(("127.0.0.1", port))
+            return
+        except OSError:
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(0.01)
+        finally:
+            probe.close()
 
 
 # -- PKCE --------------------------------------------------------------------
@@ -350,6 +379,9 @@ def test_an_unpolled_flow_does_not_break_the_next_one(store) -> None:
     started = first.start("codex")
     visit(started["url"])
     # Deliberately no poll: the browser came back and nobody asked.
+    # Wait on the port rather than on the scheduler -- the listener closes
+    # itself from its own thread, so "closed" lands after `visit` returns.
+    wait_for_the_listener_to_close(CONFIGS["codex"].redirect_port)
 
     second = OAuthBroker(
         store=store,

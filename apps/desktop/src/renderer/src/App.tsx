@@ -70,6 +70,7 @@ import type {
 } from '../../shared/runtime'
 import { deviceLabel, deviceState } from '../../shared/runtime'
 import type { IslandAlignment, IslandPlacement } from '../../main/island-window'
+import { $heard, $spoken } from './store/transcript'
 import { $voiceLink, startVoice, stopVoice } from './store/voice-session'
 
 /**
@@ -1482,6 +1483,7 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
     <section className="voice-page">
       <div className="voice-orb-surface">
         <VoiceOrb active={speaking || listening} level={voice.level} phase={voice.phase} />
+        <Subtitles />
       </div>
 
       {/* Top-left: what Marvi is doing, and what is stopping it. */}
@@ -1525,26 +1527,6 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
         stats={sessionTimingStats(sessionMetrics)}
         streaming={speaking || listening}
       />
-
-      {/* Bottom: the live transcript, streaming. Two lines at most — this is a
-          glance while talking, not a record; Chat is where a transcript lives. */}
-      {/* Under the orb: what is being recognised right now, word by word. The
-          Agent posts interim results as well as finals, so this fills in while
-          you are still speaking rather than appearing whole afterwards. */}
-      <div aria-live="polite" className="voice-transcript">
-        {voice.heard ? (
-          <p className="voice-heard">
-            <span>YOU</span>
-            <StreamingWords text={voice.heard} live={voice.phase === 'listening'} />
-          </p>
-        ) : null}
-        {voice.spoken ? (
-          <p className="voice-spoken">
-            <span>MARVI</span>
-            <StreamingWords text={voice.spoken} live={voice.phase === 'speaking'} />
-          </p>
-        ) : null}
-      </div>
 
       <ConversationBar level={voice.level} />
     </section>
@@ -1857,6 +1839,41 @@ function VoiceModelPicker({ current }: { current: string }): React.JSX.Element {
  * by the text actually growing -- not a timer replaying a complete string,
  * which looks like streaming and tells you nothing.
  */
+/**
+ * What is being said, under the orb, like subtitles.
+ *
+ * Fed from the room's own transcription stream rather than the runtime poll:
+ * words arrive several times a second and the poll is two seconds wide, so the
+ * polled version showed a sentence landing whole, late, having missed the thing
+ * that makes live text worth watching.
+ *
+ * Two lines at most, and the newest one leads. Anything longer stops being a
+ * glance and becomes a transcript, which is what Chat is for.
+ */
+function Subtitles(): React.JSX.Element | null {
+  const heard = useStore($heard)
+  const spoken = useStore($spoken)
+
+  if (!heard && !spoken) return null
+
+  return (
+    <div aria-live="polite" className="voice-subtitles">
+      {heard ? (
+        <p className={`voice-line is-you${heard.final ? '' : ' is-live'}`} key={heard.id}>
+          <span className="voice-who">YOU</span>
+          <StreamingWords text={heard.text} live={!heard.final} />
+        </p>
+      ) : null}
+      {spoken ? (
+        <p className={`voice-line is-marvi${spoken.final ? '' : ' is-live'}`} key={spoken.id}>
+          <span className="voice-who">MARVI</span>
+          <StreamingWords text={spoken.text} live={!spoken.final} />
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
 function StreamingWords({ text, live }: { text: string; live: boolean }): React.JSX.Element {
   const words = text.split(/\s+/).filter(Boolean)
 
@@ -1864,6 +1881,8 @@ function StreamingWords({ text, live }: { text: string; live: boolean }): React.
     <>
       {words.map((word, index) => (
         <span
+          // Keyed by position and word together, so a word that is revised
+          // animates in again and one that is merely re-rendered does not.
           className={live && index >= words.length - 2 ? 'voice-word is-fresh' : 'voice-word'}
           key={`${index}-${word}`}
         >

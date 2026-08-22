@@ -277,6 +277,27 @@ def build_session(proc: JobProcess | None = None) -> tuple[AgentSession, Callabl
     return session, warm
 
 
+def _report_ready(ready: bool, detail: str = "") -> None:
+    """Tell the Gateway whether this worker could take a job.
+
+    Nothing else can see it. The Gateway checked LiveKit and the models on disk
+    and called voice ready on that -- so Join was pressable through the eighteen
+    seconds this process spends loading speech models, and a job dispatched in
+    that window found no worker. LiveKit does not dispatch again when one
+    appears, so the session sat there with nobody in it.
+    """
+    import contextlib
+
+    with contextlib.suppress(Exception):
+        import httpx
+
+        httpx.post(
+            f"{gateway_url()}/voice/agent",
+            json={"ready": ready, "detail": detail},
+            timeout=REPORT_TIMEOUT,
+        )
+
+
 server = AgentServer(
     setup_fnc=prewarm,
     # One. This is one person's desktop, not a fleet: Marvi holds one
@@ -393,6 +414,19 @@ async def marvi_session(ctx: JobContext) -> None:
     await agent.update_tools([*agent.tools, end_conversation])
     log.info("%d tools available, including end_conversation", len(agent.tools))
 
+
+
+@server.on("worker_started")
+def _worker_starting(*_args: Any) -> None:
+    # Said out loud before the models load, so the UI can hold Join rather than
+    # offering it and producing an empty session.
+    _report_ready(False, "loading speech models")
+
+
+@server.on("worker_registered")
+def _worker_registered(*_args: Any) -> None:
+    log.info("worker registered; voice can take a job")
+    _report_ready(True, "worker registered")
 
 
 def main() -> None:

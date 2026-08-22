@@ -9,6 +9,13 @@ import {
   type RemoteTrack
 } from 'livekit-client'
 
+import {
+  ATTR_FINAL,
+  ATTR_SEGMENT,
+  TRANSCRIPTION_TOPIC,
+  applyTranscript,
+  clearTranscript
+} from '../store/transcript'
 import { $voiceState, cycleVoicePhase, setVoiceLevel } from '../store/voice-state'
 
 interface LiveKitConnection {
@@ -163,6 +170,38 @@ export async function connectVoiceRoom(): Promise<Room> {
   let stopLevel: (() => void) | undefined
   if (micTrack) stopLevel = streamMicLevel(micTrack)
   room.on(RoomEvent.Disconnected, () => stopLevel?.())
+  // Subtitles, from the room rather than from a poll.
+  //
+  // Both sides of the conversation are already published here as a text stream,
+  // incrementally, with the sender's identity and a final/interim flag. Reading
+  // them from the two-second runtime poll instead meant a sentence that arrives
+  // word by word was shown as a paragraph landing whole, after the moment it
+  // described.
+  try {
+    room.registerTextStreamHandler(TRANSCRIPTION_TOPIC, async (reader, participant) => {
+      const attributes = reader.info.attributes ?? {}
+      // The local participant is the person; anything else in the room is the
+      // agent. Comparing identities rather than guessing from the text.
+      const role = participant?.identity === room.localParticipant.identity ? 'user' : 'marvi'
+      const id = String(attributes[ATTR_SEGMENT] ?? reader.info.id ?? '')
+      let text = ''
+      for await (const chunk of reader) {
+        text += chunk
+        applyTranscript({
+          role,
+          text,
+          final: String(attributes[ATTR_FINAL] ?? '') === 'true',
+          id
+        })
+      }
+    })
+  } catch (cause) {
+    // A handler already registered, or an SDK without the topic. Subtitles are
+    // worth having and never worth failing a call for.
+    console.warn('live transcript unavailable:', describe(cause))
+  }
+  room.on(RoomEvent.Disconnected, () => clearTranscript())
+
   if (room.state === ConnectionState.Connected) publishPhase('ready')
 
   // Every phase after this comes from the agent's `lk.agent.state`. If no
