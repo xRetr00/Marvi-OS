@@ -10,7 +10,9 @@ import { $heard, $spoken, applyTranscript, clearTranscript } from './transcript'
  */
 beforeEach(() => clearTranscript())
 
-const line = (over: Partial<Parameters<typeof applyTranscript>[0]> = {}) => ({
+const line = (
+  over: Partial<Parameters<typeof applyTranscript>[0]> = {}
+): Parameters<typeof applyTranscript>[0] => ({
   role: 'user' as const,
   text: 'turn on',
   final: false,
