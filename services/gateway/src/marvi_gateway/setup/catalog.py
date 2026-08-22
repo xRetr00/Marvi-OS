@@ -31,7 +31,7 @@ import json
 import os
 import platform
 import sys
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
@@ -238,27 +238,12 @@ def _voice_components(repo_root: Path) -> list[Component]:
                 needed_for=("voice",),
                 source_id=tts.get("id", ""),
                 revision=tts.get("revision", ""),
-                install_to="models/tts/vibevoice-realtime-0.5b/model",
+                install_to="models/tts/kokoro-82m",
                 files=_files_from(tts.get("files")),
                 extra={"default_voice": tts.get("default_voice", "")},
             )
         )
     return components
-
-
-def _voices_revision(repo_root: Path) -> str:
-    """The VibeVoice commit the speaker voices come from.
-
-    Kept in `voice-models.json` beside the model it belongs to, so the revision
-    is not written down in two places that can disagree.
-    """
-    try:
-        manifest = json.loads(
-            (repo_root / "config" / "voice-models.json").read_text(encoding="utf-8")
-        )
-    except (OSError, ValueError):
-        return ""
-    return str((manifest.get("tts") or {}).get("source_revision", ""))
 
 
 def _component_from(raw: dict[str, Any]) -> Component:
@@ -309,10 +294,11 @@ def load(repo_root: Path) -> list[Component]:
         return components
     for raw in manifest.get("components", []):
         try:
-            component = _component_from(raw)
-            if component.source_type == "git" and not component.revision:
-                component = replace(component, revision=_voices_revision(repo_root))
-            components.append(component)
+            # Every component carries its own revision now. The one that did
+            # not was the VibeVoice speaker voices, which were a pinned git
+            # subdirectory checkout and are gone: Kokoro's voices are inside
+            # the checkpoint, so there is no second thing to pin.
+            components.append(_component_from(raw))
         except (KeyError, TypeError) as exc:
             # One malformed entry must not hide the rest of the catalog.
             log.warning("skipping a malformed component entry: %s", exc)

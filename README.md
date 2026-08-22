@@ -18,7 +18,7 @@ Phases 2, 4, 5, and 6 are complete. Phase 3 is in hardware acceptance,
 Phase 7 has the update handoff working and a packaged installer building, and
 and Phase 8 is complete. The
 native-Windows stack runs Nemotron 3.5 streaming ASR through `parakeet-rs`,
-VibeVoice Realtime 0.5B, an official LiveKit `AgentSession`, and an Electron
+Kokoro 82M, an official LiveKit `AgentSession`, and an Electron
 LiveKit microphone/playout participant. The remaining Phase 3 gate is a real
 loudspeaker double-talk test plus the 60-minute duplex soak.
 

@@ -298,3 +298,47 @@ def test_the_two_services_offer_the_same_voices() -> None:
         f"only in the Gateway: {offered - set(KOKORO_VOICES)}; "
         f"only in the Agent: {set(KOKORO_VOICES) - offered}"
     )
+
+
+def test_the_agent_reads_where_the_installer_writes() -> None:
+    """Two files, one path, and nothing but this keeping them level.
+
+    The installer puts Kokoro at `install_to`; the Agent reads `KOKORO_ROOT`.
+    If they drift the Agent silently falls back to downloading its own copy --
+    318MB fetched twice, and an offline machine that never speaks.
+    """
+    import json
+    from pathlib import Path
+
+    from marvi_agent.voice_models import KOKORO_ROOT
+
+    root = Path(__file__).resolve().parents[3]
+    catalog = (root / "services" / "gateway" / "src" / "marvi_gateway" / "setup"
+               / "catalog.py").read_text(encoding="utf-8")
+
+    assert 'install_to="models/tts/kokoro-82m"' in catalog
+    assert KOKORO_ROOT.as_posix().endswith("models/tts/kokoro-82m")
+
+    # And the download manifest points at the repository those files come from.
+    manifest = json.loads((root / "config" / "voice-models.json").read_text(encoding="utf-8"))
+    assert manifest["tts"]["id"] == "hexgrad/Kokoro-82M"
+    assert manifest["tts"]["default_voice"] == "am_michael"
+
+
+def test_every_offered_voice_is_actually_downloaded() -> None:
+    """A voice in the picker that the installer never fetched is a voice that
+    downloads itself mid-conversation, or fails to."""
+    import json
+    from pathlib import Path
+
+    from marvi_agent.voice_models import KOKORO_VOICES
+
+    root = Path(__file__).resolve().parents[3]
+    manifest = json.loads((root / "config" / "voice-models.json").read_text(encoding="utf-8"))
+    fetched = {
+        name.removeprefix("voices/").removesuffix(".pt")
+        for name in manifest["tts"]["files"]
+        if name.startswith("voices/")
+    }
+
+    assert set(KOKORO_VOICES) == fetched

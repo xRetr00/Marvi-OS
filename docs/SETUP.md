@@ -198,19 +198,20 @@ A first run that downloads everything before saying hello is a bad first run.
 |---|---|---|
 | `huggingface` | size + SHA256 per file | the voice models |
 | `url` | size + SHA256 per file | direct downloads |
-| `git` | presence, at a pinned revision | the TTS speaker voices |
+| `git` | presence, at a pinned revision | nothing at present |
 | `python` | the lockfile, via `uv sync` | service dependencies |
 | `command` | the tool's own check | Playwright's browsers |
 
 The `git` type is a sparse checkout plus a shallow fetch of one pinned commit —
-a few hundred megabytes rather than the whole repository. Some things are simply
-not published as files: the VibeVoice speaker voices are `.pt` files in a git
-repository and nowhere else, and without them the TTS model has nothing to sound
-like.
+a few hundred megabytes rather than the whole repository. It reports "not
+hash-verified" rather than pretending otherwise, because a subdirectory checkout
+has no published hashes to check against; the revision is pinned, which is the
+guarantee that is actually available.
 
-It reports "not hash-verified" rather than pretending otherwise, because a
-subdirectory checkout has no published hashes to check against. The revision is
-pinned, which is the guarantee that is actually available.
+Nothing uses it at the moment. The one component that did was the VibeVoice
+speaker voices, which were `.pt` files published in a git repository and nowhere
+else. The speech engine is Kokoro now, whose voices are inside the checkpoint, so
+they arrive hash-verified with the model and there is no second thing to fetch.
 
 ## Still open
 

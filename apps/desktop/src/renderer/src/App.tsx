@@ -1749,12 +1749,11 @@ function VoicePicker(): React.JSX.Element {
     }
   }, [])
 
+  // An empty list used to mean "the multi-gigabyte voice download has not
+  // finished". It cannot mean that any more -- the voices are part of an 82M
+  // checkpoint -- so an empty list now means the Gateway did not answer.
   if (page && page.voices.length === 0) {
-    return (
-      <span className="construction">
-        NO VOICES INSTALLED. RUN THE TTS INSTALLER FROM MAINTENANCE FIRST.
-      </span>
-    )
+    return <span className="construction">VOICES UNAVAILABLE — THE GATEWAY DID NOT ANSWER.</span>
   }
 
   return (
@@ -1774,11 +1773,14 @@ function VoicePicker(): React.JSX.Element {
         }}
         placeholder="Model default"
         searchPlaceholder="Search voices…"
-        empty="No voices installed."
+        empty="No voices available."
       />
       {page?.missing ? (
+        // Almost always a speaker name left over from the previous engine.
+        // Saying "not installed" would send someone to the installer for a
+        // file that no longer exists in any version.
         <span className="construction">
-          {`THE CHOSEN VOICE "${page.selected}" IS NOT INSTALLED. MARVI WILL FALL BACK TO ITS DEFAULT.`}
+          {`"${page.selected}" IS NOT ONE OF THESE VOICES. MARVI IS SPEAKING AS THE DEFAULT — PICK ONE TO REPLACE IT.`}
         </span>
       ) : null}
     </div>

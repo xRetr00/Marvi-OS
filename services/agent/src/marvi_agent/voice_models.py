@@ -26,6 +26,9 @@ NEMOTRON_MODEL = (
     APP_DATA / "models/stt/nemotron-3.5/nemotron-3.5-asr-streaming-0.6b-onnx"
 )
 VIBEVOICE_ROOT = APP_DATA / "models/tts/vibevoice-realtime-0.5b"
+#: Where the installer puts Kokoro. Matches `install_to` in the setup
+#: catalog; the test below fails if the two drift.
+KOKORO_ROOT = APP_DATA / "models/tts/kokoro-82m"
 DEFAULT_VOICE = "en-Carter_man"
 
 #: Kokoro ships fixed voices rather than speaker prompts. `a` is American
@@ -548,15 +551,57 @@ class _KokoroEngine:
         if self._pipeline is not None:
             return
         import torch
-        from kokoro import KPipeline
+        from kokoro import KModel, KPipeline
 
         device = "cuda" if torch.cuda.is_available() else "cpu"
+        # From the installed files, not from the network.
+        #
+        # Kokoro fetches its own weights from Hugging Face on first use, which
+        # would mean the installer downloads 318MB and then the first spoken
+        # turn downloads it again -- and an offline machine never speaks at
+        # all. The installer already puts it somewhere known; this reads it
+        # from there, and falls back to Kokoro's own downloading for a
+        # checkout that never ran the installer.
+        weights = KOKORO_ROOT / "kokoro-v1_0.pth"
+        config = KOKORO_ROOT / "config.json"
+        if weights.is_file() and config.is_file():
+            model = KModel(config=str(config), model=str(weights)).to(device).eval()
+        else:
+            log.info("no installed Kokoro at %s; fetching it", KOKORO_ROOT)
+            model = True  # KPipeline builds and downloads its own
+
         # `lang_code="a"` is Kokoro's American English. The voice carries the
         # accent; this selects the grapheme-to-phoneme rules.
-        self._pipeline = KPipeline(lang_code="a", device=device)
-        # First call compiles and warms; doing it here keeps it off the first
-        # spoken turn, which is where it would be felt.
+        self._pipeline = KPipeline(lang_code="a", model=model, device=device)
+        self._seed_voice(torch, device)
+        # The first call compiles and warms. Doing it here keeps it off the
+        # first spoken turn, which is where it would be felt.
         list(self._pipeline("Warm up.", voice=self.voice))
+
+    def _seed_voice(self, torch: Any, device: str) -> None:
+        """Put the installed speaker in the pipeline's cache under its name.
+
+        Same reason as the weights: the voices are part of what the installer
+        fetched, and Kokoro downloads each one again the first time it is used
+        otherwise.
+
+        Seeded rather than passed in. `load_voice` does return a tensor
+        unchanged -- but only after `isinstance(voice, torch.FloatTensor)`,
+        which is a legacy type that a modern float tensor is not an instance
+        of. So the tensor falls through to `voice.split(",")`, meant for
+        blending two speakers by name, and a tensor's `.split` takes sizes:
+
+            TypeError: split_with_sizes(): argument 'split_sizes' must be
+                       tuple of ints, not str
+
+        The cache is checked before any of that.
+        """
+        path = KOKORO_ROOT / "voices" / f"{self.voice}.pt"
+        if not path.is_file():
+            return
+        self._pipeline.voices[self.voice] = torch.load(
+            path, map_location=device, weights_only=True
+        )
 
     def synthesize(self, text: str, stop: threading.Event) -> Iterator[bytes]:
         with self._speaking:

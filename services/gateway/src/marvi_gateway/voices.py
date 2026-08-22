@@ -18,17 +18,14 @@ from __future__ import annotations
 
 import os
 from dataclasses import asdict, dataclass
-from pathlib import Path
 from typing import Any
 
-from . import paths
 from .logs import get_logger
 
 log = get_logger("voice")
 
 #: Where the TTS installer puts them. One place, derived from the same app data
 #: root everything else uses.
-VOICES_DIR = Path("models/tts/vibevoice-realtime-0.5b/voices")
 
 #: The variable the Agent reads when it builds the TTS adapter.
 VOICE_ENV = "MARVI_TTS_VOICE"
@@ -87,17 +84,13 @@ def _parse(stem: str) -> Voice:
     )
 
 
-def voices_dir() -> Path:
-    return paths.root() / VOICES_DIR
-
-
-#: Kokoro's voices, which ship with the model rather than as separate files.
+#: Kokoro's voices, which ship inside the checkpoint rather than as separate
+#: files.
 #:
-#: The engine changed and the shape of a "voice" changed with it. VibeVoice
-#: took a speaker prompt off disk, so the picker listed a directory; Kokoro has
-#: a fixed set baked into an 82M checkpoint, so the picker lists these. The
-#: prefix is the model's own convention: `a` American, `b` British, then `f` or
-#: `m`.
+#: The engine changed and the shape of a "voice" changed with it. VibeVoice took
+#: a speaker prompt off disk, so the picker listed a directory; Kokoro bakes a
+#: fixed set into an 82M checkpoint, so the picker lists these. The prefix is
+#: the model's own convention: `a` American, `b` British, then `f` or `m`.
 KOKORO_VOICES = (
     ("am_michael", "Michael", "English (American)", "man"),
     ("am_adam", "Adam", "English (American)", "man"),

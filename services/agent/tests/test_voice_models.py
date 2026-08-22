@@ -58,16 +58,31 @@ def test_a_speaker_prompt_loads_on_modern_pytorch(tmp_path) -> None:
     assert loaded is not None
 
 
-def test_the_loader_does_not_ask_for_weights_only() -> None:
-    """Guarding the call itself, since the failure is silent until speech."""
+def test_each_loader_asks_for_what_its_file_actually_is() -> None:
+    """Two loaders, opposite correct answers, and both fail only at speech time.
+
+    A VibeVoice speaker prompt is a pickled object graph, and `weights_only=True`
+    refuses it -- that is the unpickling error that stopped voice on PyTorch 2.6.
+    A Kokoro voice is a plain float tensor, so it loads safely and should, since
+    safe loading is the default worth having wherever it works.
+
+    Blanket-banning the flag across the module was right when there was one
+    loader and became wrong when there were two.
+    """
     import inspect
 
     from marvi_agent import voice_models
 
     source = inspect.getsource(voice_models)
 
-    assert "weights_only=True" not in source, (
+    prompt_load = source[source.index("self._prompt = torch.load") :][:200]
+    assert "weights_only=False" in prompt_load, (
         "a speaker prompt cannot be read with weights_only=True"
+    )
+
+    voice_load = source[source.index("self._pipeline.voices[self.voice] = torch.load") :][:200]
+    assert "weights_only=True" in voice_load, (
+        "a Kokoro voice is a plain tensor and should load safely"
     )
 
 
