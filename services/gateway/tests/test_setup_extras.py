@@ -377,3 +377,45 @@ def test_migration_runs_once(monkeypatch, tmp_path) -> None:
     assert paths.migrate_legacy() == ["thing.txt"]
     (old / "later.txt").write_text("y", encoding="utf-8")
     assert paths.migrate_legacy() == []
+
+
+def test_a_component_sync_does_not_delete_plugin_dependencies(monkeypatch, tmp_path) -> None:
+    """`uv sync` makes an environment exactly match the lockfile.
+
+    The Gateway's environment is deliberately shared: a plugin's tools run in
+    this process, so its dependencies are installed here on purpose and appear
+    in no lockfile of ours. An exact sync deleted every one of them, so the
+    room's camera came back "No module named 'cv2'" after each update having
+    worked when the plugin was installed -- and reinstalling only bought time
+    until the next sync.
+    """
+    from marvi_gateway.setup import installer
+    from marvi_gateway.setup.catalog import Component
+
+    seen: dict[str, list[str]] = {}
+
+    class Finished:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def record(argv, **_kwargs):
+        seen["argv"] = list(argv)
+        return Finished()
+
+    monkeypatch.setattr(installer.subprocess, "run", record)
+    monkeypatch.setattr("marvi_gateway.doctor.find_uv", lambda: "uv")
+
+    component = Component(
+        name="gateway",
+        kind="python",
+        title="Gateway",
+        why="the local service everything else talks to",
+        project="services/gateway",
+    )
+    outcome = installer._sync_project(component, tmp_path)
+
+    assert outcome.ok, outcome.detail
+    assert "--inexact" in seen["argv"], (
+        "a plain uv sync deletes every plugin dependency in the shared environment"
+    )

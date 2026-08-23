@@ -1883,6 +1883,28 @@ function startApp(): void {
         return []
       }
     })
+    // The room's write tools, through the same `/tools/{name}` path Marvi
+    // uses -- so the sleep rule, the confirmation flow and the audit line all
+    // apply to a button press exactly as they do to a spoken request. The
+    // renderer names the tool; it cannot reach anything the Gateway has not
+    // registered, and the allowlist here keeps it to the room.
+    ipcMain.handle('marvi:room-command', async (_event, tool, args) => {
+      const allowed = ['room_set_light', 'room_set_mode', 'smart_room_cancel_sleep']
+      if (typeof tool !== 'string' || !allowed.includes(tool)) {
+        return { status: 'failed', error: `not a room control: ${String(tool)}` }
+      }
+      try {
+        const response = await fetch(`${gateway()}/tools/${tool}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ arguments: args ?? {} }),
+          signal: AbortSignal.timeout(8_000)
+        })
+        return await response.json()
+      } catch (cause) {
+        return { status: 'failed', error: cause instanceof Error ? cause.message : 'unreachable' }
+      }
+    })
     ipcMain.handle('marvi:get-room-state', async () => {
       try {
         const response = await fetch(`${gateway()}/tools/room_state`, {

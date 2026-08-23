@@ -59,6 +59,12 @@ export interface MarviDesktopApi {
   setYolo: (yolo: boolean) => Promise<RuntimeStatus>
   getAudit: () => Promise<AuditEvent[]>
   getRoomEvents: () => Promise<RoomEvent[]>
+  /** Press a room control. Goes through the Gateway's tool router, so the
+   *  sleep rule and the confirmation flow apply to a button as to a voice. */
+  roomCommand: (
+    tool: string,
+    args: Record<string, unknown>
+  ) => Promise<{ status: string; error?: string; token?: string | null }>
   getInitiative: () => Promise<InitiativeStatus | null>
   setInitiative: (paused: boolean) => Promise<InitiativeStatus | null>
   getDecisions: () => Promise<{ decisions: MindDecision[]; events: unknown[] }>

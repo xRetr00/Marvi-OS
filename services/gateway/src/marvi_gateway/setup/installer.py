@@ -290,7 +290,15 @@ def _sync_project(
 
     try:
         finished = subprocess.run(
-            [uv, "sync", "--project", component.project],
+            # `--inexact` because this environment is deliberately shared. A
+            # plugin's dependencies are installed into it by design -- the
+            # plugin's tools run in the Gateway's process, so a separate
+            # environment would not be importable -- and they are not in this
+            # project's lockfile. A plain `uv sync` makes the environment
+            # exactly match the lock, which quietly deleted every one of them:
+            # the room's camera stopped working with "No module named 'cv2'"
+            # after each update, having worked when the plugin was installed.
+            [uv, "sync", "--inexact", "--project", component.project],
             cwd=repo_root,
             capture_output=True,
             text=True,

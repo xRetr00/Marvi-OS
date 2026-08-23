@@ -114,6 +114,11 @@ const marvi = {
   setYolo: (yolo: boolean): Promise<RuntimeStatus> => ipcRenderer.invoke('marvi:set-yolo', yolo),
   getAudit: (): Promise<AuditEvent[]> => ipcRenderer.invoke('marvi:get-audit'),
   getRoomEvents: (): Promise<RoomEvent[]> => ipcRenderer.invoke('marvi:get-room-events'),
+  roomCommand: (
+    tool: string,
+    args: Record<string, unknown>
+  ): Promise<{ status: string; error?: string; token?: string | null }> =>
+    ipcRenderer.invoke('marvi:room-command', tool, args),
   getInitiative: (): Promise<InitiativeStatus | null> => ipcRenderer.invoke('marvi:get-initiative'),
   setInitiative: (paused: boolean): Promise<InitiativeStatus | null> =>
     ipcRenderer.invoke('marvi:set-initiative', paused),

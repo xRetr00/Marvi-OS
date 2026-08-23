@@ -14,6 +14,7 @@ import {
   Gauge,
   History,
   House,
+  Lightbulb,
   Info,
   Mic,
   Pause,
@@ -612,6 +613,13 @@ interface RoomSnapshot {
   live: boolean
   stale?: boolean
   state: Record<string, unknown>
+  /**
+   * Why the light in this state must not be reported as fact. Set by the
+   * Gateway when the bulb is unconfigured, unreachable, or has not
+   * acknowledged the state - all of which came back as a plain `on: false`
+   * that this page rendered as "OFF" while the lamp was on.
+   */
+  caveat?: string
 }
 
 function readRecord(source: Record<string, unknown>, key: string): Record<string, unknown> {
@@ -651,12 +659,34 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
     }
   }, [])
 
+  const [busy, setBusy] = useState('')
+  const [pressed, setPressed] = useState('')
+
   const state = snapshot?.state ?? {}
   const light = readRecord(state, 'light')
   const presence = readRecord(state, 'presence')
   const modes = readRecord(state, 'modes')
   const location = readRecord(state, 'location')
   const vision = readRecord(state, 'vision')
+
+  const press = async (tool: string, args: Record<string, unknown>): Promise<void> => {
+    setBusy(tool)
+    try {
+      const answer = await window.marvi?.roomCommand(tool, args)
+      // A refusal is the interesting outcome: the sleep rule, an unreachable
+      // bulb, a confirmation the Island is holding. Saying "done" over any of
+      // those is the same fault as reporting a default as a reading.
+      setPressed(
+        answer?.status === 'executed'
+          ? 'Accepted.'
+          : answer?.status === 'confirmation_required'
+            ? 'Waiting for your confirmation.'
+            : (answer?.error ?? 'The room refused that.')
+      )
+    } finally {
+      setBusy('')
+    }
+  }
 
   const camera = vision.camera_open
     ? 'ONLINE'
@@ -675,9 +705,15 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
     ['MODE', String(modes.active_mode ?? 'unknown').toUpperCase()],
     [
       'LIGHT',
-      light.on
-        ? `ON ${String(light.brightness ?? '?')}% ${String(light.scene ?? 'custom').toUpperCase()}`
-        : 'OFF'
+      // The Gateway says when this is a default rather than a reading: with no
+      // broker and no key the sidecar returns on:false, brightness:0,
+      // confirmed:false. Showing that as "OFF" is how the page came to
+      // disagree with the lamp in the room.
+      snapshot?.caveat
+        ? 'UNKNOWN — NOT CONFIRMED'
+        : light.on
+          ? `ON ${String(light.brightness ?? '?')}% ${String(light.scene ?? 'custom').toUpperCase()}`
+          : 'OFF'
     ],
     ['PRESENCE', presence.detected ? 'IN ROOM' : 'AWAY'],
     ['PHONE', location.home ? 'HOME' : String(location.zone ?? 'unknown').toUpperCase()],
@@ -704,6 +740,81 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
           icon={Wifi}
           title="Room service"
         />
+      </ControlSection>
+
+      <ControlSection icon={Lightbulb} title="Controls">
+        {snapshot?.caveat ? (
+          <ControlRow
+            description={snapshot.caveat}
+            icon={ShieldAlert}
+            title="The light cannot be read"
+          />
+        ) : null}
+        <ControlRow
+          action={
+            <div className="provider-actions">
+              <button
+                className="ghost-button"
+                disabled={busy !== ''}
+                onClick={() => void press('room_set_light', { on: true })}
+                type="button"
+              >
+                ON
+              </button>
+              <button
+                className="ghost-button"
+                disabled={busy !== ''}
+                onClick={() => void press('room_set_light', { on: false })}
+                type="button"
+              >
+                OFF
+              </button>
+            </div>
+          }
+          description="Goes through the same tool Marvi uses, so the sleep rule still applies."
+          icon={Lightbulb}
+          title="Light"
+        />
+        <ControlRow
+          action={
+            <div className="provider-actions">
+              {[25, 50, 75, 100].map((level) => (
+                <button
+                  className="ghost-button"
+                  disabled={busy !== ''}
+                  key={level}
+                  onClick={() => void press('room_set_light', { on: true, brightness: level })}
+                  type="button"
+                >
+                  {level}%
+                </button>
+              ))}
+            </div>
+          }
+          icon={Gauge}
+          title="Brightness"
+        />
+        <ControlRow
+          action={
+            <div className="provider-actions">
+              {['day', 'evening', 'sleep', 'off'].map((mode) => (
+                <button
+                  className={modes.active_mode === mode ? 'ghost-button active' : 'ghost-button'}
+                  disabled={busy !== ''}
+                  key={mode}
+                  onClick={() => void press('room_set_mode', { mode })}
+                  type="button"
+                >
+                  {mode.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          }
+          description="Sleep only ever allows the light off — that rule is Marvi's and a button cannot go round it."
+          icon={House}
+          title="Mode"
+        />
+        {pressed ? <ControlRow description={pressed} icon={Clock3} title="Last command" /> : null}
       </ControlSection>
 
       <ControlSection icon={Gauge} title="Live reading">
