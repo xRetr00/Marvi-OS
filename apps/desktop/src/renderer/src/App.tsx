@@ -231,39 +231,43 @@ function MainSurface(): React.JSX.Element {
 
   const statusbar = (
     <footer className="statusbar">
-      <UiTooltip label="Open Gateway health" side="top">
-        <button className="status-item" onClick={() => navigate('Overview')} type="button">
-          <i className={`status-${runtime.state}`} /> GW:{runtime.state.toUpperCase()}
-        </button>
-      </UiTooltip>
-      <UiTooltip label="Open realtime transport" side="top">
-        <button className="status-item" onClick={() => navigate('Voice')} type="button">
-          RTC:{runtime.components.livekit?.state.toUpperCase() ?? 'UNKNOWN'}
-        </button>
-      </UiTooltip>
-      <UiTooltip label="Open voice session" side="top">
-        <button className="status-item" onClick={() => navigate('Voice')} type="button">
-          VOICE:{voice.phase.toUpperCase()}
-        </button>
-      </UiTooltip>
-      <WakeStatusItem onOpen={() => navigate('Voice')} />
-      <VoiceLevelMeter level={voice.level} />
-      <UiTooltip label="Open microphone and camera settings" side="top">
-        <button className="status-item" onClick={() => setSettings('Preferences')} type="button">
-          MIC:{deviceLabel(deviceState(runtime, 'microphone'))} CAM:
-          {deviceLabel(deviceState(runtime, 'camera'))}
-        </button>
-      </UiTooltip>
-      <UiTooltip label="Open confirmation mode settings" side="top">
-        <button
-          className={`status-item${voice.yolo ? ' status-yolo' : ''}`}
-          onClick={() => setSettings('Preferences')}
-          type="button"
-        >
-          MODE:{voice.yolo ? 'YOLO' : 'CONFIRM'}
-        </button>
-      </UiTooltip>
-      <VersionPopover version={version} onOpenAbout={() => setSettings('About')} />
+      <div className="statusbar-side">
+        <UiTooltip label="Open Gateway health" side="top">
+          <button className="status-item" onClick={() => navigate('Overview')} type="button">
+            <i className={`status-${runtime.state}`} /> GW:{runtime.state.toUpperCase()}
+          </button>
+        </UiTooltip>
+        <UiTooltip label="Open realtime transport" side="top">
+          <button className="status-item" onClick={() => navigate('Voice')} type="button">
+            RTC:{runtime.components.livekit?.state.toUpperCase() ?? 'UNKNOWN'}
+          </button>
+        </UiTooltip>
+        <UiTooltip label="Open voice session" side="top">
+          <button className="status-item" onClick={() => navigate('Voice')} type="button">
+            VOICE:{voice.phase.toUpperCase()}
+          </button>
+        </UiTooltip>
+        <WakeStatusItem onOpen={() => navigate('Voice')} />
+        <VoiceLevelMeter level={voice.level} />
+      </div>
+      <div className="statusbar-side statusbar-side-right">
+        <UiTooltip label="Open microphone and camera settings" side="top">
+          <button className="status-item" onClick={() => setSettings('Preferences')} type="button">
+            MIC:{deviceLabel(deviceState(runtime, 'microphone'))} CAM:
+            {deviceLabel(deviceState(runtime, 'camera'))}
+          </button>
+        </UiTooltip>
+        <UiTooltip label="Open confirmation mode settings" side="top">
+          <button
+            className={`status-item${voice.yolo ? ' status-yolo' : ''}`}
+            onClick={() => setSettings('Preferences')}
+            type="button"
+          >
+            MODE:{voice.yolo ? 'YOLO' : 'CONFIRM'}
+          </button>
+        </UiTooltip>
+        <VersionPopover version={version} onOpenAbout={() => setSettings('About')} />
+      </div>
     </footer>
   )
 

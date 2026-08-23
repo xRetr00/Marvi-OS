@@ -74,10 +74,11 @@ vendored local asset (`apps/desktop/src/renderer/src/assets/background/`),
 never fetched at runtime. Backdrop opacity and translucency are persisted
 per-machine. Reduced-motion users get static text and no exit choreography.
 
-The status bar keeps the persistent readouts and adds a live voice-level
-meter (8 ASCII cells) so the shell reads "alive" at a glance. Its version
-label is a button that opens compact build/update details without navigating
-away from the current task.
+The shell follows Hermes chrome directly: a 34px hidden titlebar lets Electron
+paint native Windows controls into the right edge, and a 20px status bar splits
+compact actions into left and right groups. The status bar keeps the persistent
+readouts and voice-level meter. Its version label opens build/update details
+without navigating away from the current task.
 
 ## Dynamic Island
 
@@ -186,12 +187,13 @@ Marvi prose. Sender labels remain available to assistive technology instead of
 repeating as visible headers, while timestamps and actions appear on hover or
 keyboard focus. The composer uses the same 560px register with 24px controls.
 Durable threads and branches back the sidebar, edit, and regenerate actions.
-GitHub-flavored Markdown, math, tables, code blocks, source cards, image/file
+GitHub-flavored Markdown, math, tables, code blocks, source rows, image/file
 parts, read aloud, local-native dictation, model selection, and context details
 use distinct bounded modules instead of one undifferentiated text column.
-Structured tool output uses compact, content-specific paper objects (sources,
-metrics, comparisons, tables, timelines, weather, galleries, documents, and
-status), with progressive disclosure and no model-authored UI code. Context
+Tool activity and sources follow Hermes directly: transparent faded disclosure
+rows at rest, a small `Sources · count` label, and compact flat result rows only
+after expansion. Structured results use thin dividers instead of nested paper
+cards, with progressive disclosure and no model-authored UI code. Context
 percentage is shown only when both provider input usage and a catalog context
 window are known.
 Message actions appear on hover or keyboard focus, reasoning and tool evidence

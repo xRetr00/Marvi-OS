@@ -525,11 +525,14 @@ function createMainWindow(): BrowserWindow {
     minHeight: 620,
     show: false,
     autoHideMenuBar: true,
-    // Frameless shell: the renderer paints its own title bar (brand, drag
-    // region, window controls), adapted from the the predecessor assistant desktop
-    // titleBarStyle:'hidden' pattern. The native frame never renders.
-    frame: false,
+    // Hermes-style hidden titlebar: the renderer owns the 34px surface and
+    // Electron paints the native Windows controls into its right edge.
     titleBarStyle: 'hidden',
+    titleBarOverlay: {
+      color: 'rgba(1, 0, 0, 0)',
+      height: 34,
+      symbolColor: '#b8bcc4'
+    },
     backgroundColor: '#050607',
     opacity: windowOpacity(),
     title: 'Marvi OS',

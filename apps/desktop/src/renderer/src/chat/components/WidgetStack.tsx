@@ -42,32 +42,32 @@ function Widget({ widget }: { widget: ChatWidgetPart }): React.JSX.Element {
   return <Status rows={rows} title={widget.title} />
 }
 
-function CardTitle({ children }: { children: string }): React.JSX.Element {
-  return <h3 className="chat-card-title">{children}</h3>
+function WidgetLabel({ children }: { children: string }): React.JSX.Element {
+  return <div className="chat-widget-label">{children}</div>
 }
 
-function Sources({ rows, title }: { rows: Item[]; title: string }): React.JSX.Element {
+function Sources({ rows }: { rows: Item[]; title: string }): React.JSX.Element {
   return (
     <details className="chat-sources">
       <summary>
-        <span className="chat-sources-stack" aria-hidden="true">
-          {rows.slice(0, 3).map((row, index) => (
-            <span key={`${row.url}-${index}`}>{host(row.url).slice(0, 1).toUpperCase()}</span>
-          ))}
-        </span>
-        <strong>{title}</strong>
-        <span>{rows.length}</span>
+        <span className="chat-widget-glyph" aria-hidden="true" />
+        <strong>Sources</strong>
+        <span className="chat-widget-count">{rows.length}</span>
         <span className="chat-sources-chevron" aria-hidden="true">
-          ⌄
+          ›
         </span>
       </summary>
       <div className="chat-source-grid">
         {rows.map((row, index) => (
           <a href={row.url} key={`${row.url}-${index}`} rel="noreferrer noopener" target="_blank">
-            <span className="chat-source-index">{String(index + 1).padStart(2, '0')}</span>
-            <strong>{row.title || host(row.url)}</strong>
-            <small>{row.snippet || host(row.url)}</small>
-            <span className="chat-source-host">{host(row.url)} ↗</span>
+            <span className="chat-source-index">{index + 1}</span>
+            <span className="chat-source-copy">
+              <strong>{row.title || host(row.url)}</strong>
+              <small>{host(row.url)}</small>
+            </span>
+            <span className="chat-source-open" aria-hidden="true">
+              ↗
+            </span>
           </a>
         ))}
       </div>
@@ -77,8 +77,8 @@ function Sources({ rows, title }: { rows: Item[]; title: string }): React.JSX.El
 
 function Metrics({ rows, title }: { rows: Item[]; title: string }): React.JSX.Element {
   return (
-    <section className="chat-card chat-metrics" aria-label={title}>
-      <CardTitle>{title}</CardTitle>
+    <section className="chat-widget-flat chat-metrics" aria-label={title}>
+      <WidgetLabel>{title}</WidgetLabel>
       <div>
         {rows.map((row, index) => (
           <div className="chat-metric" key={`${row.label}-${index}`}>
@@ -94,8 +94,8 @@ function Metrics({ rows, title }: { rows: Item[]; title: string }): React.JSX.El
 
 function Comparison({ rows, title }: { rows: Item[]; title: string }): React.JSX.Element {
   return (
-    <section className="chat-card chat-comparison" aria-label={title}>
-      <CardTitle>{title}</CardTitle>
+    <section className="chat-widget-flat chat-comparison" aria-label={title}>
+      <WidgetLabel>{title}</WidgetLabel>
       <div className="chat-comparison-options">
         {rows.map((row, index) => {
           const recommended = /recommend|best|pick/i.test(
@@ -120,8 +120,8 @@ function Comparison({ rows, title }: { rows: Item[]; title: string }): React.JSX
 
 function Timeline({ rows, title }: { rows: Item[]; title: string }): React.JSX.Element {
   return (
-    <section className="chat-card chat-timeline" aria-label={title}>
-      <CardTitle>{title}</CardTitle>
+    <section className="chat-widget-flat chat-timeline" aria-label={title}>
+      <WidgetLabel>{title}</WidgetLabel>
       <ol>
         {rows.map((row, index) => (
           <li key={`${row.at}-${row.label}-${index}`}>
@@ -142,8 +142,8 @@ function Timeline({ rows, title }: { rows: Item[]; title: string }): React.JSX.E
 
 function Status({ rows, title }: { rows: Item[]; title: string }): React.JSX.Element {
   return (
-    <section className="chat-card chat-status" aria-label={title}>
-      <CardTitle>{title}</CardTitle>
+    <section className="chat-widget-flat chat-status" aria-label={title}>
+      <WidgetLabel>{title}</WidgetLabel>
       <div>
         {rows.map((row, index) => (
           <div className="chat-status-row" key={`${row.label}-${index}`}>
@@ -166,8 +166,8 @@ function DataTable({
   const columns = strings(data.columns)
   const rows = Array.isArray(data.rows) ? data.rows.filter(Array.isArray).map(strings) : []
   return (
-    <section className="chat-card chat-data-card" aria-label={title}>
-      <CardTitle>{title}</CardTitle>
+    <section className="chat-widget-flat chat-data-card" aria-label={title}>
+      <WidgetLabel>{title}</WidgetLabel>
       <div className="chat-widget-table">
         <table>
           <thead>
@@ -203,8 +203,8 @@ function Details({
     ([key, value]) => key !== 'items' && typeof value === 'string' && value
   )
   return (
-    <section className="chat-card chat-details" aria-label={title}>
-      <CardTitle>{title}</CardTitle>
+    <section className="chat-widget-flat chat-details" aria-label={title}>
+      <WidgetLabel>{title}</WidgetLabel>
       <dl>
         {entries.map(([key, value]) => (
           <div key={key}>
@@ -227,8 +227,8 @@ function Details({
 
 function Gallery({ rows, title }: { rows: Item[]; title: string }): React.JSX.Element {
   return (
-    <section className="chat-card chat-gallery-card" aria-label={title}>
-      <CardTitle>{title}</CardTitle>
+    <section className="chat-widget-flat chat-gallery-card" aria-label={title}>
+      <WidgetLabel>{title}</WidgetLabel>
       <div className="chat-widget-gallery">
         {rows.map((row, index) =>
           row.url ? (

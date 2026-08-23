@@ -66,9 +66,9 @@ adapter. Models may request only `sources`, `metrics`, `comparison`, `table`,
 `timeline`, `weather`, `gallery`, `document`, or `status`; the Gateway validates,
 caps, persists, and streams plain data. React selects the component from that
 allowlist. Model-authored code, component names, callbacks, and actions are not
-accepted. Each component follows the matching Assistant UI card anatomy:
-bounded widths, soft inner fields, progressive source disclosure, and no
-repeated widget-type banner.
+accepted. Rendering follows Hermes rather than a Marvi-specific card skin:
+transparent tool disclosures, a small `Sources · count` row, flat source links,
+thin divided structured results, and no repeated widget-type banner.
 
 ## Boundaries and acceptance
 

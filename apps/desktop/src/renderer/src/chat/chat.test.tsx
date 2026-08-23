@@ -85,7 +85,8 @@ describe('AgentMessage', () => {
         })}
       />
     )
-    expect(html).toContain('Web evidence')
+    expect(html).toContain('Sources')
+    expect(html).not.toContain('Web evidence')
     expect(html).toContain('Official result')
     expect(html).toContain('https://example.com/result')
     expect(html).toContain('class="chat-sources"')
@@ -130,7 +131,7 @@ describe('ToolMessage', () => {
         message={message({ role: 'tool', content: 'secret result', meta: { tool: 'file_read' } })}
       />
     )
-    expect(html).toContain('FILE_READ')
+    expect(html).toContain('File read')
     expect(html).not.toContain('secret result')
   })
 })

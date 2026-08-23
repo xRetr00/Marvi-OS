@@ -874,3 +874,16 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   conversation type, 22px message actions, and 24px composer controls.
 - Verified the production renderer at 1180×760; visual evidence is
   `output/playwright/chat-hermes-compact-thread.png`.
+
+## 2026-08-23 — direct Hermes Chat and shell surfaces
+
+- Removed the remaining Marvi-specific card skin from assistant output. Metrics
+  and comparisons now use small flat divided fields; tool calls use transparent
+  faded disclosure rows; evidence is a `Sources · count` disclosure with compact
+  source rows instead of the `Web evidence` treatment.
+- Adopted Hermes' shell dimensions and ownership: a 34px hidden titlebar with
+  Electron-native Windows controls and a 20px two-sided status bar.
+- Preserved Marvi's Gateway data, tool results, source URLs, session state,
+  settings action, health actions, and update popover behind the copied UI.
+- Verified the result and expanded source interaction in Chromium at 1180×760;
+  visual evidence is `output/playwright/chat-hermes-exact-surfaces.png`.

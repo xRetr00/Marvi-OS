@@ -13,23 +13,31 @@ export function ToolMessage({ message }: { message: ChatMessage }): React.JSX.El
   const tool = metaValue(message.meta, 'tool') || 'tool'
 
   return (
-    <div className="chat-turn chat-tool">
-      <button
-        className="chat-tool-head"
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
-      >
-        <span className="chat-role">TOOL · {tool.toUpperCase()}</span>
-        <span className="chat-time">
-          {formatTime(message.at)} {open ? '▾' : '▸'}
+    <details
+      className="chat-turn chat-tool"
+      data-conversation-scaffold=""
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+      open={open}
+    >
+      <summary className="chat-tool-head">
+        <span className="chat-widget-glyph" aria-hidden="true" />
+        <strong>{toolLabel(tool)}</strong>
+        <span className="chat-tool-time">{formatTime(message.at)}</span>
+        <span className="chat-tool-caret" aria-hidden="true">
+          ›
         </span>
-      </button>
+      </summary>
       {open ? (
-        <div className="chat-body chat-tool-body">
-          <Markdown content={message.content} />
+        <div className="chat-tool-result">
+          <div className="chat-body chat-tool-body">
+            <Markdown content={message.content} />
+          </div>
         </div>
       ) : null}
-    </div>
+    </details>
   )
+}
+
+function toolLabel(tool: string): string {
+  return tool.replaceAll(/[_-]+/g, ' ').replace(/^\w/, (letter) => letter.toUpperCase())
 }
