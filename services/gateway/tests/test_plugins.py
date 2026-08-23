@@ -541,3 +541,61 @@ def test_newlines_are_flattened_so_one_line_stays_one_line() -> None:
     )
 
     assert "\n" not in plugins.context_lines([loaded])[0]
+
+
+def test_a_plugin_tool_that_duplicates_a_built_in_is_not_bridged() -> None:
+    """Fourteen room tools, and four of them were second names for actions
+    Marvi already had.
+
+    Both sets reach the same sidecar and both enforce the sleep rule, so the
+    plugin's copies added no capability -- only a choice the model had to make
+    on every turn about a light, between `room_state` and `smart_room_state`,
+    with nothing in either description to choose on.
+
+    "A built-in wins" was already the rule; it could only be applied
+    automatically when the two names matched, and these never did.
+    """
+
+    class Registry:
+        def __init__(self):
+            self.specs = {}
+
+        def register(self, spec):
+            self.specs[spec.name] = spec
+
+        def get(self, name):
+            from marvi_gateway.tools import UnknownToolError
+
+            if name not in self.specs:
+                raise UnknownToolError(name)
+            return self.specs[name]
+
+    requested = [
+        plugins.ToolRequest(name=name, schema={}, handler=lambda _a: None)
+        for name in ("smart_room_state", "smart_room_set_light", "smart_room_vision")
+    ]
+    loaded = SimpleNamespace(
+        name="smart_room",
+        context=SimpleNamespace(tools=requested),
+    )
+
+    registry = Registry()
+    bridged = plugins.bridge_tools(registry, loaded, skip=room.DUPLICATE_PLUGIN_TOOLS)
+
+    assert bridged == ["smart_room_vision"]
+    assert "smart_room_state" not in registry.specs
+    assert "smart_room_set_light" not in registry.specs
+
+
+def test_the_skipped_tools_are_exactly_the_ones_marvi_registers() -> None:
+    """Drift either way is a fault: a name dropped from the built-ins leaves
+    the room without that action, and one added leaves the duplicate back."""
+    import inspect
+
+    source = inspect.getsource(room.register_room_tools)
+    built_in = {f"smart_{name}" for name in ("room_state", "room_health", "room_set_mode",
+                                             "room_set_light")}
+
+    for name in built_in:
+        assert f'name="{name.removeprefix("smart_")}"' in source, f"{name} has no built-in"
+    assert built_in == room.DUPLICATE_PLUGIN_TOOLS

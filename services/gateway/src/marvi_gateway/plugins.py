@@ -620,6 +620,7 @@ def bridge_tools(
     loaded: LoadedPlugin,
     guard: Guard | None = None,
     read_only: frozenset[str] = frozenset(),
+    skip: frozenset[str] = frozenset(),
 ) -> list[str]:
     """Register a plugin's requested tools with Marvi's router.
 
@@ -638,6 +639,11 @@ def bridge_tools(
     **Confirmation is the default.** `sensitive=True` unless the tool is named
     in `read_only`, which Marvi supplies and the plugin cannot influence. A
     plugin asking for something unconfirmed does not get it.
+
+    `skip` is the same rule as the first one, for a plugin tool that duplicates
+    a built-in under a different name. "A built-in wins" can only be enforced
+    automatically when the two agree on the name, and `smart_room_state` and
+    `room_state` do the same thing while agreeing on nothing.
     """
     from .tools import ToolSpec, UnknownToolError
 
@@ -651,6 +657,12 @@ def bridge_tools(
 
     registered = []
     for request in loaded.context.tools:
+        if request.name in skip:
+            log.info(
+                "plugin tool not bridged; Marvi has her own",
+                extra={"marvi_plugin": loaded.name, "marvi_tool": request.name},
+            )
+            continue
         if already_registered(request.name):
             log.info(
                 "plugin tool not bridged; Marvi already has that name",

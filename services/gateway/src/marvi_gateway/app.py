@@ -591,6 +591,11 @@ def create_app(
                     if plugin.name == room_module.PLUGIN_NAME
                     else frozenset()
                 ),
+                skip=(
+                    room_module.DUPLICATE_PLUGIN_TOOLS
+                    if plugin.name == room_module.PLUGIN_NAME
+                    else frozenset()
+                ),
             )
         accounts = ComposioAccounts()
         if accounts.available():

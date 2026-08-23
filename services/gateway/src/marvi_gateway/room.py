@@ -570,6 +570,26 @@ def register_room_tools(registry, sidecar: RoomSidecar) -> None:
     )
 
 
+#: Plugin tools that do what one of Marvi's own room tools already does.
+#:
+#: Both reach the same sidecar and both enforce the sleep rule, so bridging
+#: them added no capability -- only a second name for each action. The model
+#: then had to choose between `room_state` and `smart_room_state` on every turn
+#: about a light, with nothing in either description to choose on, and the
+#: room's fourteen tools were half of a spoken turn's entire tool budget.
+#:
+#: Marvi's own are kept rather than the plugin's: they are what the voice tools
+#: call, they are named for speech rather than for a package, and their sleep
+#: rule is applied in the handler instead of around it.
+DUPLICATE_PLUGIN_TOOLS = frozenset(
+    {
+        "smart_room_state",
+        "smart_room_health",
+        "smart_room_set_mode",
+        "smart_room_set_light",
+    }
+)
+
 #: The room plugin's tools that only read. Everything else is confirmed.
 #:
 #: Marvi decides this, not the plugin: a plugin declaring its own writes
