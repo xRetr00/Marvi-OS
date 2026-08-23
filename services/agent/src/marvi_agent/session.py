@@ -25,10 +25,11 @@ from livekit.agents import (
 from livekit.plugins import silero
 
 from . import observability
+from .parakeet_stt import PARAKEET_ROOT, ParakeetSTT
 from .runtime import AgentConfig, build_llm, build_local_turn_detector
 from .timing import TimedLLM
 from .tools import GatewayTools
-from .voice_models import KOKORO_DEFAULT_VOICE, KokoroTTS, NemotronSTT
+from .voice_models import KOKORO_DEFAULT_VOICE, KokoroTTS
 
 log = logging.getLogger("marvi.voice")
 
@@ -217,6 +218,15 @@ def prewarm(proc: JobProcess) -> None:
         return
     proc.userdata["tts"] = engine
     proc.userdata["tts_voice"] = voice
+    # The recogniser too. It builds ONNX sessions, which is seconds rather than
+    # milliseconds, and doing it inside the first turn is felt as Marvi not
+    # hearing the opening sentence.
+    listener = ParakeetSTT()
+    try:
+        listener.prewarm()
+        proc.userdata["stt"] = listener
+    except Exception as exc:  # pragma: no cover - depends on the model on disk
+        log.warning("could not prewarm the recogniser: %s", exc)
     # Silero is small but not free, and it is loaded on the same critical path.
     proc.userdata["vad"] = silero.VAD.load()
     log.info("speech models ready in %.1fs, before any call", time.monotonic() - started)
@@ -252,21 +262,20 @@ def build_session(proc: JobProcess | None = None) -> tuple[AgentSession, Callabl
     # synthesising -- so "Yes." waited for words that were never coming, and
     # every reply paid that delay before its first sound. The engine speaks a
     # clause at a time now and owns its own batching.
-    engine = voice_runtime_executable()
-    if not engine.is_file():
+    # The recogniser. Parakeet, in chunks, through ONNX Runtime -- see
+    # `parakeet_stt` for the measurements that chose it over the Rust sidecar
+    # this replaces.
+    if not (PARAKEET_ROOT / "encoder-model.onnx").is_file():
         # Said out loud, once, at the point it is decided. Silence here is what
-        # made this take a week to find.
+        # made the missing engine take a week to find last time.
         log.error(
-            "the speech-to-text engine is missing at %s; Marvi will hear you "
-            "and never answer. Reinstall or update to fetch it.",
-            engine,
+            "no speech recognition model at %s; Marvi will hear you and never "
+            "answer. Run `marvi setup voice`.",
+            PARAKEET_ROOT,
         )
 
     session = AgentSession(
-        stt=NemotronSTT(
-            executable=engine,
-            language=os.environ.get("MARVI_STT_LANGUAGE", "en-US"),
-        ),
+        stt=warmed.get("stt") or ParakeetSTT(),
         vad=warmed.get("vad") or silero.VAD.load(),
         llm=_timed_llm(),
         tts=local_tts,

@@ -98,7 +98,7 @@ const NAV_GROUPS = [
 /** Behind the gear: the things you set up. */
 const SETTINGS_GROUPS = [
   { label: 'Connect', items: ['Providers', 'Models', 'Accounts', 'Skills', 'Plugins'] },
-  { label: 'System', items: ['Preferences', 'Schedules', 'Maintenance', 'About'] }
+  { label: 'System', items: ['Speech', 'Preferences', 'Schedules', 'Maintenance', 'About'] }
 ] as const
 
 type Page = (typeof NAV_GROUPS)[number]['items'][number]
@@ -134,6 +134,7 @@ const SETTINGS_ICONS: Record<SettingsPage, AbstractIconName> = {
   Accounts: 'accounts',
   Skills: 'skills',
   Plugins: 'plugins',
+  Speech: 'voice',
   Preferences: 'preferences',
   Schedules: 'schedules',
   Maintenance: 'maintenance',
@@ -2608,6 +2609,8 @@ function SettingsShell({
             <SkillsPanel />
           ) : page === 'Plugins' ? (
             <PluginsPanel />
+          ) : page === 'Speech' ? (
+            <SpeechPanel />
           ) : page === 'Preferences' ? (
             <SettingsPanel runtime={runtime} />
           ) : page === 'Schedules' ? (
@@ -2619,6 +2622,118 @@ function SettingsShell({
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+/**
+ * Everything about hearing and speaking, in one place.
+ *
+ * These were scattered: the wake word under Preferences, the voice three
+ * clicks away beside it, the recogniser nowhere at all. Voice is the surface
+ * Marvi is actually used through, and its settings were the hardest to find.
+ */
+function SpeechPanel(): React.JSX.Element {
+  return (
+    <section className="settings-page">
+      <PageLead
+        description="What Marvi listens with, what she answers in, and what she answers to."
+        icon="voice"
+        title="Hearing and speaking"
+      />
+
+      <div className="settings-section">
+        <div>
+          <span className="eyebrow">{'// SPEECH IN'}</span>
+          <h2>RECOGNITION</h2>
+          <p>
+            How far ahead the recogniser listens before committing a word. Longer is
+            more accurate and lags further behind you; it does not delay the answer,
+            because the last of what you said is flushed the moment you stop.
+          </p>
+        </div>
+        <RecognitionSettings />
+      </div>
+
+      <div className="settings-section">
+        <div>
+          <span className="eyebrow">{'// SPEECH OUT'}</span>
+          <h2>VOICE</h2>
+          <p>The voice Marvi speaks in. Also on the Voice page, beside the orb.</p>
+        </div>
+        <VoicePicker />
+      </div>
+
+      <div className="settings-section">
+        <div>
+          <span className="eyebrow">{'// WAKE WORD'}</span>
+          <h2>SAYING HER NAME</h2>
+          <p>
+            A small process that starts at login and waits for her name. Saying
+            &ldquo;Marvi&rdquo; joins hands-free, exactly as pressing Join does, and opens
+            Marvi first if she is closed.
+          </p>
+        </div>
+        <WakeSettings />
+      </div>
+    </section>
+  )
+}
+
+/** The two things about the recogniser worth changing. */
+function RecognitionSettings(): React.JSX.Element {
+  const [lookahead, setLookahead] = useState('')
+  const [device, setDevice] = useState('')
+
+  useEffect(() => {
+    let gone = false
+    void (async () => {
+      const page = await window.marvi?.getProviders()
+      if (gone || !page) return
+      const values = (page as unknown as { settings?: Record<string, string> }).settings ?? {}
+      setLookahead(values['MARVI_STT_LOOKAHEAD'] ?? '2.0')
+      setDevice(values['MARVI_STT_DEVICE'] ?? 'cpu')
+    })()
+    return () => {
+      gone = true
+    }
+  }, [])
+
+  const save = (values: Record<string, string>): void => {
+    void window.marvi?.setProviderSettings(values)
+  }
+
+  return (
+    <div className="voice-choice">
+      <Picker
+        options={[
+          { value: '0.8', label: 'Fast', detail: 'Subtitles keep up; more mistakes' },
+          { value: '2.0', label: 'Accurate', detail: 'The default. Two seconds behind you' },
+          { value: '3.0', label: 'Most accurate', detail: 'Slowest subtitles' }
+        ]}
+        value={lookahead}
+        onChange={(next) => {
+          setLookahead(next)
+          save({ MARVI_STT_LOOKAHEAD: next })
+        }}
+        placeholder="Accurate"
+      />
+      {/* Measured on this machine: the same accuracy either way, four times
+          faster on the card -- but the card is also making the speech, and
+          that is what ran out of room. Hence a choice rather than a default. */}
+      <Picker
+        options={[
+          { value: 'cpu', label: 'Processor', detail: 'Leaves the graphics card to the voice' },
+          { value: 'cuda', label: 'Graphics card', detail: 'Faster, shares the card' }
+        ]}
+        value={device}
+        onChange={(next) => {
+          setDevice(next)
+          save({ MARVI_STT_DEVICE: next })
+        }}
+        placeholder="Processor"
+      />
+      <p className="notice">Marvi restarts the voice worker to apply these.</p>
     </div>
   )
 }
@@ -2666,18 +2781,6 @@ function SettingsPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Eleme
           </p>
         </div>
         <ServiceHealth compact />
-      </div>
-
-      <div className="settings-section">
-        <div>
-          <span className="eyebrow">{'// WAKE WORD'}</span>
-          <h2>SAYING HER NAME</h2>
-          <p>
-            Marvi listens all the time but only answers when she hears &ldquo;Marvi&rdquo;. Turn
-            this off and she answers every turn in the room.
-          </p>
-        </div>
-        <WakeSettings />
       </div>
 
       <div className="settings-section">

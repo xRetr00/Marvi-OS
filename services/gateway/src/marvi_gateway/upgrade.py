@@ -28,10 +28,23 @@ from . import paths
 
 log = logging.getLogger(__name__)
 
-#: Where the previous speech engine kept its model and speaker prompts.
-RETIRED_MODELS = ("models/tts/vibevoice-realtime-0.5b",)
+#: What previous engines left behind.
+#:
+#: Both halves of the speech stack were replaced: VibeVoice by Kokoro, and the
+#: Nemotron export the Rust sidecar drove by a Parakeet ONNX export. Neither is
+#: loaded by anything now, and together they are the better part of five
+#: gigabytes.
+RETIRED_MODELS = (
+    "models/tts/vibevoice-realtime-0.5b",
+    "models/stt/nemotron-3.5",
+)
 
 VOICE_ENV = "MARVI_TTS_VOICE"
+
+RETIRED_WHY = {
+    "models/tts/vibevoice-realtime-0.5b": "the previous speech engine, replaced by Kokoro",
+    "models/stt/nemotron-3.5": "the previous recogniser, replaced by Parakeet",
+}
 
 
 @dataclass(frozen=True)
@@ -69,7 +82,7 @@ def reclaimable() -> list[Reclaimable]:
             Reclaimable(
                 path=directory,
                 bytes=_size(directory),
-                why="the previous speech engine, replaced by Kokoro",
+                why=RETIRED_WHY.get(relative, "no longer loaded"),
             )
         )
     return found

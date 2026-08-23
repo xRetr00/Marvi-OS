@@ -48,20 +48,22 @@ async def test_a_heard_turn_is_logged(caplog) -> None:
 def test_a_missing_speech_engine_is_reported(tmp_path, monkeypatch, caplog) -> None:
     """The failure that looked like nothing at all.
 
-    The engine is Rust and the toolchain Marvi provisions is uv and Node, so
-    an installed machine had no STT binary and nothing said so. The wake word
-    fired, the session listened, and no transcript was ever produced -- because
-    the thing that turns audio into words was not there.
+    An installed machine once had no recogniser at all and nothing said so.
+    The wake word fired, the session listened, and no transcript was ever
+    produced -- because the thing that turns audio into words was not there.
 
-    It is now stated at the point it is decided, which is the only place that
-    can tell the difference between "no speech" and "no engine".
+    The engine has changed twice since (a Rust sidecar, now a Parakeet ONNX
+    export) and the failure has not: it is stated at the point it is decided,
+    which is the only place that can tell "no speech" from "no engine".
     """
     import contextlib
     import logging
 
     from marvi_agent import session as session_module
 
-    monkeypatch.setenv("MARVI_VOICE_RUNTIME", str(tmp_path / "absent.exe"))
+    monkeypatch.setattr(
+        session_module, "PARAKEET_ROOT", tmp_path / "absent", raising=True
+    )
 
     # Building the rest of the session needs models this test has no business
     # downloading; the log line is what is under test, and it is emitted before
@@ -69,7 +71,9 @@ def test_a_missing_speech_engine_is_reported(tmp_path, monkeypatch, caplog) -> N
     with caplog.at_level(logging.ERROR, logger="marvi.voice"), contextlib.suppress(Exception):
         session_module.build_session()
 
-    assert any("speech-to-text engine is missing" in record.message for record in caplog.records)
+    assert any(
+        "no speech recognition model" in record.message for record in caplog.records
+    )
 
 
 def test_a_present_engine_says_nothing(tmp_path, monkeypatch, caplog) -> None:
@@ -78,9 +82,10 @@ def test_a_present_engine_says_nothing(tmp_path, monkeypatch, caplog) -> None:
 
     from marvi_agent import session as session_module
 
-    engine = tmp_path / "marvi-voice-runtime.exe"
-    engine.write_bytes(b"pretend engine")
-    monkeypatch.setenv("MARVI_VOICE_RUNTIME", str(engine))
+    installed = tmp_path / "parakeet"
+    installed.mkdir()
+    (installed / "encoder-model.onnx").write_bytes(b"pretend model")
+    monkeypatch.setattr(session_module, "PARAKEET_ROOT", installed, raising=True)
 
     with caplog.at_level(logging.ERROR, logger="marvi.voice"), contextlib.suppress(Exception):
         session_module.build_session()
