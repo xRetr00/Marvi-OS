@@ -1639,6 +1639,15 @@ function startApp(): void {
           confidence: Number(body.confidence ?? 0),
           setting: String(body.setting ?? 'MARVI_WAKE_WORD'),
           thresholdSetting: String(body.threshold_setting ?? 'MARVI_WAKE_THRESHOLD'),
+          device: String(body.device ?? ''),
+          deviceSetting: String(body.device_setting ?? 'MARVI_WAKE_DEVICE'),
+          devices: Array.isArray(body.devices)
+            ? (body.devices as Record<string, unknown>[]).map((entry) => ({
+                name: String(entry['name'] ?? ''),
+                label: String(entry['label'] ?? entry['name'] ?? ''),
+                default: Boolean(entry['default'])
+              }))
+            : [],
           listener: {
             autostart: Boolean((body.listener as Record<string, unknown>)?.['autostart']),
             running: Boolean((body.listener as Record<string, unknown>)?.['running']),

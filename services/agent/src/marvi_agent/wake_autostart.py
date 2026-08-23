@@ -28,27 +28,59 @@ RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 VALUE_NAME = "MarviWakeWord"
 
 
-def command(project: Path, app: Path, threshold: float | None = None) -> str:
+def interpreter() -> str:
+    """The interpreter the Run key should invoke.
+
+    ``pythonw.exe`` when it is there, which on Windows is the whole point: it
+    is the GUI-subsystem build of Python and does not get a console. Anything
+    launched from the ``Run`` key gets whatever window its executable asks for,
+    and there is no "hidden" flag to pass -- so the only way to have no console
+    is to run something that never creates one.
+
+    Found from ``sys.executable`` rather than guessed from the project path.
+    This module is itself running inside the environment in question, put there
+    by the desktop shelling out through uv, so the interpreter beside this one
+    is by definition the right one. A layout guess would be a second source of
+    truth that only fails once the install moves.
+
+    Falls back to uv when there is no ``pythonw`` -- a console is worse than
+    the alternative, and the alternative is no wake word.
+    """
+    if sys.platform == "win32":
+        windowless = Path(sys.executable).with_name("pythonw.exe")
+        if windowless.is_file():
+            return str(windowless)
+    return ""
+
+
+def command(project: Path, app: Path, threshold: float | None = None, device: str = "") -> str:
     """The command line the Run key holds.
 
-    Through ``uv`` for the same reason every other Marvi service is: it is what
-    resolves the virtual environment, and the login shell has no idea where
-    that is. ``pythonw`` would avoid a console but not reliably across uv
-    versions, so the listener is launched with a hidden window instead.
+    Two shapes, and the first is preferred. Invoking the environment's
+    ``pythonw.exe`` directly leaves nothing to open a window. Going through
+    ``uv run`` resolves the environment for us but ``uv.exe`` is a console
+    program, so the listener sat behind a terminal on the desktop for the whole
+    session -- for a process whose entire job is to be invisible.
     """
-    parts = [
-        f'"{uv_path()}"',
-        "run",
-        "--project",
-        f'"{project}"',
-        "python",
-        "-m",
-        "marvi_agent.wake_daemon",
-        "--app",
-        f'"{app}"',
-    ]
+    windowless = interpreter()
+    if windowless:
+        parts = [f'"{windowless}"', "-m", "marvi_agent.wake_daemon", "--app", f'"{app}"']
+    else:
+        parts = [
+            f'"{uv_path()}"',
+            "run",
+            "--project",
+            f'"{project}"',
+            "python",
+            "-m",
+            "marvi_agent.wake_daemon",
+            "--app",
+            f'"{app}"',
+        ]
     if threshold is not None:
         parts += ["--threshold", str(threshold)]
+    if device.strip():
+        parts += ["--device", f'"{device.strip()}"']
     return " ".join(parts)
 
 
@@ -65,7 +97,9 @@ def _key():
     )
 
 
-def enable(project: Path, app: Path, threshold: float | None = None) -> str:
+def enable(
+    project: Path, app: Path, threshold: float | None = None, device: str = ""
+) -> str:
     """Register the listener, and start it now rather than at the next login.
 
     Waiting for a reboot to find out whether it works is how a switch that does
@@ -73,7 +107,7 @@ def enable(project: Path, app: Path, threshold: float | None = None) -> str:
     """
     import winreg
 
-    line = command(project, app, threshold)
+    line = command(project, app, threshold, device)
     with _key() as key:
         winreg.SetValueEx(key, VALUE_NAME, 0, winreg.REG_SZ, line)
     start_now(line)
@@ -132,6 +166,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("action", choices=["enable", "disable", "status"])
     parser.add_argument("--app", default="", help="path to Marvi.exe")
     parser.add_argument("--threshold", type=float, default=None)
+    parser.add_argument(
+        "--device", default="", help="microphone name; empty means the system default"
+    )
     args = parser.parse_args(argv)
 
     project = Path(__file__).resolve().parents[2]
@@ -139,7 +176,11 @@ def main(argv: list[str] | None = None) -> int:
         if not args.app:
             print("--app is required to enable", file=sys.stderr)
             return 2
-        print(json.dumps({"registered": enable(project, Path(args.app), args.threshold)}))
+        print(
+            json.dumps(
+                {"registered": enable(project, Path(args.app), args.threshold, args.device)}
+            )
+        )
     elif args.action == "disable":
         print(json.dumps({"removed": disable()}))
     else:

@@ -25,6 +25,10 @@ import time
 from pathlib import Path
 from typing import Any
 
+from .logs import get_logger
+
+log = get_logger("wake")
+
 #: Mirrors the Agent's own defaults. Duplicated rather than imported because
 #: the Agent runs in a different Python environment; the test below fails if
 #: the two drift.
@@ -176,4 +180,36 @@ def status() -> dict[str, Any]:
         "confidence": _confidence,
         "setting": "MARVI_WAKE_WORD",
         "threshold_setting": "MARVI_WAKE_THRESHOLD",
+        "device": os.environ.get(DEVICE_SETTING, ""),
+        "device_setting": DEVICE_SETTING,
+        "devices": microphones(),
     }
+
+
+#: Which microphone the standalone listener opens. Empty means the system
+#: default, which is what it always used -- and on a machine with a webcam, a
+#: headset and a speakerphone that is frequently the wrong one, with no way to
+#: say so.
+DEVICE_SETTING = "MARVI_WAKE_DEVICE"
+
+
+def microphones() -> list[dict[str, Any]]:
+    """Input devices for the picker.
+
+    Enumerated here rather than in the browser: `navigator.mediaDevices` lists
+    what Chromium can open, and the listener is a separate Python process using
+    PortAudio, which sees a different set under different names. A picker built
+    from the wrong list offers devices the thing doing the listening cannot
+    open.
+
+    The Agent owns the enumeration because it owns the listener; this reaches
+    into it because both run in the same environment. Never raises -- an empty
+    picker is a worse settings page, a failing one is no settings page.
+    """
+    try:
+        from marvi_agent.wake_daemon import microphones as enumerate_inputs
+
+        return list(enumerate_inputs())
+    except Exception as exc:  # pragma: no cover - depends on the install
+        log.warning("cannot list microphones: %s", exc)
+        return []

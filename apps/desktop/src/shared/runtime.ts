@@ -305,6 +305,19 @@ export interface WakeStatus {
   setting: string
   thresholdSetting: string
   /**
+   * Which microphone the standalone listener opens. Empty means the system
+   * default, which is what it always used - and on a machine with a webcam, a
+   * headset and a speakerphone that is frequently the wrong one.
+   *
+   * Enumerated by the listener's own audio stack rather than the browser's:
+   * PortAudio and Chromium see different devices under different names, and a
+   * picker built from the wrong list offers microphones the thing doing the
+   * listening cannot open.
+   */
+  device: string
+  deviceSetting: string
+  devices: { name: string; label: string; default: boolean }[]
+  /**
    * The standalone listener that runs at login, which is the only part of the
    * wake word that can hear you before Marvi is open.
    *
