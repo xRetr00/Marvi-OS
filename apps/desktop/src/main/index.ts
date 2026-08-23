@@ -655,6 +655,13 @@ function savePetPreferences(): void {
   writeFileSync(petPreferencesPath(), `${JSON.stringify(petPreferences, null, 2)}\n`, 'utf8')
 }
 
+function setPetEnabled(enabled: boolean): void {
+  petPreferences = { ...petPreferences, enabled }
+  savePetPreferences()
+  syncPetWindow()
+  refreshTrayMenu()
+}
+
 function selectedPetDisplay(): Electron.Display {
   return (
     screen.getAllDisplays().find((display) => display.id === petPreferences.displayId) ??
@@ -680,6 +687,21 @@ function ensurePetHost(): NativePetHost {
     (action) => {
       desktop.info('native pet control selected', { action })
       navigateMainWindow(petActionPage(action))
+    },
+    ({ x, y }) => {
+      if (!petBounds || !petPreferences.enabled) return
+      const candidate = { ...petBounds, x, y }
+      const display = screen.getDisplayMatching(candidate)
+      petPreferences = {
+        ...petPreferences,
+        displayId: display.id,
+        position: { x, y }
+      }
+      petBounds = petWindowBounds(display.workArea, petPreferences)
+      petPreferences.position = { x: petBounds.x, y: petBounds.y }
+      savePetPreferences()
+      petHost?.send({ type: 'bounds', ...petBounds })
+      desktop.info('native pet moved', { x: petBounds.x, y: petBounds.y, displayId: display.id })
     }
   )
   return petHost
@@ -827,15 +849,24 @@ function previewAssistantState(state: AssistantState): void {
 function createTray(): Tray {
   const instance = new Tray(nativeImage.createFromPath(trayIcon))
   instance.setToolTip('Marvi OS')
+  refreshTrayMenu(instance)
+  instance.on('double-click', showMainWindow)
+  return instance
+}
+
+function refreshTrayMenu(instance = tray): void {
+  if (!instance || instance.isDestroyed()) return
   instance.setContextMenu(
     Menu.buildFromTemplate([
       { label: 'Open Marvi OS', click: showMainWindow },
+      {
+        label: petPreferences.enabled ? 'Hide Desktop Pet' : 'Show Desktop Pet',
+        click: () => setPetEnabled(!petPreferences.enabled)
+      },
       { type: 'separator' },
       { label: 'Quit', click: () => app.quit() }
     ])
   )
-  instance.on('double-click', showMainWindow)
-  return instance
 }
 
 // One Marvi, and only one.
@@ -968,14 +999,21 @@ function startApp(): void {
     ipcMain.handle('marvi:get-pet-preferences', () => petPreferences)
     ipcMain.handle('marvi:set-pet-preferences', (event, value) => {
       if (!mainWindow || event.sender !== mainWindow.webContents) return petPreferences
+      const previous = petPreferences
       const next = normalizePetPreferences(value)
       const displayExists =
         next.displayId === null ||
         screen.getAllDisplays().some((display) => display.id === next.displayId)
       if (!displayExists) next.displayId = null
+      const placementChanged =
+        next.displayId !== previous.displayId ||
+        next.side !== previous.side ||
+        next.scale !== previous.scale
+      next.position = placementChanged ? null : previous.position
       petPreferences = next
       savePetPreferences()
       syncPetWindow()
+      refreshTrayMenu()
       return petPreferences
     })
     ipcMain.handle('marvi:set-yolo', async (_event, yolo) => {
