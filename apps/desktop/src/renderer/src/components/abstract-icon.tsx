@@ -33,6 +33,8 @@ export type AbstractIconName =
   | 'check'
   | 'download'
   | 'down'
+  | 'back'
+  | 'search'
   | 'plus'
   | 'edit'
   | 'archive'
@@ -84,6 +86,8 @@ const paths: Record<AbstractIconName, React.ReactNode> = {
   check: <path d="m5 12 4.5 4.5L19 7" />,
   download: <path d="M12 3v12M7.5 10.5 12 15l4.5-4.5M4 20h16" />,
   down: <path d="m6 9 6 6 6-6" />,
+  back: <path d="m14.5 5-7 7 7 7M8 12h11" />,
+  search: <path d="M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM15.5 15.5 21 21" />,
   plus: <path d="M12 5v14M5 12h14" />,
   edit: <path d="M5 19h4L19 9l-4-4L5 15v4zM13.5 6.5l4 4" />,
   archive: <path d="M4 7h16v13H4zM3 4h18v3H3zM9 11h6" />,

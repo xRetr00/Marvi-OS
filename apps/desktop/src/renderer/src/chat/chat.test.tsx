@@ -261,11 +261,18 @@ describe('Sessions', () => {
         onRename={() => {}}
         onArchive={() => {}}
         onDelete={() => {}}
+        onExit={() => {}}
+        onExport={() => {}}
+        exportDisabled={false}
+        timing={<span>SESSION 00:12</span>}
       />
     )
     expect(html).toContain('Hi there')
-    expect(html).toContain('NEW')
+    expect(html).toContain('NEW CHAT')
     expect(html).toContain('3 msgs')
+    expect(html).toContain('Search conversations')
+    expect(html).toContain('CONTROL CENTER')
+    expect(html).toContain('SESSION 00:12')
   })
 })
 

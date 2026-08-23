@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { ReactNode } from 'react'
 
 import type { ChatThread } from '../../../../shared/runtime'
 import { AbstractIcon } from '../../components/abstract-icon'
@@ -12,7 +13,11 @@ export function Sessions({
   onNew,
   onRename,
   onArchive,
-  onDelete
+  onDelete,
+  onExit,
+  onExport,
+  exportDisabled,
+  timing
 }: {
   sessions: ChatThread[]
   activeId: string
@@ -21,24 +26,67 @@ export function Sessions({
   onRename: (id: string, title: string) => void
   onArchive: (id: string) => void
   onDelete: (id: string) => void
+  onExit: () => void
+  onExport: () => void
+  exportDisabled: boolean
+  timing: ReactNode
 }): React.JSX.Element {
   const [editing, setEditing] = useState<string | null>(null)
   const [title, setTitle] = useState('')
+  const [query, setQuery] = useState('')
+  const visibleSessions = sessions.filter((session) =>
+    session.title.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())
+  )
 
   return (
     <TooltipProvider>
       <aside className="chat-sessions" aria-label="Chat sessions">
-        <div className="chat-sessions-head">
-          <span>THREAD INDEX</span>
-          <button className="chat-new" type="button" onClick={onNew}>
-            <AbstractIcon name="plus" size={13} /> NEW
+        <header className="chat-sidebar-head">
+          <button className="chat-sidebar-home" type="button" onClick={onExit}>
+            <AbstractIcon name="back" size={14} />
+            <span>
+              <strong>MARVI</strong>
+              <small>CHAT</small>
+            </span>
           </button>
+          <UiTooltip label="Start a new conversation">
+            <button
+              className="chat-sidebar-new-icon"
+              type="button"
+              onClick={onNew}
+              aria-label="New conversation"
+            >
+              <AbstractIcon name="plus" size={15} />
+            </button>
+          </UiTooltip>
+        </header>
+
+        <button className="chat-new" type="button" onClick={onNew}>
+          <AbstractIcon name="plus" size={14} /> NEW CHAT
+        </button>
+
+        <label className="chat-session-search">
+          <AbstractIcon name="search" size={13} />
+          <input
+            aria-label="Search conversations"
+            placeholder="Search conversations"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
+
+        <div className="chat-sessions-label">
+          <span>RECENT</span>
+          <span>{visibleSessions.length}</span>
         </div>
-        {sessions.length === 0 ? (
-          <span className="chat-sessions-empty">NO ACTIVE THREADS</span>
+
+        {visibleSessions.length === 0 ? (
+          <span className="chat-sessions-empty">
+            {sessions.length ? 'NO MATCHING CONVERSATIONS' : 'NO CONVERSATIONS YET'}
+          </span>
         ) : (
           <ul className="chat-session-list">
-            {sessions.map((session, index) => (
+            {visibleSessions.map((session) => (
               <li key={session.id} className={session.id === activeId ? 'active' : ''}>
                 {editing === session.id ? (
                   <form
@@ -63,7 +111,7 @@ export function Sessions({
                     type="button"
                     onClick={() => onSelect(session.id)}
                   >
-                    <span className="chat-session-index">{String(index + 1).padStart(2, '0')}</span>
+                    <span className="chat-session-dot" aria-hidden="true" />
                     <span className="chat-session-copy">
                       <span className="chat-session-title">{session.title}</span>
                       <span className="chat-session-meta">
@@ -108,6 +156,24 @@ export function Sessions({
             ))}
           </ul>
         )}
+        {timing}
+        <footer className="chat-sidebar-foot">
+          <UiTooltip label="Export conversation as Markdown">
+            <button
+              aria-label="Export conversation as Markdown"
+              disabled={exportDisabled}
+              onClick={onExport}
+              type="button"
+            >
+              <AbstractIcon name="download" size={14} />
+              EXPORT
+            </button>
+          </UiTooltip>
+          <button onClick={onExit} type="button">
+            <AbstractIcon name="back" size={14} />
+            CONTROL CENTER
+          </button>
+        </footer>
       </aside>
     </TooltipProvider>
   )

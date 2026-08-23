@@ -777,6 +777,7 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   tests, 193 desktop tests, desktop typecheck, and the production build.
 - Visually checked the empty, expanded-context, and thread-drawer states at
   1180×760 in Chromium; evidence is under `output/playwright/`.
+
 ## 2026-08-23 — updater directory-handle fix and terminal-state UI
 
 - Prevented the Windows update handoff from inheriting a working directory
@@ -845,3 +846,19 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
 - Passed 803 Gateway, 107 Agent, and 199 desktop tests plus desktop typecheck
   and the production build; visually checked the thread, source disclosure,
   and context card at the shipping 1180×760 viewport.
+
+## 2026-08-23 — conversation-first Chat workspace
+
+- Adapted the conversation-first sidebar anatomy from the local Hermes desktop
+  at `61977bb4d6b97ab2aece57d2405fa2f0b19e3ae0` while retaining Marvi's existing
+  Gateway thread actions and renderer state.
+- Replaced the global control-center sidebar only while Chat is active with a
+  searchable recent-thread index, new-chat action, row actions, export, and an
+  explicit return to the control center.
+- Removed the redundant Chat content header and tightened the transcript to
+  640px with smaller messages, cards, controls, and composer proportions.
+- Verified search filtering and the control-center return in Chromium at the
+  shipping 1180×760 viewport; visual evidence is
+  `output/playwright/chat-hermes-workspace.png`.
+- Preserved the authoritative Chat session timing strip in a compact sidebar
+  footer and passed the complete desktop suite, typecheck, and production build.

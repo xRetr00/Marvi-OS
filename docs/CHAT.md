@@ -47,13 +47,16 @@ not generate or persist them.
 The page adapts Assistant UI's interaction structure into Marvi's monochrome
 control-center language without adopting a second runtime: a bounded reading
 column, compact user surfaces, unboxed Marvi replies, visible source/evidence
-modules, sticky composer, thread drawer, message actions, and explicit
-return-to-latest control. Empty-state prompts only fill the composer and never
-pretend to be model output.
+modules, sticky composer, message actions, and explicit return-to-latest
+control. While Chat is active, the app navigation is replaced by the searchable
+conversation sidebar adapted from the local Hermes desktop; it exposes recent
+threads and their actions without a drawer or redundant page header. Empty-state
+prompts only fill the composer and never pretend to be model output.
 
 The composer keeps Marvi's provider/model/effort controls, attachment queue,
 context breakdown, microphone action, and stop/send state inside a rounded,
-quiet paper surface. Every ambiguous action has a tooltip and accessible name.
+quiet paper surface sized to the compact 640px transcript. Every ambiguous
+action has a tooltip and accessible name.
 
 Generative output follows Assistant UI's tool-UI pattern through a Marvi-owned
 adapter. Models may request only `sources`, `metrics`, `comparison`, `table`,

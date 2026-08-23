@@ -33,7 +33,8 @@ Current implemented desktop surfaces:
 - Gateway-owned Chat threads and branches with per-thread model routing,
   typed sources/files/images, local document extraction, Parakeet dictation,
   safe GFM/math rendering, authoritative context facts, validated generative
-  widgets, and read aloud through Marvi's configured Kokoro voice;
+  widgets, read aloud through Marvi's configured Kokoro voice, and a dedicated
+  searchable conversation sidebar adapted from the local Hermes desktop;
 - a card-organized Overview plus editorial labeled page modules, an animated
   branded sidebar rail, consistent control tooltips, and audible desktop
   haptic feedback;
