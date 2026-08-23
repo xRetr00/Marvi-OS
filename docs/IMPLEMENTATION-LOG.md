@@ -862,3 +862,15 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   `output/playwright/chat-hermes-workspace.png`.
 - Preserved the authoritative Chat session timing strip in a compact sidebar
   footer and passed the complete desktop suite, typecheck, and production build.
+
+## 2026-08-23 — compact Hermes-style Chat turns
+
+- Replaced the remaining oversized labeled message blocks with the actual
+  Hermes conversation anatomy: a compact human prompt surface followed by
+  unboxed assistant prose and a quiet hover/focus action rail.
+- Removed visible per-message `YOU` / `MARVI` headers while retaining accessible
+  sender labels, then moved timestamps beside the message actions.
+- Tightened the transcript and composer to a shared 560px register, 11px
+  conversation type, 22px message actions, and 24px composer controls.
+- Verified the production renderer at 1180×760; visual evidence is
+  `output/playwright/chat-hermes-compact-thread.png`.

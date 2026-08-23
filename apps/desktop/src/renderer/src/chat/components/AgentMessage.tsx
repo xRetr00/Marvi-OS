@@ -22,11 +22,8 @@ export function AgentMessage({
   const [showReasoning, setShowReasoning] = useState(false)
 
   return (
-    <article className="chat-turn chat-assistant">
-      <div className="chat-turn-head">
-        <span className="chat-role">MARVI</span>
-        <span className="chat-time">{formatTime(message.at)}</span>
-      </div>
+    <article className="chat-turn chat-assistant" aria-label="Marvi response">
+      <span className="sr-only">MARVI</span>
       {reasoning ? (
         <div className="chat-reasoning">
           {/* Collapsed by default and never part of the answer. It is the
@@ -53,6 +50,7 @@ export function AgentMessage({
       <WidgetStack parts={message.parts} />
       <div className="chat-turn-foot">
         <div className="chat-turn-actions">
+          <span className="chat-message-age">{formatTime(message.at)}</span>
           {readAloud?.available && !streaming ? (
             <UiTooltip label={readAloud.reading ? 'Stop reading' : 'Read aloud'}>
               <button

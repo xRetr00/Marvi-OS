@@ -29,15 +29,16 @@ function message(overrides: Partial<ChatMessage>): ChatMessage {
 }
 
 describe('UserMessage', () => {
-  it('labels the turn YOU and renders the text', () => {
+  it('keeps the sender label accessible without a visible turn header', () => {
     const html = renderToStaticMarkup(<UserMessage message={message({ content: 'hello' })} />)
-    expect(html).toContain('YOU')
+    expect(html).toContain('<span class="sr-only">YOU</span>')
     expect(html).toContain('hello')
+    expect(html).not.toContain('chat-turn-head')
   })
 })
 
 describe('AgentMessage', () => {
-  it('labels MARVI and renders inline code without provider billing noise', () => {
+  it('keeps Marvi accessible and renders a headerless compact response', () => {
     const html = renderToStaticMarkup(
       <AgentMessage
         message={message({
@@ -47,9 +48,10 @@ describe('AgentMessage', () => {
         })}
       />
     )
-    expect(html).toContain('MARVI')
+    expect(html).toContain('<span class="sr-only">MARVI</span>')
     expect(html).toContain('chat-inline-code')
     expect(html).toContain('npm ci')
+    expect(html).not.toContain('chat-turn-head')
     expect(html).not.toContain('openai')
     expect(html).not.toContain('12 tok')
   })

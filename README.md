@@ -34,7 +34,8 @@ Current implemented desktop surfaces:
   typed sources/files/images, local document extraction, Parakeet dictation,
   safe GFM/math rendering, authoritative context facts, validated generative
   widgets, read aloud through Marvi's configured Kokoro voice, and a dedicated
-  searchable conversation sidebar adapted from the local Hermes desktop;
+  searchable conversation sidebar plus compact human/assistant turn pairs
+  adapted from the local Hermes desktop;
 - a card-organized Overview plus editorial labeled page modules, an animated
   branded sidebar rail, consistent control tooltips, and audible desktop
   haptic feedback;

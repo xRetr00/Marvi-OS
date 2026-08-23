@@ -17,12 +17,9 @@ export function UserMessage({
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(message.content)
   return (
-    <article className="chat-turn chat-user">
+    <article className="chat-turn chat-user" aria-label="Your message">
+      <span className="sr-only">YOU</span>
       <div className="chat-user-surface">
-        <div className="chat-turn-head">
-          <span className="chat-role">YOU</span>
-          <span className="chat-time">{formatTime(message.at)}</span>
-        </div>
         {editing ? (
           <form
             className="chat-message-edit"
@@ -56,6 +53,7 @@ export function UserMessage({
         ) : null}
       </div>
       <div className="chat-turn-actions">
+        <span className="chat-message-age">{formatTime(message.at)}</span>
         {onEdit && message.id > 0 ? (
           <UiTooltip label="Edit and branch from this message">
             <button aria-label="Edit message" onClick={() => setEditing(true)} type="button">

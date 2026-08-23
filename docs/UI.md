@@ -180,9 +180,12 @@ second runtime. Entering Chat replaces the control-center navigation with a
 dedicated conversation sidebar adapted from the pinned local Hermes desktop.
 That sidebar owns new-chat, search, recent threads, row actions, export, and a
 clear return to the control center. Chat has no secondary page header. A compact
-640px reading column owns message flow; user turns are small right-aligned
-surfaces while Marvi replies remain unboxed. Durable threads and branches back
-the sidebar, edit, and regenerate actions.
+560px reading column owns message flow; each turn follows the Hermes-style
+human/assistant pair: one slim full-width prompt surface followed by unboxed
+Marvi prose. Sender labels remain available to assistive technology instead of
+repeating as visible headers, while timestamps and actions appear on hover or
+keyboard focus. The composer uses the same 560px register with 24px controls.
+Durable threads and branches back the sidebar, edit, and regenerate actions.
 GitHub-flavored Markdown, math, tables, code blocks, source cards, image/file
 parts, read aloud, local-native dictation, model selection, and context details
 use distinct bounded modules instead of one undifferentiated text column.

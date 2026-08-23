@@ -1984,6 +1984,190 @@
   height: 21px;
   font-size: 6.5px;
 }
+
+/* Hermes-style transcript -------------------------------------------------
+ * A turn is a compact human/assistant pair, not two labeled presentation
+ * cards. The human prompt is the only painted surface. Marvi's answer stays
+ * on the page plane and its secondary controls appear only on interaction. */
+.chat-thread-content {
+  width: min(100%, 560px);
+  gap: 7px;
+  padding: clamp(14px, 2.8vh, 24px) 14px 46px;
+}
+
+.chat-turn {
+  gap: 0;
+}
+
+.chat-user {
+  width: 100%;
+  max-width: 100%;
+  align-items: stretch;
+  margin-top: 13px;
+}
+
+.chat-user:first-child {
+  margin-top: 0;
+}
+
+.chat-user-surface {
+  width: 100%;
+  padding: 7px 10px;
+  border-color: color-mix(in srgb, var(--ui-stroke-secondary) 72%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--ui-bg-raised) 82%, transparent);
+}
+
+.chat-user-surface:hover {
+  border-color: var(--ui-stroke-primary);
+}
+
+.chat-assistant {
+  width: 100%;
+  padding: 2px 10px 0;
+}
+
+.chat-body {
+  font-size: 11px;
+  line-height: 1.52;
+}
+
+.chat-user .chat-body {
+  min-height: 17px;
+  line-height: 1.5;
+}
+
+.chat-assistant .chat-body {
+  padding-left: 0;
+}
+
+.chat-para {
+  margin-bottom: 6px;
+}
+
+.chat-turn-foot {
+  min-height: 20px;
+  justify-content: flex-end;
+}
+
+.chat-turn-actions {
+  min-height: 20px;
+  gap: 1px;
+}
+
+.chat-user > .chat-turn-actions {
+  min-height: 20px;
+  margin: 0 2px -3px 0;
+  justify-content: flex-end;
+}
+
+.chat-message-age {
+  padding: 0 4px;
+  color: var(--ui-text-tertiary);
+  font-size: 7px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+
+.chat-turn-actions button {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+}
+
+.chat-reasoning {
+  margin: 0 0 4px;
+}
+
+.chat-code {
+  margin: 6px 0;
+  padding: 7px 9px;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.chat-card,
+.chat-comparison,
+.chat-sources {
+  width: min(100%, 360px);
+}
+
+.chat-card {
+  margin-top: 7px;
+  padding: 9px;
+  border-radius: 10px;
+}
+
+.chat-card-title {
+  margin-bottom: 7px;
+  font-size: 9px;
+}
+
+.chat-metric,
+.chat-option {
+  min-height: 54px;
+  padding: 7px 8px;
+  border-radius: 7px;
+}
+
+.chat-metric strong {
+  font-size: 13px;
+}
+
+.chat-compose {
+  padding: 5px max(14px, calc((100% - 560px) / 2)) 8px;
+  background: linear-gradient(to bottom, transparent, var(--ui-bg) 12px);
+}
+
+.chat-compose-field {
+  gap: 2px;
+  padding: 5px 6px;
+  border-radius: 12px;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 16%);
+}
+
+.chat-compose-field textarea {
+  min-height: 26px;
+  max-height: 120px;
+  padding: 4px 5px 0;
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+.chat-compose-actions {
+  gap: 5px;
+}
+
+.chat-compose-tools {
+  gap: 1px;
+}
+
+.chat-compose-tool,
+.chat-send {
+  width: 24px;
+  height: 24px;
+}
+
+.chat-send {
+  border-radius: 7px;
+}
+
+.chat-context-breakdown summary {
+  padding: 2px 4px;
+}
+
+.chat-context-ring {
+  width: 18px;
+  height: 18px;
+  font-size: 5.5px;
+}
+
+.chat-model-picker,
+.chat-effort-picker {
+  min-height: 24px;
+  padding: 2px 5px;
+  font-size: 8px;
+}
 .sr-only {
   position: absolute;
   width: 1px;

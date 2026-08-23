@@ -55,8 +55,11 @@ prompts only fill the composer and never pretend to be model output.
 
 The composer keeps Marvi's provider/model/effort controls, attachment queue,
 context breakdown, microphone action, and stop/send state inside a rounded,
-quiet paper surface sized to the compact 640px transcript. Every ambiguous
-action has a tooltip and accessible name.
+quiet paper surface sized to the compact 560px transcript. Human prompts use
+one slim full-row surface and Marvi replies remain unboxed prose directly below
+them; sender names stay accessible without becoming repeated visual headers.
+Timestamps and message actions live in the quiet hover/focus rail. Every
+ambiguous action has a tooltip and accessible name.
 
 Generative output follows Assistant UI's tool-UI pattern through a Marvi-owned
 adapter. Models may request only `sources`, `metrics`, `comparison`, `table`,
