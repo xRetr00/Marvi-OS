@@ -899,3 +899,53 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
 - Kept Marvi's earlier blue eight-cell live voice-level meter as the explicit
   product-specific exception and retained every existing health/settings/update
   action behind the new presentation.
+## 2026-08-23 — measured desktop pet prototype
+
+- Added the supplied Marvi character as a packaged local v2 atlas and a
+  separate click-through Electron surface; no Codex user-data dependency or
+  runtime image generation was introduced.
+- Mapped Gateway-authoritative assistant phases to authored animation rows and
+  reduced main-process cursor coordinates to a transient 16-way gaze index.
+- Added persisted visible/display/side/scale preferences. Hiding the pet
+  destroys its BrowserWindow so disabled mode carries no pet-renderer cost.
+- Added unit coverage, a native screenshot harness, and a repeatable packaged
+  off/on measurement harness. On the named Windows host the pet added one
+  renderer and 70.08 MiB average private memory; the native-resolution Canvas
+  repeat showed no measurable CPU delta over 12 seconds.
+- Left Phase 12 in progress pending the explicit keep/optimize/draft decision.
+
+## 2026-08-23 — native desktop pet helper spike
+
+- Replaced the experimental third Electron pet surface with a focused
+  Rust/Win32 helper supervised by Electron main. The helper receives only phase,
+  gaze, bounds, and exit commands over stdin and cannot access Gateway, tools,
+  media, or durable state.
+- Preserved the owned 8×11 atlas and exact animation/gaze mappings, added Windows
+  reduced-motion handling, and changed the fresh-install default to a Codex-like
+  50% (`96×104`) footprint with 40/50/70/100% choices.
+- Added build/package integration, native timing tests, protocol/path tests,
+  packaged visual capture, all-descendant resource measurement, and a crash
+  isolation test that proved Marvi survives and restarts a terminated helper.
+- The packaged helper measured 23.50 MiB working set, 15.64 MiB private memory,
+  and 0.00% of one core over the 12-second sample. It adds one native process and
+  zero Chromium renderers, reducing direct private cost 77.7% from the original
+  70.08 MiB renderer result.
+- Kept Phase 12 experimental pending a full voice-stack soak, DPI/display
+  checks, and the product owner's keep/draft decision.
+
+## 2026-08-23 — native pet status and hover controls
+
+- Added a scaled transparent control strip beneath the unchanged pet atlas.
+  The helper draws an authoritative gray/blue/green/red status line and reveals
+  compact Voice and current-operation buttons only while hovered.
+- Kept the native window non-focusable and click-through outside the exact two
+  button circles. The helper emits bounded intents; Electron main owns showing
+  the control center and routes Voice to Voice and Tasks to the existing
+  Activity audit without inventing a new task subsystem.
+- Added protocol validation, count/routing/geometry/hit-test coverage, packaged
+  idle/hover visual capture, a native-click-to-Electron-window acceptance test,
+  full desktop and Rust checks, and another forced helper restart test.
+- The interactive helper measured 23.62 MiB working set, 16.44 MiB private,
+  0.00% of one core, one native process, and zero extra Chromium renderers over
+  the 12-second packaged sample. Phase 12 remains experimental pending the
+  original soak/DPI gate and the product owner's keep/draft decision.

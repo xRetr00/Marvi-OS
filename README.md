@@ -26,6 +26,14 @@ loudspeaker double-talk test plus the 60-minute duplex soak.
 Current implemented desktop surfaces:
 
 - tray-owned application lifetime and control-center window;
+- an experimental Marvi desktop pet rendered by a supervised native Windows
+  helper, with state-driven animation, cursor gaze, a gray/blue/green/red
+  status line, hover Voice/Activity controls, display/side/40–100% sizing, and
+  a true off mode that creates no pet process; only the two buttons intercept
+  clicks. The measured helper uses 16.44 MiB private memory and no additional
+  Chromium renderer. Full evidence is recorded in
+  [`docs/phases/12-pet-companion.md`](docs/phases/12-pet-companion.md) pending a
+  keep/draft decision;
 - icon-led sidebar, window-wide Hermes-style status bar with Marvi's live blue
   voice meter, overview, and About build/update information;
 - Collapse wordmark + readable JetBrains Mono monochrome design system;

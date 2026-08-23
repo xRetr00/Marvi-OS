@@ -58,6 +58,29 @@ be updated with the exact version/commit and local modification path.
 | Shell chrome adaptation     | `the predecessor assistant\apps\desktop\src\components\` (decode-text, glyph-spinner, gateway-connecting-overlay, boot-failure-overlay, haptics-provider, translucency, background store, shell-context-menu) | internal                                                    | adapt with provenance; local-only, no remote fetches                                                                                                                                                              | adopted            |
 | Electric Gaze backdrop      | 21st.dev ascii-recipe render `assets.21st.dev/ascii-recipes/.../c458eb38-....mp4` (412 KB) + poster webp                                                                                                      | verify at re-fetch                                          | vendored local asset; never fetched at runtime                                                                                                                                                                    | adopted            |
 
+## Owned pet asset
+
+The Marvi desktop-pet atlas is not third-party upstream. It was converted on
+2026-08-23 from the project owner's supplied Marvi character artwork with the
+installed Codex v2 pet workflow. The generated 8×11 WebP atlas is vendored at
+`apps/desktop/src/renderer/src/assets/pet/marvi/`; no generator or remote asset
+is a runtime dependency. Regenerate it from the owned source when the art
+changes, then rerun Phase 12's visual and resource checks.
+
+## Native pet host spike
+
+| Source | License | Pin | Modification boundary | Update method |
+| --- | --- | --- | --- | --- |
+| [crafter-station/petdex](https://github.com/crafter-station/petdex) | MIT; submitted pet assets retain submitter ownership | reference inspected at `c7fbe8a9c9c45900e98dacfaad4f41627e2c760a` | architecture and animation-contract reference only; no Petdex source, hook server, tray, settings, or Native SDK fork is copied | re-review the native package and release workflow before changing the host boundary |
+| [image-rs/image](https://github.com/image-rs/image) | MIT OR Apache-2.0 | `0.25.10` in `apps/pet-host/Cargo.lock` | unchanged WebP decoder and high-quality runtime frame scaling | update with Cargo, review decoder advisories/changelog, then rerun atlas, visual, and resource checks |
+| [microsoft/windows-rs](https://github.com/microsoft/windows-rs) (`windows-sys`) | MIT OR Apache-2.0 | `0.61.2` | unchanged raw bindings for the narrow layered-window, GDI, timer, DPI, and reduced-motion calls in `apps/pet-host` | update with Cargo and rerun Windows packaging, DPI/display, restart, and resource checks |
+| [serde-rs/serde](https://github.com/serde-rs/serde) and [serde_json](https://github.com/serde-rs/json) | MIT OR Apache-2.0 | `serde 1.0.229`, `serde_json 1.0.151` in `apps/pet-host/Cargo.lock` | unchanged parsing of the fixed newline-delimited local control protocol; no untrusted network input | update with Cargo and rerun protocol plus malformed-input tests |
+
+The Petdex release path currently pins a fork for native floating-window
+capabilities, so Marvi does not depend on that SDK. The spike instead uses the
+repository's existing Rust toolchain and direct stable Win32 APIs behind a
+Marvi-owned adapter.
+
 ## Update procedure
 
 For each upstream dependency:

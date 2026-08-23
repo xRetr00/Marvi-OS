@@ -46,14 +46,54 @@ a brief completion state.
 
 ## Window model
 
-Marvi OS has three surfaces:
+Marvi OS has four surfaces:
 
 1. **Dynamic Island** — always-on-top primary interaction.
-2. **Main control center** — settings, state, integrations, and audit.
-3. **Tray menu** — open, mute/pause sensors, YOLO state, restart Gateway, exit.
+2. **Desktop pet** — optional companion presentation with two bounded controls.
+3. **Main control center** — settings, state, integrations, and audit.
+4. **Tray menu** — open, mute/pause sensors, YOLO state, restart Gateway, exit.
 
 Closing the control center hides it. It does not terminate the Island or local
 services.
+
+## Desktop pet
+
+The pet is an experimental presentation of the same Gateway-authoritative
+assistant state used by the Island. It is not a second agent, cannot execute
+tools, never reads the Codex user-data directory, and has no independent
+conversation state.
+
+- Electron main owns native-helper lifecycle plus all monitor/cursor access.
+- The native helper owns only a transparent, frameless, non-focusable,
+  non-movable, always-on-top layered window. It crops the packaged 8×11 WebP
+  atlas and selects animation rows from the phase received over stdin.
+- Ready, listening, and speaking may use one of 16 quantized cursor-gaze frames.
+  Cursor coordinates never cross into Gateway or durable storage.
+- Wake waves; thinking runs; speaking reviews; actions run; notifications jump;
+  confirmations wait; errors use the failed loop; passive states idle.
+- Reduced-motion preference freezes the representative first frame.
+- Preferences expose visible/hidden, display, left/right corner, and
+  40%/50%/70%/100% size. Fresh installs default to the Codex-like 50% size.
+  Hidden terminates the helper, so disabled means no pet process.
+- A short line below the sprite communicates authoritative state: gray when
+  idle, blue while working, green for completion, and red on error. Completion
+  is a two-second presentation transition after active work returns to ready;
+  it does not create a second runtime phase.
+- Hovering the pet or its reserved transparent control strip reveals two
+  compact buttons. Voice opens the existing Voice view; Tasks opens the
+  existing Activity audit because Marvi has no separate task subsystem yet.
+  The count is `1` only while the single authoritative operation is thinking,
+  acting, or awaiting confirmation, and `0` is shown as a compact chevron.
+- The helper remains non-focusable and click-through outside those two button
+  circles. Button actions travel to Electron main, which alone may reveal and
+  navigate the control center. Confirmation remains on the Dynamic Island;
+  the pet never becomes a confirmation or tool-execution authority surface.
+- The source artwork is repository-owned input and the generated atlas is
+  packaged locally. No runtime image generation or remote fetch occurs.
+
+The resource cost is intentionally a product gate, not an unmeasured promise.
+Current native measurements and the keep/draft decision are tracked in
+`docs/phases/12-pet-companion.md`.
 
 ## Hidden title bar and native window controls
 

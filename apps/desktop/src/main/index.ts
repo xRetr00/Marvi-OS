@@ -14,7 +14,7 @@ import {
   Tray
 } from 'electron'
 import { is } from '@electron-toolkit/utils'
-import { existsSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { join, resolve } from 'path'
 import icon from '../../resources/icon.png?asset'
 import trayIcon from '../../resources/tray-icon.png?asset'
@@ -37,6 +37,17 @@ import {
   type IslandContentSize,
   type IslandPlacement
 } from './island-window'
+import {
+  DEFAULT_PET_PREFERENCES,
+  normalizePetPreferences,
+  petLookDirection,
+  petSpriteBounds,
+  petWindowBounds,
+  pointInBounds,
+  type PetPreferences,
+  type RectangleLike
+} from './pet-window'
+import { NativePetHost, petActionPage, petTaskCount, resolvePetHostPaths } from './pet-host'
 import {
   canUpdate,
   checkForUpdate,
@@ -62,14 +73,19 @@ import type {
 
 let mainWindow: BrowserWindow | null = null
 let islandWindow: BrowserWindow | null = null
+let petHost: NativePetHost | null = null
+let petBounds: RectangleLike | null = null
+let petRestartTimer: NodeJS.Timeout | null = null
 let tray: Tray | null = null
 let gatewayPoll: NodeJS.Timeout | null = null
+let petCursorPoll: NodeJS.Timeout | null = null
 let supervisor: ServiceSupervisor | null = null
 let serviceReports: ServiceReport[] = []
 let repoRoot: string | null = null
 let runtimeStatus: RuntimeStatus = offlineRuntime('unknown')
 let islandPlacement: IslandPlacement = { displayId: null, alignment: 'center' }
 let islandContentSize: IslandContentSize = { width: 76, height: 8 }
+let petPreferences: PetPreferences = { ...DEFAULT_PET_PREFERENCES }
 let isQuitting = false
 let translucencyIntensity = 0
 
@@ -502,11 +518,13 @@ async function wakeAutostart(
   }
 }
 
-function rendererUrl(surface: 'main' | 'island'): string {
+type RendererSurface = 'main' | 'island'
+
+function rendererUrl(surface: RendererSurface): string {
   return `${process.env['ELECTRON_RENDERER_URL']}?surface=${surface}`
 }
 
-function loadSurface(window: BrowserWindow, surface: 'main' | 'island'): void {
+function loadSurface(window: BrowserWindow, surface: RendererSurface): void {
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     void window.loadURL(rendererUrl(surface))
     return
@@ -613,12 +631,100 @@ function createIslandWindow(): BrowserWindow {
   return window
 }
 
+function petPreferencesPath(): string {
+  return join(stateDir(), 'pet.json')
+}
+
+function loadPetPreferences(): PetPreferences {
+  try {
+    return normalizePetPreferences(JSON.parse(readFileSync(petPreferencesPath(), 'utf8')))
+  } catch {
+    return { ...DEFAULT_PET_PREFERENCES }
+  }
+}
+
+function savePetPreferences(): void {
+  mkdirSync(stateDir(), { recursive: true })
+  writeFileSync(petPreferencesPath(), `${JSON.stringify(petPreferences, null, 2)}\n`, 'utf8')
+}
+
+function selectedPetDisplay(): Electron.Display {
+  return (
+    screen.getAllDisplays().find((display) => display.id === petPreferences.displayId) ??
+    (petBounds ? screen.getDisplayMatching(petBounds) : screen.getPrimaryDisplay())
+  )
+}
+
+function ensurePetHost(): NativePetHost {
+  petHost ??= new NativePetHost(
+    resolvePetHostPaths(app),
+    ({ code, signal }) => {
+      desktop.warn('native pet host exited unexpectedly', { code, signal })
+      if (isQuitting || !petPreferences.enabled || petRestartTimer) return
+      petRestartTimer = setTimeout(() => {
+        petRestartTimer = null
+        syncPetWindow()
+      }, 1_000)
+    },
+    (level, message) => {
+      if (level === 'warning') desktop.warn(message)
+      else desktop.info(message)
+    },
+    (action) => {
+      desktop.info('native pet control selected', { action })
+      navigateMainWindow(petActionPage(action))
+    }
+  )
+  return petHost
+}
+
+function syncPetWindow(): void {
+  if (!petPreferences.enabled) {
+    if (petRestartTimer) clearTimeout(petRestartTimer)
+    petRestartTimer = null
+    petHost?.stop()
+    petBounds = null
+    return
+  }
+  petBounds = petWindowBounds(selectedPetDisplay().workArea, petPreferences)
+  ensurePetHost().start(petBounds, runtimeStatus.assistant.phase)
+}
+
+function startPetCursorPolling(): void {
+  let lastDirection: number | null | undefined
+  let lastHover: boolean | undefined
+  petCursorPoll = setInterval(() => {
+    if (!petHost?.running || !petBounds) return
+    const cursor = screen.getCursorScreenPoint()
+    const hover = pointInBounds(petBounds, cursor)
+    if (hover !== lastHover) {
+      lastHover = hover
+      petHost.send({ type: 'hover', hover })
+    }
+    const phase = runtimeStatus.assistant.phase
+    const canLook = phase === 'ready' || phase === 'listening' || phase === 'speaking'
+    const direction = canLook ? petLookDirection(petSpriteBounds(petBounds), cursor) : null
+    if (direction === lastDirection) return
+    lastDirection = direction
+    petHost.send({ type: 'look', direction })
+  }, 100)
+}
+
 function showMainWindow(): void {
-  islandWindow?.showInactive()
-  mainWindow ??= createMainWindow()
+  if (islandWindow && !islandWindow.isDestroyed()) islandWindow.showInactive()
+  if (!mainWindow || mainWindow.isDestroyed()) mainWindow = createMainWindow()
   if (mainWindow.isMinimized()) mainWindow.restore()
   mainWindow.show()
   mainWindow.focus()
+}
+
+function navigateMainWindow(page: 'Voice' | 'Activity'): void {
+  showMainWindow()
+  const window = mainWindow
+  if (!window || window.isDestroyed()) return
+  const send = (): void => window.webContents.send('marvi:navigate', page)
+  if (window.webContents.isLoadingMainFrame()) window.webContents.once('did-finish-load', send)
+  else send()
 }
 
 function publishRuntime(next: RuntimeStatus): RuntimeStatus {
@@ -629,6 +735,11 @@ function publishRuntime(next: RuntimeStatus): RuntimeStatus {
   if (islandWindow && !islandWindow.isDestroyed()) {
     islandWindow.webContents.send('marvi:runtime-state', next)
   }
+  petHost?.send({
+    type: 'state',
+    phase: next.assistant.phase,
+    taskCount: petTaskCount(next.assistant.phase)
+  })
   return next
 }
 
@@ -771,6 +882,7 @@ if (!app.requestSingleInstanceLock()) {
 function startApp(): void {
   app.whenReady().then(() => {
     app.setAppUserModelId('ai.neuretro.marvi-os')
+    petPreferences = loadPetPreferences()
 
     // Marvi's own pages may use the microphone; nothing else may, and no page
     // gets anything else. There was no handler at all, which leaves the
@@ -845,6 +957,19 @@ function startApp(): void {
         sizeAndPositionIsland(islandWindow, islandContentSize)
       }
       return islandPlacement
+    })
+    ipcMain.handle('marvi:get-pet-preferences', () => petPreferences)
+    ipcMain.handle('marvi:set-pet-preferences', (event, value) => {
+      if (!mainWindow || event.sender !== mainWindow.webContents) return petPreferences
+      const next = normalizePetPreferences(value)
+      const displayExists =
+        next.displayId === null ||
+        screen.getAllDisplays().some((display) => display.id === next.displayId)
+      if (!displayExists) next.displayId = null
+      petPreferences = next
+      savePetPreferences()
+      syncPetWindow()
+      return petPreferences
     })
     ipcMain.handle('marvi:set-yolo', async (_event, yolo) => {
       if (typeof yolo !== 'boolean') return runtimeStatus
@@ -1766,7 +1891,13 @@ function startApp(): void {
 
     tray = createTray()
     islandWindow = createIslandWindow()
+    syncPetWindow()
     mainWindow = createMainWindow()
+    startPetCursorPolling()
+    const repositionPet = (): void => syncPetWindow()
+    screen.on('display-added', repositionPet)
+    screen.on('display-removed', repositionPet)
+    screen.on('display-metrics-changed', repositionPet)
     startGatewayPolling()
 
     app.on('activate', showMainWindow)
@@ -1781,6 +1912,13 @@ app.on('before-quit', () => {
   isQuitting = true
   if (gatewayPoll) clearInterval(gatewayPoll)
   gatewayPoll = null
+  if (petCursorPoll) clearInterval(petCursorPoll)
+  petCursorPoll = null
+  if (petRestartTimer) clearTimeout(petRestartTimer)
+  petRestartTimer = null
+  petHost?.stop()
+  petHost = null
+  petBounds = null
   // Synchronous: Electron does not await anything here, and a promise would
   // be abandoned mid-kill.
   supervisor?.stopAllNow()

@@ -19,6 +19,7 @@ gates still apply.
 | 9 | [`09-providers-identity.md`](09-providers-identity.md) | feature-complete |
 | 10 | [`10-resilience.md`](10-resilience.md) | complete |
 | 11 | [`11-setup.md`](11-setup.md) | complete |
+| 12 | [`12-pet-companion.md`](12-pet-companion.md) | in progress |
 
 Status vocabulary: `planned`, `scaffolded`, `in progress`, `blocked`, and
 `complete`. Only mark a phase complete when every acceptance gate has named

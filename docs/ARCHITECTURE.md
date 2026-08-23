@@ -10,8 +10,9 @@ versions of the upstream components it manages.
 
 ```mermaid
 flowchart TB
-    UI["Electron renderer<br/>Island + control center"]
+    UI["Electron renderers<br/>Island + control center"]
     Main["Electron main<br/>Windows authority"]
+    Pet["Native pet host<br/>transparent presentation only"]
     Gateway["Marvi Gateway<br/>local supervisor and API"]
     LK["LiveKit server<br/>loopback RTC transport"]
     Agent["LiveKit Agent worker"]
@@ -25,6 +26,8 @@ flowchart TB
     Deep["Marvi Agent delegate"]
 
     UI <--> Main
+    Main -->|phase/count, gaze, hover, bounds| Pet
+    Pet -->|voice/activity intent| Main
     Main <--> Gateway
     Gateway --> LK
     Gateway --> Agent
@@ -84,10 +87,17 @@ pipeline, and health monitoring. STT/TTS residency follows the result of the
 voice benchmark: resident if the combined budget is safe, otherwise an explicit
 warm/sleep profile with measured wake latency.
 
-Closing the main window leaves the tray, Dynamic Island, Gateway, wake word,
-and the Gateway-owned Smart Room sidecar alive. The sidecar owns camera
-presence, gestures, and room events. Exiting from the tray stops them in
-dependency order.
+Closing the main window leaves the tray, Dynamic Island, optional desktop pet,
+Gateway, wake word, and the Gateway-owned Smart Room sidecar alive. Electron
+main owns pet-helper supervision, placement, persistence, and cursor
+quantization. The focused native helper owns only its transparent layered
+window, atlas decode, authored frame timer, status/control drawing, and bounded
+button hit-testing. It receives assistant phase/count, direction index, hover,
+and bounds over stdin, and emits only voice/activity button intents over
+stdout. Electron main interprets those intents and navigates existing views.
+The helper cannot reach Gateway, focus itself, or execute tools. The Smart Room
+sidecar owns camera presence, gestures, and room events. Exiting from the tray
+stops them in dependency order.
 
 ## Media privacy boundary
 

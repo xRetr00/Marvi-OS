@@ -34,6 +34,7 @@ import type {
   WakeStatus
 } from '../shared/runtime'
 import type { IslandPlacement } from '../main/island-window'
+import type { PetPreferences } from '../main/pet-window'
 
 const marvi = {
   getVersion: (): Promise<string> => ipcRenderer.invoke('marvi:get-version'),
@@ -46,6 +47,12 @@ const marvi = {
     updateChannel: string
   }> => ipcRenderer.invoke('marvi:get-build-info'),
   showMain: (): void => ipcRenderer.send('marvi:show-main'),
+  onNavigate: (listener: (page: 'Voice' | 'Activity') => void): (() => void) => {
+    const wrapped = (_event: Electron.IpcRendererEvent, page: 'Voice' | 'Activity'): void =>
+      listener(page)
+    ipcRenderer.on('marvi:navigate', wrapped)
+    return () => ipcRenderer.removeListener('marvi:navigate', wrapped)
+  },
   minimizeWindow: (): void => ipcRenderer.send('marvi:window-minimize'),
   toggleMaximizeWindow: (): void => ipcRenderer.send('marvi:window-toggle-maximize'),
   closeWindow: (): void => ipcRenderer.send('marvi:window-close'),
@@ -68,6 +75,15 @@ const marvi = {
     ipcRenderer.invoke('marvi:get-island-placement'),
   setIslandPlacement: (placement: IslandPlacement): Promise<IslandPlacement> =>
     ipcRenderer.invoke('marvi:set-island-placement', placement),
+  getPetPreferences: (): Promise<PetPreferences> => ipcRenderer.invoke('marvi:get-pet-preferences'),
+  setPetPreferences: (preferences: PetPreferences): Promise<PetPreferences> =>
+    ipcRenderer.invoke('marvi:set-pet-preferences', preferences),
+  onPetLookDirection: (listener: (direction: number | null) => void): (() => void) => {
+    const wrapped = (_event: Electron.IpcRendererEvent, direction: number | null): void =>
+      listener(direction)
+    ipcRenderer.on('marvi:pet-look-direction', wrapped)
+    return () => ipcRenderer.removeListener('marvi:pet-look-direction', wrapped)
+  },
   onRuntime: (listener: (state: RuntimeStatus) => void): (() => void) => {
     const wrapped = (_event: Electron.IpcRendererEvent, state: RuntimeStatus): void =>
       listener(state)

@@ -73,6 +73,12 @@ import type {
 } from '../../shared/runtime'
 import { deviceLabel, deviceState } from '../../shared/runtime'
 import type { IslandAlignment, IslandPlacement } from '../../main/island-window'
+import {
+  DEFAULT_PET_PREFERENCES,
+  type PetPreferences,
+  type PetScale,
+  type PetSide
+} from '../../main/pet-window'
 import { $heard, $spoken } from './store/transcript'
 import { $voiceLink, startVoice, stopVoice } from './store/voice-session'
 
@@ -168,6 +174,15 @@ function MainSurface(): React.JSX.Element {
     void window.marvi?.getRuntime().then(applyRuntimeState)
     return window.marvi?.onRuntime(applyRuntimeState)
   }, [])
+
+  useEffect(
+    () =>
+      window.marvi?.onNavigate((next) => {
+        setSettings(null)
+        setPage(next)
+      }),
+    []
+  )
 
   useEffect(() => {
     let disposed = false
@@ -2848,15 +2863,24 @@ function SettingsPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Eleme
     displayId: null,
     alignment: 'center'
   })
+  const [petPreferences, setPetPreferences] = useState<PetPreferences>({
+    ...DEFAULT_PET_PREFERENCES
+  })
 
   useEffect(() => {
     void window.marvi?.getDisplays().then(setDisplays)
     void window.marvi?.getIslandPlacement().then(setPlacement)
+    void window.marvi?.getPetPreferences().then(setPetPreferences)
   }, [])
 
   const updatePlacement = (next: IslandPlacement): void => {
     setPlacement(next)
     void window.marvi?.setIslandPlacement(next).then(setPlacement)
+  }
+
+  const updatePet = (next: PetPreferences): void => {
+    setPetPreferences(next)
+    void window.marvi?.setPetPreferences(next).then(setPetPreferences)
   }
 
   const setYolo = (enabled: boolean): void => {
@@ -2986,6 +3010,74 @@ function SettingsPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Eleme
               </button>
             ))}
           </div>
+        </div>
+      </div>
+
+      <div className="settings-section">
+        <div>
+          <span className="eyebrow">{'// DESKTOP PET'}</span>
+          <h2>MARVI COMPANION</h2>
+          <p>A click-through desktop companion mirrors Marvi&apos;s live assistant state.</p>
+        </div>
+        <div className="placement-controls pet-controls">
+          <button
+            aria-checked={petPreferences.enabled}
+            className={petPreferences.enabled ? 'mode-switch active' : 'mode-switch'}
+            onClick={() => updatePet({ ...petPreferences, enabled: !petPreferences.enabled })}
+            role="switch"
+            type="button"
+          >
+            {petPreferences.enabled ? 'PET / VISIBLE' : 'PET / HIDDEN'}
+          </button>
+          <label>
+            DISPLAY
+            <select
+              aria-label="Pet display"
+              onChange={(event) =>
+                updatePet({
+                  ...petPreferences,
+                  displayId: event.target.value === 'auto' ? null : Number(event.target.value)
+                })
+              }
+              value={petPreferences.displayId ?? 'auto'}
+            >
+              <option value="auto">AUTO / CURRENT</option>
+              {displays.map((display) => (
+                <option key={display.id} value={display.id}>
+                  {display.label.toUpperCase()}
+                  {display.primary ? ' / PRIMARY' : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="alignment-buttons" aria-label="Pet side">
+            {(['left', 'right'] as PetSide[]).map((side) => (
+              <button
+                aria-pressed={petPreferences.side === side}
+                className={petPreferences.side === side ? 'active' : ''}
+                key={side}
+                onClick={() => updatePet({ ...petPreferences, side })}
+                type="button"
+              >
+                {side.toUpperCase()}
+              </button>
+            ))}
+          </div>
+          <label>
+            SIZE
+            <select
+              aria-label="Pet size"
+              onChange={(event) =>
+                updatePet({ ...petPreferences, scale: Number(event.target.value) as PetScale })
+              }
+              value={petPreferences.scale}
+            >
+              <option value={0.4}>TINY / 40%</option>
+              <option value={0.5}>CODEX / 50%</option>
+              <option value={0.7}>MEDIUM / 70%</option>
+              <option value={1}>FULL / 100%</option>
+            </select>
+          </label>
         </div>
       </div>
 
@@ -3142,9 +3234,8 @@ function useWakeJoin(): void {
 
 export default function App(): React.JSX.Element {
   const surface = new URLSearchParams(window.location.search).get('surface')
-  return surface === 'island' ? (
-    <IslandSurface />
-  ) : (
+  if (surface === 'island') return <IslandSurface />
+  return (
     <TooltipProvider>
       <HapticsProvider>
         <WakeJoin />

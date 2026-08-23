@@ -660,6 +660,21 @@ nav {
   background: transparent;
   pointer-events: none;
 }
+
+.pet-stage {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  pointer-events: none;
+  user-select: none;
+}
+
+.pet-sprite {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
 .island-stage-ready {
   align-items: start;
 }
