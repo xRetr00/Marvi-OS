@@ -30,6 +30,8 @@ export function Chat(): React.JSX.Element {
     threads,
     activeThreadId,
     attachments,
+    context,
+    notice,
     busy,
     available,
     draft,
@@ -133,6 +135,11 @@ export function Chat(): React.JSX.Element {
           {pending ? (
             <ConfirmationBar pending={pending} onResolve={(decision) => void resolve(decision)} />
           ) : null}
+          {notice ? (
+            <div className="chat-notice" role="alert">
+              {notice}
+            </div>
+          ) : null}
           <Composer
             draft={draft}
             busy={busy}
@@ -145,6 +152,7 @@ export function Chat(): React.JSX.Element {
             onRemoveAttachment={(id) => void removeAttachment(id)}
             override={override}
             onOverrideChange={setOverride}
+            context={context}
           />
         </div>
       </div>

@@ -12,12 +12,14 @@ export function useDictation(onText: (text: string) => void): {
   active: boolean
   starting: boolean
   partial: string
+  error: string
   start: () => Promise<void>
   stop: () => Promise<void>
 } {
   const [active, setActive] = useState(false)
   const [starting, setStarting] = useState(false)
   const [partial, setPartial] = useState('')
+  const [error, setError] = useState('')
   const capture = useRef<Capture | null>(null)
   const queue = useRef<Promise<void>>(Promise.resolve())
 
@@ -37,7 +39,13 @@ export function useDictation(onText: (text: string) => void): {
     if (active || starting) return
     setStarting(true)
     setPartial('')
-    const session = await window.marvi?.startChatDictation(navigator.language || 'en-US')
+    setError('')
+    let session
+    try {
+      session = await window.marvi?.startChatDictation(navigator.language || 'en-US')
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Dictation could not start.')
+    }
     if (!session) {
       setStarting(false)
       return
@@ -53,6 +61,7 @@ export function useDictation(onText: (text: string) => void): {
         video: false
       })
       const context = new AudioContext()
+      await context.resume()
       const source = context.createMediaStreamSource(stream)
       const processor = context.createScriptProcessor(4096, 1, 1)
       source.connect(processor)
@@ -60,13 +69,18 @@ export function useDictation(onText: (text: string) => void): {
       capture.current = { id: session.id, context, stream, source, processor }
       processor.onaudioprocess = (event) => {
         const pcm = pcm16Base64(event.inputBuffer.getChannelData(0), context.sampleRate)
-        queue.current = queue.current.then(async () => {
-          const response = await window.marvi?.pushChatDictationAudio(session.id, pcm)
-          if (response?.text) setPartial(response.text)
-        })
+        queue.current = queue.current
+          .then(async () => {
+            const response = await window.marvi?.pushChatDictationAudio(session.id, pcm)
+            if (response?.text) setPartial(response.text)
+          })
+          .catch((reason) =>
+            setError(reason instanceof Error ? reason.message : 'Dictation stopped.')
+          )
       }
       setActive(true)
-    } catch {
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Microphone access failed.')
       await window.marvi?.cancelChatDictation(session.id)
     } finally {
       setStarting(false)
@@ -94,7 +108,7 @@ export function useDictation(onText: (text: string) => void): {
     []
   )
 
-  return { active, starting, partial, start, stop }
+  return { active, starting, partial, error, start, stop }
 }
 
 function pcm16Base64(samples: Float32Array, sourceRate: number): string {

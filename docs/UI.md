@@ -182,6 +182,11 @@ threads and branches back the session drawer, edit, and regenerate actions.
 GitHub-flavored Markdown, math, tables, code blocks, source cards, image/file
 parts, read aloud, local-native dictation, model selection, and context details
 use distinct bounded modules instead of one undifferentiated text column.
+Structured tool output uses one shallow instrument-panel vocabulary (sources,
+metrics, comparisons, tables, timelines, weather, galleries, documents, and
+status), with restrained blue labels and no model-authored UI code. Context
+percentage is shown only when both provider input usage and a catalog context
+window are known.
 Message actions appear on hover or keyboard focus, reasoning and tool evidence
 stay collapsed, the composer remains docked, and leaving the latest scroll
 position reveals a return-to-latest control. Dynamic follow-up suggestions are

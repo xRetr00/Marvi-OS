@@ -348,6 +348,38 @@ export type ChatPart =
   | { type: 'image'; attachment_id?: string; url?: string; alt?: string }
   | { type: 'file'; attachment_id?: string; name: string; media_type?: string; size?: number }
   | { type: 'tool'; name: string; status?: string; content?: string }
+  | ChatWidgetPart
+
+export interface ChatWidgetPart {
+  type: 'widget'
+  id: string
+  version: 1
+  kind:
+    | 'sources'
+    | 'metrics'
+    | 'comparison'
+    | 'table'
+    | 'timeline'
+    | 'weather'
+    | 'gallery'
+    | 'document'
+    | 'status'
+  title: string
+  status: 'complete' | 'loading' | 'error'
+  data: Record<string, unknown>
+}
+
+export interface ChatContext {
+  input_tokens: number
+  cached_tokens: number
+  context_window: number
+  reply_reserve: number
+  messages: number
+  files: number
+  sources: number
+  provider: string
+  model: string
+}
 
 export interface ChatAttachment {
   id: string
@@ -379,6 +411,7 @@ export interface ChatPage {
   available: boolean
   threads: ChatThread[]
   active_thread: string
+  context: ChatContext
 }
 
 export interface ChatReply {

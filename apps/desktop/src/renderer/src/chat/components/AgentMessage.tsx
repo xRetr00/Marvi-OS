@@ -6,6 +6,7 @@ import { Markdown } from '../MarkdownView'
 import { formatTime } from '../time'
 import { metaValue, type ChatMessage } from '../types'
 import { CopyMessageAction } from './MessageAction'
+import { WidgetStack } from './WidgetStack'
 
 export function AgentMessage({
   message,
@@ -16,15 +17,9 @@ export function AgentMessage({
   readAloud?: { available: boolean; reading: boolean; toggle: () => void }
   onRegenerate?: (id: number) => void
 }): React.JSX.Element {
-  const provider = metaValue(message.meta, 'provider')
-  const tokens = metaValue(message.meta, 'tokens')
   const reasoning = metaValue(message.meta, 'reasoning')
   const streaming = Boolean(message.meta?.streaming)
   const [showReasoning, setShowReasoning] = useState(false)
-  const sources = message.parts.filter(
-    (part): part is Extract<(typeof message.parts)[number], { type: 'source' }> =>
-      part.type === 'source'
-  )
 
   return (
     <article className="chat-turn chat-assistant">
@@ -55,26 +50,8 @@ export function AgentMessage({
           <span aria-hidden="true" className="chat-cursor" />
         ) : null}
       </div>
-      {sources.length ? (
-        <section className="chat-sources" aria-label="Sources">
-          <div className="chat-sources-title">SOURCES · {sources.length}</div>
-          <div className="chat-source-list">
-            {sources.map((source, index) => (
-              <a href={source.url} key={source.url} rel="noreferrer noopener" target="_blank">
-                <span>{String(index + 1).padStart(2, '0')}</span>
-                <strong>{source.title}</strong>
-                <small>{sourceHost(source.url)}</small>
-              </a>
-            ))}
-          </div>
-        </section>
-      ) : null}
+      <WidgetStack parts={message.parts} />
       <div className="chat-turn-foot">
-        <span className="chat-meta">
-          {provider}
-          {provider && tokens ? ' · ' : ''}
-          {tokens ? `${tokens} tok` : ''}
-        </span>
         <div className="chat-turn-actions">
           {readAloud?.available && !streaming ? (
             <UiTooltip label={readAloud.reading ? 'Stop reading' : 'Read aloud'}>
@@ -104,12 +81,4 @@ export function AgentMessage({
       </div>
     </article>
   )
-}
-
-function sourceHost(url: string): string {
-  try {
-    return new URL(url).hostname
-  } catch {
-    return 'source'
-  }
 }

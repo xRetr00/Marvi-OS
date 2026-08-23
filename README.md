@@ -32,7 +32,8 @@ Current implemented desktop surfaces:
   deltas, turns, latency, and elapsed time;
 - Gateway-owned Chat threads and branches with per-thread model routing,
   typed sources/files/images, local document extraction, Parakeet dictation,
-  safe GFM/math rendering, and read aloud through Marvi's configured Kokoro voice;
+  safe GFM/math rendering, authoritative context facts, validated generative
+  widgets, and read aloud through Marvi's configured Kokoro voice;
 - a card-organized Overview plus editorial labeled page modules, an animated
   branded sidebar rail, consistent control tooltips, and audible desktop
   haptic feedback;

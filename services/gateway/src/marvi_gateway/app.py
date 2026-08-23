@@ -316,6 +316,7 @@ class ChatHistory(BaseModel):
     available: bool
     threads: list[dict[str, Any]] = Field(default_factory=list)
     active_thread: str = "default"
+    context: dict[str, Any] = Field(default_factory=dict)
 
 
 class DoctorReport(BaseModel):
@@ -990,6 +991,7 @@ def create_app(
             available=chat.available(),
             threads=chat.store.threads(),
             active_thread=thread_id,
+            context=chat.store.context(thread_id),
         )
 
     @app.get("/chat/threads")
@@ -1196,6 +1198,7 @@ def create_app(
             available=chat.available(),
             threads=chat.store.threads(),
             active_thread=thread_id,
+            context=chat.store.context(thread_id),
         )
 
     def doctor_report() -> DoctorReport:

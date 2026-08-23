@@ -4,6 +4,7 @@ import { promisify } from 'node:util'
 import {
   app,
   BrowserWindow,
+  clipboard,
   ipcMain,
   Menu,
   nativeImage,
@@ -1121,6 +1122,11 @@ function startApp(): void {
       } catch {
         return null
       }
+    })
+    ipcMain.handle('marvi:copy-text', (_event, value) => {
+      if (typeof value !== 'string' || value.length > 1_000_000) return false
+      clipboard.writeText(value)
+      return true
     })
     ipcMain.handle('marvi:copy-diagnostics', async () => {
       try {

@@ -6,9 +6,11 @@ import remarkMath from 'remark-math'
 import 'katex/dist/katex.min.css'
 
 import { CopyMessageAction } from './components/MessageAction'
+import { normalizeMathDelimiters } from './math'
 
 export function Markdown({ content }: { content: string }): React.JSX.Element | null {
   if (!content.trim()) return null
+  const markdown = normalizeMathDelimiters(content)
   return (
     <div className="chat-markdown">
       <ReactMarkdown
@@ -33,7 +35,7 @@ export function Markdown({ content }: { content: string }): React.JSX.Element | 
           pre: ({ children }) => <pre className="chat-code">{children}</pre>
         }}
       >
-        {content}
+        {markdown}
       </ReactMarkdown>
     </div>
   )

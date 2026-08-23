@@ -13,8 +13,9 @@ ephemeral input state.
   thread so conversations cannot silently share overrides.
 - Messages have parent and branch identity. Editing an earlier user turn or
   regenerating an answer selects a new branch without deleting the original.
-- Durable ordered parts distinguish text, attachments, sources, reasoning, and
-  tools. The visible assistant prose is never reconstructed from reasoning.
+- Durable ordered parts distinguish text, attachments, sources, reasoning,
+  tools, and a finite validated widget vocabulary. The visible assistant prose
+  is never reconstructed from reasoning.
 - The composer accepts drag/drop and file selection. Images are capability
   checked and translated to each provider's official message shape. Supported
   documents are extracted locally with MarkItDown, size capped, and wrapped as
@@ -29,9 +30,13 @@ ephemeral input state.
   opens an audio-only room when Voice is not already connected. Only settled,
   visible assistant prose is spoken; Markdown structure is made natural while
   code, URLs, reasoning, tools, and external source bodies are omitted.
-- Source links extracted from settled assistant Markdown appear as bounded
-  source cards. This is provenance display, not a claim that every provider
-  supports native citations.
+- Web-search evidence becomes a structured source widget at the tool boundary,
+  so links do not disappear when a model omits them from final prose. Markdown
+  links remain a fallback; neither path claims unsupported native citations.
+- The context ring uses the provider-reported input-token count and the pinned
+  model catalog's context window. Unknown values display as unknown rather than
+  estimates; the breakdown also exposes cache, reply reserve, message, file,
+  source, and route facts.
 
 Dynamic follow-up suggestions are deliberately not part of the product
 contract. The renderer does not invent suggestion chips and the Gateway does
@@ -51,6 +56,13 @@ context breakdown, microphone action, stop/send state, and the state-driven
 monochrome border beam. Every ambiguous action has a tooltip and accessible
 name.
 
+Generative output follows Assistant UI's tool-UI pattern through a Marvi-owned
+adapter. Models may request only `sources`, `metrics`, `comparison`, `table`,
+`timeline`, `weather`, `gallery`, `document`, or `status`; the Gateway validates,
+caps, persists, and streams plain data. React selects the component from that
+allowlist. Model-authored code, component names, callbacks, and actions are not
+accepted.
+
 ## Boundaries and acceptance
 
 - Two threads must survive restart without mixing history or model selection.
@@ -64,6 +76,8 @@ name.
   item.
 - Markdown output must remain readable with scripts disabled and cannot execute
   model-authored HTML.
+- Widgets must replay from stored parts exactly as they appeared live, and
+  invalid/private-URL data must be rejected at the Gateway boundary.
 
 The frontend pattern reference remains pinned to Assistant UI commit
 `105af3eaea2093df271d9c44642e1c04d5f5cf7c`. Upstream Markdown, speech-policy,

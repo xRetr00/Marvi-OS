@@ -811,3 +811,21 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
 - Verified the Smart Room fixture suite, focused Gateway contracts, full desktop
   typechecking, and all Electron renderer/main tests. Native camera calibration
   and soak remain a hardware acceptance step.
+
+## 2026-08-23 — reliable Chat controls and generative widgets
+
+- Added a Gateway-validated, persisted widget vocabulary and deterministic web
+  evidence mapping, adapting Assistant UI's generative-tool pattern without a
+  second runtime or executable model-authored components.
+- Replaced draft-character context guesses with provider-reported input/cache
+  usage and catalog context-window facts; unknown data remains visibly unknown.
+- Repaired native clipboard copy, regeneration through intervening tool rows,
+  duplicate optimistic working output, common model math delimiters, attachment
+  upload errors, and Parakeet cumulative transcript assembly for dictation.
+- Removed provider/zero-token footer noise and rendered source, metric,
+  comparison, table, timeline, weather, gallery, document, and status data in a
+  single Marvi instrument-panel family.
+- Passed 801 Gateway, 107 Agent, and 198 desktop tests plus desktop typecheck,
+  lint on changed sources, and the production build. Playwright inspection at
+  1180×760 caught and fixed the composer beam clipping the context popover;
+  final evidence is `output/playwright/chat-widgets-context.png`.

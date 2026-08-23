@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { BorderBeam } from 'border-beam'
 
-import type { ChatAttachment, ModelPage } from '../../../../shared/runtime'
+import type { ChatAttachment, ChatContext, ModelPage } from '../../../../shared/runtime'
 import { AbstractIcon } from '../../components/abstract-icon'
 import { TooltipProvider, UiTooltip } from '../../components/ui/tooltip'
 import { Picker, type PickerOption } from '../../components/ui/picker'
@@ -27,7 +27,8 @@ export function Composer({
   onFiles,
   onRemoveAttachment,
   override,
-  onOverrideChange
+  onOverrideChange,
+  context
 }: {
   draft: string
   busy: boolean
@@ -40,6 +41,7 @@ export function Composer({
   onRemoveAttachment?: (id: string) => void
   override?: { provider?: string; model?: string; effort?: string }
   onOverrideChange?: (next: { provider?: string; model?: string; effort?: string }) => void
+  context?: ChatContext | null
 }): React.JSX.Element {
   const field = useRef<HTMLTextAreaElement | null>(null)
   const fileInput = useRef<HTMLInputElement | null>(null)
@@ -109,6 +111,11 @@ export function Composer({
                 ))}
               </div>
             ) : null}
+            {dictation.error ? (
+              <div className="chat-dictation-error" role="alert">
+                {dictation.error}
+              </div>
+            ) : null}
             <textarea
               ref={field}
               rows={1}
@@ -170,14 +177,33 @@ export function Composer({
                   <SessionModel value={override ?? {}} onChange={onOverrideChange} />
                 ) : null}
                 <details className="chat-context-breakdown">
-                  <summary>CONTEXT</summary>
+                  <summary aria-label="Show context breakdown">
+                    <ContextRing context={context} />
+                    <span>CONTEXT</span>
+                  </summary>
                   <div>
-                    <span>DRAFT</span>
-                    <strong>{draft.length.toLocaleString()} chars</strong>
+                    <span>INPUT</span>
+                    <strong>
+                      {context?.input_tokens ? `${context.input_tokens.toLocaleString()} tok` : '—'}
+                    </strong>
+                    <span>WINDOW</span>
+                    <strong>
+                      {context?.context_window
+                        ? `${context.context_window.toLocaleString()} tok`
+                        : 'unknown'}
+                    </strong>
+                    <span>CACHED</span>
+                    <strong>{context?.cached_tokens?.toLocaleString() ?? '0'} tok</strong>
+                    <span>RESERVE</span>
+                    <strong>{context?.reply_reserve?.toLocaleString() ?? '—'} tok</strong>
+                    <span>MESSAGES</span>
+                    <strong>{context?.messages ?? 0}</strong>
                     <span>FILES</span>
-                    <strong>{attachments.length}</strong>
+                    <strong>{(context?.files ?? 0) + attachments.length}</strong>
+                    <span>SOURCES</span>
+                    <strong>{context?.sources ?? 0}</strong>
                     <span>ROUTE</span>
-                    <strong>{override?.model || 'default'}</strong>
+                    <strong>{override?.model || context?.model || 'default'}</strong>
                   </div>
                 </details>
               </div>
@@ -211,6 +237,21 @@ export function Composer({
         </BorderBeam>
       </div>
     </TooltipProvider>
+  )
+}
+
+function ContextRing({ context }: { context?: ChatContext | null }): React.JSX.Element {
+  const known = Boolean(context?.context_window && context.input_tokens)
+  const percent = known
+    ? Math.min(100, Math.round((context!.input_tokens / context!.context_window) * 100))
+    : 0
+  return (
+    <span
+      className="chat-context-ring"
+      style={{ '--context-fill': `${percent * 3.6}deg` } as React.CSSProperties}
+    >
+      {known ? percent : '—'}
+    </span>
   )
 }
 

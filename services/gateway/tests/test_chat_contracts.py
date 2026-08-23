@@ -9,6 +9,7 @@ import pytest
 
 from marvi_gateway import dictation
 from marvi_gateway.chat import Chat, ChatStore
+from marvi_gateway.chat_widgets import source_parts, validate_widget, widget_for_tool
 from marvi_gateway.providers import get as provider_get
 from marvi_gateway.providers.base import Usage
 from marvi_gateway.providers.client import Completion
@@ -93,6 +94,67 @@ def test_edit_and_regenerate_preserve_original_branch(tmp_path: Path) -> None:
     assert [row["content"] for row in store.history()] == ["original", "second answer"]
     assert store._db.execute("SELECT COUNT(*) FROM messages").fetchone()[0] == 5
     assert edited_user != original_user
+
+
+def test_regenerate_walks_through_tool_rows_to_the_user_turn(tmp_path: Path) -> None:
+    store = ChatStore(tmp_path / "chat.sqlite3")
+    user_id = store.append("user", "search for it")
+    tool_id = store.append("tool", "evidence", tool="web_search", call_id="call_1")
+    answer_id = store.append("assistant", "answer")
+
+    _thread_id, user = store.prepare_regenerate(answer_id)
+
+    assert tool_id != user_id
+    assert user["id"] == user_id
+    assert user["content"] == "search for it"
+
+
+def test_web_result_becomes_validated_replayable_sources() -> None:
+    result = {
+        "source": "tool:web_search",
+        "text": '[EXTERNAL DATA web_search]\n[{"title":"Official result","url":"https://example.com/result","snippet":"Evidence"}]\n[END EXTERNAL DATA web_search]',
+    }
+
+    widget = widget_for_tool("web_search", result)
+
+    assert widget is not None
+    assert widget["kind"] == "sources"
+    assert source_parts(widget) == [
+        {"type": "source", "title": "Official result", "url": "https://example.com/result"}
+    ]
+
+
+def test_widget_vocabulary_rejects_executable_or_private_content() -> None:
+    with pytest.raises(ValueError):
+        validate_widget({"kind": "script", "title": "Run", "data": {"code": "alert(1)"}})
+    with pytest.raises(ValueError):
+        validate_widget(
+            {
+                "kind": "sources",
+                "title": "Local",
+                "data": {"items": [{"title": "local", "url": "http://127.0.0.1/secret"}]},
+            }
+        )
+
+
+def test_context_reports_provider_usage_without_estimating(tmp_path: Path) -> None:
+    store = ChatStore(tmp_path / "chat.sqlite3")
+    store.append("user", "hello")
+    store.append(
+        "assistant",
+        "hi",
+        provider="openai",
+        model="unknown-test-model",
+        input_tokens=321,
+        cached_tokens=123,
+    )
+
+    context = store.context()
+
+    assert context["input_tokens"] == 321
+    assert context["cached_tokens"] == 123
+    assert context["messages"] == 2
+    assert context["context_window"] == 0
 
 
 def test_attachment_is_typed_bound_and_removed_with_thread(tmp_path: Path) -> None:

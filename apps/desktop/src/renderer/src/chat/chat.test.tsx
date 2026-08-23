@@ -37,7 +37,7 @@ describe('UserMessage', () => {
 })
 
 describe('AgentMessage', () => {
-  it('labels MARVI and renders inline code and metadata', () => {
+  it('labels MARVI and renders inline code without provider billing noise', () => {
     const html = renderToStaticMarkup(
       <AgentMessage
         message={message({
@@ -50,8 +50,42 @@ describe('AgentMessage', () => {
     expect(html).toContain('MARVI')
     expect(html).toContain('chat-inline-code')
     expect(html).toContain('npm ci')
-    expect(html).toContain('openai')
-    expect(html).toContain('12 tok')
+    expect(html).not.toContain('openai')
+    expect(html).not.toContain('12 tok')
+  })
+
+  it('renders persisted source widgets as usable evidence cards', () => {
+    const html = renderToStaticMarkup(
+      <AgentMessage
+        message={message({
+          role: 'assistant',
+          content: 'Found it.',
+          parts: [
+            { type: 'text', text: 'Found it.' },
+            {
+              type: 'widget',
+              id: 'sources-1',
+              version: 1,
+              kind: 'sources',
+              title: 'Web evidence',
+              status: 'complete',
+              data: {
+                items: [
+                  {
+                    title: 'Official result',
+                    url: 'https://example.com/result',
+                    snippet: 'Evidence'
+                  }
+                ]
+              }
+            }
+          ]
+        })}
+      />
+    )
+    expect(html).toContain('Web evidence')
+    expect(html).toContain('Official result')
+    expect(html).toContain('https://example.com/result')
   })
 })
 
@@ -103,6 +137,33 @@ describe('Composer', () => {
     expect(html).toContain('aria-label="Stop"')
     expect(html).toContain('RECEIVING')
   })
+
+  it('shows provider-reported context instead of draft-length guesses', () => {
+    const html = renderToStaticMarkup(
+      <Composer
+        draft="hello"
+        busy={false}
+        available
+        onDraftChange={noop}
+        onSend={noop}
+        context={{
+          input_tokens: 2000,
+          cached_tokens: 800,
+          context_window: 8000,
+          reply_reserve: 1024,
+          messages: 6,
+          files: 1,
+          sources: 3,
+          provider: 'openai',
+          model: 'gpt-test'
+        }}
+      />
+    )
+    expect(html).toContain('25')
+    expect(html).toContain('2,000 tok')
+    expect(html).toContain('8,000 tok')
+    expect(html).not.toContain('chars')
+  })
 })
 
 describe('MessageList', () => {
@@ -125,6 +186,21 @@ describe('MessageList', () => {
     )
     expect(html).toContain('YOU')
     expect(html).toContain('MARVI')
+  })
+
+  it('uses one working row until the optimistic reply starts streaming', () => {
+    const html = renderToStaticMarkup(
+      <MessageList
+        messages={[
+          message({ role: 'user' }),
+          message({ id: -2, role: 'assistant', content: '', meta: { streaming: true } })
+        ]}
+        busy
+        onSuggestion={() => {}}
+      />
+    )
+    expect(html.match(/MARVI/g)).toHaveLength(1)
+    expect(html).toContain('WORKING')
   })
 })
 
@@ -183,5 +259,11 @@ describe('Markdown', () => {
     expect(html).toContain('noreferrer noopener')
     expect(html).toContain('katex')
     expect(html).not.toContain('<script>')
+  })
+
+  it('renders common parenthesized and bracketed LaTeX delimiters', () => {
+    const html = renderToStaticMarkup(<Markdown content={'\\(n^2\\)\n\n\\[E=mc^2\\]'} />)
+
+    expect(html.match(/class="katex"/g)).toHaveLength(2)
   })
 })
