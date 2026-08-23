@@ -332,8 +332,22 @@ class ChatStore:
 
     @staticmethod
     def _title(content: str) -> str:
+        """Name a thread from its first message.
+
+        The truncation is the floor, not the fallback: it is what this always
+        did and what it does again whenever there is no model to ask. Nobody
+        waits for a title, so this is the cheapest place to spend a model and
+        the safest place to lose one.
+        """
         compact = " ".join(content.split()).strip()
-        return (compact[:52] + "…") if len(compact) > 52 else (compact or "New conversation")
+        plain = (compact[:52] + "…") if len(compact) > 52 else (compact or "New conversation")
+        try:
+            from . import distil
+            from .providers import ProviderClient
+
+            return distil.title(ProviderClient(), compact, plain)
+        except Exception:  # pragma: no cover - a title is never worth an error
+            return plain
 
     @staticmethod
     def parts_for_text(content: str) -> list[dict[str, Any]]:

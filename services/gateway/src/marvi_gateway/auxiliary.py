@@ -82,17 +82,32 @@ ROLES: tuple[Role, ...] = (
         why="Deciding whether something that happened is worth saying out loud.",
         gain="A one-sentence verdict, many times an hour. The cheapest real saving here.",
     ),
+    Role(
+        key="memory",
+        title="Memory",
+        why="Promoting what keeps coming up into a fact worth keeping.",
+        gain="Runs on a timer, nobody waiting. Summarising needs no reasoning.",
+    ),
+    Role(
+        key="web",
+        title="Web reading",
+        why="Pulling the part you asked about out of a fetched page.",
+        gain="Long input, short output, no reasoning. A cheap long-context model fits.",
+    ),
+    Role(
+        key="title",
+        title="Conversation titles",
+        why="Naming a thread from its first message.",
+        gain="Nobody waits for a title, so nothing is lost by making it small.",
+    ),
 )
 
 #: Roles that would make sense and have nowhere to plug in yet.
 #:
-#: Memory reflection, page summarising and thread titles are all good
-#: candidates -- short output, no reasoning, run on a timer or in the
-#: background -- and not one of them calls a model today. A setting for a call
-#: that is never made is worse than no setting: it reads as a knob, does
-#: nothing, and teaches people that this page is decorative. They arrive with
-#: their call sites.
-NOT_YET = ("memory", "web", "title")
+#: Empty, and worth keeping as a reminder of the rule: a setting for a call
+#: that is never made reads as a knob, does nothing, and teaches people the
+#: page is decorative. A role arrives with its call site.
+NOT_YET: tuple[str, ...] = ()
 
 BY_KEY = {role.key: role for role in ROLES}
 

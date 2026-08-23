@@ -225,17 +225,33 @@ class WebTools:
         finally:
             self._close(client)
 
-    def extract(self, url: str) -> dict[str, Any]:
-        """Readable text for a page, which is what a voice assistant needs."""
+    def extract(self, url: str, question: str = "") -> dict[str, Any]:
+        """Readable text for a page, and the part of it that was asked about.
+
+        Without a question this is what it always was: the whole page as text.
+        With one, a model reads the page and answers from it -- which is the
+        difference between a voice reply and eight thousand words nobody can
+        listen to. The full text still comes back, so a caller that wants it
+        has it and nothing is hidden behind the summary.
+        """
         page = self.fetch(url)
         title, text = html_to_text(page["body"])
-        return {
+        answer = ""
+        if question.strip():
+            from . import distil
+            from .providers import ProviderClient
+
+            answer = distil.extract_answer(ProviderClient(), text, question)
+        found = {
             "url": page["url"],
             "status": page["status"],
             "title": title,
             "text": text,
             "truncated": page["truncated"],
         }
+        if answer:
+            found["answer"] = answer
+        return found
 
 
 def register_web_tools(registry, web: WebTools) -> None:
@@ -246,8 +262,8 @@ def register_web_tools(registry, web: WebTools) -> None:
         results = web.search(query, limit)
         return wrap_external(f"web:search:{web.provider()}", results).model_dump()
 
-    def web_extract(url: str) -> dict[str, Any]:
-        return wrap_external(f"web:{url}", web.extract(url)).model_dump()
+    def web_extract(url: str, question: str = "") -> dict[str, Any]:
+        return wrap_external(f"web:{url}", web.extract(url, question)).model_dump()
 
     def web_fetch(url: str) -> dict[str, Any]:
         return wrap_external(f"web:{url}", web.fetch(url)).model_dump()
@@ -269,9 +285,18 @@ def register_web_tools(registry, web: WebTools) -> None:
     registry.register(
         ToolSpec(
             name="web_extract",
-            description="Read the text of a web page",
+            description="Read a web page, and answer from it",
             arguments={"url": str},
-            describes={"url": "Full URL including the scheme, e.g. https://example.com/page."},
+            optional={"question": str},
+            describes={
+                "url": "Full URL including the scheme, e.g. https://example.com/page.",
+                "question": (
+                    "What you want from the page, in a sentence. Given one, the "
+                    "answer comes back alongside the text -- which is the "
+                    "difference between a spoken reply and a page nobody can "
+                    "listen to. Omit it to get the text alone."
+                ),
+            },
             sensitive=False,
             handler=web_extract,
         )

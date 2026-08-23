@@ -413,7 +413,16 @@ def register_memory_tools(registry, memory: MemoryStore) -> None:
         return {"relations": memory.neighbours(name)}
 
     def memory_reflect() -> dict[str, Any]:
-        return memory.reflect()
+        # The seam has been here since reflection was written and nothing was
+        # ever passed into it, so consolidation was whatever repeated often
+        # enough and nothing else. A model reads the repeated subjects and
+        # writes what is actually true about them; without one, the count-based
+        # promotion runs exactly as before.
+        from . import distil
+        from .providers import ProviderClient
+
+        client = ProviderClient()
+        return memory.reflect(summarise=lambda groups: distil.summarise_memories(client, groups))
 
     registry.register(
         ToolSpec(
