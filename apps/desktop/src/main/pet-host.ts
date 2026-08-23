@@ -32,11 +32,7 @@ export function parsePetHostEvent(line: string): PetHostEvent | null {
     if (value.type === 'action' && (value.action === 'voice' || value.action === 'tasks')) {
       return { type: 'action', action: value.action }
     }
-    if (
-      value.type === 'moved' &&
-      Number.isInteger(value.x) &&
-      Number.isInteger(value.y)
-    ) {
+    if (value.type === 'moved' && Number.isInteger(value.x) && Number.isInteger(value.y)) {
       return { type: 'moved', x: value.x as number, y: value.y as number }
     }
   } catch {

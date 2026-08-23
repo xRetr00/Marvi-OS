@@ -92,10 +92,13 @@ Gateway, wake word, and the Gateway-owned Smart Room sidecar alive. Electron
 main owns pet-helper supervision, placement, persistence, and cursor
 quantization. The focused native helper owns only its transparent layered
 window, atlas decode, authored frame timer, status/control drawing, and bounded
-button hit-testing. It receives assistant phase/count, direction index, hover,
-and bounds over stdin, and emits only voice/activity button intents over
-stdout. Electron main interprets those intents and navigates existing views.
-The helper cannot reach Gateway, focus itself, or execute tools. The Smart Room
+alpha-aware pointer hit-testing. Visible sprite pixels behave as a native drag
+surface while transparent gaps remain click-through. It receives assistant
+phase/count, direction index, hover, and bounds over stdin, and emits only
+voice/activity button intents plus a final drag position over stdout. Electron
+main validates and persists that position and interprets button intents by
+navigating existing views. The helper cannot reach Gateway, focus itself, or
+execute tools. The Smart Room
 sidecar owns camera presence, gestures, and room events. Exiting from the tray
 stops them in dependency order.
 

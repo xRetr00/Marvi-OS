@@ -5,10 +5,8 @@ decision and 60-minute soak pending.
 
 ## Outcome
 
-Marvi OS can show the supplied character as an optional click-through desktop
+Marvi OS can show the supplied character as an optional draggable desktop
 companion without changing Gateway, voice, tool, or confirmation authority.
-The work remains isolated on `codex/pet-support` in
-`D:\Marvi-OS-pet-support`.
 
 The original Electron pet renderer proved behavior but cost 70.08 MiB of
 incremental private memory. The spike replaces that third Chromium surface with
@@ -24,7 +22,8 @@ frame timings, gaze mapping, placement, and true-off behavior.
   through a transparent layered GDI window.
 - Electron main supervises the helper and sends only bounded newline-delimited
   JSON commands: assistant phase/count, 16-way gaze index, hover, bounds, and
-  exit. The helper emits only `voice` and `tasks` button intents.
+  exit. The helper emits only `voice` and `tasks` button intents plus a final
+  drag position for Electron to validate and persist.
 - The helper has no Gateway, LiveKit, microphone, camera, tool, network, tray,
   settings, or durable-state access.
 - Authored one-shot frame durations are identical to the v2 pet contract.
@@ -37,9 +36,14 @@ frame timings, gaze mapping, placement, and true-off behavior.
   ahead of time.
 - The status line is gray when idle, blue while working, green for notification
   or a two-second active-to-ready completion, and red on error. Hover reveals
-  Voice and current-operation controls. Only their circles accept clicks;
-  Voice opens Voice and Tasks opens the existing Activity audit through
-  Electron main.
+  refined Voice and current-operation controls. Visible pet/status pixels
+  accept pointer input and form the native drag surface; transparent gaps stay
+  click-through. Voice opens Voice and Tasks opens the existing Activity audit
+  through Electron main.
+- Electron clamps the completed drag to the selected monitor and saves it.
+  Changing display, side, or scale resets to the chosen corner. The pet can be
+  hidden or restored from either Settings or the tray; hiding terminates the
+  helper.
 - Disabling the pet terminates the helper. Unexpected termination leaves Marvi
   alive and restarts only the helper after one second.
 
@@ -49,10 +53,11 @@ frame timings, gaze mapping, placement, and true-off behavior.
   authored durations/wrap, and both gaze rows pass.
 - `cargo clippy --manifest-path apps/pet-host/Cargo.toml --all-targets -- -D warnings`
   and `cargo fmt --check` pass.
-- Desktop unit tests cover preference normalization, sprite/control geometry,
-  50% bounds, gaze quantization, helper event validation, active count, action
-  routing, and the native protocol/path contract. Rust tests cover the compact
-  button geometry and prove transparent gaps do not capture clicks.
+- Desktop unit tests cover preference/drag normalization, clamped custom and
+  50% bounds, sprite/control geometry, gaze quantization, helper event
+  validation, active count, action routing, and the native protocol/path
+  contract. Rust tests cover compact button geometry and alpha-aware hit
+  testing that captures rendered pixels without blocking transparent gaps.
 - `npm run build:unpack` packages `marvi-pet-host.exe` and the atlas under
   `resources/pet-host/`; the renderer bundle no longer contains the atlas.
 - `scripts/capture-native-pet.ps1` captures both the packaged indicator and the
@@ -77,13 +82,13 @@ Host: Windows 11 Pro, AMD Ryzen 5 3600X, 15.9 GiB RAM, Electron 43.4.0,
 Marvi OS 0.4.15 win-unpacked. Voice management was disabled and Gateway used an
 unreachable loopback address in both modes.
 
-| Direct helper metric | Result |
-| --- | ---: |
-| Added processes | 1 native helper; 0 Chromium renderers |
-| Average working set | 23.62 MiB |
-| Average private bytes | 16.44 MiB |
-| CPU over 12-second sample | 0.00% of one core |
-| Executable size | 0.37 MiB |
+| Direct helper metric      |                                Result |
+| ------------------------- | ------------------------------------: |
+| Added processes           | 1 native helper; 0 Chromium renderers |
+| Average working set       |                             23.62 MiB |
+| Average private bytes     |                             16.44 MiB |
+| CPU over 12-second sample |                     0.00% of one core |
+| Executable size           |                              0.37 MiB |
 
 The direct helper measurement remained stable in the packaged run. This
 passes the spike's ≤25 MiB private-memory and ≤0.5%-of-one-core targets and is a

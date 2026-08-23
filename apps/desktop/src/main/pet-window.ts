@@ -61,13 +61,19 @@ export function petWindowBounds(
   const width = Math.round(PET_CELL_SIZE.width * preferences.scale)
   const height = Math.round((PET_CELL_SIZE.height + PET_CONTROL_HEIGHT) * preferences.scale)
   const anchored = {
-    x: preferences.side === 'left' ? workArea.x + margin : workArea.x + workArea.width - width - margin,
+    x:
+      preferences.side === 'left'
+        ? workArea.x + margin
+        : workArea.x + workArea.width - width - margin,
     y: workArea.y + workArea.height - height - margin
   }
   const position = preferences.position ?? anchored
   return {
     x: Math.min(Math.max(position.x, workArea.x), workArea.x + Math.max(0, workArea.width - width)),
-    y: Math.min(Math.max(position.y, workArea.y), workArea.y + Math.max(0, workArea.height - height)),
+    y: Math.min(
+      Math.max(position.y, workArea.y),
+      workArea.y + Math.max(0, workArea.height - height)
+    ),
     width,
     height
   }
