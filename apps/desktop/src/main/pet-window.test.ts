@@ -17,8 +17,8 @@ describe('normalizePetPreferences', () => {
 
   it('accepts supported placement values', () => {
     expect(
-      normalizePetPreferences({ enabled: false, displayId: 7, side: 'left', scale: 0.75 })
-    ).toEqual({ enabled: false, displayId: 7, side: 'left', scale: 0.75 })
+      normalizePetPreferences({ enabled: false, displayId: 7, side: 'left', scale: 0.5 })
+    ).toEqual({ enabled: false, displayId: 7, side: 'left', scale: 0.5 })
   })
 })
 
@@ -35,11 +35,11 @@ describe('petWindowBounds', () => {
   })
 
   it('supports a compact left-side companion', () => {
-    expect(petWindowBounds(workArea, { side: 'left', scale: 0.75 })).toEqual({
+    expect(petWindowBounds(workArea, { side: 'left', scale: 0.5 })).toEqual({
       x: 118,
-      y: 666,
-      width: 144,
-      height: 156
+      y: 718,
+      width: 96,
+      height: 104
     })
   })
 })
@@ -49,10 +49,10 @@ describe('petLookDirection', () => {
   const focus = { x: 196, y: 179.04 }
 
   it('returns the cardinal atlas directions', () => {
-    expect(petLookDirection(bounds, { x: focus.x + 100, y: focus.y })).toBe(0)
-    expect(petLookDirection(bounds, { x: focus.x, y: focus.y + 100 })).toBe(4)
-    expect(petLookDirection(bounds, { x: focus.x - 100, y: focus.y })).toBe(8)
-    expect(petLookDirection(bounds, { x: focus.x, y: focus.y - 100 })).toBe(12)
+    expect(petLookDirection(bounds, { x: focus.x, y: focus.y - 100 })).toBe(0)
+    expect(petLookDirection(bounds, { x: focus.x + 100, y: focus.y })).toBe(4)
+    expect(petLookDirection(bounds, { x: focus.x, y: focus.y + 100 })).toBe(8)
+    expect(petLookDirection(bounds, { x: focus.x - 100, y: focus.y })).toBe(12)
   })
 
   it('returns null inside the centered dead zone', () => {

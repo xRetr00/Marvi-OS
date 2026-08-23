@@ -41,8 +41,10 @@ import {
   normalizePetPreferences,
   petLookDirection,
   petWindowBounds,
-  type PetPreferences
+  type PetPreferences,
+  type RectangleLike
 } from './pet-window'
+import { NativePetHost, resolvePetHostPaths } from './pet-host'
 import {
   canUpdate,
   checkForUpdate,
@@ -68,7 +70,9 @@ import type {
 
 let mainWindow: BrowserWindow | null = null
 let islandWindow: BrowserWindow | null = null
-let petWindow: BrowserWindow | null = null
+let petHost: NativePetHost | null = null
+let petBounds: RectangleLike | null = null
+let petRestartTimer: NodeJS.Timeout | null = null
 let tray: Tray | null = null
 let gatewayPoll: NodeJS.Timeout | null = null
 let petCursorPoll: NodeJS.Timeout | null = null
@@ -511,7 +515,7 @@ async function wakeAutostart(
   }
 }
 
-type RendererSurface = 'main' | 'island' | 'pet'
+type RendererSurface = 'main' | 'island'
 
 function rendererUrl(surface: RendererSurface): string {
   return `${process.env['ELECTRON_RENDERER_URL']}?surface=${surface}`
@@ -638,79 +642,56 @@ function savePetPreferences(): void {
   writeFileSync(petPreferencesPath(), `${JSON.stringify(petPreferences, null, 2)}\n`, 'utf8')
 }
 
-function selectedPetDisplay(window: BrowserWindow): Electron.Display {
+function selectedPetDisplay(): Electron.Display {
   return (
     screen.getAllDisplays().find((display) => display.id === petPreferences.displayId) ??
-    screen.getDisplayMatching(window.getBounds())
+    (petBounds ? screen.getDisplayMatching(petBounds) : screen.getPrimaryDisplay())
   )
 }
 
-function applyPetPreferences(window: BrowserWindow): void {
-  const display = selectedPetDisplay(window)
-  window.setBounds(petWindowBounds(display.workArea, petPreferences), false)
-  if (petPreferences.enabled) window.showInactive()
-  else window.hide()
-}
-
-function createPetWindow(): BrowserWindow {
-  const bounds = petWindowBounds(screen.getPrimaryDisplay().workArea, petPreferences)
-  const window = new BrowserWindow({
-    ...bounds,
-    show: false,
-    frame: false,
-    transparent: true,
-    resizable: false,
-    movable: false,
-    minimizable: false,
-    maximizable: false,
-    fullscreenable: false,
-    skipTaskbar: true,
-    alwaysOnTop: true,
-    focusable: false,
-    hasShadow: false,
-    backgroundColor: '#00000000',
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      contextIsolation: true,
-      sandbox: true
+function ensurePetHost(): NativePetHost {
+  petHost ??= new NativePetHost(
+    resolvePetHostPaths(app),
+    ({ code, signal }) => {
+      desktop.warn('native pet host exited unexpectedly', { code, signal })
+      if (isQuitting || !petPreferences.enabled || petRestartTimer) return
+      petRestartTimer = setTimeout(() => {
+        petRestartTimer = null
+        syncPetWindow()
+      }, 1_000)
+    },
+    (level, message) => {
+      if (level === 'warning') desktop.warn(message)
+      else desktop.info(message)
     }
-  })
-
-  window.setAlwaysOnTop(true, 'floating')
-  window.setIgnoreMouseEvents(true, { forward: true })
-  window.setVisibleOnAllWorkspaces(true)
-  window.once('ready-to-show', () => applyPetPreferences(window))
-  window.on('closed', () => {
-    petWindow = null
-  })
-  loadSurface(window, 'pet')
-  return window
+  )
+  return petHost
 }
 
 function syncPetWindow(): void {
   if (!petPreferences.enabled) {
-    petWindow?.destroy()
-    petWindow = null
+    if (petRestartTimer) clearTimeout(petRestartTimer)
+    petRestartTimer = null
+    petHost?.stop()
+    petBounds = null
     return
   }
-  petWindow ??= createPetWindow()
-  if (!petWindow.isDestroyed() && petWindow.webContents.isLoading() === false) {
-    applyPetPreferences(petWindow)
-  }
+  petBounds = petWindowBounds(selectedPetDisplay().workArea, petPreferences)
+  ensurePetHost().start(petBounds, runtimeStatus.assistant.phase)
 }
 
 function startPetCursorPolling(): void {
   let lastDirection: number | null | undefined
   petCursorPoll = setInterval(() => {
-    if (!petWindow || petWindow.isDestroyed() || !petWindow.isVisible()) return
+    if (!petHost?.running || !petBounds) return
     const phase = runtimeStatus.assistant.phase
     const canLook = phase === 'ready' || phase === 'listening' || phase === 'speaking'
     const direction = canLook
-      ? petLookDirection(petWindow.getBounds(), screen.getCursorScreenPoint())
+      ? petLookDirection(petBounds, screen.getCursorScreenPoint())
       : null
     if (direction === lastDirection) return
     lastDirection = direction
-    petWindow.webContents.send('marvi:pet-look-direction', direction)
+    petHost.send({ type: 'look', direction })
   }, 100)
 }
 
@@ -730,9 +711,7 @@ function publishRuntime(next: RuntimeStatus): RuntimeStatus {
   if (islandWindow && !islandWindow.isDestroyed()) {
     islandWindow.webContents.send('marvi:runtime-state', next)
   }
-  if (petWindow && !petWindow.isDestroyed()) {
-    petWindow.webContents.send('marvi:runtime-state', next)
-  }
+  petHost?.send({ type: 'state', phase: next.assistant.phase })
   return next
 }
 
@@ -1882,9 +1861,7 @@ function startApp(): void {
     syncPetWindow()
     mainWindow = createMainWindow()
     startPetCursorPolling()
-    const repositionPet = (): void => {
-      if (petWindow && !petWindow.isDestroyed()) applyPetPreferences(petWindow)
-    }
+    const repositionPet = (): void => syncPetWindow()
     screen.on('display-added', repositionPet)
     screen.on('display-removed', repositionPet)
     screen.on('display-metrics-changed', repositionPet)
@@ -1904,6 +1881,11 @@ app.on('before-quit', () => {
   gatewayPoll = null
   if (petCursorPoll) clearInterval(petCursorPoll)
   petCursorPoll = null
+  if (petRestartTimer) clearTimeout(petRestartTimer)
+  petRestartTimer = null
+  petHost?.stop()
+  petHost = null
+  petBounds = null
   // Synchronous: Electron does not await anything here, and a promise would
   // be abandoned mid-kill.
   supervisor?.stopAllNow()
@@ -1911,5 +1893,4 @@ app.on('before-quit', () => {
   tray?.destroy()
   tray = null
   islandWindow = null
-  petWindow = null
 })

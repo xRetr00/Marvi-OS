@@ -24,11 +24,9 @@ function Get-DescendantIds([int]$RootId) {
     return @($found)
 }
 
-function Get-ElectronProcesses([int]$RootId) {
+function Get-MarviProcesses([int]$RootId) {
     $ids = @(Get-DescendantIds $RootId)
-    return @(Get-Process -Id $ids -ErrorAction SilentlyContinue | Where-Object {
-        try { $_.Path -eq $resolvedExecutable } catch { $false }
-    })
+    return @(Get-Process -Id $ids -ErrorAction SilentlyContinue)
 }
 
 function Measure-Mode([bool]$Enabled) {
@@ -40,7 +38,7 @@ function Measure-Mode([bool]$Enabled) {
         enabled = $Enabled
         displayId = $null
         side = 'right'
-        scale = 1
+        scale = 0.5
     } | ConvertTo-Json
     [System.IO.File]::WriteAllText((Join-Path $runRoot 'pet.json'), "$preferences`n")
 
@@ -57,27 +55,34 @@ function Measure-Mode([bool]$Enabled) {
     try {
         Start-Sleep -Seconds $WarmupSeconds
         $initialCpu = @{}
-        foreach ($item in @(Get-ElectronProcesses $process.Id)) {
+        foreach ($item in @(Get-MarviProcesses $process.Id)) {
             $initialCpu[$item.Id] = $item.CPU
         }
 
         $samples = @()
         $iterations = [Math]::Max(1, $SampleSeconds * 2)
         for ($index = 0; $index -lt $iterations; $index++) {
-            $items = @(Get-ElectronProcesses $process.Id)
+            $items = @(Get-MarviProcesses $process.Id)
+            $petItems = @($items | Where-Object ProcessName -eq 'marvi-pet-host')
             $samples += [pscustomobject]@{
                 ProcessCount = $items.Count
                 WorkingSetBytes = ($items | Measure-Object WorkingSet64 -Sum).Sum
                 PrivateBytes = ($items | Measure-Object PrivateMemorySize64 -Sum).Sum
+                PetHostProcessCount = $petItems.Count
+                PetHostWorkingSetBytes = (($petItems | Measure-Object WorkingSet64 -Sum).Sum ?? 0)
+                PetHostPrivateBytes = (($petItems | Measure-Object PrivateMemorySize64 -Sum).Sum ?? 0)
             }
             Start-Sleep -Milliseconds 500
         }
 
-        $finalProcesses = @(Get-ElectronProcesses $process.Id)
+        $finalProcesses = @(Get-MarviProcesses $process.Id)
         $cpuSeconds = 0.0
+        $petHostCpuSeconds = 0.0
         foreach ($item in $finalProcesses) {
             $startCpu = if ($initialCpu.ContainsKey($item.Id)) { $initialCpu[$item.Id] } else { 0 }
-            $cpuSeconds += [Math]::Max(0, $item.CPU - $startCpu)
+            $itemCpuSeconds = [Math]::Max(0, $item.CPU - $startCpu)
+            $cpuSeconds += $itemCpuSeconds
+            if ($item.ProcessName -eq 'marvi-pet-host') { $petHostCpuSeconds += $itemCpuSeconds }
         }
 
         return [pscustomobject]@{
@@ -87,6 +92,10 @@ function Measure-Mode([bool]$Enabled) {
             WorkingSetMiBPeak = [Math]::Round(($samples | Measure-Object WorkingSetBytes -Maximum).Maximum / 1MB, 2)
             PrivateMiBAverage = [Math]::Round(($samples | Measure-Object PrivateBytes -Average).Average / 1MB, 2)
             CpuPercentOneCore = [Math]::Round(($cpuSeconds / $SampleSeconds) * 100, 2)
+            PetHostProcessCountAverage = [Math]::Round(($samples | Measure-Object PetHostProcessCount -Average).Average, 2)
+            PetHostWorkingSetMiBAverage = [Math]::Round(($samples | Measure-Object PetHostWorkingSetBytes -Average).Average / 1MB, 2)
+            PetHostPrivateMiBAverage = [Math]::Round(($samples | Measure-Object PetHostPrivateBytes -Average).Average / 1MB, 2)
+            PetHostCpuPercentOneCore = [Math]::Round(($petHostCpuSeconds / $SampleSeconds) * 100, 2)
             StateDirectory = $runRoot
         }
     }
@@ -108,7 +117,7 @@ $result = [ordered]@{
         Processor = (Get-CimInstance Win32_Processor | Select-Object -First 1 -ExpandProperty Name).Trim()
         MemoryGiB = [Math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB, 1)
         Electron = '43.4.0'
-        Build = '0.4.15 win-unpacked'
+        Build = '0.4.15 win-unpacked + native pet host spike'
     }
     Conditions = [ordered]@{
         WarmupSeconds = $WarmupSeconds

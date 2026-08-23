@@ -827,3 +827,22 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   renderer and 70.08 MiB average private memory; the native-resolution Canvas
   repeat showed no measurable CPU delta over 12 seconds.
 - Left Phase 12 in progress pending the explicit keep/optimize/draft decision.
+
+## 2026-08-23 — native desktop pet helper spike
+
+- Replaced the experimental third Electron pet surface with a focused
+  Rust/Win32 helper supervised by Electron main. The helper receives only phase,
+  gaze, bounds, and exit commands over stdin and cannot access Gateway, tools,
+  media, or durable state.
+- Preserved the owned 8×11 atlas and exact animation/gaze mappings, added Windows
+  reduced-motion handling, and changed the fresh-install default to a Codex-like
+  50% (`96×104`) footprint with 40/50/70/100% choices.
+- Added build/package integration, native timing tests, protocol/path tests,
+  packaged visual capture, all-descendant resource measurement, and a crash
+  isolation test that proved Marvi survives and restarts a terminated helper.
+- The packaged helper measured 23.50 MiB working set, 15.64 MiB private memory,
+  and 0.00% of one core over the 12-second sample. It adds one native process and
+  zero Chromium renderers, reducing direct private cost 77.7% from the original
+  70.08 MiB renderer result.
+- Kept Phase 12 experimental pending a full voice-stack soak, DPI/display
+  checks, and the product owner's keep/draft decision.

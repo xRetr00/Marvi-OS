@@ -7,7 +7,7 @@ $ErrorActionPreference = 'Stop'
 $runRoot = Join-Path ([System.IO.Path]::GetTempPath()) "marvi-pet-visual-$([guid]::NewGuid().ToString('N'))"
 $userData = Join-Path $runRoot 'chromium'
 New-Item -ItemType Directory -Force -Path $runRoot, $userData | Out-Null
-$preferences = @{ enabled = $true; displayId = $null; side = 'right'; scale = 1 } | ConvertTo-Json
+$preferences = @{ enabled = $true; displayId = $null; side = 'right'; scale = 0.5 } | ConvertTo-Json
 [System.IO.File]::WriteAllText((Join-Path $runRoot 'pet.json'), "$preferences`n")
 $resolvedExecutable = (Resolve-Path -LiteralPath $Executable).Path
 $process = Start-Process -FilePath $resolvedExecutable `
@@ -30,7 +30,7 @@ try {
     $graphics.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
     $evidenceDir = Join-Path $PSScriptRoot '..\output\evidence'
     New-Item -ItemType Directory -Force -Path $evidenceDir | Out-Null
-    $outputPath = Join-Path $evidenceDir 'pet-native.png'
+    $outputPath = Join-Path $evidenceDir 'pet-native-helper.png'
     $bitmap.Save($outputPath, [System.Drawing.Imaging.ImageFormat]::Png)
     $graphics.Dispose()
     $bitmap.Dispose()

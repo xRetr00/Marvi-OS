@@ -63,17 +63,18 @@ assistant state used by the Island. It is not a second agent, cannot execute
 tools, never reads the Codex user-data directory, and has no independent
 conversation state.
 
-- Electron main owns its transparent, frameless, non-focusable, non-movable,
-  always-on-top window and all monitor/cursor access.
-- The renderer only crops the packaged 8×11 WebP atlas into a `192×208` Canvas
-  and selects animation rows from the current assistant phase.
+- Electron main owns native-helper lifecycle plus all monitor/cursor access.
+- The native helper owns only a transparent, frameless, non-focusable,
+  non-movable, always-on-top layered window. It crops the packaged 8×11 WebP
+  atlas and selects animation rows from the phase received over stdin.
 - Ready, listening, and speaking may use one of 16 quantized cursor-gaze frames.
   Cursor coordinates never cross into Gateway or durable storage.
 - Wake waves; thinking runs; speaking reviews; actions run; notifications jump;
   confirmations wait; errors use the failed loop; passive states idle.
 - Reduced-motion preference freezes the representative first frame.
-- Preferences expose visible/hidden, display, left/right corner, and 75%/100%
-  size. Hidden destroys the pet BrowserWindow, so disabled means no pet renderer.
+- Preferences expose visible/hidden, display, left/right corner, and
+  40%/50%/70%/100% size. Fresh installs default to the Codex-like 50% size.
+  Hidden terminates the helper, so disabled means no pet process.
 - The window remains click-through in every state. Confirmation stays on the
   Dynamic Island; the pet never becomes an authority surface.
 - The source artwork is repository-owned input and the generated atlas is

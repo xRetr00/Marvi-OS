@@ -11,6 +11,11 @@ files:
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 asarUnpack:
   - resources/**
+extraResources:
+  - from: ../pet-host/target/release/marvi-pet-host.exe
+    to: pet-host/marvi-pet-host.exe
+  - from: src/renderer/src/assets/pet/marvi/spritesheet.webp
+    to: pet-host/spritesheet.webp
 win:
   executableName: Marvi-OS
   icon: icon.ico

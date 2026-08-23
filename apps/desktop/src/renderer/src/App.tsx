@@ -13,7 +13,6 @@ import { Picker } from './components/ui/picker'
 import { CommandCard } from './components/ui/command-card'
 import { ConnectingOverlay } from './components/ConnectingOverlay'
 import { DynamicIsland } from './components/DynamicIsland'
-import { PetSprite } from './components/PetSprite'
 import { VoiceOrb } from './orb'
 import { ElectricGazeBackground } from './components/ElectricGazeBackground'
 import { HapticsProvider } from './components/HapticsProvider'
@@ -3035,7 +3034,9 @@ function SettingsPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Eleme
               }
               value={petPreferences.scale}
             >
-              <option value={0.75}>COMPACT / 75%</option>
+              <option value={0.4}>TINY / 40%</option>
+              <option value={0.5}>CODEX / 50%</option>
+              <option value={0.7}>MEDIUM / 70%</option>
               <option value={1}>FULL / 100%</option>
             </select>
           </label>
@@ -3175,27 +3176,6 @@ function IslandSurface(): React.JSX.Element {
   )
 }
 
-function PetSurface(): React.JSX.Element {
-  const voice = useStore($voiceState)
-  const [lookDirection, setLookDirection] = useState<number | null>(null)
-
-  useEffect(() => {
-    void window.marvi?.getRuntime().then(applyRuntimeState)
-    const unsubscribeRuntime = window.marvi?.onRuntime(applyRuntimeState)
-    const unsubscribeLook = window.marvi?.onPetLookDirection(setLookDirection)
-    return () => {
-      unsubscribeRuntime?.()
-      unsubscribeLook?.()
-    }
-  }, [])
-
-  return (
-    <div className={`pet-stage pet-stage-${voice.phase}`}>
-      <PetSprite lookDirection={lookDirection} phase={voice.phase} />
-    </div>
-  )
-}
-
 /**
  * Saying her name joins, exactly as pressing Join does.
  *
@@ -3217,7 +3197,6 @@ function useWakeJoin(): void {
 export default function App(): React.JSX.Element {
   const surface = new URLSearchParams(window.location.search).get('surface')
   if (surface === 'island') return <IslandSurface />
-  if (surface === 'pet') return <PetSurface />
   return (
     <TooltipProvider>
       <HapticsProvider>

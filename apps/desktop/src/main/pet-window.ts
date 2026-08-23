@@ -1,5 +1,5 @@
 export type PetSide = 'left' | 'right'
-export type PetScale = 0.75 | 1
+export type PetScale = 0.4 | 0.5 | 0.7 | 1
 
 export interface PetPreferences {
   enabled: boolean
@@ -25,7 +25,7 @@ export const DEFAULT_PET_PREFERENCES: PetPreferences = {
   enabled: true,
   displayId: null,
   side: 'right',
-  scale: 1
+  scale: 0.5
 }
 
 export function normalizePetPreferences(value: unknown): PetPreferences {
@@ -38,7 +38,9 @@ export function normalizePetPreferences(value: unknown): PetPreferences {
         ? (candidate.displayId ?? null)
         : null,
     side: candidate.side === 'left' ? 'left' : 'right',
-    scale: candidate.scale === 0.75 ? 0.75 : 1
+    scale: [0.4, 0.5, 0.7, 1].includes(candidate.scale as number)
+      ? (candidate.scale as PetScale)
+      : DEFAULT_PET_PREFERENCES.scale
   }
 }
 
@@ -70,6 +72,7 @@ export function petLookDirection(
   const dx = cursor.x - (bounds.x + bounds.width / 2)
   const dy = cursor.y - (bounds.y + bounds.height * 0.38)
   if (Math.hypot(dx, dy) <= deadZone) return null
-  const degrees = (Math.atan2(dy, dx) * 180) / Math.PI
+  // V2 direction 0 is up and advances clockwise in 22.5° steps.
+  const degrees = (Math.atan2(dx, -dy) * 180) / Math.PI
   return Math.round(((degrees + 360) % 360) / 22.5) % 16
 }
