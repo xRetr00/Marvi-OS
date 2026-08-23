@@ -46,14 +46,42 @@ a brief completion state.
 
 ## Window model
 
-Marvi OS has three surfaces:
+Marvi OS has four surfaces:
 
 1. **Dynamic Island** — always-on-top primary interaction.
-2. **Main control center** — settings, state, integrations, and audit.
-3. **Tray menu** — open, mute/pause sensors, YOLO state, restart Gateway, exit.
+2. **Desktop pet** — optional, click-through companion presentation.
+3. **Main control center** — settings, state, integrations, and audit.
+4. **Tray menu** — open, mute/pause sensors, YOLO state, restart Gateway, exit.
 
 Closing the control center hides it. It does not terminate the Island or local
 services.
+
+## Desktop pet
+
+The pet is an experimental presentation of the same Gateway-authoritative
+assistant state used by the Island. It is not a second agent, cannot execute
+tools, never reads the Codex user-data directory, and has no independent
+conversation state.
+
+- Electron main owns its transparent, frameless, non-focusable, non-movable,
+  always-on-top window and all monitor/cursor access.
+- The renderer only crops the packaged 8×11 WebP atlas into a `192×208` Canvas
+  and selects animation rows from the current assistant phase.
+- Ready, listening, and speaking may use one of 16 quantized cursor-gaze frames.
+  Cursor coordinates never cross into Gateway or durable storage.
+- Wake waves; thinking runs; speaking reviews; actions run; notifications jump;
+  confirmations wait; errors use the failed loop; passive states idle.
+- Reduced-motion preference freezes the representative first frame.
+- Preferences expose visible/hidden, display, left/right corner, and 75%/100%
+  size. Hidden destroys the pet BrowserWindow, so disabled means no pet renderer.
+- The window remains click-through in every state. Confirmation stays on the
+  Dynamic Island; the pet never becomes an authority surface.
+- The source artwork is repository-owned input and the generated atlas is
+  packaged locally. No runtime image generation or remote fetch occurs.
+
+The resource cost is intentionally a product gate, not an unmeasured promise.
+Current native measurements and the keep/draft decision are tracked in
+`docs/phases/12-pet-companion.md`.
 
 ## Frameless shell and custom title bar
 

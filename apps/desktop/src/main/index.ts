@@ -13,7 +13,7 @@ import {
   Tray
 } from 'electron'
 import { is } from '@electron-toolkit/utils'
-import { existsSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { join, resolve } from 'path'
 import icon from '../../resources/icon.png?asset'
 import trayIcon from '../../resources/tray-icon.png?asset'
@@ -36,6 +36,13 @@ import {
   type IslandContentSize,
   type IslandPlacement
 } from './island-window'
+import {
+  DEFAULT_PET_PREFERENCES,
+  normalizePetPreferences,
+  petLookDirection,
+  petWindowBounds,
+  type PetPreferences
+} from './pet-window'
 import {
   canUpdate,
   checkForUpdate,
@@ -61,14 +68,17 @@ import type {
 
 let mainWindow: BrowserWindow | null = null
 let islandWindow: BrowserWindow | null = null
+let petWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let gatewayPoll: NodeJS.Timeout | null = null
+let petCursorPoll: NodeJS.Timeout | null = null
 let supervisor: ServiceSupervisor | null = null
 let serviceReports: ServiceReport[] = []
 let repoRoot: string | null = null
 let runtimeStatus: RuntimeStatus = offlineRuntime('unknown')
 let islandPlacement: IslandPlacement = { displayId: null, alignment: 'center' }
 let islandContentSize: IslandContentSize = { width: 76, height: 8 }
+let petPreferences: PetPreferences = { ...DEFAULT_PET_PREFERENCES }
 let isQuitting = false
 let translucencyIntensity = 0
 
@@ -501,11 +511,13 @@ async function wakeAutostart(
   }
 }
 
-function rendererUrl(surface: 'main' | 'island'): string {
+type RendererSurface = 'main' | 'island' | 'pet'
+
+function rendererUrl(surface: RendererSurface): string {
   return `${process.env['ELECTRON_RENDERER_URL']}?surface=${surface}`
 }
 
-function loadSurface(window: BrowserWindow, surface: 'main' | 'island'): void {
+function loadSurface(window: BrowserWindow, surface: RendererSurface): void {
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     void window.loadURL(rendererUrl(surface))
     return
@@ -609,6 +621,99 @@ function createIslandWindow(): BrowserWindow {
   return window
 }
 
+function petPreferencesPath(): string {
+  return join(stateDir(), 'pet.json')
+}
+
+function loadPetPreferences(): PetPreferences {
+  try {
+    return normalizePetPreferences(JSON.parse(readFileSync(petPreferencesPath(), 'utf8')))
+  } catch {
+    return { ...DEFAULT_PET_PREFERENCES }
+  }
+}
+
+function savePetPreferences(): void {
+  mkdirSync(stateDir(), { recursive: true })
+  writeFileSync(petPreferencesPath(), `${JSON.stringify(petPreferences, null, 2)}\n`, 'utf8')
+}
+
+function selectedPetDisplay(window: BrowserWindow): Electron.Display {
+  return (
+    screen.getAllDisplays().find((display) => display.id === petPreferences.displayId) ??
+    screen.getDisplayMatching(window.getBounds())
+  )
+}
+
+function applyPetPreferences(window: BrowserWindow): void {
+  const display = selectedPetDisplay(window)
+  window.setBounds(petWindowBounds(display.workArea, petPreferences), false)
+  if (petPreferences.enabled) window.showInactive()
+  else window.hide()
+}
+
+function createPetWindow(): BrowserWindow {
+  const bounds = petWindowBounds(screen.getPrimaryDisplay().workArea, petPreferences)
+  const window = new BrowserWindow({
+    ...bounds,
+    show: false,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    focusable: false,
+    hasShadow: false,
+    backgroundColor: '#00000000',
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      contextIsolation: true,
+      sandbox: true
+    }
+  })
+
+  window.setAlwaysOnTop(true, 'floating')
+  window.setIgnoreMouseEvents(true, { forward: true })
+  window.setVisibleOnAllWorkspaces(true)
+  window.once('ready-to-show', () => applyPetPreferences(window))
+  window.on('closed', () => {
+    petWindow = null
+  })
+  loadSurface(window, 'pet')
+  return window
+}
+
+function syncPetWindow(): void {
+  if (!petPreferences.enabled) {
+    petWindow?.destroy()
+    petWindow = null
+    return
+  }
+  petWindow ??= createPetWindow()
+  if (!petWindow.isDestroyed() && petWindow.webContents.isLoading() === false) {
+    applyPetPreferences(petWindow)
+  }
+}
+
+function startPetCursorPolling(): void {
+  let lastDirection: number | null | undefined
+  petCursorPoll = setInterval(() => {
+    if (!petWindow || petWindow.isDestroyed() || !petWindow.isVisible()) return
+    const phase = runtimeStatus.assistant.phase
+    const canLook = phase === 'ready' || phase === 'listening' || phase === 'speaking'
+    const direction = canLook
+      ? petLookDirection(petWindow.getBounds(), screen.getCursorScreenPoint())
+      : null
+    if (direction === lastDirection) return
+    lastDirection = direction
+    petWindow.webContents.send('marvi:pet-look-direction', direction)
+  }, 100)
+}
+
 function showMainWindow(): void {
   islandWindow?.showInactive()
   mainWindow ??= createMainWindow()
@@ -624,6 +729,9 @@ function publishRuntime(next: RuntimeStatus): RuntimeStatus {
   }
   if (islandWindow && !islandWindow.isDestroyed()) {
     islandWindow.webContents.send('marvi:runtime-state', next)
+  }
+  if (petWindow && !petWindow.isDestroyed()) {
+    petWindow.webContents.send('marvi:runtime-state', next)
   }
   return next
 }
@@ -767,6 +875,7 @@ if (!app.requestSingleInstanceLock()) {
 function startApp(): void {
   app.whenReady().then(() => {
     app.setAppUserModelId('ai.neuretro.marvi-os')
+    petPreferences = loadPetPreferences()
 
     // Marvi's own pages may use the microphone; nothing else may, and no page
     // gets anything else. There was no handler at all, which leaves the
@@ -841,6 +950,19 @@ function startApp(): void {
         sizeAndPositionIsland(islandWindow, islandContentSize)
       }
       return islandPlacement
+    })
+    ipcMain.handle('marvi:get-pet-preferences', () => petPreferences)
+    ipcMain.handle('marvi:set-pet-preferences', (event, value) => {
+      if (!mainWindow || event.sender !== mainWindow.webContents) return petPreferences
+      const next = normalizePetPreferences(value)
+      const displayExists =
+        next.displayId === null ||
+        screen.getAllDisplays().some((display) => display.id === next.displayId)
+      if (!displayExists) next.displayId = null
+      petPreferences = next
+      savePetPreferences()
+      syncPetWindow()
+      return petPreferences
     })
     ipcMain.handle('marvi:set-yolo', async (_event, yolo) => {
       if (typeof yolo !== 'boolean') return runtimeStatus
@@ -1757,7 +1879,15 @@ function startApp(): void {
 
     tray = createTray()
     islandWindow = createIslandWindow()
+    syncPetWindow()
     mainWindow = createMainWindow()
+    startPetCursorPolling()
+    const repositionPet = (): void => {
+      if (petWindow && !petWindow.isDestroyed()) applyPetPreferences(petWindow)
+    }
+    screen.on('display-added', repositionPet)
+    screen.on('display-removed', repositionPet)
+    screen.on('display-metrics-changed', repositionPet)
     startGatewayPolling()
 
     app.on('activate', showMainWindow)
@@ -1772,6 +1902,8 @@ app.on('before-quit', () => {
   isQuitting = true
   if (gatewayPoll) clearInterval(gatewayPoll)
   gatewayPoll = null
+  if (petCursorPoll) clearInterval(petCursorPoll)
+  petCursorPoll = null
   // Synchronous: Electron does not await anything here, and a promise would
   // be abandoned mid-kill.
   supervisor?.stopAllNow()
@@ -1779,4 +1911,5 @@ app.on('before-quit', () => {
   tray?.destroy()
   tray = null
   islandWindow = null
+  petWindow = null
 })

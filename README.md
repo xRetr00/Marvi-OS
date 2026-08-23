@@ -26,6 +26,11 @@ loudspeaker double-talk test plus the 60-minute duplex soak.
 Current implemented desktop surfaces:
 
 - tray-owned application lifetime and control-center window;
+- an experimental, click-through Marvi desktop pet with state-driven animation,
+  cursor gaze, display/side/size controls, and a true off mode that creates no
+  pet renderer; native cost evidence is recorded in
+  [`docs/phases/12-pet-companion.md`](docs/phases/12-pet-companion.md) pending a
+  keep/draft decision;
 - icon-led sidebar, persistent status bar, overview, and About build/update information;
 - Collapse wordmark + readable JetBrains Mono monochrome design system;
 - shared Provider, Chat, and Voice session telemetry for authoritative token

@@ -33,6 +33,7 @@ import type {
   WakeStatus
 } from '../shared/runtime'
 import type { IslandPlacement } from '../main/island-window'
+import type { PetPreferences } from '../main/pet-window'
 
 export interface MarviDesktopApi {
   getVersion: () => Promise<string>
@@ -43,6 +44,9 @@ export interface MarviDesktopApi {
   getDisplays: () => Promise<Array<{ id: number; label: string; primary: boolean }>>
   getIslandPlacement: () => Promise<IslandPlacement>
   setIslandPlacement: (placement: IslandPlacement) => Promise<IslandPlacement>
+  getPetPreferences: () => Promise<PetPreferences>
+  setPetPreferences: (preferences: PetPreferences) => Promise<PetPreferences>
+  onPetLookDirection: (listener: (direction: number | null) => void) => () => void
   onRuntime: (listener: (state: RuntimeStatus) => void) => () => void
   onWakeJoin: (listener: () => void) => () => void
   consumeWakeLaunch: () => Promise<boolean>

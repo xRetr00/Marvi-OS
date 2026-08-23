@@ -10,7 +10,7 @@ versions of the upstream components it manages.
 
 ```mermaid
 flowchart TB
-    UI["Electron renderer<br/>Island + control center"]
+    UI["Electron renderers<br/>Island + optional pet + control center"]
     Main["Electron main<br/>Windows authority"]
     Gateway["Marvi Gateway<br/>local supervisor and API"]
     LK["LiveKit server<br/>loopback RTC transport"]
@@ -83,8 +83,10 @@ pipeline, and health monitoring. STT/TTS residency follows the result of the
 voice benchmark: resident if the combined budget is safe, otherwise an explicit
 warm/sleep profile with measured wake latency.
 
-Closing the main window leaves the tray, Dynamic Island, Gateway, wake word,
-and the Gateway-owned Smart Room sidecar alive. The sidecar owns camera
+Closing the main window leaves the tray, Dynamic Island, optional desktop pet,
+Gateway, wake word, and the Gateway-owned Smart Room sidecar alive. Electron
+main owns pet creation, placement, persistence, and cursor quantization; the
+pet renderer receives only assistant state and a direction index. The sidecar owns camera
 presence, gestures, and room events. Exiting from the tray stops them in
 dependency order.
 

@@ -777,6 +777,7 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   tests, 193 desktop tests, desktop typecheck, and the production build.
 - Visually checked the empty, expanded-context, and thread-drawer states at
   1180×760 in Chromium; evidence is under `output/playwright/`.
+
 ## 2026-08-23 — updater directory-handle fix and terminal-state UI
 
 - Prevented the Windows update handoff from inheriting a working directory
@@ -811,3 +812,18 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
 - Verified the Smart Room fixture suite, focused Gateway contracts, full desktop
   typechecking, and all Electron renderer/main tests. Native camera calibration
   and soak remain a hardware acceptance step.
+
+## 2026-08-23 — measured desktop pet prototype
+
+- Added the supplied Marvi character as a packaged local v2 atlas and a
+  separate click-through Electron surface; no Codex user-data dependency or
+  runtime image generation was introduced.
+- Mapped Gateway-authoritative assistant phases to authored animation rows and
+  reduced main-process cursor coordinates to a transient 16-way gaze index.
+- Added persisted visible/display/side/scale preferences. Hiding the pet
+  destroys its BrowserWindow so disabled mode carries no pet-renderer cost.
+- Added unit coverage, a native screenshot harness, and a repeatable packaged
+  off/on measurement harness. On the named Windows host the pet added one
+  renderer and 70.08 MiB average private memory; the native-resolution Canvas
+  repeat showed no measurable CPU delta over 12 seconds.
+- Left Phase 12 in progress pending the explicit keep/optimize/draft decision.

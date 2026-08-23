@@ -56,6 +56,15 @@ be updated with the exact version/commit and local modification path.
 | Shell chrome adaptation | `the predecessor assistant\apps\desktop\src\components\` (decode-text, glyph-spinner, gateway-connecting-overlay, boot-failure-overlay, haptics-provider, translucency, background store, shell-context-menu) | internal | adapt with provenance; local-only, no remote fetches | adopted |
 | Electric Gaze backdrop | 21st.dev ascii-recipe render `assets.21st.dev/ascii-recipes/.../c458eb38-....mp4` (412 KB) + poster webp | verify at re-fetch | vendored local asset; never fetched at runtime | adopted |
 
+## Owned pet asset
+
+The Marvi desktop-pet atlas is not third-party upstream. It was converted on
+2026-08-23 from the project owner's supplied Marvi character artwork with the
+installed Codex v2 pet workflow. The generated 8×11 WebP atlas is vendored at
+`apps/desktop/src/renderer/src/assets/pet/marvi/`; no generator or remote asset
+is a runtime dependency. Regenerate it from the owned source when the art
+changes, then rerun Phase 12's visual and resource checks.
+
 ## Update procedure
 
 For each upstream dependency:
