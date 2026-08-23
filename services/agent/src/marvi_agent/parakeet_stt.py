@@ -23,9 +23,16 @@ Hence a setting rather than a decision.
 
 **The lookahead is the only real trade.** The recogniser sees a little of the
 future before committing a word: two seconds gives 13.7%, eight tenths gives
-16.8%. That window is how far the live transcript runs behind the voice -- it
-does not delay the *turn*, because the last chunk is flushed the moment speech
-stops. So it is a subtitle-smoothness dial, and it is in Settings.
+16.8%. It is in Settings.
+
+I previously wrote here that the lookahead does not delay the turn because the
+last chunk is flushed as soon as speech stops. The session log disagrees:
+short utterances -- "Can you check the room status?" -- wait 3.3s for a final
+transcript, while long ones wait a tenth of that. The first block needs a
+chunk plus the lookahead, four seconds, before anything is decoded at all, so
+a short utterance produces no text until the flush. The flush itself measures
+300-420ms, which does not account for the rest, so the cause is not yet
+established and `_settle` now logs what it would take to establish it.
 """
 
 from __future__ import annotations
@@ -228,8 +235,8 @@ class ParakeetStream(stt.RecognizeStream):
                 while self._pending.size >= want:
                     block, self._pending = self._pending[:want], self._pending[want:]
                     self._first = False
-                    delta = await self._feed(asr, block, False)
-                    self._heard(delta)
+                    await self._feed(asr, block, False)
+                    self._heard(asr)
                     want = asr.chunk_samples
 
                 if self._transcript.strip() and (
@@ -241,12 +248,26 @@ class ParakeetStream(stt.RecognizeStream):
             with contextlib.suppress(Exception):
                 await self._settle(asr)
 
-    def _heard(self, delta: str) -> None:
-        if not delta.strip():
+    def _heard(self, asr: Any) -> None:
+        """Re-read the whole utterance instead of gluing the deltas together.
+
+        `process_chunk` returns the text of the tokens decoded in *that chunk*,
+        with its own leading space stripped. A word split across a chunk
+        boundary therefore comes back as "actu" then "ally", and joining those
+        with a space gave "actu ally". Real transcripts: "say ing",
+        "Troubles hooting", "se arch", "this .". The recogniser heard correctly
+        every time; the transcript was assembled wrongly.
+
+        The decoder keeps every token of the utterance, so asking it for the
+        whole text puts the SentencePiece word boundaries back where the model
+        put them. Cheap: a list lookup per token over one sentence.
+        """
+        text = asr.get_full_text().strip()
+        if not text or text == self._transcript:
             return
-        self._transcript = (self._transcript + " " + delta.strip()).strip()
+        self._transcript = text
         self._spoke_at = time.monotonic()
-        self._emit(stt.SpeechEventType.INTERIM_TRANSCRIPT, self._transcript)
+        self._emit(stt.SpeechEventType.INTERIM_TRANSCRIPT, text)
 
     async def _settle(self, asr: Any) -> None:
         """End the utterance: flush whatever is held and start clean.
@@ -259,10 +280,23 @@ class ParakeetStream(stt.RecognizeStream):
         # skipping the call when the queue happens to be empty loses the end of
         # the sentence -- "the third piece, the conversation" became "the
         # third".
-        self._heard(await self._feed(asr, self._pending, True))
+        held = self._pending.size / SAMPLE_RATE
+        began = time.monotonic()
+        await self._feed(asr, self._pending, True)
+        self._heard(asr)
         self._pending = np.zeros(0, dtype=np.float32)
         if not self._transcript.strip():
             return
+        # Short utterances show up to 3.3s of `transcription_delay` in the
+        # session log and long ones near zero, which points at the four seconds
+        # of audio the first block needs before anything is decoded. The flush
+        # itself measures 300-420ms on the processor, so it does not account
+        # for the gap; these two numbers say whether the wait is ours.
+        log.info(
+            "stt: settled %.1fs of held audio in %dms",
+            held,
+            (time.monotonic() - began) * 1000,
+        )
         self._emit(stt.SpeechEventType.FINAL_TRANSCRIPT, self._transcript.strip())
         self._transcript = ""
         self._first = True

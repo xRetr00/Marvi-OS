@@ -2186,7 +2186,7 @@ function PluginsPanel(): React.JSX.Element {
             <span className="service-name">{plugin.title.toUpperCase()}</span>
             <span
               className={`service-state state-${
-                !plugin.supported
+                !plugin.supported || (plugin.installed && !plugin.running)
                   ? 'error'
                   : plugin.installed
                     ? 'ready'
@@ -2198,7 +2198,9 @@ function PluginsPanel(): React.JSX.Element {
               {busy === plugin.name
                 ? 'WORKING'
                 : plugin.installed
-                  ? `INSTALLED ${plugin.version ? `v${plugin.version}` : ''}`.trim()
+                  ? plugin.running
+                    ? `INSTALLED ${plugin.version ? `v${plugin.version}` : ''}`.trim()
+                    : 'NOT RUNNING'
                   : plugin.detail.toUpperCase()}
             </span>
             {plugin.why ? <small>{plugin.why}</small> : null}
@@ -2207,7 +2209,7 @@ function PluginsPanel(): React.JSX.Element {
               {plugin.ref ? ` (${plugin.ref})` : ' (default branch)'}
               {plugin.commit ? ` @${plugin.commit}` : ''}
             </small>
-            {plugin.installed && !plugin.supported ? (
+            {plugin.installed && (!plugin.supported || !plugin.running) ? (
               <small className="provider-cooldown">{plugin.detail}</small>
             ) : null}
             {plugin.tools.length > 0 ? (

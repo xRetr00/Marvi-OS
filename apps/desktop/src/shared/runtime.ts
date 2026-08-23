@@ -571,6 +571,12 @@ export interface PluginRow {
   detail: string
   /** False when the plugin declares platforms this machine is not one of. */
   supported: boolean
+  /**
+   * False when the plugin is on disk but not live in the running Gateway: an
+   * import that failed, or an update applied after startup. Installed and
+   * doing nothing looked identical to installed and working.
+   */
+  running: boolean
 }
 
 export interface PluginPage {

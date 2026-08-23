@@ -399,6 +399,10 @@ class PluginRow(BaseModel):
     tools: list[str]
     detail: str
     supported: bool
+    #: Loaded and live in this Gateway, as opposed to merely present on disk.
+    #: A plugin whose import failed, or one updated since the Gateway started,
+    #: is installed and doing nothing.
+    running: bool = True
 
 
 class PluginPage(BaseModel):
@@ -489,7 +493,9 @@ def load_installed_plugins() -> list[plugins_module.LoadedPlugin]:
             continue
         try:
             found.append(plugins_module.load(row["name"]))
+            plugins_module.note_loaded(row["name"])
         except plugins_module.PluginError as exc:
+            plugins_module.note_not_running(row["name"], str(exc)[:300])
             get_logger("plugins").error(
                 "plugin failed to load",
                 extra={"marvi_plugin": row["name"], "marvi_error": str(exc)[:300]},
@@ -703,6 +709,12 @@ def create_app(
         if sidecar is None:
             return ComponentStatus(state="offline", detail="sidecar not connected")
         state, detail = sidecar.status()
+        # The sidecar is started by the room plugin's `on_gateway_start`, so a
+        # plugin that never loaded means a sidecar that was never asked to run.
+        # "sidecar not connected" is true and useless in that case; the reason
+        # is one level up and the user can act on it.
+        if state == "offline" and (why := plugins_module.not_running(room_module.PLUGIN_NAME)):
+            return ComponentStatus(state="offline", detail=why)
         return ComponentStatus(state=state, detail=detail)  # type: ignore[arg-type]
 
     def vision_status() -> ComponentStatus:

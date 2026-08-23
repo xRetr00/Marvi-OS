@@ -112,3 +112,71 @@ def test_the_decoder_is_reset_between_utterances() -> None:
     final_at = source.index("FINAL_TRANSCRIPT")
 
     assert "reset()" in source[final_at:], "the decoder must be cleared after a final"
+
+
+# -- how the transcript is assembled ------------------------------------------
+
+
+class SplitWordASR:
+    """A recogniser that hands a word back in two pieces.
+
+    Which is the normal case, not a contrived one: a chunk boundary falls
+    wherever two seconds of audio happen to end, and words do not wait for it.
+    """
+
+    #: 0.1s at 16kHz, so a couple of frames is a whole chunk.
+    _initial_samples_needed = 1600
+    chunk_samples = 1600
+
+    def __init__(self) -> None:
+        self._pieces: list[str] = []
+        self._script = [" actu", "ally", " good"]
+
+    def process_chunk(self, audio, is_last: bool) -> str:
+        if self._script:
+            self._pieces.append(self._script.pop(0))
+        return self._pieces[-1].lstrip() if self._pieces else ""
+
+    def get_full_text(self) -> str:
+        return "".join(self._pieces).lstrip()
+
+    def reset(self) -> None:
+        self._pieces = []
+
+
+async def test_a_word_split_across_chunks_is_not_split_in_the_transcript() -> None:
+    """"actu ally", "say ing", "Troubles hooting", "se arch".
+
+    Every one of those is in the session log, and none of them is a mishearing:
+    the recogniser returns the tokens decoded in each chunk with their leading
+    space stripped, so joining the pieces with a space inserts a boundary the
+    model never put there. The words were heard correctly and written wrong.
+    """
+    from livekit import rtc
+    from livekit.agents import stt as lk_stt
+
+    from marvi_agent.parakeet_stt import SAMPLE_RATE, ParakeetSTT
+
+    recogniser = ParakeetSTT()
+    recogniser._asr = SplitWordASR()
+    stream = recogniser.stream()
+
+    silence = b"\x00\x00" * 1600
+    for _ in range(3):
+        stream.push_frame(
+            rtc.AudioFrame(
+                data=silence, sample_rate=SAMPLE_RATE, num_channels=1, samples_per_channel=1600
+            )
+        )
+    stream.end_input()
+
+    finals = [
+        event.alternatives[0].text
+        async for event in stream
+        if event.type == lk_stt.SpeechEventType.FINAL_TRANSCRIPT
+    ]
+    await stream.aclose()
+
+    assert finals, "the recogniser produced no final transcript"
+    assert "actu ally" not in finals[-1], f"word split at a chunk boundary: {finals[-1]!r}"
+    assert finals[-1] == "actually good"

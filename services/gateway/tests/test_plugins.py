@@ -250,6 +250,46 @@ def test_status_reports_a_declared_but_uninstalled_plugin(tmp_path, plugin_dir) 
     assert rows[0]["why"] == "because"
 
 
+def _declare(tmp_path) -> None:
+    """A sources file naming the installed plugin, so `status` has a row."""
+    config = tmp_path / "config"
+    config.mkdir(exist_ok=True)
+    (config / "plugin-sources.json").write_text(
+        '{"plugins": [{"name": "smart_room", "repo": "https://example.invalid/r", "why": "rooms"}]}',
+        encoding="utf-8",
+    )
+
+
+def test_a_plugin_that_failed_to_import_does_not_look_healthy(tmp_path, plugin_dir) -> None:
+    """The failure this exists for, exactly as it happened.
+
+    The Gateway started while the room plugin's import was broken, skipped it,
+    and carried on. `/plugins` went on reporting version, commit, ten tools and
+    "installed"; the only visible symptom was the room saying "sidecar not
+    connected" -- which is the consequence, not the cause. The reason sat in a
+    log file, and the plugin had already been repaired upstream.
+    """
+    _declare(tmp_path)
+    plugins.note_not_running("smart_room", "importing smart_room failed: No module named 'x'")
+    try:
+        row = next(r for r in plugins.status(tmp_path) if r["name"] == "smart_room")
+    finally:
+        plugins.note_loaded("smart_room")
+
+    assert row["installed"] is True
+    assert row["running"] is False
+    assert "No module named" in row["detail"]
+
+
+def test_a_loaded_plugin_is_running(tmp_path, plugin_dir) -> None:
+    _declare(tmp_path)
+    plugins.note_loaded("smart_room")
+    row = next(r for r in plugins.status(tmp_path) if r["name"] == "smart_room")
+
+    assert row["running"] is True
+    assert row["detail"] == "installed"
+
+
 # -- the bridge ----------------------------------------------------------------
 
 

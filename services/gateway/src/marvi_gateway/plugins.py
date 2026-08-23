@@ -290,7 +290,13 @@ def update(name: str, repo_root: Path) -> str:
         return f"{name} is already up to date"
     log.info("updated plugin %s", name, extra={"marvi_from": before[:8], "marvi_to": after[:8]})
     sync_dependencies(name, repo_root)
-    return f"updated {name} ({before[:8]} to {after[:8]})"
+    # Python imported the old code when the Gateway started and will go on
+    # running it. Updating a plugin and watching nothing change is worse than
+    # an update that fails, so the new code is not silently pretended to be
+    # live -- and `on_gateway_start`, which is what starts a plugin's sidecar,
+    # has already been and gone.
+    note_not_running(name, f"updated to {after[:8]}; restart Marvi to load it")
+    return f"updated {name} ({before[:8]} to {after[:8]}) - restart Marvi to load it"
 
 
 def sync_dependencies(name: str, repo_root: Path) -> str:
@@ -507,6 +513,33 @@ def fire(loaded: LoadedPlugin, event: str) -> list[str]:
 # -- status --------------------------------------------------------------------
 
 
+#: Why a plugin is not actually running, by name.
+#:
+#: `status()` used to describe the checkout on disk and nothing else, so a
+#: plugin whose import raised looked exactly like one running fine: version,
+#: commit, tool list, "installed". The only trace was a line in a log file, and
+#: the visible symptom was a component reporting "sidecar not connected" --
+#: which is what happens *because* the plugin never loaded, not why.
+#:
+#: Two ways to be installed and not running, and they need different answers:
+#: an import that failed (fix the plugin) and an update applied after the
+#: Gateway loaded the old code (restart Marvi).
+_not_running: dict[str, str] = {}
+
+
+def note_loaded(name: str) -> None:
+    _not_running.pop(name, None)
+
+
+def note_not_running(name: str, why: str) -> None:
+    _not_running[name] = why
+
+
+def not_running(name: str) -> str:
+    """Why this plugin is not live, or "" if it is."""
+    return _not_running.get(name, "")
+
+
 def status(repo_root: Path) -> list[dict[str, Any]]:
     """Every known plugin, whether it is installed, and at what version."""
     rows = []
@@ -524,6 +557,8 @@ def status(repo_root: Path) -> list[dict[str, Any]]:
             "tools": [],
             "detail": "not installed",
             "supported": True,
+            #: Loaded and live in this Gateway, as opposed to merely present.
+            "running": installed(source.name),
         }
         if row["installed"]:
             try:
@@ -540,6 +575,9 @@ def status(repo_root: Path) -> list[dict[str, Any]]:
                 row["commit"] = _git(["rev-parse", "--short", "HEAD"], cwd=directory, timeout=15)
             except (PluginError, OSError, subprocess.TimeoutExpired):
                 row["commit"] = "unknown"
+            if why := _not_running.get(source.name):
+                row["running"] = False
+                row["detail"] = why
         rows.append(row)
     return rows
 
