@@ -27,6 +27,7 @@ tell the two apart.
 | `providers` | Model calls, rate limits, authentication |
 | `chat` | Typed conversation |
 | `installer` | Model and component downloads |
+| `presence` | Who the room thinks is there, with every sensor reading behind it |
 
 ## How to look
 
@@ -37,6 +38,8 @@ beats reading forty lines of something else:
 - `marvi_logs(name="plugins", contains="failed")` — a plugin that did not load
 - `marvi_logs(name="agent", contains="stt:")` — what you actually heard
 - `marvi_logs(name="voice", contains="ready")` — which device the models are on
+- `marvi_logs(name="presence", contains="judged")` — the times the sensors
+  disagreed and a model had to weigh them
 
 ## Reading what you find
 

@@ -13,6 +13,28 @@ The room is a separate program that owns every device. You are its client, not
 its owner. That is why a room tool can refuse you, and why "offline" is about
 the room, not about you.
 
+## Who is actually there
+
+`room_presence` answers that, and it is the tool to use — not `room_state`'s
+`presence` field, which is one sensor's opinion.
+
+Four things report on the room and none of them is authoritative. The mmWave
+sensor misses someone sitting still. The camera sees nothing in the dark. A
+phone at home means the phone is at home. Bluetooth silence is not absence.
+`room_presence` weighs them and tells you whether they agreed:
+
+- **`judged: false`** — every sensor with a reading said the same thing.
+- **`judged: true`** — they disagreed, or a face nobody has met turned up, and
+  the answer is a judgement rather than arithmetic.
+- **`who: "unknown"`** — say so. Do not round it to yes or no.
+
+Every signal comes back with the answer, with its age and whether it was
+stale. If the user disputes it, name the sensor: "the camera sees you, the
+motion sensor doesn't" is an answer they can act on.
+
+**A sensor with no reading is not a sensor reporting an empty room.** A camera
+that cannot load is silent, not sure.
+
 ## Look before you act
 
 `room_state` first. Acting on what you assume the room is doing produces the

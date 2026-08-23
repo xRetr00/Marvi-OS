@@ -1512,6 +1512,27 @@ def create_app(
         ]
         return auxiliary.status(available)
 
+    @app.get("/room/presence")
+    async def read_presence() -> dict[str, Any]:
+        """Who is in the room, with every signal that went into the answer.
+
+        The signals come back with it deliberately: "presence: false" told
+        nobody which sensor said so, or whether anything disagreed.
+        """
+        from . import presence
+        from .providers import ProviderClient
+
+        if sidecar is None:
+            return {"present": False, "who": "unknown", "why": "no room sidecar", "signals": []}
+        try:
+            state = (sidecar.state() or {}).get("state") or {}
+        except RoomUnavailableError:
+            return {"present": False, "who": "unknown", "why": "the room is unreachable",
+                    "signals": []}
+        return await anyio.to_thread.run_sync(
+            lambda: presence.read(state, client=ProviderClient()).as_dict()
+        )
+
     @app.get("/room/faces")
     async def read_room_faces(limit: int = room_module.PREVIEW_FACES) -> dict[str, Any]:
         """What vision has actually seen, for the Room page.

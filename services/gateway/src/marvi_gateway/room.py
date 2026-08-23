@@ -541,6 +541,24 @@ def register_room_tools(registry, sidecar: RoomSidecar) -> None:
         assert_sleep_safe(current, light_on, "set_light", params)
         return sidecar.call("set_light", params)
 
+    def room_presence() -> dict[str, Any]:
+        from . import presence
+        from .providers import ProviderClient
+
+        answer = sidecar.state()
+        return presence.read(answer.get("state") or {}, client=ProviderClient()).as_dict()
+
+    registry.register(
+        ToolSpec(
+            name="room_presence",
+            description="Who is in the room, weighing sensors that disagree",
+            arguments={},
+            # A reading, not an action. And the moment a confirmation is most
+            # irritating is when somebody asks whether anyone is home.
+            sensitive=False,
+            handler=room_presence,
+        )
+    )
     registry.register(
         ToolSpec(
             name="room_state",
