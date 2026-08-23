@@ -26,12 +26,14 @@ class ParakeetDictation:
         while self.pending.size >= wanted:
             block, self.pending = self.pending[:wanted], self.pending[wanted:]
             self.first = False
-            self._append(self.asr.process_chunk(block, False))
+            self.asr.process_chunk(block, False)
+            self._read_full_text()
             wanted = self.asr.chunk_samples
         return self.transcript
 
     def flush(self) -> str:
-        self._append(self.asr.process_chunk(self.pending, True))
+        self.asr.process_chunk(self.pending, True)
+        self._read_full_text()
         result = self.transcript.strip()
         if hasattr(self.asr, "reset"):
             self.asr.reset()
@@ -40,9 +42,11 @@ class ParakeetDictation:
         self.first = True
         return result
 
-    def _append(self, delta: str) -> None:
-        if delta.strip():
-            self.transcript = f"{self.transcript} {delta.strip()}".strip()
+    def _read_full_text(self) -> None:
+        """The decoder owns word boundaries; chunk deltas do not."""
+        text = str(self.asr.get_full_text()).strip()
+        if text:
+            self.transcript = text
 
 
 def respond(body: dict[str, Any]) -> str:

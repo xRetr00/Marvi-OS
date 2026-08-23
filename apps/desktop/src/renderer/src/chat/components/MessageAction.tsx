@@ -14,7 +14,8 @@ export function CopyMessageAction({
 
   const copy = async (): Promise<void> => {
     try {
-      await navigator.clipboard.writeText(content)
+      const copiedByMain = await window.marvi?.copyText(content)
+      if (!copiedByMain) await navigator.clipboard.writeText(content)
       setCopied(true)
       window.setTimeout(() => setCopied(false), 1500)
     } catch {

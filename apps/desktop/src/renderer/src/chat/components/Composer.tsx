@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { BorderBeam } from 'border-beam'
 
-import type { ChatAttachment, ModelPage } from '../../../../shared/runtime'
+import type { ChatAttachment, ChatContext, ModelPage } from '../../../../shared/runtime'
 import { AbstractIcon } from '../../components/abstract-icon'
 import { TooltipProvider, UiTooltip } from '../../components/ui/tooltip'
 import { Picker, type PickerOption } from '../../components/ui/picker'
@@ -27,7 +26,8 @@ export function Composer({
   onFiles,
   onRemoveAttachment,
   override,
-  onOverrideChange
+  onOverrideChange,
+  context
 }: {
   draft: string
   busy: boolean
@@ -40,6 +40,7 @@ export function Composer({
   onRemoveAttachment?: (id: string) => void
   override?: { provider?: string; model?: string; effort?: string }
   onOverrideChange?: (next: { provider?: string; model?: string; effort?: string }) => void
+  context?: ChatContext | null
 }): React.JSX.Element {
   const field = useRef<HTMLTextAreaElement | null>(null)
   const fileInput = useRef<HTMLInputElement | null>(null)
@@ -59,8 +60,6 @@ export function Composer({
   }, [draft])
 
   const ready = !busy && Boolean(draft.trim()) && available
-  const beamActive = available && (focused || busy || Boolean(draft.trim()))
-
   return (
     <TooltipProvider>
       <div
@@ -71,147 +70,203 @@ export function Composer({
           if (event.dataTransfer.files.length) onFiles?.(event.dataTransfer.files)
         }}
       >
-        <BorderBeam
-          active={beamActive}
-          borderRadius={10}
-          className="chat-compose-beam"
-          colorVariant="mono"
-          duration={busy ? 1.8 : 3.2}
-          size="line"
-          staticColors
-          strength={busy ? 0.72 : 0.48}
-          theme="dark"
+        <div
+          className="chat-compose-field"
+          data-active={focused || busy || Boolean(draft.trim()) ? 'true' : 'false'}
         >
-          <div className="chat-compose-field">
-            <div className="chat-compose-label" aria-hidden="true">
-              <span>{'// MESSAGE'}</span>
-              <span>
-                {busy ? 'RECEIVING' : focused ? 'INPUT ACTIVE' : available ? 'READY' : 'OFFLINE'}
-              </span>
+          {attachments.length ? (
+            <div className="chat-attachments" aria-label="Pending attachments">
+              {attachments.map((attachment) => (
+                <span className="chat-attachment" key={attachment.id}>
+                  <AbstractIcon
+                    name={attachment.kind === 'image' ? 'vision' : 'paperclip'}
+                    size={13}
+                  />
+                  <span>{attachment.name}</span>
+                  <button
+                    aria-label={`Remove ${attachment.name}`}
+                    onClick={() => onRemoveAttachment?.(attachment.id)}
+                    type="button"
+                  >
+                    <AbstractIcon name="close" size={11} />
+                  </button>
+                </span>
+              ))}
             </div>
-            {attachments.length ? (
-              <div className="chat-attachments" aria-label="Pending attachments">
-                {attachments.map((attachment) => (
-                  <span className="chat-attachment" key={attachment.id}>
-                    <AbstractIcon
-                      name={attachment.kind === 'image' ? 'vision' : 'paperclip'}
-                      size={13}
-                    />
-                    <span>{attachment.name}</span>
-                    <button
-                      aria-label={`Remove ${attachment.name}`}
-                      onClick={() => onRemoveAttachment?.(attachment.id)}
-                      type="button"
-                    >
-                      <AbstractIcon name="close" size={11} />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            ) : null}
-            <textarea
-              ref={field}
-              rows={1}
-              value={draft}
-              placeholder={available ? 'Send a message…' : 'Connect a provider to chat'}
-              disabled={busy || !available}
-              aria-label="Message Marvi"
-              enterKeyHint="send"
-              onBlur={() => setFocused(false)}
-              onChange={(event) => onDraftChange(event.target.value)}
-              onFocus={() => setFocused(true)}
-              onKeyDown={(event) => {
-                // Enter sends, Shift+Enter breaks the line, Ctrl/Cmd+Enter always sends.
-                const wantsSend =
-                  event.key === 'Enter' && (!event.shiftKey || event.ctrlKey || event.metaKey)
-                if (wantsSend) {
-                  event.preventDefault()
-                  onSend()
-                }
-              }}
-            />
-            <div className="chat-compose-actions">
-              <div className="chat-compose-tools">
-                <input
-                  ref={fileInput}
-                  className="chat-file-input"
-                  type="file"
-                  multiple
-                  accept="image/png,image/jpeg,image/webp,image/gif,text/plain,text/markdown,text/csv,application/json,application/pdf,.docx,.xlsx,.pptx"
-                  onChange={(event) => {
-                    if (event.target.files?.length) onFiles?.(event.target.files)
-                    event.target.value = ''
-                  }}
-                />
-                <UiTooltip label="Attach images or documents">
-                  <button
-                    aria-label="Attach images or documents"
-                    className="chat-compose-tool"
-                    disabled={busy}
-                    onClick={() => fileInput.current?.click()}
-                    type="button"
-                  >
-                    <AbstractIcon name="paperclip" size={15} />
-                  </button>
-                </UiTooltip>
-                <UiTooltip label={dictation.active ? 'Stop dictation' : 'Dictate message'}>
-                  <button
-                    aria-label={dictation.active ? 'Stop dictation' : 'Dictate message'}
-                    aria-pressed={dictation.active}
-                    className={dictation.active ? 'chat-compose-tool active' : 'chat-compose-tool'}
-                    disabled={busy || dictation.starting}
-                    onClick={() => void (dictation.active ? dictation.stop() : dictation.start())}
-                    type="button"
-                  >
-                    <AbstractIcon name={dictation.active ? 'stop' : 'microphone'} size={15} />
-                  </button>
-                </UiTooltip>
-                {onOverrideChange ? (
-                  <SessionModel value={override ?? {}} onChange={onOverrideChange} />
-                ) : null}
-                <details className="chat-context-breakdown">
-                  <summary>CONTEXT</summary>
-                  <div>
-                    <span>DRAFT</span>
-                    <strong>{draft.length.toLocaleString()} chars</strong>
-                    <span>FILES</span>
-                    <strong>{attachments.length}</strong>
-                    <span>ROUTE</span>
-                    <strong>{override?.model || 'default'}</strong>
+          ) : null}
+          {dictation.error ? (
+            <div className="chat-dictation-error" role="alert">
+              {dictation.error}
+            </div>
+          ) : null}
+          <textarea
+            ref={field}
+            rows={1}
+            value={draft}
+            placeholder={available ? 'Send a message…' : 'Connect a provider to chat'}
+            disabled={busy || !available}
+            aria-label="Message Marvi"
+            enterKeyHint="send"
+            onBlur={() => setFocused(false)}
+            onChange={(event) => onDraftChange(event.target.value)}
+            onFocus={() => setFocused(true)}
+            onKeyDown={(event) => {
+              // Enter sends, Shift+Enter breaks the line, Ctrl/Cmd+Enter always sends.
+              const wantsSend =
+                event.key === 'Enter' && (!event.shiftKey || event.ctrlKey || event.metaKey)
+              if (wantsSend) {
+                event.preventDefault()
+                onSend()
+              }
+            }}
+          />
+          <div className="chat-compose-actions">
+            <div className="chat-compose-tools">
+              <input
+                ref={fileInput}
+                className="chat-file-input"
+                type="file"
+                multiple
+                accept="image/png,image/jpeg,image/webp,image/gif,text/plain,text/markdown,text/csv,application/json,application/pdf,.docx,.xlsx,.pptx"
+                onChange={(event) => {
+                  if (event.target.files?.length) onFiles?.(event.target.files)
+                  event.target.value = ''
+                }}
+              />
+              <UiTooltip label="Attach images or documents">
+                <button
+                  aria-label="Attach images or documents"
+                  className="chat-compose-tool"
+                  disabled={busy}
+                  onClick={() => fileInput.current?.click()}
+                  type="button"
+                >
+                  <AbstractIcon name="paperclip" size={15} />
+                </button>
+              </UiTooltip>
+              <UiTooltip label={dictation.active ? 'Stop dictation' : 'Dictate message'}>
+                <button
+                  aria-label={dictation.active ? 'Stop dictation' : 'Dictate message'}
+                  aria-pressed={dictation.active}
+                  className={dictation.active ? 'chat-compose-tool active' : 'chat-compose-tool'}
+                  disabled={busy || dictation.starting}
+                  onClick={() => void (dictation.active ? dictation.stop() : dictation.start())}
+                  type="button"
+                >
+                  <AbstractIcon name={dictation.active ? 'stop' : 'microphone'} size={15} />
+                </button>
+              </UiTooltip>
+              {onOverrideChange ? (
+                <SessionModel value={override ?? {}} onChange={onOverrideChange} />
+              ) : null}
+              <details className="chat-context-breakdown">
+                <summary aria-label="Show context breakdown">
+                  <ContextRing context={context} />
+                  <span>CONTEXT</span>
+                </summary>
+                <div className="chat-context-card">
+                  <header>
+                    <span>Context window</span>
+                    <strong>
+                      {contextPercent(context) === null
+                        ? 'Usage unknown'
+                        : `${contextPercent(context)}% used`}
+                    </strong>
+                  </header>
+                  <div className="chat-context-bar" aria-hidden="true">
+                    <span style={{ width: `${contextPercent(context) ?? 0}%` }} />
                   </div>
-                </details>
-              </div>
-              <div className="chat-compose-submit">
-                <span className="chat-compose-hint">ENTER SENDS · SHIFT+ENTER NEW LINE</span>
-                {busy && onCancel ? (
-                  // While a reply is streaming the same control stops it. A turn
-                  // nobody wants any more is still being generated and still billed.
-                  <button
-                    aria-label="Stop"
-                    className="chat-send is-stop"
-                    onClick={onCancel}
-                    type="button"
-                  >
-                    <AbstractIcon name="stop" size={16} />
-                  </button>
-                ) : (
-                  <button
-                    aria-label="Send"
-                    className="chat-send"
-                    disabled={!ready}
-                    onClick={onSend}
-                    type="button"
-                  >
-                    <AbstractIcon name="send" size={16} />
-                  </button>
-                )}
-              </div>
+                  <dl>
+                    <div>
+                      <dt>INPUT</dt>
+                      <dd>
+                        {context?.input_tokens
+                          ? `${context.input_tokens.toLocaleString()} tok`
+                          : '—'}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>WINDOW</dt>
+                      <dd>
+                        {context?.context_window
+                          ? `${context.context_window.toLocaleString()} tok`
+                          : 'unknown'}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>CACHED</dt>
+                      <dd>{context?.cached_tokens?.toLocaleString() ?? '0'} tok</dd>
+                    </div>
+                    <div>
+                      <dt>RESERVE</dt>
+                      <dd>{context?.reply_reserve?.toLocaleString() ?? '—'} tok</dd>
+                    </div>
+                    <div>
+                      <dt>MESSAGES</dt>
+                      <dd>{context?.messages ?? 0}</dd>
+                    </div>
+                    <div>
+                      <dt>FILES</dt>
+                      <dd>{(context?.files ?? 0) + attachments.length}</dd>
+                    </div>
+                    <div>
+                      <dt>SOURCES</dt>
+                      <dd>{context?.sources ?? 0}</dd>
+                    </div>
+                    <div>
+                      <dt>ROUTE</dt>
+                      <dd>{override?.model || context?.model || 'default'}</dd>
+                    </div>
+                  </dl>
+                </div>
+              </details>
+            </div>
+            <div className="chat-compose-submit">
+              {busy && onCancel ? (
+                // While a reply is streaming the same control stops it. A turn
+                // nobody wants any more is still being generated and still billed.
+                <button
+                  aria-label="Stop"
+                  className="chat-send is-stop"
+                  onClick={onCancel}
+                  type="button"
+                >
+                  <AbstractIcon name="stop" size={16} />
+                </button>
+              ) : (
+                <button
+                  aria-label="Send"
+                  className="chat-send"
+                  disabled={!ready}
+                  onClick={onSend}
+                  type="button"
+                >
+                  <AbstractIcon name="send" size={16} />
+                </button>
+              )}
             </div>
           </div>
-        </BorderBeam>
+        </div>
       </div>
     </TooltipProvider>
   )
+}
+
+function ContextRing({ context }: { context?: ChatContext | null }): React.JSX.Element {
+  const percent = contextPercent(context)
+  return (
+    <span
+      className="chat-context-ring"
+      style={{ '--context-fill': `${(percent ?? 0) * 3.6}deg` } as React.CSSProperties}
+    >
+      {percent ?? '—'}
+    </span>
+  )
+}
+
+function contextPercent(context?: ChatContext | null): number | null {
+  if (!context?.context_window || !context.input_tokens) return null
+  return Math.min(100, Math.round((context.input_tokens / context.context_window) * 100))
 }
 
 /**

@@ -183,6 +183,7 @@ const marvi = {
     ipcRenderer.invoke('marvi:stop-chat-dictation', id),
   cancelChatDictation: (id: string): Promise<boolean> =>
     ipcRenderer.invoke('marvi:cancel-chat-dictation', id),
+  copyText: (text: string): Promise<boolean> => ipcRenderer.invoke('marvi:copy-text', text),
   getSchedules: (): Promise<SchedulePage | null> => ipcRenderer.invoke('marvi:get-schedules'),
   addSchedule: (body: {
     name: string

@@ -1,6 +1,7 @@
 import { useStore } from '@nanostores/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
+import { Activity, Camera, CheckCircle2, Mic, Radio, Waves } from 'lucide-react'
 
 import appIcon from './assets/app-icon.ico'
 import { BootFailureOverlay } from './components/BootFailureOverlay'
@@ -229,6 +230,59 @@ function MainSurface(): React.JSX.Element {
     })
   }
 
+  const statusbar = (
+    <footer className="statusbar">
+      <div className="statusbar-side">
+        <UiTooltip label="Open Gateway health" side="top">
+          <button className="status-item" onClick={() => navigate('Overview')} type="button">
+            <Activity aria-hidden="true" />
+            <span>Gateway</span>
+            <span className="status-detail">{runtime.state}</span>
+          </button>
+        </UiTooltip>
+        <UiTooltip label="Open realtime transport" side="top">
+          <button className="status-item" onClick={() => navigate('Voice')} type="button">
+            <Radio aria-hidden="true" />
+            <span>RTC</span>
+            <span className="status-detail">{runtime.components.livekit?.state ?? 'unknown'}</span>
+          </button>
+        </UiTooltip>
+        <UiTooltip label="Open voice session" side="top">
+          <button className="status-item" onClick={() => navigate('Voice')} type="button">
+            <Waves aria-hidden="true" />
+            <span>Voice</span>
+            <span className="status-detail">{voice.phase}</span>
+          </button>
+        </UiTooltip>
+        <WakeStatusItem onOpen={() => navigate('Voice')} />
+        <VoiceLevelMeter level={voice.level} />
+      </div>
+      <div className="statusbar-side statusbar-side-right">
+        <UiTooltip label="Open microphone and camera settings" side="top">
+          <button className="status-item" onClick={() => setSettings('Preferences')} type="button">
+            <Mic aria-hidden="true" />
+            <span>Mic</span>
+            <span className="status-detail">{deviceLabel(deviceState(runtime, 'microphone'))}</span>
+            <Camera aria-hidden="true" />
+            <span>Cam</span>
+            <span className="status-detail">{deviceLabel(deviceState(runtime, 'camera'))}</span>
+          </button>
+        </UiTooltip>
+        <UiTooltip label="Open confirmation mode settings" side="top">
+          <button
+            className={`status-item${voice.yolo ? ' status-yolo' : ''}`}
+            onClick={() => setSettings('Preferences')}
+            type="button"
+          >
+            <CheckCircle2 aria-hidden="true" />
+            <span>{voice.yolo ? 'YOLO' : 'Confirm'}</span>
+          </button>
+        </UiTooltip>
+        <VersionPopover version={version} onOpenAbout={() => setSettings('About')} />
+      </div>
+    </footer>
+  )
+
   return (
     <ShellContextMenu
       actions={[
@@ -249,155 +303,125 @@ function MainSurface(): React.JSX.Element {
             `auto` track sizes to the item's max-content and stretches the item
             back to fill it, so the sidebar's own `width: 64px` was correct,
             applied, and visually ignored. */}
-        <div className="app-body" style={{ gridTemplateColumns: `${collapsed ? 68 : 238}px 1fr` }}>
+        <div
+          className="app-body"
+          style={{ gridTemplateColumns: `${page === 'Chat' ? 248 : collapsed ? 68 : 238}px 1fr` }}
+        >
           <ElectricGazeBackground />
 
-          {/* Width inline rather than by class. The stylesheet route lost a
+          {page === 'Chat' ? (
+            <Chat onExit={() => navigate('Overview')} />
+          ) : (
+            <>
+              {/* Width inline rather than by class. The stylesheet route lost a
               cascade race twice — first to a media query on the grid parent,
               then in a way I could not account for with the correct rule
               present and matching. One value, from the state that decides it,
               with nothing to override it. */}
-          <aside
-            className={collapsed ? 'sidebar collapsed' : 'sidebar'}
-            style={{ overflow: 'hidden' }}
-          >
-            <header className="brand-block">
-              <BrandIcon className="brand-icon-sidebar" />
-              {!collapsed ? (
-                <span className="brand-copy">
-                  <strong>MARVI</strong>
-                  <small>LOCAL INTELLIGENCE</small>
-                </span>
-              ) : null}
-              <UiTooltip label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} side="right">
-                <button
-                  aria-label={collapsed ? 'Expand the sidebar' : 'Collapse the sidebar'}
-                  aria-pressed={collapsed}
-                  className="sidebar-collapse"
-                  onClick={toggleSidebar}
-                  type="button"
-                >
-                  <AbstractIcon name="panel" size={16} />
-                </button>
-              </UiTooltip>
-            </header>
-
-            <nav aria-label="Main navigation">
-              {NAV_GROUPS.map((group) => (
-                <div className="nav-group" key={group.label}>
+              <aside
+                className={collapsed ? 'sidebar collapsed' : 'sidebar'}
+                style={{ overflow: 'hidden' }}
+              >
+                <header className="brand-block">
+                  <BrandIcon className="brand-icon-sidebar" />
                   {!collapsed ? (
-                    <h2 className="nav-group-label">{group.label.toUpperCase()}</h2>
+                    <span className="brand-copy">
+                      <strong>MARVI</strong>
+                      <small>LOCAL INTELLIGENCE</small>
+                    </span>
                   ) : null}
-                  {group.items.map((item) => (
-                    <UiTooltip key={item} label={item} side="right">
-                      <button
-                        className={page === item ? 'nav-item active' : 'nav-item'}
-                        aria-label={item}
-                        aria-current={page === item ? 'page' : undefined}
-                        onClick={() => navigate(item)}
-                      >
-                        <AbstractIcon className="nav-icon" name={NAV_ICONS[item]} size={17} />
-                        {!collapsed ? <span className="nav-label">{item}</span> : null}
-                        {!collapsed ? <span className="nav-code">{NAV_CODES[item]}</span> : null}
-                      </button>
-                    </UiTooltip>
+                  <UiTooltip label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} side="right">
+                    <button
+                      aria-label={collapsed ? 'Expand the sidebar' : 'Collapse the sidebar'}
+                      aria-pressed={collapsed}
+                      className="sidebar-collapse"
+                      onClick={toggleSidebar}
+                      type="button"
+                    >
+                      <AbstractIcon name="panel" size={16} />
+                    </button>
+                  </UiTooltip>
+                </header>
+
+                <nav aria-label="Main navigation">
+                  {NAV_GROUPS.map((group) => (
+                    <div className="nav-group" key={group.label}>
+                      {!collapsed ? (
+                        <h2 className="nav-group-label">{group.label.toUpperCase()}</h2>
+                      ) : null}
+                      {group.items.map((item) => (
+                        <UiTooltip key={item} label={item} side="right">
+                          <button
+                            className={page === item ? 'nav-item active' : 'nav-item'}
+                            aria-label={item}
+                            aria-current={page === item ? 'page' : undefined}
+                            onClick={() => navigate(item)}
+                          >
+                            <AbstractIcon className="nav-icon" name={NAV_ICONS[item]} size={17} />
+                            {!collapsed ? <span className="nav-label">{item}</span> : null}
+                            {!collapsed ? (
+                              <span className="nav-code">{NAV_CODES[item]}</span>
+                            ) : null}
+                          </button>
+                        </UiTooltip>
+                      ))}
+                    </div>
                   ))}
+                </nav>
+
+                <div
+                  aria-label={
+                    runtime.state === 'ready' ? 'Local runtime ready' : `Runtime ${runtime.state}`
+                  }
+                  className="sidebar-foot"
+                >
+                  <span className={runtime.state === 'ready' ? 'pulse-dot' : ''} />{' '}
+                  {runtime.state === 'ready' ? 'LOCAL / READY' : runtime.state.toUpperCase()}
+                  <small>
+                    MIC {deviceLabel(deviceState(runtime, 'microphone'))} + CAM{' '}
+                    {deviceLabel(deviceState(runtime, 'camera'))} / LOCAL
+                  </small>
                 </div>
-              ))}
-            </nav>
+              </aside>
 
-            <div
-              aria-label={
-                runtime.state === 'ready' ? 'Local runtime ready' : `Runtime ${runtime.state}`
-              }
-              className="sidebar-foot"
-            >
-              <span className={runtime.state === 'ready' ? 'pulse-dot' : ''} />{' '}
-              {runtime.state === 'ready' ? 'LOCAL / READY' : runtime.state.toUpperCase()}
-              <small>
-                MIC {deviceLabel(deviceState(runtime, 'microphone'))} + CAM{' '}
-                {deviceLabel(deviceState(runtime, 'camera'))} / LOCAL
-              </small>
-            </div>
-          </aside>
+              <main className="content">
+                <header className="topbar">
+                  <div>
+                    <AbstractIcon className="topbar-icon" name={NAV_ICONS[page]} size={20} />
+                    <h1>{page}</h1>
+                  </div>
+                  <span className="topbar-state">
+                    {voice.phase.toUpperCase()} / {voice.caption}
+                  </span>
+                </header>
 
-          <main className="content">
-            <header className="topbar">
-              <div>
-                <AbstractIcon className="topbar-icon" name={NAV_ICONS[page]} size={20} />
-                <h1>{page}</h1>
-              </div>
-              <span className="topbar-state">
-                {voice.phase.toUpperCase()} / {voice.caption}
-              </span>
-            </header>
-
-            {/* One scroll region for every page, so the top bar and status bar
-                stay put and no page has to remember to handle its own
-                overflow. */}
-            <div className="page-scroll">
-              {page === 'Overview' ? (
-                <Overview runtime={runtime} voice={voice} />
-              ) : page === 'Room' ? (
-                <RoomPanel runtime={runtime} />
-              ) : page === 'Voice' ? (
-                <VoicePanel runtime={runtime} />
-              ) : page === 'Chat' ? (
-                <Chat />
-              ) : page === 'Activity' ? (
-                <ActivityPanel />
-              ) : page === 'Identity' ? (
-                <IdentityPanel />
-              ) : page === 'Memory' ? (
-                <MemoryPanel />
-              ) : page === 'Mind' ? (
-                <MindPanel />
-              ) : (
-                <PagePanel page={page} version={version} runtime={runtime} />
-              )}
-            </div>
-
-            <footer className="statusbar">
-              <UiTooltip label="Open Gateway health" side="top">
-                <button className="status-item" onClick={() => navigate('Overview')} type="button">
-                  <i className={`status-${runtime.state}`} /> GW:{runtime.state.toUpperCase()}
-                </button>
-              </UiTooltip>
-              <UiTooltip label="Open realtime transport" side="top">
-                <button className="status-item" onClick={() => navigate('Voice')} type="button">
-                  RTC:{runtime.components.livekit?.state.toUpperCase() ?? 'UNKNOWN'}
-                </button>
-              </UiTooltip>
-              <UiTooltip label="Open voice session" side="top">
-                <button className="status-item" onClick={() => navigate('Voice')} type="button">
-                  VOICE:{voice.phase.toUpperCase()}
-                </button>
-              </UiTooltip>
-              <WakeStatusItem onOpen={() => navigate('Voice')} />
-              <VoiceLevelMeter level={voice.level} />
-              <UiTooltip label="Open microphone and camera settings" side="top">
-                <button
-                  className="status-item"
-                  onClick={() => setSettings('Preferences')}
-                  type="button"
-                >
-                  MIC:{deviceLabel(deviceState(runtime, 'microphone'))} CAM:
-                  {deviceLabel(deviceState(runtime, 'camera'))}
-                </button>
-              </UiTooltip>
-              <UiTooltip label="Open confirmation mode settings" side="top">
-                <button
-                  className={`status-item${voice.yolo ? ' status-yolo' : ''}`}
-                  onClick={() => setSettings('Preferences')}
-                  type="button"
-                >
-                  MODE:{voice.yolo ? 'YOLO' : 'CONFIRM'}
-                </button>
-              </UiTooltip>
-              <VersionPopover version={version} onOpenAbout={() => setSettings('About')} />
-            </footer>
-          </main>
+                {/* One scroll region for every page; shell chrome stays in its
+                own tracks and no page has to manage window overflow. */}
+                <div className="page-scroll">
+                  {page === 'Overview' ? (
+                    <Overview runtime={runtime} voice={voice} />
+                  ) : page === 'Room' ? (
+                    <RoomPanel runtime={runtime} />
+                  ) : page === 'Voice' ? (
+                    <VoicePanel runtime={runtime} />
+                  ) : page === 'Activity' ? (
+                    <ActivityPanel />
+                  ) : page === 'Identity' ? (
+                    <IdentityPanel />
+                  ) : page === 'Memory' ? (
+                    <MemoryPanel />
+                  ) : page === 'Mind' ? (
+                    <MindPanel />
+                  ) : (
+                    <PagePanel page={page} version={version} runtime={runtime} />
+                  )}
+                </div>
+              </main>
+            </>
+          )}
         </div>
+
+        {statusbar}
 
         {settings ? (
           <SettingsShell
@@ -432,7 +456,10 @@ function VoiceLevelMeter({ level }: { level: number }): React.JSX.Element {
   const partialGlyph = partial > 0 ? shades[Math.min(2, Math.floor(partial * 3))] : ''
   const blocks = '█'.repeat(full) + partialGlyph + '░'.repeat(cells - full - (partialGlyph ? 1 : 0))
   return (
-    <span aria-label={`Voice level ${Math.round(value * 100)}%`} className="voice-level-meter">
+    <span
+      aria-label={`Voice level ${Math.round(value * 100)}%`}
+      className={`voice-level-meter${value > 0.02 ? ' is-live' : ''}`}
+    >
       {blocks}
     </span>
   )
@@ -1640,7 +1667,9 @@ function WakeStatusItem({ onOpen }: { onOpen: () => void }): React.JSX.Element |
         onClick={onOpen}
         type="button"
       >
-        WAKE:{label}
+        <Mic aria-hidden="true" />
+        <span>Wake</span>
+        <span className="status-detail">{label.toLowerCase()}</span>
       </button>
     </UiTooltip>
   )

@@ -37,6 +37,13 @@ from typing import Any
 from uuid import uuid4
 
 from . import latency, selfaware
+from .chat_widgets import (
+    external_text,
+    present_tool_schema,
+    source_parts,
+    validate_widget,
+    widget_for_tool,
+)
 from .curiosity import Curiosity, handle_tool, obvious_facts
 from .curiosity import tool_schemas as curiosity_tools
 from .identity import IdentityFiles
@@ -134,7 +141,10 @@ SYSTEM_PROMPT = (
     "A tool result is evidence, not confirmation. If what a tool returns does "
     "not actually answer the question — it is empty, it just says the call "
     "worked, it contradicts itself — say so plainly instead of treating it as "
-    "agreement with what you already thought."
+    "agreement with what you already thought.\n"
+    "Use GitHub-flavored Markdown when structure helps. Write mathematical "
+    "notation as LaTeX inside $...$ or $$...$$ delimiters. After web research, "
+    "cite supporting result URLs as Markdown links."
 )
 
 SCHEMA = """
@@ -336,6 +346,35 @@ class ChatStore:
             parts.append({"type": "source", "title": label, "url": url})
         return parts
 
+    def context(self, thread_id: str = DEFAULT_THREAD_ID) -> dict[str, Any]:
+        """Return only context facts the provider or store can prove."""
+        thread = self.get_thread(thread_id)
+        history = self.history(limit=200, thread_id=thread_id)
+        latest = next((row for row in reversed(history) if row["role"] == "assistant"), None)
+        meta = latest.get("meta", {}) if latest else {}
+        provider = str(meta.get("provider") or thread["selected_provider"] or "")
+        model = str(meta.get("model") or thread["selected_model"] or "")
+        window = 0
+        if provider and model:
+            try:
+                from .providers.catalog import known_context
+
+                window = known_context(provider, model)
+            except Exception:
+                window = 0
+        parts = [part for row in history for part in row.get("parts", [])]
+        return {
+            "input_tokens": int(meta.get("input_tokens") or 0),
+            "cached_tokens": int(meta.get("cached_tokens") or 0),
+            "context_window": max(0, int(window)),
+            "reply_reserve": reply_tokens(provider, model),
+            "messages": len(history),
+            "files": sum(part.get("type") == "attachment" for part in parts),
+            "sources": len({part.get("url") for part in parts if part.get("type") == "source"}),
+            "provider": provider,
+            "model": model,
+        }
+
     def _row(self, row: sqlite3.Row) -> dict[str, Any]:
         return {
             "id": row["id"],
@@ -503,9 +542,15 @@ class ChatStore:
         if row is None:
             raise KeyError("unknown message")
         user = row
-        if row["role"] == "assistant" and row["parent_id"] is not None:
+        visited: set[int] = set()
+        while user is not None and user["role"] != "user" and user["parent_id"] is not None:
+            identifier = int(user["id"])
+            if identifier in visited:
+                user = None
+                break
+            visited.add(identifier)
             user = self._db.execute(
-                "SELECT * FROM messages WHERE id = ?", (row["parent_id"],)
+                "SELECT * FROM messages WHERE id = ?", (user["parent_id"],)
             ).fetchone()
         if user is None or user["role"] != "user":
             raise KeyError("regeneration requires a user turn")
@@ -976,6 +1021,18 @@ class Chat:
         if not isinstance(arguments, dict):
             arguments = {}
 
+        if name == "present_widget":
+            try:
+                widget = validate_widget(arguments)
+            except ValueError as exc:
+                return self._tool_failed(name, arguments, str(exc))
+            return {
+                "text": json.dumps(widget["data"], ensure_ascii=False),
+                "widget": widget,
+                "pending_confirmation": None,
+                "arguments": arguments,
+            }
+
         own_notes = {"remember_about_user", "forget_about_user"}
         if name in own_notes:
             if self.curiosity is None:
@@ -1027,8 +1084,12 @@ class Chat:
 
         # A tool result can carry text somebody else wrote, so it comes back
         # enveloped rather than inlined as trusted narration.
+        result = outcome.get("result")
+        widget = widget_for_tool(name, result)
         return {
-            "text": wrap_external(f"tool:{name}", outcome.get("result")).text,
+            "text": external_text(result)
+            or wrap_external(f"tool:{name}", result).text,
+            "widget": widget,
             "pending_confirmation": None,
             # Carried back so the transcript can remind the model what it
             # asked for, not just what came back.
@@ -1131,6 +1192,7 @@ class Chat:
         gap = self._curiosity_turn(text, turns)
         recalled = self._recall(text)
         schemas = list(self.tool_schemas() if self.tool_schemas else [])
+        schemas.append(present_tool_schema())
         if self.curiosity is not None:
             schemas += curiosity_tools()
 
@@ -1138,6 +1200,9 @@ class Chat:
         used: list[str] = []
         tokens = 0
         answered = ""
+        answered_model = model or ""
+        usage = {"input": 0, "output": 0, "cached_input": 0, "billable": 0}
+        widgets: list[dict[str, Any]] = []
         # Counted so a real turn can prove it streamed. One delta carrying the
         # whole reply and forty deltas carrying a word each produce identical
         # text, and only the count tells them apart.
@@ -1187,6 +1252,7 @@ class Chat:
                             return
                         if event.get("provider"):
                             answered = event["provider"]
+                            answered_model = str(event.get("model") or answered_model)
                             sample.provider = answered
                             continue
                         if event.get("reasoning"):
@@ -1210,7 +1276,11 @@ class Chat:
                             calls = event["tool_calls"]
                             continue
                         if event.get("done"):
-                            tokens += int((event.get("usage") or {}).get("billable", 0))
+                            turn_usage = event.get("usage") or {}
+                            usage = {
+                                key: int(turn_usage.get(key, 0)) for key in usage
+                            }
+                            tokens += usage["billable"]
             except ProviderCallError as exc:
                 logger.warning("streamed chat call failed: %s", exc)
                 yield {
@@ -1236,8 +1306,25 @@ class Chat:
                     (time.monotonic() - began) * 1000,
                     answered or "?",
                 )
+                parts = self.store.parts_for_text(reply)
+                seen_sources = {part.get("url") for part in parts if part["type"] == "source"}
+                for widget in widgets:
+                    parts.append(widget)
+                    for part in source_parts(widget):
+                        if part["url"] not in seen_sources:
+                            seen_sources.add(part["url"])
+                            parts.append(part)
                 self.store.append(
-                    "assistant", reply, thread_id=thread_id, provider=answered, tokens=tokens
+                    "assistant",
+                    reply,
+                    thread_id=thread_id,
+                    parts=parts,
+                    provider=answered,
+                    model=answered_model,
+                    tokens=tokens,
+                    input_tokens=usage["input"],
+                    output_tokens=usage["output"],
+                    cached_tokens=usage["cached_input"],
                 )
                 if self.memory is not None and reply:
                     self.memory.remember(text[:200], reply[:2000], kind="episodic")
@@ -1256,6 +1343,9 @@ class Chat:
                 used.append(name)
                 yield {"tool": name}
                 outcome = self._run_tool(name, call.get("arguments") or "{}", thread_id)
+                if outcome.get("widget"):
+                    widgets.append(outcome["widget"])
+                    yield {"widget": outcome["widget"]}
                 if outcome.get("pending_confirmation"):
                     yield {
                         "done": True,
@@ -1336,10 +1426,12 @@ class Chat:
         recalled = self._recall(text)
 
         schemas = list(self.tool_schemas() if self.tool_schemas else [])
+        schemas.append(present_tool_schema())
         if self.curiosity is not None:
             schemas += curiosity_tools()
         used: list[str] = []
         tokens = 0
+        widgets: list[dict[str, Any]] = []
 
         for round_number in range(MAX_TOOL_ROUNDS):
             # The last round is offered no tools, so the model has to answer
@@ -1381,8 +1473,21 @@ class Chat:
 
             if not calls:
                 reply = completion.text.strip()
+                parts = self.store.parts_for_text(reply)
+                for widget in widgets:
+                    parts.append(widget)
+                    parts.extend(source_parts(widget))
                 self.store.append(
-                    "assistant", reply, thread_id=thread_id, provider=provider, tokens=tokens
+                    "assistant",
+                    reply,
+                    thread_id=thread_id,
+                    parts=parts,
+                    provider=provider,
+                    model=completion.model,
+                    tokens=tokens,
+                    input_tokens=completion.usage.input,
+                    output_tokens=completion.usage.output,
+                    cached_tokens=completion.usage.cached_input,
                 )
                 if self.memory is not None and reply:
                     # Chat is a real conversation, so it belongs in the same
@@ -1390,65 +1495,29 @@ class Chat:
                     self.memory.remember(text[:200], reply[:2000], kind="episodic")
                 return ChatTurn(reply=reply, tools_used=used, tokens=tokens, provider=provider)
 
-            # Marvi keeping its own notes is not an action on the user's
-            # behalf, so it needs no router, no confirmation, and no audit of
-            # an external effect — and it must keep working in a session that
-            # has no tool router at all.
-            own_notes = {"remember_about_user", "forget_about_user"}
-            for call in [c for c in calls if c.get("name") in own_notes]:
-                if self.curiosity is None:
-                    continue
-                name = call.get("name", "")
-                outcome = handle_tool(self.curiosity, name, call.get("arguments") or {})
-                used.append(name)
-                self.store.append(
-                    "tool",
-                    wrap_external(f"tool:{name}", outcome.get("result")).text,
-                    thread_id=thread_id,
-                    tool=name,
-                    arguments=call.get("arguments") or {},
-                )
-
-            router_calls = [c for c in calls if c.get("name") not in own_notes]
-            if not router_calls:
-                continue
-            if self.dispatch is None:
-                return ChatTurn(
-                    reply=completion.text.strip(),
-                    error="tools are not available in this session",
-                    tokens=tokens,
-                    tools_used=used,
-                    provider=provider,
-                )
-
-            for call in router_calls:
-                name = call.get("name", "")
+            for call in calls:
+                name = str(call.get("name") or "")
                 arguments = call.get("arguments") or {}
-                outcome = self.dispatch(name, arguments)
+                outcome = self._run_tool(name, arguments, thread_id)
                 used.append(name)
-
-                if outcome.get("status") == "confirmation_required":
-                    # Stop here. The action has not happened, and the model
-                    # must not be allowed to narrate it as though it had.
-                    note = f"{name} needs your confirmation before it runs."
-                    self.store.append("assistant", note, thread_id=thread_id, pending=name)
+                if outcome.get("widget"):
+                    widgets.append(outcome["widget"])
+                if outcome.get("pending_confirmation"):
                     return ChatTurn(
-                        reply=note,
+                        reply=str(outcome.get("text") or ""),
                         tools_used=used,
-                        pending_confirmation={
-                            "tool": name,
-                            "token": outcome.get("token"),
-                            "arguments": arguments,
-                        },
+                        pending_confirmation=outcome["pending_confirmation"],
                         tokens=tokens,
                         provider=provider,
                     )
-
-                # A tool result can carry text somebody else wrote, so it comes
-                # back enveloped rather than inlined as trusted narration.
-                envelope = wrap_external(f"tool:{name}", outcome.get("result"))
                 self.store.append(
-                    "tool", envelope.text, thread_id=thread_id, tool=name, arguments=arguments
+                    "tool",
+                    str(outcome.get("text") or ""),
+                    thread_id=thread_id,
+                    tool=name,
+                    arguments=arguments,
+                    call_id=call.get("id"),
+                    failed=bool(outcome.get("failed")),
                 )
 
         # Reached only if the final, tool-free round still came back with tool

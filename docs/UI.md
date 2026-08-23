@@ -55,14 +55,14 @@ Marvi OS has three surfaces:
 Closing the control center hides it. It does not terminate the Island or local
 services.
 
-## Frameless shell and custom title bar
+## Hidden title bar and native window controls
 
-The control center is frameless (`frame: false`, `titleBarStyle: 'hidden'`).
-The native Windows title bar never renders; the shell paints its own 40 px
-title bar: brand mark, current page, and minimize / maximize / close controls.
-The bar is the window drag region; interactive children opt out of drag.
-Double-click on the bar toggles maximize, matching Windows shell behavior.
-Close hides to tray per the always-on contract; quit stays on the tray menu.
+The control center uses Electron's hidden-titlebar overlay. The renderer paints
+the 34 px drag surface and page title; Windows paints minimize, maximize, and
+close at the right edge. Renderer actions use 24 px hit targets and 13.9 px
+Lucide glyphs, matching the pinned Hermes shell. Interactive children opt out
+of the drag region. Close still hides to tray per the always-on contract; quit
+stays on the tray menu.
 
 The shell adds the the predecessor assistant-derived chrome pieces, adapted to the Marvi OS
 contract: a glyph spinner (`unicode-animations`), a decode-text CONNECTING
@@ -74,10 +74,14 @@ vendored local asset (`apps/desktop/src/renderer/src/assets/background/`),
 never fetched at runtime. Backdrop opacity and translucency are persisted
 per-machine. Reduced-motion users get static text and no exit choreography.
 
-The status bar keeps the persistent readouts and adds a live voice-level
-meter (8 ASCII cells) so the shell reads "alive" at a glance. Its version
-label is a button that opens compact build/update details without navigating
-away from the current task.
+The shell follows Hermes chrome directly: a 34 px hidden titlebar lets Electron
+paint native Windows controls into the right edge. A single 20 px status bar
+occupies the bottom shell track across the full window, including beneath the
+active sidebar, and splits icon-led actions into left and right groups. Status
+actions use Hermes labels, detail text, hover transitions, and Lucide glyphs.
+The restrained blue eight-cell live voice meter is intentionally retained from
+Marvi's earlier voice design. Its version action opens build/update details
+without navigating away from the current task.
 
 ## Dynamic Island
 
@@ -171,17 +175,30 @@ listen/wake-to-speaking transition. Turn and duration counters continue while
 the renderer session remains open.
 
 The Chat composer keeps its native Marvi controls and Gateway-backed turn
-behavior inside a `border-beam` line treatment. The beam is monochrome and
-state-driven: it activates only while the field has input/focus or a reply is
-streaming, and reduced-motion preferences disable its travel.
+behavior inside a rounded Assistant UI-style paper surface. Focus and streaming
+state use a restrained static blue edge; the input does not run a decorative
+border animation.
 
 The rest of Chat adapts Assistant UI's thread composition without adopting a
-second runtime. A bounded reading column owns message flow; user turns are
-compact right-aligned surfaces while Marvi replies remain unboxed. Durable
-threads and branches back the session drawer, edit, and regenerate actions.
-GitHub-flavored Markdown, math, tables, code blocks, source cards, image/file
+second runtime. Entering Chat replaces the control-center navigation with a
+dedicated conversation sidebar adapted from the pinned local Hermes desktop.
+That sidebar owns new-chat, search, recent threads, row actions, export, and a
+clear return to the control center. Chat has no secondary page header. A compact
+560px reading column owns message flow; each turn follows the Hermes-style
+human/assistant pair: one slim full-width prompt surface followed by unboxed
+Marvi prose. Sender labels remain available to assistive technology instead of
+repeating as visible headers, while timestamps and actions appear on hover or
+keyboard focus. The composer uses the same 560px register with 24px controls.
+Durable threads and branches back the sidebar, edit, and regenerate actions.
+GitHub-flavored Markdown, math, tables, code blocks, source rows, image/file
 parts, read aloud, local-native dictation, model selection, and context details
 use distinct bounded modules instead of one undifferentiated text column.
+Tool activity and sources follow Hermes directly: transparent faded disclosure
+rows at rest, a small `Sources · count` label, and compact flat result rows only
+after expansion. Structured results use thin dividers instead of nested paper
+cards, with progressive disclosure and no model-authored UI code. Context
+percentage is shown only when both provider input usage and a catalog context
+window are known.
 Message actions appear on hover or keyboard focus, reasoning and tool evidence
 stay collapsed, the composer remains docked, and leaving the latest scroll
 position reveals a return-to-latest control. Dynamic follow-up suggestions are

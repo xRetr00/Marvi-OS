@@ -26,13 +26,17 @@ loudspeaker double-talk test plus the 60-minute duplex soak.
 Current implemented desktop surfaces:
 
 - tray-owned application lifetime and control-center window;
-- icon-led sidebar, persistent status bar, overview, and About build/update information;
+- icon-led sidebar, window-wide Hermes-style status bar with Marvi's live blue
+  voice meter, overview, and About build/update information;
 - Collapse wordmark + readable JetBrains Mono monochrome design system;
 - shared Provider, Chat, and Voice session telemetry for authoritative token
   deltas, turns, latency, and elapsed time;
 - Gateway-owned Chat threads and branches with per-thread model routing,
   typed sources/files/images, local document extraction, Parakeet dictation,
-  safe GFM/math rendering, and read aloud through Marvi's configured Kokoro voice;
+  safe GFM/math rendering, authoritative context facts, validated generative
+  widgets, read aloud through Marvi's configured Kokoro voice, and a dedicated
+  searchable conversation sidebar, compact human/assistant turn pairs, tool
+  disclosures, source rows, and shell chrome adapted from the local Hermes desktop;
 - a card-organized Overview plus editorial labeled page modules, an animated
   branded sidebar rail, consistent control tooltips, and audible desktop
   haptic feedback;
@@ -85,8 +89,8 @@ Current implemented desktop surfaces:
 - a protected sleep mode where the only thing Marvi may do to a sleeping room is
   switch a light off — enforced at the room boundary, and not overridable by
   YOLO.
-- frameless control center with a renderer-painted title bar (brand, page,
-  window controls), Electric Gaze local backdrop, translucency lever,
+- hidden-titlebar control center with renderer-painted page chrome, native
+  Windows controls, Electric Gaze local backdrop, translucency lever,
   haptics, shell context menu, connecting and boot-failure overlays, and a
   voice-level meter in the status bar (see `feat/desktop-shell-ui`).
 - tag-driven releases: `scripts/release.ps1` cuts `v<semver>` tags and the

@@ -7,6 +7,8 @@ synthesis wanted the same GPU, and the recogniser runs on the processor now.
 
 from __future__ import annotations
 
+import pytest
+
 # -- the recogniser that replaced the sidecar --------------------------------
 
 
@@ -144,6 +146,7 @@ class SplitWordASR:
         self._pieces = []
 
 
+@pytest.mark.asyncio
 async def test_a_word_split_across_chunks_is_not_split_in_the_transcript() -> None:
     """"actu ally", "say ing", "Troubles hooting", "se arch".
 

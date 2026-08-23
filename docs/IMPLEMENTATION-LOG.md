@@ -777,6 +777,7 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   tests, 193 desktop tests, desktop typecheck, and the production build.
 - Visually checked the empty, expanded-context, and thread-drawer states at
   1180×760 in Chromium; evidence is under `output/playwright/`.
+
 ## 2026-08-23 — updater directory-handle fix and terminal-state UI
 
 - Prevented the Windows update handoff from inheriting a working directory
@@ -811,3 +812,90 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
 - Verified the Smart Room fixture suite, focused Gateway contracts, full desktop
   typechecking, and all Electron renderer/main tests. Native camera calibration
   and soak remain a hardware acceptance step.
+
+## 2026-08-23 — reliable Chat controls and generative widgets
+
+- Added a Gateway-validated, persisted widget vocabulary and deterministic web
+  evidence mapping, adapting Assistant UI's generative-tool pattern without a
+  second runtime or executable model-authored components.
+- Replaced draft-character context guesses with provider-reported input/cache
+  usage and catalog context-window facts; unknown data remains visibly unknown.
+- Repaired native clipboard copy, regeneration through intervening tool rows,
+  duplicate optimistic working output, common model math delimiters, attachment
+  upload errors, and Parakeet cumulative transcript assembly for dictation.
+- Removed provider/zero-token footer noise and rendered source, metric,
+  comparison, table, timeline, weather, gallery, document, and status data in a
+  single Marvi instrument-panel family.
+- Passed 801 Gateway, 107 Agent, and 198 desktop tests plus desktop typecheck,
+  lint on changed sources, and the production build. Playwright inspection at
+  1180×760 caught and fixed the composer beam clipping the context popover;
+  final evidence is `output/playwright/chat-widgets-context.png`.
+
+## 2026-08-23 — Assistant UI card rebuild
+
+- Replaced the rejected full-width instrument-panel presentation with the card
+  anatomy in the pinned local Assistant UI source: compact rounded paper
+  surfaces, soft inner fields, bounded widths, and progressive disclosure.
+- Rebuilt sources as a collapsed evidence pill and card grid; gave metrics,
+  comparisons, tables, timelines, specs, status, and galleries their own
+  content-specific layouts without repeated widget-type banners.
+- Reworked the transcript rhythm, user surface, and composer around Assistant
+  UI's narrow thread and rounded input proportions while retaining every Marvi
+  control and Gateway contract.
+- Removed the superseded animated border dependency and its runtime treatment.
+- Passed 803 Gateway, 107 Agent, and 199 desktop tests plus desktop typecheck
+  and the production build; visually checked the thread, source disclosure,
+  and context card at the shipping 1180×760 viewport.
+
+## 2026-08-23 — conversation-first Chat workspace
+
+- Adapted the conversation-first sidebar anatomy from the local Hermes desktop
+  at `61977bb4d6b97ab2aece57d2405fa2f0b19e3ae0` while retaining Marvi's existing
+  Gateway thread actions and renderer state.
+- Replaced the global control-center sidebar only while Chat is active with a
+  searchable recent-thread index, new-chat action, row actions, export, and an
+  explicit return to the control center.
+- Removed the redundant Chat content header and tightened the transcript to
+  640px with smaller messages, cards, controls, and composer proportions.
+- Verified search filtering and the control-center return in Chromium at the
+  shipping 1180×760 viewport; visual evidence is
+  `output/playwright/chat-hermes-workspace.png`.
+- Preserved the authoritative Chat session timing strip in a compact sidebar
+  footer and passed the complete desktop suite, typecheck, and production build.
+
+## 2026-08-23 — compact Hermes-style Chat turns
+
+- Replaced the remaining oversized labeled message blocks with the actual
+  Hermes conversation anatomy: a compact human prompt surface followed by
+  unboxed assistant prose and a quiet hover/focus action rail.
+- Removed visible per-message `YOU` / `MARVI` headers while retaining accessible
+  sender labels, then moved timestamps beside the message actions.
+- Tightened the transcript and composer to a shared 560px register, 11px
+  conversation type, 22px message actions, and 24px composer controls.
+- Verified the production renderer at 1180×760; visual evidence is
+  `output/playwright/chat-hermes-compact-thread.png`.
+
+## 2026-08-23 — direct Hermes Chat and shell surfaces
+
+- Removed the remaining Marvi-specific card skin from assistant output. Metrics
+  and comparisons now use small flat divided fields; tool calls use transparent
+  faded disclosure rows; evidence is a `Sources · count` disclosure with compact
+  source rows instead of the `Web evidence` treatment.
+- Adopted Hermes' shell dimensions and ownership: a 34px hidden titlebar with
+  Electron-native Windows controls and a 20px two-sided status bar.
+- Preserved Marvi's Gateway data, tool results, source URLs, session state,
+  settings action, health actions, and update popover behind the copied UI.
+- Verified the result and expanded source interaction in Chromium at 1180×760;
+  visual evidence is `output/playwright/chat-hermes-exact-surfaces.png`.
+
+## 2026-08-23 — window-wide Hermes shell chrome
+
+- Moved the status bar out of individual page content and into a dedicated
+  bottom shell track, so one 20 px footer spans beneath both the active sidebar
+  and the current page on control-center and Chat routes.
+- Replaced compressed status strings and custom shell glyphs with the pinned
+  Hermes treatment: Lucide icons, readable label/detail pairs, 24 px titlebar
+  actions, 13.9 px title glyphs, and restrained 120 ms color transitions.
+- Kept Marvi's earlier blue eight-cell live voice-level meter as the explicit
+  product-specific exception and retained every existing health/settings/update
+  action behind the new presentation.

@@ -15,7 +15,7 @@ afterEach(() => {
 })
 
 describe('TitleBar', () => {
-  it('paints the current page and a consistent SVG control set', () => {
+  it('paints the current page and leaves window controls to Electron', () => {
     const html = renderToStaticMarkup(
       <TooltipProvider>
         <TitleBar onSettings={() => {}} page="Overview" />
@@ -28,10 +28,10 @@ describe('TitleBar', () => {
     // already opened. The page they are on is the half worth the space.
     expect(html).not.toContain('MARVI OS')
     expect(html).toContain('aria-label="Settings"')
-    expect(html).toContain('aria-label="Minimize"')
-    expect(html).toContain('aria-label="Maximize"')
-    expect(html).toContain('aria-label="Close"')
-    expect(html.match(/<svg/g)).toHaveLength(4)
+    expect(html).not.toContain('aria-label="Minimize"')
+    expect(html).not.toContain('aria-label="Maximize"')
+    expect(html).not.toContain('aria-label="Close"')
+    expect(html.match(/<svg/g)).toHaveLength(1)
     expect(html).not.toContain('⚙')
     expect(html).not.toContain('✕')
     expect(html).not.toContain('▢')

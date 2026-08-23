@@ -111,6 +111,7 @@ export interface MarviDesktopApi {
   ) => Promise<{ kind: string; text: string } | null>
   stopChatDictation: (id: string) => Promise<{ kind: string; text: string } | null>
   cancelChatDictation: (id: string) => Promise<boolean>
+  copyText: (text: string) => Promise<boolean>
   getSchedules: () => Promise<SchedulePage | null>
   addSchedule: (body: {
     name: string

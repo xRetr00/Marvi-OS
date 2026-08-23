@@ -12,10 +12,15 @@ class FakeAsr:
     def __init__(self) -> None:
         self.calls = []
         self.reset_count = 0
+        self.text = ""
 
     def process_chunk(self, block, last):
         self.calls.append((block.copy(), last))
-        return "hello" if not last else "world"
+        self.text = "hello" if not last else "hello world"
+        return "ignored chunk delta"
+
+    def get_full_text(self):
+        return self.text
 
     def reset(self):
         self.reset_count += 1

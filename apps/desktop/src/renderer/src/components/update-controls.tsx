@@ -1,6 +1,7 @@
 import { useStore } from '@nanostores/react'
 import { Popover } from 'radix-ui'
 import { useEffect, useState } from 'react'
+import { Hash } from 'lucide-react'
 
 import {
   $updateView,
@@ -92,6 +93,7 @@ export function VersionPopover({
             className="status-item status-version"
             type="button"
           >
+            <Hash aria-hidden="true" />
             v{version}
           </button>
         </Popover.Trigger>

@@ -28,6 +28,7 @@ function MessageRow({
     case 'user':
       return <UserMessage message={message} onEdit={onEdit} />
     case 'assistant':
+      if (message.meta.streaming && !message.content.trim()) return <ThinkingIndicator />
       return (
         <AgentMessage
           message={message}
@@ -142,7 +143,6 @@ export function MessageList({
               readAloud={readAloud}
             />
           ))}
-          {busy ? <ThinkingIndicator /> : null}
           <div ref={bottom} />
         </div>
       </div>

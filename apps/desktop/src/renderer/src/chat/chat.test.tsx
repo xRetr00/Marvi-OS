@@ -29,15 +29,16 @@ function message(overrides: Partial<ChatMessage>): ChatMessage {
 }
 
 describe('UserMessage', () => {
-  it('labels the turn YOU and renders the text', () => {
+  it('keeps the sender label accessible without a visible turn header', () => {
     const html = renderToStaticMarkup(<UserMessage message={message({ content: 'hello' })} />)
-    expect(html).toContain('YOU')
+    expect(html).toContain('<span class="sr-only">YOU</span>')
     expect(html).toContain('hello')
+    expect(html).not.toContain('chat-turn-head')
   })
 })
 
 describe('AgentMessage', () => {
-  it('labels MARVI and renders inline code and metadata', () => {
+  it('keeps Marvi accessible and renders a headerless compact response', () => {
     const html = renderToStaticMarkup(
       <AgentMessage
         message={message({
@@ -47,11 +48,79 @@ describe('AgentMessage', () => {
         })}
       />
     )
-    expect(html).toContain('MARVI')
+    expect(html).toContain('<span class="sr-only">MARVI</span>')
     expect(html).toContain('chat-inline-code')
     expect(html).toContain('npm ci')
-    expect(html).toContain('openai')
-    expect(html).toContain('12 tok')
+    expect(html).not.toContain('chat-turn-head')
+    expect(html).not.toContain('openai')
+    expect(html).not.toContain('12 tok')
+  })
+
+  it('renders persisted source widgets as usable evidence cards', () => {
+    const html = renderToStaticMarkup(
+      <AgentMessage
+        message={message({
+          role: 'assistant',
+          content: 'Found it.',
+          parts: [
+            { type: 'text', text: 'Found it.' },
+            {
+              type: 'widget',
+              id: 'sources-1',
+              version: 1,
+              kind: 'sources',
+              title: 'Web evidence',
+              status: 'complete',
+              data: {
+                items: [
+                  {
+                    title: 'Official result',
+                    url: 'https://example.com/result',
+                    snippet: 'Evidence'
+                  }
+                ]
+              }
+            }
+          ]
+        })}
+      />
+    )
+    expect(html).toContain('Sources')
+    expect(html).not.toContain('Web evidence')
+    expect(html).toContain('Official result')
+    expect(html).toContain('https://example.com/result')
+    expect(html).toContain('class="chat-sources"')
+    expect(html).not.toContain('SOURCES</span>')
+  })
+
+  it('renders comparisons as compact option fields without a widget-type banner', () => {
+    const html = renderToStaticMarkup(
+      <AgentMessage
+        message={message({
+          role: 'assistant',
+          content: 'Option A is the better fit.',
+          parts: [
+            {
+              type: 'widget',
+              id: 'comparison-1',
+              version: 1,
+              kind: 'comparison',
+              title: 'Candidate comparison',
+              status: 'complete',
+              data: {
+                items: [
+                  { label: 'Option A', value: 'Recommended', detail: 'Lower latency' },
+                  { label: 'Option B', value: 'Fallback', detail: 'Higher cost' }
+                ]
+              }
+            }
+          ]
+        })}
+      />
+    )
+    expect(html).toContain('chat-comparison-options')
+    expect(html).toContain('recommended')
+    expect(html).not.toContain('>COMPARISON<')
   })
 })
 
@@ -62,7 +131,7 @@ describe('ToolMessage', () => {
         message={message({ role: 'tool', content: 'secret result', meta: { tool: 'file_read' } })}
       />
     )
-    expect(html).toContain('FILE_READ')
+    expect(html).toContain('File read')
     expect(html).not.toContain('secret result')
   })
 })
@@ -80,13 +149,13 @@ describe('Composer', () => {
     expect(html).toContain('disabled')
   })
 
-  it('says how to send, since Enter and Shift+Enter differ', () => {
+  it('uses a compact Assistant UI-style input surface', () => {
     const html = renderToStaticMarkup(
       <Composer draft="hello" busy={false} available onDraftChange={noop} onSend={noop} />
     )
-    expect(html).toContain('ENTER SENDS')
-    expect(html).toContain('chat-compose-beam')
-    expect(html).toContain('// MESSAGE')
+    expect(html).toContain('chat-compose-field')
+    expect(html).toContain('data-active="true"')
+    expect(html).not.toContain('// MESSAGE')
   })
 
   it('offers a hint to connect a provider when unavailable', () => {
@@ -101,7 +170,34 @@ describe('Composer', () => {
       <Composer draft="" busy available onDraftChange={noop} onSend={noop} onCancel={noop} />
     )
     expect(html).toContain('aria-label="Stop"')
-    expect(html).toContain('RECEIVING')
+    expect(html).toContain('is-stop')
+  })
+
+  it('shows provider-reported context instead of draft-length guesses', () => {
+    const html = renderToStaticMarkup(
+      <Composer
+        draft="hello"
+        busy={false}
+        available
+        onDraftChange={noop}
+        onSend={noop}
+        context={{
+          input_tokens: 2000,
+          cached_tokens: 800,
+          context_window: 8000,
+          reply_reserve: 1024,
+          messages: 6,
+          files: 1,
+          sources: 3,
+          provider: 'openai',
+          model: 'gpt-test'
+        }}
+      />
+    )
+    expect(html).toContain('25')
+    expect(html).toContain('2,000 tok')
+    expect(html).toContain('8,000 tok')
+    expect(html).not.toContain('chars')
   })
 })
 
@@ -125,6 +221,21 @@ describe('MessageList', () => {
     )
     expect(html).toContain('YOU')
     expect(html).toContain('MARVI')
+  })
+
+  it('uses one working row until the optimistic reply starts streaming', () => {
+    const html = renderToStaticMarkup(
+      <MessageList
+        messages={[
+          message({ role: 'user' }),
+          message({ id: -2, role: 'assistant', content: '', meta: { streaming: true } })
+        ]}
+        busy
+        onSuggestion={() => {}}
+      />
+    )
+    expect(html.match(/MARVI/g)).toHaveLength(1)
+    expect(html).toContain('WORKING')
   })
 })
 
@@ -153,11 +264,18 @@ describe('Sessions', () => {
         onRename={() => {}}
         onArchive={() => {}}
         onDelete={() => {}}
+        onExit={() => {}}
+        onExport={() => {}}
+        exportDisabled={false}
+        timing={<span>SESSION 00:12</span>}
       />
     )
     expect(html).toContain('Hi there')
-    expect(html).toContain('NEW')
+    expect(html).toContain('NEW CHAT')
     expect(html).toContain('3 msgs')
+    expect(html).toContain('Search conversations')
+    expect(html).toContain('CONTROL CENTER')
+    expect(html).toContain('SESSION 00:12')
   })
 })
 
@@ -183,5 +301,11 @@ describe('Markdown', () => {
     expect(html).toContain('noreferrer noopener')
     expect(html).toContain('katex')
     expect(html).not.toContain('<script>')
+  })
+
+  it('renders common parenthesized and bracketed LaTeX delimiters', () => {
+    const html = renderToStaticMarkup(<Markdown content={'\\(n^2\\)\n\n\\[E=mc^2\\]'} />)
+
+    expect(html.match(/class="katex"/g)).toHaveLength(2)
   })
 })

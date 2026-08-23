@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 
-import type { ChatAttachment, ChatThread } from '../../../shared/runtime'
+import type {
+  ChatAttachment,
+  ChatContext,
+  ChatThread,
+  ChatWidgetPart
+} from '../../../shared/runtime'
 import { recordChatTurn } from '../store/session-metrics'
 import { toChatMessages, type ChatMessage, type PendingConfirmation } from './types'
 
@@ -12,6 +17,8 @@ export interface UseChat {
   threads: ChatThread[]
   activeThreadId: string
   attachments: ChatAttachment[]
+  context: ChatContext | null
+  notice: string
   busy: boolean
   available: boolean
   draft: string
@@ -39,6 +46,8 @@ export function useChat(): UseChat {
   const [threads, setThreads] = useState<ChatThread[]>([])
   const [activeThreadId, setActiveThreadId] = useState('default')
   const [attachments, setAttachments] = useState<ChatAttachment[]>([])
+  const [context, setContext] = useState<ChatContext | null>(null)
+  const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
   const [available, setAvailable] = useState(true)
   const [draft, setDraft] = useState('')
@@ -62,6 +71,7 @@ export function useChat(): UseChat {
         : {}
     )
     setAvailable(page.available)
+    setContext(page.context)
     setAttachments([])
   }, [])
 
@@ -83,6 +93,7 @@ export function useChat(): UseChat {
           : {}
       )
       setAvailable(page.available)
+      setContext(page.context)
     })
     return () => {
       disposed = true
@@ -106,6 +117,7 @@ export function useChat(): UseChat {
       if (!clean || busy) return
       setBusy(true)
       setPending(null)
+      setNotice('')
 
       const userId = -Date.now()
       const replyId = userId - 1
@@ -177,6 +189,19 @@ export function useChat(): UseChat {
             )
           )
           return
+        } else if (event.widget && typeof event.widget === 'object') {
+          const widget = event.widget as ChatWidgetPart
+          setMessages((current) =>
+            current.map((message) =>
+              message.id === replyId
+                ? {
+                    ...message,
+                    parts: [...message.parts.filter((part) => part.type !== 'text'), widget]
+                  }
+                : message
+            )
+          )
+          return
         } else if (event.done) {
           if (typeof event.error === 'string') streamError = event.error
           const confirmation = event.pending_confirmation
@@ -194,7 +219,10 @@ export function useChat(): UseChat {
               ? {
                   ...message,
                   content: answer,
-                  parts: [{ type: 'text', text: answer }],
+                  parts: [
+                    { type: 'text', text: answer },
+                    ...message.parts.filter((part) => part.type !== 'text')
+                  ],
                   meta: { ...message.meta, reasoning, streaming: true }
                 }
               : message
@@ -251,10 +279,7 @@ export function useChat(): UseChat {
   const regenerate = useCallback(
     async (messageId: number) => {
       const message = messages.find((entry) => entry.id === messageId)
-      const user =
-        message?.role === 'user'
-          ? message
-          : messages.find((entry) => entry.id === message?.parentId && entry.role === 'user')
+      const user = message ? userAncestor(messages, message) : undefined
       if (user) await runTurn(user.content, { regenerateMessageId: messageId })
     },
     [messages, runTurn]
@@ -295,14 +320,23 @@ export function useChat(): UseChat {
   const addAttachments = useCallback(
     async (files: FileList | File[]) => {
       for (const file of Array.from(files)) {
-        const data = arrayBufferToBase64(await file.arrayBuffer())
-        const attachment = await window.marvi?.uploadChatAttachment({
-          threadId: activeThreadId,
-          name: file.name,
-          mediaType: file.type || 'application/octet-stream',
-          data
-        })
-        if (attachment) setAttachments((current) => [...current, attachment])
+        try {
+          const data = arrayBufferToBase64(await file.arrayBuffer())
+          const attachment = await window.marvi?.uploadChatAttachment({
+            threadId: activeThreadId,
+            name: file.name,
+            // An empty browser MIME lets the Gateway infer trusted extensions
+            // such as .md/.docx. Forcing octet-stream made those valid files
+            // look unsupported on Windows.
+            mediaType: file.type,
+            data
+          })
+          if (!attachment) throw new Error('The Gateway did not accept the file.')
+          setAttachments((current) => [...current, attachment])
+          setNotice('')
+        } catch (error) {
+          setNotice(`${file.name}: ${error instanceof Error ? error.message : 'Upload failed.'}`)
+        }
       }
     },
     [activeThreadId]
@@ -338,6 +372,8 @@ export function useChat(): UseChat {
     threads,
     activeThreadId,
     attachments,
+    context,
+    notice,
     busy,
     available,
     draft,
@@ -368,4 +404,18 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
     binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000))
   }
   return btoa(binary)
+}
+
+export function userAncestor(
+  messages: readonly ChatMessage[],
+  message: ChatMessage
+): ChatMessage | undefined {
+  let current: ChatMessage | undefined = message
+  const visited = new Set<number>()
+  while (current && !visited.has(current.id)) {
+    if (current.role === 'user') return current
+    visited.add(current.id)
+    current = messages.find((entry) => entry.id === current?.parentId)
+  }
+  return undefined
 }
