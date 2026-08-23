@@ -166,6 +166,16 @@ behavior inside a `border-beam` line treatment. The beam is monochrome and
 state-driven: it activates only while the field has input/focus or a reply is
 streaming, and reduced-motion preferences disable its travel.
 
+The rest of Chat adapts Assistant UI's thread composition without adopting a
+second runtime. A bounded reading column owns message flow; user turns are
+compact right-aligned surfaces while Marvi replies remain unboxed. Message
+actions appear on hover or keyboard focus, reasoning and tool evidence stay
+collapsed, the composer remains docked, and leaving the latest scroll position
+reveals a return-to-latest control. The empty state offers fixed local prompts
+that fill the composer. Transcript export is renderer-local. Features that
+need thread, branch, attachment, typed-part, suggestion, or dictation contracts
+remain absent until the Gateway implements them; see `docs/CHAT.md`.
+
 Overview is the denser operational exception to the otherwise simple pages. It
 uses four numbered modules: Current State, Voice Path, Service Health, and
 Context. Every value sits in a labeled field, status badge, or bounded cell;

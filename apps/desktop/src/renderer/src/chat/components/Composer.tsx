@@ -67,58 +67,61 @@ export function Composer({
               {busy ? 'RECEIVING' : focused ? 'INPUT ACTIVE' : available ? 'READY' : 'OFFLINE'}
             </span>
           </div>
-          <div className="chat-compose-input">
-            <textarea
-              ref={field}
-              rows={1}
-              value={draft}
-              placeholder={available ? 'Ask Marvi something…' : 'Connect a provider to chat'}
-              disabled={busy || !available}
-              aria-label="Message Marvi"
-              onBlur={() => setFocused(false)}
-              onChange={(event) => onDraftChange(event.target.value)}
-              onFocus={() => setFocused(true)}
-              onKeyDown={(event) => {
-                // Enter sends, Shift+Enter breaks the line, Ctrl/Cmd+Enter always sends.
-                const wantsSend =
-                  event.key === 'Enter' && (!event.shiftKey || event.ctrlKey || event.metaKey)
-                if (wantsSend) {
-                  event.preventDefault()
-                  onSend()
-                }
-              }}
-            />
-            {busy && onCancel ? (
-              // While a reply is streaming the same control stops it. A turn
-              // nobody wants any more is still being generated and still billed.
-              <button
-                aria-label="Stop"
-                className="chat-send is-stop"
-                onClick={onCancel}
-                type="button"
-              >
-                <AbstractIcon name="stop" size={16} />
-              </button>
+          <textarea
+            ref={field}
+            rows={1}
+            value={draft}
+            placeholder={available ? 'Send a message…' : 'Connect a provider to chat'}
+            disabled={busy || !available}
+            aria-label="Message Marvi"
+            enterKeyHint="send"
+            onBlur={() => setFocused(false)}
+            onChange={(event) => onDraftChange(event.target.value)}
+            onFocus={() => setFocused(true)}
+            onKeyDown={(event) => {
+              // Enter sends, Shift+Enter breaks the line, Ctrl/Cmd+Enter always sends.
+              const wantsSend =
+                event.key === 'Enter' && (!event.shiftKey || event.ctrlKey || event.metaKey)
+              if (wantsSend) {
+                event.preventDefault()
+                onSend()
+              }
+            }}
+          />
+          <div className="chat-compose-actions">
+            {onOverrideChange ? (
+              <SessionModel value={override ?? {}} onChange={onOverrideChange} />
             ) : (
-              <button
-                aria-label="Send"
-                className="chat-send"
-                disabled={!ready}
-                onClick={onSend}
-                type="button"
-              >
-                <AbstractIcon name="send" size={16} />
-              </button>
+              <span />
             )}
+            <div className="chat-compose-submit">
+              <span className="chat-compose-hint">ENTER SENDS · SHIFT+ENTER NEW LINE</span>
+              {busy && onCancel ? (
+                // While a reply is streaming the same control stops it. A turn
+                // nobody wants any more is still being generated and still billed.
+                <button
+                  aria-label="Stop"
+                  className="chat-send is-stop"
+                  onClick={onCancel}
+                  type="button"
+                >
+                  <AbstractIcon name="stop" size={16} />
+                </button>
+              ) : (
+                <button
+                  aria-label="Send"
+                  className="chat-send"
+                  disabled={!ready}
+                  onClick={onSend}
+                  type="button"
+                >
+                  <AbstractIcon name="send" size={16} />
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </BorderBeam>
-      <div className="chat-compose-foot">
-        <span className="chat-compose-hint">Enter sends · Shift+Enter for a new line</span>
-        {onOverrideChange ? (
-          <SessionModel value={override ?? {}} onChange={onOverrideChange} />
-        ) : null}
-      </div>
     </div>
   )
 }

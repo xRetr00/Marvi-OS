@@ -29,6 +29,10 @@ export type AbstractIconName =
   | 'panel'
   | 'send'
   | 'stop'
+  | 'copy'
+  | 'check'
+  | 'download'
+  | 'down'
 
 const paths: Record<AbstractIconName, React.ReactNode> = {
   overview: <path d="M3.5 4.5h7v6h-7zM13.5 4.5h7v3h-7zM13.5 10.5h7v9h-7zM3.5 13.5h7v6h-7z" />,
@@ -68,7 +72,11 @@ const paths: Record<AbstractIconName, React.ReactNode> = {
   close: <path d="M6 6l12 12M18 6 6 18" />,
   panel: <path d="M4 4h16v16H4zM9 4v16M12 8h5M12 12h5M12 16h3" />,
   send: <path d="m4 5 16 7-16 7 3-7-3-7zM7 12h13" />,
-  stop: <path d="M6.5 6.5h11v11h-11z" />
+  stop: <path d="M6.5 6.5h11v11h-11z" />,
+  copy: <path d="M8 8h11v11H8zM5 16H4V5h11v1" />,
+  check: <path d="m5 12 4.5 4.5L19 7" />,
+  download: <path d="M12 3v12M7.5 10.5 12 15l4.5-4.5M4 20h16" />,
+  down: <path d="m6 9 6 6 6-6" />
 }
 
 export function AbstractIcon({

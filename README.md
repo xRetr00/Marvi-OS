@@ -177,6 +177,7 @@ Marvi OS adopts upstream projects before writing custom infrastructure. See
 - [`docs/phases/`](docs/phases/README.md) — phase-by-phase status, evidence, and commits.
 - [`docs/IMPLEMENTATION-LOG.md`](docs/IMPLEMENTATION-LOG.md) — chronological work record.
 - [`docs/UI.md`](docs/UI.md) — Dynamic Island and main-window design contract.
+- [`docs/CHAT.md`](docs/CHAT.md) — Chat frontend contract and backend capability plan.
 - [`docs/VOICE-MODEL-EVALUATION.md`](docs/VOICE-MODEL-EVALUATION.md) — native voice bakeoff.
 - [`docs/VOICE-RUNTIME.md`](docs/VOICE-RUNTIME.md) — selected models, voices, setup, and diagnostics.
 - [`docs/research/MIND-CORTEX-SOURCES.md`](docs/research/MIND-CORTEX-SOURCES.md) — reviewed proactivity and memory research.

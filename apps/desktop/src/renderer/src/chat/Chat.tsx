@@ -9,7 +9,10 @@ import { MessageList } from './components/MessageList'
 import { Sessions, type Session } from './components/Sessions'
 import './chat.css'
 import { MessageTiming } from '../components/message-timing'
+import { AbstractIcon } from '../components/abstract-icon'
+import { UiTooltip } from '../components/ui/tooltip'
 import { $sessionMetrics, sessionTimingStats } from '../store/session-metrics'
+import { downloadTranscript } from './transcript'
 
 /**
  * The typed conversation surface. Same Marvi as the voice session — same
@@ -64,14 +67,27 @@ export function Chat(): React.JSX.Element {
           stats={sessionTimingStats(sessionMetrics)}
           streaming={busy}
         />
-        <button
-          className="chat-bar-button"
-          disabled={busy || messages.length === 0}
-          onClick={() => void clear()}
-          type="button"
-        >
-          NEW
-        </button>
+        <div className="chat-bar-actions">
+          <UiTooltip label="Export conversation as Markdown">
+            <button
+              aria-label="Export conversation as Markdown"
+              className="chat-bar-icon"
+              disabled={messages.length === 0}
+              onClick={() => downloadTranscript(messages)}
+              type="button"
+            >
+              <AbstractIcon name="download" size={15} />
+            </button>
+          </UiTooltip>
+          <button
+            className="chat-bar-button"
+            disabled={busy || messages.length === 0}
+            onClick={() => void clear()}
+            type="button"
+          >
+            NEW
+          </button>
+        </div>
       </header>
 
       {!available ? (
@@ -94,7 +110,7 @@ export function Chat(): React.JSX.Element {
         ) : null}
 
         <div className="chat-main">
-          <MessageList messages={messages} busy={busy} />
+          <MessageList messages={messages} busy={busy} onSuggestion={setDraft} />
           {pending ? (
             <ConfirmationBar pending={pending} onResolve={(decision) => void resolve(decision)} />
           ) : null}

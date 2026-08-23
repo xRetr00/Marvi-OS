@@ -72,7 +72,7 @@ describe('Composer', () => {
     const html = renderToStaticMarkup(
       <Composer draft="hello" busy={false} available onDraftChange={noop} onSend={noop} />
     )
-    expect(html).toContain('Enter sends')
+    expect(html).toContain('ENTER SENDS')
     expect(html).toContain('chat-compose-beam')
     expect(html).toContain('// MESSAGE')
   })
@@ -86,14 +86,7 @@ describe('Composer', () => {
 
   it('keeps cancellation available while a reply is streaming', () => {
     const html = renderToStaticMarkup(
-      <Composer
-        draft=""
-        busy
-        available
-        onDraftChange={noop}
-        onSend={noop}
-        onCancel={noop}
-      />
+      <Composer draft="" busy available onDraftChange={noop} onSend={noop} onCancel={noop} />
     )
     expect(html).toContain('aria-label="Stop"')
     expect(html).toContain('RECEIVING')
@@ -102,8 +95,12 @@ describe('Composer', () => {
 
 describe('MessageList', () => {
   it('renders an empty state when there are no messages', () => {
-    const html = renderToStaticMarkup(<MessageList messages={[]} busy={false} />)
+    const html = renderToStaticMarkup(
+      <MessageList messages={[]} busy={false} onSuggestion={() => {}} />
+    )
     expect(html).toContain('chat-empty')
+    expect(html).toContain('Starter prompts')
+    expect(html).toContain('What is happening in the room right now?')
   })
 
   it('renders each message by role', () => {
@@ -111,6 +108,7 @@ describe('MessageList', () => {
       <MessageList
         messages={[message({ role: 'user' }), message({ id: 2, role: 'assistant' })]}
         busy={false}
+        onSuggestion={() => {}}
       />
     )
     expect(html).toContain('YOU')

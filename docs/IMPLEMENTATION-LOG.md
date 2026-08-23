@@ -739,3 +739,19 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   abstract send/stop icons.
 - Verified the production build and keyboard-send path in Chromium at
   1440×900 with no browser console errors.
+
+## 2026-08-23 — Assistant UI-inspired Chat surface
+
+- Audited the local Assistant UI checkout at commit
+  `105af3eaea2093df271d9c44642e1c04d5f5cf7c` and adapted its frontend
+  composition without importing its competing thread runtime or Tailwind kit.
+- Rebuilt Chat around a bounded thread viewport, sticky action composer,
+  right-aligned user turns, unboxed assistant replies, hover/focus copy actions,
+  transcript export, local starter prompts, and pinned scroll restoration.
+- Retained Marvi's existing streaming, cancellation, confirmation, session
+  telemetry, provider/model override, reasoning, and tool-result behavior.
+- Documented the separate backend plan for real threads, branches,
+  attachments, typed content parts, follow-up suggestions, and shared-STT
+  dictation. No backend code changed in this milestone.
+- Visually verified populated and empty states at 1440×900 and the shipping
+  1180×760 window size, including the model picker and scroll-to-latest control.
