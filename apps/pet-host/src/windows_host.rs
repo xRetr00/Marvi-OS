@@ -271,14 +271,7 @@ fn draw_voice_icon(pixels: &mut [u8], width: i32, height: i32, cx: i32, cy: i32)
     }
 }
 
-fn draw_task_icon(
-    pixels: &mut [u8],
-    width: i32,
-    height: i32,
-    cx: i32,
-    cy: i32,
-    count: u32,
-) {
+fn draw_task_icon(pixels: &mut [u8], width: i32, height: i32, cx: i32, cy: i32, count: u32) {
     let color = [235, 235, 235, 255];
     if count == 0 {
         for row in 0..3 {
@@ -598,14 +591,7 @@ unsafe extern "system" fn window_proc(
             let height = actual_bounds.bottom - actual_bounds.top;
             let local_x = screen_x - actual_bounds.left;
             let local_y = screen_y - actual_bounds.top;
-            if hit_test_button(
-                width,
-                height,
-                local_x,
-                local_y,
-            )
-            .is_some_and(|_| state.hover)
-            {
+            if hit_test_button(width, height, local_x, local_y).is_some_and(|_| state.hover) {
                 HTCLIENT as LRESULT
             } else if hit_test_alpha(&state.hit_alpha, width, height, local_x, local_y) {
                 HTCAPTION as LRESULT
