@@ -483,7 +483,8 @@ const execFileAsync = promisify(execFile)
  * actually lives -- which changes on every update.
  */
 async function wakeAutostart(
-  action: 'enable' | 'disable' | 'status'
+  action: 'enable' | 'disable' | 'status',
+  device = ''
 ): Promise<{ autostart: boolean; running: boolean }> {
   const fallback = { autostart: false, running: false }
   const uv = findUv()
@@ -497,7 +498,13 @@ async function wakeAutostart(
     'marvi_agent.wake_autostart',
     action
   ]
-  if (action === 'enable') args.push('--app', app.getPath('exe'))
+  if (action === 'enable') {
+    args.push('--app', app.getPath('exe'))
+    // Baked into the registered command line, so a changed microphone only
+    // takes effect once the listener is re-registered and restarted -- which
+    // is why `enable` stops whatever is already running before starting.
+    if (device.trim()) args.push('--device', device.trim())
+  }
   try {
     const { stdout } = await execFileAsync(uv, args, {
       cwd: repoRoot,
@@ -1666,9 +1673,12 @@ function startApp(): void {
       return was
     })
     ipcMain.handle('marvi:get-wake-autostart', async () => wakeAutostart('status'))
-    ipcMain.handle('marvi:set-wake-autostart', async (_event, enabled) => {
+    ipcMain.handle('marvi:set-wake-autostart', async (_event, enabled, device) => {
       if (typeof enabled !== 'boolean') return wakeAutostart('status')
-      return wakeAutostart(enabled ? 'enable' : 'disable')
+      return wakeAutostart(
+        enabled ? 'enable' : 'disable',
+        typeof device === 'string' ? device : ''
+      )
     })
     ipcMain.handle('marvi:get-voices', async (): Promise<VoicePage | null> => {
       try {

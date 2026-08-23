@@ -1739,8 +1739,21 @@ function WakeSettings(): React.JSX.Element {
     setBusy(true)
     setPending(!on)
     try {
-      const next = await window.marvi?.setWakeAutostart(!on)
+      const next = await window.marvi?.setWakeAutostart(!on, wake.device)
       setPending(next?.autostart ?? !on)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // The microphone is baked into the command the listener was started with, so
+  // saving the setting alone would change nothing until the next login. Saving
+  // and re-registering restarts it on the new device now.
+  const chooseMicrophone = async (name: string): Promise<void> => {
+    setBusy(true)
+    try {
+      await window.marvi?.setProviderSettings({ [wake.deviceSetting]: name })
+      if (on) await window.marvi?.setWakeAutostart(true, name)
     } finally {
       setBusy(false)
     }
@@ -1779,6 +1792,25 @@ function WakeSettings(): React.JSX.Element {
             onChange={(next) => set({ [wake.thresholdSetting]: next })}
             placeholder="Balanced"
           />
+          {wake.devices.length > 0 ? (
+            <Picker
+              options={[
+                {
+                  value: '',
+                  label: 'System default microphone',
+                  detail: wake.devices.find((d) => d.default)?.label ?? 'Whatever Windows picks'
+                },
+                ...wake.devices.map((device) => ({
+                  value: device.name,
+                  label: device.label,
+                  detail: device.default ? 'Currently the system default' : ''
+                }))
+              ]}
+              value={wake.device}
+              onChange={(next) => void chooseMicrophone(next)}
+              placeholder="System default microphone"
+            />
+          ) : null}
           <p className="notice">
             {!wake.modelPresent
               ? 'No wake word model found, so there is nothing to listen with.'
