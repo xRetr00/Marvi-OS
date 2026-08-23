@@ -29,7 +29,6 @@ from typing import Any
 #: the Agent runs in a different Python environment; the test below fails if
 #: the two drift.
 DEFAULT_THRESHOLD = 0.5
-DEFAULT_WINDOW_SECONDS = 30.0
 
 #: How long a detection stays "recent" for the UI. Long enough to be seen,
 #: short enough that it does not still be claiming she was called a minute ago.
@@ -171,7 +170,6 @@ def status() -> dict[str, Any]:
         # "enabled but not armed" is a real and reportable state.
         "armed": enabled and present,
         "threshold": _number("MARVI_WAKE_THRESHOLD", DEFAULT_THRESHOLD),
-        "window": _number("MARVI_WAKE_WINDOW", DEFAULT_WINDOW_SECONDS),
         "heard_at": last,
         "heard_seconds_ago": age,
         "recently_heard": age is not None and age <= RECENT_SECONDS,

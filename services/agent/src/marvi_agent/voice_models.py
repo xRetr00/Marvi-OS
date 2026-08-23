@@ -1,23 +1,17 @@
 from __future__ import annotations
 
 import asyncio
-import base64
-import copy
-import json
 import logging
 import os
-import subprocess
 import threading
 import time
 import uuid
-from collections import deque
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
 import numpy as np
-from livekit.agents import DEFAULT_API_CONNECT_OPTIONS, APIConnectOptions, stt, tts
-from livekit.agents.types import NOT_GIVEN, NotGivenOr
+from livekit.agents import DEFAULT_API_CONNECT_OPTIONS, APIConnectOptions, tts
 
 log = logging.getLogger("marvi.voice")
 
@@ -25,11 +19,9 @@ APP_DATA = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"
 NEMOTRON_MODEL = (
     APP_DATA / "models/stt/nemotron-3.5/nemotron-3.5-asr-streaming-0.6b-onnx"
 )
-VIBEVOICE_ROOT = APP_DATA / "models/tts/vibevoice-realtime-0.5b"
 #: Where the installer puts Kokoro. Matches `install_to` in the setup
 #: catalog; the test below fails if the two drift.
 KOKORO_ROOT = APP_DATA / "models/tts/kokoro-82m"
-DEFAULT_VOICE = "en-Carter_man"
 
 #: Kokoro ships fixed voices rather than speaker prompts. `a` is American
 #: English, `b` British; the letter after the underscore is the model's own
@@ -48,276 +40,17 @@ KOKORO_VOICES = (
     "bm_lewis",
 )
 KOKORO_DEFAULT_VOICE = "am_michael"
+#: One loaded model per voice for the life of the process.
+#:
+#: LiveKit runs jobs as threads on Windows and prewarms a replacement the
+#: moment a job takes the warm one, so without this a second copy of the
+#: weights loads onto the card partway through every conversation.
 _KOKORO: dict[tuple[str, str, int], _KokoroEngine] = {}
+_ENGINE_LOCK = threading.Lock()
 
 
 class VoiceRuntimeError(RuntimeError):
     pass
-
-
-class NemotronSTT(stt.STT):
-    """Stateful native streaming STT backed by the Rust parakeet-rs sidecar."""
-
-    def __init__(self, *, executable: Path, model_dir: Path = NEMOTRON_MODEL, language: str = "en-US"):
-        super().__init__(
-            capabilities=stt.STTCapabilities(
-                streaming=True,
-                interim_results=True,
-                # `recognize()` raises here, and the default is True.
-                # Nothing in the framework asks yet, so this is a claim
-                # rather than a fault -- but a capability that is
-                # declared and not implemented is a fault waiting for a
-                # caller.
-                offline_recognize=False,
-            )
-        )
-        self._executable = executable
-        self._model_dir = model_dir
-        self._language = language
-        self._streams: set[NemotronStream] = set()
-
-    @property
-    def model(self) -> str:
-        return "nemotron-3.5-asr-streaming-0.6b"
-
-    @property
-    def provider(self) -> str:
-        return "nvidia/parakeet-rs"
-
-    async def _recognize_impl(self, *args: Any, **kwargs: Any) -> stt.SpeechEvent:
-        raise NotImplementedError("NemotronSTT is streaming-only")
-
-    def stream(
-        self,
-        *,
-        language: NotGivenOr[str] = NOT_GIVEN,
-        conn_options: APIConnectOptions = DEFAULT_API_CONNECT_OPTIONS,
-    ) -> NemotronStream:
-        stream = NemotronStream(stt=self, conn_options=conn_options)
-        self._streams.add(stream)
-        return stream
-
-    def set_transcribing(self, on: bool) -> None:
-        """Whether to run recognition on the audio arriving right now.
-
-        Off while Marvi speaks. Not off *listening* -- the audio keeps flowing
-        and the VAD keeps watching it, which is what detects an interruption;
-        LiveKit's own documentation is explicit that "the session's bundled VAD
-        continues to handle interruption detection". What stops is the
-        recogniser, which on this machine is a CUDA model competing with the
-        speech synthesis for the same card at the exact moment synthesis is the
-        thing that cannot keep up.
-
-        Audio through the pause is kept, not dropped, so somebody who cuts in
-        does not lose the words they cut in with.
-        """
-        for stream in tuple(self._streams):
-            stream.set_transcribing(on)
-
-    async def aclose(self) -> None:
-        await asyncio.gather(*(stream.aclose() for stream in tuple(self._streams)))
-        self._streams.clear()
-
-
-class NemotronStream(stt.RecognizeStream):
-    def __init__(self, *, stt: NemotronSTT, conn_options: APIConnectOptions):
-        super().__init__(stt=stt, conn_options=conn_options, sample_rate=16_000)
-        self._nemotron = stt
-        self._process: asyncio.subprocess.Process | None = None
-        self._transcript = ""
-        # When the last word arrived, so silence can end the utterance.
-        self._spoke_at = time.monotonic()
-        # Until when late text belongs to an utterance already finished.
-        self._settled_until = 0.0
-        # Recognition runs unless Marvi is speaking. See `set_transcribing`.
-        self._transcribing = True
-        # Audio captured while paused, kept so an interruption does not lose
-        # the words it was made with.
-        self._held: deque[bytes] = deque()
-
-    async def _send(self, payload: dict[str, str]) -> dict[str, Any]:
-        if not self._process or not self._process.stdin or not self._process.stdout:
-            raise VoiceRuntimeError("Nemotron runtime is not connected")
-        self._process.stdin.write(json.dumps(payload, separators=(",", ":")).encode() + b"\n")
-        await self._process.stdin.drain()
-        line = await self._process.stdout.readline()
-        if not line:
-            stderr = b""
-            if self._process.stderr:
-                stderr = await self._process.stderr.read()
-            raise VoiceRuntimeError(f"Nemotron runtime exited: {stderr.decode(errors='replace')}")
-        response = json.loads(line)
-        if not response.get("ok"):
-            raise VoiceRuntimeError(response.get("error", "Nemotron inference failed"))
-        return response
-
-    #: Silence after speech before the utterance is called finished. Shorter
-    #: than the session's endpointing window, so the final lands before the
-    #: turn is given up on, and long enough not to cut a pause mid-sentence.
-    _SILENCE = 0.6
-
-    #: After finalising, text belonging to the utterance just closed is
-    #: discarded for this long.
-    #:
-    #: The recogniser lags the audio -- it has lookahead, and it is fed frames
-    #: that were captured before the silence was noticed -- so words keep
-    #: arriving after the sentence is over. They used to open a *second* turn
-    #: carrying the tail of the first:
-    #:
-    #:     stt: Hello Marvi, how you doing hello
-    #:     stage: listening -> thinking
-    #:     stt: , how you doing          <- the same sentence, again
-    #:     stage: thinking -> listening  <- and the real turn is cancelled
-    #:
-    #: which is the loop: every answer interrupted by an echo of the question.
-    _TAIL = 1.5
-
-    def _emit(self, event_type: stt.SpeechEventType, text: str) -> None:
-        self._event_ch.send_nowait(
-            stt.SpeechEvent(
-                type=event_type,
-                request_id=str(uuid.uuid4()),
-                alternatives=[stt.SpeechData(language=self._nemotron._language, text=text)],
-            )
-        )
-
-    #: How much audio to keep while paused, in seconds.
-    #:
-    #: Enough to hold the start of an interruption -- the VAD notices speech
-    #: within about a quarter of a second and stops the reply, so half a second
-    #: covers the onset with room to spare.
-    #:
-    #: It was three, and three was wrong in a way that made things worse rather
-    #: than merely wasteful. Audio captured while Marvi speaks is mostly Marvi,
-    #: leaking back through the microphone, so a long hold flushed seconds of
-    #: her own voice into the recogniser the moment she stopped: a spike of work
-    #: at exactly the wrong time, transcribing words nobody said to her.
-    _HOLD_SECONDS = 0.5
-
-    def _buffered(self) -> float:
-        """Seconds of audio held back. 16 kHz mono int16: two bytes a sample."""
-        return sum(len(chunk) for chunk in self._held) / (16_000 * 2)
-
-    def set_transcribing(self, on: bool) -> None:
-        # Resuming does not clear the backlog -- it is flushed with the next
-        # frame, which is the whole reason it was kept. Pausing does, because
-        # audio from before Marvi started speaking has already been recognised.
-        if not on:
-            self._held.clear()
-        self._transcribing = on
-
-    async def _run(self) -> None:
-        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-        self._process = await asyncio.create_subprocess_exec(
-            str(self._nemotron._executable),
-            str(self._nemotron._model_dir),
-            self._nemotron._language,
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            creationflags=flags,
-        )
-        ready = await self._process.stdout.readline() if self._process.stdout else b""
-        if not ready or not json.loads(ready).get("ok"):
-            raise VoiceRuntimeError("Nemotron runtime failed to initialize")
-
-        try:
-            async for item in self._input_ch:
-                if isinstance(item, self._FlushSentinel):
-                    response = await self._send({"op": "flush"})
-                    self._transcript += response.get("text", "")
-                    if self._transcript.strip():
-                        self._emit(stt.SpeechEventType.FINAL_TRANSCRIPT, self._transcript.strip())
-                    self._transcript = ""
-                    self._settled_until = time.monotonic() + self._TAIL
-                    # The runtime keeps decoder state across `audio` calls --
-                    # that is what makes it incremental -- so ending an
-                    # utterance here without clearing it leaves the next one
-                    # continuing the last. It shows up as a transcript that
-                    # repeats what was already said:
-                    #
-                    #   Are you here?  Are you here?
-                    await self._send({"op": "reset"})
-                    continue
-
-                pcm = bytes(item.data)
-                if not self._transcribing:
-                    # Marvi is speaking. The audio keeps arriving and the VAD
-                    # keeps watching it -- that is what notices an interruption
-                    # -- but the recogniser sits out, because on this machine it
-                    # is a CUDA model competing with speech synthesis for one
-                    # card at the moment synthesis cannot keep up.
-                    #
-                    # Held rather than dropped: by the time the VAD stops the
-                    # reply, whoever cut in has been talking for a moment, and
-                    # that moment is usually the point of cutting in.
-                    self._held.append(pcm)
-                    while self._buffered() > self._HOLD_SECONDS:
-                        self._held.popleft()
-                    continue
-
-                if self._held:
-                    # Everything said during the pause, in order, before
-                    # anything said after it.
-                    backlog = b"".join(self._held)
-                    self._held.clear()
-                    pcm = backlog + pcm
-
-                response = await self._send(
-                    {"op": "audio", "pcm16": base64.b64encode(pcm).decode("ascii")}
-                )
-                delta = response.get("text", "")
-                if delta and time.monotonic() < self._settled_until:
-                    # The tail of a sentence already answered. Dropping it is
-                    # the difference between a conversation and a loop.
-                    continue
-                if delta:
-                    self._transcript += delta
-                    self._spoke_at = time.monotonic()
-                    self._emit(stt.SpeechEventType.INTERIM_TRANSCRIPT, self._transcript.strip())
-                elif self._transcript.strip() and (
-                    time.monotonic() - self._spoke_at >= self._SILENCE
-                ):
-                    # Finality decided here, because nothing else decides it.
-                    #
-                    # A streaming STT is expected to say when an utterance is
-                    # over; this one only did so on an explicit flush, and
-                    # LiveKit never flushes an STT stream -- it flushes VAD and
-                    # waits for the recogniser to declare a final of its own.
-                    # So the transcript grew forever as interim results:
-                    #
-                    #   stt (partial): Hello Marvel, how you doing?  Are you here?
-                    #
-                    # perfectly recognised, and never acted on, because as far
-                    # as the session was concerned the sentence had not ended.
-                    #
-                    # Audio keeps arriving during silence, so this is checked on
-                    # the frames that carry none rather than on a timer.
-                    self._emit(stt.SpeechEventType.FINAL_TRANSCRIPT, self._transcript.strip())
-                    self._transcript = ""
-                    self._settled_until = time.monotonic() + self._TAIL
-                    # The runtime keeps decoder state across audio calls, so an
-                    # utterance that ends without clearing it leaves the next one
-                    # continuing the last.
-                    await self._send({"op": "reset"})
-        finally:
-            if self._process.returncode is None:
-                self._process.terminate()
-                await self._process.wait()
-
-
-#: One loaded model per voice, for the life of the process.
-#:
-#: LiveKit runs jobs as threads on Windows, and it prewarms a replacement the
-#: moment a job takes the warm one -- so a second `VibeVoiceTTS` was built and
-#: loaded a second copy of the model onto the card about ten seconds into every
-#: conversation. Two copies of the weights in VRAM, and twenty seconds of GPU
-#: work spent loading the spare *while the first one was trying to speak*.
-#:
-#: Same process, so a dict is all it takes. Keyed by voice because changing the
-#: voice in Settings must still produce a different one.
-_ENGINES: dict[tuple[str, str, int], _VibeVoiceEngine] = {}
-_ENGINE_LOCK = threading.Lock()
 
 
 def to_pcm(audio: Any) -> tuple[bytes, int]:
@@ -336,149 +69,6 @@ def to_pcm(audio: Any) -> tuple[bytes, int]:
     """
     over = int(np.count_nonzero(np.abs(audio) > 1.0))
     return (np.clip(audio, -1, 1) * 32767).astype(np.int16).tobytes(), over
-
-
-class _VibeVoiceEngine:
-    """Minimal adapter around Microsoft's official streaming inference classes."""
-
-    sample_rate = 24_000
-
-    def __init__(self, model_dir: Path, voices_dir: Path, voice: str, inference_steps: int):
-        self.model_dir = model_dir
-        self.voices_dir = voices_dir
-        self.voice = voice
-        self.inference_steps = inference_steps
-        self._loaded = False
-        # One reply at a time through one model. Marvi holds one conversation
-        # at a time by design, but a shared engine makes that an assumption
-        # rather than a fact, and two generations interleaving through the same
-        # weights would produce audio belonging to neither.
-        self._speaking = threading.Lock()
-
-    @classmethod
-    def shared(
-        cls, model_dir: Path, voices_dir: Path, voice: str, inference_steps: int
-    ) -> _VibeVoiceEngine:
-        """The engine for this voice, loading it only if nobody has yet."""
-        key = (str(model_dir), voice, inference_steps)
-        with _ENGINE_LOCK:
-            engine = _ENGINES.get(key)
-            if engine is None:
-                engine = cls(model_dir, voices_dir, voice, inference_steps)
-                _ENGINES[key] = engine
-            return engine
-
-    @property
-    def voices(self) -> list[str]:
-        return sorted(path.stem for path in self.voices_dir.glob("*.pt"))
-
-    def load(self) -> None:
-        if self._loaded:
-            return
-        import torch
-        from vibevoice.modular.modeling_vibevoice_streaming_inference import (
-            VibeVoiceStreamingForConditionalGenerationInference,
-        )
-        from vibevoice.processor.vibevoice_streaming_processor import VibeVoiceStreamingProcessor
-
-        if not torch.cuda.is_available():
-            raise VoiceRuntimeError("VibeVoice requires the configured CUDA PyTorch runtime")
-        if self.voice not in self.voices:
-            raise VoiceRuntimeError(f"Unknown VibeVoice preset {self.voice!r}")
-
-        self._torch = torch
-        self._processor = VibeVoiceStreamingProcessor.from_pretrained(str(self.model_dir))
-        try:
-            self._model = VibeVoiceStreamingForConditionalGenerationInference.from_pretrained(
-                str(self.model_dir), torch_dtype=torch.bfloat16, device_map="cuda",
-                attn_implementation="flash_attention_2",
-            )
-        except Exception:
-            self._model = VibeVoiceStreamingForConditionalGenerationInference.from_pretrained(
-                str(self.model_dir), torch_dtype=torch.bfloat16, device_map="cuda",
-                attn_implementation="sdpa",
-            )
-        self._model.eval()
-        self._model.set_ddpm_inference_steps(num_steps=self.inference_steps)
-        # `weights_only=False`, deliberately, and this is the whole reason
-        # voice failed to speak on PyTorch 2.6+:
-        #
-        #   _pickle.UnpicklingError: Weights only load failed ...
-        #   Can only SETITEMS for dict, collections.OrderedDict,
-        #   collections.Counter, but got BaseModelOutputWithPast
-        #
-        # 2.6 flipped the default to True. Allowlisting the classes is not
-        # enough -- the safe unpickler refuses SETITEMS on any dict subclass it
-        # does not know, and a speaker prompt is exactly that.
-        #
-        # What is being trusted: these `.pt` files are sparse-checked-out from
-        # Microsoft's VibeVoice repository at a *pinned commit*, so their
-        # contents are fixed by that SHA. It is the same trust already placed
-        # in the model weights sitting beside them -- not a new exposure, and
-        # not a file from anywhere a user or a provider can reach.
-        self._prompt = torch.load(
-            self.voices_dir / f"{self.voice}.pt", map_location="cuda", weights_only=False
-        )
-        self._loaded = True
-
-    def synthesize(self, text: str, stop: threading.Event) -> Iterator[bytes]:
-        with self._speaking:
-            yield from self._synthesize(text, stop)
-
-    def _synthesize(self, text: str, stop: threading.Event) -> Iterator[bytes]:
-        self.load()
-        from vibevoice.modular.streamer import AudioStreamer
-
-        inputs = self._processor.process_input_with_cached_prompt(
-            text=text.strip().replace("\u2019", "'"), cached_prompt=self._prompt,
-            padding=True, return_tensors="pt", return_attention_mask=True,
-        )
-        inputs = {key: value.to("cuda") if hasattr(value, "to") else value for key, value in inputs.items()}
-        streamer = AudioStreamer(batch_size=1, stop_signal=None, timeout=None)
-        errors: list[BaseException] = []
-
-        def generate() -> None:
-            try:
-                self._model.generate(
-                    **inputs, max_new_tokens=None, cfg_scale=1.5,
-                    tokenizer=self._processor.tokenizer,
-                    generation_config={"do_sample": False}, audio_streamer=streamer,
-                    stop_check_fn=stop.is_set, verbose=False, refresh_negative=True,
-                    # VibeVoice draws a tqdm bar unless told not to, and
-                    # `verbose=False` does not cover it. It writes a line per
-                    # generation step to stderr, which the desktop reads over a
-                    # pipe and keeps -- three hundred lines and a megabyte of
-                    # agent.log for one spoken reply, with the write happening
-                    # inside the loop that is already struggling to keep up with
-                    # realtime. It also buries every line worth reading.
-                    show_progress_bar=False,
-                    all_prefilled_outputs=copy.deepcopy(self._prompt),
-                )
-            except BaseException as exc:
-                errors.append(exc)
-                streamer.end()
-
-        # Counted rather than corrected: if the model really does overshoot
-        # often, that is worth knowing about and worth fixing at the model, not
-        # papered over per buffer.
-        clipped = [0]
-        worker = threading.Thread(target=generate, daemon=True)
-        worker.start()
-        try:
-            for chunk in streamer.get_stream(0):
-                if stop.is_set():
-                    break
-                pcm, over = to_pcm(chunk.detach().cpu().float().numpy().reshape(-1))
-                clipped[0] += over
-                yield pcm
-        finally:
-            stop.set()
-            streamer.end()
-            worker.join()
-            if clipped[0]:
-                log.info("tts: %d samples clipped", clipped[0])
-        if errors:
-            raise errors[0]
 
 
 def resolve_voice(voice: str) -> str:
@@ -647,62 +237,16 @@ class KokoroTTS(tts.TTS):
 
     def synthesize(
         self, text: str, *, conn_options: APIConnectOptions = DEFAULT_API_CONNECT_OPTIONS
-    ) -> _VibeVoiceChunkedStream:
-        return _VibeVoiceChunkedStream(tts=self, input_text=text, conn_options=conn_options)
+    ) -> _WholeUtteranceStream:
+        return _WholeUtteranceStream(tts=self, input_text=text, conn_options=conn_options)
 
     def stream(
         self, *, conn_options: APIConnectOptions = DEFAULT_API_CONNECT_OPTIONS
-    ) -> _VibeVoiceSynthesizeStream:
-        return _VibeVoiceSynthesizeStream(tts=self, conn_options=conn_options)
+    ) -> _ClauseStream:
+        return _ClauseStream(tts=self, conn_options=conn_options)
 
 
-class VibeVoiceTTS(tts.TTS):
-    def __init__(self, *, root: Path = VIBEVOICE_ROOT, voice: str = DEFAULT_VOICE, inference_steps: int = 3):
-        super().__init__(
-            # Streaming, natively. It used to declare False and be wrapped in
-            # LiveKit's StreamAdapter, which batches tokens into sentences of
-            # at least twelve characters before synthesising anything -- so
-            # "Yes." waited for more words that were never coming, and every
-            # reply paid that delay before its first sound.
-            #
-            # The model itself takes a whole utterance, not tokens, so some
-            # batching is unavoidable; owning it means the first clause can be
-            # spoken as soon as it is one.
-            capabilities=tts.TTSCapabilities(streaming=True),
-            sample_rate=24_000,
-            num_channels=1,
-        )
-        self._engine = _VibeVoiceEngine.shared(
-            root / "model", root / "voices", voice, inference_steps
-        )
-
-    @property
-    def model(self) -> str:
-        return "VibeVoice-Realtime-0.5B"
-
-    @property
-    def provider(self) -> str:
-        return "microsoft"
-
-    @property
-    def voices(self) -> list[str]:
-        return self._engine.voices
-
-    def prewarm(self) -> None:
-        self._engine.load()
-
-    def synthesize(
-        self, text: str, *, conn_options: APIConnectOptions = DEFAULT_API_CONNECT_OPTIONS
-    ) -> _VibeVoiceChunkedStream:
-        return _VibeVoiceChunkedStream(tts=self, input_text=text, conn_options=conn_options)
-
-    def stream(
-        self, *, conn_options: APIConnectOptions = DEFAULT_API_CONNECT_OPTIONS
-    ) -> _VibeVoiceSynthesizeStream:
-        return _VibeVoiceSynthesizeStream(tts=self, conn_options=conn_options)
-
-
-class _VibeVoiceChunkedStream(tts.ChunkedStream):
+class _WholeUtteranceStream(tts.ChunkedStream):
     async def _run(self, output_emitter: tts.AudioEmitter) -> None:
         # `stream=False`: this path synthesises one whole utterance. A
         # streaming emitter refuses every push until a segment is opened, and
@@ -784,7 +328,7 @@ def _next_clause(buffer: str) -> tuple[str, str]:
     return "", buffer
 
 
-class _VibeVoiceSynthesizeStream(tts.SynthesizeStream):
+class _ClauseStream(tts.SynthesizeStream):
     """Speak a reply while it is still being written.
 
     Tokens arrive from the LLM one at a time; audio for the first clause is

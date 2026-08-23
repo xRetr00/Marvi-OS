@@ -112,10 +112,12 @@ def test_turning_it_off_is_reported(monkeypatch) -> None:
     assert status["armed"] is False
 
 
-def test_the_gateway_and_the_agent_agree_on_the_defaults() -> None:
-    """They are duplicated, because they run in different Python environments.
+def test_the_gateway_and_the_wake_listener_agree_on_the_threshold() -> None:
+    """Duplicated, because they run in different Python environments.
 
-    Duplicated constants drift; this is the thing that notices.
+    The Gateway reports the sensitivity and the listener acts on it. If they
+    disagree the screen shows a number that is not the one deciding whether
+    Marvi answers to her name.
     """
     import re
 
@@ -126,11 +128,9 @@ def test_the_gateway_and_the_agent_agree_on_the_defaults() -> None:
         / "agent"
         / "src"
         / "marvi_agent"
-        / "wakeword.py"
+        / "wake_daemon.py"
     ).read_text(encoding="utf-8")
 
     threshold = re.search(r"DEFAULT_THRESHOLD = ([\d.]+)", source)
-    window = re.search(r"DEFAULT_WINDOW_SECONDS = ([\d.]+)", source)
 
     assert threshold and float(threshold.group(1)) == wake.DEFAULT_THRESHOLD
-    assert window and float(window.group(1)) == wake.DEFAULT_WINDOW_SECONDS

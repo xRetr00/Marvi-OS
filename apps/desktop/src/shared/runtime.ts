@@ -257,7 +257,6 @@ export interface WakeStatus {
    * answering every turn rather than deaf, so those differ. */
   armed: boolean
   threshold: number
-  window: number
   heardSecondsAgo: number | null
   recentlyHeard: boolean
   confidence: number

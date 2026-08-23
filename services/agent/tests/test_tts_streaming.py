@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import pytest
 
-from marvi_agent.voice_models import VibeVoiceTTS
+from marvi_agent.voice_models import KokoroTTS
 
 
 class FakeEngine:
@@ -46,8 +46,8 @@ def engine() -> FakeEngine:
     return FakeEngine()
 
 
-def tts_with(fake: FakeEngine) -> VibeVoiceTTS:
-    engine = VibeVoiceTTS.__new__(VibeVoiceTTS)
+def tts_with(fake: FakeEngine) -> KokoroTTS:
+    engine = KokoroTTS.__new__(KokoroTTS)
     # Build the base class without touching the model directory.
     from livekit.agents import tts as lk_tts
 

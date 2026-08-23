@@ -1240,7 +1240,6 @@ function startApp(): void {
           modelPresent: Boolean(body.model_present),
           armed: Boolean(body.armed),
           threshold: Number(body.threshold ?? 0.5),
-          window: Number(body.window ?? 30),
           heardSecondsAgo:
             body.heard_seconds_ago === null || body.heard_seconds_ago === undefined
               ? null
