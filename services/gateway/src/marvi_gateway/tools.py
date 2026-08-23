@@ -62,6 +62,43 @@ def _type_matches(value: Any, expected: type) -> bool:
     return isinstance(value, expected)
 
 
+def _coerce(value: Any, expected: type) -> Any:
+    """A number written as a string is still that number.
+
+    Models emit JSON, and a great many of them write `"lines": "40"` where the
+    schema says integer -- the same model, on the same tool, sometimes both
+    ways. Refusing that is technically correct and practically a broken tool:
+    `marvi_logs` failed three times in a row with "argument lines must be int",
+    Marvi spent her whole tool-call budget retrying it, and then answered from
+    a log she never actually read.
+
+    So a string is converted when it unambiguously is the declared type, and
+    refused otherwise. Nothing else is coerced: an int where a string was asked
+    for stays wrong, because that is a different mistake and quietly papering
+    over it would hide a real schema disagreement.
+    """
+    if not isinstance(value, str) or expected is str:
+        return value
+    text = value.strip()
+    if expected is bool:
+        if text.lower() in ("true", "yes", "1"):
+            return True
+        if text.lower() in ("false", "no", "0"):
+            return False
+        return value
+    if expected in (int, float):
+        try:
+            # `int("3.0")` raises, and a model that writes 3.0 for an integer
+            # means three.
+            number = float(text)
+        except ValueError:
+            return value
+        if expected is int:
+            return int(number) if number.is_integer() else value
+        return number
+    return value
+
+
 class ToolRegistry:
     def __init__(self) -> None:
         self._tools: dict[str, ToolSpec] = {}
@@ -95,12 +132,15 @@ class ToolRegistry:
         if missing:
             raise InvalidArgumentsError(f"missing arguments: {', '.join(missing)}")
 
+        accepted = {}
         for key, value in arguments.items():
+            value = _coerce(value, allowed[key])
             if not _type_matches(value, allowed[key]):
                 raise InvalidArgumentsError(
                     f"argument {key} must be {allowed[key].__name__}"
                 )
-        return dict(arguments)
+            accepted[key] = value
+        return accepted
 
     def execute(self, spec: ToolSpec, arguments: dict[str, Any]) -> Any:
         return spec.handler(**arguments)

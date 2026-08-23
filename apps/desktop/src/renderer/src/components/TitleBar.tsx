@@ -1,5 +1,5 @@
 /**
- * Hermes-style hidden title bar. Electron owns the native Windows window
+ * Hidden title bar. Electron owns the native Windows window
  * controls; this renderer strip owns only the page title and app action.
  *
  * Contract: the whole bar is a drag region (-webkit-app-region: drag); every

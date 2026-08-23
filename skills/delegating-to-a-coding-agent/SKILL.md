@@ -47,7 +47,7 @@ The agent cannot see this conversation. Everything it needs goes in the task.
 A good one has three parts:
 
 1. **The symptom**, concretely. Not "the room is broken" — "the smart_room
-   plugin fails to import with No module named hermes_constants, logged in
+   plugin fails to import with No module named onnxruntime, logged in
    plugins.log at 06:46."
 2. **Where to look**, if you know. A file, a service, a log.
 3. **What you already ruled out**, so it does not repeat your work.

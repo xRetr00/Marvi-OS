@@ -21,6 +21,7 @@ from marvi_gateway.room import (
     RoomSidecar,
     RoomUnavailableError,
     register_room_tools,
+    unconfirmed,
 )
 from marvi_gateway.runtime import RuntimeStore
 from marvi_gateway.tools import ToolRegistry
@@ -250,13 +251,13 @@ async def test_invalid_room_arguments_never_reach_the_sidecar(sidecar, tmp_path)
         bad_brightness = await http.post(
             "/tools/room_set_light", json={"arguments": {"on": True, "brightness": 900}}
         )
-        wrong_type = await http.post(
-            "/tools/room_set_light", json={"arguments": {"on": "yes"}}
+        nonsense = await http.post(
+            "/tools/room_set_light", json={"arguments": {"on": "maybe"}}
         )
 
     assert bad_mode.json()["status"] == "failed"
     assert bad_brightness.json()["status"] == "failed"
-    assert wrong_type.status_code == 422
+    assert nonsense.status_code == 422
     assert [request["method"] for request in fake.requests] == []
 
 
@@ -407,3 +408,88 @@ async def test_a_stale_event_is_not_re_journaled_on_every_poll(tmp_path, monkeyp
     recorded = room_events()
     assert len(recorded) == 1
     assert recorded[0]["kind"] == "mode_changed"
+
+
+# -- not reporting a default as a reading -------------------------------------
+
+
+def test_an_unconfigured_light_is_not_reported_as_off() -> None:
+    """The wrong answer that is worst: confident, specific, and about something
+    the user is looking at.
+
+    With no MQTT broker and no Tuya key, the sidecar returns
+    `{"on": false, "brightness": 0, "scene": "off", "confirmed": false}` -- a
+    default, not a reading. Marvi passed it on as "the light is off" while it
+    was on. The sidecar was already saying `confirmed: false` and nothing read
+    it.
+    """
+    caveat = unconfirmed(
+        {
+            "light": {"on": False, "confirmed": False},
+            "devices": {"tuya_bulb": {"online": False, "configured": False}},
+        }
+    )
+
+    assert "not configured" in caveat
+    assert "on or off" in caveat
+
+
+def test_an_unreachable_light_says_so_rather_than_guessing() -> None:
+    caveat = unconfirmed(
+        {
+            "light": {"on": True, "confirmed": True},
+            "devices": {"tuya_bulb": {"online": False, "configured": True}},
+        }
+    )
+
+    assert "unreachable" in caveat
+
+
+def test_an_unconfirmed_reading_from_a_reachable_bulb_is_still_flagged() -> None:
+    caveat = unconfirmed(
+        {
+            "light": {"on": True, "confirmed": False},
+            "devices": {"tuya_bulb": {"online": True, "configured": True}},
+        }
+    )
+
+    assert "unconfirmed" in caveat
+
+
+def test_a_confirmed_reading_carries_no_caveat() -> None:
+    """A caveat on every answer is a caveat nobody reads."""
+    assert (
+        unconfirmed(
+            {
+                "light": {"on": True, "confirmed": True},
+                "devices": {"tuya_bulb": {"online": True, "configured": True}},
+            }
+        )
+        == ""
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_quoted_boolean_still_switches_the_light(sidecar, tmp_path) -> None:
+    """Models writing JSON quote booleans, inconsistently, within one session.
+
+    `{"on": "true"}` used to come back 422, so a spoken "turn the light on"
+    failed on a punctuation choice the model made and the user could neither
+    see nor correct. Nonsense is still refused - that is the test above.
+    """
+    fake, client = sidecar
+    registry = ToolRegistry()
+    register_room_tools(registry, client)
+    runtime = RuntimeStore(audit_path=tmp_path / "audit.jsonl")
+    runtime.set_yolo(True)
+    app = create_app(version="0.1.0-test", runtime=runtime, tools=registry)
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://marvi.local"
+    ) as http:
+        answer = await http.post(
+            "/tools/room_set_light", json={"arguments": {"on": "true"}}
+        )
+
+    assert answer.json()["status"] == "executed"
+    assert "set_light" in [request["method"] for request in fake.requests]

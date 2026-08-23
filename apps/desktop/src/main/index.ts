@@ -550,7 +550,7 @@ function createMainWindow(): BrowserWindow {
     minHeight: 620,
     show: false,
     autoHideMenuBar: true,
-    // Hermes-style hidden titlebar: the renderer owns the 34px surface and
+    // Hidden titlebar: the renderer owns the 34px surface and
     // Electron paints the native Windows controls into its right edge.
     titleBarStyle: 'hidden',
     titleBarOverlay: {

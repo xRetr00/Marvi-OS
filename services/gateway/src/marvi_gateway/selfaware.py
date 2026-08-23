@@ -187,20 +187,57 @@ _catalogue: tuple[float, list[dict[str, Any]]] | None = None
 
 
 def find_skills(query: str, repo_root: Any = None, http: Any = None) -> dict[str, Any]:
-    """Skills in the configured sources matching `query`, installed or not."""
+    """Skills matching `query`: the ones Marvi already has, then the store.
+
+    Hers come first and are listed even when nothing matches, because this tool
+    answering only about the store produced the worst possible answer. Asked
+    what skills she had, Marvi called `skill_find`, saw a library in which
+    every row said "not installed", and told the user she loads no skills at
+    all -- with eleven of them named in her own prompt at that moment.
+
+    A tool called "find skills" that cannot find the skills you have is a trap,
+    and the model walked into it exactly as written.
+    """
     global _catalogue
     import time as _time
 
+    from .setup import skills as skills_module
     from .setup import store
 
     root = repo_root or Path(__file__).resolve().parents[4]
+    words = [w for w in query.lower().split() if len(w) > 2]
+
+    def matches(name: str, description: str) -> int:
+        if not words:
+            return 1
+        name, description = name.lower(), description.lower()
+        return sum(4 * (w in name) + (w in description) for w in words)
+
+    mine = [
+        {
+            "name": skill.name,
+            "description": skill.description[:220],
+            "repo": "",
+            "installed": True,
+            "have_it": True,
+        }
+        for skill in skills_module.installed()
+        if matches(skill.name, skill.description)
+    ]
+
     if _catalogue is None or _time.time() - _catalogue[0] > CATALOGUE_TTL:
         try:
             _catalogue = (_time.time(), store.catalogue(root, http))
         except Exception as exc:
-            return {"ok": False, "detail": f"could not reach the skill store: {exc}"}
+            # Hers are on disk and do not need the network. A store that cannot
+            # be reached must not hide the skills she is already carrying.
+            return {
+                "ok": True,
+                "detail": f"the skill store is unreachable ({exc}); these are yours",
+                "yours": mine,
+                "skills": [],
+            }
 
-    words = [w for w in query.lower().split() if len(w) > 2]
     rows = _catalogue[1]
     if words:
         def score(row: dict[str, Any]) -> int:
@@ -217,6 +254,9 @@ def find_skills(query: str, repo_root: Any = None, http: Any = None) -> dict[str
         )
     return {
         "ok": True,
+        # Named separately from `skills` so there is no reading in which these
+        # are something to install.
+        "yours": mine,
         "total": len(_catalogue[1]),
         "matched": len(rows),
         "skills": [
@@ -301,12 +341,14 @@ def register_store_tools(registry: Any) -> None:
     registry.register(
         ToolSpec(
             name="skill_find",
-            description="Search available skills",
+            description="Search skills you have, and skills you could install",
             arguments={"query": str},
             describes={
                 "query": (
                     "Words describing what you want to be able to do, for "
-                    "example 'browser', 'debugging', 'spreadsheet'."
+                    "example 'browser', 'debugging', 'spreadsheet'. Answers in "
+                    "two parts: `yours` are already available through "
+                    "skill_read, `skills` are in the store and are not."
                 )
             },
             sensitive=False,

@@ -1559,7 +1559,7 @@
 }
 
 /* Chat workspace ---------------------------------------------------------
-   Adapted from the conversation-first navigation in the local Hermes desktop:
+   Conversation-first navigation:
    when Chat is active, the left pane is the session index rather than a second
    app-navigation rail. The transcript is deliberately denser than the control
    center so reading and writing remain the focus. */
@@ -1985,7 +1985,7 @@
   font-size: 6.5px;
 }
 
-/* Hermes-style transcript -------------------------------------------------
+/* Transcript -------------------------------------------------
  * A turn is a compact human/assistant pair, not two labeled presentation
  * cards. The human prompt is the only painted surface. Marvi's answer stays
  * on the page plane and its secondary controls appear only on interaction. */
@@ -2169,7 +2169,7 @@
   font-size: 8px;
 }
 
-/* Hermes result and tool treatment ------------------------------------ */
+/* Result and tool treatment ------------------------------------ */
 .chat-widgets {
   gap: 5px;
   margin-top: 6px;

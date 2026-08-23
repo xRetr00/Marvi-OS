@@ -343,10 +343,17 @@ def advertise(available: list[Skill] | None = None) -> str:
         + nl.join(lines)
         + nl
         + nl
-        + "These are procedures written down so you do not have to work them "
-        "out again. When one matches what you are doing, call `skill_read` "
-        "with its name to get the instructions, then follow them. Only the "
-        "names and descriptions are here; the instructions are not."
+        + "You already have these. They are procedures written down so you do "
+        "not have to work them out again: when one matches what you are "
+        "doing, call `skill_read` with its name to get the instructions, then "
+        "follow them. Only the names and descriptions are here; the "
+        "instructions are not, which is why reading one is a tool call."
+        + nl
+        + nl
+        + "If you are asked what you can do, this list is the answer. "
+        "`skill_find` searches a store of skills you could install as well as "
+        "these; a store entry saying \"not installed\" says nothing about the "
+        "ones above."
     )
 
 

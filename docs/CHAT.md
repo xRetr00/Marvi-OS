@@ -49,7 +49,7 @@ control-center language without adopting a second runtime: a bounded reading
 column, compact user surfaces, unboxed Marvi replies, visible source/evidence
 modules, sticky composer, message actions, and explicit return-to-latest
 control. While Chat is active, the app navigation is replaced by the searchable
-conversation sidebar adapted from the local Hermes desktop; it exposes recent
+conversation sidebar adapted from an internal NeuRetro desktop; it exposes recent
 threads and their actions without a drawer or redundant page header. Empty-state
 prompts only fill the composer and never pretend to be model output.
 
@@ -66,7 +66,7 @@ adapter. Models may request only `sources`, `metrics`, `comparison`, `table`,
 `timeline`, `weather`, `gallery`, `document`, or `status`; the Gateway validates,
 caps, persists, and streams plain data. React selects the component from that
 allowlist. Model-authored code, component names, callbacks, and actions are not
-accepted. Rendering follows Hermes rather than a Marvi-specific card skin:
+accepted. Rendering follows that shell rather than a Marvi-specific card skin:
 transparent tool disclosures, a small `Sources · count` row, flat source links,
 thin divided structured results, and no repeated widget-type banner.
 

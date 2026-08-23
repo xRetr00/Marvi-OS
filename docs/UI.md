@@ -107,7 +107,7 @@ Current native measurements and the keep/draft decision are tracked in
 The control center uses Electron's hidden-titlebar overlay. The renderer paints
 the 34 px drag surface and page title; Windows paints minimize, maximize, and
 close at the right edge. Renderer actions use 24 px hit targets and 13.9 px
-Lucide glyphs, matching the pinned Hermes shell. Interactive children opt out
+Lucide glyphs, matching the pinned internal shell. Interactive children opt out
 of the drag region. Close still hides to tray per the always-on contract; quit
 stays on the tray menu.
 
@@ -121,11 +121,11 @@ vendored local asset (`apps/desktop/src/renderer/src/assets/background/`),
 never fetched at runtime. Backdrop opacity and translucency are persisted
 per-machine. Reduced-motion users get static text and no exit choreography.
 
-The shell follows Hermes chrome directly: a 34 px hidden titlebar lets Electron
+The shell follows that shell's chrome directly: a 34 px hidden titlebar lets Electron
 paint native Windows controls into the right edge. A single 20 px status bar
 occupies the bottom shell track across the full window, including beneath the
 active sidebar, and splits icon-led actions into left and right groups. Status
-actions use Hermes labels, detail text, hover transitions, and Lucide glyphs.
+actions use its labels, detail text, hover transitions, and Lucide glyphs.
 The restrained blue eight-cell live voice meter is intentionally retained from
 Marvi's earlier voice design. Its version action opens build/update details
 without navigating away from the current task.
@@ -228,10 +228,10 @@ border animation.
 
 The rest of Chat adapts Assistant UI's thread composition without adopting a
 second runtime. Entering Chat replaces the control-center navigation with a
-dedicated conversation sidebar adapted from the pinned local Hermes desktop.
+dedicated conversation sidebar adapted from a pinned internal NeuRetro desktop.
 That sidebar owns new-chat, search, recent threads, row actions, export, and a
 clear return to the control center. Chat has no secondary page header. A compact
-560px reading column owns message flow; each turn follows the Hermes-style
+560px reading column owns message flow; each turn follows the
 human/assistant pair: one slim full-width prompt surface followed by unboxed
 Marvi prose. Sender labels remain available to assistive technology instead of
 repeating as visible headers, while timestamps and actions appear on hover or
@@ -240,7 +240,7 @@ Durable threads and branches back the sidebar, edit, and regenerate actions.
 GitHub-flavored Markdown, math, tables, code blocks, source rows, image/file
 parts, read aloud, local-native dictation, model selection, and context details
 use distinct bounded modules instead of one undifferentiated text column.
-Tool activity and sources follow Hermes directly: transparent faded disclosure
+Tool activity and sources follow that shell directly: transparent faded disclosure
 rows at rest, a small `Sources · count` label, and compact flat result rows only
 after expansion. Structured results use thin dividers instead of nested paper
 cards, with progressive disclosure and no model-authored UI code. Context

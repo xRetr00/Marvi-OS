@@ -262,3 +262,108 @@ def test_installing_a_skill_asks_first() -> None:
 
     assert registry.specs["skill_find"].sensitive is False
     assert registry.specs["skill_install"].sensitive is True
+
+
+# -- what the model actually sends --------------------------------------------
+
+
+def test_a_number_written_as_a_string_is_still_that_number() -> None:
+    """The failure that made log reading useless.
+
+    `marvi_logs(name="agent", lines="40")` was refused three times in a row
+    with "argument lines must be int". Marvi spent her whole tool-call budget
+    retrying, gave up, and answered from a log she had never read - inventing a
+    cause out of the one partial line she did see.
+
+    Models emit JSON and many write integers as strings, sometimes
+    inconsistently within one session. A schema disagreement that only ever
+    produces a refusal is a broken tool, not a strict one.
+    """
+    from marvi_gateway.tools import ToolRegistry, ToolSpec
+
+    registry = ToolRegistry()
+    spec = ToolSpec(
+        name="marvi_logs",
+        description="Read Marvi's own logs",
+        arguments={},
+        optional={"name": str, "lines": int, "contains": str},
+        sensitive=False,
+        handler=lambda **kwargs: kwargs,
+    )
+    registry.register(spec)
+
+    accepted = registry.validate(spec, {"name": "agent", "lines": "40"})
+
+    assert accepted["lines"] == 40
+    assert isinstance(accepted["lines"], int)
+
+
+def test_a_float_written_for_an_integer_is_read_as_the_integer() -> None:
+    from marvi_gateway.tools import ToolRegistry, ToolSpec
+
+    registry = ToolRegistry()
+    spec = ToolSpec(
+        name="dim",
+        description="dim",
+        arguments={"brightness": int},
+        sensitive=False,
+        handler=lambda **kwargs: kwargs,
+    )
+
+    assert registry.validate(spec, {"brightness": "60.0"})["brightness"] == 60
+
+
+def test_nonsense_is_still_refused() -> None:
+    """Coercion is for a number written as a string, not for hiding a real
+    disagreement about what the argument means."""
+    import pytest
+
+    from marvi_gateway.tools import InvalidArgumentsError, ToolRegistry, ToolSpec
+
+    registry = ToolRegistry()
+    spec = ToolSpec(
+        name="dim",
+        description="dim",
+        arguments={"brightness": int},
+        sensitive=False,
+        handler=lambda **kwargs: kwargs,
+    )
+
+    with pytest.raises(InvalidArgumentsError):
+        registry.validate(spec, {"brightness": "quite bright"})
+
+
+def test_a_string_argument_is_left_exactly_as_it_came() -> None:
+    """"40" is a number; a search term that happens to be digits is not."""
+    from marvi_gateway.tools import ToolRegistry, ToolSpec
+
+    registry = ToolRegistry()
+    spec = ToolSpec(
+        name="marvi_logs",
+        description="logs",
+        arguments={},
+        optional={"contains": str},
+        sensitive=False,
+        handler=lambda **kwargs: kwargs,
+    )
+
+    accepted = registry.validate(spec, {"contains": "1006"})
+
+    assert accepted["contains"] == "1006"
+    assert isinstance(accepted["contains"], str)
+
+
+def test_a_boolean_written_as_a_word_is_read_as_one() -> None:
+    from marvi_gateway.tools import ToolRegistry, ToolSpec
+
+    registry = ToolRegistry()
+    spec = ToolSpec(
+        name="light",
+        description="light",
+        arguments={"on": bool},
+        sensitive=False,
+        handler=lambda **kwargs: kwargs,
+    )
+
+    assert registry.validate(spec, {"on": "false"})["on"] is False
+    assert registry.validate(spec, {"on": "true"})["on"] is True

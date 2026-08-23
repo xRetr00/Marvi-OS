@@ -3727,7 +3727,7 @@ body {
   color: var(--ui-text-emphasis);
 }
 
-/* Hermes shell chrome -------------------------------------------------- */
+/* Shell chrome -------------------------------------------------- */
 .app-shell {
   grid-template-rows: 34px minmax(0, 1fr) 20px;
 }

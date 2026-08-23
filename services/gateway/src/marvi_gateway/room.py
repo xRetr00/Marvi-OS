@@ -408,12 +408,15 @@ class RoomSidecar:
     def state(self) -> dict[str, Any]:
         try:
             result = self.call("get_state", {"location_limit": 5})
-            return {"live": True, "state": result.get("state", {})}
+            answer = {"live": True, "state": result.get("state", {})}
         except RoomUnavailableError:
             stale = self.snapshot()
             if stale is None:
                 raise
-            return {"live": False, "stale": True, "state": stale}
+            answer = {"live": False, "stale": True, "state": stale}
+        if caveat := unconfirmed(answer["state"]):
+            answer["caveat"] = caveat
+        return answer
 
     def events(self, limit: int = 50, notable_only: bool = True) -> list[dict[str, Any]]:
         """Newest-first tail of the sidecar's event log.
@@ -568,6 +571,44 @@ def register_room_tools(registry, sidecar: RoomSidecar) -> None:
             handler=room_set_light,
         )
     )
+
+
+def unconfirmed(state: dict[str, Any]) -> str:
+    """Why the light in this state should not be reported as fact, or "".
+
+    The sidecar already says so and nothing was reading it. With no MQTT broker
+    and no Tuya key configured, `light` comes back as
+    `{"on": false, "brightness": 0, "scene": "off", "confirmed": false}` -- a
+    default, not a reading. Marvi passed that on as "the light is off" while it
+    was on, which is the worst kind of wrong answer: confident, specific, and
+    about something the user can see.
+
+    A caveat rather than a refusal. "I cannot reach the bulb" is useful; "no
+    room state" is not, and the rest of the state -- presence, modes, vision --
+    is real.
+    """
+    light = state.get("light")
+    if not isinstance(light, dict):
+        return ""
+    devices = state.get("devices")
+    bulb = devices.get("tuya_bulb") if isinstance(devices, dict) else None
+    if isinstance(bulb, dict):
+        if not bulb.get("configured"):
+            return (
+                "The light is not configured, so its state here is a default and not a "
+                "reading. Do not say whether it is on or off; say it is not set up."
+            )
+        if not bulb.get("online"):
+            return (
+                "The light is unreachable, so its state here is the last thing known and "
+                "may be wrong. Say you cannot reach it rather than reporting on or off."
+            )
+    if light.get("confirmed") is False:
+        return (
+            "The light state is unconfirmed -- the sidecar has not had it acknowledged by "
+            "the device. Say so rather than reporting on or off as fact."
+        )
+    return ""
 
 
 #: Plugin tools that do what one of Marvi's own room tools already does.

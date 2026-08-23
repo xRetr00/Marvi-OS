@@ -849,7 +849,7 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
 
 ## 2026-08-23 — conversation-first Chat workspace
 
-- Adapted the conversation-first sidebar anatomy from the local Hermes desktop
+- Adapted the conversation-first sidebar anatomy from an internal NeuRetro desktop
   at `61977bb4d6b97ab2aece57d2405fa2f0b19e3ae0` while retaining Marvi's existing
   Gateway thread actions and renderer state.
 - Replaced the global control-center sidebar only while Chat is active with a
@@ -859,42 +859,42 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   640px with smaller messages, cards, controls, and composer proportions.
 - Verified search filtering and the control-center return in Chromium at the
   shipping 1180×760 viewport; visual evidence is
-  `output/playwright/chat-hermes-workspace.png`.
+  `output/playwright/chat-workspace.png`.
 - Preserved the authoritative Chat session timing strip in a compact sidebar
   footer and passed the complete desktop suite, typecheck, and production build.
 
-## 2026-08-23 — compact Hermes-style Chat turns
+## 2026-08-23 — compact compact Chat turns
 
 - Replaced the remaining oversized labeled message blocks with the actual
-  Hermes conversation anatomy: a compact human prompt surface followed by
+  that shell's conversation anatomy: a compact human prompt surface followed by
   unboxed assistant prose and a quiet hover/focus action rail.
 - Removed visible per-message `YOU` / `MARVI` headers while retaining accessible
   sender labels, then moved timestamps beside the message actions.
 - Tightened the transcript and composer to a shared 560px register, 11px
   conversation type, 22px message actions, and 24px composer controls.
 - Verified the production renderer at 1180×760; visual evidence is
-  `output/playwright/chat-hermes-compact-thread.png`.
+  `output/playwright/chat-compact-thread.png`.
 
-## 2026-08-23 — direct Hermes Chat and shell surfaces
+## 2026-08-23 — direct Chat and shell surfaces
 
 - Removed the remaining Marvi-specific card skin from assistant output. Metrics
   and comparisons now use small flat divided fields; tool calls use transparent
   faded disclosure rows; evidence is a `Sources · count` disclosure with compact
   source rows instead of the `Web evidence` treatment.
-- Adopted Hermes' shell dimensions and ownership: a 34px hidden titlebar with
+- Adopted that shell's dimensions and ownership: a 34px hidden titlebar with
   Electron-native Windows controls and a 20px two-sided status bar.
 - Preserved Marvi's Gateway data, tool results, source URLs, session state,
   settings action, health actions, and update popover behind the copied UI.
 - Verified the result and expanded source interaction in Chromium at 1180×760;
-  visual evidence is `output/playwright/chat-hermes-exact-surfaces.png`.
+  visual evidence is `output/playwright/chat-exact-surfaces.png`.
 
-## 2026-08-23 — window-wide Hermes shell chrome
+## 2026-08-23 — window-wide shell chrome
 
 - Moved the status bar out of individual page content and into a dedicated
   bottom shell track, so one 20 px footer spans beneath both the active sidebar
   and the current page on control-center and Chat routes.
 - Replaced compressed status strings and custom shell glyphs with the pinned
-  Hermes treatment: Lucide icons, readable label/detail pairs, 24 px titlebar
+  that shell's treatment: Lucide icons, readable label/detail pairs, 24 px titlebar
   actions, 13.9 px title glyphs, and restrained 120 ms color transitions.
 - Kept Marvi's earlier blue eight-cell live voice-level meter as the explicit
   product-specific exception and retained every existing health/settings/update

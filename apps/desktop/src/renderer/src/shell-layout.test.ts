@@ -124,7 +124,7 @@ describe('shell layout', () => {
     expect(chat).not.toContain('{statusbar}')
   })
 
-  it('retains the blue live voice meter inside the Hermes chrome', () => {
+  it('retains the blue live voice meter inside the shell chrome', () => {
     expect(lastBlock('.voice-level-meter')).toContain('color: var(--ui-accent)')
     expect(app).toContain("value > 0.02 ? ' is-live' : ''")
   })
