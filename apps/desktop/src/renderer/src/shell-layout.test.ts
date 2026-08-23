@@ -20,10 +20,17 @@ import { OFFLINE_RUNTIME, deviceLabel, deviceState } from '../../shared/runtime'
 const css = readFileSync(join(__dirname, 'assets/main.css'), 'utf8').replace(/\r\n/g, '\n')
 const voiceOrb = readFileSync(join(__dirname, 'orb/VoiceOrb.tsx'), 'utf8')
 const app = readFileSync(join(__dirname, 'App.tsx'), 'utf8')
+const chat = readFileSync(join(__dirname, 'chat/Chat.tsx'), 'utf8')
 
 /** The rule block for a selector, so a moved property still fails the test. */
 function block(selector: string): string {
   const at = css.indexOf(`\n${selector} {`)
+  if (at === -1) throw new Error(`no rule for ${selector}`)
+  return css.slice(at, css.indexOf('}', at))
+}
+
+function lastBlock(selector: string): string {
+  const at = css.lastIndexOf(`\n${selector} {`)
   if (at === -1) throw new Error(`no rule for ${selector}`)
   return css.slice(at, css.indexOf('}', at))
 }
@@ -108,6 +115,18 @@ describe('shell layout', () => {
     expect(css).toContain("content: '+  ACTIVE MODULE'")
     expect(css).toContain('.page-lead-module')
     expect(css).toContain('.single-page.panel > .service-list')
+  })
+
+  it('keeps one window-wide status bar below both sidebars and page content', () => {
+    expect(lastBlock('.app-shell')).toContain('34px minmax(0, 1fr) 20px')
+    expect(app).toMatch(/<\/div>\s*\{statusbar}\s*\{settings \? \(/)
+    expect(chat).not.toContain('statusbar: ReactNode')
+    expect(chat).not.toContain('{statusbar}')
+  })
+
+  it('retains the blue live voice meter inside the Hermes chrome', () => {
+    expect(lastBlock('.voice-level-meter')).toContain('color: var(--ui-accent)')
+    expect(app).toContain("value > 0.02 ? ' is-live' : ''")
   })
 })
 

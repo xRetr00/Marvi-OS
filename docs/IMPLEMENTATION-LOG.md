@@ -887,3 +887,15 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   settings action, health actions, and update popover behind the copied UI.
 - Verified the result and expanded source interaction in Chromium at 1180×760;
   visual evidence is `output/playwright/chat-hermes-exact-surfaces.png`.
+
+## 2026-08-23 — window-wide Hermes shell chrome
+
+- Moved the status bar out of individual page content and into a dedicated
+  bottom shell track, so one 20 px footer spans beneath both the active sidebar
+  and the current page on control-center and Chat routes.
+- Replaced compressed status strings and custom shell glyphs with the pinned
+  Hermes treatment: Lucide icons, readable label/detail pairs, 24 px titlebar
+  actions, 13.9 px title glyphs, and restrained 120 ms color transitions.
+- Kept Marvi's earlier blue eight-cell live voice-level meter as the explicit
+  product-specific exception and retained every existing health/settings/update
+  action behind the new presentation.

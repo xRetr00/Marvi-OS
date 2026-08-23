@@ -7,7 +7,7 @@
  * toggles maximize, matching Windows shell expectations.
  */
 import { haptic } from '../lib/haptics'
-import { AbstractIcon } from './abstract-icon'
+import { Settings } from 'lucide-react'
 import { UiTooltip } from './ui/tooltip'
 
 interface TitleBarProps {
@@ -37,7 +37,7 @@ export function TitleBar({ page, onSettings }: TitleBarProps): React.JSX.Element
             }}
             type="button"
           >
-            <AbstractIcon name="settings" size={15} />
+            <Settings aria-hidden="true" />
           </button>
         </UiTooltip>
       </div>

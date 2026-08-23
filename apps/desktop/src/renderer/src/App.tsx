@@ -1,6 +1,7 @@
 import { useStore } from '@nanostores/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
+import { Activity, Camera, CheckCircle2, Mic, Radio, Waves } from 'lucide-react'
 
 import appIcon from './assets/app-icon.ico'
 import { BootFailureOverlay } from './components/BootFailureOverlay'
@@ -234,17 +235,23 @@ function MainSurface(): React.JSX.Element {
       <div className="statusbar-side">
         <UiTooltip label="Open Gateway health" side="top">
           <button className="status-item" onClick={() => navigate('Overview')} type="button">
-            <i className={`status-${runtime.state}`} /> GW:{runtime.state.toUpperCase()}
+            <Activity aria-hidden="true" />
+            <span>Gateway</span>
+            <span className="status-detail">{runtime.state}</span>
           </button>
         </UiTooltip>
         <UiTooltip label="Open realtime transport" side="top">
           <button className="status-item" onClick={() => navigate('Voice')} type="button">
-            RTC:{runtime.components.livekit?.state.toUpperCase() ?? 'UNKNOWN'}
+            <Radio aria-hidden="true" />
+            <span>RTC</span>
+            <span className="status-detail">{runtime.components.livekit?.state ?? 'unknown'}</span>
           </button>
         </UiTooltip>
         <UiTooltip label="Open voice session" side="top">
           <button className="status-item" onClick={() => navigate('Voice')} type="button">
-            VOICE:{voice.phase.toUpperCase()}
+            <Waves aria-hidden="true" />
+            <span>Voice</span>
+            <span className="status-detail">{voice.phase}</span>
           </button>
         </UiTooltip>
         <WakeStatusItem onOpen={() => navigate('Voice')} />
@@ -253,8 +260,12 @@ function MainSurface(): React.JSX.Element {
       <div className="statusbar-side statusbar-side-right">
         <UiTooltip label="Open microphone and camera settings" side="top">
           <button className="status-item" onClick={() => setSettings('Preferences')} type="button">
-            MIC:{deviceLabel(deviceState(runtime, 'microphone'))} CAM:
-            {deviceLabel(deviceState(runtime, 'camera'))}
+            <Mic aria-hidden="true" />
+            <span>Mic</span>
+            <span className="status-detail">{deviceLabel(deviceState(runtime, 'microphone'))}</span>
+            <Camera aria-hidden="true" />
+            <span>Cam</span>
+            <span className="status-detail">{deviceLabel(deviceState(runtime, 'camera'))}</span>
           </button>
         </UiTooltip>
         <UiTooltip label="Open confirmation mode settings" side="top">
@@ -263,7 +274,8 @@ function MainSurface(): React.JSX.Element {
             onClick={() => setSettings('Preferences')}
             type="button"
           >
-            MODE:{voice.yolo ? 'YOLO' : 'CONFIRM'}
+            <CheckCircle2 aria-hidden="true" />
+            <span>{voice.yolo ? 'YOLO' : 'Confirm'}</span>
           </button>
         </UiTooltip>
         <VersionPopover version={version} onOpenAbout={() => setSettings('About')} />
@@ -298,7 +310,7 @@ function MainSurface(): React.JSX.Element {
           <ElectricGazeBackground />
 
           {page === 'Chat' ? (
-            <Chat onExit={() => navigate('Overview')} statusbar={statusbar} />
+            <Chat onExit={() => navigate('Overview')} />
           ) : (
             <>
               {/* Width inline rather than by class. The stylesheet route lost a
@@ -383,9 +395,8 @@ function MainSurface(): React.JSX.Element {
                   </span>
                 </header>
 
-                {/* One scroll region for every page, so the top bar and status bar
-                stay put and no page has to remember to handle its own
-                overflow. */}
+                {/* One scroll region for every page; shell chrome stays in its
+                own tracks and no page has to manage window overflow. */}
                 <div className="page-scroll">
                   {page === 'Overview' ? (
                     <Overview runtime={runtime} voice={voice} />
@@ -405,12 +416,12 @@ function MainSurface(): React.JSX.Element {
                     <PagePanel page={page} version={version} runtime={runtime} />
                   )}
                 </div>
-
-                {statusbar}
               </main>
             </>
           )}
         </div>
+
+        {statusbar}
 
         {settings ? (
           <SettingsShell
@@ -445,7 +456,10 @@ function VoiceLevelMeter({ level }: { level: number }): React.JSX.Element {
   const partialGlyph = partial > 0 ? shades[Math.min(2, Math.floor(partial * 3))] : ''
   const blocks = '█'.repeat(full) + partialGlyph + '░'.repeat(cells - full - (partialGlyph ? 1 : 0))
   return (
-    <span aria-label={`Voice level ${Math.round(value * 100)}%`} className="voice-level-meter">
+    <span
+      aria-label={`Voice level ${Math.round(value * 100)}%`}
+      className={`voice-level-meter${value > 0.02 ? ' is-live' : ''}`}
+    >
       {blocks}
     </span>
   )
@@ -1653,7 +1667,9 @@ function WakeStatusItem({ onOpen }: { onOpen: () => void }): React.JSX.Element |
         onClick={onOpen}
         type="button"
       >
-        WAKE:{label}
+        <Mic aria-hidden="true" />
+        <span>Wake</span>
+        <span className="status-detail">{label.toLowerCase()}</span>
       </button>
     </UiTooltip>
   )

@@ -26,7 +26,8 @@ loudspeaker double-talk test plus the 60-minute duplex soak.
 Current implemented desktop surfaces:
 
 - tray-owned application lifetime and control-center window;
-- icon-led sidebar, persistent status bar, overview, and About build/update information;
+- icon-led sidebar, window-wide Hermes-style status bar with Marvi's live blue
+  voice meter, overview, and About build/update information;
 - Collapse wordmark + readable JetBrains Mono monochrome design system;
 - shared Provider, Chat, and Voice session telemetry for authoritative token
   deltas, turns, latency, and elapsed time;
@@ -88,8 +89,8 @@ Current implemented desktop surfaces:
 - a protected sleep mode where the only thing Marvi may do to a sleeping room is
   switch a light off — enforced at the room boundary, and not overridable by
   YOLO.
-- frameless control center with a renderer-painted title bar (brand, page,
-  window controls), Electric Gaze local backdrop, translucency lever,
+- hidden-titlebar control center with renderer-painted page chrome, native
+  Windows controls, Electric Gaze local backdrop, translucency lever,
   haptics, shell context menu, connecting and boot-failure overlays, and a
   voice-level meter in the status bar (see `feat/desktop-shell-ui`).
 - tag-driven releases: `scripts/release.ps1` cuts `v<semver>` tags and the

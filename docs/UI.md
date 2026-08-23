@@ -55,14 +55,14 @@ Marvi OS has three surfaces:
 Closing the control center hides it. It does not terminate the Island or local
 services.
 
-## Frameless shell and custom title bar
+## Hidden title bar and native window controls
 
-The control center is frameless (`frame: false`, `titleBarStyle: 'hidden'`).
-The native Windows title bar never renders; the shell paints its own 40 px
-title bar: brand mark, current page, and minimize / maximize / close controls.
-The bar is the window drag region; interactive children opt out of drag.
-Double-click on the bar toggles maximize, matching Windows shell behavior.
-Close hides to tray per the always-on contract; quit stays on the tray menu.
+The control center uses Electron's hidden-titlebar overlay. The renderer paints
+the 34 px drag surface and page title; Windows paints minimize, maximize, and
+close at the right edge. Renderer actions use 24 px hit targets and 13.9 px
+Lucide glyphs, matching the pinned Hermes shell. Interactive children opt out
+of the drag region. Close still hides to tray per the always-on contract; quit
+stays on the tray menu.
 
 The shell adds the the predecessor assistant-derived chrome pieces, adapted to the Marvi OS
 contract: a glyph spinner (`unicode-animations`), a decode-text CONNECTING
@@ -74,10 +74,13 @@ vendored local asset (`apps/desktop/src/renderer/src/assets/background/`),
 never fetched at runtime. Backdrop opacity and translucency are persisted
 per-machine. Reduced-motion users get static text and no exit choreography.
 
-The shell follows Hermes chrome directly: a 34px hidden titlebar lets Electron
-paint native Windows controls into the right edge, and a 20px status bar splits
-compact actions into left and right groups. The status bar keeps the persistent
-readouts and voice-level meter. Its version label opens build/update details
+The shell follows Hermes chrome directly: a 34 px hidden titlebar lets Electron
+paint native Windows controls into the right edge. A single 20 px status bar
+occupies the bottom shell track across the full window, including beneath the
+active sidebar, and splits icon-led actions into left and right groups. Status
+actions use Hermes labels, detail text, hover transitions, and Lucide glyphs.
+The restrained blue eight-cell live voice meter is intentionally retained from
+Marvi's earlier voice design. Its version action opens build/update details
 without navigating away from the current task.
 
 ## Dynamic Island

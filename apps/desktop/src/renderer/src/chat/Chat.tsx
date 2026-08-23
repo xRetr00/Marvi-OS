@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react'
 import { useStore } from '@nanostores/react'
 
 import { useChat } from './useChat'
@@ -21,13 +20,7 @@ import { $sessionMetrics, sessionTimingStats } from '../store/session-metrics'
  * grows with the draft, and Chat replaces the general app navigation with a
  * purpose-built conversation index while this workspace is active.
  */
-export function Chat({
-  onExit,
-  statusbar
-}: {
-  onExit: () => void
-  statusbar: ReactNode
-}): React.JSX.Element {
+export function Chat({ onExit }: { onExit: () => void }): React.JSX.Element {
   const sessionMetrics = useStore($sessionMetrics)
   const {
     messages,
@@ -126,7 +119,6 @@ export function Chat({
             </div>
           </div>
         </section>
-        {statusbar}
       </main>
     </>
   )
