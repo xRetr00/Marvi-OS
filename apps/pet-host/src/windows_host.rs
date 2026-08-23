@@ -203,6 +203,25 @@ fn fill_rect(
     }
 }
 
+fn fill_rounded_rect(
+    pixels: &mut [u8],
+    width: i32,
+    height: i32,
+    rect: (i32, i32, i32, i32),
+    color: [u8; 4],
+) {
+    let (left, top, right, bottom) = rect;
+    let radius = ((bottom - top) / 2).max(1);
+    fill_rect(pixels, width, height, rect, [0, 0, 0, 0]);
+    for y in top.max(0)..bottom.min(height) {
+        let edge_distance = (y - top).min(bottom - 1 - y);
+        let inset = (radius - edge_distance - 1).max(0);
+        for x in (left + inset).max(0)..(right - inset).min(width) {
+            set_pixel(pixels, width, height, x, y, color);
+        }
+    }
+}
+
 fn fill_circle(
     pixels: &mut [u8],
     width: i32,
@@ -240,10 +259,10 @@ fn draw_overlay(state: &App, pixels: &mut [u8], width: i32, height: i32) {
     } else {
         [99, 91, 82, 255]
     };
-    let line_width = (width / 4).clamp(18, 42);
-    let line_height = (width / 24).clamp(4, 8);
+    let line_width = (width / 4).clamp(18, 32);
+    let line_height = (width / 24).clamp(4, 6);
     let line_y = sprite - line_height - 2;
-    fill_rect(
+    fill_rounded_rect(
         pixels,
         width,
         height,
@@ -740,5 +759,15 @@ mod tests {
         assert_eq!(hit_test_button(96, 136, 62, 120), Some(PetAction::Tasks));
         assert_eq!(hit_test_button(96, 136, 48, 120), None);
         assert_eq!(hit_test_button(96, 136, 10, 20), None);
+    }
+
+    #[test]
+    fn status_indicator_is_a_compact_rounded_pill() {
+        let mut pixels = vec![255u8; 24 * 4 * 4];
+        fill_rounded_rect(&mut pixels, 24, 4, (0, 0, 24, 4), [1, 2, 3, 255]);
+        assert_eq!(&pixels[0..4], &[0, 0, 0, 0]);
+        assert_eq!(&pixels[4..8], &[1, 2, 3, 255]);
+        assert_eq!(&pixels[(23 * 4)..(24 * 4)], &[0, 0, 0, 0]);
+        assert_eq!(&pixels[(24 * 4)..(25 * 4)], &[1, 2, 3, 255]);
     }
 }
