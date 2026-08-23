@@ -24,17 +24,62 @@ try {
     Start-Sleep -Seconds $WarmupSeconds
     Add-Type -AssemblyName System.Windows.Forms
     Add-Type -AssemblyName System.Drawing
+    Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public static class MarviPetWindow {
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RECT { public int Left, Top, Right, Bottom; }
+    [DllImport("user32.dll")]
+    public static extern bool GetWindowRect(IntPtr window, out RECT rect);
+}
+'@
     $bounds = [System.Windows.Forms.SystemInformation]::VirtualScreen
-    $bitmap = [System.Drawing.Bitmap]::new($bounds.Width, $bounds.Height)
-    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-    $graphics.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
     $evidenceDir = Join-Path $PSScriptRoot '..\output\evidence'
     New-Item -ItemType Directory -Force -Path $evidenceDir | Out-Null
-    $outputPath = Join-Path $evidenceDir 'pet-native-helper.png'
-    $bitmap.Save($outputPath, [System.Drawing.Imaging.ImageFormat]::Png)
-    $graphics.Dispose()
-    $bitmap.Dispose()
-    (Resolve-Path -LiteralPath $outputPath).Path
+
+    function Save-Screen([string]$Path) {
+        $bitmap = [System.Drawing.Bitmap]::new($bounds.Width, $bounds.Height)
+        $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+        try {
+            $graphics.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
+            $bitmap.Save($Path, [System.Drawing.Imaging.ImageFormat]::Png)
+        }
+        finally {
+            $graphics.Dispose()
+            $bitmap.Dispose()
+        }
+    }
+
+    $idlePath = Join-Path $evidenceDir 'pet-native-status-idle.png'
+    Save-Screen $idlePath
+
+    $pet = Get-Process marvi-pet-host -ErrorAction Stop | Where-Object {
+        $_.Path -like "$(Split-Path -Parent $resolvedExecutable)*"
+    } | Select-Object -First 1
+    if (-not $pet -or $pet.MainWindowHandle -eq 0) { throw 'native pet window was not found' }
+    $rect = [MarviPetWindow+RECT]::new()
+    if (-not [MarviPetWindow]::GetWindowRect($pet.MainWindowHandle, [ref]$rect)) {
+        throw 'native pet window bounds were unavailable'
+    }
+    $originalCursor = [System.Windows.Forms.Cursor]::Position
+    try {
+        [System.Windows.Forms.Cursor]::Position = [System.Drawing.Point]::new(
+            [int](($rect.Left + $rect.Right) / 2),
+            $rect.Bottom - 16
+        )
+        Start-Sleep -Milliseconds 700
+        $hoverPath = Join-Path $evidenceDir 'pet-native-controls-hover.png'
+        Save-Screen $hoverPath
+    }
+    finally {
+        [System.Windows.Forms.Cursor]::Position = $originalCursor
+    }
+
+    [ordered]@{
+        Idle = (Resolve-Path -LiteralPath $idlePath).Path
+        Hover = (Resolve-Path -LiteralPath $hoverPath).Path
+    } | ConvertTo-Json
 }
 finally {
     $rows = @(Get-CimInstance Win32_Process)

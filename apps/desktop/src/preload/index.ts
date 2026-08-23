@@ -47,6 +47,12 @@ const marvi = {
     updateChannel: string
   }> => ipcRenderer.invoke('marvi:get-build-info'),
   showMain: (): void => ipcRenderer.send('marvi:show-main'),
+  onNavigate: (listener: (page: 'Voice' | 'Activity') => void): (() => void) => {
+    const wrapped = (_event: Electron.IpcRendererEvent, page: 'Voice' | 'Activity'): void =>
+      listener(page)
+    ipcRenderer.on('marvi:navigate', wrapped)
+    return () => ipcRenderer.removeListener('marvi:navigate', wrapped)
+  },
   minimizeWindow: (): void => ipcRenderer.send('marvi:window-minimize'),
   toggleMaximizeWindow: (): void => ipcRenderer.send('marvi:window-toggle-maximize'),
   closeWindow: (): void => ipcRenderer.send('marvi:window-close'),

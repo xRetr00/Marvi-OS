@@ -40,11 +40,13 @@ import {
   DEFAULT_PET_PREFERENCES,
   normalizePetPreferences,
   petLookDirection,
+  petSpriteBounds,
   petWindowBounds,
+  pointInBounds,
   type PetPreferences,
   type RectangleLike
 } from './pet-window'
-import { NativePetHost, resolvePetHostPaths } from './pet-host'
+import { NativePetHost, petActionPage, petTaskCount, resolvePetHostPaths } from './pet-host'
 import {
   canUpdate,
   checkForUpdate,
@@ -663,6 +665,10 @@ function ensurePetHost(): NativePetHost {
     (level, message) => {
       if (level === 'warning') desktop.warn(message)
       else desktop.info(message)
+    },
+    (action) => {
+      desktop.info('native pet control selected', { action })
+      navigateMainWindow(petActionPage(action))
     }
   )
   return petHost
@@ -682,13 +688,18 @@ function syncPetWindow(): void {
 
 function startPetCursorPolling(): void {
   let lastDirection: number | null | undefined
+  let lastHover: boolean | undefined
   petCursorPoll = setInterval(() => {
     if (!petHost?.running || !petBounds) return
+    const cursor = screen.getCursorScreenPoint()
+    const hover = pointInBounds(petBounds, cursor)
+    if (hover !== lastHover) {
+      lastHover = hover
+      petHost.send({ type: 'hover', hover })
+    }
     const phase = runtimeStatus.assistant.phase
     const canLook = phase === 'ready' || phase === 'listening' || phase === 'speaking'
-    const direction = canLook
-      ? petLookDirection(petBounds, screen.getCursorScreenPoint())
-      : null
+    const direction = canLook ? petLookDirection(petSpriteBounds(petBounds), cursor) : null
     if (direction === lastDirection) return
     lastDirection = direction
     petHost.send({ type: 'look', direction })
@@ -696,11 +707,20 @@ function startPetCursorPolling(): void {
 }
 
 function showMainWindow(): void {
-  islandWindow?.showInactive()
-  mainWindow ??= createMainWindow()
+  if (islandWindow && !islandWindow.isDestroyed()) islandWindow.showInactive()
+  if (!mainWindow || mainWindow.isDestroyed()) mainWindow = createMainWindow()
   if (mainWindow.isMinimized()) mainWindow.restore()
   mainWindow.show()
   mainWindow.focus()
+}
+
+function navigateMainWindow(page: 'Voice' | 'Activity'): void {
+  showMainWindow()
+  const window = mainWindow
+  if (!window || window.isDestroyed()) return
+  const send = (): void => window.webContents.send('marvi:navigate', page)
+  if (window.webContents.isLoadingMainFrame()) window.webContents.once('did-finish-load', send)
+  else send()
 }
 
 function publishRuntime(next: RuntimeStatus): RuntimeStatus {
@@ -711,7 +731,11 @@ function publishRuntime(next: RuntimeStatus): RuntimeStatus {
   if (islandWindow && !islandWindow.isDestroyed()) {
     islandWindow.webContents.send('marvi:runtime-state', next)
   }
-  petHost?.send({ type: 'state', phase: next.assistant.phase })
+  petHost?.send({
+    type: 'state',
+    phase: next.assistant.phase,
+    taskCount: petTaskCount(next.assistant.phase)
+  })
   return next
 }
 

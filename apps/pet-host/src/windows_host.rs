@@ -2,11 +2,12 @@ use std::{
     collections::HashMap,
     env,
     ffi::c_void,
-    io::{self, BufRead},
+    io::{self, BufRead, Write},
     path::PathBuf,
     ptr::{null, null_mut},
     sync::{Arc, Mutex, OnceLock},
     thread,
+    time::{Duration, Instant},
 };
 
 use image::{imageops::FilterType, DynamicImage, GenericImageView, RgbaImage};
@@ -24,10 +25,10 @@ use windows_sys::Win32::{
         WindowsAndMessaging::{
             CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, KillTimer,
             PostMessageW, PostQuitMessage, RegisterClassW, SetTimer, SetWindowPos, ShowWindow,
-            SystemParametersInfoW, UpdateLayeredWindow, CS_HREDRAW, CS_VREDRAW, HWND_TOPMOST, MSG,
-            SPI_GETCLIENTAREAANIMATION, SWP_NOACTIVATE, SW_SHOWNA, ULW_ALPHA, WM_APP, WM_DESTROY,
-            WM_TIMER, WNDCLASSW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
-            WS_EX_TRANSPARENT, WS_POPUP,
+            SystemParametersInfoW, UpdateLayeredWindow, CS_HREDRAW, CS_VREDRAW, HTCLIENT,
+            HTTRANSPARENT, HWND_TOPMOST, MSG, SPI_GETCLIENTAREAANIMATION, SWP_NOACTIVATE,
+            SW_SHOWNA, ULW_ALPHA, WM_APP, WM_DESTROY, WM_LBUTTONUP, WM_NCHITTEST, WM_TIMER,
+            WNDCLASSW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_POPUP,
         },
     },
 };
@@ -46,9 +47,14 @@ static APP: OnceLock<Arc<Mutex<App>>> = OnceLock::new();
 enum Command {
     State {
         phase: Phase,
+        #[serde(rename = "taskCount", default)]
+        task_count: u32,
     },
     Look {
         direction: Option<i32>,
+    },
+    Hover {
+        hover: bool,
     },
     Bounds {
         x: i32,
@@ -69,11 +75,14 @@ struct App {
     atlas: DynamicImage,
     frames: HashMap<(u32, u32, i32, i32), CachedFrame>,
     phase: Phase,
+    task_count: u32,
     look: Option<i32>,
+    hover: bool,
     frame_index: usize,
     motion_enabled: bool,
     bounds: RECT,
     exit_requested: bool,
+    completion_until: Option<Instant>,
 }
 
 impl App {
@@ -85,7 +94,7 @@ impl App {
 
     fn cached_frame(&mut self, frame: Frame) -> &CachedFrame {
         let width = self.bounds.right - self.bounds.left;
-        let height = self.bounds.bottom - self.bounds.top;
+        let height = sprite_height(width, self.bounds.bottom - self.bounds.top);
         self.frames
             .entry((frame.row, frame.column, width, height))
             .or_insert_with(|| {
@@ -113,6 +122,52 @@ impl App {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum PetAction {
+    Voice,
+    Tasks,
+}
+
+fn sprite_height(width: i32, window_height: i32) -> i32 {
+    ((width * CELL_HEIGHT as i32 + CELL_WIDTH as i32 / 2) / CELL_WIDTH as i32)
+        .clamp(1, window_height)
+}
+
+fn button_geometry(width: i32, height: i32) -> Option<[(i32, i32, i32); 2]> {
+    let sprite = sprite_height(width, height);
+    let controls = height - sprite;
+    if controls < 18 {
+        return None;
+    }
+    let radius = (width / 9).clamp(8, 14).min((controls - 4) / 2);
+    let center_y = sprite + controls / 2;
+    let offset = radius + 4;
+    Some([
+        (width / 2 - offset, center_y, radius),
+        (width / 2 + offset, center_y, radius),
+    ])
+}
+
+fn hit_test_button(width: i32, height: i32, x: i32, y: i32) -> Option<PetAction> {
+    let buttons = button_geometry(width, height)?;
+    buttons
+        .iter()
+        .enumerate()
+        .find_map(|(index, &(cx, cy, radius))| {
+            let dx = x - cx;
+            let dy = y - cy;
+            (dx * dx + dy * dy <= radius * radius).then_some(if index == 0 {
+                PetAction::Voice
+            } else {
+                PetAction::Tasks
+            })
+        })
+}
+
+fn active_phase(phase: Phase) -> bool {
+    matches!(phase, Phase::Thinking | Phase::Action | Phase::Confirmation)
+}
+
 fn premultiplied_bgra(image: &RgbaImage) -> Vec<u8> {
     let mut output = Vec::with_capacity(image.len());
     for pixel in image.pixels() {
@@ -125,8 +180,155 @@ fn premultiplied_bgra(image: &RgbaImage) -> Vec<u8> {
     output
 }
 
+fn set_pixel(pixels: &mut [u8], width: i32, height: i32, x: i32, y: i32, color: [u8; 4]) {
+    if x < 0 || y < 0 || x >= width || y >= height {
+        return;
+    }
+    let index = ((y * width + x) * 4) as usize;
+    pixels[index..index + 4].copy_from_slice(&color);
+}
+
+fn fill_rect(
+    pixels: &mut [u8],
+    width: i32,
+    height: i32,
+    rect: (i32, i32, i32, i32),
+    color: [u8; 4],
+) {
+    let (left, top, right, bottom) = rect;
+    for y in top.max(0)..bottom.min(height) {
+        for x in left.max(0)..right.min(width) {
+            set_pixel(pixels, width, height, x, y, color);
+        }
+    }
+}
+
+fn fill_circle(
+    pixels: &mut [u8],
+    width: i32,
+    height: i32,
+    cx: i32,
+    cy: i32,
+    radius: i32,
+    color: [u8; 4],
+) {
+    for y in (cy - radius).max(0)..=(cy + radius).min(height - 1) {
+        for x in (cx - radius).max(0)..=(cx + radius).min(width - 1) {
+            let dx = x - cx;
+            let dy = y - cy;
+            if dx * dx + dy * dy <= radius * radius {
+                set_pixel(pixels, width, height, x, y, color);
+            }
+        }
+    }
+}
+
+fn draw_overlay(state: &App, pixels: &mut [u8], width: i32, height: i32) {
+    let sprite = sprite_height(width, height);
+    let now = Instant::now();
+    let status = if state.phase == Phase::Error {
+        [91, 91, 216, 255] // #d85b5b danger, stored as BGRA
+    } else if state.phase == Phase::Notification
+        || state.completion_until.is_some_and(|until| until > now)
+    {
+        [102, 196, 65, 255]
+    } else if matches!(
+        state.phase,
+        Phase::Wake | Phase::Thinking | Phase::Speaking | Phase::Action | Phase::Confirmation
+    ) {
+        [193, 126, 20, 255] // #147ec1 signal
+    } else {
+        [99, 91, 82, 255]
+    };
+    let line_width = (width / 4).clamp(18, 42);
+    let line_height = (width / 24).clamp(4, 8);
+    let line_y = sprite - line_height - 2;
+    fill_rect(
+        pixels,
+        width,
+        height,
+        (
+            (width - line_width) / 2,
+            line_y,
+            (width + line_width) / 2,
+            line_y + line_height,
+        ),
+        status,
+    );
+
+    if !state.hover {
+        return;
+    }
+    let Some(buttons) = button_geometry(width, height) else {
+        return;
+    };
+    for &(cx, cy, radius) in &buttons {
+        fill_circle(pixels, width, height, cx, cy, radius, [100, 100, 100, 255]);
+        fill_circle(pixels, width, height, cx, cy, radius - 1, [31, 31, 31, 255]);
+    }
+
+    let (voice_x, voice_y, _) = buttons[0];
+    for (offset, bar_height) in [(-5, 6), (-2, 10), (1, 14), (4, 8)] {
+        fill_rect(
+            pixels,
+            width,
+            height,
+            (
+                voice_x + offset,
+                voice_y - bar_height / 2,
+                voice_x + offset + 2,
+                voice_y + (bar_height + 1) / 2,
+            ),
+            [235, 235, 235, 255],
+        );
+    }
+
+    let (task_x, task_y, _) = buttons[1];
+    if state.task_count > 0 {
+        fill_rect(
+            pixels,
+            width,
+            height,
+            (task_x - 1, task_y - 6, task_x + 2, task_y + 6),
+            [235, 235, 235, 255],
+        );
+        fill_rect(
+            pixels,
+            width,
+            height,
+            (task_x - 4, task_y - 5, task_x, task_y - 3),
+            [235, 235, 235, 255],
+        );
+    } else {
+        for offset in 0..3 {
+            set_pixel(
+                pixels,
+                width,
+                height,
+                task_x - 5 + offset,
+                task_y - 1 - offset,
+                [235, 235, 235, 255],
+            );
+            set_pixel(
+                pixels,
+                width,
+                height,
+                task_x + 5 - offset,
+                task_y - 1 - offset,
+                [235, 235, 235, 255],
+            );
+        }
+    }
+}
+
 fn wide(value: &str) -> Vec<u16> {
     value.encode_utf16().chain(Some(0)).collect()
+}
+
+fn emit_event(value: &str) {
+    let mut stdout = io::stdout().lock();
+    let _ = writeln!(stdout, "{value}");
+    let _ = stdout.flush();
 }
 
 fn parse_args() -> Result<(PathBuf, RECT), String> {
@@ -180,11 +382,14 @@ pub fn run() -> Result<(), String> {
         atlas,
         frames: HashMap::new(),
         phase: Phase::Ready,
+        task_count: 0,
         look: None,
+        hover: false,
         frame_index: 0,
         motion_enabled: client_area_animation_enabled(),
         bounds,
         exit_requested: false,
+        completion_until: None,
     }));
     APP.set(app.clone()).map_err(|_| "app initialized twice")?;
 
@@ -204,7 +409,7 @@ pub fn run() -> Result<(), String> {
         }
 
         let hwnd = CreateWindowExW(
-            WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
+            WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
             class_name.as_ptr(),
             wide("Marvi Pet").as_ptr(),
             WS_POPUP,
@@ -223,7 +428,7 @@ pub fn run() -> Result<(), String> {
         render(hwnd)?;
         ShowWindow(hwnd, SW_SHOWNA);
         arm_timer(hwnd);
-        println!("{{\"type\":\"ready\"}}");
+        emit_event("{\"type\":\"ready\"}");
 
         start_stdin_thread(hwnd, app);
         let mut message: MSG = std::mem::zeroed();
@@ -244,14 +449,20 @@ fn start_stdin_thread(hwnd: HWND, app: Arc<Mutex<App>>) {
                 Ok(command) => {
                     let mut state = app.lock().expect("pet model poisoned");
                     match command {
-                        Command::State { phase } => {
+                        Command::State { phase, task_count } => {
+                            if active_phase(state.phase) && phase == Phase::Ready {
+                                state.completion_until =
+                                    Some(Instant::now() + Duration::from_secs(2));
+                            }
                             state.phase = phase;
+                            state.task_count = task_count.min(9);
                             state.frame_index = 0;
                         }
                         Command::Look { direction } => {
                             state.look = direction;
                             state.frame_index = 0;
                         }
+                        Command::Hover { hover } => state.hover = hover,
                         Command::Bounds {
                             x,
                             y,
@@ -305,12 +516,57 @@ unsafe extern "system" fn window_proc(
         WM_TIMER => {
             if let Some(app) = APP.get() {
                 let mut state = app.lock().expect("pet model poisoned");
+                if state
+                    .completion_until
+                    .is_some_and(|until| until <= Instant::now())
+                {
+                    state.completion_until = None;
+                }
                 if state.look.is_none() && state.motion_enabled {
                     state.frame_index += 1;
                 }
             }
             let _ = render(hwnd);
             arm_timer(hwnd);
+            0
+        }
+        WM_NCHITTEST => {
+            let Some(app) = APP.get() else {
+                return HTTRANSPARENT as LRESULT;
+            };
+            let state = app.lock().expect("pet model poisoned");
+            if !state.hover {
+                return HTTRANSPARENT as LRESULT;
+            }
+            let screen_x = (lparam as u32 & 0xffff) as u16 as i16 as i32;
+            let screen_y = ((lparam as u32 >> 16) & 0xffff) as u16 as i16 as i32;
+            let width = state.bounds.right - state.bounds.left;
+            let height = state.bounds.bottom - state.bounds.top;
+            if hit_test_button(
+                width,
+                height,
+                screen_x - state.bounds.left,
+                screen_y - state.bounds.top,
+            )
+            .is_some()
+            {
+                HTCLIENT as LRESULT
+            } else {
+                HTTRANSPARENT as LRESULT
+            }
+        }
+        WM_LBUTTONUP => {
+            let Some(app) = APP.get() else { return 0 };
+            let state = app.lock().expect("pet model poisoned");
+            let width = state.bounds.right - state.bounds.left;
+            let height = state.bounds.bottom - state.bounds.top;
+            let x = (lparam as u32 & 0xffff) as u16 as i16 as i32;
+            let y = ((lparam as u32 >> 16) & 0xffff) as u16 as i16 as i32;
+            match hit_test_button(width, height, x, y) {
+                Some(PetAction::Voice) => emit_event("{\"type\":\"action\",\"action\":\"voice\"}"),
+                Some(PetAction::Tasks) => emit_event("{\"type\":\"action\",\"action\":\"tasks\"}"),
+                None => {}
+            }
             0
         }
         WM_MODEL_CHANGED => {
@@ -352,10 +608,19 @@ unsafe fn arm_timer(hwnd: HWND) {
         .get()
         .map(|app| {
             let state = app.lock().expect("pet model poisoned");
-            if state.motion_enabled {
+            let animation = if state.motion_enabled {
                 state.current_frame().duration_ms
             } else {
                 0
+            };
+            let completion = state
+                .completion_until
+                .and_then(|until| until.checked_duration_since(Instant::now()))
+                .map(|remaining| remaining.as_millis().clamp(1, u32::MAX as u128) as u32)
+                .unwrap_or(0);
+            match (animation, completion) {
+                (0, value) | (value, 0) => value,
+                (left, right) => left.min(right),
             }
         })
         .unwrap_or(0);
@@ -369,15 +634,29 @@ unsafe fn render(hwnd: HWND) -> Result<(), String> {
     let mut state = app.lock().map_err(|_| "pet model poisoned")?;
     let frame = state.current_frame();
     let bounds = state.bounds;
-    let cached = state.cached_frame(frame);
+    let width = bounds.right - bounds.left;
+    let height = bounds.bottom - bounds.top;
+    let (sprite_pixels, sprite_width, sprite_height) = {
+        let cached = state.cached_frame(frame);
+        (cached.pixels.clone(), cached.width, cached.height)
+    };
+    let mut pixels = vec![0u8; (width * height * 4) as usize];
+    for row in 0..sprite_height {
+        let source = (row * sprite_width * 4) as usize;
+        let destination = (row * width * 4) as usize;
+        let length = (sprite_width * 4) as usize;
+        pixels[destination..destination + length]
+            .copy_from_slice(&sprite_pixels[source..source + length]);
+    }
+    draw_overlay(&state, &mut pixels, width, height);
 
     let screen_dc = GetDC(null_mut());
     let memory_dc = CreateCompatibleDC(screen_dc);
     let bitmap_info = BITMAPINFO {
         bmiHeader: BITMAPINFOHEADER {
             biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
-            biWidth: cached.width,
-            biHeight: -cached.height,
+            biWidth: width,
+            biHeight: -height,
             biPlanes: 1,
             biBitCount: 32,
             biCompression: BI_RGB,
@@ -403,11 +682,7 @@ unsafe fn render(hwnd: HWND) -> Result<(), String> {
         }
         return Err("CreateDIBSection failed".into());
     }
-    std::ptr::copy_nonoverlapping(
-        cached.pixels.as_ptr(),
-        bits.cast::<u8>(),
-        cached.pixels.len(),
-    );
+    std::ptr::copy_nonoverlapping(pixels.as_ptr(), bits.cast::<u8>(), pixels.len());
     let previous = SelectObject(memory_dc, bitmap as HGDIOBJ);
     let destination = POINT {
         x: bounds.left,
@@ -415,8 +690,8 @@ unsafe fn render(hwnd: HWND) -> Result<(), String> {
     };
     let source = POINT { x: 0, y: 0 };
     let size = SIZE {
-        cx: cached.width,
-        cy: cached.height,
+        cx: width,
+        cy: height,
     };
     let blend = BLENDFUNCTION {
         BlendOp: AC_SRC_OVER as u8,
@@ -443,5 +718,27 @@ unsafe fn render(hwnd: HWND) -> Result<(), String> {
         Err("UpdateLayeredWindow failed".into())
     } else {
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn compact_host_keeps_sprite_and_control_geometry_separate() {
+        assert_eq!(sprite_height(96, 136), 104);
+        assert_eq!(
+            button_geometry(96, 136),
+            Some([(34, 120, 10), (62, 120, 10)])
+        );
+    }
+
+    #[test]
+    fn only_visible_control_circles_capture_clicks() {
+        assert_eq!(hit_test_button(96, 136, 34, 120), Some(PetAction::Voice));
+        assert_eq!(hit_test_button(96, 136, 62, 120), Some(PetAction::Tasks));
+        assert_eq!(hit_test_button(96, 136, 48, 120), None);
+        assert_eq!(hit_test_button(96, 136, 10, 20), None);
     }
 }

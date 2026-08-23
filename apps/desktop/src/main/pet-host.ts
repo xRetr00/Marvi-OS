@@ -8,14 +8,39 @@ import type { AssistantState } from '../shared/runtime'
 import type { RectangleLike } from './pet-window'
 
 export type PetHostCommand =
-  | { type: 'state'; phase: AssistantState['phase'] }
+  | { type: 'state'; phase: AssistantState['phase']; taskCount: number }
   | { type: 'look'; direction: number | null }
+  | { type: 'hover'; hover: boolean }
   | ({ type: 'bounds' } & RectangleLike)
   | { type: 'exit' }
 
 export interface PetHostPaths {
   executable: string
   atlas: string
+}
+
+export type PetHostAction = 'voice' | 'tasks'
+export type PetHostEvent = { type: 'ready' } | { type: 'action'; action: PetHostAction }
+
+export function parsePetHostEvent(line: string): PetHostEvent | null {
+  try {
+    const value = JSON.parse(line) as Partial<PetHostEvent>
+    if (value.type === 'ready') return { type: 'ready' }
+    if (value.type === 'action' && (value.action === 'voice' || value.action === 'tasks')) {
+      return { type: 'action', action: value.action }
+    }
+  } catch {
+    // Diagnostics are best-effort; malformed helper output must not affect supervision.
+  }
+  return null
+}
+
+export function petTaskCount(phase: AssistantState['phase']): number {
+  return phase === 'thinking' || phase === 'action' || phase === 'confirmation' ? 1 : 0
+}
+
+export function petActionPage(action: PetHostAction): 'Voice' | 'Activity' {
+  return action === 'voice' ? 'Voice' : 'Activity'
 }
 
 export function encodePetHostCommand(command: PetHostCommand): string {
@@ -56,7 +81,8 @@ export class NativePetHost {
       code: number | null
       signal: NodeJS.Signals | null
     }) => void,
-    private readonly onDiagnostic: (level: 'info' | 'warning', message: string) => void
+    private readonly onDiagnostic: (level: 'info' | 'warning', message: string) => void,
+    private readonly onAction: (action: PetHostAction) => void
   ) {}
 
   get running(): boolean {
@@ -66,7 +92,7 @@ export class NativePetHost {
   start(bounds: RectangleLike, phase: AssistantState['phase']): boolean {
     if (this.running) {
       this.send({ type: 'bounds', ...bounds })
-      this.send({ type: 'state', phase })
+      this.send({ type: 'state', phase, taskCount: petTaskCount(phase) })
       return true
     }
     if (!existsSync(this.paths.executable) || !existsSync(this.paths.atlas)) {
@@ -101,8 +127,16 @@ export class NativePetHost {
         this.onDiagnostic('warning', `native pet host input error: ${error.message}`)
       }
     })
+    let stdoutBuffer = ''
     child.stdout.on('data', (chunk: string) => {
-      if (chunk.includes('"ready"')) this.onDiagnostic('info', 'native pet host ready')
+      stdoutBuffer += chunk
+      const lines = stdoutBuffer.split(/\r?\n/)
+      stdoutBuffer = lines.pop() ?? ''
+      for (const line of lines) {
+        const event = parsePetHostEvent(line)
+        if (event?.type === 'ready') this.onDiagnostic('info', 'native pet host ready')
+        if (event?.type === 'action') this.onAction(event.action)
+      }
     })
     child.stderr.on('data', (chunk: string) => {
       this.onDiagnostic('warning', chunk.trim())
@@ -114,7 +148,7 @@ export class NativePetHost {
       if (this.child === child) this.child = null
       if (!this.expectedExits.has(child)) this.onUnexpectedExit({ code, signal })
     })
-    this.send({ type: 'state', phase })
+    this.send({ type: 'state', phase, taskCount: petTaskCount(phase) })
     return true
   }
 

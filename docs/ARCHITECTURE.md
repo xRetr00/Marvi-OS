@@ -26,7 +26,8 @@ flowchart TB
     Deep["Marvi Agent delegate"]
 
     UI <--> Main
-    Main -->|phase, gaze, bounds| Pet
+    Main -->|phase/count, gaze, hover, bounds| Pet
+    Pet -->|voice/activity intent| Main
     Main <--> Gateway
     Gateway --> LK
     Gateway --> Agent
@@ -89,10 +90,13 @@ Closing the main window leaves the tray, Dynamic Island, optional desktop pet,
 Gateway, wake word, and the Gateway-owned Smart Room sidecar alive. Electron
 main owns pet-helper supervision, placement, persistence, and cursor
 quantization. The focused native helper owns only its transparent layered
-window, atlas decode, authored frame timer, and current-frame presentation; it
-receives assistant phase, a direction index, and bounds over stdin. It cannot
-reach Gateway or execute tools. The Smart Room sidecar owns camera presence,
-gestures, and room events. Exiting from the tray stops them in dependency order.
+window, atlas decode, authored frame timer, status/control drawing, and bounded
+button hit-testing. It receives assistant phase/count, direction index, hover,
+and bounds over stdin, and emits only voice/activity button intents over
+stdout. Electron main interprets those intents and navigates existing views.
+The helper cannot reach Gateway, focus itself, or execute tools. The Smart Room
+sidecar owns camera presence, gestures, and room events. Exiting from the tray
+stops them in dependency order.
 
 ## Media privacy boundary
 

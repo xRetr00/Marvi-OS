@@ -174,6 +174,15 @@ function MainSurface(): React.JSX.Element {
     return window.marvi?.onRuntime(applyRuntimeState)
   }, [])
 
+  useEffect(
+    () =>
+      window.marvi?.onNavigate((next) => {
+        setSettings(null)
+        setPage(next)
+      }),
+    []
+  )
+
   useEffect(() => {
     let disposed = false
     const poll = async (): Promise<void> => {

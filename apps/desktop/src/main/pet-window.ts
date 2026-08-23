@@ -21,6 +21,7 @@ export interface PointLike {
 }
 
 export const PET_CELL_SIZE = { width: 192, height: 208 } as const
+export const PET_CONTROL_HEIGHT = 64
 export const DEFAULT_PET_PREFERENCES: PetPreferences = {
   enabled: true,
   displayId: null,
@@ -50,7 +51,7 @@ export function petWindowBounds(
   margin = 18
 ): RectangleLike {
   const width = Math.round(PET_CELL_SIZE.width * preferences.scale)
-  const height = Math.round(PET_CELL_SIZE.height * preferences.scale)
+  const height = Math.round((PET_CELL_SIZE.height + PET_CONTROL_HEIGHT) * preferences.scale)
   return {
     x:
       preferences.side === 'left'
@@ -60,6 +61,27 @@ export function petWindowBounds(
     width,
     height
   }
+}
+
+/** The native host reserves transparent room beneath the atlas cell for its
+ * status and hover controls. Gaze calculations must still use the sprite. */
+export function petSpriteBounds(bounds: RectangleLike): RectangleLike {
+  return {
+    ...bounds,
+    height: Math.min(
+      bounds.height,
+      Math.round((bounds.width * PET_CELL_SIZE.height) / PET_CELL_SIZE.width)
+    )
+  }
+}
+
+export function pointInBounds(bounds: RectangleLike, point: PointLike): boolean {
+  return (
+    point.x >= bounds.x &&
+    point.x < bounds.x + bounds.width &&
+    point.y >= bounds.y &&
+    point.y < bounds.y + bounds.height
+  )
 }
 
 /** Quantize the cursor into the atlas' 16 gaze directions. Null is the

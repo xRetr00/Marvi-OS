@@ -49,7 +49,7 @@ a brief completion state.
 Marvi OS has four surfaces:
 
 1. **Dynamic Island** — always-on-top primary interaction.
-2. **Desktop pet** — optional, click-through companion presentation.
+2. **Desktop pet** — optional companion presentation with two bounded controls.
 3. **Main control center** — settings, state, integrations, and audit.
 4. **Tray menu** — open, mute/pause sensors, YOLO state, restart Gateway, exit.
 
@@ -75,8 +75,19 @@ conversation state.
 - Preferences expose visible/hidden, display, left/right corner, and
   40%/50%/70%/100% size. Fresh installs default to the Codex-like 50% size.
   Hidden terminates the helper, so disabled means no pet process.
-- The window remains click-through in every state. Confirmation stays on the
-  Dynamic Island; the pet never becomes an authority surface.
+- A short line below the sprite communicates authoritative state: gray when
+  idle, blue while working, green for completion, and red on error. Completion
+  is a two-second presentation transition after active work returns to ready;
+  it does not create a second runtime phase.
+- Hovering the pet or its reserved transparent control strip reveals two
+  compact buttons. Voice opens the existing Voice view; Tasks opens the
+  existing Activity audit because Marvi has no separate task subsystem yet.
+  The count is `1` only while the single authoritative operation is thinking,
+  acting, or awaiting confirmation, and `0` is shown as a compact chevron.
+- The helper remains non-focusable and click-through outside those two button
+  circles. Button actions travel to Electron main, which alone may reveal and
+  navigate the control center. Confirmation remains on the Dynamic Island;
+  the pet never becomes a confirmation or tool-execution authority surface.
 - The source artwork is repository-owned input and the generated atlas is
   packaged locally. No runtime image generation or remote fetch occurs.
 

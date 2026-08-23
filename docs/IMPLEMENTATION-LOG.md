@@ -846,3 +846,20 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   70.08 MiB renderer result.
 - Kept Phase 12 experimental pending a full voice-stack soak, DPI/display
   checks, and the product owner's keep/draft decision.
+
+## 2026-08-23 — native pet status and hover controls
+
+- Added a scaled transparent control strip beneath the unchanged pet atlas.
+  The helper draws an authoritative gray/blue/green/red status line and reveals
+  compact Voice and current-operation buttons only while hovered.
+- Kept the native window non-focusable and click-through outside the exact two
+  button circles. The helper emits bounded intents; Electron main owns showing
+  the control center and routes Voice to Voice and Tasks to the existing
+  Activity audit without inventing a new task subsystem.
+- Added protocol validation, count/routing/geometry/hit-test coverage, packaged
+  idle/hover visual capture, a native-click-to-Electron-window acceptance test,
+  full desktop and Rust checks, and another forced helper restart test.
+- The interactive helper measured 23.62 MiB working set, 16.44 MiB private,
+  0.00% of one core, one native process, and zero extra Chromium renderers over
+  the 12-second packaged sample. Phase 12 remains experimental pending the
+  original soak/DPI gate and the product owner's keep/draft decision.

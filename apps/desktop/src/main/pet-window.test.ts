@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_PET_PREFERENCES,
   normalizePetPreferences,
+  petSpriteBounds,
+  pointInBounds,
   petLookDirection,
   petWindowBounds
 } from './pet-window'
@@ -28,19 +30,32 @@ describe('petWindowBounds', () => {
   it('anchors at the bottom right inside the work area', () => {
     expect(petWindowBounds(workArea, { side: 'right', scale: 1 })).toEqual({
       x: 1090,
-      y: 614,
+      y: 550,
       width: 192,
-      height: 208
+      height: 272
     })
   })
 
   it('supports a compact left-side companion', () => {
     expect(petWindowBounds(workArea, { side: 'left', scale: 0.5 })).toEqual({
       x: 118,
-      y: 718,
+      y: 686,
       width: 96,
-      height: 104
+      height: 136
     })
+  })
+})
+
+describe('native host geometry', () => {
+  const host = { x: 10, y: 20, width: 96, height: 136 }
+
+  it('keeps gaze geometry on the atlas sprite and reserves controls below it', () => {
+    expect(petSpriteBounds(host)).toEqual({ x: 10, y: 20, width: 96, height: 104 })
+  })
+
+  it('includes the hover controls but excludes the outer edge', () => {
+    expect(pointInBounds(host, { x: 58, y: 150 })).toBe(true)
+    expect(pointInBounds(host, { x: 106, y: 150 })).toBe(false)
   })
 })
 

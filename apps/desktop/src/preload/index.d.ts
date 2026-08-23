@@ -39,6 +39,7 @@ export interface MarviDesktopApi {
   getVersion: () => Promise<string>
   getBuildInfo: () => Promise<MarviBuildInfo>
   showMain: () => void
+  onNavigate: (listener: (page: 'Voice' | 'Activity') => void) => () => void
   getRuntime: () => Promise<RuntimeStatus>
   getVoiceSession: () => Promise<{ url: string; room: string; token: string }>
   getDisplays: () => Promise<Array<{ id: number; label: string; primary: boolean }>>
