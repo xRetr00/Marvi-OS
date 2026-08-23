@@ -1888,6 +1888,18 @@ function startApp(): void {
     // apply to a button press exactly as they do to a spoken request. The
     // renderer names the tool; it cannot reach anything the Gateway has not
     // registered, and the allowlist here keeps it to the room.
+    ipcMain.handle('marvi:get-room-faces', async () => {
+      try {
+        const response = await fetch(`${gateway()}/room/faces`, {
+          signal: AbortSignal.timeout(5_000)
+        })
+        if (!response.ok) return []
+        const body = (await response.json()) as { faces?: unknown }
+        return Array.isArray(body.faces) ? body.faces : []
+      } catch {
+        return []
+      }
+    })
     ipcMain.handle('marvi:room-command', async (_event, tool, args) => {
       const allowed = ['room_set_light', 'room_set_mode', 'smart_room_cancel_sleep']
       if (typeof tool !== 'string' || !allowed.includes(tool)) {

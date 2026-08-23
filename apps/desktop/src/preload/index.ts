@@ -114,6 +114,8 @@ const marvi = {
   setYolo: (yolo: boolean): Promise<RuntimeStatus> => ipcRenderer.invoke('marvi:set-yolo', yolo),
   getAudit: (): Promise<AuditEvent[]> => ipcRenderer.invoke('marvi:get-audit'),
   getRoomEvents: (): Promise<RoomEvent[]> => ipcRenderer.invoke('marvi:get-room-events'),
+  getRoomFaces: (): Promise<{ id: string; at: number; image: string }[]> =>
+    ipcRenderer.invoke('marvi:get-room-faces'),
   roomCommand: (
     tool: string,
     args: Record<string, unknown>

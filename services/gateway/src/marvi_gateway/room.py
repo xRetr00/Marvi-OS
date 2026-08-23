@@ -217,12 +217,28 @@ class SleepProtectedError(Exception):
     """
 
 
+#: Whether the sleep rule is enforced. Off by default, at the owner's request.
+#:
+#: The rule is sound and the room is theirs: with no broker configured the
+#: sidecar reports mode "off" and an unconfirmed light, and a rule that fails
+#: closed on unknown state then refuses every write for a room it cannot even
+#: read. Turned off it is one setting; deleted it is a safety property nobody
+#: can get back without rewriting it, so the logic and its tests stay.
+SLEEP_RULE = "MARVI_ROOM_SLEEP_RULE"
+
+
+def sleep_rule_on() -> bool:
+    return os.environ.get(SLEEP_RULE, "").strip().lower() in ("1", "true", "on", "yes")
+
+
 def assert_sleep_safe(mode: str | None, light_on: bool, action: str, params: dict[str, Any]) -> None:
-    """Enforce the sleep rule.
+    """Enforce the sleep rule, when it is switched on.
 
     Deliberately a pure function of the room's state and the requested action,
     so the rule can be read and tested without a sidecar.
     """
+    if not sleep_rule_on():
+        return
     if (mode or "").lower() != "sleep":
         return
     turning_light_off = action == "set_light" and params.get("on") is False
@@ -571,6 +587,56 @@ def register_room_tools(registry, sidecar: RoomSidecar) -> None:
             handler=room_set_light,
         )
     )
+
+
+#: How many recent faces the Room page shows.
+PREVIEW_FACES = 8
+#: A thumbnail is a face crop, a few kilobytes. Anything larger is not one, and
+#: is not going to be inlined into a JSON response.
+MAX_FACE_BYTES = 400_000
+
+
+def recent_faces(limit: int = PREVIEW_FACES) -> list[dict[str, Any]]:
+    """The newest face crops the sidecar has written, as data URIs.
+
+    The camera itself stays where it belongs. The sidecar is the only process
+    that opens it and exposes no frame RPC, deliberately -- frames and
+    embeddings do not leave that module. What it does write is a crop per face
+    it recognised, and those are the honest preview: they show what vision
+    actually saw rather than what the lens is pointed at.
+
+    Read from disk rather than requested, so this works whether or not the
+    sidecar is up, and returns nothing rather than raising when there is no
+    camera, no directory, or no permission.
+    """
+    import base64
+
+    directory = _sidecar_home() / "vision" / "faces"
+    try:
+        files = sorted(
+            (path for path in directory.iterdir() if path.suffix.lower() == ".jpg"),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )[: max(1, limit)]
+    except OSError:
+        return []
+
+    found = []
+    for path in files:
+        try:
+            if path.stat().st_size > MAX_FACE_BYTES:
+                continue
+            encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+        except OSError:
+            continue
+        found.append(
+            {
+                "id": path.stem,
+                "at": path.stat().st_mtime,
+                "image": f"data:image/jpeg;base64,{encoded}",
+            }
+        )
+    return found
 
 
 def unconfirmed(state: dict[str, Any]) -> str:

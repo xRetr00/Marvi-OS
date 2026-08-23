@@ -59,6 +59,9 @@ export interface MarviDesktopApi {
   setYolo: (yolo: boolean) => Promise<RuntimeStatus>
   getAudit: () => Promise<AuditEvent[]>
   getRoomEvents: () => Promise<RoomEvent[]>
+  /** Face crops the sidecar wrote when it recognised someone. Not a camera
+   *  feed: the sidecar owns the camera and publishes no frames. */
+  getRoomFaces: () => Promise<{ id: string; at: number; image: string }[]>
   /** Press a room control. Goes through the Gateway's tool router, so the
    *  sleep rule and the confirmation flow apply to a button as to a voice. */
   roomCommand: (

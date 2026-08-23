@@ -3,6 +3,13 @@
 While the room is asleep it belongs to the person in it. Marvi may do exactly
 one thing: switch a light off. Everything else is refused, no matter who asks
 — voice, the mind, vision, or YOLO.
+
+**It is off by default**, at the owner's request, and these tests switch it on.
+The rule fails closed on unknown state, and with no broker configured the room
+reports a mode of "off" and a light it cannot read — so a rule meant to protect
+someone asleep was refusing writes for a room it could not see. Off it is one
+setting; deleted it is a safety property nobody gets back without rewriting it,
+so the logic and its tests stay exactly as they were.
 """
 
 from __future__ import annotations
@@ -12,13 +19,31 @@ from httpx import ASGITransport, AsyncClient
 
 from marvi_gateway.app import create_app
 from marvi_gateway.room import (
+    SLEEP_RULE,
     RoomSidecar,
     SleepProtectedError,
     assert_sleep_safe,
     register_room_tools,
+    sleep_rule_on,
 )
 from marvi_gateway.runtime import RuntimeStore
 from marvi_gateway.tools import ToolRegistry
+
+
+@pytest.fixture(autouse=True)
+def rule_on(monkeypatch):
+    """Every test below is about the rule, so every one of them enables it."""
+    monkeypatch.setenv(SLEEP_RULE, "true")
+
+
+def test_the_rule_is_off_unless_switched_on(monkeypatch) -> None:
+    """The default, asserted here rather than inferred from its absence."""
+    monkeypatch.delenv(SLEEP_RULE, raising=False)
+
+    assert sleep_rule_on() is False
+    # And with it off, the action the rule exists to refuse goes through.
+    assert_sleep_safe("sleep", True, "set_mode", {"mode": "focus"})
+
 
 # -- the rule itself --------------------------------------------------------
 

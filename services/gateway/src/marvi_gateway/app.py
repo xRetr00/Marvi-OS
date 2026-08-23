@@ -1496,6 +1496,15 @@ def create_app(
         runtime_store.audit("schedule", action, {"id": schedule_id})
         return schedule_page()
 
+    @app.get("/room/faces")
+    async def read_room_faces(limit: int = room_module.PREVIEW_FACES) -> dict[str, Any]:
+        """What vision has actually seen, for the Room page.
+
+        Not a camera feed: the sidecar owns the camera and publishes no frames.
+        These are the crops it wrote when it recognised a face.
+        """
+        return {"faces": room_module.recent_faces(limit)}
+
     @app.get("/plugins", response_model=PluginPage)
     async def read_plugins() -> PluginPage:
         return plugin_page()

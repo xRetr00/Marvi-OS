@@ -661,6 +661,23 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
 
   const [busy, setBusy] = useState('')
   const [pressed, setPressed] = useState('')
+  const [faces, setFaces] = useState<{ id: string; at: number; image: string }[]>([])
+
+  useEffect(() => {
+    let disposed = false
+    const load = async (): Promise<void> => {
+      const found = await window.marvi?.getRoomFaces()
+      if (!disposed && found) setFaces(found)
+    }
+    void load()
+    // Slower than the state poll: these are images, and a face crop is written
+    // when somebody is recognised rather than continuously.
+    const timer = setInterval(() => void load(), 15_000)
+    return () => {
+      disposed = true
+      clearInterval(timer)
+    }
+  }, [])
 
   const state = snapshot?.state ?? {}
   const light = readRecord(state, 'light')
@@ -668,6 +685,7 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
   const modes = readRecord(state, 'modes')
   const location = readRecord(state, 'location')
   const vision = readRecord(state, 'vision')
+  const mqtt = readRecord(state, 'mqtt')
 
   const press = async (tool: string, args: Record<string, unknown>): Promise<void> => {
     setBusy(tool)
@@ -828,6 +846,86 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
               title={label.toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase())}
             />
           ))
+        )}
+      </ControlSection>
+
+      <ControlSection icon={Wifi} title="Devices">
+        {[
+          ['Light (Tuya bulb)', 'tuya_bulb'],
+          ['Socket (Tuya HE20)', 'tuya_he20'],
+          ['Presence sensor (ESP32)', 'esp32']
+        ].map(([label, key]) => {
+          const device = readRecord(readRecord(state, 'devices'), key)
+          return (
+            <ControlRow
+              action={
+                <ControlPill
+                  tone={
+                    !device.configured ? 'neutral' : device.online ? 'ready' : 'danger'
+                  }
+                >
+                  {!device.configured ? 'not set up' : device.online ? 'online' : 'offline'}
+                </ControlPill>
+              }
+              description={device.ip ? String(device.ip) : undefined}
+              key={key}
+              title={label}
+            />
+          )
+        })}
+        <ControlRow
+          action={
+            <ControlPill tone={mqtt.connected ? 'ready' : 'danger'}>
+              {mqtt.connected ? 'connected' : 'disconnected'}
+            </ControlPill>
+          }
+          description={`${String(mqtt.broker ?? '?')}:${String(mqtt.port ?? '?')}`}
+          title="MQTT broker"
+        />
+        <ControlRow
+          action={
+            <ControlPill tone={location.home ? 'ready' : 'neutral'}>
+              {location.home ? 'home' : String(location.zone ?? 'unknown')}
+            </ControlPill>
+          }
+          description={
+            location.source
+              ? `Reported by ${String(location.source)}`
+              : 'No phone location reported yet — OwnTracks publishes these over MQTT.'
+          }
+          title="Phone (OwnTracks)"
+        />
+      </ControlSection>
+
+      <ControlSection icon={Eye} title="Vision">
+        {faces.length === 0 ? (
+          <ControlEmpty
+            description={
+              vision.error
+                ? String(vision.error)
+                : 'Nothing seen yet. Faces appear here as the camera recognises them.'
+            }
+            icon={Eye}
+            title="No faces captured"
+          />
+        ) : (
+          <>
+            <ControlRow
+              description="What the camera actually recognised. The sidecar owns the camera and publishes no live frames, so these crops are the preview."
+              title={`${faces.length} recent`}
+            />
+            <div className="face-strip">
+              {faces.map((face) => (
+                <img
+                  alt="A face the camera recognised"
+                  className="face-thumb"
+                  key={face.id}
+                  src={face.image}
+                  title={new Date(face.at * 1000).toLocaleString()}
+                />
+              ))}
+            </div>
+          </>
         )}
       </ControlSection>
 

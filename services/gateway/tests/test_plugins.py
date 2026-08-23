@@ -414,7 +414,7 @@ def test_marvis_guard_runs_before_the_plugins_handler_and_can_refuse() -> None:
     assert called == ["guard saw p_set", "guard saw p_set", "plugin ran"]
 
 
-def test_the_room_guard_refuses_a_bridged_write_while_asleep() -> None:
+def test_the_room_guard_refuses_a_bridged_write_while_asleep(monkeypatch) -> None:
     """End to end with the real guard, against the real rule."""
 
     class Asleep:
@@ -424,6 +424,8 @@ def test_the_room_guard_refuses_a_bridged_write_while_asleep() -> None:
         def snapshot(self):
             return {}
 
+    # The rule is off by default now; this test is about the rule.
+    monkeypatch.setenv(room.SLEEP_RULE, "true")
     guard = room.sleep_guard(Asleep())
 
     # Only switching a light off is permitted while asleep.
