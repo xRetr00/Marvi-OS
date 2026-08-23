@@ -726,3 +726,16 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   supplied loading reference into a deterministic Processing Card. The
   unrelated game mode, external brand, random progress, and extra dependency
   were deliberately not carried over.
+
+## 2026-08-23 — state-driven Chat composer beam
+
+- Adopted the maintained `border-beam` 1.3.0 React package unchanged and
+  recorded its MIT provenance in the upstream ledger.
+- Wrapped the existing Gateway-connected Chat composer in the monochrome line
+  preset. The effect activates only for focus, entered text, or streaming; it
+  does not invent work or replace operational status.
+- Preserved the existing send, stop, Enter/Shift+Enter, session model, and
+  reasoning-effort behavior while adding compact state labels and matching
+  abstract send/stop icons.
+- Verified the production build and keyboard-send path in Chromium at
+  1440×900 with no browser console errors.

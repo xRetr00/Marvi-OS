@@ -161,6 +161,11 @@ Chat latency measures request-to-reply time; voice latency measures the active
 listen/wake-to-speaking transition. Turn and duration counters continue while
 the renderer session remains open.
 
+The Chat composer keeps its native Marvi controls and Gateway-backed turn
+behavior inside a `border-beam` line treatment. The beam is monochrome and
+state-driven: it activates only while the field has input/focus or a reply is
+streaming, and reduced-motion preferences disable its travel.
+
 Overview is the denser operational exception to the otherwise simple pages. It
 uses four numbered modules: Current State, Voice Path, Service Health, and
 Context. Every value sits in a labeled field, status badge, or bounded cell;

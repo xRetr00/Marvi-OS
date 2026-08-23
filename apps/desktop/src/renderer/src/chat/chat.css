@@ -425,21 +425,53 @@
 }
 
 .chat-compose-field {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-  padding: 8px 8px 8px 14px;
+  display: grid;
+  gap: 7px;
+  padding: 9px 9px 9px 14px;
   border: 1px solid var(--ui-stroke-primary);
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--ui-bg-raised);
+  transition:
+    border-color 160ms ease-out,
+    background-color 160ms ease-out;
+}
+
+.chat-compose-beam {
+  width: 100%;
 }
 
 .chat-compose-field:focus-within {
   border-color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-bg-raised) 94%, var(--ui-accent));
+}
+
+.chat-compose-label,
+.chat-compose-input {
+  display: flex;
+  align-items: center;
+}
+
+.chat-compose-label {
+  justify-content: space-between;
+  padding-right: 5px;
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+}
+
+.chat-compose-label span:last-child {
+  color: color-mix(in srgb, var(--ui-accent) 70%, var(--ui-text-secondary));
+}
+
+.chat-compose-input {
+  align-items: flex-end;
+  gap: 10px;
 }
 
 .chat-compose-field textarea {
   flex: 1;
+  min-width: 0;
+  padding: 2px 0;
   border: 0;
   background: transparent;
   color: var(--ui-text-primary);
@@ -459,13 +491,34 @@
   width: 32px;
   height: 32px;
   border: 1px solid var(--ui-accent);
-  border-radius: 8px;
-  background: var(--ui-accent-soft);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--ui-accent) 15%, var(--ui-bg-raised));
   color: var(--ui-text-emphasis);
   font: inherit;
   font-size: 15px;
   line-height: 1;
   cursor: pointer;
+  transition:
+    color 120ms ease-out,
+    border-color 120ms ease-out,
+    background-color 120ms ease-out,
+    transform 120ms ease-out;
+}
+
+.chat-send:not(:disabled):hover {
+  background: color-mix(in srgb, var(--ui-accent) 24%, var(--ui-bg-raised));
+  color: var(--ui-text-primary);
+  transform: translateY(-1px);
+}
+
+.chat-send:not(:disabled):active {
+  transform: translateY(0);
+}
+
+.chat-send.is-stop {
+  border-color: color-mix(in srgb, var(--ui-danger) 72%, var(--ui-stroke-primary));
+  background: color-mix(in srgb, var(--ui-danger) 12%, var(--ui-bg-raised));
+  color: var(--ui-danger);
 }
 
 .chat-send:disabled {

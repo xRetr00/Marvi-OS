@@ -47,6 +47,7 @@ be updated with the exact version/commit and local modification path.
 | Frameless title bar pattern | `the predecessor assistant\apps\desktop\electron\main.ts` (`titleBarStyle:'hidden'`, overlay options) | internal | adapt hidden-titlebar shell to renderer-painted chrome | adopted |
 | Glyph spinner | [unicode-animations](https://www.npmjs.com/package/unicode-animations) 1.0.3 | MIT | dependency; braille/orbit frames for CONNECTING and busy states | adopted |
 | Web haptics | [web-haptics](https://github.com/lochie/web-haptics) 0.0.6 | MIT | dependency; audio-transducer tap/selection/success/error feedback | adopted |
+| Composer border motion | [Jakubantalik/border-beam](https://github.com/Jakubantalik/border-beam) 1.3.0 | MIT | unmodified dependency; monochrome line preset wraps the existing Chat composer, with Marvi retaining all controls and behavior | adopted |
 | Context menu primitive | [radix-ui](https://github.com/radix-ui/primitives) 1.6.7 | MIT | dependency; ContextMenu only (shell context menu) | adopted |
 | Shell chrome adaptation | `the predecessor assistant\apps\desktop\src\components\` (decode-text, glyph-spinner, gateway-connecting-overlay, boot-failure-overlay, haptics-provider, translucency, background store, shell-context-menu) | internal | adapt with provenance; local-only, no remote fetches | adopted |
 | Electric Gaze backdrop | 21st.dev ascii-recipe render `assets.21st.dev/ascii-recipes/.../c458eb38-....mp4` (412 KB) + poster webp | verify at re-fetch | vendored local asset; never fetched at runtime | adopted |

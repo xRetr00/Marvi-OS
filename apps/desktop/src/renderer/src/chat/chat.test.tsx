@@ -73,6 +73,8 @@ describe('Composer', () => {
       <Composer draft="hello" busy={false} available onDraftChange={noop} onSend={noop} />
     )
     expect(html).toContain('Enter sends')
+    expect(html).toContain('chat-compose-beam')
+    expect(html).toContain('// MESSAGE')
   })
 
   it('offers a hint to connect a provider when unavailable', () => {
@@ -80,6 +82,21 @@ describe('Composer', () => {
       <Composer draft="" busy={false} available={false} onDraftChange={noop} onSend={noop} />
     )
     expect(html).toContain('Connect a provider')
+  })
+
+  it('keeps cancellation available while a reply is streaming', () => {
+    const html = renderToStaticMarkup(
+      <Composer
+        draft=""
+        busy
+        available
+        onDraftChange={noop}
+        onSend={noop}
+        onCancel={noop}
+      />
+    )
+    expect(html).toContain('aria-label="Stop"')
+    expect(html).toContain('RECEIVING')
   })
 })
 

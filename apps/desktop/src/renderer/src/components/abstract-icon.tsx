@@ -27,6 +27,8 @@ export type AbstractIconName =
   | 'restore'
   | 'close'
   | 'panel'
+  | 'send'
+  | 'stop'
 
 const paths: Record<AbstractIconName, React.ReactNode> = {
   overview: <path d="M3.5 4.5h7v6h-7zM13.5 4.5h7v3h-7zM13.5 10.5h7v9h-7zM3.5 13.5h7v6h-7z" />,
@@ -64,7 +66,9 @@ const paths: Record<AbstractIconName, React.ReactNode> = {
   maximize: <path d="M5.5 5.5h13v13h-13zM5.5 9h13" />,
   restore: <path d="M8 5.5h10.5V16H16M5.5 8H16v10.5H5.5z" />,
   close: <path d="M6 6l12 12M18 6 6 18" />,
-  panel: <path d="M4 4h16v16H4zM9 4v16M12 8h5M12 12h5M12 16h3" />
+  panel: <path d="M4 4h16v16H4zM9 4v16M12 8h5M12 12h5M12 16h3" />,
+  send: <path d="m4 5 16 7-16 7 3-7-3-7zM7 12h13" />,
+  stop: <path d="M6.5 6.5h11v11h-11z" />
 }
 
 export function AbstractIcon({

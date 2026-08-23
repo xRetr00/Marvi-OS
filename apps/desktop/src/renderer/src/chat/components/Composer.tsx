@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
+import { BorderBeam } from 'border-beam'
 
 import type { ModelPage } from '../../../../shared/runtime'
+import { AbstractIcon } from '../../components/abstract-icon'
 import { Picker, type PickerOption } from '../../components/ui/picker'
 
 /**
@@ -32,6 +34,7 @@ export function Composer({
   onOverrideChange?: (next: { provider?: string; model?: string; effort?: string }) => void
 }): React.JSX.Element {
   const field = useRef<HTMLTextAreaElement | null>(null)
+  const [focused, setFocused] = useState(false)
 
   // Auto-grow up to a ceiling, then scroll internally.
   useEffect(() => {
@@ -42,46 +45,74 @@ export function Composer({
   }, [draft])
 
   const ready = !busy && Boolean(draft.trim()) && available
+  const beamActive = available && (focused || busy || Boolean(draft.trim()))
 
   return (
     <div className="chat-compose">
-      <div className="chat-compose-field">
-        <textarea
-          ref={field}
-          rows={1}
-          value={draft}
-          placeholder={available ? 'Ask Marvi something…' : 'Connect a provider to chat'}
-          disabled={busy || !available}
-          aria-label="Message Marvi"
-          onChange={(event) => onDraftChange(event.target.value)}
-          onKeyDown={(event) => {
-            // Enter sends, Shift+Enter breaks the line, Ctrl/Cmd+Enter always sends.
-            const wantsSend =
-              event.key === 'Enter' && (!event.shiftKey || event.ctrlKey || event.metaKey)
-            if (wantsSend) {
-              event.preventDefault()
-              onSend()
-            }
-          }}
-        />
-        {busy && onCancel ? (
-          // While a reply is streaming the same control stops it. A turn
-          // nobody wants any more is still being generated and still billed.
-          <button aria-label="Stop" className="chat-send" onClick={onCancel} type="button">
-            ■
-          </button>
-        ) : (
-          <button
-            aria-label="Send"
-            className="chat-send"
-            disabled={!ready}
-            onClick={onSend}
-            type="button"
-          >
-            ↑
-          </button>
-        )}
-      </div>
+      <BorderBeam
+        active={beamActive}
+        borderRadius={10}
+        className="chat-compose-beam"
+        colorVariant="mono"
+        duration={busy ? 1.8 : 3.2}
+        size="line"
+        staticColors
+        strength={busy ? 0.72 : 0.48}
+        theme="dark"
+      >
+        <div className="chat-compose-field">
+          <div className="chat-compose-label" aria-hidden="true">
+            <span>{'// MESSAGE'}</span>
+            <span>
+              {busy ? 'RECEIVING' : focused ? 'INPUT ACTIVE' : available ? 'READY' : 'OFFLINE'}
+            </span>
+          </div>
+          <div className="chat-compose-input">
+            <textarea
+              ref={field}
+              rows={1}
+              value={draft}
+              placeholder={available ? 'Ask Marvi something…' : 'Connect a provider to chat'}
+              disabled={busy || !available}
+              aria-label="Message Marvi"
+              onBlur={() => setFocused(false)}
+              onChange={(event) => onDraftChange(event.target.value)}
+              onFocus={() => setFocused(true)}
+              onKeyDown={(event) => {
+                // Enter sends, Shift+Enter breaks the line, Ctrl/Cmd+Enter always sends.
+                const wantsSend =
+                  event.key === 'Enter' && (!event.shiftKey || event.ctrlKey || event.metaKey)
+                if (wantsSend) {
+                  event.preventDefault()
+                  onSend()
+                }
+              }}
+            />
+            {busy && onCancel ? (
+              // While a reply is streaming the same control stops it. A turn
+              // nobody wants any more is still being generated and still billed.
+              <button
+                aria-label="Stop"
+                className="chat-send is-stop"
+                onClick={onCancel}
+                type="button"
+              >
+                <AbstractIcon name="stop" size={16} />
+              </button>
+            ) : (
+              <button
+                aria-label="Send"
+                className="chat-send"
+                disabled={!ready}
+                onClick={onSend}
+                type="button"
+              >
+                <AbstractIcon name="send" size={16} />
+              </button>
+            )}
+          </div>
+        </div>
+      </BorderBeam>
       <div className="chat-compose-foot">
         <span className="chat-compose-hint">Enter sends · Shift+Enter for a new line</span>
         {onOverrideChange ? (
@@ -91,7 +122,6 @@ export function Composer({
     </div>
   )
 }
-
 
 /**
  * The model for this conversation, and only this one.
