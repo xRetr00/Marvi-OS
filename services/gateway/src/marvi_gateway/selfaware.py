@@ -26,6 +26,7 @@ is the part that is exposed.
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Any
 
 from . import paths
@@ -170,5 +171,159 @@ def register_skill_tools(registry: Any) -> None:
             describes={"name": "The skill's name, exactly as listed in the prompt."},
             sensitive=False,
             handler=skill_read,
+        )
+    )
+
+
+# -- finding and installing skills --------------------------------------------
+
+#: The store is nine repositories and one HTTP call each. Browsing them inside a
+#: spoken turn would be seconds of silence, and the answer barely changes, so it
+#: is held between calls.
+CATALOGUE_TTL = 900
+MAX_MATCHES = 8
+
+_catalogue: tuple[float, list[dict[str, Any]]] | None = None
+
+
+def find_skills(query: str, repo_root: Any = None, http: Any = None) -> dict[str, Any]:
+    """Skills in the configured sources matching `query`, installed or not."""
+    global _catalogue
+    import time as _time
+
+    from .setup import store
+
+    root = repo_root or Path(__file__).resolve().parents[4]
+    if _catalogue is None or _time.time() - _catalogue[0] > CATALOGUE_TTL:
+        try:
+            _catalogue = (_time.time(), store.catalogue(root, http))
+        except Exception as exc:
+            return {"ok": False, "detail": f"could not reach the skill store: {exc}"}
+
+    words = [w for w in query.lower().split() if len(w) > 2]
+    rows = _catalogue[1]
+    if words:
+        def score(row: dict[str, Any]) -> int:
+            # A word in the name is worth far more than a word in the
+            # description: "brainstorm debugging" matched `astropy` on a
+            # passing mention, and eight results ranked by nothing is a list
+            # the model has to guess its way through.
+            name = row["name"].lower()
+            text = row["description"].lower()
+            return sum(4 * (w in name) + (w in text) for w in words)
+
+        rows = sorted(
+            (row for row in rows if score(row)), key=lambda row: (-score(row), row["name"])
+        )
+    return {
+        "ok": True,
+        "total": len(_catalogue[1]),
+        "matched": len(rows),
+        "skills": [
+            {
+                "name": row["name"],
+                "description": row["description"][:220],
+                "repo": row["repo"],
+                "installed": row["installed"],
+            }
+            for row in rows[:MAX_MATCHES]
+        ],
+    }
+
+
+def install_skill(name: str, repo: str = "", repo_root: Any = None) -> dict[str, Any]:
+    """Install one skill from a configured source.
+
+    Two steps rather than one, because that is the flow the store already
+    enforces: fetch and read it, then install what was read. A skill is
+    instructions that change how Marvi behaves, written by someone else, so the
+    body is parsed and its `allowed-tools` resolved against policy before
+    anything is written to disk.
+    """
+    from .setup import store
+
+    root = repo_root or Path(__file__).resolve().parents[4]
+    found = find_skills(name, root)
+    if not found.get("ok"):
+        return found
+    matches = [s for s in found["skills"] if s["name"] == name]
+    if repo:
+        matches = [s for s in matches if s["repo"] == repo]
+    if not matches:
+        return {
+            "ok": False,
+            "detail": f"no skill named {name!r} in the configured sources",
+            "did_you_mean": [s["name"] for s in found["skills"][:5]],
+        }
+    if len({s["repo"] for s in matches}) > 1:
+        return {
+            "ok": False,
+            "detail": f"{name!r} is in more than one source; say which",
+            "repos": sorted({s["repo"] for s in matches}),
+        }
+
+    chosen = matches[0]
+    row = next(
+        (r for r in _catalogue[1] if r["name"] == name and r["repo"] == chosen["repo"]),
+        None,
+    )
+    if row is None:  # pragma: no cover - only if the cache is cleared mid-call
+        return {"ok": False, "detail": "that listing has expired; look again"}
+
+    reviewed = store.review_remote(root, chosen["repo"], row["path"])
+    if not reviewed.get("ok"):
+        return reviewed
+    outcome = store.install_reviewed(reviewed["staged"])
+    # The catalogue's `installed` flags are now stale.
+    globals()["_catalogue"] = None
+    if outcome.get("ok"):
+        outcome["detail"] = (
+            f"installed {name} from {chosen['repo']}. "
+            "It is usable now; read it with skill_read."
+        )
+    return outcome
+
+
+def register_store_tools(registry: Any) -> None:
+    """Letting Marvi extend herself, with the one guard that matters.
+
+    A skill is instructions that shape her behaviour, fetched from the
+    internet. Installing one is therefore a decision about her own conduct made
+    on the user's machine, which is precisely the shape of thing that gets
+    confirmed rather than assumed -- so finding is free and installing asks.
+
+    She still cannot install from a source she found herself: both of these go
+    through the configured source list, and a repository that is not on it is
+    refused however the name arrived.
+    """
+    from .tools import ToolSpec
+
+    registry.register(
+        ToolSpec(
+            name="skill_find",
+            description="Search available skills",
+            arguments={"query": str},
+            describes={
+                "query": (
+                    "Words describing what you want to be able to do, for "
+                    "example 'browser', 'debugging', 'spreadsheet'."
+                )
+            },
+            sensitive=False,
+            handler=lambda query: find_skills(query),
+        )
+    )
+    registry.register(
+        ToolSpec(
+            name="skill_install",
+            description="Install a skill",
+            arguments={"name": str},
+            optional={"repo": str},
+            describes={
+                "name": "The skill's name, exactly as skill_find returned it.",
+                "repo": "Which source, as owner/repo. Only needed when a name is in more than one.",
+            },
+            sensitive=True,
+            handler=lambda name, repo="": install_skill(name, repo),
         )
     )

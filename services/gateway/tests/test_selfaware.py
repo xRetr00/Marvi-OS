@@ -207,3 +207,58 @@ def test_the_agent_asks_for_that_route() -> None:
     ).read_text(encoding="utf-8")
 
     assert '/context' in agent
+
+
+# -- extending herself --------------------------------------------------------
+
+
+def test_finding_a_skill_ranks_the_name_above_a_passing_mention(monkeypatch) -> None:
+    """"brainstorm debugging" matched a library that mentioned debugging once,
+    ahead of the skill actually called `brainstorming`. Eight results ranked by
+    nothing is a list the model has to guess its way through."""
+    monkeypatch.setattr(
+        selfaware,
+        "_catalogue",
+        (
+            9e9,  # far in the future, so the cache is never refreshed
+            [
+                {"name": "astropy", "description": "astronomy, useful when debugging orbits",
+                 "repo": "a/b", "path": "astropy", "installed": False},
+                {"name": "brainstorming", "description": "turn an idea into a design",
+                 "repo": "obra/superpowers", "path": "skills/brainstorming", "installed": False},
+            ],
+        ),
+    )
+
+    found = selfaware.find_skills("brainstorming")
+
+    assert found["skills"][0]["name"] == "brainstorming"
+
+
+def test_installing_refuses_a_name_that_is_in_no_configured_source(monkeypatch) -> None:
+    """The list is the list. A skill is instructions that change how Marvi
+    behaves, so where it may come from is not something a model chooses."""
+    monkeypatch.setattr(selfaware, "_catalogue", (9e9, []))
+
+    answer = selfaware.install_skill("something-off-the-internet")
+
+    assert answer["ok"] is False
+    assert "configured sources" in answer["detail"]
+
+
+def test_installing_a_skill_asks_first() -> None:
+    """Finding is free; installing changes her own conduct, from a file
+    written by somebody else."""
+
+    class Registry:
+        def __init__(self):
+            self.specs = {}
+
+        def register(self, spec):
+            self.specs[spec.name] = spec
+
+    registry = Registry()
+    selfaware.register_store_tools(registry)
+
+    assert registry.specs["skill_find"].sensitive is False
+    assert registry.specs["skill_install"].sensitive is True

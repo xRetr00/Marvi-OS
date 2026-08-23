@@ -1,5 +1,5 @@
 {
-  "$comment": "Where the skill store looks. Marvi never installs from a source it discovered itself - not from a link in a page, not from a model's suggestion. This list is the list, and it is yours to edit. Every repository here was checked to actually serve SKILL.md directories; several well-known 'awesome' lists are READMEs pointing elsewhere and return nothing.",
+  "$comment": "Where the skill store looks. Marvi never installs from a source she discovered herself - not from a link in a page, not from a model's suggestion. This list is the list, and it is yours to edit. Every repository here was checked to actually serve SKILL.md directories; several well-known 'awesome' lists are READMEs pointing elsewhere and return nothing, and marketplaces that index by occupation are generated rather than written.",
   "schema": 1,
   "sources": [
     {
@@ -9,22 +9,46 @@
       "description": "The official Agent Skills repository. Documents, spreadsheets, slides, and skill-creator."
     },
     {
+      "name": "Superpowers",
+      "repo": "obra/superpowers",
+      "branch": "main",
+      "description": "How to work rather than what to know: brainstorming, systematic debugging, verification before claiming done."
+    },
+    {
+      "name": "Browser Use",
+      "repo": "browser-use/browser-use",
+      "branch": "main",
+      "description": "Driving a real browser - the tool Marvi already has, with the practice for using it well."
+    },
+    {
+      "name": "Science",
+      "repo": "K-Dense-AI/scientific-agent-skills",
+      "branch": "main",
+      "description": "163 skills across biology, chemistry, astronomy, statistics and medicine, plus scientific databases."
+    },
+    {
+      "name": "Assistant work (michaelboeding)",
+      "repo": "michaelboeding/skills",
+      "branch": "master",
+      "description": "Research, brand and competitor analysis, charts, audio and image work. Closest thing to a personal-assistant collection."
+    },
+    {
       "name": "Anthropic Cookbooks",
       "repo": "anthropics/claude-cookbooks",
       "branch": "main",
-      "description": "A handful of worked examples: financial statements, financial models, brand guidelines."
+      "description": "Worked examples: financial statements, financial models, brand guidelines."
     },
     {
       "name": "OpenAI",
       "repo": "openai/skills",
       "branch": "main",
-      "description": "Codex's skills. Development-focused - Figma, GitHub, cloud deploys - and useful for working on Marvi herself."
+      "description": "Codex's own skills. Development-focused, and useful for working on Marvi herself."
     },
     {
       "name": "Community (wshobson)",
       "repo": "wshobson/agents",
       "branch": "main",
-      "description": "The largest community collection. Engineering practice: Python, testing, security, observability, incident write-ups."
+      "description": "The largest community collection. Engineering practice: Python, testing, security, incident write-ups."
     },
     {
       "name": "Cloudflare",

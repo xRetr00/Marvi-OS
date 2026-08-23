@@ -20,7 +20,7 @@ from fastapi.responses import StreamingResponse
 from livekit import api
 from pydantic import BaseModel, Field
 
-from . import breadcrumb, latency, paths, selfaware, upgrade
+from . import breadcrumb, delegate, latency, paths, selfaware, upgrade
 from . import doctor as doctor_module
 from . import plugins as plugins_module
 from . import room as room_module
@@ -573,6 +573,8 @@ def create_app(
         # Reading her own logs, and reading a skill she was told exists.
         selfaware.register_self_tools(tool_registry)
         selfaware.register_skill_tools(tool_registry)
+        selfaware.register_store_tools(tool_registry)
+        delegate.register_delegate_tools(tool_registry)
         loaded_plugins.extend(load_installed_plugins())
         for plugin in loaded_plugins:
             # The guard is Marvi's, not the plugin's. The room plugin's own
