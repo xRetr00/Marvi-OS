@@ -37,11 +37,13 @@ So the log directory is **split by subsystem**, under
 | `gateway.log` | HTTP, tool router, confirmations, journal, mind ticks |
 | `providers.log` | every model call: provider, model, tokens, cache hits, cooldowns, failover |
 | `voice.log` | the agent worker, LiveKit session, STT/TTS, turn detection |
-| `vision.log` | camera, face recognition, visitor decisions |
 | `room.log` | sidecar RPC, device actions, sleep-mode refusals |
 | `desktop.log` | the Electron shell: window lifecycle, IPC, service supervision |
 | `setup.log` | installs, downloads, verification, self-healing actions |
 | `errors.log` | **everything at WARNING and above, from every subsystem** |
+
+Camera, recognition, and visitor internals are written by Smart Room to its
+plugin-owned `runtime.log`; Marvi's `room.log` contains only the sidecar boundary.
 
 `errors.log` is the point of the split. Each file answers "what was this
 subsystem doing"; `errors.log` answers "what went wrong", which is the question

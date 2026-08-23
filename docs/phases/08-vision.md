@@ -1,134 +1,60 @@
 # Phase 8 — Vision
 
-**Status:** complete
-**Depends on:** Phase 3 media path, Phase 6 proactivity policy
+**Status:** implementation complete; native Windows hardware soak pending
+**Depends on:** Phase 3 media path, Phase 6 proactivity policy, Smart Room plugin 0.7+
 
-Split out of Phase 6 so the proactive mind could ship without waiting on camera
-work. Phase 6 is now cognition only; everything involving a camera lives here.
+## Decision
 
-## Scope
+Smart Room owns the camera and room-specific vision. Marvi owns and supervises
+the sidecar, consumes its authenticated state/tools/events, applies policy, and
+presents results. There is no second camera path in Gateway and no plugin UI.
 
-- Always-on local presence and gesture inference with bounded resource use.
-- Raw camera frames remain local; selected frames publish only for an explicit
-  active vision task.
-- Vision context tasks that do not bloat the foreground agent.
+See [VISION-PIPELINE-REVIEW.md](../VISION-PIPELINE-REVIEW.md) for the complete
+boundary and privacy invariants.
 
-## Acceptance evidence required
+## Delivered
 
-- ~~A vision event reaching the mind obeys the Phase 6 policy~~ — visitor
-  reports are journalled and pass the same surface ceiling and rules.
-- ~~Camera privacy boundary~~ — the vision module contains no HTTP client,
-  socket, or upload path, asserted by a test that fails if one is ever added.
-- ~~Idle cost~~ — an empty room gates 83% of frames and runs no model on them;
-  vision is CPU-only, so the GPU budget is structurally untouched.
-- ~~Room control obeys the sleep rule~~ — enforced at the boundary for every
-  caller, including YOLO.
+- One native Windows camera capture/reconnect loop in Smart Room.
+- Local InsightFace owner/visitor recognition and MediaPipe gesture/posture
+  analysis, with plugin-owned model downloads and data.
+- Versioned bounded `state.vision`, authenticated observation/description and
+  identity RPC operations, and structured room events.
+- Unknown-visitor deduplication and delayed visitor reporting through the room
+  presence transition.
+- No raw frames or embeddings in Gateway, prompts, logs, or Electron IPC.
+- Gateway no longer installs/imports local vision models or owns a face store.
+- Read operations bypass confirmation; enrollment and identity mutations use
+  Marvi confirmation policy (or YOLO when enabled).
+- Existing Gateway runtime/room-event pipeline feeds the Room page, Vision
+  status, status bar, and Dynamic Island. No renderer-to-plugin transport.
+- Deterministic fixture tests that do not require a camera or model download.
 
-## Still required
-
-Two items are deliberately not done, and neither is a matter of effort:
-
-- **Recognition accuracy is unvalidated.** `OWNER_THRESHOLD` and
-  `KNOWN_THRESHOLD` are literature defaults. Validating them needs the owner's
-  face enrolled and a sample of real sightings — the owner's biometric data,
-  which is theirs to provide. Everything is in place: `vision_enroll_owner`
-  captures samples, and the thresholds are two constants.
-- **Activity awareness inside applications.** ActivityWatch reports the window,
-  not the work. Seeing inside an application means either per-app integrations
-  or screen capture and a vision-language model, which is a privacy decision
-  and a subsystem of its own rather than a gap in this one. It belongs in its
-  own phase with its own consent story.
-
-Scene description by VLM is not implemented either. Faces are recognised;
-scenes are not narrated. The deliberation seam in Phase 6 already accepts a
-model, so a captioner can be added there without touching the camera path.
-
-## Implemented — faces, visitors, and homecoming
-
-`marvi_gateway.vision`, built fresh rather than copied. Four decisions differ
-from the reviewed pipeline, each for a reason:
-
-- **Inference is motion-gated.** The reviewed design runs a continuous analysis
-  loop, so a camera pointed at an empty room burns CPU forever to learn
-  nothing. A cheap frame difference decides whether the model runs at all —
-  the same cheap-signals-first escalation `REAL-AGENCY.md` already asks for.
-  Measured live: 4 frames captured, 1 analysed, 3 skipped.
-- **Everything runs on the CPU.** The voice stack holds 4.245 GiB and
-  `AGENTS.md` requires 2 GB of headroom, so vision must not compete for VRAM.
-  buffalo_l on CPU measured 124 ms per 640×480 frame, far faster than the
-  motion gate will ever ask for it.
-- **A face is compared against the owner before it can be a stranger.** A bad
-  angle on the owner must not manufacture a visitor, and there is exactly one
-  owner because the whole visitor rule is "not the owner".
-- **Visitors are held, not announced.** Telling someone about a stranger while
-  they are out is useless and slightly alarming. Sightings queue with a cropped
-  thumbnail and a timestamp, and surface on the away → home edge through the
-  Phase 6 mind, where `vision:visitor_report` is allowed to be spoken.
-
-A lingering stranger is folded into one entry rather than fifty by comparing
-against the queued embeddings. Approving a face enrols it, so the same person
-is recognised next time instead of queueing again.
-
-## Evidence
+## Acceptance evidence
 
 | Gate | Result |
 |---|---|
-| Owner recognised | enrolled owner matches as `owner` |
-| Bad angle on the owner | still `owner`, not a manufactured stranger |
-| Known but not owner | matches as `known` |
-| Unfamiliar face | `unknown`, below the known threshold |
-| Lingering stranger | one queue entry, not one per frame |
-| Two different strangers | two entries |
-| Visitor entry contents | thumbnail path, date, and time |
-| Approval | enrols the face and clears the queue |
-| Away | nothing announced, queue retained |
-| Arrival home | one report with thumbnails, spoken surface allowed |
-| Staying home | no repeat report; only the arrival edge fires |
-| Missing camera | reported, not raised |
-| Live camera, empty room | 6 frames, 1 analysed, **5 skipped (83% gated)**, no faces, no thumbnails written — twice |
-| Sleep: light on -> off | permitted, reaches the sidecar |
-| Sleep: light off -> on | refused, sidecar never called |
-| Sleep: brighten | refused |
-| Sleep: change mode | refused |
-| Sleep under YOLO | still refused |
-| Sleep with the sidecar unreachable | still refused; the guard falls back rather than opening |
-| Live room (mode `focus`) | all three actions allowed, as expected outside sleep |
-| Privacy | the vision module contains no network client at all, asserted structurally |
-| Gestures | admitted only when they carry a command |
+| Single camera owner | Gateway vision implementation and model dependencies removed |
+| Sidecar contract | state round-trip and authenticated RPC routing covered |
+| Owner/known/unknown matching | deterministic embedding tests |
+| Lingering stranger | deduplicated into one pending visitor |
+| Persistence scope | unknown visitors only; known faces are live state |
+| Privacy | descriptions contain facts only, never a frame |
+| Context | bounded plugin context, no raw media or event flood |
+| Gestures/posture | deterministic analyzer events; posture says resting, not definitive asleep |
+| UI | existing Gateway → Electron path only |
+| Failure behavior | disabled/unavailable vision degrades without stopping voice or room tools |
 
-25 vision tests. A real defect caught live: loading buffalo_l inside the
-capture loop consumed the entire observation window, so the first `observe`
-returned a single frame. The model is now warmed before the clock starts.
+## Hardware acceptance still required
 
-## The sleep rule
+The remaining work needs the target camera and owner, so it cannot be honestly
+closed by CI:
 
-While the room is in sleep mode it belongs to the person in it. Marvi may take
-exactly one action: switch a light off. Everything else — turning a light on,
-brightening it, changing the mode — is refused.
+1. Enrol the owner and calibrate recognition thresholds across lighting and
+   viewing angles.
+2. Soak camera reconnect across unplug, sleep/resume, and overnight runtime.
+3. Measure CPU/RAM, inference freshness, and false gesture/posture events.
+4. Verify visitor crops, approval, rejection, and retention with real samples.
+5. Confirm the camera indicator follows actual sidecar readiness throughout.
 
-The rule is not "never act", because the one case worth acting on is a light
-left on over someone who is asleep. Its worst outcome is a dark room someone
-was already sleeping in.
-
-It is enforced at the room boundary rather than in any caller, so it binds
-voice, the mind, vision, and YOLO identically. **YOLO removes the prompt, never
-the protection** — there is a test asserting exactly that. Live state is read
-first; if the sidecar is unreachable the guard falls back to the last snapshot
-rather than opening up, because a stale "awake" reading is the one error that
-would let Marvi act during sleep.
-
-## Gestures
-
-Marvi consumes the room sidecar's gesture inference rather than running a
-second pipeline for it. A bare gesture is ignored — it fires in bursts and
-means nothing — but a gesture carrying a `command` is a deliberate instruction
-from someone in the room, so those are admitted and capped at Activity.
-
-## Notes
-
-The smart-room sidecar already performs its own vision inference and emits
-`vision_identity_state`, `vision_gesture`, and `vision_sleep_state` events. Those
-were measured as the dominant event volume — 446 of a 500-event sample — and are
-deliberately filtered out of the notable set today. This phase should decide
-whether Marvi grows its own camera pipeline at all, or whether it consumes the
-sidecar's and simply promotes selected vision events into the journal.
+This is calibration of the implemented architecture, not permission to add a
+second Marvi camera pipeline.

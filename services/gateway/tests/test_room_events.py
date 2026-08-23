@@ -74,6 +74,14 @@ def test_unknown_event_types_fall_back_to_the_sidecar_summary() -> None:
     assert summarize_event({"type": "future_event"}) == "Future_event"
 
 
+def test_sidecar_delivery_events_keep_their_spoken_message() -> None:
+    for kind in ("room_welcome", "visitor_report", "alarm_requested"):
+        assert kind in NOTABLE_EVENTS
+        assert summarize_event({"type": kind, "message": "Marvi should say this."}) == (
+            "Marvi should say this."
+        )
+
+
 def test_a_held_gesture_collapses_to_the_moment_it_started() -> None:
     """Gestures were dropped entirely because they arrive in bursts.
 

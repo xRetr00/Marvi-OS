@@ -311,7 +311,10 @@ function MainSurface(): React.JSX.Element {
             >
               <span className={runtime.state === 'ready' ? 'pulse-dot' : ''} />{' '}
               {runtime.state === 'ready' ? 'LOCAL / READY' : runtime.state.toUpperCase()}
-              <small>MIC + CAM / ON DEVICE</small>
+              <small>
+                MIC {deviceLabel(deviceState(runtime, 'microphone'))} + CAM{' '}
+                {deviceLabel(deviceState(runtime, 'camera'))} / LOCAL
+              </small>
             </div>
           </aside>
 
@@ -347,7 +350,7 @@ function MainSurface(): React.JSX.Element {
               ) : page === 'Mind' ? (
                 <MindPanel />
               ) : (
-                <PagePanel page={page} version={version} />
+                <PagePanel page={page} version={version} runtime={runtime} />
               )}
             </div>
 
@@ -587,6 +590,20 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
   const presence = readRecord(state, 'presence')
   const modes = readRecord(state, 'modes')
   const location = readRecord(state, 'location')
+  const vision = readRecord(state, 'vision')
+
+  const camera = vision.camera_open
+    ? 'ONLINE'
+    : vision.running
+      ? 'CONNECTING'
+      : vision.enabled
+        ? `OFF${vision.error ? ` — ${String(vision.error).toUpperCase()}` : ''}`
+        : 'DISABLED'
+  const people = Number(vision.person_count ?? 0)
+  const owner = vision.owner_visible ? 'OWNER VISIBLE' : 'OWNER NOT VISIBLE'
+  const gesture = vision.gesture
+    ? String(vision.gesture).replaceAll('_', ' ').toUpperCase()
+    : 'NONE'
 
   const rows: Array<[string, string]> = [
     ['MODE', String(modes.active_mode ?? 'unknown').toUpperCase()],
@@ -597,7 +614,15 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
         : 'OFF'
     ],
     ['PRESENCE', presence.detected ? 'IN ROOM' : 'AWAY'],
-    ['PHONE', location.home ? 'HOME' : String(location.zone ?? 'unknown').toUpperCase()]
+    ['PHONE', location.home ? 'HOME' : String(location.zone ?? 'unknown').toUpperCase()],
+    ['VISION', camera],
+    ['SEEN', `${people} ${people === 1 ? 'PERSON' : 'PEOPLE'} / ${owner}`],
+    [
+      'ACTIVITY',
+      `${String(vision.activity ?? 'unknown').toUpperCase()} / ${String(vision.sleep_state ?? 'unknown').toUpperCase()}`
+    ],
+    ['GESTURE', gesture],
+    ['VISITORS', `${Number(vision.pending_visitors ?? 0)} PENDING`]
   ]
 
   return (
@@ -2474,10 +2499,17 @@ function ActivityPanel(): React.JSX.Element {
   )
 }
 
-function PagePanel({ page }: { page: Page; version: string }): React.JSX.Element {
-  // The fallback for a sidebar page with no panel of its own. Only Vision
-  // reaches it today; everything that used to land here now has a real page or
-  // lives behind the gear.
+function PagePanel({
+  page,
+  runtime
+}: {
+  page: Page
+  version: string
+  runtime: RuntimeStatus
+}): React.JSX.Element {
+  // The fallback for a sidebar page with no controls of its own. Vision stays
+  // a read-only Marvi status surface: camera ownership and identity operations
+  // remain in the Smart Room sidecar and travel through the normal Gateway.
   const descriptions: Record<Page, string> = {
     Overview: '',
     Voice: '',
@@ -2494,7 +2526,23 @@ function PagePanel({ page }: { page: Page; version: string }): React.JSX.Element
     <section className="single-page panel">
       <PageLead description={descriptions[page]} icon={NAV_ICONS[page]} title={page} />
       <AsciiRule />
-      <span className="construction">FOUNDATION ONLINE / FEATURE MODULE PENDING</span>
+      {page === 'Vision' ? (
+        <>
+          <div className="context-line">
+            <span>ROOM VISION</span>
+            <strong>{(runtime.components.vision?.state ?? 'offline').toUpperCase()}</strong>
+          </div>
+          <div className="context-line">
+            <span>DETAIL</span>
+            <strong>
+              {runtime.components.vision?.detail.toUpperCase() ?? 'SIDECAR UNAVAILABLE'}
+            </strong>
+          </div>
+          <span className="construction">LIVE OBSERVATIONS ARE SHOWN IN ROOM</span>
+        </>
+      ) : (
+        <span className="construction">FOUNDATION ONLINE / FEATURE MODULE PENDING</span>
+      )}
     </section>
   )
 }

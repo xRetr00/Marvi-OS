@@ -294,11 +294,9 @@ class Chat:
             brief = brief + "\n\n" + self.curiosity.guidance(gap)
         # What the loaded plugins already know, in a line each.
         #
-        # `plugins.context_lines` was written for exactly this, documented as
-        # the thing that stops Marvi running a second camera pipeline while
-        # ignoring what the room engine already sees -- and it had no caller
-        # anywhere. The plugins were passed in here and never read, so the gap
-        # its own docstring describes was still wide open.
+        # `plugins.context_lines` is the bounded public path for ambient room
+        # state. The plugins were passed in here and never read before this
+        # call site was added.
         #
         # Appended after the identity block for the same reason curiosity is:
         # this changes every turn, and putting it first would break the

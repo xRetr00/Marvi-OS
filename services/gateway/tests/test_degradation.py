@@ -11,6 +11,8 @@ Each test kills one thing and asserts the rest survives.
 
 from __future__ import annotations
 
+import json
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -26,6 +28,7 @@ def isolated(tmp_path, monkeypatch):
     monkeypatch.setenv("MARVI_TOKEN_STORE", str(tmp_path / "tokens.bin"))
     monkeypatch.setenv("MARVI_JOURNAL_DB", str(tmp_path / "journal.sqlite3"))
     monkeypatch.setenv("MARVI_CHAT_DB", str(tmp_path / "chat.sqlite3"))
+    monkeypatch.setenv("MARVI_PLUGIN_DATA", str(tmp_path / "plugin-data"))
     return tmp_path
 
 
@@ -107,18 +110,43 @@ def test_a_dead_sidecar_is_reported_not_hidden(isolated, monkeypatch) -> None:
 # -- no vision --------------------------------------------------------------------
 
 
-def test_without_vision_everything_else_is_unaffected(isolated, monkeypatch) -> None:
-    monkeypatch.delenv("MARVI_VISION", raising=False)
+def test_without_room_vision_everything_else_is_unaffected(isolated) -> None:
     with TestClient(create_app(tools=tools_with_a_light())) as client:
         health = client.get("/health").json()
 
-        assert health["components"]["vision"]["state"] == "pending"
+        assert health["components"]["vision"]["state"] == "offline"
         # Vision is the most optional thing in the system.
         assert health["components"]["gateway"]["state"] == "ready"
         assert (
             client.post("/tools/set_light", json={"arguments": {"on": False}}).json()["status"]
             == "executed"
         )
+
+
+def test_vision_health_comes_from_the_room_sidecars_snapshot(isolated) -> None:
+    home = isolated / "plugin-data" / "smart_room"
+    home.mkdir(parents=True)
+    (home / "state.json").write_text(
+        json.dumps(
+            {
+                "vision": {
+                    "enabled": True,
+                    "running": True,
+                    "camera_open": True,
+                    "stale": False,
+                    "person_count": 1,
+                    "owner_visible": True,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with TestClient(create_app()) as client:
+        vision = client.get("/health").json()["components"]["vision"]
+
+    assert vision["state"] == "ready"
+    assert "owner visible" in vision["detail"]
 
 
 # -- broken storage -----------------------------------------------------------------
@@ -166,7 +194,6 @@ def test_logging_failure_does_not_break_a_request(isolated, monkeypatch) -> None
 def test_with_nothing_configured_marvi_still_explains_itself(isolated, monkeypatch) -> None:
     monkeypatch.setattr("marvi_gateway.providers.base.configured_profiles", lambda: [])
     monkeypatch.setenv("MARVI_ROOM_PORT", "59998")
-    monkeypatch.delenv("MARVI_VISION", raising=False)
 
     with TestClient(create_app(tools=ToolRegistry())) as client:
         assert client.get("/health").status_code == 200

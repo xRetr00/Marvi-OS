@@ -395,12 +395,9 @@ Validation evidence and the resulting commit are recorded in
   observation window, so the first `observe` returned a single frame. The model
   is warmed before the clock starts. Verified afterwards at 4 frames captured,
   1 analysed, 3 skipped by the gate.
-- Removed predecessor branding across 27 files. Two categories stayed on
-  purpose: the third-party `hermes-estree`/`hermes-parser` npm packages, and the
-  room sidecar's own data directory — renaming a directory another program owns
-  breaks the integration rather than making Marvi independent. That path is now
-  behind `MARVI_SIDECAR_DIR`, and the room integration was re-verified against
-  the live sidecar afterwards.
+- Removed predecessor branding across 27 files. Generated dependency lockfiles
+  retain upstream package identifiers, while the independent room sidecar now
+  receives its Marvi-owned data path through `MARVI_PLUGIN_DATA`.
 - 272 Python tests and 48 desktop tests pass.
 
 ## 2026-08-16 — Phase 8 completion and the sleep rule
@@ -706,3 +703,26 @@ failures were invisible to every test that existed.
 - Strengthened non-Voice/non-Chat pages with corner-marked lead modules,
   bounded active sections, indexed rows, and restrained interaction feedback.
   Overview remains the only dense dashboard; Voice and Chat remain unchanged.
+
+## 2026-08-23 — Smart Room becomes the sole vision owner
+
+- Reviewed the real sidecar-to-desktop route before changing presentation. The
+  production path remains Smart Room state/events/RPC → `RoomSidecar` → Gateway
+  runtime/tools/journal → existing Electron IPC → Room page and Dynamic Island.
+  No plugin UI or renderer-to-plugin transport was introduced.
+- Moved camera capture, owner/visitor identity, gesture/posture analysis, model
+  downloads, visitor retention, and vision health into the independent Smart
+  Room repository. Only bounded facts and structured events cross the plugin
+  boundary; raw frames and embeddings do not.
+- Removed Gateway's `VisionService`, face library, cloud frame-description path,
+  vision models/components, storage paths, dependencies, and homecoming face
+  scheduler. Visitor reporting now has one owner in the sidecar.
+- Added read-only and identity-mutating plugin contracts separately so Marvi can
+  permit observations while keeping enrollment/approval behind its normal
+  confirmation or YOLO policy.
+- Extended the existing Room page with camera, people/owner, activity/posture,
+  gesture, and pending-visitor facts. Vision and device status are derived from
+  Gateway health, while notable room events continue to feed the compact Island.
+- Verified the Smart Room fixture suite, focused Gateway contracts, full desktop
+  typechecking, and all Electron renderer/main tests. Native camera calibration
+  and soak remain a hardware acceptance step.
