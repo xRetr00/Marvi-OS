@@ -282,7 +282,12 @@ def test_installed_skills_are_listed(tmp_path) -> None:
     base = tmp_path / "skills"
     skills.install_from(source, base)
 
-    assert [s.name for s in skills.installed(base)] == ["pdf-processing"]
+    # Alongside, not instead of: `installed` now returns the skills that ship
+    # with Marvi as well as the ones the user installed, because the model
+    # needs one list and does not care where a skill came from.
+    listed = [s.name for s in skills.installed(base)]
+    assert "pdf-processing" in listed
+    assert "diagnose-myself" in listed
 
 
 def test_removing_cannot_escape_the_skills_folder(tmp_path) -> None:

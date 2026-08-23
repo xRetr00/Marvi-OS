@@ -203,3 +203,42 @@ async def test_unreachable_gateway_is_a_tool_error_not_a_session_failure() -> No
     offline = GatewayTools(base_url="http://127.0.0.1:1")
     with pytest.raises(ToolError, match="unreachable"):
         await offline.room_state(None)
+
+
+# -- prompt context ------------------------------------------------------------
+
+
+async def test_the_prompt_context_comes_from_the_gateway() -> None:
+    """Voice builds its own instructions, so anything the Gateway assembles --
+    the skill catalogue, where this installation lives -- has to be fetched or
+    it reaches chat only. That is exactly how voice ended up with seven tools
+    while chat had seventeen."""
+    import httpx
+
+    from marvi_agent.tools import GatewayTools
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/context"
+        return httpx.Response(200, json={"blocks": ["# Skills you can use\n\n- a: b", "  ", ""]})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handle))
+    blocks = await GatewayTools(client=client).context_blocks()
+    await client.aclose()
+
+    # Blank blocks dropped: an empty heading spends tokens saying nothing.
+    assert blocks == ["# Skills you can use\n\n- a: b"]
+
+
+async def test_a_gateway_that_cannot_answer_costs_the_catalogue_not_the_voice() -> None:
+    import httpx
+
+    from marvi_agent.tools import GatewayTools
+
+    def refuse(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(500)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(refuse))
+    blocks = await GatewayTools(client=client).context_blocks()
+    await client.aclose()
+
+    assert blocks == []

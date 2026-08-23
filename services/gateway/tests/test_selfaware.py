@@ -166,3 +166,44 @@ def test_the_prompt_says_where_she_is_installed() -> None:
     assert str(paths.root()) in block
     assert str(paths.logs_dir()) in block
     assert "marvi_logs" in block
+
+
+# -- and the same on both surfaces -------------------------------------------
+
+
+def test_the_gateway_publishes_the_context_the_voice_worker_cannot_build() -> None:
+    """Voice writes its own instructions in the Agent process.
+
+    So everything the Gateway assembles for the typed surface reached chat and
+    not speech -- the same shape of fault as voice having seven tools while
+    chat had seventeen, which is why `/tools` exists. `/context` is that fix
+    one level up, and this pins the two together: the Agent fetches this route
+    and appends what it returns.
+    """
+    from fastapi.testclient import TestClient
+
+    from marvi_gateway.app import create_app
+
+    with TestClient(create_app()) as client:
+        blocks = client.get("/context").json()["blocks"]
+
+    joined = "\n".join(blocks)
+    assert "diagnose-myself" in joined, "voice would not know any skill exists"
+    assert "marvi_logs" in joined, "voice would not know where it is installed"
+
+
+def test_the_agent_asks_for_that_route() -> None:
+    """Nothing else keeps the two ends of this in step; they are different
+    services in different Python environments."""
+    from pathlib import Path
+
+    agent = (
+        Path(__file__).resolve().parents[3]
+        / "services"
+        / "agent"
+        / "src"
+        / "marvi_agent"
+        / "tools.py"
+    ).read_text(encoding="utf-8")
+
+    assert '/context' in agent
