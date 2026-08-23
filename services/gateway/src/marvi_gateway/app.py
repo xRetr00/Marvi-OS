@@ -20,7 +20,7 @@ from fastapi.responses import StreamingResponse
 from livekit import api
 from pydantic import BaseModel, Field
 
-from . import breadcrumb, delegate, latency, paths, selfaware, upgrade
+from . import auxiliary, breadcrumb, delegate, latency, paths, selfaware, upgrade
 from . import doctor as doctor_module
 from . import plugins as plugins_module
 from . import room as room_module
@@ -1496,6 +1496,22 @@ def create_app(
         runtime_store.audit("schedule", action, {"id": schedule_id})
         return schedule_page()
 
+    @app.get("/auxiliary")
+    async def read_auxiliary() -> dict[str, Any]:
+        """Which model does which job, and what is on offer for each.
+
+        The provider list comes back with it so the page can build a picker
+        without a second call, and so it can only offer providers that are
+        actually configured.
+        """
+        from .providers import configured_profiles
+
+        available = [
+            {"name": profile.name, "label": profile.label()}
+            for profile in configured_profiles()
+        ]
+        return auxiliary.status(available)
+
     @app.get("/room/faces")
     async def read_room_faces(limit: int = room_module.PREVIEW_FACES) -> dict[str, Any]:
         """What vision has actually seen, for the Room page.
@@ -2348,6 +2364,25 @@ def create_app(
 
         chosen = usable[0]
         model = chosen.model_for("main")
+        # The `voice` role, when it names one. Voice is the job where latency
+        # is felt directly and reasoning is off anyway, so it is the most
+        # worthwhile thing to point somewhere cheaper and faster.
+        #
+        # Only honoured when that provider is one the voice path can actually
+        # drive: the Agent speaks chat completions and holds the credential
+        # itself, so a role naming a provider this list rejected would hand it
+        # something it cannot call.
+        role_provider, role_model = auxiliary.resolve("voice")
+        if role_provider:
+            named = next((p for p in usable if p.name == role_provider), None)
+            if named is not None:
+                chosen, model = named, role_model
+            else:
+                get_logger("providers").warning(
+                    "the voice role names %s, which the voice path cannot drive; using %s",
+                    role_provider,
+                    chosen.name,
+                )
         cards = await anyio.to_thread.run_sync(lambda: catalog.models(chosen))
         card = next((c for c in cards if c.id == model), None)
         # The routing the user chose, rather than one the Agent invents.

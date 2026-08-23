@@ -260,3 +260,40 @@ def test_the_budget_is_reported_so_it_can_be_seen_before_it_bites(client) -> Non
     # Every token here is paid on every turn, so the page must show the ceiling.
     assert body["truncated"] is True
     assert body["tokens"] <= body["budget"]
+
+
+def test_the_voice_role_cannot_hand_the_agent_a_provider_it_cannot_call(
+    client, monkeypatch
+) -> None:
+    """The Agent speaks chat completions and holds the credential itself.
+
+    A role naming a provider the voice path already rejected would hand the
+    worker something it cannot call, and that lands as a dead voice session
+    rather than as a settings mistake. It falls back to a usable provider and
+    logs which role was ignored.
+    """
+    client.put(
+        "/providers/settings",
+        json={"values": {"OPENAI_API_KEY": "k", "MARVI_PROVIDER": "openai"}},
+    )
+    monkeypatch.setenv("MARVI_AUX_VOICE", "anthropic/claude-opus-5")
+
+    answer = client.get("/providers/voice")
+
+    assert answer.status_code == 200
+    # Anthropic's Messages API cannot drive the LiveKit plugin, so the role is
+    # ignored rather than honoured into a broken session.
+    assert answer.json()["provider"] == "openai"
+
+
+def test_the_voice_role_is_honoured_when_the_path_can_drive_it(client, monkeypatch) -> None:
+    client.put(
+        "/providers/settings",
+        json={"values": {"OPENAI_API_KEY": "k", "MARVI_PROVIDER": "openai"}},
+    )
+    monkeypatch.setenv("MARVI_AUX_VOICE", "openai/gpt-5-mini")
+
+    answer = client.get("/providers/voice")
+
+    assert answer.status_code == 200
+    assert answer.json()["model"] == "gpt-5-mini"

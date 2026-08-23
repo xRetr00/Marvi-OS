@@ -28,6 +28,7 @@ import logging
 import os
 from typing import Any
 
+from . import auxiliary
 from .providers import ProviderCallError, ProviderClient, configured_profiles
 from .untrusted import wrap_external
 
@@ -91,6 +92,9 @@ class Deliberator:
                 preferred=self.preferred,
                 # A one-sentence yes/no is auxiliary work, not the main model.
                 job="aux",
+                # And if the `mind` role names one, that model rather than
+                # whichever the provider hardcoded as its auxiliary.
+                **auxiliary.overrides("mind"),
                 max_tokens=MAX_OUTPUT_TOKENS,
                 temperature=0.2,
             )

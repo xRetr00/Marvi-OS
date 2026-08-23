@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
+  AuxiliaryPage,
   AssistantState,
   AuditEvent,
   ChatAttachment,
@@ -114,6 +115,7 @@ const marvi = {
   setYolo: (yolo: boolean): Promise<RuntimeStatus> => ipcRenderer.invoke('marvi:set-yolo', yolo),
   getAudit: (): Promise<AuditEvent[]> => ipcRenderer.invoke('marvi:get-audit'),
   getRoomEvents: (): Promise<RoomEvent[]> => ipcRenderer.invoke('marvi:get-room-events'),
+  getAuxiliary: (): Promise<AuxiliaryPage | null> => ipcRenderer.invoke('marvi:get-auxiliary'),
   getRoomFaces: (): Promise<{ id: string; at: number; image: string }[]> =>
     ipcRenderer.invoke('marvi:get-room-faces'),
   roomCommand: (

@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   Clock3,
   Database,
+  Cpu,
   Eye,
   Gauge,
   History,
@@ -97,6 +98,8 @@ import {
 } from './store/session-metrics'
 import { haptic } from './lib/haptics'
 import type {
+  AuxiliaryPage,
+  AuxiliaryRole,
   AuditEvent,
   ConnectedAccount,
   DeviceState,
@@ -2994,6 +2997,14 @@ function SpeechPanel(): React.JSX.Element {
         <VoicePicker />
       </ControlSection>
 
+      <ControlSection
+        description="Marvi picks one model for the hardest thing she does and then uses it for everything. These jobs can have their own."
+        icon={Cpu}
+        title="Model for each job"
+      >
+        <AuxiliarySettings />
+      </ControlSection>
+
       <ControlSection icon={Radio} title="Wake word">
         <div>
           <p>
@@ -3004,6 +3015,87 @@ function SpeechPanel(): React.JSX.Element {
         <WakeSettings />
       </ControlSection>
     </ControlPage>
+  )
+}
+
+
+/**
+ * Which model does which job.
+ *
+ * One model was chosen for the hardest thing Marvi does and then used for
+ * everything, including a one-sentence yes/no that runs many times an hour.
+ * A role may point somewhere cheaper and faster; `auto` keeps the old
+ * behaviour, which is a perfectly good answer and the default.
+ */
+function AuxiliarySettings(): React.JSX.Element {
+  const [page, setPage] = useState<AuxiliaryPage | null>(null)
+  const [reload, setReload] = useState(0)
+
+  useEffect(() => {
+    let gone = false
+    void (async () => {
+      const next = await window.marvi?.getAuxiliary()
+      if (!gone) setPage(next ?? null)
+    })()
+    return () => {
+      gone = true
+    }
+  }, [reload])
+
+  if (!page) return <span className="construction">UNAVAILABLE</span>
+  if (page.providers.length === 0) {
+    return (
+      <ControlEmpty
+        description="Connect a provider on the Models page and these can point at it."
+        icon={ShieldAlert}
+        title="No providers configured"
+      />
+    )
+  }
+
+  const choose = async (role: AuxiliaryRole, value: string): Promise<void> => {
+    await window.marvi?.setProviderSettings({ [role.setting]: value })
+    setReload((count) => count + 1)
+  }
+
+  return (
+    <>
+      {page.roles.map((role) => (
+        <ControlRow
+          action={
+            <Picker
+              options={[
+                {
+                  value: '',
+                  label: 'Auto',
+                  detail: 'Use the main model, as before'
+                },
+                ...page.providers.map((provider) => ({
+                  value: `${provider.name}${page.separator}`,
+                  label: provider.label,
+                  detail: 'Type the model after choosing'
+                }))
+              ]}
+              value={role.auto ? '' : `${role.provider}${page.separator}`}
+              onChange={(next) => void choose(role, next)}
+              placeholder="Auto"
+            />
+          }
+          description={role.gain ? `${role.why} ${role.gain}` : role.why}
+          key={role.key}
+          title={role.title}
+        />
+      ))}
+      {page.roles.some((role) => !role.auto) ? (
+        <ControlRow
+          description={page.roles
+            .filter((role) => !role.auto)
+            .map((role) => `${role.title}: ${role.provider}/${role.model || '(no model named)'}`)
+            .join(' · ')}
+          title="Currently"
+        />
+      ) : null}
+    </>
   )
 }
 

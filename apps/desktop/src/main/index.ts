@@ -1888,6 +1888,16 @@ function startApp(): void {
     // apply to a button press exactly as they do to a spoken request. The
     // renderer names the tool; it cannot reach anything the Gateway has not
     // registered, and the allowlist here keeps it to the room.
+    ipcMain.handle('marvi:get-auxiliary', async () => {
+      try {
+        const response = await fetch(`${gateway()}/auxiliary`, {
+          signal: AbortSignal.timeout(5_000)
+        })
+        return response.ok ? await response.json() : null
+      } catch {
+        return null
+      }
+    })
     ipcMain.handle('marvi:get-room-faces', async () => {
       try {
         const response = await fetch(`${gateway()}/room/faces`, {

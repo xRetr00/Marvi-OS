@@ -652,3 +652,30 @@ export interface SchedulePage {
   actions: Record<string, string>
   running: boolean
 }
+
+
+/**
+ * Which model does which job.
+ *
+ * Marvi picks one model for the hardest thing she does and then uses it for
+ * everything, including work that needs none of it. A role may name its own
+ * provider and model; unset means the main one, which is what happened before
+ * and remains a good answer.
+ */
+export interface AuxiliaryRole {
+  key: string
+  title: string
+  why: string
+  /** What choosing well buys. Empty when the honest answer is "not much". */
+  gain: string
+  setting: string
+  provider: string
+  model: string
+  auto: boolean
+}
+
+export interface AuxiliaryPage {
+  roles: AuxiliaryRole[]
+  separator: string
+  providers: { name: string; label: string }[]
+}

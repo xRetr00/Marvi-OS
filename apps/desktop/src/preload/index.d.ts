@@ -1,4 +1,5 @@
 import type {
+  AuxiliaryPage,
   AssistantState,
   AuditEvent,
   ChatAttachment,
@@ -59,6 +60,8 @@ export interface MarviDesktopApi {
   setYolo: (yolo: boolean) => Promise<RuntimeStatus>
   getAudit: () => Promise<AuditEvent[]>
   getRoomEvents: () => Promise<RoomEvent[]>
+  /** Which model does which job. Roles default to the main model. */
+  getAuxiliary: () => Promise<AuxiliaryPage | null>
   /** Face crops the sidecar wrote when it recognised someone. Not a camera
    *  feed: the sidecar owns the camera and publishes no frames. */
   getRoomFaces: () => Promise<{ id: string; at: number; image: string }[]>

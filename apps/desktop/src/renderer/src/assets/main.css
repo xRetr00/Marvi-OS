@@ -5348,3 +5348,27 @@ body {
   border-radius: 4px;
   border: 1px solid var(--line, rgba(255, 255, 255, 0.12));
 }
+
+/* Settings prose ---------------------------------------------------------
+   A section that explains itself writes a paragraph directly into its body
+   rather than through `description`, and a bare <p> there inherited the base
+   size -- so the same sentence rendered at 13px in one section and 10px in
+   the next, and the page read as several pages stapled together. Matching the
+   row description is what makes the column scan as one thing. */
+
+.control-section-body > div > p,
+.control-section-body > p {
+  margin: 0 0 8px;
+  max-width: 68ch;
+  color: var(--ui-text-tertiary);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+/* The notice under a switch is the same voice as a row description, and was
+   a third size again. */
+.control-section-body .notice {
+  max-width: 68ch;
+  font-size: 10px;
+  line-height: 1.5;
+}
