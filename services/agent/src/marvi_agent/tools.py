@@ -12,17 +12,31 @@ type hints and the docstring, `RunContext` is excluded from that schema, and a
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
+import time
 from typing import Any
 
 import httpx
 from livekit.agents import RunContext, ToolError, function_tool
+from livekit.agents.llm import ToolFlag
 
 log = logging.getLogger("marvi.voice")
 
 DEFAULT_GATEWAY_URL = "http://127.0.0.1:8765"
+#: Mirrors the Gateway's CONFIRMATION_TTL_SECONDS. A token it has already
+#: expired must not go on blocking the next request here.
+CONFIRMATION_TTL = 120.0
 REQUEST_TIMEOUT = 12.0
+#: How a job that takes minutes is watched. Polled rather than pushed
+#: because the Gateway holds these in memory and a socket per job would be
+#: infrastructure for a thing that finishes.
+POLL_EVERY = 3.0
+AWAIT_TIMEOUT = 1800.0
+#: Sparse on purpose: this talks over a conversation that has moved on.
+FILLER_AFTER = 25.0
+FILLER_EVERY = 90.0
 
 
 def gateway_base_url() -> str:
@@ -114,6 +128,13 @@ class GatewayTools:
         # The single action awaiting a spoken yes or no, with the arguments the
         # Gateway issued the token for. Never mutated between issue and approval.
         self._pending: tuple[str, dict[str, Any]] | None = None
+        #: When that token was issued. One slot means a second sensitive call
+        #: while one is outstanding used to overwrite it silently, so a spoken
+        #: "yes" approved whichever token arrived last rather than the action
+        #: the user had just been told about. Now the second call is refused
+        #: while the first is still live, and the Gateway's own 120s expiry is
+        #: what releases the slot if nobody ever answers.
+        self._pending_at = 0.0
 
     @property
     def pending_token(self) -> str | None:
@@ -145,7 +166,16 @@ class GatewayTools:
 
         outcome = body.get("status")
         if outcome == "confirmation_required":
+            if self._pending is not None and time.monotonic() - self._pending_at < CONFIRMATION_TTL:
+                # Refused rather than queued. Two actions waiting on one spoken
+                # "yes" is ambiguous to the user as well as to the code, and
+                # the answer is to settle one before asking about the other.
+                return (
+                    "Another action is already waiting for the user to approve or deny it. "
+                    "Settle that one first, then ask again."
+                )
             self._pending = (str(body["token"]), arguments)
+            self._pending_at = time.monotonic()
             return (
                 "That action needs confirmation. Ask the user to approve, then call "
                 "approve_pending_action or deny_pending_action."
@@ -203,6 +233,59 @@ class GatewayTools:
 
     # -- spoken approval ----------------------------------------------------
 
+    # -- work that takes minutes ---------------------------------------------
+
+    @function_tool(
+        flags=ToolFlag.CANCELLABLE,
+        # Asked twice for the same job -- which happens, because people repeat
+        # themselves when an answer is slow -- the second call is refused
+        # rather than starting a second wait on the same work.
+        on_duplicate="reject",
+        duplicate_scope="name_and_args",
+    )
+    async def await_delegated(self, context: RunContext, job: str) -> str:
+        """Wait for a delegated coding job and report what came back.
+
+        Call this straight after delegating. It does not block the
+        conversation: the first progress update hands control back to the model
+        immediately, and the result arrives on its own whenever the job
+        finishes.
+
+        Args:
+            job: The job id that delegate_to_coder returned.
+        """
+        # This is the whole mechanism. `update` releases control to the LLM
+        # with this sentence as the tool's synthetic return, so Marvi says it
+        # and carries on talking while the body below keeps running. The
+        # eventual `return` is delivered into the conversation whenever it
+        # lands.
+        await context.update(f"Working on job {job} now, I will say when it is done.")
+
+        # And a word during the quiet stretches, so a five-minute job does not
+        # feel like a dropped call. Deliberately sparse: this interrupts a
+        # conversation that has moved on to something else.
+        async with context.with_filler(
+            "Still waiting on that job.", delay=FILLER_AFTER, interval=FILLER_EVERY
+        ):
+            deadline = time.monotonic() + AWAIT_TIMEOUT
+            while time.monotonic() < deadline:
+                status, body = await self._post(
+                    "/tools/delegated_status", {"arguments": {"job": job}}
+                )
+                if status != 200:
+                    raise ToolError(f"could not check job {job}")
+                result = body.get("result") or {}
+                if not result.get("ok"):
+                    raise ToolError(str(result.get("detail", f"no job {job}")))
+                if result.get("state") != "running":
+                    return describe(result)
+                await asyncio.sleep(POLL_EVERY)
+
+        return (
+            f"Job {job} is still running after {AWAIT_TIMEOUT // 60} minutes. "
+            "It has not been stopped; check it again later with delegated_status."
+        )
+
     async def _resolve(self, decision: str) -> tuple[int, dict[str, Any]]:
         if self._pending is None:
             raise ToolError("There is no action waiting for approval.")
@@ -212,6 +295,7 @@ class GatewayTools:
         )
         # The token is spent either way; the Island may also have resolved it first.
         self._pending = None
+        self._pending_at = 0.0
         return status, body
 
     @function_tool
@@ -237,11 +321,14 @@ class GatewayTools:
         return "Cancelled."
 
     def as_list(self) -> list[Any]:
-        """The hand-written tools: the room, memory, and the confirmation pair.
+        """The hand-written tools: the room, memory, the confirmation pair, and
+        the one that waits.
 
         These are written out rather than discovered because their wording is
         tuned for speech -- a spoken "turn the light on" should not have to
-        survive a schema written for a typed interface.
+        survive a schema written for a typed interface. `await_delegated` is
+        here for a different reason: it is an async tool, and the generic
+        bridge in `from_gateway` cannot build one of those from a JSON schema.
         """
         return [
             self.room_state,
@@ -251,6 +338,7 @@ class GatewayTools:
             self.remember,
             self.approve_pending_action,
             self.deny_pending_action,
+            self.await_delegated,
         ]
 
     #: Tools the Agent already words better itself, or that make no sense spoken.

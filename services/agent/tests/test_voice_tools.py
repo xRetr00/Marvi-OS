@@ -94,6 +94,9 @@ def test_tool_schemas_are_voice_sized_and_hide_transport(voice) -> None:
         "remember",
         "approve_pending_action",
         "deny_pending_action",
+        # Hand-written for a different reason than the rest: it is an async
+        # tool, and the generic bridge cannot build one from a JSON schema.
+        "await_delegated",
     }
     # RunContext and the gateway token never appear in the LLM-visible schema.
     assert schemas["room_light"]["parameters"]["required"] == ["on"]
@@ -242,3 +245,193 @@ async def test_a_gateway_that_cannot_answer_costs_the_catalogue_not_the_voice() 
     await client.aclose()
 
     assert blocks == []
+
+
+# -- work that takes minutes ---------------------------------------------------
+
+
+class _Nothing:
+    """An async context manager that does nothing, standing in for the filler."""
+
+    async def __aenter__(self):
+        return None
+
+    async def __aexit__(self, *_exc):
+        return False
+
+
+class FakeUpdates:
+    """Stands in for RunContext: records what was said and when control went
+    back to the model."""
+
+    def __init__(self) -> None:
+        self.updates: list[str] = []
+        self.fillers: list[tuple[str, float, float | None]] = []
+
+    async def update(self, message, *, template=None) -> None:
+        self.updates.append(str(message))
+
+    def with_filler(self, source, *, delay=0, interval=None, max_steps=None):
+        self.fillers.append((str(source), delay, interval))
+
+        return _Nothing()
+
+
+async def test_waiting_hands_control_back_before_the_job_finishes() -> None:
+    """The whole mechanism. The first update is the tool's synthetic return, so
+    Marvi speaks it and carries on while the body below keeps polling. Without
+    it a five-minute job is five minutes of dead air."""
+    import httpx
+
+    from marvi_agent.tools import GatewayTools
+
+    states = iter(["running", "running", "done"])
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        state = next(states)
+        return httpx.Response(
+            200,
+            json={
+                "status": "ok",
+                "result": {"ok": True, "state": state, "output": "found it", "id": "3f2a"},
+            },
+        )
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handle))
+    tools = GatewayTools(client=client)
+    context = FakeUpdates()
+
+    import marvi_agent.tools as tools_module
+
+    original, tools_module.POLL_EVERY = tools_module.POLL_EVERY, 0.0
+    try:
+        answer = await tools.await_delegated.__wrapped__(tools, context, "3f2a")
+    finally:
+        tools_module.POLL_EVERY = original
+        await client.aclose()
+
+    assert context.updates, "control was never handed back; the conversation would block"
+    assert "3f2a" in context.updates[0]
+    assert "found it" in answer
+
+
+async def test_the_wait_is_narrated_rather_than_silent() -> None:
+    """A long job that says nothing is indistinguishable from a dropped call."""
+    import httpx
+
+    from marvi_agent.tools import GatewayTools
+
+    def done(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200, json={"status": "ok", "result": {"ok": True, "state": "done", "output": "ok"}}
+        )
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(done))
+    context = FakeUpdates()
+    await GatewayTools(client=client).await_delegated.__wrapped__(
+        GatewayTools(client=client), context, "3f2a"
+    )
+    await client.aclose()
+
+    assert context.fillers, "nothing fills the silence while the job runs"
+    said, delay, interval = context.fillers[0]
+    assert said.strip(), "the filler says nothing"
+    # Sparse on purpose: this talks over a conversation that has moved on.
+    assert delay >= 10 and (interval or 0) >= 60
+
+
+async def test_a_job_that_is_not_there_is_an_error_not_a_wait() -> None:
+    import httpx
+    import pytest
+    from livekit.agents import ToolError
+
+    from marvi_agent.tools import GatewayTools
+
+    def missing(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200, json={"status": "ok", "result": {"ok": False, "detail": "no job 'nope'"}}
+        )
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(missing))
+    with pytest.raises(ToolError):
+        await GatewayTools(client=client).await_delegated.__wrapped__(
+            GatewayTools(client=client), FakeUpdates(), "nope"
+        )
+    await client.aclose()
+
+
+def test_waiting_can_be_cancelled() -> None:
+    """`ToolFlag.CANCELLABLE` is what makes the framework expose
+    get_running_tasks and cancel_task to the model, so "stop that" works."""
+    from livekit.agents.llm import ToolFlag
+
+    from marvi_agent.tools import GatewayTools
+
+    tool = GatewayTools().await_delegated
+
+    assert ToolFlag.CANCELLABLE in tool.info.flags
+
+
+def test_asking_twice_for_the_same_job_does_not_start_a_second_wait() -> None:
+    """People repeat themselves when an answer is slow."""
+    from marvi_agent.tools import GatewayTools
+
+    tool = GatewayTools().await_delegated
+
+    assert tool.info.on_duplicate == "reject"
+    # By job id, not by name: waiting on a different job is a different thing.
+    assert tool.info.duplicate_scope == "name_and_args"
+
+
+# -- one confirmation at a time -----------------------------------------------
+
+
+async def test_a_second_confirmation_cannot_displace_the_first() -> None:
+    """One slot held one token, and a second sensitive call overwrote it.
+
+    A spoken "yes" then approved whichever action arrived last, while the user
+    believed they were approving the one they had just been told about. That is
+    the confirmation flow doing the opposite of its job.
+    """
+    import httpx
+
+    from marvi_agent.tools import GatewayTools
+
+    def needs_confirmation(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200, json={"status": "confirmation_required", "token": "tok-1"}
+        )
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(needs_confirmation))
+    tools = GatewayTools(client=client)
+
+    first = await tools._call("delegate_to_coder", {"task": "one"})
+    held = tools.pending_token
+    second = await tools._call("delegate_to_coder", {"task": "two"})
+    await client.aclose()
+
+    assert "needs confirmation" in first
+    assert "already waiting" in second
+    assert tools.pending_token == held, "the outstanding token was replaced"
+
+
+async def test_an_expired_confirmation_does_not_block_the_next_one() -> None:
+    """The Gateway drops a token after two minutes. If this went on holding the
+    slot, one unanswered question would disable every sensitive tool for the
+    rest of the session."""
+    import httpx
+
+    from marvi_agent.tools import CONFIRMATION_TTL, GatewayTools
+
+    def needs_confirmation(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"status": "confirmation_required", "token": "tok-2"})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(needs_confirmation))
+    tools = GatewayTools(client=client)
+
+    await tools._call("delegate_to_coder", {"task": "one"})
+    tools._pending_at -= CONFIRMATION_TTL + 1
+    answer = await tools._call("delegate_to_coder", {"task": "two"})
+    await client.aclose()
+
+    assert "needs confirmation" in answer
