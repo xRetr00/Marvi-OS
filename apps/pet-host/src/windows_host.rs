@@ -23,12 +23,13 @@ use windows_sys::Win32::{
     UI::{
         HiDpi::{SetProcessDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2},
         WindowsAndMessaging::{
-            CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, KillTimer,
-            PostMessageW, PostQuitMessage, RegisterClassW, SetTimer, SetWindowPos, ShowWindow,
-            SystemParametersInfoW, UpdateLayeredWindow, CS_HREDRAW, CS_VREDRAW, HTCLIENT,
-            HTTRANSPARENT, HWND_TOPMOST, MSG, SPI_GETCLIENTAREAANIMATION, SWP_NOACTIVATE,
-            SW_SHOWNA, ULW_ALPHA, WM_APP, WM_DESTROY, WM_LBUTTONUP, WM_NCHITTEST, WM_TIMER,
-            WNDCLASSW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_POPUP,
+            CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, GetWindowRect,
+            KillTimer, PostMessageW, PostQuitMessage, RegisterClassW, SetTimer, SetWindowPos,
+            ShowWindow, SystemParametersInfoW, UpdateLayeredWindow, CS_HREDRAW, CS_VREDRAW,
+            HTCAPTION, HTCLIENT, HTTRANSPARENT, HWND_TOPMOST, MSG, SPI_GETCLIENTAREAANIMATION,
+            SWP_NOACTIVATE, SW_SHOWNA, ULW_ALPHA, WM_APP, WM_DESTROY, WM_EXITSIZEMOVE,
+            WM_LBUTTONUP, WM_MOVE, WM_NCHITTEST, WM_TIMER, WNDCLASSW, WS_EX_LAYERED,
+            WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_POPUP,
         },
     },
 };
@@ -83,6 +84,7 @@ struct App {
     bounds: RECT,
     exit_requested: bool,
     completion_until: Option<Instant>,
+    hit_alpha: Vec<u8>,
 }
 
 impl App {
@@ -164,6 +166,15 @@ fn hit_test_button(width: i32, height: i32, x: i32, y: i32) -> Option<PetAction>
         })
 }
 
+fn hit_test_alpha(alpha: &[u8], width: i32, height: i32, x: i32, y: i32) -> bool {
+    if x < 0 || y < 0 || x >= width || y >= height {
+        return false;
+    }
+    alpha
+        .get((y * width + x) as usize)
+        .is_some_and(|value| *value >= 24)
+}
+
 fn active_phase(phase: Phase) -> bool {
     matches!(phase, Phase::Thinking | Phase::Action | Phase::Confirmation)
 }
@@ -242,6 +253,75 @@ fn fill_circle(
     }
 }
 
+fn draw_voice_icon(pixels: &mut [u8], width: i32, height: i32, cx: i32, cy: i32) {
+    let color = [235, 235, 235, 255];
+    for (offset, bar_height) in [(-6, 4), (-3, 8), (0, 12), (3, 8), (6, 4)] {
+        fill_rounded_rect(
+            pixels,
+            width,
+            height,
+            (
+                cx + offset,
+                cy - bar_height / 2,
+                cx + offset + 2,
+                cy + (bar_height + 1) / 2,
+            ),
+            color,
+        );
+    }
+}
+
+fn draw_task_icon(
+    pixels: &mut [u8],
+    width: i32,
+    height: i32,
+    cx: i32,
+    cy: i32,
+    count: u32,
+) {
+    let color = [235, 235, 235, 255];
+    if count == 0 {
+        for row in 0..3 {
+            let y = cy - 5 + row * 5;
+            fill_rect(pixels, width, height, (cx - 6, y, cx - 4, y + 2), color);
+            fill_rect(pixels, width, height, (cx - 2, y, cx + 6, y + 2), color);
+        }
+        return;
+    }
+
+    const DIGITS: [[u8; 5]; 10] = [
+        [0b111, 0b101, 0b101, 0b101, 0b111],
+        [0b010, 0b110, 0b010, 0b010, 0b111],
+        [0b111, 0b001, 0b111, 0b100, 0b111],
+        [0b111, 0b001, 0b111, 0b001, 0b111],
+        [0b101, 0b101, 0b111, 0b001, 0b001],
+        [0b111, 0b100, 0b111, 0b001, 0b111],
+        [0b111, 0b100, 0b111, 0b101, 0b111],
+        [0b111, 0b001, 0b010, 0b010, 0b010],
+        [0b111, 0b101, 0b111, 0b101, 0b111],
+        [0b111, 0b101, 0b111, 0b001, 0b111],
+    ];
+    let glyph = DIGITS[count.min(9) as usize];
+    for (row, bits) in glyph.iter().enumerate() {
+        for column in 0..3 {
+            if bits & (1 << (2 - column)) != 0 {
+                fill_rect(
+                    pixels,
+                    width,
+                    height,
+                    (
+                        cx - 3 + column * 2,
+                        cy - 5 + row as i32 * 2,
+                        cx - 1 + column * 2,
+                        cy - 3 + row as i32 * 2,
+                    ),
+                    color,
+                );
+            }
+        }
+    }
+}
+
 fn draw_overlay(state: &App, pixels: &mut [u8], width: i32, height: i32) {
     let sprite = sprite_height(width, height);
     let now = Instant::now();
@@ -287,57 +367,10 @@ fn draw_overlay(state: &App, pixels: &mut [u8], width: i32, height: i32) {
     }
 
     let (voice_x, voice_y, _) = buttons[0];
-    for (offset, bar_height) in [(-5, 6), (-2, 10), (1, 14), (4, 8)] {
-        fill_rect(
-            pixels,
-            width,
-            height,
-            (
-                voice_x + offset,
-                voice_y - bar_height / 2,
-                voice_x + offset + 2,
-                voice_y + (bar_height + 1) / 2,
-            ),
-            [235, 235, 235, 255],
-        );
-    }
+    draw_voice_icon(pixels, width, height, voice_x, voice_y);
 
     let (task_x, task_y, _) = buttons[1];
-    if state.task_count > 0 {
-        fill_rect(
-            pixels,
-            width,
-            height,
-            (task_x - 1, task_y - 6, task_x + 2, task_y + 6),
-            [235, 235, 235, 255],
-        );
-        fill_rect(
-            pixels,
-            width,
-            height,
-            (task_x - 4, task_y - 5, task_x, task_y - 3),
-            [235, 235, 235, 255],
-        );
-    } else {
-        for offset in 0..3 {
-            set_pixel(
-                pixels,
-                width,
-                height,
-                task_x - 5 + offset,
-                task_y - 1 - offset,
-                [235, 235, 235, 255],
-            );
-            set_pixel(
-                pixels,
-                width,
-                height,
-                task_x + 5 - offset,
-                task_y - 1 - offset,
-                [235, 235, 235, 255],
-            );
-        }
-    }
+    draw_task_icon(pixels, width, height, task_x, task_y, state.task_count);
 }
 
 fn wide(value: &str) -> Vec<u16> {
@@ -409,6 +442,7 @@ pub fn run() -> Result<(), String> {
         bounds,
         exit_requested: false,
         completion_until: None,
+        hit_alpha: Vec::new(),
     }));
     APP.set(app.clone()).map_err(|_| "app initialized twice")?;
 
@@ -554,22 +588,27 @@ unsafe extern "system" fn window_proc(
                 return HTTRANSPARENT as LRESULT;
             };
             let state = app.lock().expect("pet model poisoned");
-            if !state.hover {
-                return HTTRANSPARENT as LRESULT;
-            }
             let screen_x = (lparam as u32 & 0xffff) as u16 as i16 as i32;
             let screen_y = ((lparam as u32 >> 16) & 0xffff) as u16 as i16 as i32;
-            let width = state.bounds.right - state.bounds.left;
-            let height = state.bounds.bottom - state.bounds.top;
+            let mut actual_bounds: RECT = std::mem::zeroed();
+            if GetWindowRect(hwnd, &mut actual_bounds) == 0 {
+                return HTTRANSPARENT as LRESULT;
+            }
+            let width = actual_bounds.right - actual_bounds.left;
+            let height = actual_bounds.bottom - actual_bounds.top;
+            let local_x = screen_x - actual_bounds.left;
+            let local_y = screen_y - actual_bounds.top;
             if hit_test_button(
                 width,
                 height,
-                screen_x - state.bounds.left,
-                screen_y - state.bounds.top,
+                local_x,
+                local_y,
             )
-            .is_some()
+            .is_some_and(|_| state.hover)
             {
                 HTCLIENT as LRESULT
+            } else if hit_test_alpha(&state.hit_alpha, width, height, local_x, local_y) {
+                HTCAPTION as LRESULT
             } else {
                 HTTRANSPARENT as LRESULT
             }
@@ -585,6 +624,28 @@ unsafe extern "system" fn window_proc(
                 Some(PetAction::Voice) => emit_event("{\"type\":\"action\",\"action\":\"voice\"}"),
                 Some(PetAction::Tasks) => emit_event("{\"type\":\"action\",\"action\":\"tasks\"}"),
                 None => {}
+            }
+            0
+        }
+        WM_MOVE => {
+            if let Some(app) = APP.get() {
+                let mut actual_bounds: RECT = std::mem::zeroed();
+                if GetWindowRect(hwnd, &mut actual_bounds) != 0 {
+                    app.lock().expect("pet model poisoned").bounds = actual_bounds;
+                }
+            }
+            0
+        }
+        WM_EXITSIZEMOVE => {
+            let mut actual_bounds: RECT = std::mem::zeroed();
+            if GetWindowRect(hwnd, &mut actual_bounds) != 0 {
+                if let Some(app) = APP.get() {
+                    app.lock().expect("pet model poisoned").bounds = actual_bounds;
+                }
+                emit_event(&format!(
+                    "{{\"type\":\"moved\",\"x\":{},\"y\":{}}}",
+                    actual_bounds.left, actual_bounds.top
+                ));
             }
             0
         }
@@ -668,6 +729,7 @@ unsafe fn render(hwnd: HWND) -> Result<(), String> {
             .copy_from_slice(&sprite_pixels[source..source + length]);
     }
     draw_overlay(&state, &mut pixels, width, height);
+    state.hit_alpha = pixels.chunks_exact(4).map(|pixel| pixel[3]).collect();
 
     let screen_dc = GetDC(null_mut());
     let memory_dc = CreateCompatibleDC(screen_dc);
@@ -759,6 +821,15 @@ mod tests {
         assert_eq!(hit_test_button(96, 136, 62, 120), Some(PetAction::Tasks));
         assert_eq!(hit_test_button(96, 136, 48, 120), None);
         assert_eq!(hit_test_button(96, 136, 10, 20), None);
+    }
+
+    #[test]
+    fn only_rendered_pixels_capture_pet_drags() {
+        let alpha = [0, 24, 255, 0];
+        assert!(!hit_test_alpha(&alpha, 2, 2, 0, 0));
+        assert!(hit_test_alpha(&alpha, 2, 2, 1, 0));
+        assert!(hit_test_alpha(&alpha, 2, 2, 0, 1));
+        assert!(!hit_test_alpha(&alpha, 2, 2, 2, 1));
     }
 
     #[test]

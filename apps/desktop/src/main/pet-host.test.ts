@@ -24,6 +24,12 @@ describe('native pet host protocol', () => {
       action: 'voice'
     })
     expect(parsePetHostEvent('{"type":"action","action":"delete"}')).toBeNull()
+    expect(parsePetHostEvent('{"type":"moved","x":240,"y":120}')).toEqual({
+      type: 'moved',
+      x: 240,
+      y: 120
+    })
+    expect(parsePetHostEvent('{"type":"moved","x":2.5,"y":120}')).toBeNull()
     expect(parsePetHostEvent('noise')).toBeNull()
   })
 

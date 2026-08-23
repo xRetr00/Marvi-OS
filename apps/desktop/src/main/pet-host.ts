@@ -20,7 +20,10 @@ export interface PetHostPaths {
 }
 
 export type PetHostAction = 'voice' | 'tasks'
-export type PetHostEvent = { type: 'ready' } | { type: 'action'; action: PetHostAction }
+export type PetHostEvent =
+  | { type: 'ready' }
+  | { type: 'action'; action: PetHostAction }
+  | { type: 'moved'; x: number; y: number }
 
 export function parsePetHostEvent(line: string): PetHostEvent | null {
   try {
@@ -28,6 +31,13 @@ export function parsePetHostEvent(line: string): PetHostEvent | null {
     if (value.type === 'ready') return { type: 'ready' }
     if (value.type === 'action' && (value.action === 'voice' || value.action === 'tasks')) {
       return { type: 'action', action: value.action }
+    }
+    if (
+      value.type === 'moved' &&
+      Number.isInteger(value.x) &&
+      Number.isInteger(value.y)
+    ) {
+      return { type: 'moved', x: value.x as number, y: value.y as number }
     }
   } catch {
     // Diagnostics are best-effort; malformed helper output must not affect supervision.
@@ -82,7 +92,8 @@ export class NativePetHost {
       signal: NodeJS.Signals | null
     }) => void,
     private readonly onDiagnostic: (level: 'info' | 'warning', message: string) => void,
-    private readonly onAction: (action: PetHostAction) => void
+    private readonly onAction: (action: PetHostAction) => void,
+    private readonly onMoved: (position: { x: number; y: number }) => void
   ) {}
 
   get running(): boolean {
@@ -136,6 +147,7 @@ export class NativePetHost {
         const event = parsePetHostEvent(line)
         if (event?.type === 'ready') this.onDiagnostic('info', 'native pet host ready')
         if (event?.type === 'action') this.onAction(event.action)
+        if (event?.type === 'moved') this.onMoved(event)
       }
     })
     child.stderr.on('data', (chunk: string) => {

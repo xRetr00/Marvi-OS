@@ -106,8 +106,11 @@ const marvi = {
   consumeWakeLaunch: (): Promise<boolean> => ipcRenderer.invoke('marvi:consume-wake-launch'),
   getWakeAutostart: (): Promise<{ autostart: boolean; running: boolean }> =>
     ipcRenderer.invoke('marvi:get-wake-autostart'),
-  setWakeAutostart: (enabled: boolean): Promise<{ autostart: boolean; running: boolean }> =>
-    ipcRenderer.invoke('marvi:set-wake-autostart', enabled),
+  setWakeAutostart: (
+    enabled: boolean,
+    device?: string
+  ): Promise<{ autostart: boolean; running: boolean }> =>
+    ipcRenderer.invoke('marvi:set-wake-autostart', enabled, device ?? ''),
   setYolo: (yolo: boolean): Promise<RuntimeStatus> => ipcRenderer.invoke('marvi:set-yolo', yolo),
   getAudit: (): Promise<AuditEvent[]> => ipcRenderer.invoke('marvi:get-audit'),
   getRoomEvents: (): Promise<RoomEvent[]> => ipcRenderer.invoke('marvi:get-room-events'),

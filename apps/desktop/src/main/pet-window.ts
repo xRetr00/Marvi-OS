@@ -6,6 +6,7 @@ export interface PetPreferences {
   displayId: number | null
   side: PetSide
   scale: PetScale
+  position: PointLike | null
 }
 
 export interface RectangleLike {
@@ -26,7 +27,8 @@ export const DEFAULT_PET_PREFERENCES: PetPreferences = {
   enabled: true,
   displayId: null,
   side: 'right',
-  scale: 0.5
+  scale: 0.5,
+  position: null
 }
 
 export function normalizePetPreferences(value: unknown): PetPreferences {
@@ -41,23 +43,31 @@ export function normalizePetPreferences(value: unknown): PetPreferences {
     side: candidate.side === 'left' ? 'left' : 'right',
     scale: [0.4, 0.5, 0.7, 1].includes(candidate.scale as number)
       ? (candidate.scale as PetScale)
-      : DEFAULT_PET_PREFERENCES.scale
+      : DEFAULT_PET_PREFERENCES.scale,
+    position:
+      candidate.position &&
+      Number.isFinite(candidate.position.x) &&
+      Number.isFinite(candidate.position.y)
+        ? { x: Math.round(candidate.position.x), y: Math.round(candidate.position.y) }
+        : null
   }
 }
 
 export function petWindowBounds(
   workArea: RectangleLike,
-  preferences: Pick<PetPreferences, 'side' | 'scale'>,
+  preferences: Pick<PetPreferences, 'side' | 'scale' | 'position'>,
   margin = 18
 ): RectangleLike {
   const width = Math.round(PET_CELL_SIZE.width * preferences.scale)
   const height = Math.round((PET_CELL_SIZE.height + PET_CONTROL_HEIGHT) * preferences.scale)
+  const anchored = {
+    x: preferences.side === 'left' ? workArea.x + margin : workArea.x + workArea.width - width - margin,
+    y: workArea.y + workArea.height - height - margin
+  }
+  const position = preferences.position ?? anchored
   return {
-    x:
-      preferences.side === 'left'
-        ? workArea.x + margin
-        : workArea.x + workArea.width - width - margin,
-    y: workArea.y + workArea.height - height - margin,
+    x: Math.min(Math.max(position.x, workArea.x), workArea.x + Math.max(0, workArea.width - width)),
+    y: Math.min(Math.max(position.y, workArea.y), workArea.y + Math.max(0, workArea.height - height)),
     width,
     height
   }

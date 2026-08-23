@@ -20,7 +20,19 @@ describe('normalizePetPreferences', () => {
   it('accepts supported placement values', () => {
     expect(
       normalizePetPreferences({ enabled: false, displayId: 7, side: 'left', scale: 0.5 })
-    ).toEqual({ enabled: false, displayId: 7, side: 'left', scale: 0.5 })
+    ).toEqual({ enabled: false, displayId: 7, side: 'left', scale: 0.5, position: null })
+  })
+
+  it('accepts and rounds a persisted drag position', () => {
+    expect(
+      normalizePetPreferences({
+        enabled: true,
+        displayId: 7,
+        side: 'right',
+        scale: 0.5,
+        position: { x: 212.4, y: 88.7 }
+      }).position
+    ).toEqual({ x: 212, y: 89 })
   })
 })
 
@@ -28,7 +40,7 @@ describe('petWindowBounds', () => {
   const workArea = { x: 100, y: 40, width: 1200, height: 800 }
 
   it('anchors at the bottom right inside the work area', () => {
-    expect(petWindowBounds(workArea, { side: 'right', scale: 1 })).toEqual({
+    expect(petWindowBounds(workArea, { side: 'right', scale: 1, position: null })).toEqual({
       x: 1090,
       y: 550,
       width: 192,
@@ -37,12 +49,18 @@ describe('petWindowBounds', () => {
   })
 
   it('supports a compact left-side companion', () => {
-    expect(petWindowBounds(workArea, { side: 'left', scale: 0.5 })).toEqual({
+    expect(petWindowBounds(workArea, { side: 'left', scale: 0.5, position: null })).toEqual({
       x: 118,
       y: 686,
       width: 96,
       height: 136
     })
+  })
+
+  it('uses a dragged position and clamps the whole host inside the work area', () => {
+    expect(
+      petWindowBounds(workArea, { side: 'right', scale: 0.5, position: { x: 9_000, y: -40 } })
+    ).toEqual({ x: 1204, y: 40, width: 96, height: 136 })
   })
 })
 
