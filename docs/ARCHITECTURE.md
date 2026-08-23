@@ -60,8 +60,8 @@ Marvi Gateway is the only backend address known to the renderer. It owns:
 - readiness and health aggregation;
 - durable chat threads, message ancestry/branches, ordered content parts,
   attachment lifecycle, and per-thread provider/model selection;
-- bounded dictation sessions that adapt renderer PCM to the existing native
-  streaming STT sidecar without moving inference into React;
+- bounded dictation sessions that adapt renderer PCM to an Agent-owned
+  Parakeet worker without moving inference into React;
 - LiveKit token issuance for local rooms;
 - supervised start/stop/restart of pinned sidecars;
 - session identity and reconnect state;
@@ -84,15 +84,16 @@ voice benchmark: resident if the combined budget is safe, otherwise an explicit
 warm/sleep profile with measured wake latency.
 
 Closing the main window leaves the tray, Dynamic Island, Gateway, wake word,
-camera presence, gesture detection, and room events alive. Exiting from the tray
-stops them in dependency order.
+and the Gateway-owned Smart Room sidecar alive. The sidecar owns camera
+presence, gestures, and room events. Exiting from the tray stops them in
+dependency order.
 
 ## Media privacy boundary
 
-Microphone and camera capture are always available locally because wake word,
-presence, and gestures are always on. Raw frames remain inside local processes.
-An active assistant session publishes only the media required by that session to
-the loopback LiveKit room. OpenCode Go receives text context, not raw audio or
+Microphone capture stays local for wake word and the LiveKit voice session.
+Smart Room is the sole always-on camera owner for presence and gestures. Raw
+frames remain inside the sidecar and are never published to Gateway or the
+loopback LiveKit room. OpenCode Go receives bounded text facts, not raw audio or
 video, unless a future explicit feature changes this contract.
 
 ## Full-duplex media contract

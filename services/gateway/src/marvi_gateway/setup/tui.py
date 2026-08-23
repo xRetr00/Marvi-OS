@@ -118,18 +118,28 @@ CAPABILITIES: tuple[Capability, ...] = (
     Capability(
         key="speech",
         title="Speech recognition",
-        why="Which English the recogniser is told to expect.",
+        why="How Marvi listens. Both of these were measured rather than chosen.",
         settings=(
             Setting(
-                "MARVI_STT_LANGUAGE",
-                "Spoken language",
+                "MARVI_STT_LOOKAHEAD",
+                "Lookahead",
                 (
-                    "A locale the model knows, e.g. en-US or en-GB. It is a "
-                    "prompt the model is conditioned on, not a hint -- en-GB is "
-                    "a genuinely different one and often better for English "
-                    "that is not American. 'en' is an alias for en-US."
+                    "Seconds of the future the recogniser hears before "
+                    "committing a word. 2.0 measured 13.7% word errors on "
+                    "accented English and 0.8 measured 16.8%. It lags the live "
+                    "subtitles, not the answer."
                 ),
-                default="en-US",
+                default="2.0",
+            ),
+            Setting(
+                "MARVI_STT_DEVICE",
+                "Runs on",
+                (
+                    "cpu or cuda. Same accuracy either way and four times "
+                    "faster on the card -- but the card is also making the "
+                    "speech, and that is what ran out of room."
+                ),
+                default="cpu",
             ),
         ),
     ),

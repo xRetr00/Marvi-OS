@@ -32,6 +32,20 @@ fn main() {
         }
     };
 
+    // Older desktop builds launched us while their cwd was inside
+    // apps/desktop/dist. Windows treats a process cwd as an open directory
+    // handle, which made the rollback snapshot fail with Access is denied.
+    // Move the bootstrap and every Tauri/WebView child it creates outside the
+    // build output before the window starts.
+    if args.mode == Mode::Update {
+        let safe_cwd = marvi_bootstrap_core::state_dir();
+        let _ = std::fs::create_dir_all(&safe_cwd);
+        if let Err(error) = std::env::set_current_dir(&safe_cwd) {
+            eprintln!("could not move the updater working directory: {error}");
+            std::process::exit(2);
+        }
+    }
+
     match args.mode {
         Mode::Check => run_check(&args),
         Mode::Update | Mode::Install => app::run(args),
@@ -40,7 +54,10 @@ fn main() {
 
 fn run_check(args: &cli::Cli) {
     let out = marvi_bootstrap_core::check(std::path::Path::new(&args.install_root), args.channel);
-    println!("{}", serde_json::to_string(&out).unwrap_or_else(|_| "{}".into()));
+    println!(
+        "{}",
+        serde_json::to_string(&out).unwrap_or_else(|_| "{}".into())
+    );
     if out.error.is_some() {
         std::process::exit(2);
     }

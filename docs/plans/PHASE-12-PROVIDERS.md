@@ -35,11 +35,11 @@ it is what the previous attempts skipped.
 
 ## Research
 
-### Hermes
+### Reference implementation
 
 Three things worth taking, and worth taking the reasons with them.
 
-**`hermes_cli/provider_catalog.py` — one catalog behind every surface.** Its
+**The predecessor's provider catalog — one catalog behind every surface.** Its
 docstring is a post-mortem: the CLI picker and two desktop tabs each read a
 different hand-maintained list, so "every provider added after those lists were
 written silently went missing from the GUI". The fix derives one descriptor per
@@ -47,7 +47,7 @@ provider from a single universe, and a **parity contract locked by tests** keeps
 the surfaces honest. Marvi has one registry today and must not grow a second
 list for a Models page.
 
-**`auth_type` decides the surface.** Hermes routes a provider to its Accounts
+**`auth_type` decides the surface.** The catalog routes a provider to its Accounts
 tab or its API-keys tab purely by how the provider authenticates. Marvi's
 `ProviderProfile.auth_type` already carries that, so the Providers page can
 split on it without new data.
@@ -94,7 +94,7 @@ Two conclusions follow, and they are the load-bearing ones:
 
 1. **Effort is not a shared vocabulary.** One `low|medium|high` dropdown sent
    verbatim to every provider is wrong for four of the six. Marvi needs a
-   generic ladder plus a per-provider mapping, exactly as hermes has.
+   generic ladder plus a per-provider mapping.
 2. **Support is discoverable for some providers and not others.** OpenRouter,
    LM Studio and Ollama publish it; OpenAI and Anthropic do not. So the agreed
    "fetch when possible, hide otherwise" needs a fallback table for the two
@@ -182,7 +182,7 @@ and are worth a separate release, so a break is attributable to one of them.
 ## What would make this attempt fail
 
 - A second list of providers or models anywhere. One registry, one catalog, and
-  a test that says so — hermes learned this the expensive way.
+  a test that says so — this class of drift is expensive to rediscover.
 - Sending a generic effort string straight through to a provider.
 - A model dropdown backed by a hardcoded array because the fetch was
   "temporarily" stubbed.

@@ -263,4 +263,36 @@ describe('a restart that would leave the old process running', () => {
 
     expect(swept).toEqual([[root, /marvi_agent/i]])
   })
+
+  it('does not go looking when the service cannot describe itself', async () => {
+    /**
+     * Sweeping without a pattern falls back to scanning every process on the
+     * machine, which is a WMI query costing seconds -- paid on every start, to
+     * find leftovers of a service it could not identify anyway. It timed out
+     * this file's own test on a CI runner, which is a fair warning about what
+     * it was doing on a desktop.
+     */
+    const swept: unknown[] = []
+    vi.doMock('./processes', async () => ({
+      ...(await vi.importActual<typeof import('./processes')>('./processes')),
+      killStrays: (...args: unknown[]) => {
+        swept.push(args)
+        return 0
+      }
+    }))
+
+    const { ServiceSupervisor: Supervisor } = await import('./services')
+    const supervisor = new Supervisor(() => {})
+    supervisor.add({
+      name: 'anonymous',
+      command: process.execPath,
+      args: ['-e', 'setTimeout(() => {}, 60000)'],
+      cwd: root
+    })
+
+    supervisor.startAll()
+    supervisor.stopAllNow()
+
+    expect(swept).toEqual([])
+  })
 })

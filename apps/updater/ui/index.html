@@ -8,8 +8,13 @@
   </head>
   <body>
     <main class="panel">
-      <div class="panel-label">// MARVI BOOTSTRAP</div>
-      <h1 id="title">PREPARING</h1>
+      <header class="masthead">
+        <div>
+          <div class="panel-label">// MARVI BOOTSTRAP</div>
+          <h1 id="title">PREPARING</h1>
+        </div>
+        <div class="channel" id="channel"></div>
+      </header>
       <div class="stage" id="stage">
         <span class="spinner" id="spinner"></span>
         <span id="stage-text">starting&hellip;</span>
@@ -35,16 +40,25 @@
         </div>
       </div>
 
-      <div class="status" id="status" hidden></div>
+      <section class="status" id="status" role="status" aria-live="assertive" hidden>
+        <span class="status-mark" id="status-mark" aria-hidden="true"></span>
+        <div>
+          <strong id="status-heading"></strong>
+          <p id="status-message"></p>
+          <p class="status-help" id="status-help"></p>
+        </div>
+      </section>
 
-      <!-- The window used to close itself 1.5s after finishing, which made a
-           failed install look the same as a successful one. It waits now. -->
+      <!-- Failure states stay open. Verified success closes automatically. -->
       <div class="ask-buttons" id="close-row" hidden>
-        <button type="button" id="close" class="primary">Close</button>
+        <button type="button" id="close" class="close-button">
+          <span>Close updater</span>
+          <span class="key-hint" aria-hidden="true">ESC</span>
+        </button>
       </div>
       <footer>
         <span>installer / updater</span>
-        <span class="accent" id="channel"></span>
+        <span id="footer-state">LOCAL / ATOMIC</span>
       </footer>
     </main>
     <script src="main.js"></script>

@@ -30,13 +30,14 @@ function marker(state: string, payload: unknown): void {
 
 describe('update handoff command', () => {
   it('spawns the bootstrap binary in update mode', () => {
-    const { file, args } = handoffCommand('C:\\bin\\marvi-bootstrap.exe', {
+    const { file, args, cwd } = handoffCommand('C:\\bin\\marvi-bootstrap.exe', {
       installRoot: 'D:\\Marvi-OS',
       channel: 'release',
       desktopPid: 4242
     })
 
     expect(file).toBe('C:\\bin\\marvi-bootstrap.exe')
+    expect(cwd).toBe('D:\\Marvi-OS')
     expect(args[0]).toBe('update')
     expect(args[args.indexOf('--install-root') + 1]).toBe('D:\\Marvi-OS')
     expect(args[args.indexOf('--channel') + 1]).toBe('release')

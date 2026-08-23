@@ -44,8 +44,12 @@ DEFAULT_QUIET_END = 8
 # How loud an event is allowed to get. Anything absent is Activity at most:
 # an unknown event type should never be the thing that interrupts someone.
 SURFACE_CEILING: dict[str, str] = {
+    # Retained for journal compatibility with already-recorded alarm events.
     "room:alarm_started": "speak",
+    "room:alarm_requested": "speak",
     "room:room_presence_unverified": "speak",
+    "room:room_welcome": "speak",
+    "room:visitor_report": "speak",
     "room:mode_changed": "activity",
     "room:light_changed": "activity",
     "accounts:email": "island",

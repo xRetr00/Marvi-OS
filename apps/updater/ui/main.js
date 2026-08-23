@@ -4,6 +4,10 @@
 
 const stageText = document.getElementById('stage-text');
 const statusEl = document.getElementById('status');
+const statusMark = document.getElementById('status-mark');
+const statusHeading = document.getElementById('status-heading');
+const statusMessage = document.getElementById('status-message');
+const statusHelp = document.getElementById('status-help');
 const spinner = document.getElementById('spinner');
 const title = document.getElementById('title');
 const channelEl = document.getElementById('channel');
@@ -79,21 +83,35 @@ function bind(tauri) {
     const p = event.payload || {};
     spinner.classList.add('done');
     statusEl.hidden = false;
-    statusEl.classList.add(p.status || 'failed');
-    statusEl.textContent = p.message || 'finished';
-    append(p.message || 'finished');
+    const succeeded = p.status === 'ok';
+    const outcome = p.status || 'failed';
+    statusEl.classList.add(outcome);
+    statusMark.textContent = succeeded ? '[OK]' : '[!]';
+    statusHeading.textContent = succeeded ? 'Completed successfully' : 'Action needs attention';
+    statusMessage.textContent = p.message || 'The updater finished without a result.';
+    statusHelp.textContent = succeeded
+      ? 'Marvi OS is ready. This window will close automatically.'
+      : 'Marvi OS was left unchanged or restored. Review the log above, then close this window and try again.';
+    stageText.textContent = succeeded ? 'completed successfully' : 'stopped safely';
     if (p.status) title.textContent = p.status.toUpperCase();
     // Full only when it worked. A failure that fills the bar reads as success.
-    if (p.status === 'ok') {
+    if (succeeded) {
       barFill.style.width = '100%';
       bar.setAttribute('aria-valuenow', '100');
     }
-    barFill.classList.add(p.status === 'ok' ? 'ok' : 'failed');
-    closeRow.hidden = false;
-    document.getElementById('close').focus();
+    barFill.classList.add(succeeded ? 'ok' : 'failed');
+    if (!succeeded) {
+      closeRow.hidden = false;
+      document.getElementById('close').focus();
+    }
   });
 
   // Rust exits on this rather than the window closing itself, so no extra
   // window capability is needed for the one button this app has.
   document.getElementById('close').onclick = () => tauri.event.emit('close-window', {});
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !closeRow.hidden) {
+      tauri.event.emit('close-window', {});
+    }
+  });
 }

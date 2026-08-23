@@ -18,6 +18,16 @@ dependencies = [
     # measured 34.7x real time against 1.17x -- the margin is the point, not
     # the speed: 1.17x has none left once the recogniser wants the GPU too.
     "kokoro>=0.9,<1",
+    # Parakeet TDT, fed in chunks. Measured on 54 clips of non-native
+    # English it makes 13.7% word errors against the previous engine's
+    # 22.0%, and it runs on ONNX Runtime with no PyTorch or NeMo of its
+    # own -- so it can be pointed at the CPU and leave the card to Kokoro.
+    #
+    # Pinned to a commit rather than a range: it is a young project, and
+    # whether Marvi can hear now depends on it.
+    "parakeet-streaming-onnx @ git+https://github.com/dhyuk54/parakeet-streaming-onnx@0fe7d2469be17506eba827507d69208f42e2149f",
+    "onnxruntime-gpu>=1.29,<2",
+    "onnx-asr>=0.7,<1",
     # Kokoro's grapheme-to-phoneme needs this spaCy model, and
     # `spacy download` reports success while installing nothing a uv
     # environment can see. Named as a dependency so it is actually there.

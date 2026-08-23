@@ -6,11 +6,9 @@ It owns every device, automation, and piece of room history. Marvi is a client:
 it speaks the plugin's authenticated JSON-RPC over loopback and never holds
 device credentials or drives Tuya/MQTT itself.
 
-It used to read its state and RPC token out of `%LOCALAPPDATA%\\Hermes`, which
-meant Marvi could only talk to a room that *another application* had started —
-if that application was not installed or not running, the room simply did not
-work and nothing said why. The plugin now lives under Marvi's own plugin data
-root.
+Its state, credentials, logs and RPC token live under Marvi's plugin data root.
+The adapter consumes only the plugin's public RPC and event contracts; it never
+loads plugin storage through private host constants.
 
 Wire format (verified against the running runtime): one newline-terminated JSON
 object per request carrying ``jsonrpc``, ``id``, ``method``, ``params`` and an
@@ -96,6 +94,8 @@ NOTABLE_EVENTS = frozenset(
         "presence_detected",
         "presence_cleared",
         "room_entry",
+        "room_welcome",
+        "visitor_report",
         # A device dropping off the network is the room quietly losing a limb.
         "device_offline",
         "device_online",
@@ -116,6 +116,7 @@ NOTABLE_EVENTS = frozenset(
         # `BURSTY_EVENTS` collapses a held gesture; see the note there.
         "vision_gesture",
         "alarm_acknowledged",
+        "alarm_requested",
         "alarm_duration_expired",
     }
 )
@@ -189,6 +190,8 @@ def summarize_event(event: dict[str, Any]) -> str:
 
     if kind == "room_presence_unverified":
         return f"Unverified entry: {event.get('identity_reason', 'unknown reason')}"
+    if kind in {"room_welcome", "visitor_report", "alarm_requested"}:
+        return str(event.get("message") or event.get("summary") or kind.replace("_", " "))
     if kind == GESTURE_EVENT:
         return f"Gesture {event.get('gesture', 'unknown')} requested {event.get('command')}"
 
@@ -572,7 +575,7 @@ def register_room_tools(registry, sidecar: RoomSidecar) -> None:
 #: Marvi decides this, not the plugin: a plugin declaring its own writes
 #: harmless is exactly the claim that should not be taken at face value.
 READ_ONLY_PLUGIN_TOOLS = frozenset(
-    {"smart_room_state", "smart_room_health", "smart_room_diagnostic"}
+    {"smart_room_state", "smart_room_health", "smart_room_diagnostic", "smart_room_vision"}
 )
 
 #: Plugin tools that change the room, mapped to the action name the sleep rule

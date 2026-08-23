@@ -100,7 +100,7 @@ const NAV_GROUPS = [
 /** Behind the gear: the things you set up. */
 const SETTINGS_GROUPS = [
   { label: 'Connect', items: ['Providers', 'Models', 'Usage', 'Accounts', 'Skills', 'Plugins'] },
-  { label: 'System', items: ['Preferences', 'Schedules', 'Maintenance', 'About'] }
+  { label: 'System', items: ['Speech', 'Preferences', 'Schedules', 'Maintenance', 'About'] }
 ] as const
 
 type Page = (typeof NAV_GROUPS)[number]['items'][number]
@@ -137,6 +137,7 @@ const SETTINGS_ICONS: Record<SettingsPage, AbstractIconName> = {
   Accounts: 'accounts',
   Skills: 'skills',
   Plugins: 'plugins',
+  Speech: 'voice',
   Preferences: 'preferences',
   Schedules: 'schedules',
   Maintenance: 'maintenance',
@@ -313,7 +314,10 @@ function MainSurface(): React.JSX.Element {
             >
               <span className={runtime.state === 'ready' ? 'pulse-dot' : ''} />{' '}
               {runtime.state === 'ready' ? 'LOCAL / READY' : runtime.state.toUpperCase()}
-              <small>MIC + CAM / ON DEVICE</small>
+              <small>
+                MIC {deviceLabel(deviceState(runtime, 'microphone'))} + CAM{' '}
+                {deviceLabel(deviceState(runtime, 'camera'))} / LOCAL
+              </small>
             </div>
           </aside>
 
@@ -349,7 +353,7 @@ function MainSurface(): React.JSX.Element {
               ) : page === 'Mind' ? (
                 <MindPanel />
               ) : (
-                <PagePanel page={page} version={version} />
+                <PagePanel page={page} version={version} runtime={runtime} />
               )}
             </div>
 
@@ -589,6 +593,20 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
   const presence = readRecord(state, 'presence')
   const modes = readRecord(state, 'modes')
   const location = readRecord(state, 'location')
+  const vision = readRecord(state, 'vision')
+
+  const camera = vision.camera_open
+    ? 'ONLINE'
+    : vision.running
+      ? 'CONNECTING'
+      : vision.enabled
+        ? `OFF${vision.error ? ` — ${String(vision.error).toUpperCase()}` : ''}`
+        : 'DISABLED'
+  const people = Number(vision.person_count ?? 0)
+  const owner = vision.owner_visible ? 'OWNER VISIBLE' : 'OWNER NOT VISIBLE'
+  const gesture = vision.gesture
+    ? String(vision.gesture).replaceAll('_', ' ').toUpperCase()
+    : 'NONE'
 
   const rows: Array<[string, string]> = [
     ['MODE', String(modes.active_mode ?? 'unknown').toUpperCase()],
@@ -599,7 +617,15 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
         : 'OFF'
     ],
     ['PRESENCE', presence.detected ? 'IN ROOM' : 'AWAY'],
-    ['PHONE', location.home ? 'HOME' : String(location.zone ?? 'unknown').toUpperCase()]
+    ['PHONE', location.home ? 'HOME' : String(location.zone ?? 'unknown').toUpperCase()],
+    ['VISION', camera],
+    ['SEEN', `${people} ${people === 1 ? 'PERSON' : 'PEOPLE'} / ${owner}`],
+    [
+      'ACTIVITY',
+      `${String(vision.activity ?? 'unknown').toUpperCase()} / ${String(vision.sleep_state ?? 'unknown').toUpperCase()}`
+    ],
+    ['GESTURE', gesture],
+    ['VISITORS', `${Number(vision.pending_visitors ?? 0)} PENDING`]
   ]
 
   return (
@@ -2492,10 +2518,17 @@ function ActivityPanel(): React.JSX.Element {
   )
 }
 
-function PagePanel({ page }: { page: Page; version: string }): React.JSX.Element {
-  // The fallback for a sidebar page with no panel of its own. Only Vision
-  // reaches it today; everything that used to land here now has a real page or
-  // lives behind the gear.
+function PagePanel({
+  page,
+  runtime
+}: {
+  page: Page
+  version: string
+  runtime: RuntimeStatus
+}): React.JSX.Element {
+  // The fallback for a sidebar page with no controls of its own. Vision stays
+  // a read-only Marvi status surface: camera ownership and identity operations
+  // remain in the Smart Room sidecar and travel through the normal Gateway.
   const descriptions: Record<Page, string> = {
     Overview: '',
     Voice: '',
@@ -2512,7 +2545,23 @@ function PagePanel({ page }: { page: Page; version: string }): React.JSX.Element
     <section className="single-page panel">
       <PageLead description={descriptions[page]} icon={NAV_ICONS[page]} title={page} />
       <AsciiRule />
-      <span className="construction">FOUNDATION ONLINE / FEATURE MODULE PENDING</span>
+      {page === 'Vision' ? (
+        <>
+          <div className="context-line">
+            <span>ROOM VISION</span>
+            <strong>{(runtime.components.vision?.state ?? 'offline').toUpperCase()}</strong>
+          </div>
+          <div className="context-line">
+            <span>DETAIL</span>
+            <strong>
+              {runtime.components.vision?.detail.toUpperCase() ?? 'SIDECAR UNAVAILABLE'}
+            </strong>
+          </div>
+          <span className="construction">LIVE OBSERVATIONS ARE SHOWN IN ROOM</span>
+        </>
+      ) : (
+        <span className="construction">FOUNDATION ONLINE / FEATURE MODULE PENDING</span>
+      )}
     </section>
   )
 }
@@ -2629,6 +2678,8 @@ function SettingsShell({
             <SkillsPanel />
           ) : page === 'Plugins' ? (
             <PluginsPanel />
+          ) : page === 'Speech' ? (
+            <SpeechPanel />
           ) : page === 'Preferences' ? (
             <SettingsPanel runtime={runtime} />
           ) : page === 'Schedules' ? (
@@ -2640,6 +2691,117 @@ function SettingsShell({
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+/**
+ * Everything about hearing and speaking, in one place.
+ *
+ * These were scattered: the wake word under Preferences, the voice three
+ * clicks away beside it, the recogniser nowhere at all. Voice is the surface
+ * Marvi is actually used through, and its settings were the hardest to find.
+ */
+function SpeechPanel(): React.JSX.Element {
+  return (
+    <section className="settings-page">
+      <PageLead
+        description="What Marvi listens with, what she answers in, and what she answers to."
+        icon="voice"
+        title="Hearing and speaking"
+      />
+
+      <div className="settings-section">
+        <div>
+          <span className="eyebrow">{'// SPEECH IN'}</span>
+          <h2>RECOGNITION</h2>
+          <p>
+            How far ahead the recogniser listens before committing a word. Longer is more accurate
+            and lags further behind you; it does not delay the answer, because the last of what you
+            said is flushed the moment you stop.
+          </p>
+        </div>
+        <RecognitionSettings />
+      </div>
+
+      <div className="settings-section">
+        <div>
+          <span className="eyebrow">{'// SPEECH OUT'}</span>
+          <h2>VOICE</h2>
+          <p>The voice Marvi speaks in. Also on the Voice page, beside the orb.</p>
+        </div>
+        <VoicePicker />
+      </div>
+
+      <div className="settings-section">
+        <div>
+          <span className="eyebrow">{'// WAKE WORD'}</span>
+          <h2>SAYING HER NAME</h2>
+          <p>
+            A small process that starts at login and waits for her name. Saying &ldquo;Marvi&rdquo;
+            joins hands-free, exactly as pressing Join does, and opens Marvi first if she is closed.
+          </p>
+        </div>
+        <WakeSettings />
+      </div>
+    </section>
+  )
+}
+
+/** The two things about the recogniser worth changing. */
+function RecognitionSettings(): React.JSX.Element {
+  const [lookahead, setLookahead] = useState('')
+  const [device, setDevice] = useState('')
+
+  useEffect(() => {
+    let gone = false
+    void (async () => {
+      const page = await window.marvi?.getProviders()
+      if (gone || !page) return
+      const values = (page as unknown as { settings?: Record<string, string> }).settings ?? {}
+      setLookahead(values['MARVI_STT_LOOKAHEAD'] ?? '2.0')
+      setDevice(values['MARVI_STT_DEVICE'] ?? 'cpu')
+    })()
+    return () => {
+      gone = true
+    }
+  }, [])
+
+  const save = (values: Record<string, string>): void => {
+    void window.marvi?.setProviderSettings(values)
+  }
+
+  return (
+    <div className="voice-choice">
+      <Picker
+        options={[
+          { value: '0.8', label: 'Fast', detail: 'Subtitles keep up; more mistakes' },
+          { value: '2.0', label: 'Accurate', detail: 'The default. Two seconds behind you' },
+          { value: '3.0', label: 'Most accurate', detail: 'Slowest subtitles' }
+        ]}
+        value={lookahead}
+        onChange={(next) => {
+          setLookahead(next)
+          save({ MARVI_STT_LOOKAHEAD: next })
+        }}
+        placeholder="Accurate"
+      />
+      {/* Measured on this machine: the same accuracy either way, four times
+          faster on the card -- but the card is also making the speech, and
+          that is what ran out of room. Hence a choice rather than a default. */}
+      <Picker
+        options={[
+          { value: 'cpu', label: 'Processor', detail: 'Leaves the graphics card to the voice' },
+          { value: 'cuda', label: 'Graphics card', detail: 'Faster, shares the card' }
+        ]}
+        value={device}
+        onChange={(next) => {
+          setDevice(next)
+          save({ MARVI_STT_DEVICE: next })
+        }}
+        placeholder="Processor"
+      />
+      <p className="notice">Marvi restarts the voice worker to apply these.</p>
     </div>
   )
 }
@@ -2687,18 +2849,6 @@ function SettingsPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Eleme
           </p>
         </div>
         <ServiceHealth compact />
-      </div>
-
-      <div className="settings-section">
-        <div>
-          <span className="eyebrow">{'// WAKE WORD'}</span>
-          <h2>SAYING HER NAME</h2>
-          <p>
-            Marvi listens all the time but only answers when she hears &ldquo;Marvi&rdquo;. Turn
-            this off and she answers every turn in the room.
-          </p>
-        </div>
-        <WakeSettings />
       </div>
 
       <div className="settings-section">

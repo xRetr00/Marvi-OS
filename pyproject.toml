@@ -13,4 +13,13 @@ constraint-dependencies = ["yarl<1.24"]
 override-dependencies = [
     "spacy-curated-transformers ; sys_platform == 'no-such-platform'",
     "curated-tokenizers ; sys_platform == 'no-such-platform'",
+    # `onnxruntime` and `onnxruntime-gpu` install the same `onnxruntime` module
+    # over each other. Four packages here ask for the plain one and the speech
+    # recogniser needs the CUDA providers, so both landed -- and the result was
+    # not an import error but wrong transcripts: "when you were a kid, what
+    # kinds of games" came back as "no however can look the chest".
+    #
+    # The GPU build is a superset and serves the CPU provider too, so the plain
+    # requirement is overridden away and everyone gets the one package.
+    "onnxruntime ; sys_platform == 'no-such-platform'",
 ]

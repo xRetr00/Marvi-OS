@@ -299,7 +299,6 @@ export interface WakeStatus {
    * answering every turn rather than deaf, so those differ. */
   armed: boolean
   threshold: number
-  window: number
   heardSecondsAgo: number | null
   recentlyHeard: boolean
   confidence: number
@@ -536,7 +535,8 @@ export const OFFLINE_RUNTIME: RuntimeStatus = {
  * check whether they are being listened to.
  *
  * The components that own the devices are the only honest source: the voice
- * session publishes the microphone, the vision loop opens the camera.
+ * session publishes the microphone, the Smart Room sidecar publishes its
+ * camera state through the Gateway runtime component.
  */
 export type DeviceState = 'on' | 'off' | 'unknown'
 

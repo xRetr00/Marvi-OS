@@ -1,17 +1,23 @@
 :root {
-  --bg: #050607;
-  --fg: #e6e8ea;
-  --muted: #7a8088;
-  --border: #1f2328;
-  --accent: #3b82f6;
-  --ok: #22c55e;
-  --err: #ef4444;
+  --bg: #050505;
+  --surface: #0a0a0b;
+  --fg: #e7e7e3;
+  --bright: #fafaf8;
+  --muted: #8b9098;
+  --border: #242629;
+  --accent: #147ec1;
+  --ok: #75b798;
+  --err: #d85b5b;
 }
 
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+}
+
+[hidden] {
+  display: none !important;
 }
 
 html,
@@ -28,24 +34,43 @@ body {
 
 .panel {
   height: 100vh;
-  padding: 20px 22px;
+  padding: 24px 26px 20px;
   display: flex;
   flex-direction: column;
   border: 1px solid var(--border);
+}
+
+.masthead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
 }
 
 .panel-label {
   color: var(--muted);
   letter-spacing: 0.08em;
   font-size: 12px;
-  margin-bottom: 18px;
+  margin-bottom: 10px;
 }
 
 h1 {
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  margin-bottom: 22px;
+  line-height: 1;
+  letter-spacing: 0.025em;
+  margin-bottom: 26px;
+}
+
+.channel {
+  min-width: 72px;
+  padding: 5px 8px;
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border));
+  font-size: 10px;
+  line-height: 1;
+  letter-spacing: 0.12em;
+  text-align: center;
 }
 
 .stage {
@@ -68,7 +93,7 @@ h1 {
 }
 
 .spinner.done {
-  border: 2px solid var(--accent);
+  border: 2px solid var(--ok);
   animation: none;
 }
 
@@ -79,25 +104,59 @@ h1 {
 }
 
 .status {
-  margin-top: 16px;
-  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+  margin-top: 14px;
+  padding: 14px 16px;
   border: 1px solid var(--border);
   font-size: 13px;
-  line-height: 1.5;
-  color: var(--muted);
-  white-space: pre-wrap;
+  line-height: 1.55;
+  color: var(--fg);
 }
 
 .status.ok {
-  border-color: var(--ok);
-  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 58%, var(--border));
 }
 
 .status.failed,
 .status.aborted,
 .status.skipped {
-  border-color: var(--err);
+  border-color: color-mix(in srgb, var(--err) 72%, var(--border));
+}
+
+.status-mark {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.status.ok .status-mark {
+  color: var(--ok);
+}
+
+.status.failed .status-mark,
+.status.aborted .status-mark,
+.status.skipped .status-mark {
   color: var(--err);
+}
+
+.status strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--bright);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.status p {
+  user-select: text;
+}
+
+.status-help {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 12px;
 }
 
 footer {
@@ -111,18 +170,14 @@ footer {
   border-top: 1px solid var(--border);
 }
 
-.accent {
-  color: var(--accent);
-}
-
 /* The install log. Selectable, because the first thing anyone does with a
    failure is copy it. */
 .log {
   flex: 1;
   margin-top: 16px;
-  padding: 10px 12px;
+  padding: 12px 14px;
   border: 1px solid var(--border);
-  background: #08090b;
+  background: var(--surface);
   color: var(--muted);
   font: inherit;
   font-size: 12px;
@@ -151,21 +206,33 @@ footer {
   gap: 8px;
 }
 
-.ask button {
+.ask-buttons button {
   font: inherit;
   font-size: 13px;
-  padding: 7px 14px;
+  min-height: 38px;
+  padding: 8px 14px;
   color: var(--fg);
-  background: transparent;
+  background: var(--surface);
   border: 1px solid var(--border);
   cursor: pointer;
+  transition: border-color 160ms ease-out, color 160ms ease-out, background 160ms ease-out;
 }
 
-.ask button:hover {
+.ask-buttons button:hover {
   border-color: var(--accent);
+  color: var(--bright);
 }
 
-.ask button.primary {
+.ask-buttons button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.ask-buttons button:active {
+  background: var(--border);
+}
+
+.ask-buttons button.primary {
   border-color: var(--accent);
   color: var(--accent);
 }
@@ -189,9 +256,43 @@ footer {
 }
 
 .bar-fill.failed {
-  background: var(--danger, #ef4444);
+  background: var(--err);
 }
 
 #close-row {
+  justify-content: flex-end;
   margin-top: 12px;
+}
+
+.close-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
+  min-width: 190px;
+  border-color: color-mix(in srgb, var(--err) 68%, var(--border)) !important;
+}
+
+.close-button:hover {
+  color: var(--bright) !important;
+  border-color: var(--err) !important;
+  background: color-mix(in srgb, var(--err) 10%, var(--surface));
+}
+
+.key-hint {
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+    border-top-color: var(--accent);
+  }
+
+  .bar-fill,
+  .ask-buttons button {
+    transition: none;
+  }
 }

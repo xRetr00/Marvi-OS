@@ -20,11 +20,13 @@ ephemeral input state.
   documents are extracted locally with MarkItDown, size capped, and wrapped as
   untrusted external content before provider use.
 - Dictation sends 16 kHz mono PCM through Electron to a bounded Gateway
-  session backed by the already-installed native Nemotron STT sidecar. The
-  renderer does not run inference or persist microphone audio.
+  session backed by an Agent-owned Parakeet TDT ONNX worker. The renderer does
+  not run inference or persist microphone audio.
 - Assistant output renders sanitized GitHub-flavored Markdown, tables, task
   lists, syntax-preserving code blocks, and KaTeX math. Raw HTML is disabled.
-- Read aloud uses installed Windows/browser speech voices. Only settled,
+- Read aloud calls the active local LiveKit agent and therefore uses Marvi's
+  configured Kokoro voice and normal LiveKit playout/interruption path. Chat
+  opens an audio-only room when Voice is not already connected. Only settled,
   visible assistant prose is spoken; Markdown structure is made natural while
   code, URLs, reasoning, tools, and external source bodies are omitted.
 - Source links extracted from settled assistant Markdown appear as bounded
@@ -55,10 +57,11 @@ name.
 - Editing and regenerating must preserve the prior branch.
 - Attachment files are local, removed with their owning thread, and never sent
   through an unsupported image route.
-- Dictation must exercise the native sidecar protocol rather than a renderer
-  mock.
+- Dictation must exercise the bounded Parakeet worker protocol rather than a
+  renderer mock.
 - Read aloud must never speak streaming partials, code, URLs, reasoning, tool
-  payloads, or document contents.
+  payloads, or document contents, and must not create a duplicate Voice chat
+  item.
 - Markdown output must remain readable with scripts disabled and cannot execute
   model-authored HTML.
 

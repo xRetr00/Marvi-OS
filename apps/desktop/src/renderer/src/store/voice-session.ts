@@ -1,4 +1,4 @@
-import type { Room } from 'livekit-client'
+import { RoomEvent, type Room } from 'livekit-client'
 import { atom } from 'nanostores'
 
 import { connectVoiceRoom, expectDisconnect } from '../lib/livekit-room'
@@ -42,6 +42,77 @@ export const $voiceError = atom('')
 let room: Room | null = null
 /** Guards against a second start while the first is still connecting. */
 let starting: Promise<void> | null = null
+let readAloudRoom: Room | null = null
+
+const AGENT_STATE_ATTRIBUTE = 'lk.agent.state'
+const READ_ALOUD_METHOD = 'marvi.read_aloud'
+const STOP_READ_ALOUD_METHOD = 'marvi.read_aloud.stop'
+
+async function agentIdentity(target: Room): Promise<string> {
+  const current = (): string | undefined =>
+    [...target.remoteParticipants.values()].find(
+      (participant) => participant.attributes[AGENT_STATE_ATTRIBUTE]
+    )?.identity
+  const found = current()
+  if (found) return found
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => {
+      target.off(RoomEvent.ParticipantConnected, joined)
+      reject(new Error('The Marvi voice worker did not join the room'))
+    }, 12_000)
+    const joined = (): void => {
+      const identity = current()
+      if (!identity) return
+      window.clearTimeout(timer)
+      target.off(RoomEvent.ParticipantConnected, joined)
+      resolve(identity)
+    }
+    target.on(RoomEvent.ParticipantConnected, joined)
+  })
+}
+
+export async function readAloudWithMarvi(text: string): Promise<void> {
+  const owned = room === null
+  const target = room ?? (await connectVoiceRoom({ microphone: false }))
+  if (owned) readAloudRoom = target
+  try {
+    const destinationIdentity = await agentIdentity(target)
+    const response = await target.localParticipant.performRpc({
+      destinationIdentity,
+      method: READ_ALOUD_METHOD,
+      payload: JSON.stringify({ text }),
+      responseTimeout: 300_000
+    })
+    const result = JSON.parse(response) as { ok?: boolean; error?: string }
+    if (!result.ok) throw new Error(result.error || 'Marvi could not read this response')
+  } finally {
+    if (owned) {
+      readAloudRoom = null
+      expectDisconnect()
+      await target.disconnect()
+    }
+  }
+}
+
+export async function stopMarviReadAloud(): Promise<void> {
+  const target = room ?? readAloudRoom
+  if (!target) return
+  try {
+    const destinationIdentity = await agentIdentity(target)
+    await target.localParticipant.performRpc({
+      destinationIdentity,
+      method: STOP_READ_ALOUD_METHOD,
+      payload: '{}',
+      responseTimeout: 5_000
+    })
+  } finally {
+    if (!room && readAloudRoom === target) {
+      readAloudRoom = null
+      expectDisconnect()
+      await target.disconnect()
+    }
+  }
+}
 
 export async function startVoice(): Promise<void> {
   if (room || starting) return starting ?? undefined

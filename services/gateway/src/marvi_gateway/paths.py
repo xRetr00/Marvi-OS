@@ -87,17 +87,8 @@ def audit_log() -> Path:
     return _from_env("MARVI_AUDIT_LOG", "audit.jsonl")
 
 
-def vision_dir() -> Path:
-    return _from_env("MARVI_VISION_DIR", "vision")
-
-
 def models_dir() -> Path:
     return _from_env("MARVI_MODEL_ROOT", "models")
-
-
-def vision_models_root() -> Path:
-    """The root InsightFace is given. It appends `models/<name>` itself."""
-    return models_dir() / "vision"
 
 
 def runtime_dir() -> Path:
@@ -169,7 +160,6 @@ def describe() -> dict[str, str]:
         "usage": str(usage_ledger()),
         "tokens": str(token_store()),
         "audit": str(audit_log()),
-        "vision": str(vision_dir()),
         "models": str(models_dir()),
         "runtime": str(runtime_dir()),
         "skills": str(skills_dir()),

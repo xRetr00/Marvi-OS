@@ -161,14 +161,14 @@ Phase 12 should move each provider to its own document under
 
 Then adding a provider is adding a file, and the fields are visible rather than
 inferred. One loader, one schema, one test that every file parses — and, per
-the lesson from hermes's `provider_catalog.py`, **one catalog behind every
-surface** with a parity test so a provider cannot exist for the CLI and not the
-GUI.
+the lesson from the predecessor's provider catalog, **one catalog behind every
+surface** with a parity test so a provider cannot exist in one surface and not
+another.
 
 ## Auxiliary, corrected
 
-My earlier summary was too coarse. Hermes does not have "an auxiliary model".
-It has **eleven independent task slots** — title generation, vision,
+My earlier summary was too coarse. A mature reference implementation does not
+have "an auxiliary model". It has **independent task slots** — title generation, vision,
 compression, approval scoring, web extraction, skills search, MCP routing,
 triage, decomposition, profile description, curation — each with its own block:
 
@@ -198,7 +198,7 @@ the user should be able to send vision somewhere cheap without moving
 compression. Second, `auto` is a *mode*, not a copied value, so changing the
 main model moves every task still on `auto`.
 
-Marvi's tasks are its own, not hermes's. The honest starting set, from what the
+Marvi's tasks are its own. The honest starting set, from what the
 code actually does today: vision description (`describe.py`), memory reflection
 and consolidation (`memory.py`), chat title generation, and the curiosity
 question picker (`curiosity.py`). Each gets a slot; each defaults to `auto`.

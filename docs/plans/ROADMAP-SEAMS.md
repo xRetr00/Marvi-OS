@@ -137,15 +137,15 @@ lands in exactly one place.
 
 1. **Providers as documents** — `config/providers/<slug>.json`, one file per
    provider, loaded like `components.json`. Adding a provider is adding a file.
-   One catalog behind every surface, with a parity test, per the lesson in
-   hermes's `provider_catalog.py`.
+   One catalog behind every surface, with a parity test learned from the
+   predecessor's provider catalog.
 2. **`models.py`** — fetch the model list per `api_mode`, cached
    stale-while-revalidate. A failed fetch is reported, never replaced by a
    hardcoded list.
 3. **`effort.py`** — the generic ladder, mapped per provider. Never
    `budget_tokens`. Omit rather than substitute.
 4. **`ModelChoice`** — main, and per-task auxiliary slots defaulting to
-   `auto` meaning "follow main". Marvi's tasks, not hermes's: vision
+   `auto` meaning "follow main". Marvi's own tasks: vision
    description, memory consolidation, chat titles, curiosity — the tasks the
    harness seam already names.
 5. **The surfaces** — Providers page connect-only, Models page, session-only

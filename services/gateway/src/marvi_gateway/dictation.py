@@ -1,4 +1,4 @@
-"""Bounded chat dictation adapter for Marvi's native streaming STT sidecar.
+"""Bounded chat dictation adapter for Marvi's Parakeet STT worker.
 
 The renderer captures microphone frames; this adapter owns the sidecar process
 and forwards only 16 kHz mono PCM16. It never calls an LLM and never stores
@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import base64
 import json
-import os
 import subprocess
 import threading
 import time
@@ -21,6 +20,7 @@ from typing import Any
 from uuid import uuid4
 
 from . import paths
+from .doctor import find_uv
 
 MAX_CHUNK_BYTES = 128 * 1024
 SESSION_TTL_SECONDS = 120.0
@@ -30,13 +30,26 @@ class DictationError(RuntimeError):
     pass
 
 
-def executable_path() -> Path:
-    suffix = ".exe" if os.name == "nt" else ""
-    return paths.runtime_dir() / "voice-runtime" / f"marvi-voice-runtime{suffix}"
+REPO_ROOT = Path(__file__).resolve().parents[4]
+
+
+def worker_command() -> list[str]:
+    uv = find_uv()
+    if not uv:
+        return []
+    return [
+        uv,
+        "run",
+        "--project",
+        str(REPO_ROOT / "services" / "agent"),
+        "python",
+        "-m",
+        "marvi_agent.dictation_worker",
+    ]
 
 
 def model_path() -> Path:
-    return paths.models_dir() / "stt" / "nemotron-3.5" / "nemotron-3.5-asr-streaming-0.6b-onnx"
+    return paths.models_dir() / "stt" / "parakeet-tdt-0.6b-v3-onnx"
 
 
 @dataclass
@@ -52,7 +65,7 @@ class DictationManager:
         self._lock = threading.Lock()
 
     def available(self) -> bool:
-        return executable_path().is_file() and model_path().is_dir()
+        return bool(worker_command()) and (model_path() / "encoder-model.onnx").is_file()
 
     def start(self, language: str = "en-US") -> str:
         with self._lock:
@@ -61,7 +74,8 @@ class DictationManager:
                 raise DictationError("the installed Marvi speech-to-text runtime is unavailable")
             flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
             process = self._popen(
-                [str(executable_path()), str(model_path()), language],
+                [*worker_command(), language],
+                cwd=REPO_ROOT,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,

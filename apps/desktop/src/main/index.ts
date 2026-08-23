@@ -719,8 +719,8 @@ function createTray(): Tray {
 // One Marvi, and only one.
 //
 // Two instances would each start a Gateway on 8765, an agent joining the same
-// LiveKit room, and a vision loop on the same camera. The second of each fails
-// in a way that looks like a bug rather than like a second copy, and both would
+// LiveKit room, and the owned Smart Room sidecar. The second of each fails in a
+// way that looks like a bug rather than like a second copy, and both would
 // write to the same databases. Electron's lock is the cheapest way to make that
 // impossible; the second launch just surfaces the first.
 /**
@@ -1497,7 +1497,6 @@ function startApp(): void {
           modelPresent: Boolean(body.model_present),
           armed: Boolean(body.armed),
           threshold: Number(body.threshold ?? 0.5),
-          window: Number(body.window ?? 30),
           heardSecondsAgo:
             body.heard_seconds_ago === null || body.heard_seconds_ago === undefined
               ? null

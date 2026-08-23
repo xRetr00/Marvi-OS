@@ -231,16 +231,13 @@ refusal.
 ## ADR-022 — Predecessor branding removed, functional paths kept
 
 **Decision:** references to the predecessor assistant are removed from Marvi OS
-prose, comments, and documentation. Two categories deliberately remain: the
-third-party `hermes-estree` / `hermes-parser` npm packages, which are not ours
-to rename, and the room sidecar's own data directory, which is the sidecar's
-name for its own storage.
+prose, comments, and documentation. Generated lockfiles can still contain
+third-party dependency identifiers that are not ours to rename.
 
 **Reason:** Marvi OS is an independent product (ADR-001) and should not read
-like a fork. But renaming a directory another program owns does not make Marvi
-independent, it makes the room integration break. That path is now behind
-`MARVI_SIDECAR_DIR` and `MARVI_ROOM_HOME`, so it is configuration rather than
-branding, and provenance for adapted work is still recorded in
+like a fork. The independent room sidecar now receives Marvi-owned paths through
+`MARVI_PLUGIN_DATA` and keeps its runtime contract outside the Gateway core.
+Provenance for adapted work is still recorded in
 `docs/UPSTREAM.md` as `AGENTS.md` requires.
 
 ## ADR-019 — Two voices for two jobs

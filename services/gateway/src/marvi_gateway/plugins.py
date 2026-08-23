@@ -11,9 +11,9 @@ Marvi has three extension points and they are not interchangeable:
 A plugin is the heaviest of the three: it ships a long-running runtime, owns
 hardware or state of its own, and registers tools that talk to it. The Smart
 Room engine is the first one, and it is the reason this exists — its state and
-RPC token were being read out of `%LOCALAPPDATA%\\Hermes`, so Marvi could only
-talk to a room that *another application* had started. Marvi now installs the
-plugin itself and runs it.
+RPC token previously lived outside Marvi's application data, so the desktop
+could only talk to a room that another application had started. Marvi now
+installs the plugin itself, gives it a Marvi-owned data root, and runs it.
 
 ## The contract
 
@@ -34,19 +34,16 @@ The Python side is a package exposing `register(ctx)`. `ctx` needs exactly three
 methods — `register_tool`, `register_context_provider`, `register_hook` — which
 is a small enough host surface to implement honestly rather than approximate.
 
-## Two accommodations, both deliberate
+## Import and data contract
 
 **Plugins import as `plugins.<name>`.** That is the layout the first plugin was
 written for, and it is a reasonable one: it namespaces plugins away from
 whatever else is on `sys.path`. A `plugins` namespace package is created in the
 install root and that root is put on the path.
 
-**`hermes_constants` is shimmed.** The first plugin was written for another host
-and calls `get_hermes_home()` to find its data directory. Rather than fork the
-plugin — the user maintains it, and it should keep working in both hosts — Marvi
-provides that module and points it at Marvi's own plugin data root. The shim is
-one function; if a plugin ever needs more of that host's API, the honest answer
-is to say so rather than to keep growing this.
+**Plugin data belongs to Marvi.** Before importing a plugin, the host exports
+`MARVI_PLUGIN_DATA`. Plugins derive their own subdirectory from that root and
+must not import private host modules to discover paths.
 
 ## What a plugin is not allowed to do
 
@@ -66,7 +63,6 @@ import os
 import platform
 import subprocess
 import sys
-import types
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -372,35 +368,6 @@ def _ensure_namespace_package() -> None:
         sys.path.insert(0, parent)
 
 
-def _install_hermes_shim() -> None:
-    """Provide `hermes_constants` for plugins written against that host.
-
-    The Smart Room plugin calls `get_hermes_home()` to find its data directory.
-    Forking the plugin to rename one function would mean maintaining a
-    divergent copy of someone else's repository; supplying the module they
-    expect costs three lines and keeps the plugin working in both hosts.
-
-    It is pointed at Marvi's plugin data root, not at the other application's
-    directory — which is the whole point, since reading that directory was how
-    Marvi ended up depending on another program having started the room.
-    """
-    if "hermes_constants" in sys.modules:
-        return
-    module = types.ModuleType("hermes_constants")
-    home = data_root()
-    home.mkdir(parents=True, exist_ok=True)
-
-    def get_hermes_home() -> str:
-        return str(home)
-
-    module.get_hermes_home = get_hermes_home  # type: ignore[attr-defined]
-    module.__doc__ = (
-        "Compatibility shim written by marvi_gateway.plugins. Points a plugin "
-        "written for another host at Marvi's own plugin data directory."
-    )
-    sys.modules["hermes_constants"] = module
-
-
 # -- the host side of the contract ---------------------------------------------
 
 
@@ -482,7 +449,7 @@ def load(name: str) -> LoadedPlugin:
         raise PluginError(why)
 
     _ensure_namespace_package()
-    _install_hermes_shim()
+    os.environ["MARVI_PLUGIN_DATA"] = str(data_root())
 
     try:
         module = importlib.import_module(f"plugins.{name}")
@@ -688,16 +655,9 @@ def bridge_tools(
 def context_lines(loaded: list[LoadedPlugin], limit: int = 240) -> list[str]:
     """One short line per plugin, for the system prompt.
 
-    The room plugin has always offered this — `register_context_provider` is part
-    of the contract and `build_context_line` returns a compact summary of the
-    room, including the engine's own vision block: whether the owner is visible,
-    what they appear to be doing, whether they are asleep. Marvi collected the
-    provider and never called it, so it ran a second camera pipeline and ignored
-    what the room already knew.
-
-    Calling it is what closes that gap at the information level. It does not
-    merge the two pipelines — that is a larger decision about which one owns the
-    camera — but it does stop Marvi being ignorant of an answer it already has.
+    Smart Room uses this for bounded presence, location, mode, and light state.
+    A future camera-owning sidecar can add a compact vision block to the same
+    public context contract without exposing frames or private implementation.
 
     Bounded and defensive: this runs on the prompt path, so a plugin that is slow
     or throws must not take a turn down with it, and a plugin that returns an

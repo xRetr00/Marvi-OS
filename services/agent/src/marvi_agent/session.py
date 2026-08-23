@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import time
@@ -25,16 +26,20 @@ from livekit.agents import (
 from livekit.plugins import silero
 
 from . import observability
+from .parakeet_stt import PARAKEET_ROOT, ParakeetSTT
 from .runtime import AgentConfig, build_llm, build_local_turn_detector
 from .timing import TimedLLM
 from .tools import GatewayTools
-from .voice_models import KOKORO_DEFAULT_VOICE, KokoroTTS, NemotronSTT
+from .voice_models import KOKORO_DEFAULT_VOICE, KokoroTTS
 
 log = logging.getLogger("marvi.voice")
 
 #: Short: this runs beside the audio path and a slow report must not delay a
 #: reply. Failing to tell the UI what was said is not a reason to stop saying it.
 REPORT_TIMEOUT = 1.5
+READ_ALOUD_METHOD = "marvi.read_aloud"
+STOP_READ_ALOUD_METHOD = "marvi.read_aloud.stop"
+MAX_READ_ALOUD_CHARS = 12_000
 
 
 def gateway_url() -> str:
@@ -82,30 +87,49 @@ def _report_transcript(*, heard: str = "", spoken: str = "") -> None:
         )
 
 
+def register_read_aloud_rpc(room: Any, session: AgentSession) -> None:
+    """Let Chat use this session's configured TTS without creating a second engine."""
+    active: dict[str, Any] = {"handle": None}
+
+    @room.local_participant.register_rpc_method(READ_ALOUD_METHOD)
+    async def read_aloud(data: Any) -> str:
+        try:
+            body = json.loads(data.payload)
+        except (TypeError, json.JSONDecodeError):
+            return json.dumps({"ok": False, "error": "invalid read-aloud request"})
+        text = str(body.get("text") or "").strip()
+        if not text:
+            return json.dumps({"ok": False, "error": "nothing to read"})
+        if len(text) > MAX_READ_ALOUD_CHARS:
+            return json.dumps({"ok": False, "error": "response is too long to read aloud"})
+        previous = active.get("handle")
+        if previous is not None:
+            previous.interrupt()
+        handle = session.say(
+            text,
+            allow_interruptions=True,
+            # Reading a Chat message is playback, not a new Voice conversation
+            # item. Keeping it out prevents the same reply appearing twice.
+            add_to_chat_ctx=False,
+        )
+        active["handle"] = handle
+        try:
+            await handle.wait_for_playout()
+        finally:
+            if active.get("handle") is handle:
+                active["handle"] = None
+        return json.dumps({"ok": True})
+
+    @room.local_participant.register_rpc_method(STOP_READ_ALOUD_METHOD)
+    async def stop_read_aloud(_data: Any) -> str:
+        handle = active.get("handle")
+        if handle is not None:
+            handle.interrupt()
+            active["handle"] = None
+        return json.dumps({"ok": True})
+
+
 load_dotenv(Path(__file__).parents[2] / ".env")
-
-
-def voice_runtime_executable() -> Path:
-    """The speech-to-text engine.
-
-    Missing on an installed machine until the installer learned to fetch it:
-    it is Rust, and the toolchain Marvi provisions is uv and Node, so nothing
-    on the machine could build it. The failure was silent and looked like
-    nothing at all -- the wake word fired, the session listened, and no
-    transcript was ever produced, because the thing that turns audio into words
-    was not there.
-    """
-    configured = os.environ.get("MARVI_VOICE_RUNTIME")
-    if configured:
-        return Path(configured)
-    suffix = ".exe" if os.name == "nt" else ""
-    return (
-        Path(__file__).parents[3]
-        / "voice-runtime"
-        / "target"
-        / "release"
-        / f"marvi-voice-runtime{suffix}"
-    )
 
 
 def _timed_llm() -> TimedLLM:
@@ -218,6 +242,15 @@ def prewarm(proc: JobProcess) -> None:
         return
     proc.userdata["tts"] = engine
     proc.userdata["tts_voice"] = voice
+    # The recogniser too. It builds ONNX sessions, which is seconds rather than
+    # milliseconds, and doing it inside the first turn is felt as Marvi not
+    # hearing the opening sentence.
+    listener = ParakeetSTT()
+    try:
+        listener.prewarm()
+        proc.userdata["stt"] = listener
+    except Exception as exc:  # pragma: no cover - depends on the model on disk
+        log.warning("could not prewarm the recogniser: %s", exc)
     # Silero is small but not free, and it is loaded on the same critical path.
     proc.userdata["vad"] = silero.VAD.load()
     log.info("speech models ready in %.1fs, before any call", time.monotonic() - started)
@@ -253,21 +286,20 @@ def build_session(proc: JobProcess | None = None) -> tuple[AgentSession, Callabl
     # synthesising -- so "Yes." waited for words that were never coming, and
     # every reply paid that delay before its first sound. The engine speaks a
     # clause at a time now and owns its own batching.
-    engine = voice_runtime_executable()
-    if not engine.is_file():
+    # The recogniser. Parakeet, in chunks, through ONNX Runtime -- see
+    # `parakeet_stt` for the measurements that chose it over the Rust sidecar
+    # this replaces.
+    if not (PARAKEET_ROOT / "encoder-model.onnx").is_file():
         # Said out loud, once, at the point it is decided. Silence here is what
-        # made this take a week to find.
+        # made the missing engine take a week to find last time.
         log.error(
-            "the speech-to-text engine is missing at %s; Marvi will hear you "
-            "and never answer. Reinstall or update to fetch it.",
-            engine,
+            "no speech recognition model at %s; Marvi will hear you and never "
+            "answer. Run `marvi setup voice`.",
+            PARAKEET_ROOT,
         )
 
     session = AgentSession(
-        stt=NemotronSTT(
-            executable=engine,
-            language=os.environ.get("MARVI_STT_LANGUAGE", "en-US"),
-        ),
+        stt=warmed.get("stt") or ParakeetSTT(),
         vad=warmed.get("vad") or silero.VAD.load(),
         llm=_timed_llm(),
         tts=local_tts,
@@ -278,7 +310,7 @@ def build_session(proc: JobProcess | None = None) -> tuple[AgentSession, Callabl
                 "enabled": True,
                 # "vad", not "adaptive". Adaptive barge-in gatekeeps by holding
                 # and flushing transcripts against word timings, so it needs an
-                # STT that reports them -- `aligned_transcript`. Nemotron gives
+                # STT that reports them -- `aligned_transcript`. Parakeet gives
                 # us text and a language and nothing else, so asking for
                 # adaptive earned a warning on every single session:
                 #
@@ -391,6 +423,7 @@ async def marvi_session(ctx: JobContext) -> None:
 
     connecting = time.monotonic()
     await session.start(agent=MarviVoiceAgent(), room=ctx.room)
+    register_read_aloud_rpc(ctx.room, session)
     log.info("joined %s in %.1fs, listening", ctx.room.name, time.monotonic() - connecting)
 
     # How a conversation ends: the model decides, from what was said.

@@ -195,11 +195,10 @@ class _FakeProcess:
 def test_dictation_streams_pcm_to_existing_sidecar_boundary(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    executable = tmp_path / "marvi-voice-runtime.exe"
-    executable.write_bytes(b"stub")
     model = tmp_path / "model"
     model.mkdir()
-    monkeypatch.setattr(dictation, "executable_path", lambda: executable)
+    (model / "encoder-model.onnx").write_bytes(b"stub")
+    monkeypatch.setattr(dictation, "worker_command", lambda: ["python", "worker.py"])
     monkeypatch.setattr(dictation, "model_path", lambda: model)
     process = _FakeProcess()
     manager = dictation.DictationManager(popen=lambda *_args, **_kwargs: process)

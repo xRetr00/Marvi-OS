@@ -48,7 +48,6 @@ def isolate_marvi_home(tmp_path_factory, monkeypatch):
         "MARVI_PROVIDER_CONFIG",
         "MARVI_TOKEN_STORE",
         "MARVI_AUDIT_LOG",
-        "MARVI_VISION_DIR",
         "MARVI_SKILLS_DIR",
         "MARVI_MCP_CONFIG",
         "MARVI_USAGE_LEDGER",

@@ -221,7 +221,7 @@ def _voice_components(repo_root: Path) -> list[Component]:
                 needed_for=("voice",),
                 source_id=stt.get("id", ""),
                 revision=stt.get("revision", ""),
-                install_to="models/stt/nemotron-3.5",
+                install_to="models/stt/parakeet-tdt-0.6b-v3-onnx",
                 files=_files_from(
                     stt.get("files"), f"{subdirectory}/" if subdirectory else ""
                 ),

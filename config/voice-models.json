@@ -1,30 +1,34 @@
 {
   "schema": 1,
   "stt": {
-    "id": "altunenes/parakeet-rs",
-    "revision": "a61d2818df4659c956b9661a9447f46e98c15126",
-    "subdirectory": "nemotron-3.5-asr-streaming-0.6b-onnx",
+    "id": "istupakov/parakeet-tdt-0.6b-v3-onnx",
+    "revision": "main",
     "language": "en-US",
+    "note": "Parakeet TDT, as an ONNX export. Measured on 54 clips of non-native English it makes 13.7% word errors against the previous engine's 22.0%. ONNX Runtime rather than a Rust sidecar, which is what lets it run on the CPU and leave the card to the speech synthesis.",
     "files": {
+      "encoder-model.onnx": [
+        41770866,
+        "98A74B21B4CC0017C1E7030319A4A96F4A9506E50F0708F3A516D02A77C96BB1"
+      ],
+      "encoder-model.onnx.data": [
+        2435420160,
+        "9A22D372C51455C34F13405DA2520BAEFB7125BD16981397561423ED32D24F36"
+      ],
+      "decoder_joint-model.onnx": [
+        72520893,
+        "E978DDF6688527182C10FDE2EB4B83068421648985EF23F7A86BE732BE8706C1"
+      ],
+      "nemo128.onnx": [
+        139764,
+        "A9FDE1486EBFCC08F328D75AD4610C67835FEA58C73BA57E3209A6F6CF019E9F"
+      ],
+      "vocab.txt": [
+        93939,
+        "D58544679EA4BC6AC563D1F545EB7D474BD6CFA467F0A6E2C1DC1C7D37E3C35D"
+      ],
       "config.json": [
-        2979,
-        "B0289E196D11A17E3C661BBADFE455C87DE4BAFFC1A5E652A5779F5D687C5DB0"
-      ],
-      "decoder_joint.onnx": [
-        97590054,
-        "634DFADF24CB4F73C2FAE170B36611D68DB48186426882CBC8F7E02ED9F2BB29"
-      ],
-      "encoder.onnx": [
-        42164972,
-        "D569FBE78B48FBB04E169D324F5D25463838CEED7B5FC3BFE209872441979BD9"
-      ],
-      "encoder.onnx.data": [
-        2454405120,
-        "7584F85DF76BC9AE6FBDFA53AA8D97B07A842525D1C501D536D77FD9E4F57AC7"
-      ],
-      "tokenizer.model": [
-        406554,
-        "CE3895E40806F02A26C3A225161B96EF682D6C0054BAE32A245DEC4258D7D291"
+        97,
+        "666903C76B9798CAF2C210AFD4F6CD60B08A8DBF9800EC8D7A3BC0D2148AC466"
       ]
     }
   },

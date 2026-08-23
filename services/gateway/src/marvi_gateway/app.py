@@ -64,7 +64,6 @@ from .runtime import (
     TokenRejectedError,
 )
 from .tools import InvalidArgumentsError, ToolRegistry, ToolSpec, UnknownToolError
-from .vision import FaceLibrary, VisionService, register_vision_tools
 from .web import WebTools, register_web_tools
 from .workspace import Workspace, register_workspace_tools
 
@@ -549,7 +548,6 @@ def create_app(
     ingest: AccountIngest | None = None
     journal: EventJournal | None = None
     initiative: Initiative | None = None
-    faces: FaceLibrary | None = None
     loaded_plugins: list[plugins_module.LoadedPlugin] = []
     #: Highest room event id already journaled. None until the first poll sets a
     #: baseline, so a restart does not replay the log into the mind.
@@ -599,10 +597,6 @@ def create_app(
         activity = ActivityWatch()
         if activity.available():
             register_activity_tools(tool_registry, activity)
-        vision = VisionService()
-        if vision.available():
-            faces = vision.library
-            register_vision_tools(tool_registry, vision)
         journal = EventJournal()
         initiative = Initiative(
             Mind(
@@ -615,7 +609,6 @@ def create_app(
             journal,
             ingest=ingest,
             memory=memory,
-            faces=faces,
             room_state=(
                 lambda: {
                     "present": bool(
@@ -711,6 +704,27 @@ def create_app(
             return ComponentStatus(state="offline", detail="sidecar not connected")
         state, detail = sidecar.status()
         return ComponentStatus(state=state, detail=detail)  # type: ignore[arg-type]
+
+    def vision_status() -> ComponentStatus:
+        """Report the camera state published by the Smart Room sidecar."""
+        if sidecar is None:
+            return ComponentStatus(state="offline", detail="Smart Room sidecar not connected")
+        snapshot = sidecar.snapshot() or {}
+        vision_state = snapshot.get("vision") or {}
+        if not vision_state.get("enabled"):
+            return ComponentStatus(state="pending", detail="enable Smart Room vision")
+        if vision_state.get("error") and not vision_state.get("camera_open"):
+            return ComponentStatus(state="error", detail=str(vision_state["error"])[:120])
+        if vision_state.get("camera_open") and not vision_state.get("stale", True):
+            count = int(vision_state.get("person_count") or 0)
+            owner = "owner visible" if vision_state.get("owner_visible") else "owner not visible"
+            return ComponentStatus(
+                state="ready",
+                detail=f"Smart Room camera online, {count} visible, {owner}",
+            )
+        if vision_state.get("running"):
+            return ComponentStatus(state="starting", detail="Smart Room camera connecting")
+        return ComponentStatus(state="pending", detail="Smart Room vision is not running")
 
     def overall_state(components: dict[str, ComponentStatus]) -> str:
         """The single light the shell waits on.
@@ -857,14 +871,7 @@ def create_app(
                 detail="local server online" if livekit_ready else "local server not running",
             ),
             "voice": voice_status(livekit_ready),
-            "vision": ComponentStatus(
-                state="ready" if faces is not None else "pending",
-                detail=(
-                    f"buffalo_l on CPU, owner: {faces.owner_name() or 'not enrolled'}"
-                    if faces is not None
-                    else "set MARVI_VISION to enable"
-                ),
-            ),
+            "vision": vision_status(),
             "accounts": accounts_status(),
             "room": room_status(),
         }

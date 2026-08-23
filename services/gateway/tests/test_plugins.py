@@ -8,8 +8,10 @@ grant.
 
 from __future__ import annotations
 
+import os
 import re
 import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -154,23 +156,16 @@ def test_removing_something_absent_is_not_an_error(plugin_dir) -> None:
     assert "not installed" in plugins.remove("nothing-here")
 
 
-# -- the host shim -------------------------------------------------------------
+# -- Marvi-owned plugin data ---------------------------------------------------
 
 
-def test_the_shim_points_at_marvis_own_data_not_another_applications(plugin_dir, monkeypatch) -> None:
-    """The whole reason this module exists.
+def test_loading_exports_marvis_plugin_data_root(plugin_dir, monkeypatch) -> None:
+    monkeypatch.delenv("MARVI_PLUGIN_DATA", raising=False)
+    monkeypatch.setattr(plugins.importlib, "import_module", lambda _name: SimpleNamespace(register=lambda _ctx: None))
 
-    The room read its state and RPC token out of `%LOCALAPPDATA%\\Hermes`, so
-    Marvi could only talk to a room another application had started.
-    """
-    monkeypatch.delitem(sys.modules, "hermes_constants", raising=False)
-    plugins._install_hermes_shim()
+    plugins.load("smart_room")
 
-    import hermes_constants
-
-    home = hermes_constants.get_hermes_home()
-    assert str(plugins.data_root()) == home
-    assert "Hermes" not in home
+    assert os.environ["MARVI_PLUGIN_DATA"] == str(plugins.data_root())
 
 
 def test_the_room_no_longer_looks_in_the_other_applications_directory(monkeypatch, tmp_path) -> None:
@@ -180,7 +175,6 @@ def test_the_room_no_longer_looks_in_the_other_applications_directory(monkeypatc
     home = room._sidecar_home()
 
     assert home.name == room.PLUGIN_NAME
-    assert "Hermes" not in str(home)
     assert str(tmp_path) in str(home)
 
 
@@ -296,6 +290,13 @@ def test_a_bridged_tool_requires_confirmation_unless_marvi_says_otherwise() -> N
     # Default-deny: a plugin does not get to call its own writes harmless.
     assert registry.get("p_set").sensitive is True
     assert registry.get("p_read").sensitive is False
+
+
+def test_room_vision_reads_are_safe_but_identity_changes_are_not() -> None:
+    from marvi_gateway.room import READ_ONLY_PLUGIN_TOOLS
+
+    assert "smart_room_vision" in READ_ONLY_PLUGIN_TOOLS
+    assert "smart_room_vision_identity" not in READ_ONLY_PLUGIN_TOOLS
 
 
 def test_json_schema_becomes_required_and_optional_arguments() -> None:
@@ -442,8 +443,7 @@ def test_a_plugins_context_line_reaches_the_prompt() -> None:
 
     `build_context_line` carries what the engine knows about the room, including
     its own vision block — whether the owner is visible, what they appear to be
-    doing, whether they are asleep. Marvi collected the provider and ignored it
-    while running a second camera pipeline.
+    doing, whether they are asleep. Marvi consumes it without owning a camera.
     """
     context = plugins.PluginContext(plugin="room")
     context.register_context_provider("room", lambda: "Room: reading, light 40%, owner present")

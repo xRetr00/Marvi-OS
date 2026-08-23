@@ -52,13 +52,11 @@ def settle() -> None:
 def test_each_subsystem_gets_its_own_file(engine) -> None:
     logging.getLogger("marvi_gateway.providers.client").info("called a model")
     logging.getLogger("marvi_gateway.room").info("light on")
-    logging.getLogger("marvi_gateway.vision").info("a face")
     settle()
 
     # A merged log is unreadable within a day; the split is the point.
     assert "called a model" in read(engine, "providers")
     assert "light on" in read(engine, "room")
-    assert "a face" in read(engine, "vision")
     assert "light on" not in read(engine, "providers")
 
 
@@ -100,14 +98,14 @@ def test_adding_a_subsystem_is_one_call(engine) -> None:
 def test_warnings_and_errors_collect_in_one_place(engine) -> None:
     logging.getLogger("marvi_gateway.room").warning("sidecar slow")
     logging.getLogger("marvi_gateway.providers.client").error("provider down")
-    logging.getLogger("marvi_gateway.vision").info("routine frame")
+    logging.getLogger("marvi_gateway.room").info("routine poll")
     settle()
 
     errors = read(engine, "errors")
     # errors.log answers "what went wrong", which is the question people have.
     assert "sidecar slow" in errors
     assert "provider down" in errors
-    assert "routine frame" not in errors
+    assert "routine poll" not in errors
 
 
 def test_errors_stay_in_their_own_subsystem_file_too(engine) -> None:
