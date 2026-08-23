@@ -1,11 +1,38 @@
 import { useStore } from '@nanostores/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
-import { Activity, Camera, CheckCircle2, Mic, Radio, Waves } from 'lucide-react'
+import {
+  Activity,
+  Box,
+  Brain,
+  CalendarDays,
+  Camera,
+  CheckCircle2,
+  Clock3,
+  Database,
+  Eye,
+  Gauge,
+  History,
+  House,
+  Info,
+  Mic,
+  Pause,
+  Play,
+  Radio,
+  Route,
+  Server,
+  ShieldAlert,
+  Sparkles,
+  SquareTerminal,
+  Trash2,
+  Users,
+  Waves,
+  Wifi,
+  Wrench
+} from 'lucide-react'
 
 import appIcon from './assets/app-icon.ico'
 import { BootFailureOverlay } from './components/BootFailureOverlay'
-import { AsciiRule } from './components/ui/ascii-rule'
 import { ConversationBar } from './components/conversation-bar'
 import { ModelsPanel } from './components/models-panel'
 import { UsagePanel } from './components/usage-panel'
@@ -23,8 +50,26 @@ import { Chat } from './chat'
 import { AbstractIcon, type AbstractIconName } from './components/abstract-icon'
 import { MessageTiming } from './components/message-timing'
 import { AboutUpdates, VersionPopover } from './components/update-controls'
-import { PageLead } from './components/page-lead'
 import { TooltipProvider, UiTooltip } from './components/ui/tooltip'
+import {
+  ControlButton,
+  ControlEmpty,
+  ControlPage,
+  ControlPill,
+  ControlRow,
+  ControlSection
+} from './components/control-surface'
+
+function stateTone(
+  state: string | undefined
+): 'neutral' | 'ready' | 'warning' | 'danger' {
+  if (state === 'ready' || state === 'connected' || state === 'active' || state === 'running') {
+    return 'ready'
+  }
+  if (state === 'error' || state === 'failed') return 'danger'
+  if (state === 'pending' || state === 'starting' || state === 'degraded') return 'warning'
+  return 'neutral'
+}
 
 /** Settings shows the device rows in full words. "ALWAYS ON" was printed
  * unconditionally, including with the Gateway offline; "?" is the honest answer
@@ -312,7 +357,12 @@ function MainSurface(): React.JSX.Element {
       ]}
     >
       <div className="app-shell">
-        <TitleBar onSettings={() => setSettings('Preferences')} page={settings ?? page} />
+        <TitleBar
+          onSettings={() => setSettings('Preferences')}
+          onToggleSidebar={page === 'Chat' ? undefined : toggleSidebar}
+          page={settings ?? page}
+          sidebarCollapsed={collapsed}
+        />
 
         {/* The track width comes from the same state as the sidebar's. An
             `auto` track sizes to the item's max-content and stretches the item
@@ -320,7 +370,7 @@ function MainSurface(): React.JSX.Element {
             applied, and visually ignored. */}
         <div
           className="app-body"
-          style={{ gridTemplateColumns: `${page === 'Chat' ? 248 : collapsed ? 68 : 238}px 1fr` }}
+          style={{ gridTemplateColumns: `${page === 'Chat' ? 248 : collapsed ? 52 : 212}px 1fr` }}
         >
           <ElectricGazeBackground />
 
@@ -345,17 +395,6 @@ function MainSurface(): React.JSX.Element {
                       <small>LOCAL INTELLIGENCE</small>
                     </span>
                   ) : null}
-                  <UiTooltip label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} side="right">
-                    <button
-                      aria-label={collapsed ? 'Expand the sidebar' : 'Collapse the sidebar'}
-                      aria-pressed={collapsed}
-                      className="sidebar-collapse"
-                      onClick={toggleSidebar}
-                      type="button"
-                    >
-                      <AbstractIcon name="panel" size={16} />
-                    </button>
-                  </UiTooltip>
                 </header>
 
                 <nav aria-label="Main navigation">
@@ -399,16 +438,18 @@ function MainSurface(): React.JSX.Element {
                 </div>
               </aside>
 
-              <main className="content">
-                <header className="topbar">
-                  <div>
-                    <AbstractIcon className="topbar-icon" name={NAV_ICONS[page]} size={20} />
-                    <h1>{page}</h1>
-                  </div>
-                  <span className="topbar-state">
-                    {voice.phase.toUpperCase()} / {voice.caption}
-                  </span>
-                </header>
+              <main className={page === 'Voice' ? 'content' : 'content control-content'}>
+                {page === 'Voice' ? (
+                  <header className="topbar">
+                    <div>
+                      <AbstractIcon className="topbar-icon" name={NAV_ICONS[page]} size={20} />
+                      <h1>{page}</h1>
+                    </div>
+                    <span className="topbar-state">
+                      {voice.phase.toUpperCase()} / {voice.caption}
+                    </span>
+                  </header>
+                ) : null}
 
                 {/* One scroll region for every page; shell chrome stays in its
                 own tracks and no page has to manage window overflow. */}
@@ -511,79 +552,59 @@ function Overview({
   ] as const
 
   return (
-    <section className="overview-dashboard">
-      <article className="dashboard-card current-state-card">
-        <header className="dashboard-card-head">
-          <span className="module-index">01</span>
-          <span>CURRENT STATE</span>
-        </header>
-        <div className="current-state-body">
-          <span className="current-state-icon">
-            <AbstractIcon name="overview" size={34} />
-          </span>
-          <div>
-            <span className={`state-badge state-${runtime.state}`}>
-              {voice.phase.toUpperCase()}
-            </span>
-            <strong>{voice.caption}</strong>
-            <p>{voice.detail ?? 'Standing by.'}</p>
-          </div>
-        </div>
-      </article>
+    <ControlPage
+      className="overview-control-page"
+      description="Local assistant health, active session state, and connected context."
+      title="Overview"
+    >
+      <ControlSection icon={Gauge} title="Current state">
+        <ControlRow
+          action={<ControlPill tone={stateTone(runtime.state)}>{voice.phase}</ControlPill>}
+          description={voice.detail ?? 'Standing by.'}
+          icon={Sparkles}
+          title={voice.caption}
+        />
+      </ControlSection>
 
-      <article className="dashboard-card voice-path-card">
-        <header className="dashboard-card-head">
-          <span className="module-index">02</span>
-          <span>VOICE PATH</span>
-        </header>
-        <div className="voice-path-steps">
+      <ControlSection
+        description="The local path used by every spoken turn."
+        icon={Route}
+        title="Voice route"
+      >
+        <div className="control-route" aria-label="Voice route">
           {path.map(([label, icon], index) => (
-            <div className="voice-path-step" key={label}>
-              <span className="voice-path-icon">
-                <AbstractIcon name={icon} size={22} />
-              </span>
-              <strong>{label}</strong>
-              {index < path.length - 1 ? <span className="path-arrow">→</span> : null}
+            <div className="control-route-step" key={label}>
+              <AbstractIcon name={icon} size={16} />
+              <span>{label.toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase())}</span>
+              {index < path.length - 1 ? <span aria-hidden="true">›</span> : null}
             </div>
           ))}
         </div>
-      </article>
+      </ControlSection>
 
-      <article className="dashboard-card service-health-card">
-        <header className="dashboard-card-head">
-          <span className="module-index">03</span>
-          <span>SERVICE HEALTH</span>
-        </header>
-        <div className="service-health-grid">
-          {services.map(([name, service, icon]) => (
-            <div className="service-health-cell" key={name}>
-              <AbstractIcon name={icon} size={24} />
-              <strong>{name}</strong>
-              <span className={`state-badge state-${service?.state ?? 'offline'}`}>
-                {(service?.state ?? 'offline').toUpperCase()}
-              </span>
-              <small>{service?.detail ?? 'No status received'}</small>
-            </div>
-          ))}
-        </div>
-      </article>
+      <ControlSection icon={Server} title="Systems">
+        {services.map(([name, service]) => (
+          <ControlRow
+            action={
+              <ControlPill tone={stateTone(service?.state)}>{service?.state ?? 'offline'}</ControlPill>
+            }
+            description={service?.detail ?? 'No status received'}
+            key={name}
+            title={name.toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase())}
+          />
+        ))}
+      </ControlSection>
 
-      <article className="dashboard-card context-card">
-        <header className="dashboard-card-head">
-          <span className="module-index">04</span>
-          <span>CONTEXT</span>
-        </header>
-        <div className="context-card-list">
-          {context.map(([label, value, icon]) => (
-            <div className="context-card-cell" key={label}>
-              <AbstractIcon name={icon} size={22} />
-              <span>{label}</span>
-              <strong>{value}</strong>
-            </div>
-          ))}
-        </div>
-      </article>
-    </section>
+      <ControlSection icon={Box} title="Context">
+        {context.map(([label, value]) => (
+          <ControlRow
+            action={<span className="control-value">{value}</span>}
+            key={label}
+            title={label.toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase())}
+          />
+        ))}
+      </ControlSection>
+    </ControlPage>
   )
 }
 
@@ -671,55 +692,53 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
   ]
 
   return (
-    <section className="single-page panel">
-      <PageLead
-        description="Live room state from the Smart Room sidecar."
-        icon="room"
-        title="Room"
-      />
+    <ControlPage description="Live state reported by the local room service." title="Room">
+      <ControlSection icon={House} title="Connection">
+        <ControlRow
+          action={
+            <ControlPill tone={stateTone(runtime.components.room?.state)}>
+              {runtime.components.room?.state ?? 'offline'}
+            </ControlPill>
+          }
+          description={snapshot?.stale ? 'Showing the last snapshot because the live feed is unavailable.' : undefined}
+          icon={Wifi}
+          title="Room service"
+        />
+      </ControlSection>
 
-      <div className="context-line">
-        <span>SIDECAR</span>
-        <strong className={`service-state state-${runtime.components.room?.state ?? 'offline'}`}>
-          {(runtime.components.room?.state ?? 'offline').toUpperCase()}
-        </strong>
-      </div>
+      <ControlSection icon={Gauge} title="Live reading">
+        {error ? (
+          <ControlEmpty description={error} icon={ShieldAlert} title="Room state unavailable" />
+        ) : (
+          rows.map(([label, value]) => (
+            <ControlRow
+              action={<span className="control-value">{value}</span>}
+              key={label}
+              title={label.toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase())}
+            />
+          ))
+        )}
+      </ControlSection>
 
-      {snapshot?.stale ? (
-        <div className="context-line">
-          <span>FEED</span>
-          <strong>STALE SNAPSHOT — SIDECAR UNREACHABLE</strong>
-        </div>
-      ) : null}
-
-      <AsciiRule />
-
-      {error ? (
-        <span className="construction">{error.toUpperCase()}</span>
-      ) : (
-        rows.map(([label, value]) => (
-          <div className="context-line" key={label}>
-            <span>{label}</span>
-            <strong>{value}</strong>
-          </div>
-        ))
-      )}
-
-      <div className="panel-label">{'// ROOM EVENTS'}</div>
-      {events.length === 0 ? (
-        <span className="construction">NO NOTABLE ROOM EVENTS RECORDED</span>
-      ) : (
-        <div className="service-list">
-          {events.map((event) => (
-            <div className="service-row" key={event.id}>
-              <span className="service-name">{event.type.toUpperCase()}</span>
-              <span className="service-state">{event.at.slice(11, 19)}</span>
-              <small>{event.summary}</small>
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
+      <ControlSection icon={History} title="Recent events">
+        {events.length === 0 ? (
+          <ControlEmpty
+            description="Notable presence, device, and room changes will appear here."
+            icon={Clock3}
+            title="No room events yet"
+          />
+        ) : (
+          events.map((event) => (
+            <ControlRow
+              action={<span className="control-time">{event.at.slice(11, 19)}</span>}
+              description={event.summary}
+              key={event.id}
+              title={event.type.replaceAll('_', ' ')}
+            />
+          ))
+        )}
+      </ControlSection>
+    </ControlPage>
   )
 }
 
@@ -753,62 +772,62 @@ function MindPanel(): React.JSX.Element {
   }
 
   return (
-    <section className="single-page panel">
-      <PageLead
-        description="Recent autonomous decisions and the rule behind each one."
-        icon="mind"
-        title="Mind"
-      />
+    <ControlPage
+      description="Initiative state and the reasoning record behind autonomous decisions."
+      title="Mind"
+    >
+      <ControlSection
+        action={
+          <ControlButton onClick={() => void toggle()}>
+            {status?.paused ? <Play aria-hidden="true" /> : <Pause aria-hidden="true" />}
+            {status?.paused ? 'Resume' : 'Pause'}
+          </ControlButton>
+        }
+        icon={Brain}
+        title="Initiative"
+      >
+        <ControlRow
+          action={<ControlPill tone={status?.paused ? 'neutral' : 'ready'}>{status?.paused ? 'Paused' : 'Active'}</ControlPill>}
+          title="Initiative loop"
+        />
+        <ControlRow
+          action={<ControlPill tone={status?.running ? 'ready' : 'neutral'}>{status?.running ? 'Running' : 'Stopped'}</ControlPill>}
+          title="Schedule"
+        />
+        <ControlRow action={<span className="control-value">{status?.pending_events ?? 0}</span>} title="Pending events" />
+        {Object.entries(status?.last_errors ?? {}).map(([job, error]) => (
+          <ControlRow
+            action={<ControlPill tone="danger">Error</ControlPill>}
+            description={error.slice(0, 120)}
+            key={job}
+            title={job.replaceAll('_', ' ')}
+          />
+        ))}
+      </ControlSection>
 
-      <div className="context-line">
-        <span>INITIATIVE</span>
-        <strong>{status?.paused ? 'PAUSED' : 'ACTIVE'}</strong>
-      </div>
-      <div className="context-line">
-        <span>SCHEDULE</span>
-        <strong>{status?.running ? 'RUNNING' : 'STOPPED'}</strong>
-      </div>
-      <div className="context-line">
-        <span>PENDING EVENTS</span>
-        <strong>{status?.pending_events ?? 0}</strong>
-      </div>
-      {Object.entries(status?.last_errors ?? {}).map(([job, error]) => (
-        <div className="context-line" key={job}>
-          <span>{job.toUpperCase()} ERROR</span>
-          <strong>{error.slice(0, 60).toUpperCase()}</strong>
-        </div>
-      ))}
-
-      <div className="phase-controls">
-        <button className={status?.paused ? 'phase active' : 'phase'} onClick={() => void toggle()}>
-          {status?.paused ? 'resume initiative' : 'pause initiative'}
-        </button>
-      </div>
-
-      <AsciiRule />
-
-      {decisions.length === 0 ? (
-        <span className="construction">NO DECISIONS YET</span>
-      ) : (
-        <div className="service-list">
-          {decisions.map((decision) => (
-            <div className="service-row" key={decision.id}>
-              <span className="service-name">{decision.trigger.toUpperCase()}</span>
-              <span
-                className={`service-state state-${decision.surface === 'silent' ? 'offline' : 'ready'}`}
-              >
-                {decision.surface.toUpperCase()}
-              </span>
-              <small>
-                {decision.at.slice(11, 19)} / {decision.rule}
-                {decision.detail ? ` / ${decision.detail}` : ''} / {decision.provider} /{' '}
-                {decision.latency_ms.toFixed(1)}ms
-              </small>
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
+      <ControlSection icon={History} title="Decision history">
+        {decisions.length === 0 ? (
+          <ControlEmpty
+            description="Decisions appear here when an event reaches the initiative policy."
+            icon={Sparkles}
+            title="No decisions yet"
+          />
+        ) : (
+          decisions.map((decision) => (
+            <ControlRow
+              action={
+                <ControlPill tone={decision.surface === 'silent' ? 'neutral' : 'accent'}>
+                  {decision.surface}
+                </ControlPill>
+              }
+              description={`${decision.at.slice(11, 19)} · ${decision.rule}${decision.detail ? ` · ${decision.detail}` : ''} · ${decision.provider} · ${decision.latency_ms.toFixed(1)} ms`}
+              key={decision.id}
+              title={decision.trigger.replaceAll('_', ' ')}
+            />
+          ))
+        )}
+      </ControlSection>
+    </ControlPage>
   )
 }
 
@@ -838,59 +857,55 @@ function MemoryPanel(): React.JSX.Element {
   }
 
   return (
-    <section className="single-page panel">
-      <PageLead
-        description="Review or delete what Marvi remembers on this machine."
-        icon="memory"
-        title="Memory"
-      />
-
-      <div className="context-line">
-        <span>ENTRIES</span>
-        <strong>{page.total}</strong>
-      </div>
-      <div className="context-line">
-        <span>FACTS</span>
-        <strong>{(page.summary.facts ?? []).join(' / ').toUpperCase() || 'NONE'}</strong>
-      </div>
-
-      <div className="phase-controls">
-        {confirmClear ? (
-          <>
-            <button className="phase active" onClick={() => void clearAll()}>
-              delete everything
-            </button>
-            <button className="phase" onClick={() => setConfirmClear(false)}>
-              cancel
-            </button>
-          </>
-        ) : (
-          <button className="phase" onClick={() => setConfirmClear(true)}>
-            forget everything
-          </button>
-        )}
-      </div>
-
-      <AsciiRule />
-
-      {page.entries.length === 0 ? (
-        <span className="construction">NOTHING REMEMBERED YET</span>
-      ) : (
-        <div className="service-list">
-          {page.entries.map((entry) => (
-            <div className="service-row" key={entry.id}>
-              <span className="service-name">{entry.subject.toUpperCase()}</span>
-              <span className={`service-state state-${entry.trusted ? 'ready' : 'error'}`}>
-                {entry.trusted ? entry.kind.toUpperCase() : 'UNTRUSTED'}
-              </span>
-              <small>
-                {entry.at.slice(0, 10)} / {entry.source}
-              </small>
+    <ControlPage description="Review what is stored locally and where each memory came from." title="Memory">
+      <ControlSection
+        action={
+          confirmClear ? (
+            <div className="control-actions">
+              <ControlButton destructive onClick={() => void clearAll()}>
+                <Trash2 aria-hidden="true" /> Delete everything
+              </ControlButton>
+              <ControlButton onClick={() => setConfirmClear(false)}>Cancel</ControlButton>
             </div>
-          ))}
-        </div>
-      )}
-    </section>
+          ) : (
+            <ControlButton destructive onClick={() => setConfirmClear(true)}>
+              <Trash2 aria-hidden="true" /> Forget everything
+            </ControlButton>
+          )
+        }
+        icon={Database}
+        title="Local store"
+      >
+        <ControlRow action={<span className="control-value">{page.total}</span>} title="Entries" />
+        <ControlRow
+          action={<span className="control-value">{(page.summary.facts ?? []).join(' · ') || 'None'}</span>}
+          title="Known facts"
+        />
+      </ControlSection>
+
+      <ControlSection icon={History} title="Stored memories">
+        {page.entries.length === 0 ? (
+          <ControlEmpty
+            description="Useful preferences and facts will appear after Marvi has something worth retaining."
+            icon={Database}
+            title="Nothing remembered yet"
+          />
+        ) : (
+          page.entries.map((entry) => (
+            <ControlRow
+              action={
+                <ControlPill tone={entry.trusted ? 'neutral' : 'danger'}>
+                  {entry.trusted ? entry.kind : 'Untrusted'}
+                </ControlPill>
+              }
+              description={`${entry.at.slice(0, 10)} · ${entry.source}`}
+              key={entry.id}
+              title={entry.subject}
+            />
+          ))
+        )}
+      </ControlSection>
+    </ControlPage>
   )
 }
 
@@ -919,57 +934,53 @@ function AccountsPanel(): React.JSX.Element {
   }, [])
 
   return (
-    <section className="single-page panel">
-      <PageLead
-        description="Services connected through Composio."
-        icon="accounts"
-        title="Accounts"
-      />
-
-      {!loaded ? (
-        <ProcessingCard
-          compact
-          detail="Checking Composio for connected accounts."
-          title="Loading accounts"
-        />
-      ) : (
-        <div className="context-line">
-          <span>COMPOSIO</span>
-          <strong>{available ? detail.toUpperCase() : 'NOT CONFIGURED'}</strong>
-        </div>
-      )}
-
-      <AsciiRule />
-
-      {loaded && accounts.length === 0 ? (
-        <span className="construction">
-          {available ? 'NO ACCOUNTS CONNECTED' : 'SET COMPOSIO_API_KEY TO ENABLE ACCOUNTS'}
-        </span>
-      ) : (
-        <div className="service-list">
-          {accounts.map((account) => (
-            <div className="service-row" key={account.toolkit}>
-              <span className="service-name">{account.toolkit.toUpperCase()}</span>
-              <span className={`service-state state-${account.connected ? 'ready' : 'error'}`}>
-                {account.connected ? 'CONNECTED' : account.status.toUpperCase()}
-              </span>
-              <small>
-                {account.needsReconnect
-                  ? 'Authorisation ended. Reconnect this account in Composio.'
-                  : 'Available for on-demand retrieval and actions.'}
-              </small>
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
+    <ControlPage description="Services connected through the account broker." title="Accounts">
+      <ControlSection icon={Users} title="Connected accounts">
+        {!loaded ? (
+          <ProcessingCard compact detail="Checking connected accounts." title="Loading accounts" />
+        ) : accounts.length === 0 ? (
+          <ControlEmpty
+            description={
+              available
+                ? 'Connect an account to make its tools available on demand.'
+                : 'Configure the account service before connecting an account.'
+            }
+            icon={Users}
+            title="No accounts connected"
+          />
+        ) : (
+          <>
+            <ControlRow
+              action={<ControlPill tone={available ? 'ready' : 'warning'}>{available ? detail : 'Not configured'}</ControlPill>}
+              title="Account service"
+            />
+            {accounts.map((account) => (
+              <ControlRow
+                action={
+                  <ControlPill tone={account.connected ? 'ready' : 'danger'}>
+                    {account.connected ? 'Connected' : account.status}
+                  </ControlPill>
+                }
+                description={
+                  account.needsReconnect
+                    ? 'Authorisation ended. Reconnect this account with the account provider.'
+                    : 'Available for on-demand retrieval and actions.'
+                }
+                key={account.toolkit}
+                title={account.toolkit}
+              />
+            ))}
+          </>
+        )}
+      </ControlSection>
+    </ControlPage>
   )
 }
 
 const ACCESS_LABEL: Record<string, string> = {
-  api: 'PAY AS YOU GO',
-  plan: 'SUBSCRIPTION PLAN',
-  local: 'LOCAL'
+  api: 'Pay as you go',
+  plan: 'Subscription plan',
+  local: 'Local'
 }
 
 function ProviderCard({
@@ -1056,17 +1067,17 @@ function ProviderCard({
 
   return (
     <div className="service-row provider-row">
-      <span className="service-name">{provider.label.toUpperCase()}</span>
+      <span className="service-name">{provider.label}</span>
       <span className={`service-state state-${ready ? 'ready' : 'pending'}`}>
         {provider.cooldown
           ? `COOLING DOWN ${Math.round(provider.cooldown.seconds_remaining)}S`
           : offline
-            ? 'NOT RUNNING'
+              ? 'Not running'
             : oauth
               ? oauth.state.toUpperCase()
               : provider.configured
-                ? 'CONNECTED'
-                : 'NOT CONNECTED'}
+                ? 'Connected'
+                : 'Not connected'}
       </span>
       {offline ? (
         <small className="provider-cooldown">
@@ -1078,7 +1089,7 @@ function ProviderCard({
         <LocalConnect name={provider.name} label={provider.label} onDone={onRefresh} />
       ) : null}
       <small>
-        {ACCESS_LABEL[provider.accessPath]} / {provider.apiMode.replace(/_/g, ' ').toUpperCase()} /{' '}
+        {ACCESS_LABEL[provider.accessPath]} · {provider.apiMode.replace(/_/g, ' ')} ·{' '}
         {provider.models.main || 'no model'}
       </small>
       {provider.cooldown ? (
@@ -1087,13 +1098,13 @@ function ProviderCard({
 
       {provider.limits.windows.length > 0 ? (
         <small>
-          LIMITS {provider.limits.windows.map(([win, cap]) => `${cap} / ${win}`).join(', ')}
+          Limits {provider.limits.windows.map(([win, cap]) => `${cap} / ${win}`).join(', ')}
           {provider.limits.readable ? '' : ' (not published over the API)'}
         </small>
       ) : null}
 
       <button className="phase" type="button" onClick={() => setOpen(!open)}>
-        {open ? 'CLOSE' : provider.configured ? 'EDIT' : 'CONNECT'}
+        {open ? 'Close' : provider.configured ? 'Edit' : 'Connect'}
       </button>
 
       {open ? (
@@ -1129,12 +1140,12 @@ function ProviderCard({
                   onClick={() => void connectPlan()}
                 >
                   {blocked
-                    ? 'READ THE WARNING FIRST'
+                    ? 'Read the warning first'
                     : signIn === 'waiting'
-                      ? 'WAITING FOR SIGN-IN'
+                      ? 'Waiting for sign-in'
                       : oauth.connected
-                        ? 'SIGN IN AGAIN'
-                        : 'SIGN IN'}
+                        ? 'Sign in again'
+                        : 'Sign in'}
                 </button>
                 {oauth.connected ? (
                   <button
@@ -1143,7 +1154,7 @@ function ProviderCard({
                     disabled={busy}
                     onClick={() => void disconnect()}
                   >
-                    DISCONNECT
+                    Disconnect
                   </button>
                 ) : null}
               </div>
@@ -1181,7 +1192,7 @@ function ProviderCard({
                 })
               }
             >
-              {blocked ? 'READ THE WARNING FIRST' : busy ? 'SAVING' : 'SAVE'}
+              {blocked ? 'Read the warning first' : busy ? 'Saving' : 'Save'}
             </button>
             {provider.configured && needsKey ? (
               <button
@@ -1190,7 +1201,7 @@ function ProviderCard({
                 disabled={busy}
                 onClick={() => void save({ [keyEnv]: '' })}
               >
-                DISCONNECT
+                Disconnect
               </button>
             ) : null}
           </div>
@@ -1235,20 +1246,16 @@ function ProvidersPanel(): React.JSX.Element {
   }
 
   const groups: Array<[string, ProviderRow['accessPath']]> = [
-    ['LOCAL', 'local'],
-    ['PAY AS YOU GO', 'api'],
-    ['SUBSCRIPTION PLANS', 'plan']
+    ['Local', 'local'],
+    ['Pay as you go', 'api'],
+    ['Subscription plans', 'plan']
   ]
 
   return (
-    <section className="single-page panel">
-      <PageLead
-        description="Connect a model service and choose where Marvi runs each request."
-        icon="providers"
-        title="Providers"
-      />
-
-      <AsciiRule />
+    <ControlPage
+      description="Connect a model service and choose where each request runs."
+      title="Providers"
+    >
 
       {!page && !error ? (
         <ProcessingCard
@@ -1257,14 +1264,13 @@ function ProvidersPanel(): React.JSX.Element {
           title="Loading providers"
         />
       ) : null}
-      {error ? <span className="construction">{error.toUpperCase()}</span> : null}
+      {error ? <p className="notice notice-warn">{error}</p> : null}
 
       {groups.map(([label, path]) => {
         const rows = (page?.providers ?? []).filter((row) => row.accessPath === path)
         if (rows.length === 0) return null
         return (
-          <div key={path}>
-            <div className="panel-label">{`// ${label}`}</div>
+          <ControlSection icon={path === 'local' ? Server : Wifi} key={path} title={label}>
             <div className="service-list">
               {rows.map((provider) => (
                 <ProviderCard
@@ -1275,10 +1281,10 @@ function ProvidersPanel(): React.JSX.Element {
                 />
               ))}
             </div>
-          </div>
+          </ControlSection>
         )
       })}
-    </section>
+    </ControlPage>
   )
 }
 
@@ -1353,55 +1359,58 @@ function IdentityPanel(): React.JSX.Element {
   }
 
   return (
-    <section className="single-page panel">
-      <PageLead
-        description="Edit Marvi's identity and your standing preferences."
-        icon="identity"
-        title="Identity"
-      />
-
-      {identity ? (
-        <div className="context-line">
-          <span>BUDGET</span>
-          <strong>
-            {identity.tokens} / {identity.budget} TOKENS
-            {identity.truncated ? ' — TRUNCATED' : ''}
-          </strong>
-        </div>
-      ) : null}
-
-      <AsciiRule />
-
-      <label className="identity-field">
-        <span>SOUL.md — voice, temperament, refusals</span>
-        <textarea
-          rows={10}
-          value={soul}
-          onChange={(event) => {
-            setSoul(event.target.value)
-            setSaved(false)
-          }}
-        />
-      </label>
-
-      <label className="identity-field">
-        <span>USER.md — name, hours, standing preferences</span>
-        <textarea
-          rows={10}
-          value={user}
-          onChange={(event) => {
-            setUser(event.target.value)
-            setSaved(false)
-          }}
-        />
-      </label>
-
-      <button className="phase" type="button" disabled={saved} onClick={() => void save()}>
-        {saved ? 'SAVED' : 'SAVE'}
-      </button>
-
-      {identity ? <small>{identity.directory}</small> : null}
-    </section>
+    <ControlPage
+      description="Edit Marvi's identity and your standing preferences."
+      title="Identity"
+    >
+      <ControlSection
+        action={
+          <ControlButton disabled={saved} onClick={() => void save()}>
+            {saved ? <CheckCircle2 aria-hidden="true" /> : null}
+            {saved ? 'Saved' : 'Save changes'}
+          </ControlButton>
+        }
+        icon={Sparkles}
+        title="Identity files"
+      >
+        {identity ? (
+          <ControlRow
+            action={
+              <span className="control-value">
+                {identity.tokens} / {identity.budget} tokens
+                {identity.truncated ? ' · Truncated' : ''}
+              </span>
+            }
+            description={identity.directory}
+            title="Prompt budget"
+          />
+        ) : null}
+        <label className="control-editor">
+          <span>Soul</span>
+          <small>Voice, temperament, and refusals</small>
+          <textarea
+            rows={10}
+            value={soul}
+            onChange={(event) => {
+              setSoul(event.target.value)
+              setSaved(false)
+            }}
+          />
+        </label>
+        <label className="control-editor">
+          <span>User</span>
+          <small>Name, hours, and standing preferences</small>
+          <textarea
+            rows={10}
+            value={user}
+            onChange={(event) => {
+              setUser(event.target.value)
+              setSaved(false)
+            }}
+          />
+        </label>
+      </ControlSection>
+    </ControlPage>
   )
 }
 
@@ -2076,21 +2085,13 @@ function SchedulesPanel(): React.JSX.Element {
   }
 
   return (
-    <section className="single-page panel">
-      <PageLead
-        description="Tasks Marvi runs at a specific time."
-        icon="schedules"
-        title="Schedules"
-      />
+    <ControlPage description="Tasks that run at a specific time." title="Schedules">
+      {error ? <p className="notice notice-warn">{error}</p> : null}
 
-      {error ? <span className="construction">{error.toUpperCase()}</span> : null}
-
-      <AsciiRule />
-      <div className="panel-label">{'// NEW'}</div>
-
-      <div className="schedule-form">
+      <ControlSection icon={Clock3} title="New schedule">
+        <div className="schedule-form">
         <label>
-          <span>NAME</span>
+          <span>Name</span>
           <input
             value={name}
             placeholder="wake up"
@@ -2098,7 +2099,7 @@ function SchedulesPanel(): React.JSX.Element {
           />
         </label>
         <label>
-          <span>WHEN</span>
+          <span>When</span>
           <input
             value={when}
             placeholder="07:30, 60 (minutes), or a cron expression"
@@ -2106,7 +2107,7 @@ function SchedulesPanel(): React.JSX.Element {
           />
         </label>
         <label>
-          <span>MESSAGE</span>
+          <span>Message</span>
           <input
             value={message}
             placeholder="Time to get up"
@@ -2120,7 +2121,7 @@ function SchedulesPanel(): React.JSX.Element {
             onChange={(event) => setInsist(event.target.checked)}
           />
           <span>
-            SPEAK ANYWAY
+            Speak anyway
             {/* The opt-in. Off by default because an hourly check firing out
                 loud at 3am is what quiet hours exists to prevent. */}
             <small>Ignore quiet hours and sleep mode. For an alarm you mean.</small>
@@ -2132,32 +2133,26 @@ function SchedulesPanel(): React.JSX.Element {
           disabled={!name || !when}
           onClick={() => void add()}
         >
-          ADD
+          Add schedule
         </button>
-      </div>
+        </div>
+      </ControlSection>
 
-      <AsciiRule />
-      <div className="panel-label">{'// SET'}</div>
-
-      {!page ? (
-        <ProcessingCard
-          compact
-          detail="Reading the local schedule registry."
-          title="Loading schedules"
-        />
-      ) : null}
-
-      <div className="service-list">
-        {(page?.schedules ?? []).map((row) => (
+      <ControlSection icon={CalendarDays} title="Schedules">
+        {!page ? (
+          <ProcessingCard compact detail="Reading the local schedule registry." title="Loading schedules" />
+        ) : null}
+        <div className="service-list">
+          {(page?.schedules ?? []).map((row) => (
           <div className="service-row" key={row.id}>
-            <span className="service-name">{row.name.toUpperCase()}</span>
+            <span className="service-name">{row.name}</span>
             <span
               className={`service-state state-${
                 row.last_error ? 'error' : row.enabled ? 'ready' : 'pending'
               }`}
             >
-              {row.last_error ? 'FAILED' : row.enabled ? 'ON' : 'OFF'}
-              {row.insist ? ' / INSISTS' : ''}
+              {row.last_error ? 'Failed' : row.enabled ? 'On' : 'Off'}
+              {row.insist ? ' · insists' : ''}
             </span>
             <small>
               {row.kind === 'interval' ? `every ${row.expression} minutes` : row.expression} /{' '}
@@ -2171,31 +2166,32 @@ function SchedulesPanel(): React.JSX.Element {
             ) : null}
             <div className="provider-actions">
               <button className="phase" type="button" onClick={() => void act(row.id, 'run')}>
-                RUN NOW
+                Run now
               </button>
               <button
                 className="phase"
                 type="button"
                 onClick={() => void act(row.id, row.enabled ? 'disable' : 'enable')}
               >
-                {row.enabled ? 'PAUSE' : 'RESUME'}
+                {row.enabled ? 'Pause' : 'Resume'}
               </button>
               <button
                 className="phase danger"
                 type="button"
                 onClick={() => void act(row.id, 'remove')}
               >
-                REMOVE
+                Remove
               </button>
             </div>
           </div>
         ))}
-      </div>
+        </div>
 
-      {page && page.schedules.length === 0 ? (
-        <span className="construction">NOTHING SCHEDULED</span>
-      ) : null}
-    </section>
+        {page && page.schedules.length === 0 ? (
+          <ControlEmpty description="Create one above when you want a task to run later." title="Nothing scheduled" />
+        ) : null}
+      </ControlSection>
+    </ControlPage>
   )
 }
 
@@ -2237,16 +2233,8 @@ function PluginsPanel(): React.JSX.Element {
   }
 
   return (
-    <section className="single-page panel">
-      <PageLead
-        description="Long-running local services that extend Marvi."
-        icon="plugins"
-        title="Plugins"
-      />
-
-      {error ? <span className="construction">{error.toUpperCase()}</span> : null}
-
-      <AsciiRule />
+    <ControlPage description="Long-running local services that extend Marvi." title="Plugins">
+      {error ? <p className="notice notice-warn">{error}</p> : null}
 
       {!page ? (
         <ProcessingCard
@@ -2256,10 +2244,11 @@ function PluginsPanel(): React.JSX.Element {
         />
       ) : null}
 
+      <ControlSection icon={Box} title="Installed and available">
       <div className="service-list">
         {(page?.plugins ?? []).map((plugin) => (
           <div className="service-row" key={plugin.name}>
-            <span className="service-name">{plugin.title.toUpperCase()}</span>
+            <span className="service-name">{plugin.title}</span>
             <span
               className={`service-state state-${
                 !plugin.supported || (plugin.installed && !plugin.running)
@@ -2272,12 +2261,12 @@ function PluginsPanel(): React.JSX.Element {
               }`}
             >
               {busy === plugin.name
-                ? 'WORKING'
+                ? 'Working'
                 : plugin.installed
                   ? plugin.running
-                    ? `INSTALLED ${plugin.version ? `v${plugin.version}` : ''}`.trim()
-                    : 'NOT RUNNING'
-                  : plugin.detail.toUpperCase()}
+                    ? `Installed ${plugin.version ? `v${plugin.version}` : ''}`.trim()
+                    : 'Not running'
+                  : plugin.detail}
             </span>
             {plugin.why ? <small>{plugin.why}</small> : null}
             <small className="plugin-repo">
@@ -2306,10 +2295,10 @@ function PluginsPanel(): React.JSX.Element {
                     type="button"
                     onClick={() => void act(plugin.name, 'install')}
                   >
-                    INSTALL IT
+                    Install
                   </button>
                   <button className="phase" type="button" onClick={() => setConfirming('')}>
-                    CANCEL
+                    Cancel
                   </button>
                 </div>
               </div>
@@ -2323,7 +2312,7 @@ function PluginsPanel(): React.JSX.Element {
                       disabled={!!busy}
                       onClick={() => void act(plugin.name, 'update')}
                     >
-                      PULL LATEST
+                      Update
                     </button>
                     <button
                       className="phase danger"
@@ -2331,7 +2320,7 @@ function PluginsPanel(): React.JSX.Element {
                       disabled={!!busy}
                       onClick={() => void act(plugin.name, 'remove')}
                     >
-                      REMOVE
+                      Remove
                     </button>
                   </>
                 ) : (
@@ -2341,7 +2330,7 @@ function PluginsPanel(): React.JSX.Element {
                     disabled={!!busy}
                     onClick={() => setConfirming(plugin.name)}
                   >
-                    INSTALL
+                    Install
                   </button>
                 )}
               </div>
@@ -2351,24 +2340,23 @@ function PluginsPanel(): React.JSX.Element {
       </div>
 
       {(page?.plugins ?? []).length === 0 ? (
-        <span className="construction">
-          NO PLUGINS DECLARED / ADD ONE TO config/plugin-sources.json
-        </span>
+        <ControlEmpty description="Add a declaration to config/plugin-sources.json." title="No plugins declared" />
       ) : null}
-
-      <AsciiRule />
+      </ControlSection>
+      <ControlSection icon={Wrench} title="Plugin storage">
       <button className="phase" type="button" onClick={() => void load()}>
-        RE-CHECK
+        Check again
       </button>
       {page ? (
         <>
-          <small>CHECKOUTS {page.install_root}</small>
+          <small>Checkouts · {page.install_root}</small>
           {/* Named because removing a plugin keeps its data, and someone
               looking for their room history should not have to guess. */}
-          <small>PLUGIN DATA {page.data_root}</small>
+          <small>Plugin data · {page.data_root}</small>
         </>
       ) : null}
-    </section>
+      </ControlSection>
+    </ControlPage>
   )
 }
 
@@ -2443,16 +2431,11 @@ function SkillsPanel(): React.JSX.Element {
   )
 
   return (
-    <section className="single-page panel">
-      <PageLead
-        description="Instructions that teach Marvi how to complete specific work."
-        icon="skills"
-        title="Skills"
-      />
-
+    <ControlPage description="Instructions that teach Marvi how to complete specific work." title="Skills">
+      <ControlSection icon={Database} title="Catalog">
       <div className="context-line">
-        <span>SOURCES</span>
-        <strong>{sources.join(', ').toUpperCase() || 'NONE CONFIGURED'}</strong>
+        <span>Sources</span>
+        <strong>{sources.join(', ') || 'None configured'}</strong>
       </div>
 
       <input
@@ -2463,12 +2446,10 @@ function SkillsPanel(): React.JSX.Element {
         onChange={(event) => setFilter(event.target.value)}
       />
 
-      <AsciiRule />
-
       {/* The review sheet: instructions in full, warnings, then the button. */}
       {review ? (
         <div className="skill-review">
-          <div className="panel-label">{`// ${review.skill.name.toUpperCase()}`}</div>
+          <div className="panel-label">{review.skill.name}</div>
           <p>{review.skill.description}</p>
           {review.warnings.map((warning) => (
             <small className="provider-cooldown" key={warning}>
@@ -2489,10 +2470,10 @@ function SkillsPanel(): React.JSX.Element {
               disabled={busy === 'installing'}
               onClick={() => void confirm()}
             >
-              {busy === 'installing' ? 'INSTALLING' : 'INSTALL'}
+              {busy === 'installing' ? 'Installing' : 'Install'}
             </button>
             <button className="phase" type="button" onClick={() => setReview(null)}>
-              CANCEL
+              Cancel
             </button>
           </div>
         </div>
@@ -2505,14 +2486,14 @@ function SkillsPanel(): React.JSX.Element {
           title="Loading skill store"
         />
       ) : store.length === 0 ? (
-        <span className="construction">NO SKILLS AVAILABLE</span>
+        <ControlEmpty description="Add a skill source to populate this catalog." title="No skills available" />
       ) : (
         <div className="service-list">
           {shown.map((skill) => (
             <div className="service-row" key={`${skill.repo}/${skill.name}`}>
-              <span className="service-name">{skill.name.toUpperCase()}</span>
+              <span className="service-name">{skill.name}</span>
               <span className={`service-state state-${skill.installed ? 'ready' : 'pending'}`}>
-                {skill.installed ? 'INSTALLED' : ''}
+                {skill.installed ? 'Installed' : ''}
               </span>
               <small>{skill.description}</small>
               <small>{skill.repo}</small>
@@ -2524,7 +2505,7 @@ function SkillsPanel(): React.JSX.Element {
                     disabled={!!busy}
                     onClick={() => void remove(skill.name)}
                   >
-                    REMOVE
+                    Remove
                   </button>
                 ) : (
                   <button
@@ -2533,7 +2514,7 @@ function SkillsPanel(): React.JSX.Element {
                     disabled={!!busy}
                     onClick={() => void open(skill)}
                   >
-                    {busy === skill.name ? 'FETCHING' : 'VIEW & INSTALL'}
+                    {busy === skill.name ? 'Fetching' : 'Review and install'}
                   </button>
                 )}
               </div>
@@ -2541,7 +2522,8 @@ function SkillsPanel(): React.JSX.Element {
           ))}
         </div>
       )}
-    </section>
+      </ControlSection>
+    </ControlPage>
   )
 }
 
@@ -2563,36 +2545,26 @@ function ActivityPanel(): React.JSX.Element {
   }, [])
 
   return (
-    <section className="single-page panel">
-      <PageLead
-        description="Local history of tool requests, approvals, and results."
-        icon="activity"
-        title="Activity"
-      />
-      <AsciiRule />
-
-      {events.length === 0 ? (
-        <span className="construction">NO TOOL ACTIVITY RECORDED YET</span>
-      ) : (
-        <div className="service-list">
-          {events.map((event, index) => (
-            <div className="service-row" key={`${event.at}-${index}`}>
-              <span className="service-name">{event.tool.toUpperCase()}</span>
-              <span className={`service-state audit-${event.event}`}>
-                {event.event.toUpperCase()}
-              </span>
-              <small>
-                {event.at.slice(11, 19)} / {event.mode.toUpperCase()}
-                {Object.keys(event.arguments).length > 0
-                  ? ` / ${JSON.stringify(event.arguments)}`
-                  : ''}
-                {event.detail ? ` / ${event.detail}` : ''}
-              </small>
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
+    <ControlPage description="Local history of tool requests, approvals, and results." title="Activity">
+      <ControlSection icon={History} title="Tool activity">
+        {events.length === 0 ? (
+          <ControlEmpty
+            description="Tool requests and their outcomes will appear here. Nothing is uploaded."
+            icon={Clock3}
+            title="No activity yet"
+          />
+        ) : (
+          events.map((event, index) => (
+            <ControlRow
+              action={<ControlPill tone={event.event === 'failed' ? 'danger' : 'neutral'}>{event.event}</ControlPill>}
+              description={`${event.at.slice(11, 19)} · ${event.mode}${Object.keys(event.arguments).length > 0 ? ` · ${JSON.stringify(event.arguments)}` : ''}${event.detail ? ` · ${event.detail}` : ''}`}
+              key={`${event.at}-${index}`}
+              title={event.tool.replaceAll('_', ' ')}
+            />
+          ))
+        )}
+      </ControlSection>
+    </ControlPage>
   )
 }
 
@@ -2620,27 +2592,33 @@ function PagePanel({
   }
 
   return (
-    <section className="single-page panel">
-      <PageLead description={descriptions[page]} icon={NAV_ICONS[page]} title={page} />
-      <AsciiRule />
+    <ControlPage description={descriptions[page]} title={page}>
       {page === 'Vision' ? (
-        <>
-          <div className="context-line">
-            <span>ROOM VISION</span>
-            <strong>{(runtime.components.vision?.state ?? 'offline').toUpperCase()}</strong>
-          </div>
-          <div className="context-line">
-            <span>DETAIL</span>
-            <strong>
-              {runtime.components.vision?.detail.toUpperCase() ?? 'SIDECAR UNAVAILABLE'}
-            </strong>
-          </div>
-          <span className="construction">LIVE OBSERVATIONS ARE SHOWN IN ROOM</span>
-        </>
+        <ControlSection icon={Eye} title="Room vision">
+          <ControlRow
+            action={
+              <ControlPill tone={stateTone(runtime.components.vision?.state)}>
+                {runtime.components.vision?.state ?? 'offline'}
+              </ControlPill>
+            }
+            description={runtime.components.vision?.detail ?? 'Room service unavailable'}
+            icon={Camera}
+            title="Camera processing"
+          />
+          <ControlRow
+            description="Presence and gesture observations are available in the Room view."
+            icon={Users}
+            title="Live observations"
+          />
+        </ControlSection>
       ) : (
-        <span className="construction">FOUNDATION ONLINE / FEATURE MODULE PENDING</span>
+        <ControlEmpty
+          description="This module has no controls to show yet."
+          icon={Sparkles}
+          title="Nothing here yet"
+        />
       )}
-    </section>
+    </ControlPage>
   )
 }
 
@@ -2658,36 +2636,30 @@ function BrandIcon({ className = '' }: { className?: string }): React.JSX.Elemen
  */
 function MaintenancePanel(): React.JSX.Element {
   return (
-    <section className="single-page panel">
-      <PageLead
-        description="Repair the local runtime or install missing models from a terminal."
-        icon="maintenance"
-        title="Maintenance"
+    <ControlPage
+      description="Repair the local runtime or install missing components from a terminal."
+      title="Maintenance"
+    >
+      <ControlSection icon={Wrench} title="Diagnostics and repair">
+        <CommandCard command="marvi doctor" title="Find problems">
+          <p>Check the local stack and name each available fix.</p>
+        </CommandCard>
+        <CommandCard command="marvi setup" title="Install missing components">
+          <p>Install missing models, browsers, and dependencies.</p>
+        </CommandCard>
+        <CommandCard command="marvi models list" title="Review installed models">
+          <p>Show installed components and their verification state.</p>
+        </CommandCard>
+        <CommandCard command="marvi diagnostics" title="Prepare a bug report">
+          <p>Copy a redacted diagnostics summary.</p>
+        </CommandCard>
+      </ControlSection>
+      <ControlRow
+        description="Open a new terminal or rerun the installer if the command is not available."
+        icon={SquareTerminal}
+        title="Command not found?"
       />
-
-      <AsciiRule />
-
-      <CommandCard command="marvi doctor" title="// WHAT IS WRONG">
-        <p>Checks the local stack and names each fix.</p>
-      </CommandCard>
-
-      <CommandCard command="marvi setup" title="// INSTALL WHAT IS MISSING">
-        <p>Installs missing models, browsers, and dependencies.</p>
-      </CommandCard>
-
-      <CommandCard command="marvi models list" title="// WHAT IS INSTALLED">
-        <p>Shows installed components and their verification state.</p>
-      </CommandCard>
-
-      <CommandCard command="marvi diagnostics" title="// FOR A BUG REPORT">
-        <p>Copies a redacted bug-report summary.</p>
-      </CommandCard>
-
-      <AsciiRule />
-      <small>
-        If <code>marvi</code> is missing from PATH, open a new terminal or rerun the installer.
-      </small>
-    </section>
+    </ControlPage>
   )
 }
 
@@ -2713,37 +2685,44 @@ function SettingsShell({
   }, [onClose])
 
   return (
-    <div className="settings-shell" role="dialog" aria-modal="true" aria-label="Settings">
-      <nav className="settings-rail" aria-label="Settings sections">
-        <div className="settings-rail-head">
-          <strong>SETTINGS</strong>
-          <UiTooltip label="Close settings" side="right">
-            <button aria-label="Close settings" onClick={onClose} type="button">
-              <AbstractIcon name="close" size={14} />
-            </button>
-          </UiTooltip>
-        </div>
-        {SETTINGS_GROUPS.map((group) => (
-          <div className="settings-group" key={group.label}>
-            <h2>{group.label.toUpperCase()}</h2>
-            {group.items.map((item) => (
-              <button
-                aria-current={page === item ? 'page' : undefined}
-                className={page === item ? 'settings-link active' : 'settings-link'}
-                key={item}
-                onClick={() => onNavigate(item)}
-                type="button"
-              >
-                <AbstractIcon name={SETTINGS_ICONS[item]} size={16} />
-                {item.toUpperCase()}
+    <div
+      className="settings-shell"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose()
+      }}
+      role="presentation"
+    >
+      <div aria-label="Settings" aria-modal="true" className="settings-frame" role="dialog">
+        <nav className="settings-rail" aria-label="Settings sections">
+          <div className="settings-rail-head">
+            <strong>Settings</strong>
+            <UiTooltip label="Close settings" side="left">
+              <button aria-label="Close settings" onClick={onClose} type="button">
+                <AbstractIcon name="close" size={14} />
               </button>
-            ))}
+            </UiTooltip>
           </div>
-        ))}
-      </nav>
+          {SETTINGS_GROUPS.map((group) => (
+            <div className="settings-group" key={group.label}>
+              <h2>{group.label}</h2>
+              {group.items.map((item) => (
+                <button
+                  aria-current={page === item ? 'page' : undefined}
+                  className={page === item ? 'settings-link active' : 'settings-link'}
+                  key={item}
+                  onClick={() => onNavigate(item)}
+                  type="button"
+                >
+                  <AbstractIcon name={SETTINGS_ICONS[item]} size={16} />
+                  <span>{item}</span>
+                </button>
+              ))}
+            </div>
+          ))}
+        </nav>
 
-      <div className="settings-content">
-        <div className="settings-scroll">
+        <div className="settings-content">
+          <div className="settings-scroll">
           {page === 'Providers' ? (
             <ProvidersPanel />
           ) : page === 'Models' ? (
@@ -2767,6 +2746,7 @@ function SettingsShell({
           ) : (
             <AboutPanel fallbackVersion={version} runtime={runtime} />
           )}
+          </div>
         </div>
       </div>
     </div>
@@ -2782,17 +2762,13 @@ function SettingsShell({
  */
 function SpeechPanel(): React.JSX.Element {
   return (
-    <section className="settings-page">
-      <PageLead
-        description="What Marvi listens with, what she answers in, and what she answers to."
-        icon="voice"
-        title="Hearing and speaking"
-      />
-
-      <div className="settings-section">
+    <ControlPage
+      className="settings-page"
+      description="What Marvi listens with, what she answers in, and what she answers to."
+      title="Hearing and speaking"
+    >
+      <ControlSection icon={Mic} title="Recognition">
         <div>
-          <span className="eyebrow">{'// SPEECH IN'}</span>
-          <h2>RECOGNITION</h2>
           <p>
             How far ahead the recogniser listens before committing a word. Longer is more accurate
             and lags further behind you; it does not delay the answer, because the last of what you
@@ -2800,29 +2776,25 @@ function SpeechPanel(): React.JSX.Element {
           </p>
         </div>
         <RecognitionSettings />
-      </div>
+      </ControlSection>
 
-      <div className="settings-section">
+      <ControlSection icon={Waves} title="Voice">
         <div>
-          <span className="eyebrow">{'// SPEECH OUT'}</span>
-          <h2>VOICE</h2>
           <p>The voice Marvi speaks in. Also on the Voice page, beside the orb.</p>
         </div>
         <VoicePicker />
-      </div>
+      </ControlSection>
 
-      <div className="settings-section">
+      <ControlSection icon={Radio} title="Wake word">
         <div>
-          <span className="eyebrow">{'// WAKE WORD'}</span>
-          <h2>SAYING HER NAME</h2>
           <p>
             A small process that starts at login and waits for her name. Saying &ldquo;Marvi&rdquo;
             joins hands-free, exactly as pressing Join does, and opens Marvi first if she is closed.
           </p>
         </div>
         <WakeSettings />
-      </div>
-    </section>
+      </ControlSection>
+    </ControlPage>
   )
 }
 
@@ -2920,28 +2892,24 @@ function SettingsPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Eleme
   }
 
   return (
-    <section className="settings-page" aria-label="Marvi OS settings">
-      <PageLead
-        description="Devices, interaction mode, appearance, and Island placement."
-        icon="preferences"
-        title="Preferences"
-      />
-      <div className="settings-section settings-services">
+    <ControlPage
+      aria-label="Marvi OS settings"
+      className="settings-page"
+      description="Devices, interaction mode, appearance, and Island placement."
+      title="Preferences"
+    >
+      <ControlSection className="settings-services" icon={Server} title="Runtime">
         <div>
-          <span className="eyebrow">{'// LOCAL SERVICES'}</span>
-          <h2>RUNTIME</h2>
           <p>
             Marvi starts these itself. When one will not start, the reason is its own output — shown
             here rather than discarded.
           </p>
         </div>
         <ServiceHealth compact />
-      </div>
+      </ControlSection>
 
-      <div className="settings-section">
+      <ControlSection icon={ShieldAlert} title="Confirmation mode">
         <div>
-          <span className="eyebrow">{'// ACTION AUTHORITY'}</span>
-          <h2>CONFIRMATION MODE</h2>
           <p>
             The model requests confirmation when context requires it. YOLO bypasses every prompt.
           </p>
@@ -2953,19 +2921,17 @@ function SettingsPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Eleme
           role="switch"
           type="button"
         >
-          {runtime.assistant.yolo ? '⚡ YOLO / AUTO ACCEPT' : 'CONFIRM / ASK ME'}
+          {runtime.assistant.yolo ? 'YOLO · auto accept' : 'Confirm · ask me'}
         </button>
-      </div>
+      </ControlSection>
 
-      <div className="settings-section">
+      <ControlSection icon={Sparkles} title="Window and backdrop">
         <div>
-          <span className="eyebrow">{'// APPEARANCE'}</span>
-          <h2>WINDOW + BACKDROP</h2>
           <p>Translucency shows the desktop through the window. The backdrop stays local.</p>
         </div>
         <div className="appearance-controls">
           <label>
-            TRANSLUCENCY {translucency}
+            Translucency {translucency}
             <input
               aria-label="Window translucency"
               max={100}
@@ -2976,18 +2942,18 @@ function SettingsPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Eleme
             />
           </label>
           <label>
-            BACKDROP
+            Backdrop
             <select
               aria-label="Backdrop mode"
               onChange={(event) => setBackgroundMode(event.target.value as typeof backgroundMode)}
               value={backgroundMode}
             >
-              <option value="electricGaze">ELECTRIC GAZE</option>
-              <option value="none">OFF</option>
+              <option value="electricGaze">Electric gaze</option>
+              <option value="none">Off</option>
             </select>
           </label>
           <label>
-            BACKDROP OPACITY {backgroundOpacity}
+            Backdrop opacity {backgroundOpacity}
             <input
               aria-label="Backdrop opacity"
               disabled={backgroundMode !== 'electricGaze'}
@@ -2999,17 +2965,15 @@ function SettingsPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Eleme
             />
           </label>
         </div>
-      </div>
+      </ControlSection>
 
-      <div className="settings-section">
+      <ControlSection icon={Info} title="Dynamic Island placement">
         <div>
-          <span className="eyebrow">{'// DYNAMIC ISLAND'}</span>
-          <h2>PLACEMENT</h2>
           <p>Select the monitor and top-edge alignment. The recessed line remains click-through.</p>
         </div>
         <div className="placement-controls">
           <label>
-            DISPLAY
+            Display
             <select
               aria-label="Island display"
               onChange={(event) =>
@@ -3020,11 +2984,11 @@ function SettingsPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Eleme
               }
               value={placement.displayId ?? 'auto'}
             >
-              <option value="auto">AUTO / CURRENT</option>
+              <option value="auto">Auto · current</option>
               {displays.map((display) => (
                 <option key={display.id} value={display.id}>
-                  {display.label.toUpperCase()}
-                  {display.primary ? ' / PRIMARY' : ''}
+                  {display.label}
+                  {display.primary ? ' · primary' : ''}
                 </option>
               ))}
             </select>
@@ -3038,17 +3002,15 @@ function SettingsPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Eleme
                 onClick={() => updatePlacement({ ...placement, alignment })}
                 type="button"
               >
-                {alignment.toUpperCase()}
+                {alignment}
               </button>
             ))}
           </div>
         </div>
-      </div>
+      </ControlSection>
 
-      <div className="settings-section">
+      <ControlSection icon={Sparkles} title="Desktop companion">
         <div>
-          <span className="eyebrow">{'// DESKTOP PET'}</span>
-          <h2>MARVI COMPANION</h2>
           <p>A click-through desktop companion mirrors Marvi&apos;s live assistant state.</p>
         </div>
         <div className="placement-controls pet-controls">
@@ -3059,10 +3021,10 @@ function SettingsPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Eleme
             role="switch"
             type="button"
           >
-            {petPreferences.enabled ? 'PET / VISIBLE' : 'PET / HIDDEN'}
+            {petPreferences.enabled ? 'Companion · visible' : 'Companion · hidden'}
           </button>
           <label>
-            DISPLAY
+            Display
             <select
               aria-label="Pet display"
               onChange={(event) =>
@@ -3073,11 +3035,11 @@ function SettingsPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Eleme
               }
               value={petPreferences.displayId ?? 'auto'}
             >
-              <option value="auto">AUTO / CURRENT</option>
+              <option value="auto">Auto · current</option>
               {displays.map((display) => (
                 <option key={display.id} value={display.id}>
-                  {display.label.toUpperCase()}
-                  {display.primary ? ' / PRIMARY' : ''}
+                  {display.label}
+                  {display.primary ? ' · primary' : ''}
                 </option>
               ))}
             </select>
@@ -3091,12 +3053,12 @@ function SettingsPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Eleme
                 onClick={() => updatePet({ ...petPreferences, side })}
                 type="button"
               >
-                {side.toUpperCase()}
+                {side}
               </button>
             ))}
           </div>
           <label>
-            SIZE
+            Size
             <select
               aria-label="Pet size"
               onChange={(event) =>
@@ -3104,30 +3066,21 @@ function SettingsPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Eleme
               }
               value={petPreferences.scale}
             >
-              <option value={0.4}>TINY / 40%</option>
-              <option value={0.5}>CODEX / 50%</option>
-              <option value={0.7}>MEDIUM / 70%</option>
-              <option value={1}>FULL / 100%</option>
+              <option value={0.4}>Tiny · 40%</option>
+              <option value={0.5}>Compact · 50%</option>
+              <option value={0.7}>Medium · 70%</option>
+              <option value={1}>Full · 100%</option>
             </select>
           </label>
         </div>
-      </div>
+      </ControlSection>
 
-      <div className="settings-section device-summary">
-        <div>
-          <span>MICROPHONE</span>
-          <strong>{DEVICE_COPY[deviceState(runtime, 'microphone')]}</strong>
-        </div>
-        <div>
-          <span>CAMERA</span>
-          <strong>{DEVICE_COPY[deviceState(runtime, 'camera')]}</strong>
-        </div>
-        <div>
-          <span>GATEWAY</span>
-          <strong>{runtime.state.toUpperCase()}</strong>
-        </div>
-      </div>
-    </section>
+      <ControlSection icon={Gauge} title="Device status">
+        <ControlRow action={<ControlPill>{DEVICE_COPY[deviceState(runtime, 'microphone')]}</ControlPill>} title="Microphone" />
+        <ControlRow action={<ControlPill>{DEVICE_COPY[deviceState(runtime, 'camera')]}</ControlPill>} title="Camera" />
+        <ControlRow action={<ControlPill tone={stateTone(runtime.state)}>{runtime.state}</ControlPill>} title="Gateway" />
+      </ControlSection>
+    </ControlPage>
   )
 }
 
@@ -3169,30 +3122,41 @@ function AboutPanel({
   ]
 
   return (
-    <section className="about-page">
-      <div className="about-identity">
+    <ControlPage className="about-control-page" title="About">
+      <div className="control-about-identity">
         <BrandIcon className="brand-icon-about" />
         <div>
-          <span className="eyebrow">{'// LOCAL VOICE + VISION SYSTEM'}</span>
-          <h2>MARVI OS</h2>
-          <p>Always-on Windows assistant built around a compact voice-first surface.</p>
+          <h2>Marvi OS</h2>
+          <p>Local voice and vision assistant for Windows</p>
         </div>
       </div>
-      <dl className="about-facts">
+
+      <ControlSection icon={Info} title="Build information">
         {facts.map(([label, value]) => (
-          <div key={label}>
-            <dt>{label}</dt>
-            <dd>{value}</dd>
-          </div>
+          <ControlRow
+            action={<span className="control-value">{value}</span>}
+            key={label}
+            title={label.toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase())}
+          />
         ))}
-      </dl>
-      <AboutUpdates version={build.version} />
-      <div className="about-actions">
-        <button onClick={() => void window.marvi?.copyDiagnostics()} type="button">
-          COPY DIAGNOSTICS
-        </button>
-      </div>
-    </section>
+      </ControlSection>
+
+      <ControlSection icon={Activity} title="Updates">
+        <AboutUpdates version={build.version} />
+      </ControlSection>
+
+      <ControlSection icon={Wrench} title="Support">
+        <ControlRow
+          action={
+            <ControlButton onClick={() => void window.marvi?.copyDiagnostics()}>
+              Copy diagnostics
+            </ControlButton>
+          }
+          description="Copies a redacted local report for troubleshooting."
+          title="Diagnostics"
+        />
+      </ControlSection>
+    </ControlPage>
   )
 }
 

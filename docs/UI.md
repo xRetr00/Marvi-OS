@@ -107,7 +107,7 @@ Current native measurements and the keep/draft decision are tracked in
 The control center uses Electron's hidden-titlebar overlay. The renderer paints
 the 34 px drag surface and page title; Windows paints minimize, maximize, and
 close at the right edge. Renderer actions use 24 px hit targets and 13.9 px
-Lucide glyphs, matching the pinned Hermes shell. Interactive children opt out
+Lucide glyphs, matching the pinned upstream shell. Interactive children opt out
 of the drag region. Close still hides to tray per the always-on contract; quit
 stays on the tray menu.
 
@@ -121,11 +121,11 @@ vendored local asset (`apps/desktop/src/renderer/src/assets/background/`),
 never fetched at runtime. Backdrop opacity and translucency are persisted
 per-machine. Reduced-motion users get static text and no exit choreography.
 
-The shell follows Hermes chrome directly: a 34 px hidden titlebar lets Electron
+The shell uses compact desktop chrome: a 34 px hidden titlebar lets Electron
 paint native Windows controls into the right edge. A single 20 px status bar
 occupies the bottom shell track across the full window, including beneath the
 active sidebar, and splits icon-led actions into left and right groups. Status
-actions use Hermes labels, detail text, hover transitions, and Lucide glyphs.
+actions use compact labels, detail text, hover transitions, and Lucide glyphs.
 The restrained blue eight-cell live voice meter is intentionally retained from
 Marvi's earlier voice design. Its version action opens build/update details
 without navigating away from the current task.
@@ -228,10 +228,10 @@ border animation.
 
 The rest of Chat adapts Assistant UI's thread composition without adopting a
 second runtime. Entering Chat replaces the control-center navigation with a
-dedicated conversation sidebar adapted from the pinned local Hermes desktop.
+dedicated conversation sidebar adapted from the pinned upstream desktop.
 That sidebar owns new-chat, search, recent threads, row actions, export, and a
 clear return to the control center. Chat has no secondary page header. A compact
-560px reading column owns message flow; each turn follows the Hermes-style
+560px reading column owns message flow; each turn follows the compact upstream
 human/assistant pair: one slim full-width prompt surface followed by unboxed
 Marvi prose. Sender labels remain available to assistive technology instead of
 repeating as visible headers, while timestamps and actions appear on hover or
@@ -240,7 +240,7 @@ Durable threads and branches back the sidebar, edit, and regenerate actions.
 GitHub-flavored Markdown, math, tables, code blocks, source rows, image/file
 parts, read aloud, local-native dictation, model selection, and context details
 use distinct bounded modules instead of one undifferentiated text column.
-Tool activity and sources follow Hermes directly: transparent faded disclosure
+Tool activity and sources use transparent faded disclosure
 rows at rest, a small `Sources · count` label, and compact flat result rows only
 after expansion. Structured results use thin dividers instead of nested paper
 cards, with progressive disclosure and no model-authored UI code. Context
@@ -252,15 +252,20 @@ position reveals a return-to-latest control. Dynamic follow-up suggestions are
 not part of the product. See `docs/CHAT.md` for the authority and safety
 boundaries.
 
-Overview is the denser operational exception to the otherwise simple pages. It
-uses four numbered modules: Current State, Voice Path, Service Health, and
-Context. Every value sits in a labeled field, status badge, or bounded cell;
-there is no loose status prose. Other pages except Voice and Chat use one
-compact labeled lead card followed by simple bordered value rows and lists.
-Those secondary pages use a quieter editorial module stack: corner-marked lead,
-bounded active module, indexed value rows, and restrained hover feedback. Do
-not repeat the Overview dashboard density on configuration and history pages.
-Voice and Chat retain their purpose-built interaction layouts.
+Overview and every secondary control-center page share one compact desktop
+grammar: a quiet page heading, small icon-led section headings, flat divided
+rows, restrained status pills, and 28 px actions. Configuration pages may use
+pickers or editors inside those sections, but never loose status prose, noisy
+ASCII framing, or a grid of decorative cards. Content is capped at 880 px so
+labels and values remain easy to scan. Narrow windows stack row actions below
+their labels. Voice and Chat retain their purpose-built interaction layouts.
+
+Settings opens as one inset dialog with a 208 px navigation rail and the same
+content grammar. The rail uses sentence-case 28 px rows, a compact icon button
+to close, and becomes a two-column strip before stacking above content on small
+windows. The general navigation rail is 212 px expanded and 52 px collapsed;
+the app logo stays visible in the collapsed rail and the title bar owns the
+collapse action.
 
 Async page work uses the shared Processing Card. It shows a real percentage
 only when the underlying operation reports one; otherwise the scan and moving
