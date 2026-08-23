@@ -21,6 +21,8 @@ const css = readFileSync(join(__dirname, 'assets/main.css'), 'utf8').replace(/\r
 const voiceOrb = readFileSync(join(__dirname, 'orb/VoiceOrb.tsx'), 'utf8')
 const app = readFileSync(join(__dirname, 'App.tsx'), 'utf8')
 const chat = readFileSync(join(__dirname, 'chat/Chat.tsx'), 'utf8')
+const titleBar = readFileSync(join(__dirname, 'components/TitleBar.tsx'), 'utf8')
+const controlSurface = readFileSync(join(__dirname, 'components/control-surface.tsx'), 'utf8')
 
 /** The rule block for a selector, so a moved property still fails the test. */
 function block(selector: string): string {
@@ -86,18 +88,18 @@ describe('shell layout', () => {
     expect(app).not.toContain('about-provenance')
   })
 
-  it('organises Overview as four labelled dashboard modules', () => {
-    expect(app).toContain('overview-dashboard')
-    expect(app).toContain('CURRENT STATE')
-    expect(app).toContain('VOICE PATH')
-    expect(app).toContain('SERVICE HEALTH')
-    expect(app).toContain('CONTEXT')
-    expect(css).toContain('grid-template-columns: repeat(12, minmax(0, 1fr))')
+  it('organises Overview as compact divided sections', () => {
+    expect(app).toContain('title="Current state"')
+    expect(app).toContain('title="Voice route"')
+    expect(app).toContain('title="Systems"')
+    expect(app).toContain('title="Context"')
+    expect(controlSurface).toContain('className="control-row"')
+    expect(lastBlock('.control-page')).toContain('width: min(880px, 100%)')
   })
 
   it('uses a real collapse glyph and compositor view transition', () => {
     expect(app).toContain('document.startViewTransition')
-    expect(app).toContain('aria-pressed={collapsed}')
+    expect(titleBar).toContain('sidebarCollapsed ?')
     expect(app).not.toContain("collapsed ? '[>]' : '[<]'")
     expect(css).toContain('view-transition-name: marvi-sidebar')
   })
@@ -107,14 +109,16 @@ describe('shell layout', () => {
     const compactLogoRule = css.slice(css.lastIndexOf('.sidebar.collapsed .brand-icon-sidebar'))
     expect(compactLogoRule.slice(0, compactLogoRule.indexOf('}'))).toContain('display: block')
     expect(app).toContain('<TooltipProvider>')
-    expect(app).toContain("label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}")
+    expect(titleBar).toContain("sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'")
     expect(css).toContain('.ui-tooltip')
   })
 
-  it('gives secondary pages a bounded module hierarchy', () => {
-    expect(css).toContain("content: '+  ACTIVE MODULE'")
-    expect(css).toContain('.page-lead-module')
-    expect(css).toContain('.single-page.panel > .service-list')
+  it('gives secondary pages a compact divided hierarchy', () => {
+    expect(app).toContain('<ControlPage')
+    expect(app).toContain('<ControlSection')
+    expect(css).toContain('.control-section-head')
+    expect(css).toContain('.control-row:first-child')
+    expect(css).toContain('.settings-frame')
   })
 
   it('keeps one window-wide status bar below both sidebars and page content', () => {
@@ -124,7 +128,7 @@ describe('shell layout', () => {
     expect(chat).not.toContain('{statusbar}')
   })
 
-  it('retains the blue live voice meter inside the shell chrome', () => {
+  it('retains the blue live voice meter inside the compact chrome', () => {
     expect(lastBlock('.voice-level-meter')).toContain('color: var(--ui-accent)')
     expect(app).toContain("value > 0.02 ? ' is-live' : ''")
   })

@@ -1985,7 +1985,7 @@
   font-size: 6.5px;
 }
 
-/* Transcript -------------------------------------------------
+/* Compact transcript ------------------------------------------------------
  * A turn is a compact human/assistant pair, not two labeled presentation
  * cards. The human prompt is the only painted surface. Marvi's answer stays
  * on the page plane and its secondary controls appear only on interaction. */
@@ -2169,7 +2169,7 @@
   font-size: 8px;
 }
 
-/* Result and tool treatment ------------------------------------ */
+/* Compact result and tool treatment ----------------------------------- */
 .chat-widgets {
   gap: 5px;
   margin-top: 6px;

@@ -1,5 +1,5 @@
 /**
- * Hidden title bar. Electron owns the native Windows window
+ * Compact hidden title bar. Electron owns the native Windows window
  * controls; this renderer strip owns only the page title and app action.
  *
  * Contract: the whole bar is a drag region (-webkit-app-region: drag); every
@@ -7,7 +7,7 @@
  * toggles maximize, matching Windows shell expectations.
  */
 import { haptic } from '../lib/haptics'
-import { Settings } from 'lucide-react'
+import { PanelLeftClose, PanelLeftOpen, Settings } from 'lucide-react'
 import { UiTooltip } from './ui/tooltip'
 
 interface TitleBarProps {
@@ -17,12 +17,35 @@ interface TitleBarProps {
    * where a person looks for it, and it keeps configuration out of the
    * sidebar, which is for the things you actually use. */
   onSettings: () => void
+  onToggleSidebar?: () => void
+  sidebarCollapsed?: boolean
 }
 
-export function TitleBar({ page, onSettings }: TitleBarProps): React.JSX.Element {
+export function TitleBar({
+  onSettings,
+  onToggleSidebar,
+  page,
+  sidebarCollapsed = false
+}: TitleBarProps): React.JSX.Element {
   return (
     <header className="titlebar">
       <div className="titlebar-brand">
+        {onToggleSidebar ? (
+          <UiTooltip label={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'} side="bottom">
+            <button
+              aria-label={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
+              aria-pressed={!sidebarCollapsed}
+              className="titlebar-control titlebar-sidebar-toggle no-drag"
+              onClick={() => {
+                haptic('selection')
+                onToggleSidebar()
+              }}
+              type="button"
+            >
+              {sidebarCollapsed ? <PanelLeftOpen aria-hidden="true" /> : <PanelLeftClose aria-hidden="true" />}
+            </button>
+          </UiTooltip>
+        ) : null}
         <span className="titlebar-page">{page.toUpperCase()}</span>
       </div>
       <div className="titlebar-spacer" />

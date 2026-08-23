@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
+import { Brain, Route } from 'lucide-react'
 
 import type { ModelCard, ModelProvider, ProviderPage, UpstreamPage } from '../../../shared/runtime'
-import { PageLead } from './page-lead'
-import { AsciiRule } from './ui/ascii-rule'
+import { ControlPage, ControlSection } from './control-surface'
 import { Picker, type PickerOption } from './ui/picker'
 import { ProcessingCard } from './ui/processing-card'
 
@@ -93,14 +93,10 @@ export function ModelsPanel(): React.JSX.Element {
   }
 
   return (
-    <section className="single-page panel">
-      <PageLead
-        description="Choose the provider, model, and reasoning effort Marvi should use."
-        icon="models"
-        title="Models"
-      />
-
-      <AsciiRule />
+    <ControlPage
+      description="Choose the provider, model, and reasoning effort used for new sessions."
+      title="Models"
+    >
 
       {!providers && !error ? (
         <ProcessingCard
@@ -119,9 +115,10 @@ export function ModelsPanel(): React.JSX.Element {
         </p>
       ) : null}
 
+      <ControlSection icon={Brain} title="Default model">
       <div className="choice-flow">
         <div className="choice-row">
-          <span className="choice-label">PROVIDER</span>
+          <span className="choice-label">Provider</span>
           <Picker
             options={connected.map((entry) => ({
               value: entry.name,
@@ -146,7 +143,7 @@ export function ModelsPanel(): React.JSX.Element {
 
         <div className="choice-row">
           <span className="choice-label">
-            MODEL
+            Model
             <span className="choice-hint">
               {!provider
                 ? 'Choose a provider first'
@@ -179,7 +176,7 @@ export function ModelsPanel(): React.JSX.Element {
 
         <div className="choice-row">
           <span className="choice-label">
-            EFFORT
+            Effort
             <span className="choice-hint">
               {!chosen
                 ? 'Choose a model first'
@@ -205,8 +202,16 @@ export function ModelsPanel(): React.JSX.Element {
           />
         </div>
 
-        {active?.routesUpstream ? <UpstreamChoice model={model} onSave={save} /> : null}
       </div>
+      </ControlSection>
+
+      {active?.routesUpstream ? (
+        <ControlSection icon={Route} title="Routing">
+          <div className="choice-flow">
+            <UpstreamChoice model={model} onSave={save} />
+          </div>
+        </ControlSection>
+      ) : null}
 
       {loading ? (
         <ProcessingCard
@@ -222,7 +227,7 @@ export function ModelsPanel(): React.JSX.Element {
           API may not be reachable from this machine.
         </p>
       ) : null}
-    </section>
+    </ControlPage>
   )
 }
 
@@ -263,7 +268,7 @@ function UpstreamChoice({
     <>
       <div className="choice-row">
         <span className="choice-label">
-          ROUTING
+          Routing policy
           <span className="choice-hint">Resolved per request against live numbers</span>
         </span>
         <Picker
@@ -291,7 +296,7 @@ function UpstreamChoice({
 
       <div className="choice-row">
         <span className="choice-label">
-          PREFER ONE PROVIDER
+          Preferred provider
           <span className="choice-hint">
             {upstreams.length ? `${upstreams.length} can serve this model` : 'Optional'}
           </span>

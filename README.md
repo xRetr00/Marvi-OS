@@ -35,7 +35,7 @@ Current implemented desktop surfaces:
   additional Chromium renderer. Full evidence is recorded in
   [`docs/phases/12-pet-companion.md`](docs/phases/12-pet-companion.md) pending a
   keep/draft decision;
-- icon-led sidebar, window-wide status bar with Marvi's live blue
+- icon-led sidebar, window-wide compact status bar with Marvi's live blue
   voice meter, overview, and About build/update information;
 - Collapse wordmark + readable JetBrains Mono monochrome design system;
 - shared Provider, Chat, and Voice session telemetry for authoritative token
@@ -45,10 +45,10 @@ Current implemented desktop surfaces:
   safe GFM/math rendering, authoritative context facts, validated generative
   widgets, read aloud through Marvi's configured Kokoro voice, and a dedicated
   searchable conversation sidebar, compact human/assistant turn pairs, tool
-  disclosures, source rows, and shell chrome adapted from an internal NeuRetro desktop;
-- a card-organized Overview plus editorial labeled page modules, an animated
-  branded sidebar rail, consistent control tooltips, and audible desktop
-  haptic feedback;
+  disclosures, source rows, and compact shell chrome adapted from an internal desktop;
+- compact divided control surfaces across every non-Voice/non-Chat page, an
+  inset settings dialog with a persistent navigation rail, a collapsible
+  branded sidebar, consistent control tooltips, and audible desktop haptics;
 - passive `76×8` top-edge Island seed that expands for active voice states;
 - canonical app icon rendered in the app, tray, taskbar/package, sidebar, and About.
 - action, notification, error, confirmation, and persistent YOLO Island states;

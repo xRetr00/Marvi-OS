@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Activity, CalendarDays, RefreshCw, Server } from 'lucide-react'
 
 import type { UsageCounters, UsageDay, UsagePage } from '../../../shared/runtime'
-import { AbstractIcon } from './abstract-icon'
-import { PageLead } from './page-lead'
-import { AsciiRule } from './ui/ascii-rule'
+import { ControlButton, ControlPage, ControlSection } from './control-surface'
 import { ProcessingCard } from './ui/processing-card'
 import { UiTooltip } from './ui/tooltip'
 
@@ -60,11 +59,11 @@ function UsageCalendar({ days }: { days: UsageDay[] }): React.JSX.Element {
         })}
       </div>
       <div className="usage-calendar-legend" aria-hidden="true">
-        LESS{' '}
+        Less{' '}
         {[0, 1, 2, 3, 4].map((level) => (
           <i className={`level-${level}`} key={level} />
         ))}{' '}
-        MORE
+        More
       </div>
     </div>
   )
@@ -145,27 +144,11 @@ export function UsagePanel(): React.JSX.Element {
   }
 
   return (
-    <section className="single-page panel usage-page">
-      <PageLead
-        description="Every model token Marvi records, persisted by the Gateway and reconciled with provider account APIs."
-        icon="activity"
-        title="Usage"
-      />
-      <div className="usage-toolbar">
-        <span>UTC LEDGER / CONTENT-FREE</span>
-        <UiTooltip label="Refresh provider account totals">
-          <button
-            className="phase"
-            disabled={refreshing}
-            onClick={() => void load(true)}
-            type="button"
-          >
-            <AbstractIcon name="activity" size={14} />{' '}
-            {refreshing ? 'REFRESHING' : 'REFRESH ACCOUNTS'}
-          </button>
-        </UiTooltip>
-      </div>
-      <AsciiRule />
+    <ControlPage
+      className="usage-page"
+      description="Provider-reported and locally recorded model usage. Message content is never stored here."
+      title="Usage"
+    >
 
       {loading ? (
         <ProcessingCard
@@ -180,35 +163,40 @@ export function UsagePanel(): React.JSX.Element {
         <p className="notice notice-warn">{error}</p>
       ) : page ? (
         <>
+          <ControlSection
+            action={
+              <UiTooltip label="Refresh provider account totals">
+                <ControlButton disabled={refreshing} onClick={() => void load(true)}>
+                  <RefreshCw aria-hidden="true" className={refreshing ? 'is-spinning' : ''} />
+                  {refreshing ? 'Refreshing' : 'Refresh'}
+                </ControlButton>
+              </UiTooltip>
+            }
+            icon={Activity}
+            title="Totals"
+          >
           <div className="usage-metrics">
             <UsageMetric
-              label="BILLABLE"
+              label="Billable"
               value={count(totals.billable)}
               note="fresh input + output"
             />
-            <UsageMetric label="INPUT" value={count(totals.input)} note="all prompt tokens" />
-            <UsageMetric label="OUTPUT" value={count(totals.output)} note="generated tokens" />
-            <UsageMetric label="CACHE" value={count(totals.cachedInput)} note="reused input" />
+            <UsageMetric label="Input" value={count(totals.input)} note="all prompt tokens" />
+            <UsageMetric label="Output" value={count(totals.output)} note="generated tokens" />
+            <UsageMetric label="Cache" value={count(totals.cachedInput)} note="reused input" />
           </div>
-          <section className="usage-card">
-            <header>
-              <span>{'// ACTIVITY / 365 DAYS'}</span>
-              <small>Each square is one UTC day</small>
-            </header>
+          </ControlSection>
+          <ControlSection description="Each square is one UTC day." icon={CalendarDays} title="Activity · 365 days">
             <UsageCalendar days={page.daily} />
-          </section>
-          <section className="usage-card">
-            <header>
-              <span>{'// PROVIDER SOURCES'}</span>
-              <small>Account totals never replace Marvi counters</small>
-            </header>
+          </ControlSection>
+          <ControlSection description="Account totals never replace local counters." icon={Server} title="Provider sources">
             <div className="usage-provider-list">
               {page.providers
                 .filter((provider) => provider.configured || provider.usage.billable > 0)
                 .map((provider) => (
                   <article className="usage-provider" key={provider.name}>
                     <div>
-                      <span>{provider.label.toUpperCase()}</span>
+                      <span>{provider.label}</span>
                       <small>{provider.accountCollection}</small>
                     </div>
                     <div>
@@ -218,9 +206,9 @@ export function UsagePanel(): React.JSX.Element {
                   </article>
                 ))}
             </div>
-          </section>
+          </ControlSection>
         </>
       ) : null}
-    </section>
+    </ControlPage>
   )
 }
