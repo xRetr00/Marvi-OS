@@ -31,8 +31,14 @@ def workspace(tmp_path, monkeypatch):
 def test_it_refuses_when_there_is_nowhere_it_may_work(monkeypatch) -> None:
     """A coding agent pointed at an unconfigured root is the worst possible
     place to start guessing, so absent configuration refuses rather than
-    defaulting to the whole disk."""
+    defaulting to the whole disk.
+
+    `which` is stubbed because otherwise this asserts something about the
+    machine it runs on: it passed here and failed the release, where no coding
+    agent is installed and the earlier check answered first.
+    """
     monkeypatch.delenv("MARVI_WORKSPACE_ROOT", raising=False)
+    monkeypatch.setattr(delegate.shutil, "which", lambda _cmd: "claude")
 
     answer = delegate.start("look at the thing")
 
