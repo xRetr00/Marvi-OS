@@ -16,7 +16,8 @@ the desktop application. The desktop icon source is
 
 Phases 2, 4, 5, and 6 are complete. Phase 3 is in hardware acceptance,
 Phase 7 has the update handoff working and a packaged installer building, and
-and Phase 8 is complete. The
+Phase 8's vision ownership and contracts are complete with native camera
+calibration still pending. The
 native-Windows stack runs Nemotron 3.5 streaming ASR through `parakeet-rs`,
 Kokoro 82M, an official LiveKit `AgentSession`, and an Electron
 LiveKit microphone/playout participant. The remaining Phase 3 gate is a real
@@ -71,9 +72,10 @@ Current implemented desktop surfaces:
 - proactive speech on a CPU model published through the LiveKit room, so Marvi
   can say something unprompted without borrowing the streaming voice stack or
   hearing itself;
-- motion-gated CPU face recognition that knows the owner from a visitor, queues
-  unfamiliar faces with a cropped preview and a timestamp, and reports them when
-  you get home rather than while you are out;
+- an independently updated Smart Room sidecar as the sole camera/vision owner:
+  local face, gesture, posture, and visitor logic publishes bounded facts and
+  events through authenticated Gateway contracts; the desktop has no plugin UI
+  or direct plugin connection;
 - a protected sleep mode where the only thing Marvi may do to a sleeping room is
   switch a light off — enforced at the room boundary, and not overridable by
   YOLO.

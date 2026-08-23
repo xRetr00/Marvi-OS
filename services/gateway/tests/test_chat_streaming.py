@@ -343,9 +343,8 @@ def test_what_the_plugins_already_know_reaches_the_prompt(tmp_path) -> None:
     """`plugins.context_lines` existed, was documented, and had no caller.
 
     The room engine offers a context line carrying its own vision block --
-    whether the owner is visible, what they appear to be doing. Marvi collected
-    the provider and never called it, so it ran a second camera pipeline while
-    ignoring the answer it already had.
+    whether the owner is visible and what they appear to be doing. Marvi must
+    consume that bounded line through the plugin contract.
     """
 
     class Plugin:

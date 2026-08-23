@@ -8,8 +8,8 @@ grant.
 
 from __future__ import annotations
 
-import re
 import os
+import re
 import sys
 from types import SimpleNamespace
 
@@ -292,6 +292,13 @@ def test_a_bridged_tool_requires_confirmation_unless_marvi_says_otherwise() -> N
     assert registry.get("p_read").sensitive is False
 
 
+def test_room_vision_reads_are_safe_but_identity_changes_are_not() -> None:
+    from marvi_gateway.room import READ_ONLY_PLUGIN_TOOLS
+
+    assert "smart_room_vision" in READ_ONLY_PLUGIN_TOOLS
+    assert "smart_room_vision_identity" not in READ_ONLY_PLUGIN_TOOLS
+
+
 def test_json_schema_becomes_required_and_optional_arguments() -> None:
     from marvi_gateway.tools import ToolRegistry
 
@@ -436,8 +443,7 @@ def test_a_plugins_context_line_reaches_the_prompt() -> None:
 
     `build_context_line` carries what the engine knows about the room, including
     its own vision block — whether the owner is visible, what they appear to be
-    doing, whether they are asleep. Marvi collected the provider and ignored it
-    while running a second camera pipeline.
+    doing, whether they are asleep. Marvi consumes it without owning a camera.
     """
     context = plugins.PluginContext(plugin="room")
     context.register_context_provider("room", lambda: "Room: reading, light 40%, owner present")

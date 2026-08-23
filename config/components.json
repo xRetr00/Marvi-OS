@@ -49,38 +49,13 @@
       "essential": true
     },
     {
-      "name": "vision-faces",
-      "kind": "model",
-      "title": "Face recognition (buffalo_l)",
-      "why": "Recognises you and tells a known face from a visitor.",
-      "needed_for": [
-        "vision"
-      ],
-      "source": {
-        "type": "url",
-        "base_url": "https://github.com/deepinsight/insightface/releases/download/v0.7"
-      },
-      "install_to": "models/vision/models/buffalo_l",
-      "extra": {
-        "note": "InsightFace would fetch this itself on first use, which turns the first face Marvi ever sees into a silent 290 MB download. Installed up front instead, into the root vision.py passes to FaceAnalysis."
-      },
-      "binary": "w600k_r50.onnx",
-      "files": {
-        "buffalo_l.zip": [
-          288621354,
-          "80ffe37d8a5940d59a7384c201a2a38d4741f2f3c51eef46ebb28218a7b0ca2f"
-        ]
-      }
-    },
-    {
       "name": "gateway-python",
       "kind": "python",
       "title": "Gateway dependencies",
       "why": "The Gateway will not start without them.",
       "needed_for": [
         "gateway",
-        "voice",
-        "vision"
+        "voice"
       ],
       "source": {
         "type": "command"

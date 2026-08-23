@@ -703,3 +703,26 @@ failures were invisible to every test that existed.
 - Strengthened non-Voice/non-Chat pages with corner-marked lead modules,
   bounded active sections, indexed rows, and restrained interaction feedback.
   Overview remains the only dense dashboard; Voice and Chat remain unchanged.
+
+## 2026-08-23 — Smart Room becomes the sole vision owner
+
+- Reviewed the real sidecar-to-desktop route before changing presentation. The
+  production path remains Smart Room state/events/RPC → `RoomSidecar` → Gateway
+  runtime/tools/journal → existing Electron IPC → Room page and Dynamic Island.
+  No plugin UI or renderer-to-plugin transport was introduced.
+- Moved camera capture, owner/visitor identity, gesture/posture analysis, model
+  downloads, visitor retention, and vision health into the independent Smart
+  Room repository. Only bounded facts and structured events cross the plugin
+  boundary; raw frames and embeddings do not.
+- Removed Gateway's `VisionService`, face library, cloud frame-description path,
+  vision models/components, storage paths, dependencies, and homecoming face
+  scheduler. Visitor reporting now has one owner in the sidecar.
+- Added read-only and identity-mutating plugin contracts separately so Marvi can
+  permit observations while keeping enrollment/approval behind its normal
+  confirmation or YOLO policy.
+- Extended the existing Room page with camera, people/owner, activity/posture,
+  gesture, and pending-visitor facts. Vision and device status are derived from
+  Gateway health, while notable room events continue to feed the compact Island.
+- Verified the Smart Room fixture suite, focused Gateway contracts, full desktop
+  typechecking, and all Electron renderer/main tests. Native camera calibration
+  and soak remain a hardware acceptance step.

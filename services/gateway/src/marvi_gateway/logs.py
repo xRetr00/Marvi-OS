@@ -9,7 +9,7 @@ lost**. Everything this module does follows from that.
 Python drops things on the floor in more ways than one file handler catches, so
 all of them are claimed:
 
-* **Library loggers.** `httpx`, `uvicorn`, `apscheduler`, `insightface` and
+* **Library loggers.** `httpx`, `uvicorn`, and `apscheduler`
   friends log to their own names. They are routed to a subsystem rather than
   ignored — a connection error from `httpx` is usually the most useful line in
   the file.
@@ -83,8 +83,6 @@ MODULE_SUBSYSTEMS: dict[str, str] = {
     "marvi_gateway.journal": "mind",
     "marvi_gateway.memory": "memory",
     "marvi_gateway.chat": "chat",
-    "marvi_gateway.vision": "vision",
-    "marvi_gateway.describe": "vision",
     "marvi_gateway.room": "room",
     "marvi_gateway.announce": "voice",
     "marvi_gateway.setup": "setup",
@@ -99,7 +97,6 @@ MODULE_SUBSYSTEMS: dict[str, str] = {
     "fastapi": "gateway",
     "apscheduler": "mind",
     "livekit": "voice",
-    "insightface": "vision",
     "composio": "gateway",
     "mcp": "gateway",
 }

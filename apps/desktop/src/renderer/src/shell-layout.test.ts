@@ -127,7 +127,7 @@ describe('what the shell claims about the devices', () => {
       state: 'ready' as const,
       components: {
         voice: { state: 'ready' as const, detail: '' },
-        vision: { state: 'pending' as const, detail: 'set MARVI_VISION to enable' }
+        vision: { state: 'pending' as const, detail: 'enable Smart Room vision' }
       }
     }
     expect(deviceState(running, 'microphone')).toBe('on')

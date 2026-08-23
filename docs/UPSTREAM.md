@@ -32,8 +32,8 @@ be updated with the exact version/commit and local modification path.
 | Durable agent graph | [langchain-ai/langgraph](https://github.com/langchain-ai/langgraph) | MIT | revisit only after a measured workflow outgrows Gateway jobs + LiveKit tasks | deferred |
 | Durable execution | [temporalio/sdk-python](https://github.com/temporalio/sdk-python) | MIT | operationally excessive for initial single-PC product | deferred |
 | Proactive TTS | [kyutai-labs/pocket-tts](https://github.com/kyutai-labs/pocket-tts) 2.1.0 | see model card | 100M-parameter CPU TTS for one-shot announcements; published into the LiveKit room so the client's AEC applies (ADR-019) | adopted |
-| Face recognition | [deepinsight/insightface](https://github.com/deepinsight/insightface) 0.7.x, `buffalo_l` | MIT code; model card terms | CPU-only ONNX embeddings behind a motion gate so vision never competes with the voice stack for VRAM | adopted |
-| Camera capture | [opencv/opencv-python](https://github.com/opencv/opencv-python) headless 4.x | Apache-2.0 | capture and JPEG crops only; no display stack pulled in | adopted |
+| Face recognition | [deepinsight/insightface](https://github.com/deepinsight/insightface) 0.7.x, `buffalo_l` | MIT code; model card terms | Adopted by the independent Smart Room sidecar; Marvi consumes bounded facts only | adopted in plugin |
+| Camera capture | [opencv/opencv-python](https://github.com/opencv/opencv-python) headless 4.x | Apache-2.0 | Owned exclusively by the independent Smart Room sidecar | adopted in plugin |
 | Browser automation | [microsoft/playwright-python](https://github.com/microsoft/playwright-python) 1.62.0 | Apache-2.0 | one long-lived Chromium page behind the Gateway; reuses the already-cached browser, no anti-detect stack | adopted |
 | Web search | [Brave Search API](https://brave.com/search/api/) / SearXNG | commercial API terms / AGPL-3.0 self-hosted | env-selected provider behind one adapter; results always enveloped | adopted |
 | Memory store | Python stdlib `sqlite3` + FTS5 (SQLite 3.50.4) | PSF / public domain | local episodic and semantic memory behind a provider seam; no vector database or embedding model | adopted |

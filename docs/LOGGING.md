@@ -12,7 +12,6 @@ Where to look when something is wrong, and what guarantees the files make.
 | `gateway.log` | HTTP, tool router, confirmations, uvicorn |
 | `providers.log` | model calls, tokens, cache hits, cooldowns, failover, `httpx` |
 | `voice.log` | the agent worker, LiveKit, STT/TTS, announcements |
-| `vision.log` | camera, faces, visitors |
 | `room.log` | sidecar RPC, device actions, sleep-mode refusals |
 | `mind.log` | journal, policy, deliberation, the scheduler |
 | `memory.log`, `chat.log` | as named |
@@ -21,6 +20,10 @@ Where to look when something is wrong, and what guarantees the files make.
 **Start with `errors.log`.** Each other file answers "what was this subsystem
 doing"; `errors.log` answers "what went wrong", which is the question anyone
 actually has. It is usually the only file needed.
+
+Smart Room's own camera, face, visitor, device, and automation logs live in
+`%LOCALAPPDATA%\Marvi-OS\plugin-data\smart_room\runtime.log`. Gateway records
+only its lifecycle/RPC boundary in `room.log`.
 
 Files rotate at 8 MB with three backups (`errors.log` at 4 MB with five, since
 it is small and worth more history). Tune with `MARVI_LOG_MAX_BYTES`,
@@ -33,7 +36,7 @@ it is small and worth more history). Tune with `MARVI_LOG_MAX_BYTES`,
 Python discards things in more ways than one file handler catches, so all of
 them are claimed:
 
-- **Library loggers.** `httpx`, `uvicorn`, `apscheduler`, `insightface` and the
+- **Library loggers.** `httpx`, `uvicorn`, `apscheduler`, and the
   rest are routed to a subsystem rather than ignored. A connection error from
   `httpx` is usually the most useful line in the file.
 - **Uncaught exceptions on every thread.** `sys.excepthook` covers the main

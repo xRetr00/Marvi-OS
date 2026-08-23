@@ -575,7 +575,7 @@ def register_room_tools(registry, sidecar: RoomSidecar) -> None:
 #: Marvi decides this, not the plugin: a plugin declaring its own writes
 #: harmless is exactly the claim that should not be taken at face value.
 READ_ONLY_PLUGIN_TOOLS = frozenset(
-    {"smart_room_state", "smart_room_health", "smart_room_diagnostic"}
+    {"smart_room_state", "smart_room_health", "smart_room_diagnostic", "smart_room_vision"}
 )
 
 #: Plugin tools that change the room, mapped to the action name the sleep rule

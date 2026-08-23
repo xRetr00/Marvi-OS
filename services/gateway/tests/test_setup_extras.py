@@ -304,7 +304,7 @@ def test_every_path_derives_from_one_root(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("MARVI_HOME", str(tmp_path / "root"))
     for name in ("MARVI_LOG_DIR", "MARVI_JOURNAL_DB", "MARVI_CHAT_DB",
                  "MARVI_IDENTITY_DIR", "MARVI_TOKEN_STORE", "MARVI_PROVIDER_CONFIG",
-                 "MARVI_MEMORY_DB", "MARVI_AUDIT_LOG", "MARVI_VISION_DIR",
+                 "MARVI_MEMORY_DB", "MARVI_AUDIT_LOG",
                  "MARVI_MODEL_ROOT", "MARVI_RUNTIME_ROOT", "MARVI_SKILLS_DIR",
                  "MARVI_MCP_CONFIG"):
         monkeypatch.delenv(name, raising=False)

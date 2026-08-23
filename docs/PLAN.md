@@ -123,10 +123,10 @@ The durable job bridge to Marvi Agent was dropped from this phase; see
 
 ## Phase 8 — vision
 
-1. Keep local presence/gesture inference resident.
-2. Publish selected frames only for explicit active vision tasks.
-3. Add vision context tasks without bloating the foreground agent.
-4. Decide whether Marvi grows a camera pipeline or consumes the room sidecar's.
+1. Keep Smart Room's local presence/gesture inference resident.
+2. Consume only bounded facts and structured events through the sidecar contract.
+3. Keep raw frames and embeddings out of Gateway and foreground context.
+4. Present vision through the existing Gateway runtime and room pipelines.
 
 ## Phase 9 — providers, auxiliary models, and identity
 

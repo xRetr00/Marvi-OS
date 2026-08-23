@@ -106,8 +106,8 @@ migrated on first run and the old copies are left in place rather than deleted.
 ## One at a time
 
 **The desktop takes a single-instance lock.** Two instances would each start a
-Gateway on 8765, an agent joining the same LiveKit room, and a vision loop on
-the same camera — the second of each failing in a way that looks like a bug
+Gateway on 8765, an agent joining the same LiveKit room, and the owned Smart
+Room sidecar — the second of each failing in a way that looks like a bug
 rather than like a second copy, while both write the same databases. A second
 launch surfaces the first window instead.
 
