@@ -156,9 +156,18 @@ class Service {
     //
     // Killing the tree we know about is not enough -- `uv` launches Python as
     // a grandchild and a killed parent can leave it -- so this sweeps by name.
-    const leftover = killStrays(this.spec.installRoot, this.spec.match)
-    if (leftover > 0) {
-      this.log(`stopped ${leftover} leftover process(es) before starting`)
+    //
+    // Only for a service that said how to recognise itself. Without a pattern
+    // this fell back to scanning every process on the machine, which is a WMI
+    // query costing seconds -- paid on every start, to find leftovers of a
+    // service it could not identify anyway. It timed out the supervisor's own
+    // test on a slow runner, which is a fair warning about what it was doing
+    // on somebody's desktop.
+    if (this.spec.match) {
+      const leftover = killStrays(this.spec.installRoot, this.spec.match)
+      if (leftover > 0) {
+        this.log(`stopped ${leftover} leftover process(es) before starting`)
+      }
     }
 
     this.state = 'starting'
