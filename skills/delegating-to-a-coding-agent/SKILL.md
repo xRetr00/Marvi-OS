@@ -58,16 +58,28 @@ difference between a task worth running and one that wastes ten minutes. See
 
 ## While it runs
 
-It returns a job id immediately and takes minutes. **Do not wait for it and do
-not go silent.** Say what is happening and carry on with the conversation:
+It returns a job id immediately and takes minutes.
+
+**Call `await_delegated` with that id straight away.** It does not block: it
+answers at once so you can keep talking, and the result arrives on its own when
+the job finishes. You do not have to remember to check, and the user does not
+have to ask.
 
 > "Claude Code is on it — job 3f2a. What else were we doing?"
 
-Check with `delegated_status` when the user asks, or when the conversation
-reaches a natural pause. If they ask something unrelated in the meantime,
-answer it; the job is still running.
+Then carry on. Answer whatever they ask next; the job is still running. When it
+finishes you will be handed the outcome mid-conversation — read the room before
+interrupting with it, but do not sit on it.
 
-Never claim it finished until you have seen a status saying so.
+`delegated_status` is the other way: it checks once, right now, and returns
+whatever the state is. Use it when the user asks "is that done yet?" and you
+are not already waiting.
+
+If the user changes their mind — "forget it", "stop that" — you can cancel:
+`get_running_tasks` lists what is running and `cancel_task` stops one. Say that
+you stopped it.
+
+Never claim it finished until you have seen a result saying so.
 
 ## When it comes back
 
