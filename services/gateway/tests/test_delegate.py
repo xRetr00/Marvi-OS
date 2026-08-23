@@ -8,6 +8,7 @@ mode the one you get by omission, and can the task text become a command.
 from __future__ import annotations
 
 import time
+from typing import Any
 
 import pytest
 
@@ -71,19 +72,66 @@ def test_codex_gets_its_own_sandbox_flags(workspace, monkeypatch) -> None:
     assert seen["argv"][1:4] == ["exec", "--sandbox", "read-only"]
 
 
-def test_the_task_is_an_argument_and_never_a_command(workspace, monkeypatch) -> None:
-    """The task is text the model wrote from what a user said. It is passed as
-    one element of an argv list, so a semicolon in it is a semicolon."""
-    seen: dict[str, list[str]] = {}
-    monkeypatch.setattr(delegate.shutil, "which", lambda _cmd: "claude")
+def test_the_task_never_reaches_the_argument_list(workspace, monkeypatch) -> None:
+    """On Windows `codex` resolves to `codex.CMD`, and Windows runs a `.CMD`
+    through cmd.exe, which re-parses the arguments it was handed. A task is
+    text a model wrote from something a person said, so an `&` in it would be
+    read by the shell rather than by the coding agent.
+
+    Both CLIs take their prompt on stdin. Nothing model-written is in argv.
+    """
+    seen: dict[str, Any] = {}
+    monkeypatch.setattr(delegate.shutil, "which", lambda _cmd: "C:/npm/codex.CMD")
     monkeypatch.setattr(
         delegate.threading, "Thread", lambda target, args, daemon: _Recorder(seen, args)
     )
 
-    delegate.start("fix it; rm -rf / && echo pwned")
+    nasty = "fix it & del /q /s C: && echo pwned"
+    delegate.start(nasty)
 
-    assert seen["argv"][-1] == "fix it; rm -rf / && echo pwned"
-    assert len(seen["argv"]) == 5
+    assert nasty not in " ".join(seen["argv"])
+    assert seen["job"].task == nasty
+
+
+def test_the_resolved_path_is_what_gets_run(workspace, monkeypatch) -> None:
+    """Passing the bare name meant Windows could not find `codex.CMD` at all:
+    CreateProcess does not apply PATHEXT the way a shell does, and the job
+    failed with "the system cannot find the file specified"."""
+    seen: dict[str, Any] = {}
+    monkeypatch.setattr(delegate.shutil, "which", lambda _cmd: "C:/npm/codex.CMD")
+    monkeypatch.setattr(
+        delegate.threading, "Thread", lambda target, args, daemon: _Recorder(seen, args)
+    )
+
+    delegate.start("look", coder="codex")
+
+    assert seen["argv"][0] == "C:/npm/codex.CMD"
+
+
+def test_the_task_is_handed_over_on_stdin(workspace, monkeypatch) -> None:
+    """Asserted against the call, not the argv: it is the `input=` that carries
+    the task now, and dropping it would leave the agent with no instructions."""
+    captured: dict[str, Any] = {}
+    monkeypatch.setattr(delegate.shutil, "which", lambda _cmd: "claude")
+
+    class Finished:
+        stdout = "done"
+        stderr = ""
+        returncode = 0
+
+    def record(argv, **kwargs):
+        captured.update(kwargs)
+        return Finished()
+
+    monkeypatch.setattr(delegate.subprocess, "run", record)
+
+    job = delegate.start("why is the room offline")["id"]
+    for _ in range(50):
+        if delegate.status(job)["state"] != "running":
+            break
+        time.sleep(0.05)
+
+    assert captured["input"] == "why is the room offline"
 
 
 def test_an_unknown_mode_is_refused_rather_than_treated_as_fix(workspace) -> None:
@@ -191,9 +239,10 @@ def test_delegating_asks_first() -> None:
 
 
 class _Recorder:
-    """Stands in for the worker thread, capturing the argv it was handed."""
+    """Stands in for the worker thread, capturing what it was handed."""
 
     def __init__(self, into: dict, args: tuple) -> None:
+        into["job"] = args[0]
         into["argv"] = args[1]
 
     def start(self) -> None:

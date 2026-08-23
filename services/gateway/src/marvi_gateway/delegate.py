@@ -31,6 +31,19 @@ what lets a spoken conversation carry on while the job runs.
 
 Jobs live in memory. One lost to a restart is not lost work -- the agent's
 changes are on disk and in git, which is the durable record.
+
+## The task goes on stdin, never in the argument list
+
+On Windows these tools are `.CMD` shims -- `codex` resolves to `codex.CMD` --
+and Windows runs a `.CMD` through `cmd.exe`, which re-parses the arguments it
+was given. A task is text a language model wrote from something a person said,
+so an `&` or a `|` in it would be read by the shell rather than by the coding
+agent. Both CLIs read their prompt from stdin, so it is never an argument and
+there is nothing for a shell to re-parse.
+
+The resolved path from `shutil.which` is used as argv[0] for the same class of
+reason: passing the bare name let Windows fail to find `codex.CMD` at all,
+because `CreateProcess` does not apply PATHEXT the way a shell does.
 """
 
 from __future__ import annotations
@@ -130,10 +143,11 @@ def available() -> list[dict[str, str]]:
 
 def _run(job: Job, argv: list[str]) -> None:
     try:
-        # argv is built here from a fixed table plus one argument; never a
-        # shell string, so the task text cannot become a command.
+        # The task arrives on stdin. Nothing model-written is in `argv`, which
+        # is what keeps a `.CMD` shim's shell out of the picture entirely.
         finished = subprocess.run(
             argv,
+            input=job.task,
             cwd=job.root,
             capture_output=True,
             text=True,
@@ -177,7 +191,8 @@ def start(task: str, coder: str = "claude", mode: str = "investigate") -> dict[s
             "detail": f"no coding agent called {coder!r}",
             "available": available(),
         }
-    if not shutil.which(chosen.command):
+    executable = shutil.which(chosen.command)
+    if not executable:
         return {"ok": False, "detail": f"{coder} is not installed", "available": available()}
 
     root = default_root()
@@ -201,7 +216,7 @@ def start(task: str, coder: str = "claude", mode: str = "investigate") -> dict[s
         job = Job(id=uuid.uuid4().hex[:8], coder=coder, mode=mode, task=task, root=str(root))
         _jobs[job.id] = job
 
-    argv = [chosen.command, *(chosen.fix if mode == "fix" else chosen.investigate), task]
+    argv = [executable, *(chosen.fix if mode == "fix" else chosen.investigate)]
     threading.Thread(target=_run, args=(job, argv), daemon=True).start()
     log.info(
         "delegated a job",
