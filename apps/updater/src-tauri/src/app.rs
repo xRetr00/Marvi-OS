@@ -6,7 +6,7 @@ use std::sync::mpsc;
 use std::time::Duration;
 
 use marvi_bootstrap_core::{
-    InstallConfig, InstallLog, NpmBuildRunner, UpdateConfig, install, run_update, state_dir,
+    install, run_update, state_dir, InstallConfig, InstallLog, NpmBuildRunner, UpdateConfig,
 };
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Listener};
@@ -74,6 +74,7 @@ struct GpuAnswer {
 /// left running overnight still finishes. Timing out means "not answered",
 /// which leaves the choice to Marvi's own detection rather than guessing.
 const ASK_TIMEOUT: Duration = Duration::from_secs(300);
+const SUCCESS_CLOSE_DELAY: Duration = Duration::from_millis(1800);
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -154,10 +155,17 @@ fn detect_gpu() -> Option<String> {
 }
 
 fn operate(handle: &AppHandle, args: Cli) {
-    let _ = handle.emit("meta", MetaPayload {
-        mode: format!("{:?}", args.mode).to_ascii_lowercase(),
-        channel: args.channel.as_str().to_string(),
-    });
+    // Register before work begins. A failure must always remain dismissible,
+    // including if it happens immediately during preflight.
+    handle.listen("close-window", |_| std::process::exit(0));
+
+    let _ = handle.emit(
+        "meta",
+        MetaPayload {
+            mode: format!("{:?}", args.mode).to_ascii_lowercase(),
+            channel: args.channel.as_str().to_string(),
+        },
+    );
 
     // Everything the window shows also goes to disk. A window that closes is
     // not a record, and an install that fails is exactly when one is needed.
@@ -173,10 +181,13 @@ fn operate(handle: &AppHandle, args: Cli) {
     let mut progress = |stage: &str| {
         log.line(stage);
         percent = percent.max(percent_for(stage).unwrap_or(0));
-        let _ = handle.emit("progress", ProgressPayload {
-            stage: stage.to_string(),
-            percent,
-        });
+        let _ = handle.emit(
+            "progress",
+            ProgressPayload {
+                stage: stage.to_string(),
+                percent,
+            },
+        );
     };
 
     let (status, message, from, to) = match args.mode {
@@ -224,20 +235,26 @@ fn operate(handle: &AppHandle, args: Cli) {
     if status != "ok" {
         progress(&format!("the full log is at {log_path}"));
     }
-    let _ = handle.emit("done", DonePayload {
-        status,
-        message,
-        from,
-        to,
-    });
+    let _ = handle.emit(
+        "done",
+        DonePayload {
+            status: status.clone(),
+            message,
+            from,
+            to,
+        },
+    );
 
-    // No auto-close, on any outcome. It used to exit 1.5s after finishing,
-    // which was long enough to see that something had appeared and not long
-    // enough to read it -- so a failed install looked identical to a successful
-    // one: a window that flashed and went away. The window now waits for the
-    // Close button. Nothing depends on it exiting: `finish` has already cleared
-    // the in-progress marker and relaunched Marvi by this point.
-    handle.listen("close-window", |_| std::process::exit(0));
+    // Only a verified success closes itself. Failures, skips, and aborts stay
+    // visible until explicitly dismissed so diagnostics are never hidden.
+    if let Some(delay) = auto_close_delay(&status) {
+        std::thread::sleep(delay);
+        std::process::exit(0);
+    }
+}
+
+fn auto_close_delay(status: &str) -> Option<Duration> {
+    (status == "ok").then_some(SUCCESS_CLOSE_DELAY)
 }
 
 #[cfg(test)]
@@ -290,5 +307,13 @@ mod tests {
     #[test]
     fn unknown_lines_do_not_move_the_bar() {
         assert_eq!(percent_for("added 412 packages in 38s"), None);
+    }
+
+    #[test]
+    fn only_success_auto_closes() {
+        assert_eq!(auto_close_delay("ok"), Some(SUCCESS_CLOSE_DELAY));
+        for status in ["failed", "aborted", "skipped"] {
+            assert_eq!(auto_close_delay(status), None, "{status} must stay open");
+        }
     }
 }

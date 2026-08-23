@@ -704,6 +704,18 @@ failures were invisible to every test that existed.
   bounded active sections, indexed rows, and restrained interaction feedback.
   Overview remains the only dense dashboard; Voice and Chat remain unchanged.
 
+## 2026-08-23 — updater directory-handle fix and terminal-state UI
+
+- Prevented the Windows update handoff from inheriting a working directory
+  inside `apps/desktop/dist`; the bootstrap also moves to the state directory
+  before Tauri starts, protecting updates launched by older desktop builds.
+- Reworked the bootstrap terminal states around the Marvi monochrome contract:
+  clearer hierarchy, non-duplicative recovery guidance, selectable logs, and a
+  full-size keyboard-accessible Close updater action on unsuccessful outcomes.
+- Successful installs and updates now close automatically after a brief
+  completion state. Failed, skipped, and aborted outcomes remain open until the
+  user dismisses them.
+
 ## 2026-08-23 — Smart Room becomes the sole vision owner
 
 - Reviewed the real sidecar-to-desktop route before changing presentation. The

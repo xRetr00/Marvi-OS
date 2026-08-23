@@ -132,6 +132,14 @@ So three things happen:
   unambiguous;
 - the updater clears anything holding the install root before it applies,
   because the desktop exiting is not the same as its children exiting.
+- the desktop starts the bootstrap with the checkout root as its working
+  directory, and the bootstrap moves itself to the state directory before
+  creating its window. This prevents Windows from pinning
+  `apps/desktop/dist` through an inherited current-directory handle.
+
+The bootstrap window closes itself only after an `ok` result has been written.
+Failed, skipped, and aborted runs stay open with recovery guidance, a selectable
+technical log, and an explicit Close updater action.
 
 ## Releases
 

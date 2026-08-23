@@ -35,6 +35,15 @@ scanlines, blur, chromatic aberration, or noise that reduces legibility.
   and About view. Generate purpose-sized assets from the canonical source;
   never ask Windows to downsample the 1254 px source at runtime.
 
+## Bootstrap window
+
+The installer/updater uses the same monochrome tokens, compact uppercase labels,
+monospaced data, crisp borders, and restrained status color as the desktop. Its
+long-running log remains selectable. Terminal failures show recovery guidance
+and a clear keyboard-accessible Close updater action; they never disappear on a
+timer. Only a verified successful result closes the window automatically after
+a brief completion state.
+
 ## Window model
 
 Marvi OS has three surfaces:

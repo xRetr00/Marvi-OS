@@ -86,7 +86,9 @@ Current implemented desktop surfaces:
 - tag-driven releases: `scripts/release.ps1` cuts `v<semver>` tags and the
   `Release` workflow gates them. There is no per-release installer — the
   bootstrap (`apps/updater`) clones the tag and builds it on the machine, so
-  the tag is the payload. See `docs/INSTALLER.md`.
+  the tag is the payload. Its Windows handoff avoids pinning build output,
+  preserves failed-update diagnostics on screen, and closes automatically only
+  after verified success. See `docs/INSTALLER.md`.
 
 ## Developer start
 

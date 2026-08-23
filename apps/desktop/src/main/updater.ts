@@ -222,7 +222,7 @@ export interface HandoffOptions {
 export function handoffCommand(
   bootstrap: string,
   options: HandoffOptions
-): { file: string; args: string[] } {
+): { file: string; args: string[]; cwd: string } {
   const args = [
     'update',
     '--install-root',
@@ -233,7 +233,11 @@ export function handoffCommand(
     String(options.desktopPid)
   ]
   if (options.relaunchExe) args.push('--relaunch-exe', options.relaunchExe)
-  return { file: bootstrap, args }
+  // Never inherit Electron's packaged working directory. On Windows a process
+  // whose cwd is inside apps/desktop/dist keeps that directory open, so the
+  // bootstrap cannot move it aside for the rollback snapshot even after the
+  // desktop has exited.
+  return { file: bootstrap, args, cwd: options.installRoot }
 }
 
 /**
@@ -247,8 +251,9 @@ export function startUpdate(options: HandoffOptions, bootstrap: string | null): 
   const stateDir = updateStateDir(process.env['LOCALAPPDATA'])
   if (updateInProgress(stateDir)) return false
 
-  const { file, args } = handoffCommand(bootstrap, options)
+  const { file, args, cwd } = handoffCommand(bootstrap, options)
   const child = spawn(file, args, {
+    cwd,
     detached: true,
     stdio: 'ignore',
     windowsHide: true
