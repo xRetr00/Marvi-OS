@@ -1,12 +1,36 @@
 {
-  "$comment": "Where the skill store looks. Marvi never installs from a source it discovered itself - not from a link in a page, not from a model's suggestion. This list is the list, and it is yours to edit.",
+  "$comment": "Where the skill store looks. Marvi never installs from a source it discovered itself - not from a link in a page, not from a model's suggestion. This list is the list, and it is yours to edit. Every repository here was checked to actually serve SKILL.md directories; several well-known 'awesome' lists are READMEs pointing elsewhere and return nothing.",
   "schema": 1,
   "sources": [
     {
       "name": "Anthropic",
       "repo": "anthropics/skills",
       "branch": "main",
-      "description": "The official Agent Skills repository."
+      "description": "The official Agent Skills repository. Documents, spreadsheets, slides, and skill-creator."
+    },
+    {
+      "name": "Anthropic Cookbooks",
+      "repo": "anthropics/claude-cookbooks",
+      "branch": "main",
+      "description": "A handful of worked examples: financial statements, financial models, brand guidelines."
+    },
+    {
+      "name": "OpenAI",
+      "repo": "openai/skills",
+      "branch": "main",
+      "description": "Codex's skills. Development-focused - Figma, GitHub, cloud deploys - and useful for working on Marvi herself."
+    },
+    {
+      "name": "Community (wshobson)",
+      "repo": "wshobson/agents",
+      "branch": "main",
+      "description": "The largest community collection. Engineering practice: Python, testing, security, observability, incident write-ups."
+    },
+    {
+      "name": "Cloudflare",
+      "repo": "cloudflare/skills",
+      "branch": "main",
+      "description": "Cloudflare's own: Workers, Durable Objects, email routing."
     }
   ]
 }

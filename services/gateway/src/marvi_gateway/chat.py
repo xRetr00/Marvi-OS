@@ -36,10 +36,9 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from . import latency
+from . import latency, selfaware
 from .curiosity import Curiosity, handle_tool, obvious_facts
 from .curiosity import tool_schemas as curiosity_tools
-from . import selfaware
 from .identity import IdentityFiles
 from .providers import ProviderCallError, ProviderClient
 from .untrusted import wrap_external

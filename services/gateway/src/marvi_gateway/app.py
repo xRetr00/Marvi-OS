@@ -20,12 +20,11 @@ from fastapi.responses import StreamingResponse
 from livekit import api
 from pydantic import BaseModel, Field
 
-from . import breadcrumb, latency, paths, upgrade
+from . import breadcrumb, latency, paths, selfaware, upgrade
 from . import doctor as doctor_module
 from . import plugins as plugins_module
 from . import room as room_module
 from . import schedule as schedule_module
-from . import selfaware
 from . import setup as setup_module
 from .accounts import ComposioAccounts, register_account_tools
 from .activity import ActivityWatch, register_activity_tools
@@ -1634,6 +1633,28 @@ def create_app(
         result = mcp.remove(name)
         runtime_store.audit("setup", "mcp-remove", result)
         return result
+
+    @app.get("/context")
+    async def read_context() -> dict[str, Any]:
+        """Prompt context the voice worker cannot build for itself.
+
+        Voice assembles its own instructions in the Agent process and so was
+        missing everything that lives here: which skills exist, where Marvi is
+        installed. `/tools` already exists for exactly this reason -- voice had
+        seven tools and chat had seventeen until the catalogue was published
+        rather than duplicated -- and this is the same fix for prompt text.
+
+        Blocks rather than one string, so the caller decides what to use.
+        """
+        blocks = {"situation": selfaware.situation()}
+        try:
+            from .setup import skills as skills_module
+
+            blocks["skills"] = skills_module.advertise()
+        except Exception as exc:  # pragma: no cover - depends on what is on disk
+            get_logger("gateway").warning("skill catalogue unavailable: %s", exc)
+            blocks["skills"] = ""
+        return {"blocks": [text for text in blocks.values() if text]}
 
     @app.get("/skills")
     async def list_skills() -> dict[str, Any]:

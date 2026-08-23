@@ -497,9 +497,19 @@ async def marvi_session(ctx: JobContext) -> None:
     # asking out loud for a web search got "I don't have a web search tool",
     # which was true, while typing the same question worked.
     agent = session.current_agent
-    catalogue = await GatewayTools().from_gateway()
+    gateway = GatewayTools()
+    catalogue = await gateway.from_gateway()
     await agent.update_tools([*agent.tools, end_conversation, *catalogue])
     log.info("%d tools available, including end_conversation", len(agent.tools))
+
+    # And the prompt text the Gateway holds: which skills exist, and where
+    # this installation lives. Fetched here rather than written above because
+    # both change without the Agent being rebuilt -- a skill installed while
+    # Marvi is running should be usable in the next session, not the next
+    # release. `update_instructions` checked against the installed 1.6.10.
+    if blocks := await gateway.context_blocks():
+        agent.update_instructions(agent.instructions + "\n\n" + "\n\n".join(blocks))
+        log.info("prompt: %d context block(s) from the Gateway", len(blocks))
 
 
 @server.on("worker_started")

@@ -269,6 +269,31 @@ class GatewayTools:
         }
     )
 
+    async def context_blocks(self) -> list[str]:
+        """Prompt text the Gateway holds and the voice worker cannot see.
+
+        The same problem `from_gateway` solved for tools, one level up. Voice
+        writes its own instructions in this process, so everything the Gateway
+        assembles for the typed surface -- which skills exist, where Marvi is
+        installed -- reached chat and not speech. Published rather than
+        duplicated, so the two cannot drift again.
+
+        Never raises: a Gateway that cannot answer costs Marvi her skill
+        catalogue, not her voice.
+        """
+        client = self._client or httpx.AsyncClient(timeout=REQUEST_TIMEOUT)
+        try:
+            response = await client.get(f"{self._base_url}/context")
+            response.raise_for_status()
+            blocks = response.json().get("blocks") or []
+            return [str(block) for block in blocks if str(block).strip()]
+        except Exception as exc:
+            log.warning("could not read the prompt context: %s", exc)
+            return []
+        finally:
+            if self._client is None:
+                await client.aclose()
+
     async def from_gateway(self) -> list[Any]:
         """Every other tool the Gateway has, built from its own catalogue.
 
