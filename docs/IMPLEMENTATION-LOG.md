@@ -829,3 +829,19 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   lint on changed sources, and the production build. Playwright inspection at
   1180×760 caught and fixed the composer beam clipping the context popover;
   final evidence is `output/playwright/chat-widgets-context.png`.
+
+## 2026-08-23 — Assistant UI card rebuild
+
+- Replaced the rejected full-width instrument-panel presentation with the card
+  anatomy in the pinned local Assistant UI source: compact rounded paper
+  surfaces, soft inner fields, bounded widths, and progressive disclosure.
+- Rebuilt sources as a collapsed evidence pill and card grid; gave metrics,
+  comparisons, tables, timelines, specs, status, and galleries their own
+  content-specific layouts without repeated widget-type banners.
+- Reworked the transcript rhythm, user surface, and composer around Assistant
+  UI's narrow thread and rounded input proportions while retaining every Marvi
+  control and Gateway contract.
+- Removed the superseded animated border dependency and its runtime treatment.
+- Passed 803 Gateway, 107 Agent, and 199 desktop tests plus desktop typecheck
+  and the production build; visually checked the thread, source disclosure,
+  and context card at the shipping 1180×760 viewport.

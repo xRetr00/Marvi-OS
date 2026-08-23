@@ -52,16 +52,17 @@ return-to-latest control. Empty-state prompts only fill the composer and never
 pretend to be model output.
 
 The composer keeps Marvi's provider/model/effort controls, attachment queue,
-context breakdown, microphone action, stop/send state, and the state-driven
-monochrome border beam. Every ambiguous action has a tooltip and accessible
-name.
+context breakdown, microphone action, and stop/send state inside a rounded,
+quiet paper surface. Every ambiguous action has a tooltip and accessible name.
 
 Generative output follows Assistant UI's tool-UI pattern through a Marvi-owned
 adapter. Models may request only `sources`, `metrics`, `comparison`, `table`,
 `timeline`, `weather`, `gallery`, `document`, or `status`; the Gateway validates,
 caps, persists, and streams plain data. React selects the component from that
 allowlist. Model-authored code, component names, callbacks, and actions are not
-accepted.
+accepted. Each component follows the matching Assistant UI card anatomy:
+bounded widths, soft inner fields, progressive source disclosure, and no
+repeated widget-type banner.
 
 ## Boundaries and acceptance
 

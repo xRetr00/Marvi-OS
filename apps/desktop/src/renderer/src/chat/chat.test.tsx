@@ -86,6 +86,38 @@ describe('AgentMessage', () => {
     expect(html).toContain('Web evidence')
     expect(html).toContain('Official result')
     expect(html).toContain('https://example.com/result')
+    expect(html).toContain('class="chat-sources"')
+    expect(html).not.toContain('SOURCES</span>')
+  })
+
+  it('renders comparisons as compact option fields without a widget-type banner', () => {
+    const html = renderToStaticMarkup(
+      <AgentMessage
+        message={message({
+          role: 'assistant',
+          content: 'Option A is the better fit.',
+          parts: [
+            {
+              type: 'widget',
+              id: 'comparison-1',
+              version: 1,
+              kind: 'comparison',
+              title: 'Candidate comparison',
+              status: 'complete',
+              data: {
+                items: [
+                  { label: 'Option A', value: 'Recommended', detail: 'Lower latency' },
+                  { label: 'Option B', value: 'Fallback', detail: 'Higher cost' }
+                ]
+              }
+            }
+          ]
+        })}
+      />
+    )
+    expect(html).toContain('chat-comparison-options')
+    expect(html).toContain('recommended')
+    expect(html).not.toContain('>COMPARISON<')
   })
 })
 
@@ -114,13 +146,13 @@ describe('Composer', () => {
     expect(html).toContain('disabled')
   })
 
-  it('says how to send, since Enter and Shift+Enter differ', () => {
+  it('uses a compact Assistant UI-style input surface', () => {
     const html = renderToStaticMarkup(
       <Composer draft="hello" busy={false} available onDraftChange={noop} onSend={noop} />
     )
-    expect(html).toContain('ENTER SENDS')
-    expect(html).toContain('chat-compose-beam')
-    expect(html).toContain('// MESSAGE')
+    expect(html).toContain('chat-compose-field')
+    expect(html).toContain('data-active="true"')
+    expect(html).not.toContain('// MESSAGE')
   })
 
   it('offers a hint to connect a provider when unavailable', () => {
@@ -135,7 +167,7 @@ describe('Composer', () => {
       <Composer draft="" busy available onDraftChange={noop} onSend={noop} onCancel={noop} />
     )
     expect(html).toContain('aria-label="Stop"')
-    expect(html).toContain('RECEIVING')
+    expect(html).toContain('is-stop')
   })
 
   it('shows provider-reported context instead of draft-length guesses', () => {

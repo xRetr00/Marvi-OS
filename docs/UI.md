@@ -171,9 +171,9 @@ listen/wake-to-speaking transition. Turn and duration counters continue while
 the renderer session remains open.
 
 The Chat composer keeps its native Marvi controls and Gateway-backed turn
-behavior inside a `border-beam` line treatment. The beam is monochrome and
-state-driven: it activates only while the field has input/focus or a reply is
-streaming, and reduced-motion preferences disable its travel.
+behavior inside a rounded Assistant UI-style paper surface. Focus and streaming
+state use a restrained static blue edge; the input does not run a decorative
+border animation.
 
 The rest of Chat adapts Assistant UI's thread composition without adopting a
 second runtime. A bounded reading column owns message flow; user turns are
@@ -182,9 +182,9 @@ threads and branches back the session drawer, edit, and regenerate actions.
 GitHub-flavored Markdown, math, tables, code blocks, source cards, image/file
 parts, read aloud, local-native dictation, model selection, and context details
 use distinct bounded modules instead of one undifferentiated text column.
-Structured tool output uses one shallow instrument-panel vocabulary (sources,
+Structured tool output uses compact, content-specific paper objects (sources,
 metrics, comparisons, tables, timelines, weather, galleries, documents, and
-status), with restrained blue labels and no model-authored UI code. Context
+status), with progressive disclosure and no model-authored UI code. Context
 percentage is shown only when both provider input usage and a catalog context
 window are known.
 Message actions appear on hover or keyboard focus, reasoning and tool evidence
