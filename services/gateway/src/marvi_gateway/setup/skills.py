@@ -289,6 +289,12 @@ BUNDLED = Path(__file__).resolve().parents[5] / "skills"
 def _read_dir(base: Path, source: str) -> list[Skill]:
     found: list[Skill] = []
     if not base.exists():
+        if base == BUNDLED:
+            # Marvi's own skills are part of the product, so their absence is a
+            # packaging fault rather than a configuration choice -- and it
+            # would otherwise look exactly like having no skills, which is the
+            # kind of silent nothing that costs an afternoon to find.
+            log.warning("the skills that ship with Marvi are missing from %s", base)
         return found
     for child in sorted(base.iterdir()):
         if not child.is_dir():
