@@ -22,13 +22,14 @@ use windows_sys::Win32::{
     System::LibraryLoader::GetModuleHandleW,
     UI::{
         HiDpi::{SetProcessDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2},
+        Input::KeyboardAndMouse::{ReleaseCapture, SetCapture},
         WindowsAndMessaging::{
-            CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, GetWindowRect,
-            KillTimer, PostMessageW, PostQuitMessage, RegisterClassW, SetTimer, SetWindowPos,
-            ShowWindow, SystemParametersInfoW, UpdateLayeredWindow, CS_HREDRAW, CS_VREDRAW,
-            HTCAPTION, HTCLIENT, HTTRANSPARENT, HWND_TOPMOST, MSG, SPI_GETCLIENTAREAANIMATION,
-            SWP_NOACTIVATE, SW_SHOWNA, ULW_ALPHA, WM_APP, WM_DESTROY, WM_EXITSIZEMOVE,
-            WM_LBUTTONUP, WM_MOVE, WM_NCHITTEST, WM_TIMER, WNDCLASSW, WS_EX_LAYERED,
+            CreateWindowExW, DefWindowProcW, DispatchMessageW, GetCursorPos, GetMessageW,
+            GetWindowRect, KillTimer, PostMessageW, PostQuitMessage, RegisterClassW, SetTimer,
+            SetWindowPos, ShowWindow, SystemParametersInfoW, UpdateLayeredWindow, CS_HREDRAW,
+            CS_VREDRAW, HTCLIENT, HTTRANSPARENT, HWND_TOPMOST, MSG, SPI_GETCLIENTAREAANIMATION,
+            SWP_NOACTIVATE, SW_SHOWNA, ULW_ALPHA, WM_APP, WM_DESTROY, WM_LBUTTONDOWN, WM_LBUTTONUP,
+            WM_MOUSEMOVE, WM_MOVE, WM_NCHITTEST, WM_TIMER, WNDCLASSW, WS_EX_LAYERED,
             WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_POPUP,
         },
     },
@@ -85,6 +86,13 @@ struct App {
     exit_requested: bool,
     completion_until: Option<Instant>,
     hit_alpha: Vec<u8>,
+    drag: Option<DragState>,
+}
+
+#[derive(Clone, Copy)]
+struct DragState {
+    cursor: POINT,
+    window: POINT,
 }
 
 impl App {
@@ -173,6 +181,13 @@ fn hit_test_alpha(alpha: &[u8], width: i32, height: i32, x: i32, y: i32) -> bool
     alpha
         .get((y * width + x) as usize)
         .is_some_and(|value| *value >= 24)
+}
+
+fn drag_position(drag: DragState, cursor: POINT) -> POINT {
+    POINT {
+        x: drag.window.x + cursor.x - drag.cursor.x,
+        y: drag.window.y + cursor.y - drag.cursor.y,
+    }
 }
 
 fn active_phase(phase: Phase) -> bool {
@@ -436,6 +451,7 @@ pub fn run() -> Result<(), String> {
         exit_requested: false,
         completion_until: None,
         hit_alpha: Vec::new(),
+        drag: None,
     }));
     APP.set(app.clone()).map_err(|_| "app initialized twice")?;
 
@@ -591,17 +607,71 @@ unsafe extern "system" fn window_proc(
             let height = actual_bounds.bottom - actual_bounds.top;
             let local_x = screen_x - actual_bounds.left;
             let local_y = screen_y - actual_bounds.top;
-            if hit_test_button(width, height, local_x, local_y).is_some_and(|_| state.hover) {
+            let control = state.hover && hit_test_button(width, height, local_x, local_y).is_some();
+            if control || hit_test_alpha(&state.hit_alpha, width, height, local_x, local_y) {
                 HTCLIENT as LRESULT
-            } else if hit_test_alpha(&state.hit_alpha, width, height, local_x, local_y) {
-                HTCAPTION as LRESULT
             } else {
                 HTTRANSPARENT as LRESULT
             }
         }
+        WM_LBUTTONDOWN => {
+            let Some(app) = APP.get() else { return 0 };
+            let mut state = app.lock().expect("pet model poisoned");
+            let width = state.bounds.right - state.bounds.left;
+            let height = state.bounds.bottom - state.bounds.top;
+            let x = (lparam as u32 & 0xffff) as u16 as i16 as i32;
+            let y = ((lparam as u32 >> 16) & 0xffff) as u16 as i16 as i32;
+            if hit_test_button(width, height, x, y).is_none()
+                && hit_test_alpha(&state.hit_alpha, width, height, x, y)
+            {
+                let mut cursor: POINT = std::mem::zeroed();
+                if GetCursorPos(&mut cursor) != 0 {
+                    state.drag = Some(DragState {
+                        cursor,
+                        window: POINT {
+                            x: state.bounds.left,
+                            y: state.bounds.top,
+                        },
+                    });
+                    SetCapture(hwnd);
+                }
+            }
+            0
+        }
+        WM_MOUSEMOVE => {
+            if wparam & 1 == 0 {
+                return 0;
+            }
+            let Some(app) = APP.get() else { return 0 };
+            let drag = app.lock().expect("pet model poisoned").drag;
+            if let Some(drag) = drag {
+                let mut cursor: POINT = std::mem::zeroed();
+                if GetCursorPos(&mut cursor) != 0 {
+                    let position = drag_position(drag, cursor);
+                    SetWindowPos(
+                        hwnd,
+                        HWND_TOPMOST,
+                        position.x,
+                        position.y,
+                        0,
+                        0,
+                        SWP_NOACTIVATE | windows_sys::Win32::UI::WindowsAndMessaging::SWP_NOSIZE,
+                    );
+                }
+            }
+            0
+        }
         WM_LBUTTONUP => {
             let Some(app) = APP.get() else { return 0 };
-            let state = app.lock().expect("pet model poisoned");
+            let mut state = app.lock().expect("pet model poisoned");
+            if state.drag.take().is_some() {
+                ReleaseCapture();
+                emit_event(&format!(
+                    "{{\"type\":\"moved\",\"x\":{},\"y\":{}}}",
+                    state.bounds.left, state.bounds.top
+                ));
+                return 0;
+            }
             let width = state.bounds.right - state.bounds.left;
             let height = state.bounds.bottom - state.bounds.top;
             let x = (lparam as u32 & 0xffff) as u16 as i16 as i32;
@@ -619,19 +689,6 @@ unsafe extern "system" fn window_proc(
                 if GetWindowRect(hwnd, &mut actual_bounds) != 0 {
                     app.lock().expect("pet model poisoned").bounds = actual_bounds;
                 }
-            }
-            0
-        }
-        WM_EXITSIZEMOVE => {
-            let mut actual_bounds: RECT = std::mem::zeroed();
-            if GetWindowRect(hwnd, &mut actual_bounds) != 0 {
-                if let Some(app) = APP.get() {
-                    app.lock().expect("pet model poisoned").bounds = actual_bounds;
-                }
-                emit_event(&format!(
-                    "{{\"type\":\"moved\",\"x\":{},\"y\":{}}}",
-                    actual_bounds.left, actual_bounds.top
-                ));
             }
             0
         }
@@ -816,6 +873,16 @@ mod tests {
         assert!(hit_test_alpha(&alpha, 2, 2, 1, 0));
         assert!(hit_test_alpha(&alpha, 2, 2, 0, 1));
         assert!(!hit_test_alpha(&alpha, 2, 2, 2, 1));
+    }
+
+    #[test]
+    fn drag_position_preserves_the_pointer_offset() {
+        let drag = DragState {
+            cursor: POINT { x: 120, y: 80 },
+            window: POINT { x: 40, y: 20 },
+        };
+        let position = drag_position(drag, POINT { x: 150, y: 105 });
+        assert_eq!((position.x, position.y), (70, 45));
     }
 
     #[test]
