@@ -88,7 +88,24 @@ cargo update --workspace --offline 2>&1 | Out-Null
 Pop-Location
 
 git add VERSION package.json apps\desktop\package.json apps\updater\Cargo.toml apps\updater\Cargo.lock
-git commit -m "chore: release $tag"
+if ($LASTEXITCODE -ne 0) { throw 'Could not stage the version files.' }
+
+# PowerShell's $ErrorActionPreference does not stop on a native command's exit
+# code, so a `git commit` that failed was ignored and the script went on to tag
+# and push whatever HEAD happened to be. That is how v0.5.0 came to point at a
+# commit whose VERSION file said 0.4.15: another session started a merge
+# mid-release, the commit failed on the conflict, and nothing noticed. CI's
+# tag/VERSION guard caught it, which is the only reason it was not published.
+$staged = git diff --cached --name-only
+if ($staged) {
+  git commit -m "chore: release $tag"
+  if ($LASTEXITCODE -ne 0) { throw "Could not commit the version bump; $tag was not created." }
+} else {
+  # Every version file already says $Version. That happens on a retry after a
+  # later step failed, and it means HEAD is already the release: there is
+  # nothing to record, so tag what is there rather than inventing a commit.
+  Write-Host "Version files already at $Version; tagging HEAD." -ForegroundColor Yellow
+}
 <#
 .SYNOPSIS
   Run `git tag -s` with the signing passphrase supplied non-interactively.
