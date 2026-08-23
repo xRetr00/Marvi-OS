@@ -366,7 +366,7 @@ class ProviderProfile:
                 ]
             return body
 
-        body = {"model": chosen, "messages": messages}
+        body = {"model": chosen, "messages": _as_openai(messages)}
         if limit:
             body["max_tokens"] = limit
         if wants_stream:
@@ -430,16 +430,22 @@ class ProviderProfile:
 
         if self.api_mode == "anthropic":
             return [
-                {"id": block.get("id", ""), "name": block.get("name", ""),
-                 "arguments": parse(block.get("input"))}
+                {
+                    "id": block.get("id", ""),
+                    "name": block.get("name", ""),
+                    "arguments": parse(block.get("input")),
+                }
                 for block in payload.get("content", []) or []
                 if block.get("type") == "tool_use"
             ]
 
         if self.api_mode == "responses":
             return [
-                {"id": item.get("call_id") or item.get("id", ""), "name": item.get("name", ""),
-                 "arguments": parse(item.get("arguments"))}
+                {
+                    "id": item.get("call_id") or item.get("id", ""),
+                    "name": item.get("name", ""),
+                    "arguments": parse(item.get("arguments")),
+                }
                 for item in payload.get("output", []) or []
                 if item.get("type") == "function_call"
             ]
@@ -449,8 +455,11 @@ class ProviderProfile:
             return []
         message = choices[0].get("message") or {}
         return [
-            {"id": call.get("id", ""), "name": (call.get("function") or {}).get("name", ""),
-             "arguments": parse((call.get("function") or {}).get("arguments"))}
+            {
+                "id": call.get("id", ""),
+                "name": (call.get("function") or {}).get("name", ""),
+                "arguments": parse((call.get("function") or {}).get("arguments")),
+            }
             for call in message.get("tool_calls") or []
         ]
 
@@ -559,9 +568,7 @@ class ProviderProfile:
         # DeepSeek publishes no prompt_tokens_details; it splits input into hit
         # and miss counters instead. Reading only the OpenAI shape would bill
         # every cached token as fresh on the provider that caches hardest.
-        cached = int(
-            details.get("cached_tokens", raw.get("prompt_cache_hit_tokens", 0)) or 0
-        )
+        cached = int(details.get("cached_tokens", raw.get("prompt_cache_hit_tokens", 0)) or 0)
         return Usage(
             input=int(raw.get("prompt_tokens", raw.get("input_tokens", 0)) or 0),
             output=int(raw.get("completion_tokens", raw.get("output_tokens", 0)) or 0),
@@ -650,7 +657,26 @@ def _as_anthropic(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 }
             )
             continue
-        out.append(message)
+        content = message.get("content")
+        if isinstance(content, list):
+            blocks: list[dict[str, Any]] = []
+            for part in content:
+                if part.get("type") == "text":
+                    blocks.append({"type": "text", "text": str(part.get("text") or "")})
+                elif part.get("type") == "image":
+                    blocks.append(
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": str(part.get("media_type") or "image/png"),
+                                "data": str(part.get("data") or ""),
+                            },
+                        }
+                    )
+            out.append({**message, "content": blocks})
+        else:
+            out.append(message)
     return out
 
 
@@ -685,7 +711,21 @@ def _as_responses(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 }
             )
             continue
-        out.append(message)
+        content = message.get("content")
+        if isinstance(content, list):
+            parts: list[dict[str, Any]] = []
+            for part in content:
+                if part.get("type") == "text":
+                    parts.append({"type": "input_text", "text": str(part.get("text") or "")})
+                elif part.get("type") == "image":
+                    media = str(part.get("media_type") or "image/png")
+                    data = str(part.get("data") or "")
+                    parts.append(
+                        {"type": "input_image", "image_url": f"data:{media};base64,{data}"}
+                    )
+            out.append({**message, "content": parts})
+        else:
+            out.append(message)
     return out
 
 
@@ -695,6 +735,28 @@ def _split_system(messages: list[dict[str, Any]]) -> tuple[str, list[dict[str, A
         str(m.get("content", "")) for m in messages if m.get("role") == "system"
     ).strip()
     return system, [m for m in messages if m.get("role") != "system"]
+
+
+def _as_openai(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Translate Marvi's neutral text/image parts to Chat Completions blocks."""
+    out: list[dict[str, Any]] = []
+    for message in messages:
+        content = message.get("content")
+        if not isinstance(content, list):
+            out.append(message)
+            continue
+        parts: list[dict[str, Any]] = []
+        for part in content:
+            if part.get("type") == "text":
+                parts.append({"type": "text", "text": str(part.get("text") or "")})
+            elif part.get("type") == "image":
+                media = str(part.get("media_type") or "image/png")
+                data = str(part.get("data") or "")
+                parts.append(
+                    {"type": "image_url", "image_url": {"url": f"data:{media};base64,{data}"}}
+                )
+        out.append({**message, "content": parts})
+    return out
 
 
 # -- registry ----------------------------------------------------------------

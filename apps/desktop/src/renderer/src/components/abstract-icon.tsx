@@ -33,6 +33,13 @@ export type AbstractIconName =
   | 'check'
   | 'download'
   | 'down'
+  | 'plus'
+  | 'edit'
+  | 'archive'
+  | 'paperclip'
+  | 'microphone'
+  | 'speaker'
+  | 'regenerate'
 
 const paths: Record<AbstractIconName, React.ReactNode> = {
   overview: <path d="M3.5 4.5h7v6h-7zM13.5 4.5h7v3h-7zM13.5 10.5h7v9h-7zM3.5 13.5h7v6h-7z" />,
@@ -76,7 +83,18 @@ const paths: Record<AbstractIconName, React.ReactNode> = {
   copy: <path d="M8 8h11v11H8zM5 16H4V5h11v1" />,
   check: <path d="m5 12 4.5 4.5L19 7" />,
   download: <path d="M12 3v12M7.5 10.5 12 15l4.5-4.5M4 20h16" />,
-  down: <path d="m6 9 6 6 6-6" />
+  down: <path d="m6 9 6 6 6-6" />,
+  plus: <path d="M12 5v14M5 12h14" />,
+  edit: <path d="M5 19h4L19 9l-4-4L5 15v4zM13.5 6.5l4 4" />,
+  archive: <path d="M4 7h16v13H4zM3 4h18v3H3zM9 11h6" />,
+  paperclip: (
+    <path d="m8 12 6.5-6.5a4 4 0 0 1 5.5 5.8L10.5 21a6 6 0 0 1-8.5-8.5l9-9M6 15l8.5-8.5" />
+  ),
+  microphone: (
+    <path d="M8 5a4 4 0 0 1 8 0v7a4 4 0 0 1-8 0V5zM5 11v1a7 7 0 0 0 14 0v-1M12 19v3M8 22h8" />
+  ),
+  speaker: <path d="M4 10h4l5-4v12l-5-4H4zM16 9a5 5 0 0 1 0 6M18.5 6.5a9 9 0 0 1 0 11" />,
+  regenerate: <path d="M20 8V3l-2 2a9 9 0 1 0 2 10M20 3h-5" />
 }
 
 export function AbstractIcon({

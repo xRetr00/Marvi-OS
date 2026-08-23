@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import os
 import socket
@@ -32,6 +33,7 @@ from .browser import BrowserSession, browser_enabled, register_browser_tools
 from .chat import Chat, ChatStore, ChatTurn, schemas_from_registry
 from .curiosity import Curiosity, seed_identity
 from .deliberate import deliberator_from_env
+from .dictation import DictationError, DictationManager
 from .identity import IdentityFiles, plan_warning, register_identity_tools
 from .ingest import AccountIngest
 from .initiative import Initiative
@@ -263,6 +265,40 @@ class ChatMessage(BaseModel):
     provider: str | None = None
     model: str | None = None
     effort: str | None = None
+    thread_id: str = "default"
+    attachment_ids: list[str] = Field(default_factory=list)
+    edit_message_id: int | None = None
+    regenerate_message_id: int | None = None
+
+
+class ChatThreadCreate(BaseModel):
+    title: str = "New conversation"
+
+
+class ChatThreadUpdate(BaseModel):
+    title: str | None = None
+    archived: bool | None = None
+
+
+class ChatThreadModel(BaseModel):
+    provider: str = ""
+    model: str = ""
+    effort: str = ""
+
+
+class ChatAttachmentUpload(BaseModel):
+    thread_id: str
+    name: str
+    media_type: str
+    data: str
+
+
+class ChatDictationStart(BaseModel):
+    language: str = "en-US"
+
+
+class ChatDictationAudio(BaseModel):
+    pcm16: str
 
 
 class ChatReply(BaseModel):
@@ -279,6 +315,8 @@ class ChatReply(BaseModel):
 class ChatHistory(BaseModel):
     messages: list[dict[str, Any]]
     available: bool
+    threads: list[dict[str, Any]] = Field(default_factory=list)
+    active_thread: str = "default"
 
 
 class DoctorReport(BaseModel):
@@ -502,6 +540,7 @@ def create_app(
     # possible behaviour for a file describing who Marvi is.
     seed_identity(identity, REPO_ROOT)
     curiosity = Curiosity(identity=identity)
+    dictation = DictationManager()
     chat: Chat | None = None
     runtime_store = runtime or RuntimeStore()
     sidecar: RoomSidecar | None = None
@@ -633,6 +672,7 @@ def create_app(
         try:
             yield
         finally:
+            dictation.close()
             if initiative is not None:
                 initiative.stop()
             if scheduler is not None:
@@ -919,10 +959,114 @@ def create_app(
         chat.tool_schemas = lambda: schemas_from_registry(tool_registry)
 
     @app.get("/chat", response_model=ChatHistory)
-    async def chat_history() -> ChatHistory:
+    async def chat_history(thread_id: str = "default") -> ChatHistory:
         if chat is None:
             return ChatHistory(messages=[], available=False)
-        return ChatHistory(messages=chat.store.history(limit=200), available=chat.available())
+        try:
+            messages = chat.store.history(limit=200, thread_id=thread_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return ChatHistory(
+            messages=messages,
+            available=chat.available(),
+            threads=chat.store.threads(),
+            active_thread=thread_id,
+        )
+
+    @app.get("/chat/threads")
+    async def chat_threads(archived: bool = False) -> dict[str, Any]:
+        return {"threads": chat.store.threads(archived) if chat is not None else []}
+
+    @app.post("/chat/threads")
+    async def chat_thread_create(body: ChatThreadCreate) -> dict[str, Any]:
+        if chat is None:
+            raise HTTPException(status_code=503, detail="chat is not available")
+        return chat.store.create_thread(body.title)
+
+    @app.patch("/chat/threads/{thread_id}")
+    async def chat_thread_update(thread_id: str, body: ChatThreadUpdate) -> dict[str, Any]:
+        if chat is None:
+            raise HTTPException(status_code=503, detail="chat is not available")
+        try:
+            return chat.store.update_thread(thread_id, title=body.title, archived=body.archived)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.put("/chat/threads/{thread_id}/model")
+    async def chat_thread_model(thread_id: str, body: ChatThreadModel) -> dict[str, Any]:
+        if chat is None:
+            raise HTTPException(status_code=503, detail="chat is not available")
+        try:
+            return chat.store.set_thread_model(
+                thread_id, body.provider.strip(), body.model.strip(), body.effort.strip()
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.delete("/chat/threads/{thread_id}")
+    async def chat_thread_delete(thread_id: str) -> dict[str, Any]:
+        if chat is None:
+            raise HTTPException(status_code=503, detail="chat is not available")
+        try:
+            removed = chat.store.delete_thread(thread_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return {"removed": removed}
+
+    @app.post("/chat/attachments")
+    async def chat_attachment_upload(body: ChatAttachmentUpload) -> dict[str, Any]:
+        if chat is None:
+            raise HTTPException(status_code=503, detail="chat is not available")
+        try:
+            data = base64.b64decode(body.data, validate=True)
+            return chat.store.add_attachment(body.thread_id, body.name, body.media_type, data)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except (ValueError, TypeError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.delete("/chat/attachments/{attachment_id}")
+    async def chat_attachment_remove(attachment_id: str) -> dict[str, Any]:
+        if chat is None:
+            raise HTTPException(status_code=503, detail="chat is not available")
+        return {"removed": chat.store.remove_attachment(attachment_id)}
+
+    @app.get("/chat/attachments/{attachment_id}")
+    async def chat_attachment_content(attachment_id: str) -> dict[str, str]:
+        if chat is None:
+            raise HTTPException(status_code=503, detail="chat is not available")
+        try:
+            return chat.store.attachment_content(attachment_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/chat/dictation")
+    async def chat_dictation_start(body: ChatDictationStart) -> dict[str, Any]:
+        try:
+            identifier = await anyio.to_thread.run_sync(dictation.start, body.language)
+            return {"id": identifier, "available": True}
+        except DictationError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    @app.post("/chat/dictation/{session_id}/audio")
+    async def chat_dictation_audio(session_id: str, body: ChatDictationAudio) -> dict[str, Any]:
+        try:
+            return await anyio.to_thread.run_sync(dictation.audio, session_id, body.pcm16)
+        except DictationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/chat/dictation/{session_id}/stop")
+    async def chat_dictation_stop(session_id: str) -> dict[str, Any]:
+        try:
+            return await anyio.to_thread.run_sync(dictation.stop, session_id)
+        except DictationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.delete("/chat/dictation/{session_id}")
+    async def chat_dictation_cancel(session_id: str) -> dict[str, Any]:
+        return {"cancelled": dictation.cancel(session_id)}
 
     @app.post("/chat", response_model=ChatReply)
     async def chat_send(body: ChatMessage) -> ChatReply:
@@ -933,7 +1077,14 @@ def create_app(
         import anyio
 
         turn: ChatTurn = await anyio.to_thread.run_sync(
-            chat.send, body.message, body.provider, body.model, body.effort
+            lambda: chat.send(
+                body.message,
+                body.provider,
+                body.model,
+                body.effort,
+                body.thread_id,
+                body.attachment_ids,
+            )
         )
         return ChatReply(
             reply=turn.reply,
@@ -979,6 +1130,10 @@ def create_app(
                         body.model,
                         body.effort,
                         cancelled=stop.is_set,
+                        thread_id=body.thread_id,
+                        attachment_ids=body.attachment_ids,
+                        edit_message_id=body.edit_message_id,
+                        regenerate_message_id=body.regenerate_message_id,
                     ):
                         loop.call_soon_threadsafe(queue.put_nowait, event)
                 except Exception as exc:  # pragma: no cover - defensive
@@ -1009,12 +1164,20 @@ def create_app(
         )
 
     @app.delete("/chat", response_model=ChatHistory)
-    async def chat_clear() -> ChatHistory:
+    async def chat_clear(thread_id: str = "default") -> ChatHistory:
         if chat is None:
             return ChatHistory(messages=[], available=False)
-        removed = chat.store.clear()
+        try:
+            removed = chat.store.clear(thread_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
         runtime_store.audit("chat", "cleared", {"messages": removed})
-        return ChatHistory(messages=[], available=chat.available())
+        return ChatHistory(
+            messages=[],
+            available=chat.available(),
+            threads=chat.store.threads(),
+            active_thread=thread_id,
+        )
 
     def doctor_report() -> DoctorReport:
         findings = doctor_module.run_checks()

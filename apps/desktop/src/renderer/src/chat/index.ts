@@ -1,8 +1,5 @@
 export { Chat } from './Chat'
-export type { Session } from './components/Sessions'
 export type { ChatMessage, ChatRole, PendingConfirmation } from './types'
 export { toChatMessage, toChatMessages, metaValue } from './types'
 export { Markdown } from './MarkdownView'
-export { parseBlocks, parseInline } from './markdown'
-export type { Block, InlineNode } from './markdown'
 export { formatTime, formatRelative, titleFromMessages } from './time'

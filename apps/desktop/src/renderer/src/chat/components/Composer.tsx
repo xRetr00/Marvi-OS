@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { BorderBeam } from 'border-beam'
 
-import type { ModelPage } from '../../../../shared/runtime'
+import type { ChatAttachment, ModelPage } from '../../../../shared/runtime'
 import { AbstractIcon } from '../../components/abstract-icon'
+import { TooltipProvider, UiTooltip } from '../../components/ui/tooltip'
 import { Picker, type PickerOption } from '../../components/ui/picker'
+import { useDictation } from '../useDictation'
 
 /**
  * One field with its send control inside it.
@@ -21,6 +23,9 @@ export function Composer({
   onDraftChange,
   onSend,
   onCancel,
+  attachments = [],
+  onFiles,
+  onRemoveAttachment,
   override,
   onOverrideChange
 }: {
@@ -30,11 +35,20 @@ export function Composer({
   onDraftChange: (next: string) => void
   onSend: () => void
   onCancel?: () => void
+  attachments?: ChatAttachment[]
+  onFiles?: (files: FileList | File[]) => void
+  onRemoveAttachment?: (id: string) => void
   override?: { provider?: string; model?: string; effort?: string }
   onOverrideChange?: (next: { provider?: string; model?: string; effort?: string }) => void
 }): React.JSX.Element {
   const field = useRef<HTMLTextAreaElement | null>(null)
+  const fileInput = useRef<HTMLInputElement | null>(null)
   const [focused, setFocused] = useState(false)
+  const appendDictation = useCallback(
+    (text: string) => onDraftChange(`${draft}${draft.trim() ? ' ' : ''}${text}`),
+    [draft, onDraftChange]
+  )
+  const dictation = useDictation(appendDictation)
 
   // Auto-grow up to a ceiling, then scroll internally.
   useEffect(() => {
@@ -48,81 +62,155 @@ export function Composer({
   const beamActive = available && (focused || busy || Boolean(draft.trim()))
 
   return (
-    <div className="chat-compose">
-      <BorderBeam
-        active={beamActive}
-        borderRadius={10}
-        className="chat-compose-beam"
-        colorVariant="mono"
-        duration={busy ? 1.8 : 3.2}
-        size="line"
-        staticColors
-        strength={busy ? 0.72 : 0.48}
-        theme="dark"
+    <TooltipProvider>
+      <div
+        className="chat-compose"
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={(event) => {
+          event.preventDefault()
+          if (event.dataTransfer.files.length) onFiles?.(event.dataTransfer.files)
+        }}
       >
-        <div className="chat-compose-field">
-          <div className="chat-compose-label" aria-hidden="true">
-            <span>{'// MESSAGE'}</span>
-            <span>
-              {busy ? 'RECEIVING' : focused ? 'INPUT ACTIVE' : available ? 'READY' : 'OFFLINE'}
-            </span>
-          </div>
-          <textarea
-            ref={field}
-            rows={1}
-            value={draft}
-            placeholder={available ? 'Send a message…' : 'Connect a provider to chat'}
-            disabled={busy || !available}
-            aria-label="Message Marvi"
-            enterKeyHint="send"
-            onBlur={() => setFocused(false)}
-            onChange={(event) => onDraftChange(event.target.value)}
-            onFocus={() => setFocused(true)}
-            onKeyDown={(event) => {
-              // Enter sends, Shift+Enter breaks the line, Ctrl/Cmd+Enter always sends.
-              const wantsSend =
-                event.key === 'Enter' && (!event.shiftKey || event.ctrlKey || event.metaKey)
-              if (wantsSend) {
-                event.preventDefault()
-                onSend()
-              }
-            }}
-          />
-          <div className="chat-compose-actions">
-            {onOverrideChange ? (
-              <SessionModel value={override ?? {}} onChange={onOverrideChange} />
-            ) : (
-              <span />
-            )}
-            <div className="chat-compose-submit">
-              <span className="chat-compose-hint">ENTER SENDS · SHIFT+ENTER NEW LINE</span>
-              {busy && onCancel ? (
-                // While a reply is streaming the same control stops it. A turn
-                // nobody wants any more is still being generated and still billed.
-                <button
-                  aria-label="Stop"
-                  className="chat-send is-stop"
-                  onClick={onCancel}
-                  type="button"
-                >
-                  <AbstractIcon name="stop" size={16} />
-                </button>
-              ) : (
-                <button
-                  aria-label="Send"
-                  className="chat-send"
-                  disabled={!ready}
-                  onClick={onSend}
-                  type="button"
-                >
-                  <AbstractIcon name="send" size={16} />
-                </button>
-              )}
+        <BorderBeam
+          active={beamActive}
+          borderRadius={10}
+          className="chat-compose-beam"
+          colorVariant="mono"
+          duration={busy ? 1.8 : 3.2}
+          size="line"
+          staticColors
+          strength={busy ? 0.72 : 0.48}
+          theme="dark"
+        >
+          <div className="chat-compose-field">
+            <div className="chat-compose-label" aria-hidden="true">
+              <span>{'// MESSAGE'}</span>
+              <span>
+                {busy ? 'RECEIVING' : focused ? 'INPUT ACTIVE' : available ? 'READY' : 'OFFLINE'}
+              </span>
+            </div>
+            {attachments.length ? (
+              <div className="chat-attachments" aria-label="Pending attachments">
+                {attachments.map((attachment) => (
+                  <span className="chat-attachment" key={attachment.id}>
+                    <AbstractIcon
+                      name={attachment.kind === 'image' ? 'vision' : 'paperclip'}
+                      size={13}
+                    />
+                    <span>{attachment.name}</span>
+                    <button
+                      aria-label={`Remove ${attachment.name}`}
+                      onClick={() => onRemoveAttachment?.(attachment.id)}
+                      type="button"
+                    >
+                      <AbstractIcon name="close" size={11} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            <textarea
+              ref={field}
+              rows={1}
+              value={draft}
+              placeholder={available ? 'Send a message…' : 'Connect a provider to chat'}
+              disabled={busy || !available}
+              aria-label="Message Marvi"
+              enterKeyHint="send"
+              onBlur={() => setFocused(false)}
+              onChange={(event) => onDraftChange(event.target.value)}
+              onFocus={() => setFocused(true)}
+              onKeyDown={(event) => {
+                // Enter sends, Shift+Enter breaks the line, Ctrl/Cmd+Enter always sends.
+                const wantsSend =
+                  event.key === 'Enter' && (!event.shiftKey || event.ctrlKey || event.metaKey)
+                if (wantsSend) {
+                  event.preventDefault()
+                  onSend()
+                }
+              }}
+            />
+            <div className="chat-compose-actions">
+              <div className="chat-compose-tools">
+                <input
+                  ref={fileInput}
+                  className="chat-file-input"
+                  type="file"
+                  multiple
+                  accept="image/png,image/jpeg,image/webp,image/gif,text/plain,text/markdown,text/csv,application/json,application/pdf,.docx,.xlsx,.pptx"
+                  onChange={(event) => {
+                    if (event.target.files?.length) onFiles?.(event.target.files)
+                    event.target.value = ''
+                  }}
+                />
+                <UiTooltip label="Attach images or documents">
+                  <button
+                    aria-label="Attach images or documents"
+                    className="chat-compose-tool"
+                    disabled={busy}
+                    onClick={() => fileInput.current?.click()}
+                    type="button"
+                  >
+                    <AbstractIcon name="paperclip" size={15} />
+                  </button>
+                </UiTooltip>
+                <UiTooltip label={dictation.active ? 'Stop dictation' : 'Dictate message'}>
+                  <button
+                    aria-label={dictation.active ? 'Stop dictation' : 'Dictate message'}
+                    aria-pressed={dictation.active}
+                    className={dictation.active ? 'chat-compose-tool active' : 'chat-compose-tool'}
+                    disabled={busy || dictation.starting}
+                    onClick={() => void (dictation.active ? dictation.stop() : dictation.start())}
+                    type="button"
+                  >
+                    <AbstractIcon name={dictation.active ? 'stop' : 'microphone'} size={15} />
+                  </button>
+                </UiTooltip>
+                {onOverrideChange ? (
+                  <SessionModel value={override ?? {}} onChange={onOverrideChange} />
+                ) : null}
+                <details className="chat-context-breakdown">
+                  <summary>CONTEXT</summary>
+                  <div>
+                    <span>DRAFT</span>
+                    <strong>{draft.length.toLocaleString()} chars</strong>
+                    <span>FILES</span>
+                    <strong>{attachments.length}</strong>
+                    <span>ROUTE</span>
+                    <strong>{override?.model || 'default'}</strong>
+                  </div>
+                </details>
+              </div>
+              <div className="chat-compose-submit">
+                <span className="chat-compose-hint">ENTER SENDS · SHIFT+ENTER NEW LINE</span>
+                {busy && onCancel ? (
+                  // While a reply is streaming the same control stops it. A turn
+                  // nobody wants any more is still being generated and still billed.
+                  <button
+                    aria-label="Stop"
+                    className="chat-send is-stop"
+                    onClick={onCancel}
+                    type="button"
+                  >
+                    <AbstractIcon name="stop" size={16} />
+                  </button>
+                ) : (
+                  <button
+                    aria-label="Send"
+                    className="chat-send"
+                    disabled={!ready}
+                    onClick={onSend}
+                    type="button"
+                  >
+                    <AbstractIcon name="send" size={16} />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      </BorderBeam>
-    </div>
+        </BorderBeam>
+      </div>
+    </TooltipProvider>
   )
 }
 

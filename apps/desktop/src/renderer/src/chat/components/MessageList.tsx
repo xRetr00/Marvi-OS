@@ -9,12 +9,40 @@ import { ThinkingIndicator } from './ThinkingIndicator'
 import { ToolMessage } from './ToolMessage'
 import { UserMessage } from './UserMessage'
 
-function MessageRow({ message }: { message: ChatMessage }): React.JSX.Element {
+function MessageRow({
+  message,
+  onEdit,
+  onRegenerate,
+  readAloud
+}: {
+  message: ChatMessage
+  onEdit?: (id: number, content: string) => void
+  onRegenerate?: (id: number) => void
+  readAloud?: {
+    available: boolean
+    readingId: number | null
+    toggle: (id: number, content: string) => void
+  }
+}): React.JSX.Element {
   switch (message.role) {
     case 'user':
-      return <UserMessage message={message} />
+      return <UserMessage message={message} onEdit={onEdit} />
     case 'assistant':
-      return <AgentMessage message={message} />
+      return (
+        <AgentMessage
+          message={message}
+          onRegenerate={onRegenerate}
+          readAloud={
+            readAloud
+              ? {
+                  available: readAloud.available,
+                  reading: readAloud.readingId === message.id,
+                  toggle: () => readAloud.toggle(message.id, message.content)
+                }
+              : undefined
+          }
+        />
+      )
     case 'tool':
       return <ToolMessage message={message} />
     default:
@@ -57,11 +85,22 @@ function EmptyState({
 export function MessageList({
   messages,
   busy,
-  onSuggestion
+  onSuggestion,
+  onEdit,
+  onRegenerate,
+  readAloud
 }: {
   messages: ChatMessage[]
   busy: boolean
   onSuggestion: (prompt: string) => void
+  onEdit?: (id: number, content: string) => void
+  onRegenerate?: (id: number) => void
+  readAloud?: {
+    available: boolean
+    readingId: number | null
+    announcement: string
+    toggle: (id: number, content: string) => void
+  }
 }): React.JSX.Element {
   const viewport = useRef<HTMLDivElement | null>(null)
   const bottom = useRef<HTMLDivElement | null>(null)
@@ -95,12 +134,23 @@ export function MessageList({
         <div className="chat-thread-content">
           {messages.length === 0 && !busy ? <EmptyState onSuggestion={onSuggestion} /> : null}
           {messages.map((message) => (
-            <MessageRow message={message} key={message.id} />
+            <MessageRow
+              message={message}
+              key={message.id}
+              onEdit={onEdit}
+              onRegenerate={onRegenerate}
+              readAloud={readAloud}
+            />
           ))}
           {busy ? <ThinkingIndicator /> : null}
           <div ref={bottom} />
         </div>
       </div>
+      {readAloud ? (
+        <span className="sr-only" aria-live="polite">
+          {readAloud.announcement}
+        </span>
+      ) : null}
       {!pinned ? (
         <TooltipProvider>
           <UiTooltip label="Scroll to latest message">

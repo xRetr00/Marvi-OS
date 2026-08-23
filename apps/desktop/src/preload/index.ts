@@ -2,8 +2,10 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type {
   AssistantState,
   AuditEvent,
-  ChatEntry,
+  ChatAttachment,
+  ChatPage,
   ChatReply,
+  ChatThread,
   ConnectedAccount,
   DoctorReport,
   HardwareAnswer,
@@ -113,8 +115,31 @@ const marvi = {
     detail: string
     accounts: ConnectedAccount[]
   }> => ipcRenderer.invoke('marvi:get-accounts'),
-  getChat: (): Promise<{ messages: ChatEntry[]; available: boolean }> =>
-    ipcRenderer.invoke('marvi:get-chat'),
+  getChat: (threadId?: string): Promise<ChatPage> => ipcRenderer.invoke('marvi:get-chat', threadId),
+  getChatThreads: (archived = false): Promise<ChatThread[]> =>
+    ipcRenderer.invoke('marvi:get-chat-threads', archived),
+  createChatThread: (title?: string): Promise<ChatThread | null> =>
+    ipcRenderer.invoke('marvi:create-chat-thread', title),
+  updateChatThread: (
+    id: string,
+    update: { title?: string; archived?: boolean }
+  ): Promise<ChatThread | null> => ipcRenderer.invoke('marvi:update-chat-thread', id, update),
+  setChatThreadModel: (
+    id: string,
+    selection: { provider?: string; model?: string; effort?: string }
+  ): Promise<ChatThread | null> => ipcRenderer.invoke('marvi:set-chat-thread-model', id, selection),
+  deleteChatThread: (id: string): Promise<boolean> =>
+    ipcRenderer.invoke('marvi:delete-chat-thread', id),
+  uploadChatAttachment: (input: {
+    threadId: string
+    name: string
+    mediaType: string
+    data: string
+  }): Promise<ChatAttachment | null> => ipcRenderer.invoke('marvi:upload-chat-attachment', input),
+  removeChatAttachment: (id: string): Promise<boolean> =>
+    ipcRenderer.invoke('marvi:remove-chat-attachment', id),
+  getChatAttachment: (id: string): Promise<{ mediaType: string; data: string } | null> =>
+    ipcRenderer.invoke('marvi:get-chat-attachment', id),
   sendChat: (
     message: string,
     override?: { provider?: string; model?: string; effort?: string }
@@ -127,8 +152,15 @@ const marvi = {
    */
   streamChat: (
     message: string,
-    override?: { provider?: string; model?: string; effort?: string }
-  ): Promise<boolean> => ipcRenderer.invoke('marvi:stream-chat', message, override ?? {}),
+    override?: { provider?: string; model?: string; effort?: string },
+    context?: {
+      threadId?: string
+      attachmentIds?: string[]
+      editMessageId?: number
+      regenerateMessageId?: number
+    }
+  ): Promise<boolean> =>
+    ipcRenderer.invoke('marvi:stream-chat', message, override ?? {}, context ?? {}),
   /** Stop the turn in flight. Closes the provider connection, not just the UI. */
   cancelChat: (): Promise<boolean> => ipcRenderer.invoke('marvi:cancel-chat'),
   onChatDelta: (listener: (event: Record<string, unknown>) => void): (() => void) => {
@@ -138,7 +170,19 @@ const marvi = {
       ipcRenderer.removeListener('marvi:chat-delta', wrapped)
     }
   },
-  clearChat: (): Promise<boolean> => ipcRenderer.invoke('marvi:clear-chat'),
+  clearChat: (threadId?: string): Promise<boolean> =>
+    ipcRenderer.invoke('marvi:clear-chat', threadId),
+  startChatDictation: (language?: string): Promise<{ id: string } | null> =>
+    ipcRenderer.invoke('marvi:start-chat-dictation', language),
+  pushChatDictationAudio: (
+    id: string,
+    pcm16: string
+  ): Promise<{ kind: string; text: string } | null> =>
+    ipcRenderer.invoke('marvi:push-chat-dictation-audio', id, pcm16),
+  stopChatDictation: (id: string): Promise<{ kind: string; text: string } | null> =>
+    ipcRenderer.invoke('marvi:stop-chat-dictation', id),
+  cancelChatDictation: (id: string): Promise<boolean> =>
+    ipcRenderer.invoke('marvi:cancel-chat-dictation', id),
   getSchedules: (): Promise<SchedulePage | null> => ipcRenderer.invoke('marvi:get-schedules'),
   addSchedule: (body: {
     name: string

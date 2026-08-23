@@ -13,7 +13,19 @@ import { UserMessage } from './components/UserMessage'
 const at = '2026-08-17T14:05:00Z'
 
 function message(overrides: Partial<ChatMessage>): ChatMessage {
-  return { id: 1, at, role: 'user', content: 'hi', meta: {}, ...overrides }
+  return {
+    id: 1,
+    at,
+    role: 'user',
+    content: 'hi',
+    meta: {},
+    threadId: 'default',
+    parentId: null,
+    branchId: 'main',
+    parts: [{ type: 'text', text: 'hi' }],
+    attachments: [],
+    ...overrides
+  }
 }
 
 describe('UserMessage', () => {
@@ -120,10 +132,27 @@ describe('Sessions', () => {
   it('renders session titles and a new button', () => {
     const html = renderToStaticMarkup(
       <Sessions
-        sessions={[{ id: 'a', title: 'Hi there', updatedAt: '2m ago', messageCount: 3 }]}
+        sessions={[
+          {
+            id: 'a',
+            title: 'Hi there',
+            created_at: at,
+            updated_at: at,
+            archived: false,
+            active_message_id: 3,
+            active_branch: 'main',
+            selected_provider: '',
+            selected_model: '',
+            selected_effort: '',
+            message_count: 3
+          }
+        ]}
         activeId="a"
         onSelect={() => {}}
         onNew={() => {}}
+        onRename={() => {}}
+        onArchive={() => {}}
+        onDelete={() => {}}
       />
     )
     expect(html).toContain('Hi there')
@@ -139,5 +168,20 @@ describe('Markdown', () => {
     expect(html).toContain('1 + 1')
     expect(html).toContain('before')
     expect(html).toContain('after')
+  })
+
+  it('renders GFM tables, tasks, links, and math without raw HTML', () => {
+    const html = renderToStaticMarkup(
+      <Markdown
+        content={
+          '| A | B |\n| - | - |\n| 1 | 2 |\n\n- [x] done\n\n[x](https://example.com)\n\n$E=mc^2$\n\n<script>bad()</script>'
+        }
+      />
+    )
+    expect(html).toContain('chat-table-scroll')
+    expect(html).toContain('type="checkbox"')
+    expect(html).toContain('noreferrer noopener')
+    expect(html).toContain('katex')
+    expect(html).not.toContain('<script>')
   })
 })

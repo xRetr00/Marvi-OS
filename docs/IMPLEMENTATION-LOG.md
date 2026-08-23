@@ -755,3 +755,28 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   dictation. No backend code changed in this milestone.
 - Visually verified populated and empty states at 1440×900 and the shipping
   1180×760 window size, including the model picker and scroll-to-latest control.
+
+## 2026-08-23 — authoritative rich Chat contract
+
+- Replaced the single-transcript assumption with Gateway-owned SQLite threads,
+  message ancestry, preserved edit/regenerate branches, and per-thread
+  provider/model/effort selection exposed through narrow Electron IPC.
+- Added ordered typed message parts and local attachment lifecycle. Images are
+  capability-checked and translated for OpenAI Chat, OpenAI Responses, and
+  Anthropic; supported documents are extracted locally through MarkItDown and
+  wrapped as untrusted external content.
+- Adapted chat microphone PCM to the existing native Nemotron streaming STT
+  sidecar through bounded Gateway sessions. No second recognizer or renderer
+  inference path was introduced.
+- Replaced the handwritten Markdown subset with the maintained React Markdown
+  pipeline for GFM and math, then added structured code/table/source styling,
+  attachment previews, thread controls, context detail, and clearer actions.
+- Added local read aloud for settled assistant prose using installed system
+  voices. The speech projection omits code, URLs, reasoning, tools, and source
+  bodies and cancels on thread change.
+- Explicitly dropped dynamic follow-up suggestions from both backend and UI.
+- Passed the 823-test Gateway suite, desktop typecheck/production build, 36
+  focused Chat tests, and the service-supervisor test on isolated rerun after a
+  parallel-load timeout.
+- Visually checked the empty, expanded-context, and thread-drawer states at
+  1180×760 in Chromium; evidence is under `output/playwright/`.

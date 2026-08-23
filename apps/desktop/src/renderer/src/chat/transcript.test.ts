@@ -6,9 +6,9 @@ import type { ChatMessage } from './types'
 describe('transcriptMarkdown', () => {
   it('exports every supported role without changing message content', () => {
     const messages: ChatMessage[] = [
-      { id: 1, at: '', role: 'user', content: 'Check the room', meta: {} },
-      { id: 2, at: '', role: 'assistant', content: '**Quiet.**', meta: {} },
-      { id: 3, at: '', role: 'tool', content: '{"light":0}', meta: { tool: 'room_state' } }
+      message(1, 'user', 'Check the room'),
+      message(2, 'assistant', '**Quiet.**'),
+      message(3, 'tool', '{"light":0}', { tool: 'room_state' })
     ]
 
     expect(transcriptMarkdown(messages)).toBe(
@@ -16,3 +16,23 @@ describe('transcriptMarkdown', () => {
     )
   })
 })
+
+function message(
+  id: number,
+  role: ChatMessage['role'],
+  content: string,
+  meta: Record<string, unknown> = {}
+): ChatMessage {
+  return {
+    id,
+    at: '',
+    role,
+    content,
+    meta,
+    threadId: 'default',
+    parentId: null,
+    branchId: 'main',
+    parts: [{ type: 'text', text: content }],
+    attachments: []
+  }
+}
