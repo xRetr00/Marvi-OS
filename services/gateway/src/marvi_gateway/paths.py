@@ -74,6 +74,11 @@ def provider_config() -> Path:
     return _from_env("MARVI_PROVIDER_CONFIG", "providers.env")
 
 
+def usage_ledger() -> Path:
+    """Durable, content-free model usage recorded by the Gateway."""
+    return _from_env("MARVI_USAGE_LEDGER", "usage.json")
+
+
 def token_store() -> Path:
     return _from_env("MARVI_TOKEN_STORE", "tokens.bin")
 
@@ -152,6 +157,7 @@ def describe() -> dict[str, str]:
         "memory": str(memory_db()),
         "chat": str(chat_db()),
         "providers": str(provider_config()),
+        "usage": str(usage_ledger()),
         "tokens": str(token_store()),
         "audit": str(audit_log()),
         "models": str(models_dir()),

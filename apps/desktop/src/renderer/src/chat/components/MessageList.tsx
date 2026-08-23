@@ -1,18 +1,48 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import type { ChatMessage } from '../types'
+import { AbstractIcon } from '../../components/abstract-icon'
+import { TooltipProvider, UiTooltip } from '../../components/ui/tooltip'
 import { AgentMessage } from './AgentMessage'
 import { ErrorMessage } from './ErrorMessage'
 import { ThinkingIndicator } from './ThinkingIndicator'
 import { ToolMessage } from './ToolMessage'
 import { UserMessage } from './UserMessage'
 
-function MessageRow({ message }: { message: ChatMessage }): React.JSX.Element {
+function MessageRow({
+  message,
+  onEdit,
+  onRegenerate,
+  readAloud
+}: {
+  message: ChatMessage
+  onEdit?: (id: number, content: string) => void
+  onRegenerate?: (id: number) => void
+  readAloud?: {
+    available: boolean
+    readingId: number | null
+    toggle: (id: number, content: string) => void
+  }
+}): React.JSX.Element {
   switch (message.role) {
     case 'user':
-      return <UserMessage message={message} />
+      return <UserMessage message={message} onEdit={onEdit} />
     case 'assistant':
-      return <AgentMessage message={message} />
+      return (
+        <AgentMessage
+          message={message}
+          onRegenerate={onRegenerate}
+          readAloud={
+            readAloud
+              ? {
+                  available: readAloud.available,
+                  reading: readAloud.readingId === message.id,
+                  toggle: () => readAloud.toggle(message.id, message.content)
+                }
+              : undefined
+          }
+        />
+      )
     case 'tool':
       return <ToolMessage message={message} />
     default:
@@ -20,37 +50,121 @@ function MessageRow({ message }: { message: ChatMessage }): React.JSX.Element {
   }
 }
 
-function EmptyState(): React.JSX.Element {
+export const STARTER_PROMPTS = [
+  { code: 'ROOM', text: 'What is happening in the room right now?' },
+  { code: 'MEMORY', text: 'What do you remember that could help me today?' },
+  { code: 'PLAN', text: 'Help me turn my next goal into a clear plan.' }
+] as const
+
+function EmptyState({
+  onSuggestion
+}: {
+  onSuggestion: (prompt: string) => void
+}): React.JSX.Element {
   return (
     <div className="chat-empty">
-      <span className="chat-empty-glyph">MARVI</span>
-      <p>Same Marvi as the voice session — same identity, memory, tools, and confirmations.</p>
-      <p className="chat-empty-hint">Ask about a file, a memory, or something you want done.</p>
+      <div className="chat-empty-mark" aria-hidden="true">
+        <span>+</span>
+        <span>MARVI</span>
+        <span>+</span>
+      </div>
+      <h2>What should we work through?</h2>
+      <p>One assistant across voice, memory, tools, and the room.</p>
+      <div className="chat-starters" aria-label="Starter prompts">
+        {STARTER_PROMPTS.map((prompt) => (
+          <button key={prompt.code} type="button" onClick={() => onSuggestion(prompt.text)}>
+            <span>{prompt.code}</span>
+            {prompt.text}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
 
 export function MessageList({
   messages,
-  busy
+  busy,
+  onSuggestion,
+  onEdit,
+  onRegenerate,
+  readAloud
 }: {
   messages: ChatMessage[]
   busy: boolean
+  onSuggestion: (prompt: string) => void
+  onEdit?: (id: number, content: string) => void
+  onRegenerate?: (id: number) => void
+  readAloud?: {
+    available: boolean
+    readingId: number | null
+    announcement: string
+    toggle: (id: number, content: string) => void
+  }
 }): React.JSX.Element {
+  const viewport = useRef<HTMLDivElement | null>(null)
   const bottom = useRef<HTMLDivElement | null>(null)
+  const [pinned, setPinned] = useState(true)
 
   useEffect(() => {
+    if (pinned) bottom.current?.scrollIntoView({ behavior: busy ? 'auto' : 'smooth' })
+  }, [messages, busy, pinned])
+
+  const updatePinned = (): void => {
+    const node = viewport.current
+    if (!node) return
+    setPinned(node.scrollHeight - node.scrollTop - node.clientHeight < 56)
+  }
+
+  const scrollToBottom = (): void => {
+    setPinned(true)
     bottom.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, busy])
+  }
 
   return (
-    <div className="chat-log" role="log" aria-live="polite" aria-label="Conversation">
-      {messages.length === 0 && !busy ? <EmptyState /> : null}
-      {messages.map((message) => (
-        <MessageRow message={message} key={message.id} />
-      ))}
-      {busy ? <ThinkingIndicator /> : null}
-      <div ref={bottom} />
+    <div className="chat-thread-viewport">
+      <div
+        className="chat-log"
+        ref={viewport}
+        role="log"
+        aria-live="polite"
+        aria-label="Conversation"
+        onScroll={updatePinned}
+      >
+        <div className="chat-thread-content">
+          {messages.length === 0 && !busy ? <EmptyState onSuggestion={onSuggestion} /> : null}
+          {messages.map((message) => (
+            <MessageRow
+              message={message}
+              key={message.id}
+              onEdit={onEdit}
+              onRegenerate={onRegenerate}
+              readAloud={readAloud}
+            />
+          ))}
+          {busy ? <ThinkingIndicator /> : null}
+          <div ref={bottom} />
+        </div>
+      </div>
+      {readAloud ? (
+        <span className="sr-only" aria-live="polite">
+          {readAloud.announcement}
+        </span>
+      ) : null}
+      {!pinned ? (
+        <TooltipProvider>
+          <UiTooltip label="Scroll to latest message">
+            <button
+              aria-label="Scroll to latest message"
+              className="chat-scroll-bottom"
+              onClick={scrollToBottom}
+              type="button"
+            >
+              <AbstractIcon name="down" size={16} />
+            </button>
+          </UiTooltip>
+        </TooltipProvider>
+      ) : null}
     </div>
   )
 }

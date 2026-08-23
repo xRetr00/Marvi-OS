@@ -1,8 +1,10 @@
 import type {
   AssistantState,
   AuditEvent,
-  ChatEntry,
+  ChatAttachment,
+  ChatPage,
   ChatReply,
+  ChatThread,
   ConnectedAccount,
   DoctorReport,
   HardwareAnswer,
@@ -14,6 +16,7 @@ import type {
   ModelPage,
   PluginPage,
   ProviderPage,
+  UsagePage,
   RoomEvent,
   RuntimeStatus,
   SchedulePage,
@@ -64,18 +67,50 @@ export interface MarviDesktopApi {
     detail: string
     accounts: ConnectedAccount[]
   }>
-  getChat: () => Promise<{ messages: ChatEntry[]; available: boolean }>
+  getChat: (threadId?: string) => Promise<ChatPage>
+  getChatThreads: (archived?: boolean) => Promise<ChatThread[]>
+  createChatThread: (title?: string) => Promise<ChatThread | null>
+  updateChatThread: (
+    id: string,
+    update: { title?: string; archived?: boolean }
+  ) => Promise<ChatThread | null>
+  setChatThreadModel: (
+    id: string,
+    selection: { provider?: string; model?: string; effort?: string }
+  ) => Promise<ChatThread | null>
+  deleteChatThread: (id: string) => Promise<boolean>
+  uploadChatAttachment: (input: {
+    threadId: string
+    name: string
+    mediaType: string
+    data: string
+  }) => Promise<ChatAttachment | null>
+  removeChatAttachment: (id: string) => Promise<boolean>
+  getChatAttachment: (id: string) => Promise<{ mediaType: string; data: string } | null>
   sendChat: (
     message: string,
     override?: { provider?: string; model?: string; effort?: string }
   ) => Promise<ChatReply | null>
   streamChat: (
     message: string,
-    override?: { provider?: string; model?: string; effort?: string }
+    override?: { provider?: string; model?: string; effort?: string },
+    context?: {
+      threadId?: string
+      attachmentIds?: string[]
+      editMessageId?: number
+      regenerateMessageId?: number
+    }
   ) => Promise<boolean>
   cancelChat: () => Promise<boolean>
   onChatDelta: (listener: (event: Record<string, unknown>) => void) => () => void
-  clearChat: () => Promise<boolean>
+  clearChat: (threadId?: string) => Promise<boolean>
+  startChatDictation: (language?: string) => Promise<{ id: string } | null>
+  pushChatDictationAudio: (
+    id: string,
+    pcm16: string
+  ) => Promise<{ kind: string; text: string } | null>
+  stopChatDictation: (id: string) => Promise<{ kind: string; text: string } | null>
+  cancelChatDictation: (id: string) => Promise<boolean>
   getSchedules: () => Promise<SchedulePage | null>
   addSchedule: (body: {
     name: string
@@ -113,6 +148,7 @@ export interface MarviDesktopApi {
   retryService: (name: string) => Promise<boolean>
   onServices: (listener: (reports: ServiceReport[]) => void) => () => void
   getProviders: () => Promise<ProviderPage | null>
+  getUsage: (refresh?: boolean) => Promise<UsagePage | null>
   connectLocal: (
     name: string
   ) => Promise<{ connected: boolean; models: number; detail: string } | null>

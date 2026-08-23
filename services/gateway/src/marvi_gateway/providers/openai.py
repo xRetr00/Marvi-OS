@@ -40,8 +40,8 @@ openai_api = register(
         ),
         limits=LimitPolicy(
             style="credit",
-            readable=False,
-            note="Credit and usage are shown in the OpenAI platform dashboard.",
+            readable=True,
+            note="Organization costs are readable when OPENAI_ADMIN_KEY is set.",
         ),
         default_max_tokens=4096,
     )
@@ -69,7 +69,11 @@ openai_responses = register(
         reasoning=ReasoningPolicy(
             style="effort", levels=("minimal", "low", "medium", "high"), default="low"
         ),
-        limits=LimitPolicy(style="credit", readable=False),
+        limits=LimitPolicy(
+            style="credit",
+            readable=True,
+            note="Shares OpenAI organization costs when OPENAI_ADMIN_KEY is set.",
+        ),
         default_max_tokens=4096,
     )
 )

@@ -40,8 +40,8 @@ anthropic_api = register(
         reasoning=ReasoningPolicy(style="budget_tokens"),
         limits=LimitPolicy(
             style="credit",
-            readable=False,
-            note="Credit and usage are shown in the Anthropic console.",
+            readable=True,
+            note="Organization costs are readable when ANTHROPIC_ADMIN_KEY is set.",
         ),
         default_max_tokens=4096,
     )

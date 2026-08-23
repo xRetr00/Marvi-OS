@@ -17,7 +17,12 @@ function reply(content: string, meta: Record<string, unknown> = {}): ChatMessage
     at: new Date().toISOString(),
     role: 'assistant',
     content,
-    meta: meta as ChatMessage['meta']
+    meta: meta as ChatMessage['meta'],
+    threadId: 'default',
+    parentId: null,
+    branchId: 'main',
+    parts: [{ type: 'text', text: content }],
+    attachments: []
   }
 }
 

@@ -105,7 +105,12 @@ async function waitForGateway(attempts = 30): Promise<void> {
  * Kept as switches rather than a decision, because the right answer depends on
  * the room: a noisy one may well want them back.
  */
-function micProcessing(): { echoCancellation: boolean; noiseSuppression: boolean; autoGainControl: boolean; channelCount: number } {
+function micProcessing(): {
+  echoCancellation: boolean
+  noiseSuppression: boolean
+  autoGainControl: boolean
+  channelCount: number
+} {
   const on = (key: string, fallback: boolean): boolean => {
     const raw = window.localStorage?.getItem(key)
     return raw === null || raw === undefined ? fallback : raw === 'true'
@@ -125,7 +130,7 @@ export function expectDisconnect(): void {
   deliberate = true
 }
 
-export async function connectVoiceRoom(): Promise<Room> {
+export async function connectVoiceRoom(options: { microphone?: boolean } = {}): Promise<Room> {
   deliberate = false
   await waitForGateway()
 
@@ -189,11 +194,13 @@ export async function connectVoiceRoom(): Promise<Room> {
   // Named separately from the connect: this is the step that asks the
   // operating system for the microphone, and "could not join" for a refused
   // permission sends you looking in entirely the wrong place.
-  try {
-    await room.localParticipant.setMicrophoneEnabled(true, micProcessing())
-  } catch (cause) {
-    await room.disconnect()
-    throw new Error(`The microphone could not be opened: ${describe(cause)}`)
+  if (options.microphone !== false) {
+    try {
+      await room.localParticipant.setMicrophoneEnabled(true, micProcessing())
+    } catch (cause) {
+      await room.disconnect()
+      throw new Error(`The microphone could not be opened: ${describe(cause)}`)
+    }
   }
 
   const micTrack = room.localParticipant.getTrackPublication(Track.Source.Microphone)

@@ -58,6 +58,10 @@ There is no Cloud mode in the initial product.
 Marvi Gateway is the only backend address known to the renderer. It owns:
 
 - readiness and health aggregation;
+- durable chat threads, message ancestry/branches, ordered content parts,
+  attachment lifecycle, and per-thread provider/model selection;
+- bounded dictation sessions that adapt renderer PCM to an Agent-owned
+  Parakeet worker without moving inference into React;
 - LiveKit token issuance for local rooms;
 - supervised start/stop/restart of pinned sidecars;
 - session identity and reconnect state;

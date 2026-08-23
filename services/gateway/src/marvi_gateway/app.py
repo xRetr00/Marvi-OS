@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import os
 import socket
@@ -32,6 +33,7 @@ from .browser import BrowserSession, browser_enabled, register_browser_tools
 from .chat import Chat, ChatStore, ChatTurn, schemas_from_registry
 from .curiosity import Curiosity, seed_identity
 from .deliberate import deliberator_from_env
+from .dictation import DictationError, DictationManager
 from .identity import IdentityFiles, plan_warning, register_identity_tools
 from .ingest import AccountIngest
 from .initiative import Initiative
@@ -43,11 +45,12 @@ from .mcp_bridge import McpBridge, register_mcp_tools
 from .memory import MemoryStore, register_memory_tools
 from .mind import Mind
 from .policy import InitiativeSettings
-from .providers import ProviderClient, all_profiles
+from .providers import ProviderClient, ProviderError, all_profiles
 from .providers import all_profiles as provider_all
 from .providers import config as provider_config
 from .providers import get as provider_get
 from .providers.oauth import OAuthError, broker
+from .providers.usage import collect_accounts
 from .room import RoomSidecar, RoomUnavailableError, register_room_tools, sleep_guard
 from .runtime import (
     ArgumentsMutatedError,
@@ -189,6 +192,24 @@ class ProviderPage(BaseModel):
     totals: dict[str, int]
 
 
+class UsagePage(BaseModel):
+    """The one public usage contract: durable Marvi work plus provider accounts."""
+
+    totals: dict[str, int]
+    providers: list[dict[str, Any]]
+    daily: list[dict[str, Any]]
+    account: dict[str, dict[str, Any]]
+    updated_at: str | None
+
+
+class UsageRecord(BaseModel):
+    provider: str
+    input: int = 0
+    output: int = 0
+    cached_input: int = 0
+    reasoning: int = 0
+
+
 class OAuthStart(BaseModel):
     """Where to send the user. Marvi never renders the provider's login itself."""
 
@@ -243,6 +264,40 @@ class ChatMessage(BaseModel):
     provider: str | None = None
     model: str | None = None
     effort: str | None = None
+    thread_id: str = "default"
+    attachment_ids: list[str] = Field(default_factory=list)
+    edit_message_id: int | None = None
+    regenerate_message_id: int | None = None
+
+
+class ChatThreadCreate(BaseModel):
+    title: str = "New conversation"
+
+
+class ChatThreadUpdate(BaseModel):
+    title: str | None = None
+    archived: bool | None = None
+
+
+class ChatThreadModel(BaseModel):
+    provider: str = ""
+    model: str = ""
+    effort: str = ""
+
+
+class ChatAttachmentUpload(BaseModel):
+    thread_id: str
+    name: str
+    media_type: str
+    data: str
+
+
+class ChatDictationStart(BaseModel):
+    language: str = "en-US"
+
+
+class ChatDictationAudio(BaseModel):
+    pcm16: str
 
 
 class ChatReply(BaseModel):
@@ -259,6 +314,8 @@ class ChatReply(BaseModel):
 class ChatHistory(BaseModel):
     messages: list[dict[str, Any]]
     available: bool
+    threads: list[dict[str, Any]] = Field(default_factory=list)
+    active_thread: str = "default"
 
 
 class DoctorReport(BaseModel):
@@ -462,7 +519,8 @@ def create_app(
     if moved:
         configure_logging()
         get_logger("setup").info(
-            "moved %d item(s) out of the old folder", len(moved),
+            "moved %d item(s) out of the old folder",
+            len(moved),
             extra={"marvi_moved": ", ".join(moved)},
         )
     # What an install from before the speech engine changed still carries: a
@@ -481,6 +539,7 @@ def create_app(
     # possible behaviour for a file describing who Marvi is.
     seed_identity(identity, REPO_ROOT)
     curiosity = Curiosity(identity=identity)
+    dictation = DictationManager()
     chat: Chat | None = None
     runtime_store = runtime or RuntimeStore()
     sidecar: RoomSidecar | None = None
@@ -550,9 +609,15 @@ def create_app(
             journal,
             ingest=ingest,
             memory=memory,
-            room_state=(lambda: {"present": bool(
-                ((sidecar.snapshot() or {}).get("presence") or {}).get("detected", True)
-            )}) if sidecar is not None else None,
+            room_state=(
+                lambda: {
+                    "present": bool(
+                        ((sidecar.snapshot() or {}).get("presence") or {}).get("detected", True)
+                    )
+                }
+            )
+            if sidecar is not None
+            else None,
         )
         if browser_enabled():
             # A headless browser is a real resource cost, so it stays off until
@@ -574,6 +639,7 @@ def create_app(
             # Routed here rather than attached to the Agent so MCP tools
             # inherit confirmation, audit, and idempotency (ADR-016).
             register_mcp_tools(tool_registry, mcp)
+
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         # The background mind starts with the Gateway and stops with it, so a
@@ -599,6 +665,7 @@ def create_app(
         try:
             yield
         finally:
+            dictation.close()
             if initiative is not None:
                 initiative.stop()
             if scheduler is not None:
@@ -688,9 +755,7 @@ def create_app(
         implying it knows more than it does.
         """
         if not livekit_ready:
-            return ComponentStatus(
-                state="pending", detail="no LiveKit server to carry the session"
-            )
+            return ComponentStatus(state="pending", detail="no LiveKit server to carry the session")
         missing = [
             component.title
             for component in setup_module.for_capability(REPO_ROOT, "voice")
@@ -800,15 +865,15 @@ def create_app(
             runtime_store.observe_room_event(drain_room_events())
         livekit_ready = livekit_is_ready()
         components = {
-                "gateway": ComponentStatus(state="ready", detail="local facade online"),
-                "livekit": ComponentStatus(
-                    state="ready" if livekit_ready else "pending",
-                    detail="local server online" if livekit_ready else "local server not running",
-                ),
-                "voice": voice_status(livekit_ready),
-                "vision": vision_status(),
-                "accounts": accounts_status(),
-                "room": room_status(),
+            "gateway": ComponentStatus(state="ready", detail="local facade online"),
+            "livekit": ComponentStatus(
+                state="ready" if livekit_ready else "pending",
+                detail="local server online" if livekit_ready else "local server not running",
+            ),
+            "voice": voice_status(livekit_ready),
+            "vision": vision_status(),
+            "accounts": accounts_status(),
+            "room": room_status(),
         }
         return RuntimeStatus(
             product="Marvi OS",
@@ -839,9 +904,7 @@ def create_app(
             .with_identity(identity)
             .with_name("Marvi OS Desktop")
             .with_grants(
-                api.VideoGrants(
-                    room_join=True, room=room, can_publish=True, can_subscribe=True
-                )
+                api.VideoGrants(room_join=True, room=room, can_publish=True, can_subscribe=True)
             )
             .to_jwt()
         )
@@ -884,9 +947,7 @@ def create_app(
 
         runtime_store.audit("requested", spec.name, checked, detail="via chat")
         write_key = (
-            runtime_store.external_write_key(spec.name, checked, None)
-            if spec.external
-            else None
+            runtime_store.external_write_key(spec.name, checked, None) if spec.external else None
         )
         if spec.sensitive and not runtime_store.assistant.yolo:
             request = runtime_store.issue_confirmation(
@@ -905,10 +966,114 @@ def create_app(
         chat.tool_schemas = lambda: schemas_from_registry(tool_registry)
 
     @app.get("/chat", response_model=ChatHistory)
-    async def chat_history() -> ChatHistory:
+    async def chat_history(thread_id: str = "default") -> ChatHistory:
         if chat is None:
             return ChatHistory(messages=[], available=False)
-        return ChatHistory(messages=chat.store.history(limit=200), available=chat.available())
+        try:
+            messages = chat.store.history(limit=200, thread_id=thread_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return ChatHistory(
+            messages=messages,
+            available=chat.available(),
+            threads=chat.store.threads(),
+            active_thread=thread_id,
+        )
+
+    @app.get("/chat/threads")
+    async def chat_threads(archived: bool = False) -> dict[str, Any]:
+        return {"threads": chat.store.threads(archived) if chat is not None else []}
+
+    @app.post("/chat/threads")
+    async def chat_thread_create(body: ChatThreadCreate) -> dict[str, Any]:
+        if chat is None:
+            raise HTTPException(status_code=503, detail="chat is not available")
+        return chat.store.create_thread(body.title)
+
+    @app.patch("/chat/threads/{thread_id}")
+    async def chat_thread_update(thread_id: str, body: ChatThreadUpdate) -> dict[str, Any]:
+        if chat is None:
+            raise HTTPException(status_code=503, detail="chat is not available")
+        try:
+            return chat.store.update_thread(thread_id, title=body.title, archived=body.archived)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.put("/chat/threads/{thread_id}/model")
+    async def chat_thread_model(thread_id: str, body: ChatThreadModel) -> dict[str, Any]:
+        if chat is None:
+            raise HTTPException(status_code=503, detail="chat is not available")
+        try:
+            return chat.store.set_thread_model(
+                thread_id, body.provider.strip(), body.model.strip(), body.effort.strip()
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.delete("/chat/threads/{thread_id}")
+    async def chat_thread_delete(thread_id: str) -> dict[str, Any]:
+        if chat is None:
+            raise HTTPException(status_code=503, detail="chat is not available")
+        try:
+            removed = chat.store.delete_thread(thread_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return {"removed": removed}
+
+    @app.post("/chat/attachments")
+    async def chat_attachment_upload(body: ChatAttachmentUpload) -> dict[str, Any]:
+        if chat is None:
+            raise HTTPException(status_code=503, detail="chat is not available")
+        try:
+            data = base64.b64decode(body.data, validate=True)
+            return chat.store.add_attachment(body.thread_id, body.name, body.media_type, data)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except (ValueError, TypeError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.delete("/chat/attachments/{attachment_id}")
+    async def chat_attachment_remove(attachment_id: str) -> dict[str, Any]:
+        if chat is None:
+            raise HTTPException(status_code=503, detail="chat is not available")
+        return {"removed": chat.store.remove_attachment(attachment_id)}
+
+    @app.get("/chat/attachments/{attachment_id}")
+    async def chat_attachment_content(attachment_id: str) -> dict[str, str]:
+        if chat is None:
+            raise HTTPException(status_code=503, detail="chat is not available")
+        try:
+            return chat.store.attachment_content(attachment_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/chat/dictation")
+    async def chat_dictation_start(body: ChatDictationStart) -> dict[str, Any]:
+        try:
+            identifier = await anyio.to_thread.run_sync(dictation.start, body.language)
+            return {"id": identifier, "available": True}
+        except DictationError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    @app.post("/chat/dictation/{session_id}/audio")
+    async def chat_dictation_audio(session_id: str, body: ChatDictationAudio) -> dict[str, Any]:
+        try:
+            return await anyio.to_thread.run_sync(dictation.audio, session_id, body.pcm16)
+        except DictationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/chat/dictation/{session_id}/stop")
+    async def chat_dictation_stop(session_id: str) -> dict[str, Any]:
+        try:
+            return await anyio.to_thread.run_sync(dictation.stop, session_id)
+        except DictationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.delete("/chat/dictation/{session_id}")
+    async def chat_dictation_cancel(session_id: str) -> dict[str, Any]:
+        return {"cancelled": dictation.cancel(session_id)}
 
     @app.post("/chat", response_model=ChatReply)
     async def chat_send(body: ChatMessage) -> ChatReply:
@@ -919,7 +1084,14 @@ def create_app(
         import anyio
 
         turn: ChatTurn = await anyio.to_thread.run_sync(
-            chat.send, body.message, body.provider, body.model, body.effort
+            lambda: chat.send(
+                body.message,
+                body.provider,
+                body.model,
+                body.effort,
+                body.thread_id,
+                body.attachment_ids,
+            )
         )
         return ChatReply(
             reply=turn.reply,
@@ -965,12 +1137,14 @@ def create_app(
                         body.model,
                         body.effort,
                         cancelled=stop.is_set,
+                        thread_id=body.thread_id,
+                        attachment_ids=body.attachment_ids,
+                        edit_message_id=body.edit_message_id,
+                        regenerate_message_id=body.regenerate_message_id,
                     ):
                         loop.call_soon_threadsafe(queue.put_nowait, event)
                 except Exception as exc:  # pragma: no cover - defensive
-                    loop.call_soon_threadsafe(
-                        queue.put_nowait, {"done": True, "error": str(exc)}
-                    )
+                    loop.call_soon_threadsafe(queue.put_nowait, {"done": True, "error": str(exc)})
                 finally:
                     loop.call_soon_threadsafe(queue.put_nowait, None)
 
@@ -997,12 +1171,20 @@ def create_app(
         )
 
     @app.delete("/chat", response_model=ChatHistory)
-    async def chat_clear() -> ChatHistory:
+    async def chat_clear(thread_id: str = "default") -> ChatHistory:
         if chat is None:
             return ChatHistory(messages=[], available=False)
-        removed = chat.store.clear()
+        try:
+            removed = chat.store.clear(thread_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
         runtime_store.audit("chat", "cleared", {"messages": removed})
-        return ChatHistory(messages=[], available=chat.available())
+        return ChatHistory(
+            messages=[],
+            available=chat.available(),
+            threads=chat.store.threads(),
+            active_thread=thread_id,
+        )
 
     def doctor_report() -> DoctorReport:
         findings = doctor_module.run_checks()
@@ -1316,9 +1498,7 @@ def create_app(
     @app.post("/plugins/{name}/update", response_model=PluginPage)
     async def update_plugin(name: str) -> PluginPage:
         try:
-            detail = await anyio.to_thread.run_sync(
-                lambda: plugins_module.update(name, REPO_ROOT)
-            )
+            detail = await anyio.to_thread.run_sync(lambda: plugins_module.update(name, REPO_ROOT))
         except plugins_module.PluginError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
         runtime_store.audit("plugin", "update", {"plugin": name, "detail": detail})
@@ -1463,9 +1643,7 @@ def create_app(
         from .setup import store
 
         return await anyio.to_thread.run_sync(
-            lambda: store.review_remote(
-                REPO_ROOT, request.repo, request.path, tool_registry
-            )
+            lambda: store.review_remote(REPO_ROOT, request.repo, request.path, tool_registry)
         )
 
     @app.post("/skills/install")
@@ -1533,9 +1711,7 @@ def create_app(
 
         write_key: str | None = None
         if spec.external:
-            write_key = runtime_store.external_write_key(
-                spec.name, arguments, call.idempotency_key
-            )
+            write_key = runtime_store.external_write_key(spec.name, arguments, call.idempotency_key)
             already_done, previous = runtime_store.completed_external_write(write_key)
             if already_done:
                 # Checked before confirmation on purpose: the action already
@@ -1569,9 +1745,7 @@ def create_app(
         return run_tool(spec, arguments, write_key)
 
     @app.post("/confirmations/{token}", response_model=ToolInvocation)
-    async def resolve_confirmation(
-        token: str, decision: ConfirmationDecision
-    ) -> ToolInvocation:
+    async def resolve_confirmation(token: str, decision: ConfirmationDecision) -> ToolInvocation:
         try:
             pending = runtime_store.take_confirmation(token, decision.arguments)
         except ArgumentsMutatedError as exc:
@@ -1587,14 +1761,10 @@ def create_app(
             runtime_store.settle_confirmation(
                 token, caption="Action denied", action=spec.description
             )
-            return ToolInvocation(
-                status="denied", tool=pending.tool, runtime=current_status()
-            )
+            return ToolInvocation(status="denied", tool=pending.tool, runtime=current_status())
 
         runtime_store.audit("approved", pending.tool, pending.arguments)
-        runtime_store.settle_confirmation(
-            token, caption="Action approved", action=spec.description
-        )
+        runtime_store.settle_confirmation(token, caption="Action approved", action=spec.description)
         return run_tool(spec, pending.arguments, pending.write_key)
 
     @app.get("/memory", response_model=MemoryPage)
@@ -1615,9 +1785,7 @@ def create_app(
             return IngestResult(ingested=[], skipped=0, errors=["accounts not configured"])
         result = ingest.poll()
         if result["ingested"]:
-            runtime_store.audit(
-                "ingested", "accounts", {"count": len(result["ingested"])}
-            )
+            runtime_store.audit("ingested", "accounts", {"count": len(result["ingested"])})
         return IngestResult(**{k: v for k, v in result.items() if k != "at"})
 
     @app.post("/memory/reflect", response_model=ReflectResult)
@@ -1648,15 +1816,27 @@ def create_app(
     @app.get("/initiative", response_model=InitiativeStatus)
     async def initiative_status() -> InitiativeStatus:
         if initiative is None:
-            return InitiativeStatus(paused=True, running=False, pending_events=0,
-                                    last_runs={}, last_errors={}, settings={})
+            return InitiativeStatus(
+                paused=True,
+                running=False,
+                pending_events=0,
+                last_runs={},
+                last_errors={},
+                settings={},
+            )
         return InitiativeStatus(**initiative.status())
 
     @app.put("/initiative", response_model=InitiativeStatus)
     async def set_initiative(update: InitiativeUpdate) -> InitiativeStatus:
         if initiative is None:
-            return InitiativeStatus(paused=True, running=False, pending_events=0,
-                                    last_runs={}, last_errors={}, settings={})
+            return InitiativeStatus(
+                paused=True,
+                running=False,
+                pending_events=0,
+                last_runs={},
+                last_errors={},
+                settings={},
+            )
         changed: dict[str, Any] = {}
         if update.paused is not None:
             initiative.set_paused(update.paused)
@@ -1750,7 +1930,8 @@ def create_app(
 
     @app.get("/providers", response_model=ProviderPage)
     async def providers() -> ProviderPage:
-        usage = provider_client.usage_by_provider()
+        snapshot = provider_client.ledger.snapshot()
+        usage = snapshot["providers"]
         cooling = provider_client.cooldowns()
         # Probed together: a handful of dead endpoints in sequence is a
         # visible pause on a page the user opens to find out what is wrong.
@@ -1783,7 +1964,9 @@ def create_app(
                     "readable": p.limits.readable,
                     "note": p.limits.note,
                 },
-                usage=usage.get(p.name, {"input": 0, "output": 0, "cached_input": 0, "billable": 0}),
+                usage=usage.get(
+                    p.name, {"input": 0, "output": 0, "cached_input": 0, "billable": 0}
+                ),
                 cooldown=cooling.get(p.name),
                 oauth=broker().status(p),
                 # Shown before connecting, not after. See docs/PROVIDERS.md.
@@ -1792,18 +1975,88 @@ def create_app(
             )
             for p in all_profiles()
         ]
-        total = provider_client.usage()
         return ProviderPage(
             providers=rows,
             selected=os.environ.get("MARVI_PROVIDER", "").strip() or None,
             settings=provider_config.visible(),
-            totals={
-                "input": total.input,
-                "output": total.output,
-                "cached_input": total.cached_input,
-                "billable": total.billable,
-            },
+            totals=snapshot["totals"],
         )
+
+    @app.get("/usage", response_model=UsagePage)
+    async def usage_page(refresh: bool = True) -> UsagePage:
+        """Usage owned by Marvi, with optional provider-account reconciliation.
+
+        Account lookups run together off the event loop. A missing admin key is
+        reported as an unavailable scope by the row metadata, never as zero.
+        """
+        snapshot = provider_client.ledger.snapshot()
+        accounts = await anyio.to_thread.run_sync(collect_accounts) if refresh else {}
+        local = snapshot["providers"]
+        rows = []
+        for profile in all_profiles():
+            rows.append(
+                {
+                    "name": profile.name,
+                    "label": profile.label(),
+                    "access_path": profile.access_path,
+                    "configured": profile.configured(),
+                    "usage": local.get(
+                        profile.name,
+                        {
+                            "input": 0,
+                            "output": 0,
+                            "cached_input": 0,
+                            "reasoning": 0,
+                            "billable": 0,
+                        },
+                    ),
+                    "account": accounts.get(
+                        "openai" if profile.name == "openai-responses" else profile.name
+                    ),
+                    "account_collection": {
+                        "openrouter": "API key scope via GET /api/v1/key",
+                        "deepseek": "Account balance via GET /user/balance",
+                        "deepinfra": "Account month via GET /payment/usage",
+                        "openai": "Organization costs when OPENAI_ADMIN_KEY is set",
+                        "openai-responses": "Shared OpenAI organization; see OpenAI row",
+                        "anthropic": "Organization costs when ANTHROPIC_ADMIN_KEY is set",
+                    }.get(
+                        profile.name,
+                        (
+                            "Local response counters; no billed account"
+                            if profile.access_path == "local"
+                            else "No official account usage API available to Marvi"
+                        ),
+                    ),
+                }
+            )
+        return UsagePage(
+            totals=snapshot["totals"],
+            providers=rows,
+            daily=snapshot["daily"],
+            account=accounts,
+            updated_at=snapshot["updated_at"],
+        )
+
+    @app.post("/usage")
+    async def record_external_usage(record: UsageRecord) -> dict[str, bool]:
+        """Accept counters from the local voice worker's direct provider path."""
+        try:
+            profile = provider_get(record.provider)
+        except ProviderError:
+            raise HTTPException(status_code=400, detail="unknown provider") from None
+        from .providers import Usage
+
+        provider_client.record(
+            profile.name,
+            Usage(
+                input=max(0, record.input),
+                output=max(0, record.output),
+                cached_input=max(0, record.cached_input),
+                reasoning=max(0, record.reasoning),
+            ),
+        )
+        return {"recorded": True}
 
     @app.put("/providers/settings", response_model=ProviderPage)
     async def set_provider_settings(update: ProviderSettingsUpdate) -> ProviderPage:
@@ -1815,7 +2068,8 @@ def create_app(
         for name in list(provider_client.cooldowns()):
             provider_client.clear_cooldown(name)
         runtime_store.audit(
-            "providers", "settings",
+            "providers",
+            "settings",
             # Never audit the values; several of them are credentials.
             {"changed": sorted(update.values)},
         )
@@ -1856,9 +2110,7 @@ def create_app(
                 detail=f"{profile.label()} connects with a credential, not a probe",
             )
 
-        models = await anyio.to_thread.run_sync(
-            lambda: catalog.fetch(profile)
-        )
+        models = await anyio.to_thread.run_sync(lambda: catalog.fetch(profile))
         if not models:
             # Left disconnected on purpose. Saying "connected" for an endpoint
             # that did not answer is the whole bug.
@@ -2001,9 +2253,7 @@ def create_app(
         wanted = model.strip() or profile.model_for("main")
         return {
             "model": wanted,
-            "route": {
-                job: router.route_for(job).as_body() for job in ("main", "voice")
-            },
+            "route": {job: router.route_for(job).as_body() for job in ("main", "voice")},
             "policies": sorted(router.POLICIES),
             "upstreams": await anyio.to_thread.run_sync(
                 lambda: router.endpoints(wanted, profile.api_key())
@@ -2037,9 +2287,7 @@ def create_app(
                     else f"{profile.label()} has no model set or is unreachable"
                 )
                 raise HTTPException(status_code=503, detail=reason)
-            raise HTTPException(
-                status_code=503, detail="no usable provider for the voice path"
-            )
+            raise HTTPException(status_code=503, detail="no usable provider for the voice path")
         from .providers import catalog
 
         chosen = usable[0]
@@ -2088,7 +2336,8 @@ def create_app(
         if update.user is not None:
             identity.write_user(update.user)
         runtime_store.audit(
-            "identity", "write",
+            "identity",
+            "write",
             {"soul": update.soul is not None, "user": update.user is not None},
         )
         return await read_identity()

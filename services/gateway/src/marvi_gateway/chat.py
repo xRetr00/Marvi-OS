@@ -22,8 +22,11 @@ So the rules here are all about *not* forking behaviour:
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
+import mimetypes
+import re
 import sqlite3
 import time
 from collections.abc import Callable, Iterator
@@ -31,6 +34,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from . import latency
 from .curiosity import Curiosity, handle_tool, obvious_facts
@@ -90,6 +94,7 @@ def reply_tokens(provider: str, model: str) -> int:
         return MAX_REPLY_TOKENS
     return max(MAX_REPLY_TOKENS, min(context // 20, 4096))
 
+
 def situation() -> str:
     """The date, the time, and what the model should conclude from them.
 
@@ -133,6 +138,18 @@ SYSTEM_PROMPT = (
 )
 
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS threads (
+    id                TEXT PRIMARY KEY,
+    title             TEXT NOT NULL,
+    created_at        TEXT NOT NULL,
+    updated_at        TEXT NOT NULL,
+    archived          INTEGER NOT NULL DEFAULT 0,
+    active_message_id INTEGER,
+    active_branch     TEXT NOT NULL DEFAULT 'main',
+    selected_provider TEXT NOT NULL DEFAULT '',
+    selected_model    TEXT NOT NULL DEFAULT '',
+    selected_effort   TEXT NOT NULL DEFAULT ''
+);
 CREATE TABLE IF NOT EXISTS messages (
     id      INTEGER PRIMARY KEY AUTOINCREMENT,
     at      TEXT NOT NULL,
@@ -141,7 +158,36 @@ CREATE TABLE IF NOT EXISTS messages (
     meta    TEXT NOT NULL DEFAULT '{}'
 );
 CREATE INDEX IF NOT EXISTS messages_at ON messages(at);
+CREATE TABLE IF NOT EXISTS attachments (
+    id          TEXT PRIMARY KEY,
+    thread_id   TEXT NOT NULL,
+    message_id  INTEGER,
+    name        TEXT NOT NULL,
+    media_type  TEXT NOT NULL,
+    size        INTEGER NOT NULL,
+    path        TEXT NOT NULL,
+    extracted   TEXT NOT NULL DEFAULT '',
+    created_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS attachments_thread ON attachments(thread_id, message_id);
 """
+
+DEFAULT_THREAD_ID = "default"
+MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
+ALLOWED_DOCUMENT_TYPES = {
+    "text/plain",
+    "text/markdown",
+    "text/csv",
+    "application/json",
+    "application/xml",
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+}
+ALLOWED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/webp", "image/gif"}
+MARKDOWN_LINK = re.compile(r"(?<!!)\[([^\]]+)\]\((https?://[^\s)]+)(?:\s+[^)]*)?\)")
+_PARENT_UNSET = object()
 
 
 @dataclass
@@ -163,7 +209,7 @@ def default_chat_path() -> Path:
 
 
 class ChatStore:
-    """The transcript. Plain rows; the page reads them and so does the model."""
+    """Durable threads, branch ancestry, typed parts, and local attachments."""
 
     def __init__(self, path: Path | None = None) -> None:
         self.path = path or default_chat_path()
@@ -171,38 +217,455 @@ class ChatStore:
         self._db = sqlite3.connect(self.path, check_same_thread=False)
         self._db.row_factory = sqlite3.Row
         self._db.executescript(SCHEMA)
+        self._migrate()
         self._db.commit()
+
+    @staticmethod
+    def _now() -> str:
+        return datetime.now(UTC).isoformat()
+
+    def _migrate(self) -> None:
+        """Upgrade the original single transcript without losing a row."""
+        columns = {row["name"] for row in self._db.execute("PRAGMA table_info(messages)")}
+        additions = {
+            "thread_id": "TEXT NOT NULL DEFAULT 'default'",
+            "parent_id": "INTEGER",
+            "branch_id": "TEXT NOT NULL DEFAULT 'main'",
+            "parts": "TEXT NOT NULL DEFAULT '[]'",
+        }
+        for name, declaration in additions.items():
+            if name not in columns:
+                self._db.execute(f"ALTER TABLE messages ADD COLUMN {name} {declaration}")
+        thread_columns = {row["name"] for row in self._db.execute("PRAGMA table_info(threads)")}
+        for name in ("selected_provider", "selected_model", "selected_effort"):
+            if name not in thread_columns:
+                self._db.execute(f"ALTER TABLE threads ADD COLUMN {name} TEXT NOT NULL DEFAULT ''")
+
+        now = self._now()
+        self._db.execute(
+            "INSERT OR IGNORE INTO threads "
+            "(id, title, created_at, updated_at, active_branch) VALUES (?, ?, ?, ?, 'main')",
+            (DEFAULT_THREAD_ID, "First conversation", now, now),
+        )
+        rows = self._db.execute(
+            "SELECT id, content, parts, parent_id FROM messages WHERE thread_id = ? ORDER BY id",
+            (DEFAULT_THREAD_ID,),
+        ).fetchall()
+        previous: int | None = None
+        for row in rows:
+            parts = row["parts"]
+            if not parts or parts == "[]":
+                parts = json.dumps([{"type": "text", "text": row["content"]}])
+            self._db.execute(
+                "UPDATE messages SET parent_id = COALESCE(parent_id, ?), parts = ? WHERE id = ?",
+                (previous, parts, row["id"]),
+            )
+            previous = int(row["id"])
+        if previous is not None:
+            self._db.execute(
+                "UPDATE threads SET active_message_id = ?, updated_at = ? WHERE id = ?",
+                (previous, now, DEFAULT_THREAD_ID),
+            )
 
     def close(self) -> None:
         self._db.close()
 
-    def append(self, role: str, content: str, **meta: Any) -> int:
+    def append(
+        self,
+        role: str,
+        content: str,
+        *,
+        thread_id: str = DEFAULT_THREAD_ID,
+        parent_id: int | object | None = _PARENT_UNSET,
+        branch_id: str | None = None,
+        parts: list[dict[str, Any]] | None = None,
+        attachment_ids: list[str] | None = None,
+        **meta: Any,
+    ) -> int:
+        thread = self.get_thread(thread_id)
+        if parent_id is _PARENT_UNSET:
+            parent_id = thread.get("active_message_id")
+        branch = branch_id or str(thread.get("active_branch") or "main")
+        payload = parts if parts is not None else self.parts_for_text(content)
         cursor = self._db.execute(
-            "INSERT INTO messages (at, role, content, meta) VALUES (?, ?, ?, ?)",
-            (datetime.now(UTC).isoformat(), role, content, json.dumps(meta)),
+            "INSERT INTO messages "
+            "(at, role, content, meta, thread_id, parent_id, branch_id, parts) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                self._now(),
+                role,
+                content,
+                json.dumps(meta),
+                thread_id,
+                parent_id,
+                branch,
+                json.dumps(payload),
+            ),
+        )
+        message_id = int(cursor.lastrowid or 0)
+        if attachment_ids:
+            marks = ",".join("?" for _ in attachment_ids)
+            self._db.execute(
+                f"UPDATE attachments SET message_id = ? WHERE thread_id = ? "
+                f"AND message_id IS NULL AND id IN ({marks})",
+                (message_id, thread_id, *attachment_ids),
+            )
+        title = self._title(content) if role == "user" else None
+        self._db.execute(
+            "UPDATE threads SET active_message_id = ?, active_branch = ?, updated_at = ?, "
+            "title = CASE WHEN ? IS NOT NULL AND title IN ('New conversation', 'First conversation') "
+            "THEN ? ELSE title END WHERE id = ?",
+            (message_id, branch, self._now(), title, title, thread_id),
         )
         self._db.commit()
-        return int(cursor.lastrowid or 0)
+        return message_id
 
-    def history(self, limit: int = HISTORY_TURNS) -> list[dict[str, Any]]:
+    @staticmethod
+    def _title(content: str) -> str:
+        compact = " ".join(content.split()).strip()
+        return (compact[:52] + "…") if len(compact) > 52 else (compact or "New conversation")
+
+    @staticmethod
+    def parts_for_text(content: str) -> list[dict[str, Any]]:
+        parts: list[dict[str, Any]] = [{"type": "text", "text": content}]
+        seen: set[str] = set()
+        for label, url in MARKDOWN_LINK.findall(content):
+            if url in seen:
+                continue
+            seen.add(url)
+            parts.append({"type": "source", "title": label, "url": url})
+        return parts
+
+    def _row(self, row: sqlite3.Row) -> dict[str, Any]:
+        return {
+            "id": row["id"],
+            "at": row["at"],
+            "role": row["role"],
+            "content": row["content"],
+            "meta": json.loads(row["meta"] or "{}"),
+            "thread_id": row["thread_id"],
+            "parent_id": row["parent_id"],
+            "branch_id": row["branch_id"],
+            "parts": json.loads(row["parts"] or "[]"),
+            "attachments": self.attachments_for_message(int(row["id"])),
+        }
+
+    def history(
+        self, limit: int = HISTORY_TURNS, thread_id: str = DEFAULT_THREAD_ID
+    ) -> list[dict[str, Any]]:
+        thread = self.get_thread(thread_id)
+        leaf = thread.get("active_message_id")
+        if leaf is None:
+            return []
         rows = self._db.execute(
-            "SELECT * FROM messages ORDER BY id DESC LIMIT ?", (max(1, min(limit, 200)),)
+            "WITH RECURSIVE chain AS ("
+            " SELECT * FROM messages WHERE id = ? AND thread_id = ?"
+            " UNION ALL SELECT m.* FROM messages m JOIN chain c ON m.id = c.parent_id"
+            ") SELECT * FROM chain LIMIT ?",
+            (leaf, thread_id, max(1, min(limit, 200))),
         ).fetchall()
+        return [self._row(row) for row in reversed(rows)]
+
+    def create_thread(self, title: str = "New conversation") -> dict[str, Any]:
+        identifier = uuid4().hex
+        now = self._now()
+        self._db.execute(
+            "INSERT INTO threads (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)",
+            (identifier, self._title(title), now, now),
+        )
+        self._db.commit()
+        return self.get_thread(identifier)
+
+    def get_thread(self, thread_id: str) -> dict[str, Any]:
+        row = self._db.execute("SELECT * FROM threads WHERE id = ?", (thread_id,)).fetchone()
+        if row is None:
+            raise KeyError(f"unknown chat thread: {thread_id}")
+        count = self._db.execute(
+            "SELECT COUNT(*) AS n FROM messages WHERE thread_id = ?", (thread_id,)
+        ).fetchone()["n"]
+        return {
+            "id": row["id"],
+            "title": row["title"],
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+            "archived": bool(row["archived"]),
+            "active_message_id": row["active_message_id"],
+            "active_branch": row["active_branch"],
+            "selected_provider": row["selected_provider"],
+            "selected_model": row["selected_model"],
+            "selected_effort": row["selected_effort"],
+            "message_count": int(count),
+        }
+
+    def threads(self, archived: bool = False) -> list[dict[str, Any]]:
+        ids = self._db.execute(
+            "SELECT id FROM threads WHERE archived = ? ORDER BY updated_at DESC", (int(archived),)
+        ).fetchall()
+        return [self.get_thread(str(row["id"])) for row in ids]
+
+    def update_thread(
+        self, thread_id: str, *, title: str | None = None, archived: bool | None = None
+    ) -> dict[str, Any]:
+        self.get_thread(thread_id)
+        if title is not None:
+            self._db.execute(
+                "UPDATE threads SET title = ?, updated_at = ? WHERE id = ?",
+                (self._title(title), self._now(), thread_id),
+            )
+        if archived is not None:
+            self._db.execute(
+                "UPDATE threads SET archived = ?, updated_at = ? WHERE id = ?",
+                (int(archived), self._now(), thread_id),
+            )
+        self._db.commit()
+        return self.get_thread(thread_id)
+
+    def set_thread_model(
+        self, thread_id: str, provider: str = "", model: str = "", effort: str = ""
+    ) -> dict[str, Any]:
+        self.get_thread(thread_id)
+        self._db.execute(
+            "UPDATE threads SET selected_provider = ?, selected_model = ?, "
+            "selected_effort = ?, updated_at = ? WHERE id = ?",
+            (provider, model, effort, self._now(), thread_id),
+        )
+        self._db.commit()
+        return self.get_thread(thread_id)
+
+    def delete_thread(self, thread_id: str) -> int:
+        if thread_id == DEFAULT_THREAD_ID:
+            return self.clear(thread_id)
+        attachments = self._db.execute(
+            "SELECT path FROM attachments WHERE thread_id = ?", (thread_id,)
+        ).fetchall()
+        removed = self._db.execute(
+            "SELECT COUNT(*) AS n FROM messages WHERE thread_id = ?", (thread_id,)
+        ).fetchone()["n"]
+        self._db.execute("DELETE FROM attachments WHERE thread_id = ?", (thread_id,))
+        self._db.execute("DELETE FROM messages WHERE thread_id = ?", (thread_id,))
+        self._db.execute("DELETE FROM threads WHERE id = ?", (thread_id,))
+        self._db.commit()
+        for row in attachments:
+            Path(row["path"]).unlink(missing_ok=True)
+        return int(removed)
+
+    def fork_user(
+        self, message_id: int, content: str, expected_thread_id: str | None = None
+    ) -> tuple[str, int]:
+        row = self._db.execute(
+            "SELECT * FROM messages WHERE id = ? AND role = 'user'", (message_id,)
+        ).fetchone()
+        if row is None:
+            raise KeyError("the edited message is not a user message")
+        branch = uuid4().hex
+        thread_id = str(row["thread_id"])
+        if expected_thread_id is not None and thread_id != expected_thread_id:
+            raise ValueError("edited message belongs to another thread")
+        original_parts = json.loads(row["parts"] or "[]")
+        parts = [{"type": "text", "text": content}] + [
+            part for part in original_parts if part.get("type") != "text"
+        ]
+        new_id = self.append(
+            "user",
+            content,
+            thread_id=thread_id,
+            parent_id=row["parent_id"],
+            branch_id=branch,
+            parts=parts,
+        )
+        attachments = self._db.execute(
+            "SELECT * FROM attachments WHERE message_id = ?", (message_id,)
+        ).fetchall()
+        for attachment in attachments:
+            self._db.execute(
+                "INSERT INTO attachments "
+                "(id, thread_id, message_id, name, media_type, size, path, extracted, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    uuid4().hex,
+                    thread_id,
+                    new_id,
+                    attachment["name"],
+                    attachment["media_type"],
+                    attachment["size"],
+                    attachment["path"],
+                    attachment["extracted"],
+                    self._now(),
+                ),
+            )
+        self._db.commit()
+        return thread_id, new_id
+
+    def prepare_regenerate(
+        self, message_id: int, expected_thread_id: str | None = None
+    ) -> tuple[str, dict[str, Any]]:
+        row = self._db.execute("SELECT * FROM messages WHERE id = ?", (message_id,)).fetchone()
+        if row is None:
+            raise KeyError("unknown message")
+        user = row
+        if row["role"] == "assistant" and row["parent_id"] is not None:
+            user = self._db.execute(
+                "SELECT * FROM messages WHERE id = ?", (row["parent_id"],)
+            ).fetchone()
+        if user is None or user["role"] != "user":
+            raise KeyError("regeneration requires a user turn")
+        if expected_thread_id is not None and user["thread_id"] != expected_thread_id:
+            raise ValueError("message belongs to another thread")
+        branch = uuid4().hex
+        self._db.execute(
+            "UPDATE threads SET active_message_id = ?, active_branch = ?, updated_at = ? WHERE id = ?",
+            (user["id"], branch, self._now(), user["thread_id"]),
+        )
+        self._db.commit()
+        return str(user["thread_id"]), self._row(user)
+
+    def add_attachment(
+        self, thread_id: str, name: str, media_type: str, data: bytes
+    ) -> dict[str, Any]:
+        self.get_thread(thread_id)
+        if not data or len(data) > MAX_ATTACHMENT_BYTES:
+            raise ValueError("attachment must be between 1 byte and 10 MiB")
+        media_type = (
+            media_type or mimetypes.guess_type(name)[0] or "application/octet-stream"
+        ).lower()
+        if media_type not in ALLOWED_IMAGE_TYPES | ALLOWED_DOCUMENT_TYPES:
+            raise ValueError(f"unsupported attachment type: {media_type}")
+        identifier = uuid4().hex
+        suffix = Path(name).suffix[:12]
+        directory = self.path.parent / "chat-attachments" / thread_id
+        directory.mkdir(parents=True, exist_ok=True)
+        path = directory / f"{identifier}{suffix}"
+        path.write_bytes(data)
+        try:
+            extracted = self._extract_document(path, media_type)
+        except Exception:
+            path.unlink(missing_ok=True)
+            raise
+        self._db.execute(
+            "INSERT INTO attachments (id, thread_id, name, media_type, size, path, extracted, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                identifier,
+                thread_id,
+                Path(name).name,
+                media_type,
+                len(data),
+                str(path),
+                extracted,
+                self._now(),
+            ),
+        )
+        self._db.commit()
+        return self.attachment(identifier)
+
+    @staticmethod
+    def _extract_document(path: Path, media_type: str) -> str:
+        if media_type in ALLOWED_IMAGE_TYPES:
+            return ""
+        if media_type.startswith("text/") or media_type in {"application/json", "application/xml"}:
+            return path.read_text(encoding="utf-8", errors="replace")[:120_000]
+        try:
+            from markitdown import MarkItDown
+
+            return str(MarkItDown(enable_plugins=False).convert(path).text_content or "")[:120_000]
+        except ImportError as exc:
+            raise ValueError("document conversion support is not installed") from exc
+        except Exception as exc:
+            raise ValueError(f"could not read document: {exc}") from exc
+
+    def attachment(self, attachment_id: str) -> dict[str, Any]:
+        row = self._db.execute(
+            "SELECT * FROM attachments WHERE id = ?", (attachment_id,)
+        ).fetchone()
+        if row is None:
+            raise KeyError("unknown attachment")
+        return {
+            key: row[key]
+            for key in ("id", "thread_id", "message_id", "name", "media_type", "size", "created_at")
+        } | {"kind": "image" if str(row["media_type"]).startswith("image/") else "document"}
+
+    def attachment_content(self, attachment_id: str) -> dict[str, str]:
+        row = self._db.execute(
+            "SELECT * FROM attachments WHERE id = ?", (attachment_id,)
+        ).fetchone()
+        if row is None:
+            raise KeyError("unknown attachment")
+        if not str(row["media_type"]).startswith("image/"):
+            raise ValueError("only image attachments have an inline preview")
+        return {
+            "media_type": str(row["media_type"]),
+            "data": base64.b64encode(Path(row["path"]).read_bytes()).decode("ascii"),
+        }
+
+    def attachments_for_message(self, message_id: int) -> list[dict[str, Any]]:
+        rows = self._db.execute(
+            "SELECT id FROM attachments WHERE message_id = ? ORDER BY created_at", (message_id,)
+        ).fetchall()
+        return [self.attachment(str(row["id"])) for row in rows]
+
+    def attachment_rows_for_message(self, message_id: int) -> list[dict[str, Any]]:
         return [
-            {
-                "id": row["id"],
-                "at": row["at"],
-                "role": row["role"],
-                "content": row["content"],
-                "meta": json.loads(row["meta"] or "{}"),
-            }
-            for row in reversed(rows)
+            dict(row)
+            for row in self._db.execute(
+                "SELECT * FROM attachments WHERE message_id = ? ORDER BY created_at", (message_id,)
+            ).fetchall()
         ]
 
-    def clear(self) -> int:
-        removed = self._db.execute("SELECT COUNT(*) AS n FROM messages").fetchone()["n"]
-        self._db.execute("DELETE FROM messages")
+    def provider_content(self, message_id: int, content: str) -> str | list[dict[str, Any]]:
+        rows = self._db.execute(
+            "SELECT * FROM attachments WHERE message_id = ? ORDER BY created_at", (message_id,)
+        ).fetchall()
+        if not rows:
+            return content
+        text = content
+        images: list[dict[str, Any]] = []
+        for row in rows:
+            if str(row["media_type"]).startswith("image/"):
+                encoded = base64.b64encode(Path(row["path"]).read_bytes()).decode("ascii")
+                images.append({"type": "image", "media_type": row["media_type"], "data": encoded})
+            elif row["extracted"]:
+                text += "\n\n" + wrap_external(f"attachment:{row['name']}", row["extracted"]).text
+        return [{"type": "text", "text": text}, *images]
+
+    def pending_attachments(self, thread_id: str, ids: list[str]) -> list[dict[str, Any]]:
+        if not ids:
+            return []
+        marks = ",".join("?" for _ in ids)
+        rows = self._db.execute(
+            f"SELECT * FROM attachments WHERE thread_id = ? AND message_id IS NULL AND id IN ({marks})",
+            (thread_id, *ids),
+        ).fetchall()
+        if len(rows) != len(set(ids)):
+            raise ValueError("one or more attachments are unavailable")
+        return [dict(row) for row in rows]
+
+    def remove_attachment(self, attachment_id: str) -> bool:
+        row = self._db.execute(
+            "SELECT * FROM attachments WHERE id = ? AND message_id IS NULL", (attachment_id,)
+        ).fetchone()
+        if row is None:
+            return False
+        self._db.execute("DELETE FROM attachments WHERE id = ?", (attachment_id,))
         self._db.commit()
+        Path(row["path"]).unlink(missing_ok=True)
+        return True
+
+    def clear(self, thread_id: str = DEFAULT_THREAD_ID) -> int:
+        removed = self._db.execute(
+            "SELECT COUNT(*) AS n FROM messages WHERE thread_id = ?", (thread_id,)
+        ).fetchone()["n"]
+        paths = self._db.execute(
+            "SELECT path FROM attachments WHERE thread_id = ?", (thread_id,)
+        ).fetchall()
+        self._db.execute("DELETE FROM attachments WHERE thread_id = ?", (thread_id,))
+        self._db.execute("DELETE FROM messages WHERE thread_id = ?", (thread_id,))
+        self._db.execute(
+            "UPDATE threads SET active_message_id = NULL, active_branch = 'main', updated_at = ? WHERE id = ?",
+            (self._now(), thread_id),
+        )
+        self._db.commit()
+        for row in paths:
+            Path(row["path"]).unlink(missing_ok=True)
         return int(removed)
 
 
@@ -236,6 +699,28 @@ class Chat:
 
     def available(self) -> bool:
         return bool(self.client.candidates())
+
+    def _validate_attachments(
+        self, attachments: list[dict[str, Any]], provider: str | None, model: str | None
+    ) -> None:
+        if not any(str(row.get("media_type", "")).startswith("image/") for row in attachments):
+            return
+        candidates = self.client.candidates(provider)
+        if not candidates:
+            raise ValueError("no provider is available for the image attachment")
+        profile = candidates[0]
+        supports = bool(profile.supports_vision)
+        if model:
+            from .providers.catalog import known_vision
+
+            known = known_vision(profile.name, model)
+            if known is not None:
+                supports = known
+        if not supports:
+            raise ValueError(
+                f"{model or profile.model_for('main')} cannot receive image attachments; "
+                "choose a vision-capable model"
+            )
 
     def _recall(self, text: str) -> str:
         """What Marvi already knows that bears on this message.
@@ -274,9 +759,11 @@ class Chat:
         nl = chr(10)
         return (
             "# What you remember"
-            + nl + nl
+            + nl
+            + nl
             + nl.join(lines)
-            + nl + nl
+            + nl
+            + nl
             + "Your own notes from earlier. They may be out of date; prefer "
             "what the user says now, and do not repeat them back unprompted."
         )
@@ -310,14 +797,14 @@ class Chat:
             brief = "\n\n".join([brief, recalled])
         return self.identity.compose(brief)
 
-    def _recent(self) -> list[dict[str, Any]]:
+    def _recent(self, thread_id: str = DEFAULT_THREAD_ID) -> list[dict[str, Any]]:
         """The last `HISTORY_TURNS` exchanges, whole.
 
         Counted from the user messages backwards, so everything belonging to a
         turn travels with it. Trimming by row instead let one tool-heavy
         exchange evict the conversation it was part of.
         """
-        rows = self.store.history(limit=HISTORY_ROWS)
+        rows = self.store.history(limit=HISTORY_ROWS, thread_id=thread_id)
         starts = [i for i, row in enumerate(rows) if row["role"] == "user"]
         if len(starts) <= HISTORY_TURNS:
             return rows
@@ -339,7 +826,9 @@ class Chat:
             logger.warning("plugin context unavailable: %s", exc)
             return []
 
-    def _messages(self, gap: Any = None, recalled: str = "") -> list[dict[str, Any]]:
+    def _messages(
+        self, gap: Any = None, recalled: str = "", thread_id: str = DEFAULT_THREAD_ID
+    ) -> list[dict[str, Any]]:
         """The conversation, in the neutral shape `build_request` translates.
 
         Tool calls go back the way every provider documents them: the assistant
@@ -354,12 +843,15 @@ class Chat:
         APIs are close to it; `build_request` turns it into Anthropic's content
         blocks and the Responses API's items.
         """
-        wire: list[dict[str, Any]] = [
-            {"role": "system", "content": self._system(gap, recalled)}
-        ]
-        for row in self._recent():
+        wire: list[dict[str, Any]] = [{"role": "system", "content": self._system(gap, recalled)}]
+        for row in self._recent(thread_id):
             if row["role"] in ("user", "assistant"):
-                wire.append({"role": row["role"], "content": row["content"]})
+                content = (
+                    self.store.provider_content(int(row["id"]), row["content"])
+                    if row["role"] == "user"
+                    else row["content"]
+                )
+                wire.append({"role": row["role"], "content": content})
             elif row["role"] == "tool":
                 meta = row["meta"] if isinstance(row["meta"], dict) else {}
                 name = str(meta.get("tool") or "")
@@ -446,7 +938,9 @@ class Chat:
             self.curiosity.mark_asked(gap.key)
         return gap
 
-    def _run_tool(self, name: str, arguments: Any) -> dict[str, Any]:
+    def _run_tool(
+        self, name: str, arguments: Any, thread_id: str = DEFAULT_THREAD_ID
+    ) -> dict[str, Any]:
         """Dispatch one tool call and describe what happened.
 
         Shared by the streaming turn and the blocking one so a tool behaves
@@ -501,7 +995,7 @@ class Chat:
 
         if outcome.get("status") == "confirmation_required":
             note = f"{name} needs your confirmation before it runs."
-            self.store.append("assistant", note, pending=name)
+            self.store.append("assistant", note, thread_id=thread_id, pending=name)
             return {
                 "text": note,
                 "pending_confirmation": {
@@ -528,6 +1022,10 @@ class Chat:
         model: str | None = None,
         effort: str | None = None,
         cancelled: Callable[[], bool] | None = None,
+        thread_id: str = DEFAULT_THREAD_ID,
+        attachment_ids: list[str] | None = None,
+        edit_message_id: int | None = None,
+        regenerate_message_id: int | None = None,
     ) -> Iterator[dict[str, Any]]:
         """One chat turn, yielded as it happens.
 
@@ -567,8 +1065,49 @@ class Chat:
             }
             return
 
-        turns = sum(1 for row in self.store.history() if row["role"] == "user")
-        self.store.append("user", text)
+        thread = self.store.get_thread(thread_id)
+        provider = provider or str(thread["selected_provider"] or "") or None
+        model = model or str(thread["selected_model"] or "") or None
+        effort = effort or str(thread["selected_effort"] or "") or None
+        attachments = self.store.pending_attachments(thread_id, attachment_ids or [])
+        try:
+            self._validate_attachments(attachments, provider, model)
+        except ValueError as exc:
+            yield {"done": True, "error": str(exc), "tokens": 0, "provider": ""}
+            return
+        if edit_message_id is not None:
+            self._validate_attachments(
+                self.store.attachment_rows_for_message(edit_message_id), provider, model
+            )
+            edited_thread, edited_user_id = self.store.fork_user(
+                edit_message_id, text, expected_thread_id=thread_id
+            )
+            del edited_thread
+            del edited_user_id
+        elif regenerate_message_id is not None:
+            regenerated_thread, user = self.store.prepare_regenerate(
+                regenerate_message_id, expected_thread_id=thread_id
+            )
+            del regenerated_thread
+            text = str(user["content"])
+            self._validate_attachments(
+                self.store.attachment_rows_for_message(int(user["id"])), provider, model
+            )
+        else:
+            parts = [{"type": "text", "text": text}] + [
+                {
+                    "type": "attachment",
+                    "attachment_id": row["id"],
+                    "name": row["name"],
+                    "media_type": row["media_type"],
+                    "size": row["size"],
+                }
+                for row in attachments
+            ]
+            self.store.append(
+                "user", text, thread_id=thread_id, parts=parts, attachment_ids=attachment_ids
+            )
+        turns = sum(1 for row in self.store.history(thread_id=thread_id) if row["role"] == "user")
         gap = self._curiosity_turn(text, turns)
         recalled = self._recall(text)
         schemas = list(self.tool_schemas() if self.tool_schemas else [])
@@ -599,7 +1138,7 @@ class Chat:
                     "chat", "stream", provider=provider or "", model=model or ""
                 ) as sample:
                     stream = self.client.stream_with_fallback(
-                        self._messages(gap, recalled),
+                        self._messages(gap, recalled, thread_id),
                         preferred=provider or None,
                         model=model or None,
                         effort=effort or None,
@@ -613,7 +1152,9 @@ class Chat:
                             # the provider stops generating rather than
                             # finishing into a void.
                             stream.close()
-                            logger.info("chat stream cancelled after %d chars", len("".join(answer)))
+                            logger.info(
+                                "chat stream cancelled after %d chars", len("".join(answer))
+                            )
                             yield {
                                 "done": True,
                                 "reply": "".join(answer).strip(),
@@ -675,7 +1216,9 @@ class Chat:
                     (time.monotonic() - began) * 1000,
                     answered or "?",
                 )
-                self.store.append("assistant", reply, provider=answered, tokens=tokens)
+                self.store.append(
+                    "assistant", reply, thread_id=thread_id, provider=answered, tokens=tokens
+                )
                 if self.memory is not None and reply:
                     self.memory.remember(text[:200], reply[:2000], kind="episodic")
                 yield {
@@ -692,7 +1235,7 @@ class Chat:
                 name = str(call.get("name") or "")
                 used.append(name)
                 yield {"tool": name}
-                outcome = self._run_tool(name, call.get("arguments") or "{}")
+                outcome = self._run_tool(name, call.get("arguments") or "{}", thread_id)
                 if outcome.get("pending_confirmation"):
                     yield {
                         "done": True,
@@ -707,6 +1250,7 @@ class Chat:
                 self.store.append(
                     "tool",
                     str(outcome.get("text", "")),
+                    thread_id=thread_id,
                     tool=name,
                     arguments=outcome.get("arguments"),
                     # The provider's own id for this call, so the result can
@@ -730,14 +1274,10 @@ class Chat:
         provider: str | None = None,
         model: str | None = None,
         effort: str | None = None,
+        thread_id: str = DEFAULT_THREAD_ID,
+        attachment_ids: list[str] | None = None,
     ) -> ChatTurn:
-        """Answer one message, optionally on a model this turn picks.
-
-        The override applies to this call and nothing else. It is deliberately
-        not written anywhere: the composer's picker is for trying a model on a
-        conversation, and a picker that silently rewrote the configured default
-        would make "just this once" the last setting anyone chose.
-        """
+        """Answer one message, using the thread's model selection when present."""
         text = (message or "").strip()
         if not text:
             return ChatTurn(reply="", error="empty message")
@@ -747,9 +1287,30 @@ class Chat:
                 error="No provider is connected. Open Providers and connect one.",
             )
 
-        history = self.store.history()
+        thread = self.store.get_thread(thread_id)
+        provider = provider or str(thread["selected_provider"] or "") or None
+        model = model or str(thread["selected_model"] or "") or None
+        effort = effort or str(thread["selected_effort"] or "") or None
+        attachments = self.store.pending_attachments(thread_id, attachment_ids or [])
+        try:
+            self._validate_attachments(attachments, provider, model)
+        except ValueError as exc:
+            return ChatTurn(reply="", error=str(exc))
+        history = self.store.history(thread_id=thread_id)
         turns = sum(1 for row in history if row["role"] == "user")
-        self.store.append("user", text)
+        parts = [{"type": "text", "text": text}] + [
+            {
+                "type": "attachment",
+                "attachment_id": row["id"],
+                "name": row["name"],
+                "media_type": row["media_type"],
+                "size": row["size"],
+            }
+            for row in attachments
+        ]
+        self.store.append(
+            "user", text, thread_id=thread_id, parts=parts, attachment_ids=attachment_ids
+        )
 
         gap = self._curiosity_turn(text, turns)
         recalled = self._recall(text)
@@ -759,7 +1320,6 @@ class Chat:
             schemas += curiosity_tools()
         used: list[str] = []
         tokens = 0
-        provider = ""
 
         for round_number in range(MAX_TOOL_ROUNDS):
             # The last round is offered no tools, so the model has to answer
@@ -780,7 +1340,7 @@ class Chat:
                     "chat", "direct", provider=provider or "", model=model or ""
                 ) as sample:
                     completion = self.client.call_with_fallback(
-                        self._messages(gap, recalled),
+                        self._messages(gap, recalled, thread_id),
                         preferred=provider or None,
                         model=model or None,
                         effort=effort or None,
@@ -793,7 +1353,7 @@ class Chat:
                     sample.tokens = completion.usage.billable
             except ProviderCallError as exc:
                 logger.warning("chat call failed: %s", exc)
-                return ChatTurn(reply="", error=str(exc), tokens=tokens, provider=provider)
+                return ChatTurn(reply="", error=str(exc), tokens=tokens, provider=provider or "")
 
             tokens += completion.usage.billable
             provider = completion.provider
@@ -801,14 +1361,14 @@ class Chat:
 
             if not calls:
                 reply = completion.text.strip()
-                self.store.append("assistant", reply, provider=provider, tokens=tokens)
+                self.store.append(
+                    "assistant", reply, thread_id=thread_id, provider=provider, tokens=tokens
+                )
                 if self.memory is not None and reply:
                     # Chat is a real conversation, so it belongs in the same
                     # memory the voice path writes to.
                     self.memory.remember(text[:200], reply[:2000], kind="episodic")
-                return ChatTurn(
-                    reply=reply, tools_used=used, tokens=tokens, provider=provider
-                )
+                return ChatTurn(reply=reply, tools_used=used, tokens=tokens, provider=provider)
 
             # Marvi keeping its own notes is not an action on the user's
             # behalf, so it needs no router, no confirmation, and no audit of
@@ -824,6 +1384,7 @@ class Chat:
                 self.store.append(
                     "tool",
                     wrap_external(f"tool:{name}", outcome.get("result")).text,
+                    thread_id=thread_id,
                     tool=name,
                     arguments=call.get("arguments") or {},
                 )
@@ -850,7 +1411,7 @@ class Chat:
                     # Stop here. The action has not happened, and the model
                     # must not be allowed to narrate it as though it had.
                     note = f"{name} needs your confirmation before it runs."
-                    self.store.append("assistant", note, pending=name)
+                    self.store.append("assistant", note, thread_id=thread_id, pending=name)
                     return ChatTurn(
                         reply=note,
                         tools_used=used,
@@ -867,7 +1428,7 @@ class Chat:
                 # back enveloped rather than inlined as trusted narration.
                 envelope = wrap_external(f"tool:{name}", outcome.get("result"))
                 self.store.append(
-                    "tool", envelope.text, tool=name, arguments=arguments
+                    "tool", envelope.text, thread_id=thread_id, tool=name, arguments=arguments
                 )
 
         # Reached only if the final, tool-free round still came back with tool

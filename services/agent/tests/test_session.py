@@ -1,9 +1,110 @@
+import asyncio
 
 import pytest
 from livekit.agents import llm
 from livekit.agents.voice import Agent
 
-from marvi_agent.session import MarviVoiceAgent
+from marvi_agent.session import MarviVoiceAgent, register_read_aloud_rpc
+
+
+@pytest.mark.asyncio
+async def test_read_aloud_uses_session_tts_without_changing_voice_history() -> None:
+    handlers = {}
+
+    class Participant:
+        def register_rpc_method(self, name):
+            return lambda handler: handlers.setdefault(name, handler)
+
+    class Handle:
+        interrupted = False
+
+        async def wait_for_playout(self):
+            return None
+
+        def interrupt(self):
+            self.interrupted = True
+
+    class Session:
+        def __init__(self):
+            self.calls = []
+
+        def say(self, text, **options):
+            self.calls.append((text, options))
+            return Handle()
+
+    room = type("Room", (), {"local_participant": Participant()})()
+    session = Session()
+    register_read_aloud_rpc(room, session)
+    invocation = type("Invocation", (), {"payload": '{"text":"Hello from Chat."}'})()
+
+    result = await handlers["marvi.read_aloud"](invocation)
+
+    assert '"ok": true' in result
+    assert session.calls == [
+        (
+            "Hello from Chat.",
+            {"allow_interruptions": True, "add_to_chat_ctx": False},
+        )
+    ]
+
+
+@pytest.mark.asyncio
+async def test_read_aloud_rejects_an_empty_request_before_speaking() -> None:
+    handlers = {}
+
+    class Participant:
+        def register_rpc_method(self, name):
+            return lambda handler: handlers.setdefault(name, handler)
+
+    class Session:
+        def say(self, *_args, **_options):
+            raise AssertionError("empty text must not reach TTS")
+
+    room = type("Room", (), {"local_participant": Participant()})()
+    register_read_aloud_rpc(room, Session())
+    invocation = type("Invocation", (), {"payload": '{"text":"  "}'})()
+
+    result = await handlers["marvi.read_aloud"](invocation)
+
+    assert '"ok": false' in result
+    assert "nothing to read" in result
+
+
+@pytest.mark.asyncio
+async def test_stop_read_aloud_interrupts_active_playout() -> None:
+    handlers = {}
+
+    class Participant:
+        def register_rpc_method(self, name):
+            return lambda handler: handlers.setdefault(name, handler)
+
+    class Handle:
+        interrupted = False
+
+        async def wait_for_playout(self):
+            while not self.interrupted:
+                await asyncio.sleep(0)
+
+        def interrupt(self):
+            self.interrupted = True
+
+    handle = Handle()
+
+    class Session:
+        def say(self, *_args, **_options):
+            return handle
+
+    room = type("Room", (), {"local_participant": Participant()})()
+    register_read_aloud_rpc(room, Session())
+    invocation = type("Invocation", (), {"payload": '{"text":"Please stop me."}'})()
+    task = asyncio.create_task(handlers["marvi.read_aloud"](invocation))
+    await asyncio.sleep(0)
+
+    result = await handlers["marvi.read_aloud.stop"](invocation)
+    await task
+
+    assert '"ok": true' in result
+    assert handle.interrupted is True
 
 
 @pytest.mark.asyncio
@@ -61,9 +162,7 @@ def test_a_missing_speech_engine_is_reported(tmp_path, monkeypatch, caplog) -> N
 
     from marvi_agent import session as session_module
 
-    monkeypatch.setattr(
-        session_module, "PARAKEET_ROOT", tmp_path / "absent", raising=True
-    )
+    monkeypatch.setattr(session_module, "PARAKEET_ROOT", tmp_path / "absent", raising=True)
 
     # Building the rest of the session needs models this test has no business
     # downloading; the log line is what is under test, and it is emitted before
@@ -71,9 +170,7 @@ def test_a_missing_speech_engine_is_reported(tmp_path, monkeypatch, caplog) -> N
     with caplog.at_level(logging.ERROR, logger="marvi.voice"), contextlib.suppress(Exception):
         session_module.build_session()
 
-    assert any(
-        "no speech recognition model" in record.message for record in caplog.records
-    )
+    assert any("no speech recognition model" in record.message for record in caplog.records)
 
 
 def test_a_present_engine_says_nothing(tmp_path, monkeypatch, caplog) -> None:

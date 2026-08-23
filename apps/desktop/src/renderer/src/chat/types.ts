@@ -1,7 +1,7 @@
 // Chat view-model types and small pure mappings from the gateway's wire shape
 // to what the UI renders. Kept free of React so they are trivially testable.
 
-import type { ChatEntry } from '../../../shared/runtime'
+import type { ChatAttachment, ChatEntry, ChatPart } from '../../../shared/runtime'
 
 export type ChatRole = 'user' | 'assistant' | 'tool' | 'error'
 
@@ -11,6 +11,11 @@ export interface ChatMessage {
   role: ChatRole
   content: string
   meta: Record<string, unknown>
+  threadId: string
+  parentId: number | null
+  branchId: string
+  parts: ChatPart[]
+  attachments: ChatAttachment[]
 }
 
 /** Roles the gateway actually persists; anything else renders as an error. */
@@ -22,7 +27,12 @@ export function toChatMessage(entry: ChatEntry): ChatMessage {
     at: entry.at,
     role: KNOWN_ROLES.has(entry.role) ? (entry.role as ChatRole) : 'error',
     content: entry.content,
-    meta: entry.meta ?? {}
+    meta: entry.meta ?? {},
+    threadId: entry.thread_id ?? 'default',
+    parentId: entry.parent_id ?? null,
+    branchId: entry.branch_id ?? 'main',
+    parts: entry.parts ?? [{ type: 'text', text: entry.content }],
+    attachments: entry.attachments ?? []
   }
 }
 

@@ -18,7 +18,7 @@ Phases 2, 4, 5, and 6 are complete. Phase 3 is in hardware acceptance,
 Phase 7 has the update handoff working and a packaged installer building, and
 Phase 8's vision ownership and contracts are complete with native camera
 calibration still pending. The
-native-Windows stack runs Nemotron 3.5 streaming ASR through `parakeet-rs`,
+native-Windows stack runs Parakeet TDT streaming ASR through ONNX Runtime,
 Kokoro 82M, an official LiveKit `AgentSession`, and an Electron
 LiveKit microphone/playout participant. The remaining Phase 3 gate is a real
 loudspeaker double-talk test plus the 60-minute duplex soak.
@@ -30,6 +30,9 @@ Current implemented desktop surfaces:
 - Collapse wordmark + readable JetBrains Mono monochrome design system;
 - shared Provider, Chat, and Voice session telemetry for authoritative token
   deltas, turns, latency, and elapsed time;
+- Gateway-owned Chat threads and branches with per-thread model routing,
+  typed sources/files/images, local document extraction, Parakeet dictation,
+  safe GFM/math rendering, and read aloud through Marvi's configured Kokoro voice;
 - a card-organized Overview plus editorial labeled page modules, an animated
   branded sidebar rail, consistent control tooltips, and audible desktop
   haptic feedback;
@@ -59,6 +62,9 @@ Current implemented desktop surfaces:
   only what was never useful;
 - account event ingestion that deduplicates by provider id and never blocks the
   voice path;
+- a content-free, durable usage ledger shared by Chat, Voice, background work,
+  and local models, with a dedicated Usage page and optional reconciliation
+  against official provider account APIs;
 - web search, fetch, and extract with an SSRF guard, plus file, terminal, and
   process tools confined to an allowlisted workspace root, and MCP servers
   routed through the Gateway so they inherit confirmation and audit;
@@ -178,6 +184,7 @@ Marvi OS adopts upstream projects before writing custom infrastructure. See
 - [`docs/phases/`](docs/phases/README.md) — phase-by-phase status, evidence, and commits.
 - [`docs/IMPLEMENTATION-LOG.md`](docs/IMPLEMENTATION-LOG.md) — chronological work record.
 - [`docs/UI.md`](docs/UI.md) — Dynamic Island and main-window design contract.
+- [`docs/CHAT.md`](docs/CHAT.md) — Chat frontend contract and backend capability plan.
 - [`docs/VOICE-MODEL-EVALUATION.md`](docs/VOICE-MODEL-EVALUATION.md) — native voice bakeoff.
 - [`docs/VOICE-RUNTIME.md`](docs/VOICE-RUNTIME.md) — selected models, voices, setup, and diagnostics.
 - [`docs/research/MIND-CORTEX-SOURCES.md`](docs/research/MIND-CORTEX-SOURCES.md) — reviewed proactivity and memory research.

@@ -1,0 +1,33 @@
+from __future__ import annotations
+
+import numpy as np
+
+from marvi_agent.dictation_worker import ParakeetDictation
+
+
+class FakeAsr:
+    _initial_samples_needed = 4
+    chunk_samples = 4
+
+    def __init__(self) -> None:
+        self.calls = []
+        self.reset_count = 0
+
+    def process_chunk(self, block, last):
+        self.calls.append((block.copy(), last))
+        return "hello" if not last else "world"
+
+    def reset(self):
+        self.reset_count += 1
+
+
+def test_dictation_uses_parakeet_chunks_and_flushes_the_tail() -> None:
+    asr = FakeAsr()
+    recognizer = ParakeetDictation(asr)
+    pcm = np.array([1, 2, 3, 4, 5, 6], dtype=np.int16).tobytes()
+
+    assert recognizer.audio(pcm) == "hello"
+    assert recognizer.flush() == "hello world"
+    assert [last for _block, last in asr.calls] == [False, True]
+    assert asr.calls[-1][0].size == 2
+    assert asr.reset_count == 1

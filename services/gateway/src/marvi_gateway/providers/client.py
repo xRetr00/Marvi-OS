@@ -34,6 +34,7 @@ from .base import (
     configured_profiles,
     get,
 )
+from .usage import UsageLedger
 
 logger = logging.getLogger(__name__)
 
@@ -51,9 +52,7 @@ def _merge_tool_calls(pending: dict[int, dict[str, Any]], fragments: list[Any]) 
         if not isinstance(fragment, dict):
             continue
         index = int(fragment.get("index") or 0)
-        call = pending.setdefault(
-            index, {"id": "", "name": "", "arguments": ""}
-        )
+        call = pending.setdefault(index, {"id": "", "name": "", "arguments": ""})
         if fragment.get("id"):
             call["id"] = fragment["id"]
         function = fragment.get("function") or {}
@@ -61,6 +60,7 @@ def _merge_tool_calls(pending: dict[int, dict[str, Any]], fragments: list[Any]) 
             call["name"] = function["name"]
         if function.get("arguments"):
             call["arguments"] += function["arguments"]
+
 
 REQUEST_TIMEOUT = 60.0
 DEFAULT_COOLDOWN_SECONDS = 300.0
@@ -100,6 +100,7 @@ class ProviderClient:
     http: Any = None
     _cooldowns: dict[str, _Cooldown] = field(default_factory=dict)
     _usage: dict[str, Usage] = field(default_factory=dict)
+    ledger: UsageLedger = field(default_factory=UsageLedger)
     _pool: Any = None
 
     # -- connections ---------------------------------------------------------
@@ -172,6 +173,7 @@ class ProviderClient:
 
     def record(self, name: str, usage: Usage) -> None:
         self._usage[name] = self._usage.get(name, Usage()) + usage
+        self.ledger.record(name, usage)
 
     def usage(self, name: str | None = None) -> Usage:
         if name:
@@ -216,7 +218,13 @@ class ProviderClient:
     ) -> Completion:
         """Call one provider. Raises rather than falling back — see `call_with_fallback`."""
 
-        profile = provider if isinstance(provider, ProviderProfile) else get(provider) if provider else None
+        profile = (
+            provider
+            if isinstance(provider, ProviderProfile)
+            else get(provider)
+            if provider
+            else None
+        )
         if profile is None:
             raise ProviderCallError("no provider given")
         if not profile.configured():
@@ -224,9 +232,7 @@ class ProviderClient:
 
         resting = self.resting(profile.name)
         if resting > 0:
-            raise ProviderCallError(
-                f"{profile.name} is cooling down for another {resting:.0f}s"
-            )
+            raise ProviderCallError(f"{profile.name} is cooling down for another {resting:.0f}s")
 
         # An explicit model wins over the provider's configured default. This
         # is how a session picks a model for itself without editing settings
@@ -302,7 +308,13 @@ class ProviderClient:
         text, then a final `{"done": True, "usage": {...}}`.
         """
 
-        profile = provider if isinstance(provider, ProviderProfile) else get(provider) if provider else None
+        profile = (
+            provider
+            if isinstance(provider, ProviderProfile)
+            else get(provider)
+            if provider
+            else None
+        )
         if profile is None:
             raise ProviderCallError("no provider given")
         if not profile.configured():
@@ -439,9 +451,7 @@ class ProviderClient:
                 logger.warning("ignoring unknown provider %r", preferred)
                 return ready
             if not chosen.configured():
-                logger.warning(
-                    "%s is selected but not configured; falling back", chosen.name
-                )
+                logger.warning("%s is selected but not configured; falling back", chosen.name)
                 return ready
             if self.resting(chosen.name) > 0:
                 # Cooling down. Falling through is the point of a cooldown --
@@ -495,9 +505,7 @@ class ProviderClient:
                 logger.warning("provider %s could not start: %s", profile.name, exc)
                 last = exc
 
-        raise ProviderCallError(
-            f"No provider could start a stream; last error: {last}"
-        )
+        raise ProviderCallError(f"No provider could start a stream; last error: {last}")
 
     def call_with_fallback(
         self, messages: list[dict[str, Any]], preferred: str | None = None, **kwargs: Any

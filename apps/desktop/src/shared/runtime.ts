@@ -174,6 +174,48 @@ export interface ProviderPage {
   totals: { input: number; output: number; cachedInput: number; billable: number }
 }
 
+export interface UsageCounters {
+  input: number
+  output: number
+  cachedInput: number
+  reasoning: number
+  billable: number
+}
+
+export interface UsageAccount {
+  state: 'ready' | 'error'
+  scope?: string
+  currency?: string
+  spent?: number | null
+  periodSpent?: number | null
+  remaining?: number | null
+  limit?: number | null
+  balances?: Array<{ currency: string; remaining: string }>
+  detail?: string
+}
+
+export interface UsageProvider {
+  name: string
+  label: string
+  accessPath: 'api' | 'plan' | 'local'
+  configured: boolean
+  usage: UsageCounters
+  account: UsageAccount | null
+  accountCollection: string
+}
+
+export interface UsageDay extends UsageCounters {
+  date: string
+}
+
+export interface UsagePage {
+  totals: UsageCounters
+  providers: UsageProvider[]
+  daily: UsageDay[]
+  account: Record<string, UsageAccount>
+  updatedAt: string | null
+}
+
 /** One model a provider says it has, as `GET /models` reports it. */
 export interface ModelCard {
   id: string
@@ -292,6 +334,51 @@ export interface ChatEntry {
   role: string
   content: string
   meta: Record<string, unknown>
+  thread_id?: string
+  parent_id?: number | null
+  branch_id?: string
+  parts?: ChatPart[]
+  attachments?: ChatAttachment[]
+}
+
+export type ChatPart =
+  | { type: 'text'; text: string }
+  | { type: 'source'; title: string; url: string }
+  | { type: 'attachment'; attachment_id: string; name: string; media_type: string; size: number }
+  | { type: 'image'; attachment_id?: string; url?: string; alt?: string }
+  | { type: 'file'; attachment_id?: string; name: string; media_type?: string; size?: number }
+  | { type: 'tool'; name: string; status?: string; content?: string }
+
+export interface ChatAttachment {
+  id: string
+  thread_id: string
+  message_id: number | null
+  name: string
+  media_type: string
+  size: number
+  created_at: string
+  kind: 'image' | 'document'
+}
+
+export interface ChatThread {
+  id: string
+  title: string
+  created_at: string
+  updated_at: string
+  archived: boolean
+  active_message_id: number | null
+  active_branch: string
+  selected_provider: string
+  selected_model: string
+  selected_effort: string
+  message_count: number
+}
+
+export interface ChatPage {
+  messages: ChatEntry[]
+  available: boolean
+  threads: ChatThread[]
+  active_thread: string
 }
 
 export interface ChatReply {

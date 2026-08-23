@@ -84,10 +84,6 @@ def test_a_transcript_that_never_arrives_is_a_warning(session: FakeSession, capl
     assert any(r.levelno == logging.WARNING for r in caplog.records)
 
 
-
-
-
-
 def test_a_pipeline_error_is_logged_as_an_error(session: FakeSession, caplog) -> None:
     with caplog.at_level(logging.ERROR, logger="marvi.voice"):
         session.fire("error", SimpleNamespace(error="the TTS engine died"))
@@ -187,3 +183,22 @@ def test_the_deprecated_metrics_event_is_not_used() -> None:
     import inspect
 
     assert "metrics_collected" not in inspect.getsource(observability.attach)
+
+
+def test_voice_usage_reports_only_the_increment(monkeypatch) -> None:
+    reports: list[dict] = []
+
+    class Reply:
+        pass
+
+    monkeypatch.setattr("httpx.post", lambda _url, json, timeout: reports.append(json) or Reply())
+    previous = observability._report_usage(
+        "openai", {"llm_prompt_tokens": 100, "llm_completion_tokens": 20}, {}
+    )
+    observability._report_usage(
+        "openai", {"llm_prompt_tokens": 160, "llm_completion_tokens": 35}, previous
+    )
+
+    assert reports[0]["input"] == 100
+    assert reports[1]["input"] == 60
+    assert reports[1]["output"] == 15

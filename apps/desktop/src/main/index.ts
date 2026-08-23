@@ -52,6 +52,7 @@ import type {
   ModelPage,
   ProviderPage,
   ProviderRow,
+  UsagePage,
   RuntimeStatus,
   UpstreamPage,
   VoicePage,
@@ -204,6 +205,62 @@ function normaliseProviderPage(body: unknown): ProviderPage | null {
     selected: page.selected ?? null,
     settings: page.settings ?? {},
     totals: usage(page.totals)
+  }
+}
+
+function normaliseUsagePage(body: unknown): UsagePage | null {
+  const page = body as Record<string, unknown>
+  if (!page || !Array.isArray(page.providers) || !Array.isArray(page.daily)) return null
+  const counters = (raw: unknown): UsagePage['totals'] => {
+    const row = (raw ?? {}) as Record<string, unknown>
+    return {
+      input: Number(row.input ?? 0),
+      output: Number(row.output ?? 0),
+      cachedInput: Number(row.cached_input ?? 0),
+      reasoning: Number(row.reasoning ?? 0),
+      billable: Number(row.billable ?? 0)
+    }
+  }
+  const account = (raw: unknown): UsagePage['providers'][number]['account'] => {
+    if (!raw || typeof raw !== 'object') return null
+    const value = raw as Record<string, unknown>
+    return {
+      state: value.state === 'error' ? 'error' : 'ready',
+      scope: value.scope ? String(value.scope) : undefined,
+      currency: value.currency ? String(value.currency) : undefined,
+      spent: value.spent == null ? null : Number(value.spent),
+      periodSpent: value.period_spent == null ? null : Number(value.period_spent),
+      remaining: value.remaining == null ? null : Number(value.remaining),
+      limit: value.limit == null ? null : Number(value.limit),
+      balances: Array.isArray(value.balances)
+        ? value.balances.map((row) => ({
+            currency: String((row as Record<string, unknown>).currency ?? ''),
+            remaining: String((row as Record<string, unknown>).remaining ?? '')
+          }))
+        : undefined,
+      detail: value.detail ? String(value.detail) : undefined
+    }
+  }
+  return {
+    totals: counters(page.totals),
+    providers: page.providers.map((raw) => {
+      const row = raw as Record<string, unknown>
+      return {
+        name: String(row.name ?? ''),
+        label: String(row.label ?? ''),
+        accessPath: (row.access_path ?? 'api') as 'api' | 'plan' | 'local',
+        configured: Boolean(row.configured),
+        usage: counters(row.usage),
+        account: account(row.account),
+        accountCollection: String(row.account_collection ?? '')
+      }
+    }),
+    daily: page.daily.map((raw) => {
+      const row = raw as Record<string, unknown>
+      return { date: String(row.date ?? ''), ...counters(row) }
+    }),
+    account: {},
+    updatedAt: page.updated_at ? String(page.updated_at) : null
   }
 }
 
@@ -723,8 +780,8 @@ function startApp(): void {
     session.defaultSession.setPermissionRequestHandler((contents, permission, done) => {
       done(allowed.has(permission) && isMarviPage(contents.getURL()))
     })
-    session.defaultSession.setPermissionCheckHandler((_contents, permission, origin) =>
-      allowed.has(permission) && isMarviPage(origin)
+    session.defaultSession.setPermissionCheckHandler(
+      (_contents, permission, origin) => allowed.has(permission) && isMarviPage(origin)
     )
 
     startVoiceStack()
@@ -1087,12 +1144,136 @@ function startApp(): void {
         return null
       }
     })
-    ipcMain.handle('marvi:get-chat', async () => {
+    ipcMain.handle('marvi:get-chat', async (_event, threadId) => {
       try {
-        const response = await fetch(`${gateway()}/chat`, { signal: AbortSignal.timeout(4_000) })
-        return response.ok ? await response.json() : { messages: [], available: false }
+        const query =
+          typeof threadId === 'string' && threadId
+            ? `?thread_id=${encodeURIComponent(threadId)}`
+            : ''
+        const response = await fetch(`${gateway()}/chat${query}`, {
+          signal: AbortSignal.timeout(4_000)
+        })
+        return response.ok
+          ? await response.json()
+          : { messages: [], available: false, threads: [], active_thread: 'default' }
       } catch {
-        return { messages: [], available: false }
+        return { messages: [], available: false, threads: [], active_thread: 'default' }
+      }
+    })
+    ipcMain.handle('marvi:get-chat-threads', async (_event, archived) => {
+      try {
+        const response = await fetch(`${gateway()}/chat/threads?archived=${archived === true}`, {
+          signal: AbortSignal.timeout(4_000)
+        })
+        const body = response.ok ? ((await response.json()) as { threads?: unknown }) : null
+        return Array.isArray(body?.threads) ? body.threads : []
+      } catch {
+        return []
+      }
+    })
+    ipcMain.handle('marvi:create-chat-thread', async (_event, title) => {
+      try {
+        const response = await fetch(`${gateway()}/chat/threads`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ title: typeof title === 'string' ? title : 'New conversation' }),
+          signal: AbortSignal.timeout(4_000)
+        })
+        return response.ok ? await response.json() : null
+      } catch {
+        return null
+      }
+    })
+    ipcMain.handle('marvi:update-chat-thread', async (_event, id, update) => {
+      if (typeof id !== 'string') return null
+      try {
+        const response = await fetch(`${gateway()}/chat/threads/${encodeURIComponent(id)}`, {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(update ?? {}),
+          signal: AbortSignal.timeout(4_000)
+        })
+        return response.ok ? await response.json() : null
+      } catch {
+        return null
+      }
+    })
+    ipcMain.handle('marvi:set-chat-thread-model', async (_event, id, selection) => {
+      if (typeof id !== 'string') return null
+      const pick = (key: string): string =>
+        typeof selection?.[key] === 'string' ? selection[key].trim() : ''
+      try {
+        const response = await fetch(`${gateway()}/chat/threads/${encodeURIComponent(id)}/model`, {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            provider: pick('provider'),
+            model: pick('model'),
+            effort: pick('effort')
+          }),
+          signal: AbortSignal.timeout(5_000)
+        })
+        return response.ok ? await response.json() : null
+      } catch {
+        return null
+      }
+    })
+    ipcMain.handle('marvi:delete-chat-thread', async (_event, id) => {
+      if (typeof id !== 'string') return false
+      try {
+        const response = await fetch(`${gateway()}/chat/threads/${encodeURIComponent(id)}`, {
+          method: 'DELETE',
+          signal: AbortSignal.timeout(5_000)
+        })
+        return response.ok
+      } catch {
+        return false
+      }
+    })
+    ipcMain.handle('marvi:upload-chat-attachment', async (_event, input) => {
+      if (!input || typeof input !== 'object') return null
+      try {
+        const response = await fetch(`${gateway()}/chat/attachments`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            thread_id: input.threadId,
+            name: input.name,
+            media_type: input.mediaType,
+            data: input.data
+          }),
+          signal: AbortSignal.timeout(30_000)
+        })
+        return response.ok ? await response.json() : null
+      } catch {
+        return null
+      }
+    })
+    ipcMain.handle('marvi:remove-chat-attachment', async (_event, id) => {
+      if (typeof id !== 'string') return false
+      try {
+        const response = await fetch(`${gateway()}/chat/attachments/${encodeURIComponent(id)}`, {
+          method: 'DELETE',
+          signal: AbortSignal.timeout(5_000)
+        })
+        return response.ok
+      } catch {
+        return false
+      }
+    })
+    ipcMain.handle('marvi:get-chat-attachment', async (_event, id) => {
+      if (typeof id !== 'string') return null
+      try {
+        const response = await fetch(`${gateway()}/chat/attachments/${encodeURIComponent(id)}`, {
+          signal: AbortSignal.timeout(5_000)
+        })
+        if (!response.ok) return null
+        const body = (await response.json()) as { media_type?: unknown; data?: unknown }
+        return typeof body.media_type === 'string' && typeof body.data === 'string'
+          ? { mediaType: body.media_type, data: body.data }
+          : null
+      } catch {
+        return null
       }
     })
     // At most one turn in flight. A second message supersedes the first
@@ -1106,7 +1287,7 @@ function startApp(): void {
       return true
     })
 
-    ipcMain.handle('marvi:stream-chat', async (event, message, override) => {
+    ipcMain.handle('marvi:stream-chat', async (event, message, override, context) => {
       if (typeof message !== 'string') return false
       inFlight?.abort()
       const controller = new AbortController()
@@ -1129,7 +1310,15 @@ function startApp(): void {
             message,
             provider: pick('provider'),
             model: pick('model'),
-            effort: pick('effort')
+            effort: pick('effort'),
+            thread_id: typeof context?.threadId === 'string' ? context.threadId : 'default',
+            attachment_ids: Array.isArray(context?.attachmentIds) ? context.attachmentIds : [],
+            edit_message_id:
+              typeof context?.editMessageId === 'number' ? context.editMessageId : undefined,
+            regenerate_message_id:
+              typeof context?.regenerateMessageId === 'number'
+                ? context.regenerateMessageId
+                : undefined
           }),
           // No timeout. A tool round can be slow and the turn reports its own
           // completion; cutting the socket mid-answer would look like Marvi
@@ -1200,9 +1389,67 @@ function startApp(): void {
         return null
       }
     })
-    ipcMain.handle('marvi:clear-chat', async () => {
+    ipcMain.handle('marvi:clear-chat', async (_event, threadId) => {
       try {
-        const response = await fetch(`${gateway()}/chat`, {
+        const query =
+          typeof threadId === 'string' && threadId
+            ? `?thread_id=${encodeURIComponent(threadId)}`
+            : ''
+        const response = await fetch(`${gateway()}/chat${query}`, {
+          method: 'DELETE',
+          signal: AbortSignal.timeout(5_000)
+        })
+        return response.ok
+      } catch {
+        return false
+      }
+    })
+    ipcMain.handle('marvi:start-chat-dictation', async (_event, language) => {
+      try {
+        const response = await fetch(`${gateway()}/chat/dictation`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ language: typeof language === 'string' ? language : 'en-US' }),
+          signal: AbortSignal.timeout(180_000)
+        })
+        return response.ok ? await response.json() : null
+      } catch {
+        return null
+      }
+    })
+    ipcMain.handle('marvi:push-chat-dictation-audio', async (_event, id, pcm16) => {
+      if (typeof id !== 'string' || typeof pcm16 !== 'string') return null
+      try {
+        const response = await fetch(
+          `${gateway()}/chat/dictation/${encodeURIComponent(id)}/audio`,
+          {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ pcm16 }),
+            signal: AbortSignal.timeout(30_000)
+          }
+        )
+        return response.ok ? await response.json() : null
+      } catch {
+        return null
+      }
+    })
+    ipcMain.handle('marvi:stop-chat-dictation', async (_event, id) => {
+      if (typeof id !== 'string') return null
+      try {
+        const response = await fetch(`${gateway()}/chat/dictation/${encodeURIComponent(id)}/stop`, {
+          method: 'POST',
+          signal: AbortSignal.timeout(30_000)
+        })
+        return response.ok ? await response.json() : null
+      } catch {
+        return null
+      }
+    })
+    ipcMain.handle('marvi:cancel-chat-dictation', async (_event, id) => {
+      if (typeof id !== 'string') return false
+      try {
+        const response = await fetch(`${gateway()}/chat/dictation/${encodeURIComponent(id)}`, {
           method: 'DELETE',
           signal: AbortSignal.timeout(5_000)
         })
@@ -1223,6 +1470,16 @@ function startApp(): void {
         })
         if (!response.ok) return null
         return normaliseProviderPage(await response.json())
+      } catch {
+        return null
+      }
+    })
+    ipcMain.handle('marvi:get-usage', async (_event, refresh = true) => {
+      try {
+        const response = await fetch(`${gateway()}/usage?refresh=${refresh ? 'true' : 'false'}`, {
+          signal: AbortSignal.timeout(refresh ? 12_000 : 5_000)
+        })
+        return response.ok ? normaliseUsagePage(await response.json()) : null
       } catch {
         return null
       }

@@ -158,7 +158,9 @@ def fetch(profile: ProviderProfile, http: Any = None) -> list[ModelCard]:
         log.warning("unexpected model list shape from %s", profile.name)
         return []
 
-    cards = [card for entry in entries if isinstance(entry, dict) and (card := _card(entry, profile))]
+    cards = [
+        card for entry in entries if isinstance(entry, dict) and (card := _card(entry, profile))
+    ]
     cards.sort(key=lambda card: card.id)
     return cards
 
@@ -194,6 +196,15 @@ def known_context(provider: str, model: str) -> int:
             if card.id == model:
                 return int(card.context or 0)
     return 0
+
+
+def known_vision(provider: str, model: str) -> bool | None:
+    """Cached per-model image capability, or None when the model is unknown."""
+    for _age, cards in ((_cache.get(provider) or (0.0, [])),):
+        for card in cards:
+            if card.id == model:
+                return bool(card.vision)
+    return None
 
 
 def forget(name: str | None = None) -> None:

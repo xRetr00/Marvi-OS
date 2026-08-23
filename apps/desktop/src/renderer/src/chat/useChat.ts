@@ -1,51 +1,87 @@
-// State and actions for the chat surface. The only React in this module is the
-// hook itself; the components stay presentational and easy to restyle.
-
 import { useCallback, useEffect, useState } from 'react'
 
-import { toChatMessages, type ChatMessage, type PendingConfirmation } from './types'
+import type { ChatAttachment, ChatThread } from '../../../shared/runtime'
 import { recordChatTurn } from '../store/session-metrics'
+import { toChatMessages, type ChatMessage, type PendingConfirmation } from './types'
+
+type Override = { provider?: string; model?: string; effort?: string }
+type TurnContext = { editMessageId?: number; regenerateMessageId?: number }
 
 export interface UseChat {
   messages: ChatMessage[]
+  threads: ChatThread[]
+  activeThreadId: string
+  attachments: ChatAttachment[]
   busy: boolean
   available: boolean
   draft: string
   pending: PendingConfirmation | null
+  override: Override
   setDraft: (next: string) => void
+  setOverride: (next: Override) => void
   send: () => Promise<void>
+  edit: (messageId: number, content: string) => Promise<void>
+  regenerate: (messageId: number) => Promise<void>
   clear: () => Promise<void>
+  createThread: () => Promise<void>
+  selectThread: (id: string) => Promise<void>
+  renameThread: (id: string, title: string) => Promise<void>
+  archiveThread: (id: string) => Promise<void>
+  deleteThread: (id: string) => Promise<void>
+  addAttachments: (files: FileList | File[]) => Promise<void>
+  removeAttachment: (id: string) => Promise<void>
   resolve: (decision: 'approve' | 'deny') => Promise<void>
-  /** Stop the turn in flight, closing the provider connection. */
   cancel: () => Promise<void>
-  /** The model this session picked, if any. Sent per turn, stored nowhere. */
-  override: { provider?: string; model?: string; effort?: string }
-  setOverride: (next: { provider?: string; model?: string; effort?: string }) => void
 }
 
 export function useChat(): UseChat {
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [threads, setThreads] = useState<ChatThread[]>([])
+  const [activeThreadId, setActiveThreadId] = useState('default')
+  const [attachments, setAttachments] = useState<ChatAttachment[]>([])
   const [busy, setBusy] = useState(false)
   const [available, setAvailable] = useState(true)
   const [draft, setDraft] = useState('')
-  /**
-   * A model chosen for this session only.
-   *
-   * Held in component state on purpose: it dies with the window, is written
-   * nowhere, and is sent per turn. A picker that quietly rewrote the
-   * configured default would make whatever anyone last experimented with the
-   * new model for voice, mind and vision as well.
-   */
-  const [override, setOverride] = useState<{ provider?: string; model?: string; effort?: string }>(
-    {}
-  )
+  const [override, setOverrideState] = useState<Override>({})
   const [pending, setPending] = useState<PendingConfirmation | null>(null)
+
+  const load = useCallback(async (threadId: string): Promise<void> => {
+    const page = await window.marvi?.getChat(threadId)
+    if (!page) return
+    setMessages(toChatMessages(page.messages))
+    setThreads(page.threads)
+    setActiveThreadId(page.active_thread)
+    const active = page.threads.find((thread) => thread.id === page.active_thread)
+    setOverrideState(
+      active
+        ? {
+            provider: active.selected_provider || undefined,
+            model: active.selected_model || undefined,
+            effort: active.selected_effort || undefined
+          }
+        : {}
+    )
+    setAvailable(page.available)
+    setAttachments([])
+  }, [])
 
   useEffect(() => {
     let disposed = false
     void window.marvi?.getChat().then((page) => {
       if (disposed || !page) return
       setMessages(toChatMessages(page.messages))
+      setThreads(page.threads)
+      setActiveThreadId(page.active_thread)
+      const active = page.threads.find((thread) => thread.id === page.active_thread)
+      setOverrideState(
+        active
+          ? {
+              provider: active.selected_provider || undefined,
+              model: active.selected_model || undefined,
+              effort: active.selected_effort || undefined
+            }
+          : {}
+      )
       setAvailable(page.available)
     })
     return () => {
@@ -53,88 +89,237 @@ export function useChat(): UseChat {
     }
   }, [])
 
-  const send = useCallback(async (): Promise<void> => {
-    const text = draft.trim()
-    if (!text || busy) return
-    setDraft('')
-    setBusy(true)
-    // Echo the user's line immediately; waiting for the round trip makes the
-    // window feel frozen.
-    const userId = -Date.now()
-    const replyId = userId - 1
-    setMessages((current) => [
-      ...current,
-      { id: userId, at: new Date().toISOString(), role: 'user', content: text, meta: {} },
-      // The reply exists before it has any words in it, so the tokens have
-      // somewhere to land as they arrive.
-      {
+  const setOverride = useCallback(
+    (next: Override): void => {
+      setOverrideState(next)
+      void window.marvi?.setChatThreadModel(activeThreadId, next).then((thread) => {
+        if (!thread) return
+        setThreads((current) => current.map((item) => (item.id === thread.id ? thread : item)))
+      })
+    },
+    [activeThreadId]
+  )
+
+  const runTurn = useCallback(
+    async (text: string, context: TurnContext = {}): Promise<void> => {
+      const clean = text.trim()
+      if (!clean || busy) return
+      setBusy(true)
+      setPending(null)
+
+      const userId = -Date.now()
+      const replyId = userId - 1
+      const optimisticUser: ChatMessage = {
+        id: userId,
+        at: new Date().toISOString(),
+        role: 'user',
+        content: clean,
+        meta: {},
+        threadId: activeThreadId,
+        parentId: null,
+        branchId: 'pending',
+        parts: [
+          { type: 'text', text: clean },
+          ...attachments.map((attachment) => ({
+            type: 'attachment' as const,
+            attachment_id: attachment.id,
+            name: attachment.name,
+            media_type: attachment.media_type,
+            size: attachment.size
+          }))
+        ],
+        attachments
+      }
+      const optimisticReply: ChatMessage = {
         id: replyId,
         at: new Date().toISOString(),
         role: 'assistant',
         content: '',
-        meta: { streaming: true }
+        meta: { streaming: true },
+        threadId: activeThreadId,
+        parentId: userId,
+        branchId: 'pending',
+        parts: [],
+        attachments: []
       }
-    ])
 
-    const startedAt = performance.now()
-    let answer = ''
-    let reasoning = ''
-    let firstTokenAt = 0
+      setMessages((current) => {
+        if (context.editMessageId !== undefined) {
+          const index = current.findIndex((message) => message.id === context.editMessageId)
+          return [...current.slice(0, Math.max(0, index)), optimisticUser, optimisticReply]
+        }
+        if (context.regenerateMessageId !== undefined) {
+          const index = current.findIndex((message) => message.id === context.regenerateMessageId)
+          const cut = index >= 0 ? index : current.length
+          return [...current.slice(0, cut), optimisticReply]
+        }
+        return [...current, optimisticUser, optimisticReply]
+      })
 
-    const stop = window.marvi?.onChatDelta((event) => {
-      if (typeof event.delta === 'string') {
-        if (!firstTokenAt) firstTokenAt = performance.now()
-        answer += event.delta
-      } else if (typeof event.reasoning === 'string') {
-        // Kept apart from the answer. It is not what Marvi said.
-        reasoning += event.reasoning
-      } else if (typeof event.tool === 'string') {
+      const startedAt = performance.now()
+      let answer = ''
+      let reasoning = ''
+      let firstTokenAt = 0
+      let streamError = ''
+
+      const stop = window.marvi?.onChatDelta((event) => {
+        if (typeof event.delta === 'string') {
+          if (!firstTokenAt) firstTokenAt = performance.now()
+          answer += event.delta
+        } else if (typeof event.reasoning === 'string') {
+          reasoning += event.reasoning
+        } else if (typeof event.tool === 'string') {
+          setMessages((current) =>
+            current.map((message) =>
+              message.id === replyId
+                ? { ...message, meta: { ...message.meta, tool: String(event.tool) } }
+                : message
+            )
+          )
+          return
+        } else if (event.done) {
+          if (typeof event.error === 'string') streamError = event.error
+          const confirmation = event.pending_confirmation
+          if (confirmation && typeof confirmation === 'object') {
+            const value = confirmation as Record<string, unknown>
+            if (typeof value.tool === 'string' && typeof value.token === 'string') {
+              setPending({ tool: value.tool, token: value.token })
+            }
+          }
+          return
+        }
         setMessages((current) =>
           current.map((message) =>
             message.id === replyId
-              ? { ...message, meta: { ...message.meta, tool: String(event.tool) } }
+              ? {
+                  ...message,
+                  content: answer,
+                  parts: [{ type: 'text', text: answer }],
+                  meta: { ...message.meta, reasoning, streaming: true }
+                }
               : message
           )
         )
-        return
-      } else if (event.done) {
-        return
+      })
+
+      try {
+        await window.marvi?.streamChat(clean, override, {
+          threadId: activeThreadId,
+          attachmentIds: attachments.map((attachment) => attachment.id),
+          ...context
+        })
+        if (firstTokenAt) recordChatTurn(firstTokenAt - startedAt)
+        await load(activeThreadId)
+        if (streamError) {
+          setMessages((current) => [
+            ...current,
+            {
+              id: replyId - 1,
+              at: new Date().toISOString(),
+              role: 'error',
+              content: streamError,
+              meta: {},
+              threadId: activeThreadId,
+              parentId: null,
+              branchId: 'error',
+              parts: [{ type: 'text', text: streamError }],
+              attachments: []
+            }
+          ])
+        }
+      } finally {
+        stop?.()
+        setAttachments([])
+        setBusy(false)
       }
+    },
+    [activeThreadId, attachments, busy, load, override]
+  )
 
-      setMessages((current) =>
-        current.map((message) =>
-          message.id === replyId
-            ? { ...message, content: answer, meta: { ...message.meta, reasoning, streaming: true } }
-            : message
-        )
-      )
-    })
+  const send = useCallback(async () => {
+    const text = draft
+    if (!text.trim()) return
+    setDraft('')
+    await runTurn(text)
+  }, [draft, runTurn])
 
-    try {
-      await window.marvi?.streamChat(text, override)
-      if (firstTokenAt) recordChatTurn(firstTokenAt - startedAt)
-      // The transcript is authoritative once the turn is over: it carries the
-      // provider, the token count, and anything a tool wrote.
-      const page = await window.marvi?.getChat()
-      if (page) setMessages(toChatMessages(page.messages))
-    } finally {
-      stop?.()
-      setBusy(false)
-    }
-  }, [draft, busy, override])
+  const edit = useCallback(
+    async (messageId: number, content: string) => runTurn(content, { editMessageId: messageId }),
+    [runTurn]
+  )
 
-  const cancel = useCallback(async (): Promise<void> => {
-    // Closes the provider connection, not just the view. A turn nobody is
-    // reading is still being generated and still being paid for.
-    await window.marvi?.cancelChat()
+  const regenerate = useCallback(
+    async (messageId: number) => {
+      const message = messages.find((entry) => entry.id === messageId)
+      const user =
+        message?.role === 'user'
+          ? message
+          : messages.find((entry) => entry.id === message?.parentId && entry.role === 'user')
+      if (user) await runTurn(user.content, { regenerateMessageId: messageId })
+    },
+    [messages, runTurn]
+  )
+
+  const createThread = useCallback(async () => {
+    const thread = await window.marvi?.createChatThread()
+    if (thread) await load(thread.id)
+  }, [load])
+
+  const selectThread = useCallback(async (id: string) => load(id), [load])
+  const renameThread = useCallback(
+    async (id: string, title: string) => {
+      await window.marvi?.updateChatThread(id, { title })
+      await load(activeThreadId)
+    },
+    [activeThreadId, load]
+  )
+  const archiveThread = useCallback(
+    async (id: string) => {
+      await window.marvi?.updateChatThread(id, { archived: true })
+      const next = threads.find((thread) => thread.id !== id)
+      if (next) await load(next.id)
+      else await createThread()
+    },
+    [createThread, load, threads]
+  )
+  const deleteThread = useCallback(
+    async (id: string) => {
+      await window.marvi?.deleteChatThread(id)
+      const next = threads.find((thread) => thread.id !== id)
+      if (next) await load(next.id)
+      else await createThread()
+    },
+    [createThread, load, threads]
+  )
+
+  const addAttachments = useCallback(
+    async (files: FileList | File[]) => {
+      for (const file of Array.from(files)) {
+        const data = arrayBufferToBase64(await file.arrayBuffer())
+        const attachment = await window.marvi?.uploadChatAttachment({
+          threadId: activeThreadId,
+          name: file.name,
+          mediaType: file.type || 'application/octet-stream',
+          data
+        })
+        if (attachment) setAttachments((current) => [...current, attachment])
+      }
+    },
+    [activeThreadId]
+  )
+
+  const removeAttachment = useCallback(async (id: string) => {
+    await window.marvi?.removeChatAttachment(id)
+    setAttachments((current) => current.filter((attachment) => attachment.id !== id))
   }, [])
 
-  // Leaving the page abandons the turn. Without this it runs to completion
-  // against a window that has gone.
+  const cancel = useCallback(async () => {
+    await window.marvi?.cancelChat()
+  }, [])
   useEffect(() => () => void window.marvi?.cancelChat(), [])
 
   const resolve = useCallback(
-    async (decision: 'approve' | 'deny'): Promise<void> => {
+    async (decision: 'approve' | 'deny') => {
       if (!pending) return
       await window.marvi?.resolveConfirmation(pending.token, decision)
       setPending(null)
@@ -142,24 +327,45 @@ export function useChat(): UseChat {
     [pending]
   )
 
-  const clear = useCallback(async (): Promise<void> => {
-    await window.marvi?.clearChat()
-    setMessages([])
+  const clear = useCallback(async () => {
+    await window.marvi?.clearChat(activeThreadId)
+    await load(activeThreadId)
     setPending(null)
-  }, [])
+  }, [activeThreadId, load])
 
   return {
     messages,
+    threads,
+    activeThreadId,
+    attachments,
     busy,
     available,
     draft,
     pending,
-    setDraft,
-    send,
-    clear,
-    resolve,
-    cancel,
     override,
-    setOverride
+    setDraft,
+    setOverride,
+    send,
+    edit,
+    regenerate,
+    clear,
+    createThread,
+    selectThread,
+    renameThread,
+    archiveThread,
+    deleteThread,
+    addAttachments,
+    removeAttachment,
+    resolve,
+    cancel
   }
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer)
+  let binary = ''
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000))
+  }
+  return btoa(binary)
 }
