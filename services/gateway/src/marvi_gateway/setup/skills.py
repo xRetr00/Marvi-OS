@@ -280,8 +280,13 @@ def review(skill: Skill, registry: Any = None) -> dict[str, Any]:
 # -- installing -----------------------------------------------------------------------
 
 
-def installed(directory: Path | None = None) -> list[Skill]:
-    base = directory or skills_dir()
+#: Skills that ship with Marvi, in the checkout rather than in the user's data
+#: directory. They are read from where they live instead of copied into place:
+#: nothing to install, nothing to drift, and they update when Marvi does.
+BUNDLED = Path(__file__).resolve().parents[5] / "skills"
+
+
+def _read_dir(base: Path, source: str) -> list[Skill]:
     found: list[Skill] = []
     if not base.exists():
         return found
@@ -289,10 +294,62 @@ def installed(directory: Path | None = None) -> list[Skill]:
         if not child.is_dir():
             continue
         try:
-            found.append(read_skill(child))
+            skill = read_skill(child)
+            skill.source = skill.source or source
+            found.append(skill)
         except SkillError as exc:
             log.warning("skipping skill in %s: %s", child.name, exc)
     return found
+
+
+def installed(directory: Path | None = None) -> list[Skill]:
+    """Every skill Marvi can use: the ones that ship with her, then the ones
+    the user installed. A user's skill of the same name wins, because it is the
+    later and more deliberate choice.
+    """
+    by_name = {s.name: s for s in _read_dir(BUNDLED, "marvi")}
+    for skill in _read_dir(directory or skills_dir(), "installed"):
+        by_name[skill.name] = skill
+    return [by_name[name] for name in sorted(by_name)]
+
+
+def advertise(available: list[Skill] | None = None) -> str:
+    """Stage one of progressive disclosure: what exists, not how to do it.
+
+    The spec puts `name` and `description` in the prompt at startup and the
+    body behind a deliberate read, at roughly a hundred tokens advertised
+    against several thousand loaded. That ratio is the whole point, and it is
+    why this is a list of one-liners rather than a concatenation of the files:
+    a skill nobody uses this turn should cost a sentence, not a page.
+
+    Marvi answers by voice, where an unused paragraph is not just tokens but
+    latency on every single turn.
+    """
+    rows = available if available is not None else installed()
+    if not rows:
+        return ""
+    lines = [f"- {skill.name}: {skill.description}" for skill in rows]
+    nl = chr(10)
+    return (
+        "# Skills you can use"
+        + nl
+        + nl
+        + nl.join(lines)
+        + nl
+        + nl
+        + "These are procedures written down so you do not have to work them "
+        "out again. When one matches what you are doing, call `skill_read` "
+        "with its name to get the instructions, then follow them. Only the "
+        "names and descriptions are here; the instructions are not."
+    )
+
+
+def body_of(name: str, directory: Path | None = None) -> Skill:
+    """Stage two: one skill's instructions, read when it is chosen."""
+    for skill in installed(directory):
+        if skill.name == name:
+            return skill
+    raise SkillError(f"no skill named {name!r}")
 
 
 def install_from(source: Path, directory: Path | None = None) -> dict[str, Any]:

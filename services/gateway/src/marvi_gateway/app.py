@@ -25,6 +25,7 @@ from . import doctor as doctor_module
 from . import plugins as plugins_module
 from . import room as room_module
 from . import schedule as schedule_module
+from . import selfaware
 from . import setup as setup_module
 from .accounts import ComposioAccounts, register_account_tools
 from .activity import ActivityWatch, register_activity_tools
@@ -570,6 +571,9 @@ def create_app(
         # collects; nothing is started until the lifespan opens.
         scheduler = schedule_module.Scheduler(schedule_module.ScheduleStore())
         schedule_module.register_schedule_tools(tool_registry, scheduler)
+        # Reading her own logs, and reading a skill she was told exists.
+        selfaware.register_self_tools(tool_registry)
+        selfaware.register_skill_tools(tool_registry)
         loaded_plugins.extend(load_installed_plugins())
         for plugin in loaded_plugins:
             # The guard is Marvi's, not the plugin's. The room plugin's own

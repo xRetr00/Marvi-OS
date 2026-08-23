@@ -39,6 +39,7 @@ from uuid import uuid4
 from . import latency
 from .curiosity import Curiosity, handle_tool, obvious_facts
 from .curiosity import tool_schemas as curiosity_tools
+from . import selfaware
 from .identity import IdentityFiles
 from .providers import ProviderCallError, ProviderClient
 from .untrusted import wrap_external
@@ -791,6 +792,13 @@ class Chat:
         lines = self._plugin_context()
         if lines:
             brief = "\n\n".join([brief, *lines])
+        # Where she is installed, and what she knows how to do. Both belong
+        # here rather than in the cacheable identity block: the first changes
+        # when Marvi is moved or updated, the second whenever a skill is
+        # installed. Both are short, and both were things she was left to
+        # guess at -- the whole skills pipeline installed skills the model
+        # was never told existed.
+        brief = "\n\n".join([brief, selfaware.situation(), *self._skill_catalogue()])
         # Recall last, and after the identity block for the same reason:
         # it is different on every turn and would break the cacheable prefix.
         if recalled:
@@ -809,6 +817,19 @@ class Chat:
         if len(starts) <= HISTORY_TURNS:
             return rows
         return rows[starts[-HISTORY_TURNS] :]
+
+    def _skill_catalogue(self) -> list[str]:
+        """Never raises, for the same reason `_plugin_context` does not:
+        this is on the prompt path of every turn, and a malformed skill
+        sitting on disk must not be why a turn fails.
+        """
+        try:
+            from .setup import skills
+
+            return [block] if (block := skills.advertise()) else []
+        except Exception as exc:  # pragma: no cover - depends on what is on disk
+            logger.warning("skill catalogue unavailable: %s", exc)
+            return []
 
     def _plugin_context(self) -> list[str]:
         """Never raises.
