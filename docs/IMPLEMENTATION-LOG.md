@@ -982,3 +982,26 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
 - Added focused Gateway and desktop regressions for every terminal path,
   authoritative-null reconciliation, confirmation priority, offline cleanup,
   and pending-button behavior.
+
+## 2026-08-24 — ARC memory graph
+
+- Cloned `tinyhumansai/openhuman` separately on `D:` and pinned the inspected
+  reference at `0b8b02cbd1b0a5ed5c1b893341383c036ebd4435`. Because it is
+  GPL-3.0 and Marvi OS is MIT, no OpenHuman source, assets, Rust runtime, or
+  package dependency was copied into Marvi.
+- Named Marvi's existing Gateway-owned memory, mind, and scheduled initiative
+  cycle ARC: observe → reflect → commit. The change preserves provenance,
+  untrusted-content envelopes, confirmation/YOLO, audit, and the rule that no
+  cognition runs in React.
+- Added a read-only `/arc/memory/graph` projection with provenance-tree and
+  explicit-connection modes, carried through validated Electron IPC and the
+  narrow preload bridge.
+- Independently implemented the reference graph's interaction contract in the
+  Marvi visual system: counts, legend, mode switch, reset, pan, zoom, draggable
+  nodes, hover inspector, and local empty state.
+- Visually checked Tree and Connections modes in Chromium at 1180×760; evidence
+  is `output/playwright/arc-memory-tree.png` and
+  `output/playwright/arc-memory-connections.png`. The production renderer build,
+  changed-file lint, typecheck, all 224 rebased desktop tests, the 879-test
+  Gateway suite before rebase plus 60 rebased ARC/mind/initiative integration
+  tests, Ruff, and `git diff --check` pass.

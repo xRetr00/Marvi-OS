@@ -49,7 +49,41 @@ export interface MemoryEntry {
 export interface MemoryPage {
   total: number
   entries: MemoryEntry[]
-  summary: { total?: number; facts?: string[]; recent_events?: string[] }
+  summary: {
+    total?: number
+    facts?: string[]
+    recent_events?: string[]
+    graph?: { entities: number; relations: number }
+  }
+}
+
+export type MemoryGraphMode = 'tree' | 'contacts'
+
+export interface MemoryGraphNode {
+  id: string
+  kind: 'root' | 'source' | 'summary' | 'chunk' | 'contact'
+  label: string
+  level?: number
+  memory_kind?: string
+  entity_kind?: string
+  trusted?: boolean
+  provenance?: string
+  at?: string
+}
+
+export interface MemoryGraphEdge {
+  id: string
+  source: string
+  target: string
+  label?: string
+  trusted?: boolean
+  provenance?: string
+}
+
+export interface MemoryGraphPage {
+  mode: MemoryGraphMode
+  nodes: MemoryGraphNode[]
+  edges: MemoryGraphEdge[]
 }
 
 export interface MindDecision {
@@ -652,7 +686,6 @@ export interface SchedulePage {
   actions: Record<string, string>
   running: boolean
 }
-
 
 /**
  * Which model does which job.

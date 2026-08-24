@@ -76,6 +76,26 @@ Marvi Gateway is the only backend address known to the renderer. It owns:
 - memory access;
 - update/status information.
 
+### ARC: memory, mind, and subconscious cycle
+
+ARC is the product name for Marvi's existing Gateway-owned cognition boundary,
+not another agent process. It has three stages:
+
+1. **Observe** — trusted and untrusted events enter the durable journal with
+   provenance; memories remain episodic or semantic in the local SQLite store.
+2. **Reflect** — the policy-bounded mind selects the least intrusive useful
+   surface and the scheduled reflection pass promotes stable repetition.
+3. **Commit** — decisions, memories, relationships, and audit evidence are
+   written by the Gateway. Tool side effects still pass through confirmation
+   or the visible YOLO mode.
+
+The initiative scheduler is ARC's subconscious loop: bounded ingest, mind,
+reflection, and consolidation jobs. An idle tick is a no-op, failures remain
+visible, and no cognition runs in React. The control center reads a projection
+from `/arc/memory/graph`; it never receives a SQLite handle or mutation
+authority. Tree mode groups memories by provenance, while Connections mode
+shows explicit entity relationships.
+
 It does not implement RTC, STT, TTS, home automation, OAuth providers, or model
 inference itself.
 

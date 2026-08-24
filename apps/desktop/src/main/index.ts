@@ -1166,6 +1166,18 @@ function startApp(): void {
         return { total: 0, entries: [], summary: {} }
       }
     })
+    ipcMain.handle('marvi:get-memory-graph', async (_event, requestedMode) => {
+      const mode = requestedMode === 'contacts' ? 'contacts' : 'tree'
+      try {
+        const response = await fetch(`${gateway()}/arc/memory/graph?mode=${mode}&limit=1000`, {
+          signal: AbortSignal.timeout(3_000)
+        })
+        if (!response.ok) return { mode, nodes: [], edges: [] }
+        return await response.json()
+      } catch {
+        return { mode, nodes: [], edges: [] }
+      }
+    })
     ipcMain.handle('marvi:clear-memory', async () => {
       try {
         const response = await fetch(`${gateway()}/memory`, {
@@ -1708,10 +1720,7 @@ function startApp(): void {
     ipcMain.handle('marvi:get-wake-autostart', async () => wakeAutostart('status'))
     ipcMain.handle('marvi:set-wake-autostart', async (_event, enabled, device) => {
       if (typeof enabled !== 'boolean') return wakeAutostart('status')
-      return wakeAutostart(
-        enabled ? 'enable' : 'disable',
-        typeof device === 'string' ? device : ''
-      )
+      return wakeAutostart(enabled ? 'enable' : 'disable', typeof device === 'string' ? device : '')
     })
     ipcMain.handle('marvi:get-voices', async (): Promise<VoicePage | null> => {
       try {

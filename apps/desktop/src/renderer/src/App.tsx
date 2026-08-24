@@ -51,6 +51,7 @@ import { ShellContextMenu } from './components/ui/shell-context-menu'
 import { Chat } from './chat'
 import { AbstractIcon, type AbstractIconName } from './components/abstract-icon'
 import { MessageTiming } from './components/message-timing'
+import { ArcMemoryGraph } from './components/arc-memory-graph'
 import { AboutUpdates, VersionPopover } from './components/update-controls'
 import { TooltipProvider, UiTooltip } from './components/ui/tooltip'
 import {
@@ -62,9 +63,7 @@ import {
   ControlSection
 } from './components/control-surface'
 
-function stateTone(
-  state: string | undefined
-): 'neutral' | 'ready' | 'warning' | 'danger' {
+function stateTone(state: string | undefined): 'neutral' | 'ready' | 'warning' | 'danger' {
   if (state === 'ready' || state === 'connected' || state === 'active' || state === 'running') {
     return 'ready'
   }
@@ -107,6 +106,8 @@ import type {
   IdentityStatus,
   InitiativeStatus,
   MemoryPage,
+  MemoryGraphMode,
+  MemoryGraphPage,
   MindDecision,
   ModelPage,
   PluginPage,
@@ -152,7 +153,7 @@ import { $voiceLink, startVoice, stopVoice } from './store/voice-session'
 const NAV_GROUPS = [
   { label: 'Core', items: ['Overview', 'Voice', 'Chat'] },
   { label: 'Context', items: ['Vision', 'Room', 'Activity'] },
-  { label: 'Memory', items: ['Identity', 'Memory', 'Mind'] }
+  { label: 'ARC', items: ['Identity', 'Memory', 'Mind'] }
 ] as const
 
 /** Behind the gear: the things you set up. */
@@ -592,7 +593,9 @@ function Overview({
         {services.map(([name, service]) => (
           <ControlRow
             action={
-              <ControlPill tone={stateTone(service?.state)}>{service?.state ?? 'offline'}</ControlPill>
+              <ControlPill tone={stateTone(service?.state)}>
+                {service?.state ?? 'offline'}
+              </ControlPill>
             }
             description={service?.detail ?? 'No status received'}
             key={name}
@@ -825,7 +828,11 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
               {runtime.components.room?.state ?? 'offline'}
             </ControlPill>
           }
-          description={snapshot?.stale ? 'Showing the last snapshot because the live feed is unavailable.' : undefined}
+          description={
+            snapshot?.stale
+              ? 'Showing the last snapshot because the live feed is unavailable.'
+              : undefined
+          }
           icon={Wifi}
           title="Room service"
         />
@@ -1149,8 +1156,8 @@ function MindPanel(): React.JSX.Element {
 
   return (
     <ControlPage
-      description="Initiative state and the reasoning record behind autonomous decisions."
-      title="Mind"
+      description="ARC's observe → reflect → commit cycle and the reasoning record behind every autonomous decision."
+      title="ARC Mind"
     >
       <ControlSection
         action={
@@ -1160,17 +1167,28 @@ function MindPanel(): React.JSX.Element {
           </ControlButton>
         }
         icon={Brain}
-        title="Initiative"
+        title="Subconscious"
       >
         <ControlRow
-          action={<ControlPill tone={status?.paused ? 'neutral' : 'ready'}>{status?.paused ? 'Paused' : 'Active'}</ControlPill>}
-          title="Initiative loop"
+          action={
+            <ControlPill tone={status?.paused ? 'neutral' : 'ready'}>
+              {status?.paused ? 'Paused' : 'Active'}
+            </ControlPill>
+          }
+          title="ARC cycle"
         />
         <ControlRow
-          action={<ControlPill tone={status?.running ? 'ready' : 'neutral'}>{status?.running ? 'Running' : 'Stopped'}</ControlPill>}
+          action={
+            <ControlPill tone={status?.running ? 'ready' : 'neutral'}>
+              {status?.running ? 'Running' : 'Stopped'}
+            </ControlPill>
+          }
           title="Schedule"
         />
-        <ControlRow action={<span className="control-value">{status?.pending_events ?? 0}</span>} title="Pending events" />
+        <ControlRow
+          action={<span className="control-value">{status?.pending_events ?? 0}</span>}
+          title="Pending events"
+        />
         {Object.entries(status?.last_errors ?? {}).map(([job, error]) => (
           <ControlRow
             action={<ControlPill tone="danger">Error</ControlPill>}
@@ -1209,31 +1227,78 @@ function MindPanel(): React.JSX.Element {
 
 function MemoryPanel(): React.JSX.Element {
   const [page, setPage] = useState<MemoryPage>({ total: 0, entries: [], summary: {} })
+  const [mode, setMode] = useState<MemoryGraphMode>('tree')
+  const [graph, setGraph] = useState<MemoryGraphPage>({ mode: 'tree', nodes: [], edges: [] })
+  const [graphLoading, setGraphLoading] = useState(true)
   const [confirmClear, setConfirmClear] = useState(false)
   const [reload, setReload] = useState(0)
 
   useEffect(() => {
     let disposed = false
     const load = async (): Promise<void> => {
-      const next = await window.marvi?.getMemory()
-      if (!disposed && next) setPage(next)
+      const [next, nextGraph] = await Promise.all([
+        window.marvi?.getMemory(),
+        window.marvi?.getMemoryGraph(mode)
+      ])
+      if (disposed) return
+      if (next) setPage(next)
+      if (nextGraph) setGraph(nextGraph)
+      setGraphLoading(false)
     }
     void load()
-    const timer = setInterval(() => void load(), 5_000)
+    const timer = setInterval(() => {
+      if (!document.hidden) void load()
+    }, 30_000)
     return () => {
       disposed = true
       clearInterval(timer)
     }
-  }, [reload])
+  }, [mode, reload])
 
   const clearAll = async (): Promise<void> => {
     await window.marvi?.clearMemory()
     setConfirmClear(false)
+    setGraphLoading(true)
     setReload((n) => n + 1)
   }
 
   return (
-    <ControlPage description="Review what is stored locally and where each memory came from." title="Memory">
+    <ControlPage
+      description="ARC turns observations into durable context, then keeps every source and relationship inspectable."
+      title="ARC Memory"
+    >
+      <div className="arc-memory-workspace">
+        <div className="arc-memory-toolbar">
+          <div className="arc-memory-toolbar-copy">
+            <strong>MEMORY GRAPH</strong>
+            <small>Local-only graph projection · provenance remains attached to every node</small>
+          </div>
+          <div className="arc-memory-modes" aria-label="Memory graph mode">
+            <button
+              aria-pressed={mode === 'tree'}
+              onClick={() => {
+                setGraphLoading(true)
+                setMode('tree')
+              }}
+              type="button"
+            >
+              TREE
+            </button>
+            <button
+              aria-pressed={mode === 'contacts'}
+              onClick={() => {
+                setGraphLoading(true)
+                setMode('contacts')
+              }}
+              type="button"
+            >
+              CONNECTIONS
+            </button>
+          </div>
+        </div>
+        <ArcMemoryGraph graph={graph} loading={graphLoading} />
+      </div>
+
       <ControlSection
         action={
           confirmClear ? (
@@ -1254,8 +1319,21 @@ function MemoryPanel(): React.JSX.Element {
       >
         <ControlRow action={<span className="control-value">{page.total}</span>} title="Entries" />
         <ControlRow
-          action={<span className="control-value">{(page.summary.facts ?? []).join(' · ') || 'None'}</span>}
+          action={
+            <span className="control-value">
+              {(page.summary.facts ?? []).join(' · ') || 'None'}
+            </span>
+          }
           title="Known facts"
+        />
+        <ControlRow
+          action={
+            <span className="control-value">
+              {page.summary.graph?.entities ?? 0} / {page.summary.graph?.relations ?? 0}
+            </span>
+          }
+          description="Entities / explicit relationships"
+          title="Knowledge graph"
         />
       </ControlSection>
 
@@ -1327,7 +1405,11 @@ function AccountsPanel(): React.JSX.Element {
         ) : (
           <>
             <ControlRow
-              action={<ControlPill tone={available ? 'ready' : 'warning'}>{available ? detail : 'Not configured'}</ControlPill>}
+              action={
+                <ControlPill tone={available ? 'ready' : 'warning'}>
+                  {available ? detail : 'Not configured'}
+                </ControlPill>
+              }
               title="Account service"
             />
             {accounts.map((account) => (
@@ -1448,7 +1530,7 @@ function ProviderCard({
         {provider.cooldown
           ? `COOLING DOWN ${Math.round(provider.cooldown.seconds_remaining)}S`
           : offline
-              ? 'Not running'
+            ? 'Not running'
             : oauth
               ? oauth.state.toUpperCase()
               : provider.configured
@@ -1632,7 +1714,6 @@ function ProvidersPanel(): React.JSX.Element {
       description="Connect a model service and choose where each request runs."
       title="Providers"
     >
-
       {!page && !error ? (
         <ProcessingCard
           compact
@@ -2474,105 +2555,112 @@ function SchedulesPanel(): React.JSX.Element {
 
       <ControlSection icon={Clock3} title="New schedule">
         <div className="schedule-form">
-        <label>
-          <span>Name</span>
-          <input
-            value={name}
-            placeholder="wake up"
-            onChange={(event) => setName(event.target.value)}
-          />
-        </label>
-        <label>
-          <span>When</span>
-          <input
-            value={when}
-            placeholder="07:30, 60 (minutes), or a cron expression"
-            onChange={(event) => setWhen(event.target.value)}
-          />
-        </label>
-        <label>
-          <span>Message</span>
-          <input
-            value={message}
-            placeholder="Time to get up"
-            onChange={(event) => setMessage(event.target.value)}
-          />
-        </label>
-        <label className="schedule-insist">
-          <input
-            type="checkbox"
-            checked={insist}
-            onChange={(event) => setInsist(event.target.checked)}
-          />
-          <span>
-            Speak anyway
-            {/* The opt-in. Off by default because an hourly check firing out
+          <label>
+            <span>Name</span>
+            <input
+              value={name}
+              placeholder="wake up"
+              onChange={(event) => setName(event.target.value)}
+            />
+          </label>
+          <label>
+            <span>When</span>
+            <input
+              value={when}
+              placeholder="07:30, 60 (minutes), or a cron expression"
+              onChange={(event) => setWhen(event.target.value)}
+            />
+          </label>
+          <label>
+            <span>Message</span>
+            <input
+              value={message}
+              placeholder="Time to get up"
+              onChange={(event) => setMessage(event.target.value)}
+            />
+          </label>
+          <label className="schedule-insist">
+            <input
+              type="checkbox"
+              checked={insist}
+              onChange={(event) => setInsist(event.target.checked)}
+            />
+            <span>
+              Speak anyway
+              {/* The opt-in. Off by default because an hourly check firing out
                 loud at 3am is what quiet hours exists to prevent. */}
-            <small>Ignore quiet hours and sleep mode. For an alarm you mean.</small>
-          </span>
-        </label>
-        <button
-          className="phase"
-          type="button"
-          disabled={!name || !when}
-          onClick={() => void add()}
-        >
-          Add schedule
-        </button>
+              <small>Ignore quiet hours and sleep mode. For an alarm you mean.</small>
+            </span>
+          </label>
+          <button
+            className="phase"
+            type="button"
+            disabled={!name || !when}
+            onClick={() => void add()}
+          >
+            Add schedule
+          </button>
         </div>
       </ControlSection>
 
       <ControlSection icon={CalendarDays} title="Schedules">
         {!page ? (
-          <ProcessingCard compact detail="Reading the local schedule registry." title="Loading schedules" />
+          <ProcessingCard
+            compact
+            detail="Reading the local schedule registry."
+            title="Loading schedules"
+          />
         ) : null}
         <div className="service-list">
           {(page?.schedules ?? []).map((row) => (
-          <div className="service-row" key={row.id}>
-            <span className="service-name">{row.name}</span>
-            <span
-              className={`service-state state-${
-                row.last_error ? 'error' : row.enabled ? 'ready' : 'pending'
-              }`}
-            >
-              {row.last_error ? 'Failed' : row.enabled ? 'On' : 'Off'}
-              {row.insist ? ' · insists' : ''}
-            </span>
-            <small>
-              {row.kind === 'interval' ? `every ${row.expression} minutes` : row.expression} /{' '}
-              {row.action}
-            </small>
-            {row.message ? <small>{row.message}</small> : null}
-            {row.last_error ? (
-              <small className="provider-cooldown">{row.last_error}</small>
-            ) : row.last_run ? (
-              <small>last run {row.last_run}</small>
-            ) : null}
-            <div className="provider-actions">
-              <button className="phase" type="button" onClick={() => void act(row.id, 'run')}>
-                Run now
-              </button>
-              <button
-                className="phase"
-                type="button"
-                onClick={() => void act(row.id, row.enabled ? 'disable' : 'enable')}
+            <div className="service-row" key={row.id}>
+              <span className="service-name">{row.name}</span>
+              <span
+                className={`service-state state-${
+                  row.last_error ? 'error' : row.enabled ? 'ready' : 'pending'
+                }`}
               >
-                {row.enabled ? 'Pause' : 'Resume'}
-              </button>
-              <button
-                className="phase danger"
-                type="button"
-                onClick={() => void act(row.id, 'remove')}
-              >
-                Remove
-              </button>
+                {row.last_error ? 'Failed' : row.enabled ? 'On' : 'Off'}
+                {row.insist ? ' · insists' : ''}
+              </span>
+              <small>
+                {row.kind === 'interval' ? `every ${row.expression} minutes` : row.expression} /{' '}
+                {row.action}
+              </small>
+              {row.message ? <small>{row.message}</small> : null}
+              {row.last_error ? (
+                <small className="provider-cooldown">{row.last_error}</small>
+              ) : row.last_run ? (
+                <small>last run {row.last_run}</small>
+              ) : null}
+              <div className="provider-actions">
+                <button className="phase" type="button" onClick={() => void act(row.id, 'run')}>
+                  Run now
+                </button>
+                <button
+                  className="phase"
+                  type="button"
+                  onClick={() => void act(row.id, row.enabled ? 'disable' : 'enable')}
+                >
+                  {row.enabled ? 'Pause' : 'Resume'}
+                </button>
+                <button
+                  className="phase danger"
+                  type="button"
+                  onClick={() => void act(row.id, 'remove')}
+                >
+                  Remove
+                </button>
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
         </div>
 
         {page && page.schedules.length === 0 ? (
-          <ControlEmpty description="Create one above when you want a task to run later." title="Nothing scheduled" />
+          <ControlEmpty
+            description="Create one above when you want a task to run later."
+            title="Nothing scheduled"
+          />
         ) : null}
       </ControlSection>
     </ControlPage>
@@ -2629,116 +2717,119 @@ function PluginsPanel(): React.JSX.Element {
       ) : null}
 
       <ControlSection icon={Box} title="Installed and available">
-      <div className="service-list">
-        {(page?.plugins ?? []).map((plugin) => (
-          <div className="service-row" key={plugin.name}>
-            <span className="service-name">{plugin.title}</span>
-            <span
-              className={`service-state state-${
-                !plugin.supported || (plugin.installed && !plugin.running)
-                  ? 'error'
+        <div className="service-list">
+          {(page?.plugins ?? []).map((plugin) => (
+            <div className="service-row" key={plugin.name}>
+              <span className="service-name">{plugin.title}</span>
+              <span
+                className={`service-state state-${
+                  !plugin.supported || (plugin.installed && !plugin.running)
+                    ? 'error'
+                    : plugin.installed
+                      ? 'ready'
+                      : busy === plugin.name
+                        ? 'starting'
+                        : 'pending'
+                }`}
+              >
+                {busy === plugin.name
+                  ? 'Working'
                   : plugin.installed
-                    ? 'ready'
-                    : busy === plugin.name
-                      ? 'starting'
-                      : 'pending'
-              }`}
-            >
-              {busy === plugin.name
-                ? 'Working'
-                : plugin.installed
-                  ? plugin.running
-                    ? `Installed ${plugin.version ? `v${plugin.version}` : ''}`.trim()
-                    : 'Not running'
-                  : plugin.detail}
-            </span>
-            {plugin.why ? <small>{plugin.why}</small> : null}
-            <small className="plugin-repo">
-              {plugin.repo}
-              {plugin.ref ? ` (${plugin.ref})` : ' (default branch)'}
-              {plugin.commit ? ` @${plugin.commit}` : ''}
-            </small>
-            {plugin.installed && (!plugin.supported || !plugin.running) ? (
-              <small className="provider-cooldown">{plugin.detail}</small>
-            ) : null}
-            {plugin.tools.length > 0 ? (
-              <small>
-                {plugin.tools.length} tools: {plugin.tools.join(', ')}
+                    ? plugin.running
+                      ? `Installed ${plugin.version ? `v${plugin.version}` : ''}`.trim()
+                      : 'Not running'
+                    : plugin.detail}
+              </span>
+              {plugin.why ? <small>{plugin.why}</small> : null}
+              <small className="plugin-repo">
+                {plugin.repo}
+                {plugin.ref ? ` (${plugin.ref})` : ' (default branch)'}
+                {plugin.commit ? ` @${plugin.commit}` : ''}
               </small>
-            ) : null}
+              {plugin.installed && (!plugin.supported || !plugin.running) ? (
+                <small className="provider-cooldown">{plugin.detail}</small>
+              ) : null}
+              {plugin.tools.length > 0 ? (
+                <small>
+                  {plugin.tools.length} tools: {plugin.tools.join(', ')}
+                </small>
+              ) : null}
 
-            {confirming === plugin.name ? (
-              <div className="chat-confirm">
-                <p>
-                  {plugin.title} runs its own code inside Marvi and installs its dependencies into
-                  Marvi&apos;s environment. Only install plugins you trust.
-                </p>
-                <div className="provider-actions">
-                  <button
-                    className="phase active"
-                    type="button"
-                    onClick={() => void act(plugin.name, 'install')}
-                  >
-                    Install
-                  </button>
-                  <button className="phase" type="button" onClick={() => setConfirming('')}>
-                    Cancel
-                  </button>
+              {confirming === plugin.name ? (
+                <div className="chat-confirm">
+                  <p>
+                    {plugin.title} runs its own code inside Marvi and installs its dependencies into
+                    Marvi&apos;s environment. Only install plugins you trust.
+                  </p>
+                  <div className="provider-actions">
+                    <button
+                      className="phase active"
+                      type="button"
+                      onClick={() => void act(plugin.name, 'install')}
+                    >
+                      Install
+                    </button>
+                    <button className="phase" type="button" onClick={() => setConfirming('')}>
+                      Cancel
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <div className="provider-actions">
-                {plugin.installed ? (
-                  <>
+              ) : (
+                <div className="provider-actions">
+                  {plugin.installed ? (
+                    <>
+                      <button
+                        className="phase"
+                        type="button"
+                        disabled={!!busy}
+                        onClick={() => void act(plugin.name, 'update')}
+                      >
+                        Update
+                      </button>
+                      <button
+                        className="phase danger"
+                        type="button"
+                        disabled={!!busy}
+                        onClick={() => void act(plugin.name, 'remove')}
+                      >
+                        Remove
+                      </button>
+                    </>
+                  ) : (
                     <button
                       className="phase"
                       type="button"
                       disabled={!!busy}
-                      onClick={() => void act(plugin.name, 'update')}
+                      onClick={() => setConfirming(plugin.name)}
                     >
-                      Update
+                      Install
                     </button>
-                    <button
-                      className="phase danger"
-                      type="button"
-                      disabled={!!busy}
-                      onClick={() => void act(plugin.name, 'remove')}
-                    >
-                      Remove
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    className="phase"
-                    type="button"
-                    disabled={!!busy}
-                    onClick={() => setConfirming(plugin.name)}
-                  >
-                    Install
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
 
-      {(page?.plugins ?? []).length === 0 ? (
-        <ControlEmpty description="Add a declaration to config/plugin-sources.json." title="No plugins declared" />
-      ) : null}
+        {(page?.plugins ?? []).length === 0 ? (
+          <ControlEmpty
+            description="Add a declaration to config/plugin-sources.json."
+            title="No plugins declared"
+          />
+        ) : null}
       </ControlSection>
       <ControlSection icon={Wrench} title="Plugin storage">
-      <button className="phase" type="button" onClick={() => void load()}>
-        Check again
-      </button>
-      {page ? (
-        <>
-          <small>Checkouts · {page.install_root}</small>
-          {/* Named because removing a plugin keeps its data, and someone
+        <button className="phase" type="button" onClick={() => void load()}>
+          Check again
+        </button>
+        {page ? (
+          <>
+            <small>Checkouts · {page.install_root}</small>
+            {/* Named because removing a plugin keeps its data, and someone
               looking for their room history should not have to guess. */}
-          <small>Plugin data · {page.data_root}</small>
-        </>
-      ) : null}
+            <small>Plugin data · {page.data_root}</small>
+          </>
+        ) : null}
       </ControlSection>
     </ControlPage>
   )
@@ -2815,97 +2906,103 @@ function SkillsPanel(): React.JSX.Element {
   )
 
   return (
-    <ControlPage description="Instructions that teach Marvi how to complete specific work." title="Skills">
+    <ControlPage
+      description="Instructions that teach Marvi how to complete specific work."
+      title="Skills"
+    >
       <ControlSection icon={Database} title="Catalog">
-      <div className="context-line">
-        <span>Sources</span>
-        <strong>{sources.join(', ') || 'None configured'}</strong>
-      </div>
-
-      <input
-        className="skill-search"
-        type="text"
-        placeholder="Search skills"
-        value={filter}
-        onChange={(event) => setFilter(event.target.value)}
-      />
-
-      {/* The review sheet: instructions in full, warnings, then the button. */}
-      {review ? (
-        <div className="skill-review">
-          <div className="panel-label">{review.skill.name}</div>
-          <p>{review.skill.description}</p>
-          {review.warnings.map((warning) => (
-            <small className="provider-cooldown" key={warning}>
-              {warning}
-            </small>
-          ))}
-          {review.tools?.still_sensitive?.length ? (
-            <small className="provider-cooldown">
-              It names sensitive tools ({review.tools.still_sensitive.join(', ')}). Those still ask
-              you every time.
-            </small>
-          ) : null}
-          <pre className="service-output skill-body">{review.instructions}</pre>
-          <div className="provider-actions">
-            <button
-              className="phase active"
-              type="button"
-              disabled={busy === 'installing'}
-              onClick={() => void confirm()}
-            >
-              {busy === 'installing' ? 'Installing' : 'Install'}
-            </button>
-            <button className="phase" type="button" onClick={() => setReview(null)}>
-              Cancel
-            </button>
-          </div>
+        <div className="context-line">
+          <span>Sources</span>
+          <strong>{sources.join(', ') || 'None configured'}</strong>
         </div>
-      ) : null}
 
-      {!loaded ? (
-        <ProcessingCard
-          compact
-          detail="Reading configured skill sources and installed packages."
-          title="Loading skill store"
+        <input
+          className="skill-search"
+          type="text"
+          placeholder="Search skills"
+          value={filter}
+          onChange={(event) => setFilter(event.target.value)}
         />
-      ) : store.length === 0 ? (
-        <ControlEmpty description="Add a skill source to populate this catalog." title="No skills available" />
-      ) : (
-        <div className="service-list">
-          {shown.map((skill) => (
-            <div className="service-row" key={`${skill.repo}/${skill.name}`}>
-              <span className="service-name">{skill.name}</span>
-              <span className={`service-state state-${skill.installed ? 'ready' : 'pending'}`}>
-                {skill.installed ? 'Installed' : ''}
-              </span>
-              <small>{skill.description}</small>
-              <small>{skill.repo}</small>
-              <div className="provider-actions">
-                {skill.installed ? (
-                  <button
-                    className="phase danger"
-                    type="button"
-                    disabled={!!busy}
-                    onClick={() => void remove(skill.name)}
-                  >
-                    Remove
-                  </button>
-                ) : (
-                  <button
-                    className="phase"
-                    type="button"
-                    disabled={!!busy}
-                    onClick={() => void open(skill)}
-                  >
-                    {busy === skill.name ? 'Fetching' : 'Review and install'}
-                  </button>
-                )}
-              </div>
+
+        {/* The review sheet: instructions in full, warnings, then the button. */}
+        {review ? (
+          <div className="skill-review">
+            <div className="panel-label">{review.skill.name}</div>
+            <p>{review.skill.description}</p>
+            {review.warnings.map((warning) => (
+              <small className="provider-cooldown" key={warning}>
+                {warning}
+              </small>
+            ))}
+            {review.tools?.still_sensitive?.length ? (
+              <small className="provider-cooldown">
+                It names sensitive tools ({review.tools.still_sensitive.join(', ')}). Those still
+                ask you every time.
+              </small>
+            ) : null}
+            <pre className="service-output skill-body">{review.instructions}</pre>
+            <div className="provider-actions">
+              <button
+                className="phase active"
+                type="button"
+                disabled={busy === 'installing'}
+                onClick={() => void confirm()}
+              >
+                {busy === 'installing' ? 'Installing' : 'Install'}
+              </button>
+              <button className="phase" type="button" onClick={() => setReview(null)}>
+                Cancel
+              </button>
             </div>
-          ))}
-        </div>
-      )}
+          </div>
+        ) : null}
+
+        {!loaded ? (
+          <ProcessingCard
+            compact
+            detail="Reading configured skill sources and installed packages."
+            title="Loading skill store"
+          />
+        ) : store.length === 0 ? (
+          <ControlEmpty
+            description="Add a skill source to populate this catalog."
+            title="No skills available"
+          />
+        ) : (
+          <div className="service-list">
+            {shown.map((skill) => (
+              <div className="service-row" key={`${skill.repo}/${skill.name}`}>
+                <span className="service-name">{skill.name}</span>
+                <span className={`service-state state-${skill.installed ? 'ready' : 'pending'}`}>
+                  {skill.installed ? 'Installed' : ''}
+                </span>
+                <small>{skill.description}</small>
+                <small>{skill.repo}</small>
+                <div className="provider-actions">
+                  {skill.installed ? (
+                    <button
+                      className="phase danger"
+                      type="button"
+                      disabled={!!busy}
+                      onClick={() => void remove(skill.name)}
+                    >
+                      Remove
+                    </button>
+                  ) : (
+                    <button
+                      className="phase"
+                      type="button"
+                      disabled={!!busy}
+                      onClick={() => void open(skill)}
+                    >
+                      {busy === skill.name ? 'Fetching' : 'Review and install'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </ControlSection>
     </ControlPage>
   )
@@ -2929,7 +3026,10 @@ function ActivityPanel(): React.JSX.Element {
   }, [])
 
   return (
-    <ControlPage description="Local history of tool requests, approvals, and results." title="Activity">
+    <ControlPage
+      description="Local history of tool requests, approvals, and results."
+      title="Activity"
+    >
       <ControlSection icon={History} title="Tool activity">
         {events.length === 0 ? (
           <ControlEmpty
@@ -2940,7 +3040,11 @@ function ActivityPanel(): React.JSX.Element {
         ) : (
           events.map((event, index) => (
             <ControlRow
-              action={<ControlPill tone={event.event === 'failed' ? 'danger' : 'neutral'}>{event.event}</ControlPill>}
+              action={
+                <ControlPill tone={event.event === 'failed' ? 'danger' : 'neutral'}>
+                  {event.event}
+                </ControlPill>
+              }
               description={`${event.at.slice(11, 19)} · ${event.mode}${Object.keys(event.arguments).length > 0 ? ` · ${JSON.stringify(event.arguments)}` : ''}${event.detail ? ` · ${event.detail}` : ''}`}
               key={`${event.at}-${index}`}
               title={event.tool.replaceAll('_', ' ')}
@@ -3107,29 +3211,29 @@ function SettingsShell({
 
         <div className="settings-content">
           <div className="settings-scroll">
-          {page === 'Providers' ? (
-            <ProvidersPanel />
-          ) : page === 'Models' ? (
-            <ModelsPanel />
-          ) : page === 'Usage' ? (
-            <UsagePanel />
-          ) : page === 'Accounts' ? (
-            <AccountsPanel />
-          ) : page === 'Skills' ? (
-            <SkillsPanel />
-          ) : page === 'Plugins' ? (
-            <PluginsPanel />
-          ) : page === 'Speech' ? (
-            <SpeechPanel />
-          ) : page === 'Preferences' ? (
-            <SettingsPanel runtime={runtime} />
-          ) : page === 'Schedules' ? (
-            <SchedulesPanel />
-          ) : page === 'Maintenance' ? (
-            <MaintenancePanel />
-          ) : (
-            <AboutPanel fallbackVersion={version} runtime={runtime} />
-          )}
+            {page === 'Providers' ? (
+              <ProvidersPanel />
+            ) : page === 'Models' ? (
+              <ModelsPanel />
+            ) : page === 'Usage' ? (
+              <UsagePanel />
+            ) : page === 'Accounts' ? (
+              <AccountsPanel />
+            ) : page === 'Skills' ? (
+              <SkillsPanel />
+            ) : page === 'Plugins' ? (
+              <PluginsPanel />
+            ) : page === 'Speech' ? (
+              <SpeechPanel />
+            ) : page === 'Preferences' ? (
+              <SettingsPanel runtime={runtime} />
+            ) : page === 'Schedules' ? (
+              <SchedulesPanel />
+            ) : page === 'Maintenance' ? (
+              <MaintenancePanel />
+            ) : (
+              <AboutPanel fallbackVersion={version} runtime={runtime} />
+            )}
           </div>
         </div>
       </div>
@@ -3181,7 +3285,6 @@ function SpeechPanel(): React.JSX.Element {
     </ControlPage>
   )
 }
-
 
 /**
  * Which model does which job.
@@ -3266,9 +3369,7 @@ function AuxiliarySettings(): React.JSX.Element {
       ))}
       {stale.length > 0 ? (
         <ControlRow
-          action={
-            <ControlButton onClick={() => void resetAll()}>Reset all to main</ControlButton>
-          }
+          action={<ControlButton onClick={() => void resetAll()}>Reset all to main</ControlButton>}
           description={`${stale.map((role) => role.title).join(', ')} still ${
             stale.length === 1 ? 'runs' : 'run'
           } on ${
@@ -3572,9 +3673,18 @@ function SettingsPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Eleme
       </ControlSection>
 
       <ControlSection icon={Gauge} title="Device status">
-        <ControlRow action={<ControlPill>{DEVICE_COPY[deviceState(runtime, 'microphone')]}</ControlPill>} title="Microphone" />
-        <ControlRow action={<ControlPill>{DEVICE_COPY[deviceState(runtime, 'camera')]}</ControlPill>} title="Camera" />
-        <ControlRow action={<ControlPill tone={stateTone(runtime.state)}>{runtime.state}</ControlPill>} title="Gateway" />
+        <ControlRow
+          action={<ControlPill>{DEVICE_COPY[deviceState(runtime, 'microphone')]}</ControlPill>}
+          title="Microphone"
+        />
+        <ControlRow
+          action={<ControlPill>{DEVICE_COPY[deviceState(runtime, 'camera')]}</ControlPill>}
+          title="Camera"
+        />
+        <ControlRow
+          action={<ControlPill tone={stateTone(runtime.state)}>{runtime.state}</ControlPill>}
+          title="Gateway"
+        />
       </ControlSection>
     </ControlPage>
   )

@@ -13,6 +13,8 @@ import type {
   IdentityStatus,
   InitiativeStatus,
   McpServerRow,
+  MemoryGraphMode,
+  MemoryGraphPage,
   MemoryPage,
   MindDecision,
   ModelPage,
@@ -85,6 +87,7 @@ export interface MarviDesktopApi {
   checkForUpdate: () => Promise<UpdateCheck>
   startUpdate: () => Promise<boolean>
   getMemory: () => Promise<MemoryPage>
+  getMemoryGraph: (mode: MemoryGraphMode) => Promise<MemoryGraphPage>
   clearMemory: () => Promise<boolean>
   getAccounts: () => Promise<{
     available: boolean

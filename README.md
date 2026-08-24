@@ -74,7 +74,8 @@ Current implemented desktop surfaces:
   whenever they are recalled;
 - a knowledge graph, recall-based reinforcement, reflection that promotes
   repeated episodes into durable facts, and a consolidation pass that forgets
-  only what was never useful;
+  only what was never useful, presented as ARC with an interactive local memory
+  graph, provenance tree, and explicit-connection view;
 - account event ingestion that deduplicates by provider id and never blocks the
   voice path;
 - a content-free, durable usage ledger shared by Chat, Voice, background work,

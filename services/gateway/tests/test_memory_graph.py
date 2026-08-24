@@ -190,3 +190,42 @@ def test_consolidation_keeps_entities_that_still_have_relations(memory) -> None:
 def test_world_summary_includes_the_graph(memory) -> None:
     memory.link("Shereef", "owns", "Tuya bulb")
     assert memory.world_summary()["graph"] == {"entities": 2, "relations": 1}
+
+
+# -- ARC renderer projection ------------------------------------------------
+
+
+def test_tree_projection_groups_memories_by_provenance(memory) -> None:
+    memory.remember("Prefers terse replies", "Keep answers short", kind="semantic")
+    memory.remember_external("Email from Sam", "Lunch tomorrow", source="composio:gmail")
+
+    graph = memory.graph_export("tree")
+
+    assert graph["mode"] == "tree"
+    assert graph["nodes"][0] == {
+        "id": "arc:memory", "kind": "root", "label": "Memory", "level": 2
+    }
+    sources = {n["label"] for n in graph["nodes"] if n["kind"] == "source"}
+    assert sources == {"marvi", "composio:gmail"}
+    untrusted = next(n for n in graph["nodes"] if n["label"] == "Email from Sam")
+    assert untrusted["trusted"] is False
+    assert untrusted["provenance"] == "composio:gmail"
+
+
+def test_empty_tree_projection_is_an_empty_canvas(memory) -> None:
+    assert memory.graph_export("tree") == {"mode": "tree", "nodes": [], "edges": []}
+
+
+def test_contacts_projection_uses_explicit_relations(memory) -> None:
+    memory.link("Sam", "works at", "Tiny Humans", source="user", trusted=True)
+
+    graph = memory.graph_export("contacts")
+
+    assert {n["label"] for n in graph["nodes"]} == {"Sam", "Tiny Humans"}
+    assert graph["edges"][0]["label"] == "works at"
+    assert graph["edges"][0]["provenance"] == "user"
+
+
+def test_graph_projection_rejects_unknown_modes(memory) -> None:
+    with pytest.raises(ValueError, match="unsupported graph mode"):
+        memory.graph_export("galaxy")  # type: ignore[arg-type]

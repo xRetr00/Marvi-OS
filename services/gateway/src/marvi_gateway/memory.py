@@ -24,6 +24,7 @@ from typing import Any, Literal
 from .untrusted import wrap_external
 
 MemoryKind = Literal["episodic", "semantic"]
+GraphMode = Literal["tree", "contacts"]
 DEFAULT_SEARCH_LIMIT = 10
 MAX_BODY_CHARS = 4_000
 # Consolidation defaults. Deliberately conservative: forgetting the user's
@@ -311,6 +312,89 @@ class MemoryStore:
                 self._db.execute("SELECT COUNT(*) n FROM relations").fetchone()["n"]
             ),
         }
+
+    def graph_export(self, mode: GraphMode = "tree", limit: int = 1000) -> dict[str, Any]:
+        """Project the local store into the renderer's read-only ARC graph.
+
+        This is deliberately a projection, not a second persistence model.  The
+        tree view groups memories beneath their provenance source; the contacts
+        view exposes the explicit entity relationships already held by Marvi.
+        Nothing in the renderer gets direct SQLite access or authority to
+        mutate memory.
+        """
+        if mode not in ("tree", "contacts"):
+            raise ValueError(f"unsupported graph mode: {mode}")
+        bounded = max(1, min(int(limit), 2_000))
+        if mode == "contacts":
+            entities = self._db.execute(
+                "SELECT id, name, kind FROM entities ORDER BY id DESC LIMIT ?", (bounded,)
+            ).fetchall()
+            entity_ids = {int(row["id"]) for row in entities}
+            nodes = [
+                {
+                    "id": f"entity:{row['id']}",
+                    "kind": "contact",
+                    "label": row["name"],
+                    "entity_kind": row["kind"],
+                }
+                for row in entities
+            ]
+            relations = self._db.execute(
+                "SELECT id, subject_id, predicate, object_id, source, trusted"
+                " FROM relations ORDER BY id DESC LIMIT ?",
+                (bounded,),
+            ).fetchall()
+            edges = [
+                {
+                    "id": f"relation:{row['id']}",
+                    "source": f"entity:{row['subject_id']}",
+                    "target": f"entity:{row['object_id']}",
+                    "label": row["predicate"],
+                    "trusted": bool(row["trusted"]),
+                    "provenance": row["source"],
+                }
+                for row in relations
+                if int(row["subject_id"]) in entity_ids and int(row["object_id"]) in entity_ids
+            ]
+            return {"mode": mode, "nodes": nodes, "edges": edges}
+
+        rows = self._db.execute(
+            "SELECT id, kind, subject, source, trusted, at FROM memories"
+            " ORDER BY id DESC LIMIT ?",
+            (bounded,),
+        ).fetchall()
+        if not rows:
+            return {"mode": mode, "nodes": [], "edges": []}
+        sources = sorted({str(row["source"]) for row in rows})
+        nodes: list[dict[str, Any]] = [
+            {"id": "arc:memory", "kind": "root", "label": "Memory", "level": 2}
+        ]
+        edges: list[dict[str, Any]] = []
+        for source in sources:
+            source_id = f"source:{source}"
+            nodes.append({"id": source_id, "kind": "source", "label": source, "level": 1})
+            edges.append(
+                {"id": f"arc:{source_id}", "source": "arc:memory", "target": source_id}
+            )
+        for row in rows:
+            node_id = f"memory:{row['id']}"
+            source_id = f"source:{row['source']}"
+            nodes.append(
+                {
+                    "id": node_id,
+                    "kind": "summary" if row["kind"] == "semantic" else "chunk",
+                    "label": row["subject"],
+                    "level": 0,
+                    "memory_kind": row["kind"],
+                    "trusted": bool(row["trusted"]),
+                    "provenance": row["source"],
+                    "at": row["at"],
+                }
+            )
+            edges.append(
+                {"id": f"arc:{node_id}", "source": source_id, "target": node_id}
+            )
+        return {"mode": mode, "nodes": nodes, "edges": edges}
 
     def forget_entity(self, name: str) -> int:
         """Deleting an entity takes its relations with it."""

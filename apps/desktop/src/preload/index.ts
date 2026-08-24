@@ -14,6 +14,8 @@ import type {
   IdentityStatus,
   InitiativeStatus,
   McpServerRow,
+  MemoryGraphMode,
+  MemoryGraphPage,
   MemoryPage,
   MindDecision,
   ModelPage,
@@ -140,6 +142,8 @@ const marvi = {
   checkForUpdate: (): Promise<UpdateCheck> => ipcRenderer.invoke('marvi:check-update'),
   startUpdate: (): Promise<boolean> => ipcRenderer.invoke('marvi:start-update'),
   getMemory: (): Promise<MemoryPage> => ipcRenderer.invoke('marvi:get-memory'),
+  getMemoryGraph: (mode: MemoryGraphMode): Promise<MemoryGraphPage> =>
+    ipcRenderer.invoke('marvi:get-memory-graph', mode),
   clearMemory: (): Promise<boolean> => ipcRenderer.invoke('marvi:clear-memory'),
   getAccounts: (): Promise<{
     available: boolean

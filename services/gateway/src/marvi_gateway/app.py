@@ -122,6 +122,12 @@ class MemoryPage(BaseModel):
     summary: dict[str, Any]
 
 
+class MemoryGraphPage(BaseModel):
+    mode: Literal["tree", "contacts"]
+    nodes: list[dict[str, Any]]
+    edges: list[dict[str, Any]]
+
+
 class IngestResult(BaseModel):
     ingested: list[str]
     skipped: int
@@ -1870,6 +1876,15 @@ def create_app(
             entries=memory.recent(limit=max(1, min(limit, 200))),
             summary=memory.world_summary(),
         )
+
+    @app.get("/arc/memory/graph", response_model=MemoryGraphPage)
+    async def memory_graph(
+        mode: Literal["tree", "contacts"] = "tree", limit: int = 1000
+    ) -> MemoryGraphPage:
+        """Read-only ARC graph projection for the desktop control center."""
+        if memory is None:
+            return MemoryGraphPage(mode=mode, nodes=[], edges=[])
+        return MemoryGraphPage(**memory.graph_export(mode, limit))
 
     @app.post("/accounts/ingest", response_model=IngestResult)
     async def run_ingest() -> IngestResult:

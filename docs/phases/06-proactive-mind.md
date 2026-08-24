@@ -20,6 +20,12 @@ Vision moved to [`08-vision.md`](08-vision.md); this phase is cognition only.
 
 ## Implemented — the REAL-AGENCY mind
 
+These Gateway-owned memory, mind, and initiative boundaries are presented to
+the product as **ARC**. ARC's subconscious cycle is observe → reflect → commit;
+it does not introduce a second runtime or weaken the policy/confirmation
+boundary. The Memory control-center page now exposes the read-only ARC graph
+projection with tree and explicit-connection modes.
+
 - `marvi_gateway.journal`: a durable event journal. Room transitions, account
   items, and reflections land here with provenance and trust before anything
   reasons about them, and the same event arriving twice is one event.
