@@ -5553,53 +5553,35 @@ body {
 }
 
 .arc-graph-canvas {
+  position: relative;
   display: block;
   width: 100%;
   height: min(560px, calc(100vh - 310px));
   min-height: 380px;
+  overflow: hidden;
   touch-action: none;
-  background:
-    linear-gradient(var(--ui-stroke-tertiary) 1px, transparent 1px),
-    linear-gradient(90deg, var(--ui-stroke-tertiary) 1px, transparent 1px), var(--ui-bg);
-  background-size: 32px 32px;
+  background: radial-gradient(circle at 50% 45%, #15181d 0, var(--ui-bg) 68%);
   cursor: grab;
+}
+
+.arc-graph-canvas canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.arc-graph-render-error {
+  display: grid;
+  place-content: center;
+  padding: 24px;
+  color: var(--ui-danger);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-align: center;
 }
 
 .arc-graph-canvas:active {
   cursor: grabbing;
-}
-
-.arc-graph-edges line {
-  stroke: #565a60;
-  stroke-width: 1;
-  vector-effect: non-scaling-stroke;
-  opacity: 0.72;
-}
-
-.arc-graph-node {
-  cursor: pointer;
-}
-
-.arc-graph-node circle {
-  fill: var(--ui-text-tertiary);
-  stroke: var(--ui-bg);
-  stroke-width: 2;
-  vector-effect: non-scaling-stroke;
-  transition:
-    filter 140ms ease,
-    r 140ms ease;
-}
-
-.arc-graph-node:hover circle {
-  filter: drop-shadow(0 0 7px rgb(20 126 193 / 78%));
-  stroke: var(--ui-text-emphasis);
-}
-
-.arc-graph-node text {
-  fill: var(--ui-text-secondary);
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  pointer-events: none;
 }
 
 .arc-graph-node-root,

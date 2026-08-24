@@ -159,7 +159,9 @@ class MemoryStore:
         self.reinforce([entry["id"] for entry in found])
         return found
 
-    def recent(self, limit: int = DEFAULT_SEARCH_LIMIT, kind: MemoryKind | None = None) -> list[dict[str, Any]]:
+    def recent(
+        self, limit: int = DEFAULT_SEARCH_LIMIT, kind: MemoryKind | None = None
+    ) -> list[dict[str, Any]]:
         if kind:
             rows = self._db.execute(
                 "SELECT * FROM memories WHERE kind = ? ORDER BY id DESC LIMIT ?",
@@ -308,9 +310,7 @@ class MemoryStore:
     def graph_size(self) -> dict[str, int]:
         return {
             "entities": int(self._db.execute("SELECT COUNT(*) n FROM entities").fetchone()["n"]),
-            "relations": int(
-                self._db.execute("SELECT COUNT(*) n FROM relations").fetchone()["n"]
-            ),
+            "relations": int(self._db.execute("SELECT COUNT(*) n FROM relations").fetchone()["n"]),
         }
 
     def graph_export(self, mode: GraphMode = "tree", limit: int = 1000) -> dict[str, Any]:
@@ -359,8 +359,7 @@ class MemoryStore:
             return {"mode": mode, "nodes": nodes, "edges": edges}
 
         rows = self._db.execute(
-            "SELECT id, kind, subject, source, trusted, at FROM memories"
-            " ORDER BY id DESC LIMIT ?",
+            "SELECT id, kind, subject, source, trusted, at FROM memories ORDER BY id DESC LIMIT ?",
             (bounded,),
         ).fetchall()
         if not rows:
@@ -373,9 +372,7 @@ class MemoryStore:
         for source in sources:
             source_id = f"source:{source}"
             nodes.append({"id": source_id, "kind": "source", "label": source, "level": 1})
-            edges.append(
-                {"id": f"arc:{source_id}", "source": "arc:memory", "target": source_id}
-            )
+            edges.append({"id": f"arc:{source_id}", "source": "arc:memory", "target": source_id})
         for row in rows:
             node_id = f"memory:{row['id']}"
             source_id = f"source:{row['source']}"
@@ -391,9 +388,7 @@ class MemoryStore:
                     "at": row["at"],
                 }
             )
-            edges.append(
-                {"id": f"arc:{node_id}", "source": source_id, "target": node_id}
-            )
+            edges.append({"id": f"arc:{node_id}", "source": source_id, "target": node_id})
         return {"mode": mode, "nodes": nodes, "edges": edges}
 
     def forget_entity(self, name: str) -> int:
@@ -487,6 +482,15 @@ def register_memory_tools(registry, memory: MemoryStore) -> None:
     def memory_search(query: str) -> dict[str, Any]:
         return {"results": memory.search(query)}
 
+    def memory_recall(query: str) -> dict[str, Any]:
+        """Canonical read tool shared by typed chat, voice and MCP clients.
+
+        Keep the older search name as a compatibility alias; recall names the
+        agent behaviour and makes the capability discoverable in `/tools`.
+        """
+        results = memory.search(query)
+        return {"query": query, "results": results}
+
     def memory_forget(query: str) -> dict[str, Any]:
         return {"forgotten": memory.forget_matching(query)}
 
@@ -523,8 +527,21 @@ def register_memory_tools(registry, memory: MemoryStore) -> None:
     )
     registry.register(
         ToolSpec(
+            name="memory_recall",
+            description=(
+                "Recall durable memories relevant to a person, topic, or past event. "
+                "Use this when earlier context may affect the answer."
+            ),
+            arguments={"query": str},
+            describes={"query": "Person, topic, fact, or past event to remember."},
+            sensitive=False,
+            handler=memory_recall,
+        )
+    )
+    registry.register(
+        ToolSpec(
             name="memory_search",
-            description="Search what Marvi remembers",
+            description="Compatibility alias for memory_recall",
             arguments={"query": str},
             describes={"query": "Words to look for. Plain phrasing, not a search syntax."},
             sensitive=False,
@@ -537,10 +554,7 @@ def register_memory_tools(registry, memory: MemoryStore) -> None:
             description="Forget everything matching a phrase",
             arguments={"query": str},
             describes={
-                "query": (
-                    "Phrase to match. Everything matching it is deleted, "
-                    "so be specific."
-                )
+                "query": ("Phrase to match. Everything matching it is deleted, so be specific.")
             },
             sensitive=True,
             handler=memory_forget,

@@ -86,3 +86,26 @@ async def test_a_gateway_that_cannot_be_reached_is_not_fatal() -> None:
     tools = GatewayTools(client=httpx.AsyncClient(transport=httpx.MockTransport(broken)))
 
     assert await tools.from_gateway() == []
+
+
+async def test_spoken_recall_uses_the_canonical_gateway_memory_tool() -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(
+            200,
+            json={
+                "status": "executed",
+                "result": {"results": [{"subject": "Sam", "body": "likes tea"}]},
+            },
+        )
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    tools = GatewayTools(client=client)
+
+    answer = await tools.recall(None, "Sam")
+    await client.aclose()
+
+    assert answer == "Sam: likes tea"
+    assert seen[-1].url.path == "/tools/memory_recall"

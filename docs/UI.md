@@ -134,9 +134,11 @@ without navigating away from the current task.
 
 The Memory page is ARC's inspection surface. Its graph keeps the interaction
 model of the pinned OpenHuman reference: node/link counts, an inline legend,
-tree/connection modes, reset-view control, pan, zoom, draggable nodes, and a
-hover inspector. Marvi implements this independently because the reference is
-GPL-3.0 and Marvi OS is MIT.
+tree/connection modes, reset-view control, pan, cursor-anchored zoom, draggable
+nodes that pull their linked neighbours, and a hover inspector. The production
+renderer uses PixiJS WebGL with d3-force physics, following the pinned MIT
+Advanced Graph View architecture rather than the earlier static radial SVG.
+OpenHuman remains a reference only because it is GPL-3.0 and Marvi OS is MIT.
 
 The graph remains inside the control-center shell and uses Marvi's monochrome
 tokens with blue only for the ARC root/status signal and red only for untrusted
@@ -144,6 +146,8 @@ provenance. It never imports the reference's colorful palette, rounded app
 chrome, or renderer-side data ownership. Tree mode groups entries below their
 source; Connections mode renders only Gateway-authoritative entity relations.
 An empty graph explains how it will fill instead of showing a dead canvas.
+Reduced-motion mode settles the simulation immediately instead of leaving the
+graph in continuous motion.
 
 ## Dynamic Island
 

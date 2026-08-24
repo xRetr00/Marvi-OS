@@ -22,9 +22,11 @@
     "build:linux": "electron-vite build && electron-builder --linux"
   },
   "dependencies": {
+    "d3-force": "^3.0.0",
     "katex": "^0.16.22",
     "lucide-react": "0.577.0",
     "mdast-util-to-string": "^4.0.0",
+    "pixi.js": "^8.19.0",
     "react-markdown": "^10.1.0",
     "rehype-katex": "^7.0.1",
     "remark-gfm": "^4.0.1",
@@ -39,6 +41,7 @@
     "@electron-toolkit/tsconfig": "^2.0.0",
     "@electron-toolkit/utils": "^4.0.0",
     "@nanostores/react": "^1.0.0",
+    "@types/d3-force": "^3.0.10",
     "@types/node": "^22.19.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",

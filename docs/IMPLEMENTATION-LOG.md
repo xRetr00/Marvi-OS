@@ -899,6 +899,7 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
 - Kept Marvi's earlier blue eight-cell live voice-level meter as the explicit
   product-specific exception and retained every existing health/settings/update
   action behind the new presentation.
+
 ## 2026-08-23 — measured desktop pet prototype
 
 - Added the supplied Marvi character as a packaged local v2 atlas and a
@@ -999,9 +1000,20 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
 - Independently implemented the reference graph's interaction contract in the
   Marvi visual system: counts, legend, mode switch, reset, pan, zoom, draggable
   nodes, hover inspector, and local empty state.
-- Visually checked Tree and Connections modes in Chromium at 1180×760; evidence
-  is `output/playwright/arc-memory-tree.png` and
-  `output/playwright/arc-memory-connections.png`. The production renderer build,
-  changed-file lint, typecheck, all 224 rebased desktop tests, the 879-test
-  Gateway suite before rebase plus 60 rebased ARC/mind/initiative integration
-  tests, Ruff, and `git diff --check` pass.
+- Replaced the first static radial SVG approximation with the actual
+  Obsidian-class rendering architecture: PixiJS 8.19.0 WebGL plus d3-force
+  3.0.0. The pinned MIT Advanced Graph View repository supplied the pan/zoom,
+  force-reheat, GPU-scene, and reduced-motion design reference; Marvi owns the
+  small React adapter and Gateway projection.
+- Verified the account-to-cognition path and closed its tool naming gap:
+  bounded Composio Gmail/Calendar ingest writes untrusted durable memory and
+  subconscious journal events, typed Chat performs bounded automatic recall,
+  and both Chat and LiveKit Voice can invoke canonical `memory_recall` through
+  the Gateway tool router. `memory_search` remains compatible.
+- Visually checked the production Electron renderer at 1180×760 with live
+  Gateway data. The CSP initially rejected Pixi's generated uniform functions;
+  the official `pixi.js/unsafe-eval` adapter fixed that by using static
+  polyfills without weakening Marvi's CSP. Verified node/link paint, crisp
+  labels, hover inspection, force-linked drag response, and reset view. All 231
+  desktop tests, all 886 Gateway tests, the 6 voice catalogue/recall tests,
+  typecheck, Ruff, and `git diff --check` pass.

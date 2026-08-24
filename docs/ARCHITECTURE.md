@@ -96,6 +96,16 @@ from `/arc/memory/graph`; it never receives a SQLite handle or mutation
 authority. Tree mode groups memories by provenance, while Connections mode
 shows explicit entity relationships.
 
+Connected Gmail and Google Calendar accounts are polled on the bounded ingest
+tick. New items are written to durable memory as untrusted external content and
+also enter the journal for the subconscious policy loop. `memory_recall` is the
+canonical read-only Gateway tool: typed Chat receives it from the same registry
+that publishes `/tools`, and the LiveKit voice worker's spoken `recall` adapter
+invokes that published tool route.
+`memory_search` remains a compatibility alias. This native tool is preferred to
+adding an in-process MCP server; external MCP clients can still reach Gateway
+tools through the existing bridge boundary.
+
 It does not implement RTC, STT, TTS, home automation, OAuth providers, or model
 inference itself.
 
@@ -178,6 +188,10 @@ World context has three layers:
 1. A tiny live summary for immediate conversational awareness.
 2. Retrieval tools for current detail.
 3. A normalized event/memory store for durable history.
+
+Typed Chat also performs bounded automatic recall from the current user turn;
+voice recalls on demand through its spoken tool so the realtime prompt remains
+small. Both paths preserve the untrusted envelope stored by the memory service.
 
 ## Confirmation protocol
 

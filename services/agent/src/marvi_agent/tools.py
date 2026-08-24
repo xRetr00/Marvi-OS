@@ -76,11 +76,7 @@ def describe(result: Any) -> str:
             modes = state.get("modes") or {}
             presence = state.get("presence") or {}
             freshness = "live" if result.get("live") else "last known"
-            lit = (
-                f"on at {light.get('brightness', '?')} percent"
-                if light.get("on")
-                else "off"
-            )
+            lit = f"on at {light.get('brightness', '?')} percent" if light.get("on") else "off"
             return (
                 f"Room ({freshness}): light {lit}, mode {modes.get('active_mode', 'unknown')}, "
                 f"{'someone is present' if presence.get('detected') else 'nobody detected'}."
@@ -218,7 +214,7 @@ class GatewayTools:
     @function_tool
     async def recall(self, context: RunContext, query: str) -> str:
         """Search what Marvi remembers about a person, topic, or past event."""
-        status, body = await self._post("/tools/memory_search", {"arguments": {"query": query}})
+        status, body = await self._post("/tools/memory_recall", {"arguments": {"query": query}})
         if status != 200 or body.get("status") != "executed":
             raise ToolError("Memory is unavailable right now.")
         results = (body.get("result") or {}).get("results") or []
@@ -351,6 +347,7 @@ class GatewayTools:
             "room_set_light",
             "room_set_mode",
             "memory_search",
+            "memory_recall",
             "memory_remember",
             "memory_forget",
             "web_fetch",
@@ -436,8 +433,7 @@ class GatewayTools:
                             # a string the handler coerces beats a type invented
                             # on this side and rejected on the other.
                             "properties": {
-                                argument: {"type": "string"}
-                                for argument in [*required, *optional]
+                                argument: {"type": "string"} for argument in [*required, *optional]
                             },
                             "required": required,
                         },

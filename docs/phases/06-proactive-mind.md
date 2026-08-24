@@ -50,26 +50,39 @@ projection with tree and explicit-connection modes.
   ingest, mind, reflect, consolidate. Every job is guarded, so one failure is
   recorded and skipped rather than killing the schedule. Pausing stops
   decisions but not observation, so resuming shows what was missed.
+- Connected Gmail and Google Calendar data reaches both durable memory and the
+  subconscious journal through that ingest tick. Chat performs bounded
+  automatic recall; Chat and Voice also share the canonical read-only
+  `memory_recall` Gateway tool (`memory_search` remains an alias).
+- The ARC graph is rendered with PixiJS WebGL and d3-force, using the pinned MIT
+  Advanced Graph View as the architecture reference. Dragging a node reheats
+  the actual force simulation so linked nodes respond instead of moving as a
+  disconnected SVG decoration.
 - A Mind page and `/initiative`, `/mind/decisions`, `/mind/tick` endpoints, so
   initiative can be paused and every decision inspected.
 
 ## Evidence
 
-| Gate | Result |
-|---|---|
+| Gate                  | Result                                                                         |
+| --------------------- | ------------------------------------------------------------------------------ |
 | Duplicate suppression | the same event twice is one event; accepted again only after the dedupe window |
-| Paused initiative | outranks every other rule; events still observed, decisions stop |
-| Untrusted authority | an email may reach the Island and can never reach `propose` |
-| Live conversation | speech downgraded to Activity rather than talking over the user |
-| Cooldown | a repeat inside the window is downgraded, and expires correctly |
-| Quiet hours / absence | speech downgraded to a glanceable surface |
-| Daily budget | exhaustion silences later events the same day; LLM cost counts against it |
-| Unknown event kind | never louder than Activity |
-| LLM deliberation | may quieten a decision, never amplify it |
-| Idle tick | decides nothing, records nothing, calls no model |
-| Job failure | recorded and cleared on recovery; the schedule survives |
+| Paused initiative     | outranks every other rule; events still observed, decisions stop               |
+| Untrusted authority   | an email may reach the Island and can never reach `propose`                    |
+| Live conversation     | speech downgraded to Activity rather than talking over the user                |
+| Cooldown              | a repeat inside the window is downgraded, and expires correctly                |
+| Quiet hours / absence | speech downgraded to a glanceable surface                                      |
+| Daily budget          | exhaustion silences later events the same day; LLM cost counts against it      |
+| Unknown event kind    | never louder than Activity                                                     |
+| LLM deliberation      | may quieten a decision, never amplify it                                       |
+| Idle tick             | decides nothing, records nothing, calls no model                               |
+| Job failure           | recorded and cleared on recovery; the schedule survives                        |
+| Account cognition     | Gmail/Calendar ingest reaches untrusted memory and the subconscious journal    |
+| Recall parity         | Chat catalogue and spoken Voice recall use the same Gateway tool route         |
+| Graph runtime         | production Electron CSP paints Pixi WebGL and force-linked dragging responds   |
 
-Automated coverage: 33 tests across the journal, policy, mind, and scheduler.
+Acceptance coverage remains in the focused journal, policy, mind, scheduler,
+memory, ingest, desktop graph, and voice catalogue tests; the milestone also
+passes all 231 desktop and 886 Gateway tests.
 
 ## Proactive speech (ADR-019)
 
