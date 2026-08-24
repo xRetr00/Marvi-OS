@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -26,6 +28,32 @@ TERMINAL_NOTIFICATION_TTL_SECONDS = 3.0
 AUDIT_TAIL_LIMIT = 200
 ROOM_EVENT_TTL_SECONDS = 25.0
 EXTERNAL_WRITE_TTL_SECONDS = 900.0
+
+
+#: Where a standing YOLO choice is kept.
+#:
+#: The same settings file every other preference uses, so it survives a restart
+#: and shows up beside them. It was in memory alone, which meant the mode reset
+#: to confirm every time the Gateway came up, silently.
+logger = logging.getLogger(__name__)
+
+YOLO_SETTING = "MARVI_YOLO"
+
+
+def _remembered_yolo() -> bool:
+    return os.environ.get(YOLO_SETTING, "").strip().lower() in ("1", "true", "on", "yes")
+
+
+def _remember_yolo(enabled: bool) -> None:
+    """Never raises. A mode that changed but could not be written down is
+    still the mode; failing the request over it would be worse."""
+    os.environ[YOLO_SETTING] = "true" if enabled else "false"
+    try:
+        from .providers import config as provider_config
+
+        provider_config.update({YOLO_SETTING: "true" if enabled else ""})
+    except Exception as exc:  # pragma: no cover - depends on the filesystem
+        logger.warning("could not save the YOLO setting: %s", exc)
 
 
 def default_audit_path() -> Path:
@@ -149,7 +177,11 @@ class PendingConfirmation:
 
 class RuntimeStore:
     def __init__(self, audit_path: Path | None = None) -> None:
-        self.assistant = AssistantState()
+        # Read before the first turn, because YOLO is a standing choice about
+        # how Marvi behaves and it lived only in memory: every restart put it
+        # quietly back to confirm. Believing you are in YOLO and not being is
+        # the mild version; the other direction is worse.
+        self.assistant = AssistantState(yolo=_remembered_yolo())
         self.audit_path = audit_path or default_audit_path()
         self._pending: dict[str, PendingConfirmation] = {}
         self._notification_at: float | None = None
@@ -191,6 +223,7 @@ class RuntimeStore:
 
     def set_yolo(self, enabled: bool) -> AssistantState:
         self.assistant = self.assistant.model_copy(update={"yolo": enabled})
+        _remember_yolo(enabled)
         # Enabling YOLO changes the execution contract. Existing confirm-mode
         # tokens are not silently executed and cannot remain as stale controls.
         if enabled and self._pending:

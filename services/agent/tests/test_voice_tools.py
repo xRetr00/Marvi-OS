@@ -435,3 +435,28 @@ async def test_an_expired_confirmation_does_not_block_the_next_one() -> None:
     await client.aclose()
 
     assert "needs confirmation" in answer
+
+
+def test_updating_instructions_is_awaited() -> None:
+    """It is a coroutine function whose signature says `-> None`.
+
+    Checking the signature said "synchronous", so the call returned a coroutine
+    nobody ran: every skill catalogue and every location block was silently
+    discarded, with one RuntimeWarning per session as the only sign that the
+    whole feature had never once worked.
+
+    Asserted against the SDK rather than remembered, because the next release
+    could make it either.
+    """
+    import inspect
+
+    from livekit.agents import Agent
+
+    from marvi_agent import session
+
+    source = inspect.getsource(session)
+    call = "agent.update_instructions("
+
+    assert call in source
+    if inspect.iscoroutinefunction(Agent.update_instructions):
+        assert f"await {call}" in source, "update_instructions is async and is not awaited"

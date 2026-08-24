@@ -508,7 +508,13 @@ async def marvi_session(ctx: JobContext) -> None:
     # Marvi is running should be usable in the next session, not the next
     # release. `update_instructions` checked against the installed 1.6.10.
     if blocks := await gateway.context_blocks():
-        agent.update_instructions(agent.instructions + "\n\n" + "\n\n".join(blocks))
+        # Awaited. `inspect.signature` reports `-> None` and it is a coroutine
+        # function, so checking the signature said "synchronous" and the call
+        # returned a coroutine nobody ran -- every skill catalogue and every
+        # location block silently discarded, with one RuntimeWarning per
+        # session as the only sign. Ask `iscoroutinefunction`, not the return
+        # annotation.
+        await agent.update_instructions(agent.instructions + "\n\n" + "\n\n".join(blocks))
         log.info("prompt: %d context block(s) from the Gateway", len(blocks))
 
 
