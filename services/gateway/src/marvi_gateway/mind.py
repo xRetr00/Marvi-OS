@@ -16,12 +16,15 @@ Two properties `REAL-AGENCY.md` insists on and this module enforces:
 
 from __future__ import annotations
 
+import logging
 import time
 from datetime import UTC, datetime
 from typing import Any
 
 from .journal import EventJournal
 from .policy import InitiativeSettings, Verdict, WorldState, day_start, evaluate
+
+logger = logging.getLogger(__name__)
 
 MAX_EVENTS_PER_TURN = 10
 
@@ -72,11 +75,21 @@ class Mind:
         pending = self.journal.pending(limit=MAX_EVENTS_PER_TURN)
         if not pending:
             # The cheap, normal case: nothing happened, nothing to answer for.
+            logger.debug("mind tick idle", extra={"marvi_pending": 0})
             return {"considered": 0, "decisions": [], "surfaced": []}
 
         base = self.world(moment, conversation_active, present)
         decisions: list[dict[str, Any]] = []
         surfaced: list[dict[str, Any]] = []
+        logger.info(
+            "mind tick started",
+            extra={
+                "marvi_pending": len(pending),
+                "marvi_conversation_active": conversation_active,
+                "marvi_present": present,
+                "marvi_tokens_today": base.tokens_today,
+            },
+        )
 
         for event in pending:
             started = time.perf_counter()
@@ -89,6 +102,20 @@ class Mind:
             )
             verdict = evaluate(
                 event, world, self.settings, wanted=self._wanted_surface(event)
+            )
+            logger.info(
+                "mind policy evaluated event",
+                extra={
+                    "marvi_event_id": event["id"],
+                    "marvi_source": event["source"],
+                    "marvi_kind": event["kind"],
+                    "marvi_trusted": event["trusted"],
+                    "marvi_rule": verdict.rule,
+                    "marvi_surface_ceiling": verdict.surface,
+                    "marvi_llm_eligible": bool(
+                        self.deliberate is not None and verdict.allow and verdict.surface != "silent"
+                    ),
+                },
             )
 
             surface, detail, tokens, provider = verdict.surface, verdict.detail, 0, "deterministic"
@@ -105,7 +132,11 @@ class Mind:
                     surface, detail = proposed, proposed_detail
                     if proposed_detail:
                         sentence = proposed_detail
-                provider = "llm"
+                resolved_provider = str(getattr(self.deliberate, "last_provider", "") or "llm")
+                resolved_model = str(getattr(self.deliberate, "last_model", "") or "")
+                provider = (
+                    f"{resolved_provider}/{resolved_model}" if resolved_model else resolved_provider
+                )
 
             if surface == "remember" and self.memory is not None:
                 body = str(event["payload"])[:2000]
@@ -144,6 +175,18 @@ class Mind:
             )
             self.journal.mark_processed(event["id"], decision_id)
             base.tokens_today += tokens
+            logger.info(
+                "mind decision recorded",
+                extra={
+                    "marvi_event_id": event["id"],
+                    "marvi_decision_id": decision_id,
+                    "marvi_surface": surface,
+                    "marvi_rule": verdict.rule,
+                    "marvi_provider": provider,
+                    "marvi_tokens": tokens,
+                    "marvi_latency_ms": round(latency, 2),
+                },
+            )
 
             record = {
                 "id": decision_id,
@@ -157,6 +200,14 @@ class Mind:
             if surface not in ("silent", "remember"):
                 surfaced.append(record)
 
+        logger.info(
+            "mind tick completed",
+            extra={
+                "marvi_considered": len(pending),
+                "marvi_surfaced": len(surfaced),
+                "marvi_tokens_today": base.tokens_today,
+            },
+        )
         return {"considered": len(pending), "decisions": decisions, "surfaced": surfaced}
 
     # -- explanation ----------------------------------------------------------

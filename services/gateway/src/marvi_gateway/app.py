@@ -20,7 +20,7 @@ from fastapi.responses import StreamingResponse
 from livekit import api
 from pydantic import BaseModel, Field
 
-from . import auxiliary, breadcrumb, delegate, latency, paths, selfaware, upgrade
+from . import auxiliary, breadcrumb, delegate, distil, latency, paths, selfaware, upgrade
 from . import doctor as doctor_module
 from . import plugins as plugins_module
 from . import room as room_module
@@ -663,6 +663,7 @@ def create_app(
             journal,
             ingest=ingest,
             memory=memory,
+            memory_summarise=lambda groups: distil.summarise_memories(provider_client, groups),
             room_state=(
                 lambda: {
                     "present": bool(

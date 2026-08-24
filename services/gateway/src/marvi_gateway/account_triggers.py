@@ -10,7 +10,10 @@ from datetime import UTC, datetime
 from typing import Any
 
 from .accounts import ComposioAccounts, _as_dict
+from .logs import get_logger
 from .untrusted import wrap_external
+
+log = get_logger("memory")
 
 
 class AccountTriggerIngest:
@@ -66,6 +69,15 @@ class AccountTriggerIngest:
             or f"{toolkit}:{trigger}:{datetime.now(UTC).isoformat()}"
         )
         payload = self._value(event, "payload", "data", "original_payload") or event
+        log.info(
+            "account trigger received",
+            extra={
+                "marvi_event_id": event_id,
+                "marvi_toolkit": toolkit,
+                "marvi_trigger": trigger,
+                "marvi_connection_id": connection_id,
+            },
+        )
         envelope = wrap_external(f"composio:trigger:{toolkit}:{trigger}", payload).model_dump()
         summary = f"{toolkit}: {trigger.replace('_', ' ').lower()}"
         source = f"composio:trigger:{toolkit}:{event_id}"
@@ -90,12 +102,26 @@ class AccountTriggerIngest:
                 json.dumps(payload, ensure_ascii=False, default=str)[:8_000],
                 source=source,
             )
+        else:
+            log.info(
+                "account trigger deduplicated",
+                extra={"marvi_event_id": event_id, "marvi_toolkit": toolkit},
+            )
         sync_result = None
         if self.sync.registry.get(toolkit) is not None:
             sync_result = self.sync.sync_connection(toolkit, connection_id)
         self.received += 1
         self.last_event_at = datetime.now(UTC).isoformat()
         self.last_error = ""
+        log.info(
+            "account trigger ingested",
+            extra={
+                "marvi_event_id": event_id,
+                "marvi_toolkit": toolkit,
+                "marvi_journal_id": journal_id or 0,
+                "marvi_sync_started": sync_result is not None,
+            },
+        )
         return {
             "accepted": True,
             "journal_id": journal_id,
@@ -131,9 +157,15 @@ class AccountTriggerIngest:
 
                 self.connected = True
                 self.last_error = ""
+                log.info("Composio trigger stream connected")
                 subscription.wait_forever()
             except Exception as exc:
                 self.last_error = str(exc)[:300]
+                log.warning(
+                    "Composio trigger stream failed",
+                    extra={"marvi_error": str(exc)[:240]},
+                    exc_info=True,
+                )
             finally:
                 self.connected = False
                 self._subscription = None
@@ -148,6 +180,7 @@ class AccountTriggerIngest:
             target=self._run, name="marvi-composio-triggers", daemon=True
         )
         self._thread.start()
+        log.info("Composio trigger listener started")
         return True
 
     def stop(self) -> None:
@@ -159,6 +192,7 @@ class AccountTriggerIngest:
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=2.0)
         self._thread = None
+        log.info("Composio trigger listener stopped")
 
     def health(self) -> dict[str, Any]:
         return {

@@ -96,6 +96,15 @@ from `/arc/memory/graph`; it never receives a SQLite handle or mutation
 authority. Tree mode groups memories by provenance, while Connections mode
 shows explicit entity relationships.
 
+Every LLM-assisted ARC operation is an auxiliary job. Mind deliberation and
+presence judgement use the `mind` role; scheduled and manual reflection use the
+`memory` role. A role pinned in Models → Auxiliary selects that provider/model;
+Auto uses the active provider's `default_aux_model`. Deterministic memory
+search, ingest, graph projection, and consolidation do not call an LLM.
+Provider calls and ARC jobs record route, model, timing, usage, outcome, and
+stable event/call identifiers in the rotating subsystem logs without recording
+prompts, completions, memory bodies, or external account payloads.
+
 Gmail, Google Calendar, Slack, Notion, GitHub, and Google Drive are native
 memory providers. The bounded ingest tick runs each active connection with its
 own durable cursor, content fingerprint set, last success/error, and item

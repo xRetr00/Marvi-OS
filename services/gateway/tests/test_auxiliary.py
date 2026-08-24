@@ -29,6 +29,11 @@ def test_a_role_names_a_provider_and_a_model(monkeypatch) -> None:
         "model": "deepseek/deepseek-v4-flash-0731",
     }
 
+    assert auxiliary.fallback_overrides("mind") == {
+        "preferred": "openrouter",
+        "model": "deepseek/deepseek-v4-flash-0731",
+    }
+
 
 def test_a_typo_falls_back_rather_than_raising(monkeypatch) -> None:
     """This sits on the path of every background call. A malformed settings
@@ -68,6 +73,7 @@ def test_every_offered_role_has_a_call_site() -> None:
 
 def test_an_unknown_role_is_auto_rather_than_an_error() -> None:
     assert auxiliary.overrides("no-such-role") == {}
+    assert auxiliary.fallback_overrides("no-such-role") == {}
 
 
 def test_the_status_says_what_each_role_resolves_to(monkeypatch) -> None:

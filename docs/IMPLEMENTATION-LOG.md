@@ -1047,3 +1047,20 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   covered active/reconnect rows, capability controls, native-provider catalog,
   and first-run project-key setup; the narrow pass exposed and removed a
   duplicate Connect action for an account already waiting to reconnect.
+
+## 2026-08-24 — ARC auxiliary routing and diagnostics
+
+- Routed mind deliberation, presence judgement, and both scheduled/manual
+  LLM-assisted reflection through `job="aux"` and their `mind` or `memory`
+  Models → Auxiliary roles. Auto now has acceptance coverage proving it uses
+  the selected provider's `default_aux_model`; explicit role pins use the
+  fallback client's `preferred` contract without passing `provider` twice.
+- Preserved deterministic reflection when the auxiliary model is absent,
+  malformed, or unavailable instead of letting an empty model result suppress
+  stable-memory promotion.
+- Added content-free structured diagnostics across model calls and fallbacks,
+  deliberation, mind policy decisions, initiative jobs, memory operations,
+  account polling, and realtime triggers. Records include correlation IDs,
+  routes, models, timing, usage, counts, and outcomes while excluding prompts,
+  completions, memories, and account payloads.
+- Verified all 901 Gateway tests, Gateway Ruff, and `git diff --check`.

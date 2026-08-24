@@ -7,6 +7,9 @@ binds because usage is recorded on the same path.
 
 from __future__ import annotations
 
+import json
+import logging
+
 import httpx
 import pytest
 
@@ -56,6 +59,38 @@ def test_usage_is_recorded_per_provider() -> None:
 
     assert client.usage("openai").input == 1000
     assert client.usage().output == 50
+
+
+def test_model_calls_log_route_latency_and_usage_without_prompt_content(caplog) -> None:
+    client = ProviderClient(http=responder(json=openai_payload(prompt=12, completion=3)))
+
+    with caplog.at_level(logging.INFO, logger="marvi_gateway.providers.client"):
+        client.call(MESSAGES, provider="openai", job="aux", model="gpt-5.2-mini")
+
+    started = next(record for record in caplog.records if record.message == "model call started")
+    completed = next(
+        record for record in caplog.records if record.message == "model call completed"
+    )
+    assert started.marvi_job == "aux"
+    assert started.marvi_provider == "openai"
+    assert started.marvi_model == "gpt-5.2-mini"
+    assert completed.marvi_billable_tokens == 15
+    rendered = " ".join(record.getMessage() for record in caplog.records)
+    assert "You are Marvi" not in rendered
+
+
+def test_auxiliary_jobs_use_the_providers_auxiliary_model() -> None:
+    requested: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requested.update(json.loads(request.content))
+        return httpx.Response(200, json=openai_payload())
+
+    client = ProviderClient(http=httpx.Client(transport=httpx.MockTransport(handler)))
+    result = client.call(MESSAGES, provider="openai", job="aux")
+
+    assert requested["model"] == "gpt-5.2-mini"
+    assert result.model == "gpt-5.2-mini"
 
 
 def test_the_budget_sees_the_saving_from_caching() -> None:

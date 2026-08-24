@@ -1,14 +1,14 @@
 """Which model does which job.
 
 Marvi has one model chosen for the hardest thing she does -- holding a
-conversation -- and then uses it for everything else too. Most of what she runs
-is not that: deciding whether a background event is worth mentioning is a
-one-sentence yes or no, summarising a fetched page needs no reasoning at all,
-and both of them happen far more often than a hard question does.
+conversation -- and provider-owned auxiliary defaults for smaller jobs. Most
+of what she runs is not a conversation: deciding whether a background event is
+worth mentioning is a one-sentence yes or no, summarising a fetched page needs
+no reasoning at all, and both happen far more often than a hard question.
 
 So each of those jobs is a *role*, and a role may name its own provider and
-model. Unset means `auto`: use the main model, which is what happened before
-and remains a perfectly good answer.
+model. Unset means `auto`: use the active provider's `default_aux_model` via
+the existing `job="aux"` route.
 
 ## Why roles rather than one "auxiliary" switch
 
@@ -137,13 +137,24 @@ def resolve(key: str) -> tuple[str, str]:
 
 
 def overrides(key: str) -> dict[str, str]:
-    """Keyword arguments for `ProviderClient`, empty when the role is on auto.
+    """Keyword arguments for direct `ProviderClient.call`, empty on auto.
 
     Returned as kwargs to splat so a call site reads the same whether or not a
     role is configured, and so adding a role to a call is one line.
     """
     provider, model = resolve(key)
     return {"provider": provider, "model": model} if provider else {}
+
+
+def fallback_overrides(key: str) -> dict[str, str]:
+    """Routing kwargs for ``call_with_fallback`` and ``stream_with_fallback``.
+
+    Those methods choose a provider through ``preferred`` and then pass the
+    resolved profile to ``call`` themselves. Supplying ``provider`` in their
+    kwargs would pass it twice and fail before any model request was made.
+    """
+    provider, model = resolve(key)
+    return {"preferred": provider, "model": model} if provider else {}
 
 
 def status(available: list[dict[str, Any]] | None = None) -> dict[str, Any]:

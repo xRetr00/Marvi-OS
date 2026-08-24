@@ -21,7 +21,10 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal
 
+from .logs import get_logger
 from .untrusted import wrap_external
+
+log = get_logger("memory")
 
 MemoryKind = Literal["episodic", "semantic"]
 GraphMode = Literal["tree", "contacts"]
@@ -123,7 +126,19 @@ class MemoryStore:
             ),
         )
         self._db.commit()
-        return int(cursor.lastrowid or 0)
+        memory_id = int(cursor.lastrowid or 0)
+        log.info(
+            "memory stored",
+            extra={
+                "marvi_memory_id": memory_id,
+                "marvi_kind": kind,
+                "marvi_source": source,
+                "marvi_trusted": trusted,
+                "marvi_subject_chars": len(subject.strip()),
+                "marvi_body_chars": min(len(body), MAX_BODY_CHARS),
+            },
+        )
+        return memory_id
 
     def remember_external(self, subject: str, body: str, source: str, **kwargs: Any) -> int:
         """Anything originating outside this machine is never stored as trusted."""
@@ -157,6 +172,14 @@ class MemoryStore:
         ).fetchall()
         found = [self._row(row) for row in rows]
         self.reinforce([entry["id"] for entry in found])
+        log.info(
+            "memory search completed",
+            extra={
+                "marvi_query_chars": len(query),
+                "marvi_limit": max(1, min(limit, 100)),
+                "marvi_results": len(found),
+            },
+        )
         return found
 
     def recent(
@@ -181,7 +204,12 @@ class MemoryStore:
     def forget(self, memory_id: int) -> bool:
         cursor = self._db.execute("DELETE FROM memories WHERE id = ?", (memory_id,))
         self._db.commit()
-        return cursor.rowcount > 0
+        removed = cursor.rowcount > 0
+        log.info(
+            "memory deleted by id",
+            extra={"marvi_memory_id": memory_id, "marvi_removed": removed},
+        )
+        return removed
 
     def forget_matching(self, query: str) -> int:
         ids = [entry["id"] for entry in self.search(query, limit=100)]
@@ -189,12 +217,17 @@ class MemoryStore:
             return 0
         self._db.executemany("DELETE FROM memories WHERE id = ?", [(i,) for i in ids])
         self._db.commit()
+        log.info(
+            "memory deleted by query",
+            extra={"marvi_query_chars": len(query), "marvi_removed": len(ids)},
+        )
         return len(ids)
 
     def forget_all(self) -> int:
         removed = self.count()
         self._db.execute("DELETE FROM memories")
         self._db.commit()
+        log.warning("all memories deleted", extra={"marvi_removed": removed})
         return removed
 
     def export(self) -> list[dict[str, Any]]:
@@ -282,7 +315,16 @@ class MemoryStore:
             "SELECT id FROM relations WHERE subject_id = ? AND predicate = ? AND object_id = ?",
             (subject_id, predicate, object_id),
         ).fetchone()
-        return int(row["id"]) if row else 0
+        relation_id = int(row["id"]) if row else 0
+        log.info(
+            "memory relation stored",
+            extra={
+                "marvi_relation_id": relation_id,
+                "marvi_source": source,
+                "marvi_trusted": trusted,
+            },
+        )
+        return relation_id
 
     def neighbours(self, name: str, limit: int = 25) -> list[dict[str, Any]]:
         """Everything one hop from an entity, in either direction."""
@@ -420,10 +462,26 @@ class MemoryStore:
 
         promoted: list[str] = []
         if summarise is not None:
-            for subject, body in summarise(groups) or []:
+            summarised = summarise(groups) or []
+            for subject, body in summarised:
                 self.remember(subject, body, kind="semantic", source="reflection")
                 promoted.append(subject)
-            return {"considered": len(groups), "promoted": promoted}
+            if promoted:
+                log.info(
+                    "memory reflection completed with auxiliary model",
+                    extra={
+                        "marvi_considered": len(groups),
+                        "marvi_promoted": len(promoted),
+                        "marvi_route": "auxiliary/memory",
+                    },
+                )
+                return {"considered": len(groups), "promoted": promoted}
+            # A missing/cooling/malformed Auxiliary model must not disable the
+            # deterministic reflection that existed before the model seam.
+            log.info(
+                "auxiliary memory reflection returned no facts; using deterministic pass",
+                extra={"marvi_considered": len(groups), "marvi_route": "auxiliary/memory"},
+            )
 
         for group in groups:
             already = self._db.execute(
@@ -439,6 +497,10 @@ class MemoryStore:
                 source="reflection",
             )
             promoted.append(group["subject"])
+        log.info(
+            "memory reflection completed deterministically",
+            extra={"marvi_considered": len(groups), "marvi_promoted": len(promoted)},
+        )
         return {"considered": len(groups), "promoted": promoted}
 
     def consolidate(self, now: datetime | None = None) -> dict[str, int]:
@@ -459,6 +521,10 @@ class MemoryStore:
             " (SELECT subject_id FROM relations UNION SELECT object_id FROM relations)"
         ).rowcount
         self._db.commit()
+        log.info(
+            "memory consolidation completed",
+            extra={"marvi_forgotten": forgotten, "marvi_orphan_entities": orphans},
+        )
         return {"forgotten": forgotten, "orphan_entities": orphans}
 
     def world_summary(self, limit: int = 5) -> dict[str, Any]:

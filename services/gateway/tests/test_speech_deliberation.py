@@ -156,6 +156,21 @@ def test_the_model_phrases_the_sentence_but_keeps_the_surface(monkeypatch) -> No
     assert detail == "Your alarm is going off."
 
 
+def test_mind_role_routes_to_the_configured_auxiliary_model(monkeypatch) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "k")
+    monkeypatch.setenv("MARVI_AUX_MIND", "openai/gpt-5.2-mini")
+
+    def handler(request):
+        body = json.loads(request.content)
+        assert body["model"] == "gpt-5.2-mini"
+        return reply('{"worth_it": true, "say": "Auxiliary answered."}')
+
+    d = deliberator(handler)
+    assert d(event(), verdict("island"))[1] == "Auxiliary answered."
+    assert d.last_provider == "openai"
+    assert d.last_model == "gpt-5.2-mini"
+
+
 def test_a_provider_failure_falls_back_to_the_policy_verdict(monkeypatch) -> None:
     monkeypatch.setenv("OPENAI_API_KEY", "k")
     d = deliberator(lambda request: httpx.Response(500))
@@ -193,7 +208,7 @@ def test_deliberation_tokens_are_charged_to_the_budget(journal, monkeypatch) -> 
     mind = Mind(journal, deliberate=d, announcer=FakeAnnouncer())
     mind.tick(now=NOON)
 
-    assert mind.why()[0]["provider"] == "llm"
+    assert mind.why()[0]["provider"].startswith("openai/")
     assert mind.why()[0]["tokens"] == 30
 
 

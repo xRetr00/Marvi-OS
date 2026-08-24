@@ -28,6 +28,7 @@ model chosen for hard conversation.
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from . import auxiliary
@@ -55,7 +56,23 @@ def _ask(client: Any, role: str, system: str, user: str, max_tokens: int) -> str
     that is the point of this module.
     """
     if client is None:
+        log.info(
+            "auxiliary task skipped; no provider client",
+            extra={"marvi_route": f"auxiliary/{role}"},
+        )
         return ""
+    route = auxiliary.fallback_overrides(role)
+    started = time.perf_counter()
+    log.info(
+        "auxiliary task started",
+        extra={
+            "marvi_route": f"auxiliary/{role}",
+            "marvi_preferred": route.get("preferred", "auto"),
+            "marvi_model": route.get("model", "provider-aux-default"),
+            "marvi_input_chars": len(system) + len(user),
+            "marvi_max_tokens": max_tokens,
+        },
+    )
     try:
         completion = client.call_with_fallback(
             [
@@ -65,11 +82,28 @@ def _ask(client: Any, role: str, system: str, user: str, max_tokens: int) -> str
             job="aux",
             max_tokens=max_tokens,
             temperature=0.2,
-            **auxiliary.overrides(role),
+            **route,
         )
     except Exception as exc:  # pragma: no cover - depends on what is configured
-        log.info("auxiliary %s call unavailable (%s); using the plain answer", role, exc)
+        log.warning(
+            "auxiliary task failed; using deterministic result",
+            extra={
+                "marvi_route": f"auxiliary/{role}",
+                "marvi_latency_ms": round((time.perf_counter() - started) * 1000, 2),
+                "marvi_error": str(exc)[:240],
+            },
+        )
         return ""
+    log.info(
+        "auxiliary task completed",
+        extra={
+            "marvi_route": f"auxiliary/{role}",
+            "marvi_provider": str(getattr(completion, "provider", "unknown")),
+            "marvi_model": str(getattr(completion, "model", "unknown")),
+            "marvi_latency_ms": round((time.perf_counter() - started) * 1000, 2),
+            "marvi_output_chars": len(str(getattr(completion, "text", "") or "")),
+        },
+    )
     return (completion.text or "").strip()
 
 

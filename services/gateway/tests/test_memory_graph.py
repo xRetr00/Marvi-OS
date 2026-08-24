@@ -132,6 +132,15 @@ def test_an_llm_summariser_can_replace_the_default_pass(memory) -> None:
     assert memory.search("morning routine")[0]["body"] == "Shereef drinks coffee at nine"
 
 
+def test_an_unavailable_llm_summariser_keeps_deterministic_reflection(memory) -> None:
+    for _ in range(PROMOTE_AFTER_REPEATS):
+        memory.remember("Fallback fact", "", kind="episodic")
+
+    result = memory.reflect(summarise=lambda _groups: [])
+
+    assert result["promoted"] == ["Fallback fact"]
+
+
 # -- consolidation ----------------------------------------------------------
 
 

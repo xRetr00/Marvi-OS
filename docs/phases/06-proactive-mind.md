@@ -45,11 +45,14 @@ projection with tree and explicit-connection modes.
   the tool router, so it cannot bypass confirmation by "deciding" to.
 - An optional LLM deliberation seam that may only make a decision **quieter**.
   The policy ceiling is not something a model gets to argue with, and its cost
-  counts against the same daily budget.
+  counts against the same daily budget. It is always routed as the Models →
+  Auxiliary `mind` role; Auto resolves to the provider's auxiliary default.
 - `marvi_gateway.initiative`: APScheduler 3.11.3 driving four bounded ticks —
   ingest, mind, reflect, consolidate. Every job is guarded, so one failure is
   recorded and skipped rather than killing the schedule. Pausing stops
-  decisions but not observation, so resuming shows what was missed.
+  decisions but not observation, so resuming shows what was missed. Reflection
+  uses the Auxiliary `memory` role and preserves deterministic promotion when
+  no model is available.
 - Connected Gmail and Google Calendar data reaches both durable memory and the
   subconscious journal through that ingest tick. Chat performs bounded
   automatic recall; Chat and Voice also share the canonical read-only
@@ -79,10 +82,13 @@ projection with tree and explicit-connection modes.
 | Account cognition     | Gmail/Calendar ingest reaches untrusted memory and the subconscious journal    |
 | Recall parity         | Chat catalogue and spoken Voice recall use the same Gateway tool route         |
 | Graph runtime         | production Electron CSP paints Pixi WebGL and force-linked dragging responds   |
+| Auxiliary routing     | mind/presence use `mind`; reflection uses `memory`; Auto uses provider aux model |
+| Diagnostics           | route, model, IDs, latency, usage, outcomes logged without cognitive content    |
 
 Acceptance coverage remains in the focused journal, policy, mind, scheduler,
-memory, ingest, desktop graph, and voice catalogue tests; the milestone also
-passes all 231 desktop and 886 Gateway tests.
+memory, ingest, desktop graph, and voice catalogue tests. The auxiliary-routing
+follow-up passes all 901 Gateway tests; the graph milestone's 231 desktop tests
+remain the recorded renderer evidence because this follow-up changes no UI.
 
 ## Proactive speech (ADR-019)
 
@@ -112,8 +118,8 @@ produced `{"worth_it": true, "say": "The bedroom alarm is going off."}` in
 
 `deepseek-v4-flash` is a reasoning model and its latency varies; one run
 exceeded the 20 s budget and fell back to the deterministic verdict, which is
-the designed degradation rather than a failure. Additional providers, OAuth,
-and auxiliary models are future work behind `deliberator_from_env`.
+the designed degradation rather than a failure. Providers and per-role
+auxiliary models are now configured through the shared Models boundary.
 
 ## Still required
 

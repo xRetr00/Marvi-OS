@@ -424,3 +424,19 @@ Gateway-published raw JSON schemas and never call Composio directly.
 upstream, while user authority, confirmation, audit, provenance, and durable
 memory are Marvi product policy. Keeping that seam in Gateway prevents React,
 voice workers, or external content from becoming a second execution authority.
+
+## ADR-025 — ARC cognition is auxiliary and observability is content-free
+
+**Decision:** Every LLM call made for ARC's mind, presence judgement, memory
+reflection, or subconscious schedule declares `job="aux"` and a named Models →
+Auxiliary role. A configured role pins its provider/model; Auto uses the active
+provider's `default_aux_model`. Deterministic ingest, recall, graph projection,
+and consolidation remain model-free. Provider, scheduler, mind, memory, and
+account boundaries log correlation IDs, routes, models, timing, usage, counts,
+fallbacks, and outcomes, but never prompts, completions, memory bodies, or
+external payloads.
+
+**Reason:** Background cognition must not silently consume the expensive main
+conversation model, and future failures must be traceable across scheduler,
+policy, memory, and provider boundaries. Content-free structured metadata gives
+that evidence without turning diagnostic files into a second memory database.

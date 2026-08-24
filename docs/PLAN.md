@@ -146,6 +146,9 @@ The durable job bridge to Marvi Agent was dropped from this phase; see
    windows cannot be compared and mostly cannot be read back. Credit and window
    limits are displayed, not used for control.
 4. `SOUL.md` and `USER.md`, composed into the prompt under a token budget.
+5. Every background cognition call declares `job="aux"`: ARC mind/presence use
+   the `mind` role, reflection uses `memory`, and Auto resolves to the active
+   provider's auxiliary default rather than its main conversation model.
 
 Full plan and research in `phases/09-providers-identity.md`.
 
@@ -162,8 +165,11 @@ Full plan and research in `phases/09-providers-identity.md`.
    or yours to do. The line: anything that spends money, takes real time,
    downloads at scale, or touches another process is a decision, not a repair.
 4. Retry is bounded, jittered, and never applied to an external write.
+5. ARC/provider diagnostics correlate jobs and calls with route, model, timing,
+   usage, counts, and outcome while excluding prompts, completions, memory
+   bodies, and account payloads.
 
-5. `SOUL.md` ships with Marvi and Marvi never writes it; `USER.md` starts empty
+6. `SOUL.md` ships with Marvi and Marvi never writes it; `USER.md` starts empty
    and Marvi fills it by listening, asking at most one rationed question when
    the moment suits.
 

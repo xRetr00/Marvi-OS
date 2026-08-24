@@ -26,6 +26,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
 from typing import Any
 
 from . import auxiliary
@@ -60,6 +61,8 @@ class Deliberator:
         # Thinking in the background is exactly the work that should run on a
         # free local model when one is there.
         self.preferred = preferred or os.environ.get("MARVI_MIND_PROVIDER", "").strip() or None
+        self.last_provider = ""
+        self.last_model = ""
 
     def available(self) -> bool:
         return bool(self.client.candidates(self.preferred))
@@ -86,25 +89,64 @@ class Deliberator:
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": self._prompt(event, verdict)},
         ]
+        route = auxiliary.fallback_overrides("mind")
+        if self.preferred and "preferred" not in route:
+            route["preferred"] = self.preferred
+        self.last_provider = ""
+        self.last_model = ""
+        started = time.perf_counter()
+        logger.info(
+            "mind deliberation started",
+            extra={
+                "marvi_event_id": event.get("id", ""),
+                "marvi_source": str(event.get("source", "unknown")),
+                "marvi_kind": str(event.get("kind", "unknown")),
+                "marvi_route": "auxiliary/mind",
+                "marvi_preferred": route.get("preferred", "auto"),
+                "marvi_model": route.get("model", "provider-aux-default"),
+                "marvi_surface_ceiling": verdict.surface,
+            },
+        )
         try:
             completion = self.client.call_with_fallback(
                 messages,
-                preferred=self.preferred,
                 # A one-sentence yes/no is auxiliary work, not the main model.
                 job="aux",
                 # And if the `mind` role names one, that model rather than
                 # whichever the provider hardcoded as its auxiliary.
-                **auxiliary.overrides("mind"),
+                **route,
                 max_tokens=MAX_OUTPUT_TOKENS,
                 temperature=0.2,
             )
         except ProviderCallError as exc:
-            logger.warning("deliberation failed: %s", exc)
+            logger.warning(
+                "mind deliberation failed; using deterministic verdict",
+                extra={
+                    "marvi_event_id": event.get("id", ""),
+                    "marvi_route": "auxiliary/mind",
+                    "marvi_latency_ms": round((time.perf_counter() - started) * 1000, 2),
+                    "marvi_error": str(exc)[:240],
+                },
+            )
             return verdict.surface, verdict.detail, 0
 
         # Cached prefix tokens are excluded: the budget should see the saving.
+        self.last_provider = completion.provider
+        self.last_model = completion.model
         tokens = completion.usage.billable
         decision = _parse(completion.text)
+        logger.info(
+            "mind deliberation completed",
+            extra={
+                "marvi_event_id": event.get("id", ""),
+                "marvi_route": "auxiliary/mind",
+                "marvi_provider": completion.provider,
+                "marvi_model": completion.model,
+                "marvi_latency_ms": round((time.perf_counter() - started) * 1000, 2),
+                "marvi_billable_tokens": tokens,
+                "marvi_valid_output": decision is not None,
+            },
+        )
         if decision is None:
             return verdict.surface, verdict.detail, tokens
         worth_it, sentence = decision

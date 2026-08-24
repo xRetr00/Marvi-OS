@@ -123,6 +123,24 @@ def test_reflection_output_is_journalled_as_trusted(parts) -> None:
     assert event["trusted"] is True
 
 
+def test_scheduled_reflection_uses_the_auxiliary_memory_seam(parts) -> None:
+    journal, memory, mind = parts
+    for _ in range(3):
+        memory.remember("Coffee at nine", "", kind="episodic")
+    seen = []
+
+    def summarise(groups):
+        seen.extend(groups)
+        return [("Coffee at nine", "Coffee is part of the morning routine.")]
+
+    Initiative(
+        mind, journal, memory=memory, memory_summarise=summarise
+    ).run_reflect()
+
+    assert seen == [{"subject": "Coffee at nine", "count": 3}]
+    assert memory.search("morning routine")[0]["source"] == "reflection"
+
+
 def test_unknown_presence_does_not_break_the_turn(parts) -> None:
     journal, memory, mind = parts
 

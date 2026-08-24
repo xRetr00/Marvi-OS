@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -18,6 +19,9 @@ from threading import RLock
 from typing import Any
 
 from .accounts import CALENDAR_EVENTS, GMAIL_FETCH, ComposioAccounts
+from .logs import get_logger
+
+log = get_logger("memory")
 
 MAX_PER_POLL = 10
 MAX_SLACK_CHANNELS = 5
@@ -506,19 +510,46 @@ class AccountIngest:
         return {"providers": self.registry.list(), "connections": self.store.health()}
 
     def sync_connection(self, toolkit: str, connection_id: str = "") -> dict[str, Any]:
+        started = time.perf_counter()
         provider = self.registry.get(toolkit)
         if provider is None:
+            log.warning(
+                "account memory sync has no provider",
+                extra={"marvi_toolkit": toolkit, "marvi_connection_id": connection_id},
+            )
             return {"ingested": [], "skipped": 0, "errors": [f"{toolkit}: no memory provider"]}
         policy = self.accounts.state.policy(toolkit)
         if not policy["sync_enabled"]:
+            log.info(
+                "account memory sync skipped by user policy",
+                extra={"marvi_toolkit": toolkit, "marvi_connection_id": connection_id},
+            )
             return {"ingested": [], "skipped": 0, "errors": [], "disabled": True}
         state = self.store.state(toolkit, connection_id)
+        log.info(
+            "account memory sync started",
+            extra={
+                "marvi_toolkit": toolkit,
+                "marvi_connection_id": connection_id,
+                "marvi_has_cursor": bool(state["cursor"]),
+            },
+        )
         try:
             records, next_cursor = provider.fetch(self.accounts, connection_id, state["cursor"])
         except Exception as exc:
             error = f"{toolkit}: {str(exc)[:220]}"
             self.store.finish(
                 toolkit, connection_id, cursor=state["cursor"], count=0, error=error
+            )
+            log.warning(
+                "account memory sync failed",
+                extra={
+                    "marvi_toolkit": toolkit,
+                    "marvi_connection_id": connection_id,
+                    "marvi_latency_ms": round((time.perf_counter() - started) * 1000, 2),
+                    "marvi_error": str(exc)[:240],
+                },
+                exc_info=True,
             )
             return {"ingested": [], "skipped": 0, "errors": [error]}
 
@@ -548,9 +579,22 @@ class AccountIngest:
                 }
             )
         self.store.finish(toolkit, connection_id, cursor=next_cursor, count=len(ingested))
+        log.info(
+            "account memory sync completed",
+            extra={
+                "marvi_toolkit": toolkit,
+                "marvi_connection_id": connection_id,
+                "marvi_fetched": len(records),
+                "marvi_ingested": len(ingested),
+                "marvi_skipped": skipped,
+                "marvi_has_next_cursor": bool(next_cursor),
+                "marvi_latency_ms": round((time.perf_counter() - started) * 1000, 2),
+            },
+        )
         return {"ingested": ingested, "events": events, "skipped": skipped, "errors": []}
 
     def poll(self) -> dict[str, Any]:
+        started = time.perf_counter()
         ingested: list[str] = []
         events: list[dict[str, str]] = []
         skipped = 0
@@ -572,10 +616,21 @@ class AccountIngest:
             events.extend(result.get("events", []))
             skipped += int(result.get("skipped", 0))
             errors.extend(result.get("errors", []))
-        return {
+        result = {
             "at": datetime.now(UTC).isoformat(), "ingested": ingested,
             "events": events, "skipped": skipped, "errors": errors,
         }
+        log.info(
+            "account memory poll completed",
+            extra={
+                "marvi_connections": len(rows),
+                "marvi_ingested": len(ingested),
+                "marvi_skipped": skipped,
+                "marvi_errors": len(errors),
+                "marvi_latency_ms": round((time.perf_counter() - started) * 1000, 2),
+            },
+        )
+        return result
 
 
 def _item_dict(item: MemoryItem | None) -> dict[str, Any] | None:

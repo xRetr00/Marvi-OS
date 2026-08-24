@@ -17,6 +17,7 @@ one that misses a tick.
 from __future__ import annotations
 
 import logging
+import time
 from datetime import UTC, datetime
 from typing import Any
 
@@ -37,12 +38,14 @@ class Initiative:
         journal: Any,
         ingest: Any = None,
         memory: Any = None,
+        memory_summarise: Any = None,
         room_state: Any = None,
     ) -> None:
         self.mind = mind
         self.journal = journal
         self.ingest = ingest
         self.memory = memory
+        self.memory_summarise = memory_summarise
         self.room_state = room_state
         self._scheduler: Any = None
         self.last_runs: dict[str, str] = {}
@@ -77,13 +80,33 @@ class Initiative:
 
     def _guard(self, name: str, work: Any) -> Any:
         def run() -> None:
+            started = time.perf_counter()
+            logger.info("initiative job started", extra={"marvi_job": name})
             try:
-                work()
+                result = work()
                 self.last_runs[name] = datetime.now(UTC).isoformat()
                 self.last_errors.pop(name, None)
+                logger.info(
+                    "initiative job completed",
+                    extra={
+                        "marvi_job": name,
+                        "marvi_latency_ms": round((time.perf_counter() - started) * 1000, 2),
+                        "marvi_result_keys": ",".join(sorted(result))
+                        if isinstance(result, dict)
+                        else type(result).__name__,
+                    },
+                )
             except Exception as exc:
                 self.last_errors[name] = str(exc)[:200]
-                logger.warning("initiative job %s failed: %s", name, exc)
+                logger.warning(
+                    "initiative job failed",
+                    extra={
+                        "marvi_job": name,
+                        "marvi_latency_ms": round((time.perf_counter() - started) * 1000, 2),
+                        "marvi_error": str(exc)[:240],
+                    },
+                    exc_info=True,
+                )
 
         return run
 
@@ -118,14 +141,18 @@ class Initiative:
                 snapshot = self.room_state()
                 present = bool(snapshot.get("present", True))
                 conversation = bool(snapshot.get("conversation_active", False))
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning(
+                    "initiative room-state read failed; using present/idle defaults",
+                    extra={"marvi_job": "mind", "marvi_error": str(exc)[:240]},
+                    exc_info=True,
+                )
         return self.mind.tick(conversation_active=conversation, present=present)
 
     def run_reflect(self) -> dict[str, Any]:
         if self.memory is None:
             return {"promoted": []}
-        result = self.memory.reflect()
+        result = self.memory.reflect(summarise=self.memory_summarise)
         for subject in result.get("promoted", []):
             self.journal.append("memory", "reflection", subject, {"id": subject}, trusted=True)
         return result
@@ -159,9 +186,19 @@ class Initiative:
         )
         scheduler.start()
         self._scheduler = scheduler
+        logger.info(
+            "initiative scheduler started",
+            extra={
+                "marvi_ingest_minutes": INGEST_MINUTES,
+                "marvi_mind_minutes": MIND_MINUTES,
+                "marvi_reflect_hours": REFLECT_HOURS,
+                "marvi_consolidate_hours": CONSOLIDATE_HOURS,
+            },
+        )
         return True
 
     def stop(self) -> None:
         if self._scheduler is not None:
             self._scheduler.shutdown(wait=False)
             self._scheduler = None
+            logger.info("initiative scheduler stopped")
