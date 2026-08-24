@@ -130,6 +130,7 @@ import {
   type PetSide
 } from '../../main/pet-window'
 import { $heard, $spoken } from './store/transcript'
+import { deviceStanding, deviceStory, deviceTone } from './room-devices'
 import { $voiceLink, startVoice, stopVoice } from './store/voice-session'
 
 /**
@@ -699,6 +700,13 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
   const location = readRecord(state, 'location')
   const vision = readRecord(state, 'vision')
   const mqtt = readRecord(health, 'mqtt')
+  // Which Python libraries the sidecar is actually missing. Absent ones are
+  // the reason for every failure beneath them, so they are said first.
+  const libraries = readRecord(health, 'dependencies')
+  const missing = {
+    tuya: libraries.tinytuya === false ? 'tinytuya' : '',
+    mqtt: libraries.paho_mqtt === false ? 'paho-mqtt' : ''
+  }
 
   // The plugin has had `smart_room_vision_identity` all along and nothing in
   // the app ever called it, so the only way to teach the camera a face was to
@@ -923,27 +931,18 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
           // every device as "not set up" and the broker as `?:?`.
           const device = readRecord(readRecord(health, 'devices'), key)
           const counters = readRecord(readRecord(state, 'devices'), key)
-          const failures = Number(counters.consecutive_failures ?? 0)
+          // The sidecar reports which Python libraries it actually has. A
+          // device whose driver is absent has never been contactable, and
+          // saying "offline" about it sends someone to check a plug.
+          const driver = key === 'esp32' ? '' : missing.tuya
           return (
             <ControlRow
               action={
-                <ControlPill
-                  tone={
-                    !device.configured ? 'neutral' : device.online ? 'ready' : 'danger'
-                  }
-                >
-                  {!device.configured ? 'not set up' : device.online ? 'online' : 'offline'}
+                <ControlPill tone={deviceTone(driver, device)}>
+                  {deviceStanding(driver, device)}
                 </ControlPill>
               }
-              description={
-                counters.circuit_open
-                  ? `Given up after ${failures.toLocaleString()} failed attempts. It will not be tried again until something changes.`
-                  : device.ip
-                    ? String(device.ip)
-                    : device.configured
-                      ? undefined
-                      : 'No address or key configured for it yet.'
-              }
+              description={deviceStory(driver, device, counters)}
               key={key}
               title={label}
             />
@@ -951,16 +950,18 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
         })}
         <ControlRow
           action={
-            <ControlPill tone={mqtt.connected ? 'ready' : 'danger'}>
+            <ControlPill tone={mqtt.connected ? 'ready' : missing.mqtt ? 'neutral' : 'danger'}>
               {mqtt.connected ? 'connected' : 'disconnected'}
             </ControlPill>
           }
           description={
-            mqtt.broker
-              ? `${String(mqtt.broker)}:${String(mqtt.port ?? 1883)}${
-                  mqtt.connected ? '' : ' — nothing is answering there'
-                }`
-              : 'No broker configured. Presence and phone location both arrive over MQTT, so neither works without one.'
+            missing.mqtt
+              ? `${missing.mqtt} is not installed, so MQTT is switched off entirely. Presence and phone location both arrive over it.`
+              : mqtt.broker
+                ? `${String(mqtt.broker)}:${String(mqtt.port ?? 1883)}${
+                    mqtt.connected ? '' : ' — nothing is answering there'
+                  }`
+                : 'No broker configured. Presence and phone location both arrive over MQTT, so neither works without one.'
           }
           title="MQTT broker"
         />
