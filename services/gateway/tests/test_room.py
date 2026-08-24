@@ -20,6 +20,7 @@ from marvi_gateway.room import (
     RoomRejectedError,
     RoomSidecar,
     RoomUnavailableError,
+    faces,
     register_room_tools,
     unconfirmed,
 )
@@ -493,3 +494,81 @@ async def test_a_quoted_boolean_still_switches_the_light(sidecar, tmp_path) -> N
 
     assert answer.json()["status"] == "executed"
     assert "set_light" in [request["method"] for request in fake.requests]
+
+
+# -- the face library ---------------------------------------------------------
+
+
+class FakeVision:
+    """A sidecar with a face library, and nothing else."""
+
+    def __init__(self, people=None, visitors=None, fails=()):
+        self._people = people or []
+        self._visitors = visitors or []
+        self._fails = set(fails)
+
+    def call(self, method, _params=None):
+        if method in self._fails:
+            raise RoomUnavailableError(f"{method} is not answering")
+        if method == "vision_people":
+            owner = next((p["name"] for p in self._people if p.get("owner")), "")
+            return {"people": self._people, "owner": owner}
+        if method == "vision_visitors":
+            return {"visitors": self._visitors}
+        raise AssertionError(method)
+
+
+def test_the_owner_is_named_from_the_library() -> None:
+    library = faces(
+        FakeVision(people=[{"name": "Shereef", "owner": True, "samples": 8}])
+    )
+
+    assert library["ok"] is True
+    assert library["owner"] == "Shereef"
+    assert library["people"][0]["samples"] == 8
+
+
+def test_a_pending_sighting_carries_the_face_that_produced_it(tmp_path) -> None:
+    """"One unknown visitor" is not something anybody can act on. A face is."""
+    crop = tmp_path / "visitor.jpg"
+    crop.write_bytes(b"\xff\xd8\xff\xe0 not really a jpeg, but bytes")
+
+    library = faces(
+        FakeVision(visitors=[{"id": 4, "at": "2026-08-24T12:00:00", "thumbnail": str(crop)}])
+    )
+
+    assert library["pending"][0]["id"] == 4
+    assert library["pending"][0]["image"].startswith("data:image/jpeg;base64,")
+
+
+def test_a_thumbnail_that_is_gone_is_a_missing_picture_not_an_error() -> None:
+    library = faces(
+        FakeVision(visitors=[{"id": 5, "thumbnail": "C:/nowhere/gone.jpg"}])
+    )
+
+    assert library["ok"] is True
+    assert library["pending"][0]["image"] == ""
+
+
+def test_known_faces_still_show_when_the_pending_queue_cannot_be_read() -> None:
+    """Half an answer beats none: who the camera knows does not depend on the
+    review queue answering."""
+    library = faces(
+        FakeVision(
+            people=[{"name": "Shereef", "owner": True, "samples": 8}],
+            fails={"vision_visitors"},
+        )
+    )
+
+    assert library["ok"] is True
+    assert library["people"]
+    assert library["pending"] == []
+
+
+def test_an_unreachable_room_says_so_rather_than_looking_empty() -> None:
+    """An empty library and an unreachable one look identical and mean
+    opposite things."""
+    library = faces(FakeVision(fails={"vision_people"}))
+
+    assert library["ok"] is False
+    assert "not answering" in library["detail"]

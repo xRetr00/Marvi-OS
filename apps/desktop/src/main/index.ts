@@ -1908,16 +1908,14 @@ function startApp(): void {
         return null
       }
     })
-    ipcMain.handle('marvi:get-room-faces', async () => {
+    ipcMain.handle('marvi:get-face-library', async () => {
       try {
-        const response = await fetch(`${gateway()}/room/faces`, {
-          signal: AbortSignal.timeout(5_000)
+        const response = await fetch(`${gateway()}/room/vision/faces`, {
+          signal: AbortSignal.timeout(8_000)
         })
-        if (!response.ok) return []
-        const body = (await response.json()) as { faces?: unknown }
-        return Array.isArray(body.faces) ? body.faces : []
+        return response.ok ? await response.json() : null
       } catch {
-        return []
+        return null
       }
     })
     ipcMain.handle('marvi:room-command', async (_event, tool, args) => {

@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
+  FaceLibrary,
   AuxiliaryPage,
   AssistantState,
   AuditEvent,
@@ -118,8 +119,8 @@ const marvi = {
   getAuxiliary: (): Promise<AuxiliaryPage | null> => ipcRenderer.invoke('marvi:get-auxiliary'),
   getRoomHealth: (): Promise<Record<string, unknown> | null> =>
     ipcRenderer.invoke('marvi:get-room-health'),
-  getRoomFaces: (): Promise<{ id: string; at: number; image: string }[]> =>
-    ipcRenderer.invoke('marvi:get-room-faces'),
+  getFaceLibrary: (): Promise<FaceLibrary | null> =>
+    ipcRenderer.invoke('marvi:get-face-library'),
   roomCommand: (
     tool: string,
     args: Record<string, unknown>

@@ -681,3 +681,18 @@ export interface AuxiliaryPage {
   /** The main provider, so the page can name jobs pinned away from it. */
   main: string
 }
+
+
+/**
+ * Who the camera knows, and who is waiting to be named.
+ *
+ * A pending sighting carries the crop that produced it, because "one unknown
+ * visitor" is not something anybody can act on and a face is.
+ */
+export interface FaceLibrary {
+  ok: boolean
+  detail?: string
+  owner: string
+  people: { name: string; owner: boolean; samples: number; at?: string }[]
+  pending: { id: number; at?: string; score?: number; image: string }[]
+}

@@ -607,54 +607,66 @@ def register_room_tools(registry, sidecar: RoomSidecar) -> None:
     )
 
 
-#: How many recent faces the Room page shows.
-PREVIEW_FACES = 8
 #: A thumbnail is a face crop, a few kilobytes. Anything larger is not one, and
 #: is not going to be inlined into a JSON response.
 MAX_FACE_BYTES = 400_000
 
 
-def recent_faces(limit: int = PREVIEW_FACES) -> list[dict[str, Any]]:
-    """The newest face crops the sidecar has written, as data URIs.
+def _inline(path: Any) -> str:
+    """A face crop as a data URI, or "" when it is not there any more.
 
-    The camera itself stays where it belongs. The sidecar is the only process
-    that opens it and exposes no frame RPC, deliberately -- frames and
-    embeddings do not leave that module. What it does write is a crop per face
-    it recognised, and those are the honest preview: they show what vision
-    actually saw rather than what the lens is pointed at.
-
-    Read from disk rather than requested, so this works whether or not the
-    sidecar is up, and returns nothing rather than raising when there is no
-    camera, no directory, or no permission.
+    The sidecar records a thumbnail path per sighting. Reading it here rather
+    than serving the directory keeps the camera's output inside the loopback
+    answer and means a deleted file is a missing picture rather than a broken
+    request.
     """
     import base64
 
-    directory = _sidecar_home() / "vision" / "faces"
+    if not path:
+        return ""
+    file = Path(str(path))
     try:
-        files = sorted(
-            (path for path in directory.iterdir() if path.suffix.lower() == ".jpg"),
-            key=lambda path: path.stat().st_mtime,
-            reverse=True,
-        )[: max(1, limit)]
+        if not file.is_file() or file.stat().st_size > MAX_FACE_BYTES:
+            return ""
+        return "data:image/jpeg;base64," + base64.b64encode(file.read_bytes()).decode("ascii")
     except OSError:
-        return []
+        return ""
 
-    found = []
-    for path in files:
-        try:
-            if path.stat().st_size > MAX_FACE_BYTES:
-                continue
-            encoded = base64.b64encode(path.read_bytes()).decode("ascii")
-        except OSError:
-            continue
-        found.append(
-            {
-                "id": path.stem,
-                "at": path.stat().st_mtime,
-                "image": f"data:image/jpeg;base64,{encoded}",
-            }
-        )
-    return found
+
+def faces(sidecar: RoomSidecar) -> dict[str, Any]:
+    """Who the camera knows, and who is waiting to be named.
+
+    Both come from the sidecar, which owns the library. Pending sightings
+    arrive with the crop that produced them, because "one unknown visitor" is
+    not something anybody can act on and a face is.
+
+    Never raises: the room being unreachable is a page that says so, not a page
+    that fails to load.
+    """
+    known: list[dict[str, Any]] = []
+    waiting: list[dict[str, Any]] = []
+    owner = ""
+    try:
+        people = sidecar.call("vision_people", {})
+        known = list(people.get("people") or [])
+        owner = str(people.get("owner") or "")
+    except (RoomUnavailableError, RoomRejectedError) as exc:
+        return {"ok": False, "detail": str(exc), "people": [], "pending": [], "owner": ""}
+    try:
+        seen = sidecar.call("vision_visitors", {})
+        for sighting in seen.get("visitors") or []:
+            waiting.append(
+                {
+                    "id": sighting.get("id"),
+                    "at": sighting.get("at"),
+                    "score": sighting.get("score"),
+                    "image": _inline(sighting.get("thumbnail")),
+                }
+            )
+    except (RoomUnavailableError, RoomRejectedError):
+        # Known faces are still worth showing without the pending queue.
+        pass
+    return {"ok": True, "owner": owner, "people": known, "pending": waiting}
 
 
 def unconfirmed(state: dict[str, Any]) -> str:

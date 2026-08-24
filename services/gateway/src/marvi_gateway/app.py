@@ -1536,14 +1536,12 @@ def create_app(
             lambda: presence.read(state, client=ProviderClient()).as_dict()
         )
 
-    @app.get("/room/faces")
-    async def read_room_faces(limit: int = room_module.PREVIEW_FACES) -> dict[str, Any]:
-        """What vision has actually seen, for the Room page.
-
-        Not a camera feed: the sidecar owns the camera and publishes no frames.
-        These are the crops it wrote when it recognised a face.
-        """
-        return {"faces": room_module.recent_faces(limit)}
+    @app.get("/room/vision/faces")
+    async def read_face_library() -> dict[str, Any]:
+        """Who the camera knows, and who is waiting to be named."""
+        if sidecar is None:
+            return {"ok": False, "detail": "no room sidecar", "people": [], "pending": []}
+        return await anyio.to_thread.run_sync(lambda: room_module.faces(sidecar))
 
     @app.get("/plugins", response_model=PluginPage)
     async def read_plugins() -> PluginPage:

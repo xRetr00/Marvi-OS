@@ -98,6 +98,7 @@ import {
 } from './store/session-metrics'
 import { haptic } from './lib/haptics'
 import type {
+  FaceLibrary,
   AuxiliaryPage,
   AuxiliaryRole,
   AuditEvent,
@@ -642,6 +643,8 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
   const [health, setHealth] = useState<Record<string, unknown>>({})
   const [enrolling, setEnrolling] = useState(false)
   const [faceName, setFaceName] = useState('')
+  const [library, setLibrary] = useState<FaceLibrary | null>(null)
+  const [visitorNames, setVisitorNames] = useState<Record<number, string>>({})
 
   useEffect(() => {
     let disposed = false
@@ -672,13 +675,12 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
 
   const [busy, setBusy] = useState('')
   const [pressed, setPressed] = useState('')
-  const [faces, setFaces] = useState<{ id: string; at: number; image: string }[]>([])
 
   useEffect(() => {
     let disposed = false
     const load = async (): Promise<void> => {
-      const found = await window.marvi?.getRoomFaces()
-      if (!disposed && found) setFaces(found)
+      const known = await window.marvi?.getFaceLibrary()
+      if (!disposed) setLibrary(known ?? null)
     }
     void load()
     // Slower than the state poll: these are images, and a face crop is written
@@ -718,6 +720,31 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
           : (answer?.error ?? 'The camera could not enrol that face.')
       )
       if (answer?.status === 'executed') setFaceName('')
+      setLibrary((await window.marvi?.getFaceLibrary()) ?? null)
+    } finally {
+      setEnrolling(false)
+    }
+  }
+
+  // Naming a face the camera did not recognise, or saying it is not one worth
+  // keeping. The sighting carries its own crop, so this is a decision about a
+  // picture rather than about a row number.
+  const review = async (id: number, action: 'approve' | 'reject'): Promise<void> => {
+    setEnrolling(true)
+    try {
+      const answer = await window.marvi?.roomCommand('smart_room_vision_identity', {
+        action,
+        sighting_id: id,
+        ...(action === 'approve' ? { name: (visitorNames[id] ?? '').trim() } : {})
+      })
+      setPressed(
+        answer?.status === 'executed'
+          ? action === 'approve'
+            ? `Named ${(visitorNames[id] ?? '').trim()}.`
+            : 'Rejected.'
+          : (answer?.error ?? 'The room refused that.')
+      )
+      setLibrary((await window.marvi?.getFaceLibrary()) ?? null)
     } finally {
       setEnrolling(false)
     }
@@ -952,7 +979,15 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
         />
       </ControlSection>
 
-      <ControlSection icon={Eye} title="Vision">
+      <ControlSection
+        description={
+          library?.owner
+            ? `Owner: ${library.owner}`
+            : 'No owner enrolled — the camera cannot tell you from anyone else yet.'
+        }
+        icon={Eye}
+        title="Faces"
+      >
         <ControlRow
           action={
             <div className="provider-actions">
@@ -979,40 +1014,85 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
           description={
             vision.error
               ? `The camera is not running: ${String(vision.error)}`
-              : 'Look at the camera and enrol. It reads a few seconds of frames, so give it a moment and keep one face in view.'
+              : 'Look at the camera and enrol. It reads a few seconds of frames, so keep one face in view.'
           }
           icon={Eye}
-          title="Teach it your face"
+          title="Enrol the face it sees"
         />
-        {faces.length === 0 ? (
-          <ControlEmpty
-            description={
-              vision.error
-                ? String(vision.error)
-                : 'Nothing seen yet. Faces appear here as the camera recognises them.'
+
+        {(library?.people ?? []).map((person) => (
+          <ControlRow
+            action={
+              <span className="control-value">
+                {person.samples} sample{person.samples === 1 ? '' : 's'}
+              </span>
+            }
+            description={person.owner ? 'Owner' : 'Known'}
+            key={person.name}
+            title={person.name}
+          />
+        ))}
+
+        {(library?.pending ?? []).length > 0 ? (
+          <ControlRow
+            description="Each of these was seen and not recognised. Name one to teach it, or reject it if it is not a person you want remembered."
+            icon={ShieldAlert}
+            title={`${library?.pending.length} waiting to be named`}
+          />
+        ) : null}
+        {(library?.pending ?? []).map((sighting) => (
+          <ControlRow
+            action={
+              <div className="provider-actions">
+                <input
+                  className="control-input"
+                  disabled={enrolling}
+                  onChange={(event) =>
+                    setVisitorNames((names) => ({ ...names, [sighting.id]: event.target.value }))
+                  }
+                  placeholder="Name"
+                  value={visitorNames[sighting.id] ?? ''}
+                />
+                <button
+                  className="ghost-button"
+                  disabled={enrolling || !(visitorNames[sighting.id] ?? '').trim()}
+                  onClick={() => void review(sighting.id, 'approve')}
+                  type="button"
+                >
+                  APPROVE
+                </button>
+                <button
+                  className="ghost-button"
+                  disabled={enrolling}
+                  onClick={() => void review(sighting.id, 'reject')}
+                  type="button"
+                >
+                  REJECT
+                </button>
+              </div>
             }
             icon={Eye}
-            title="No faces captured"
+            key={sighting.id}
+            title={
+              sighting.image ? (
+                <span className="face-inline">
+                  <img alt="An unrecognised face" className="face-thumb" src={sighting.image} />
+                  {sighting.at ? String(sighting.at).slice(11, 19) : `#${sighting.id}`}
+                </span>
+              ) : (
+                `Sighting #${sighting.id}`
+              )
+            }
           />
-        ) : (
-          <>
-            <ControlRow
-              description="What the camera actually recognised. The sidecar owns the camera and publishes no live frames, so these crops are the preview."
-              title={`${faces.length} recent`}
-            />
-            <div className="face-strip">
-              {faces.map((face) => (
-                <img
-                  alt="A face the camera recognised"
-                  className="face-thumb"
-                  key={face.id}
-                  src={face.image}
-                  title={new Date(face.at * 1000).toLocaleString()}
-                />
-              ))}
-            </div>
-          </>
-        )}
+        ))}
+
+        {library && !library.ok ? (
+          <ControlEmpty
+            description={library.detail ?? 'The room is not answering.'}
+            icon={ShieldAlert}
+            title="Cannot read the face library"
+          />
+        ) : null}
       </ControlSection>
 
       <ControlSection icon={History} title="Recent events">

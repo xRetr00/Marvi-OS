@@ -5353,11 +5353,10 @@ body {
 
 /* Vision preview -------------------------------------------------------- */
 
-.face-strip {
-  display: flex;
-  flex-wrap: wrap;
+.face-inline {
+  display: inline-flex;
+  align-items: center;
   gap: 8px;
-  padding: 8px 0 4px;
 }
 
 .face-thumb {
