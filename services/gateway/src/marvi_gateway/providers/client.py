@@ -102,6 +102,9 @@ class ProviderClient:
     _usage: dict[str, Usage] = field(default_factory=dict)
     ledger: UsageLedger = field(default_factory=UsageLedger)
     _pool: Any = None
+    #: The last standing announced per provider, so a warning is written when
+    #: something changes rather than every time it is asked about.
+    _announced: dict[str, str] = field(default_factory=dict)
 
     # -- connections ---------------------------------------------------------
 
@@ -428,6 +431,26 @@ class ProviderClient:
         except Exception:
             return False
 
+    def _say_once(self, provider: str, state: str, message: str, *args: Any) -> None:
+        """Warn when a provider's standing changes, not every time it is read.
+
+        `candidates()` is a query and the status poll asks it every two
+        seconds, so a warning per call wrote the same line eighteen hundred
+        times an hour into the error log and buried everything else in it --
+        including the three faults this was found while looking for.
+
+        The event is the change. Repeating it is not more information.
+        """
+        if self._announced.get(provider) == state:
+            return
+        self._announced[provider] = state
+        logger.warning(message, *args)
+
+    def clear_notice(self, provider: str) -> None:
+        """Forget a provider's last announced standing, so a return to normal
+        is reported the next time something goes wrong."""
+        self._announced.pop(provider, None)
+
     def candidates(self, preferred: str | None = None) -> list[ProviderProfile]:
         """Configured providers, preferred first, then local, then the rest.
 
@@ -451,12 +474,19 @@ class ProviderClient:
                 logger.warning("ignoring unknown provider %r", preferred)
                 return ready
             if not chosen.configured():
-                logger.warning("%s is selected but not configured; falling back", chosen.name)
+                self._say_once(
+                    chosen.name,
+                    "unconfigured",
+                    "%s is selected but not configured; falling back",
+                    chosen.name,
+                )
                 return ready
             if self.resting(chosen.name) > 0:
                 # Cooling down. Falling through is the point of a cooldown --
                 # but it is the only case that overrides an explicit choice.
-                logger.warning("%s is cooling down; falling back", chosen.name)
+                self._say_once(
+                    chosen.name, "cooling", "%s is cooling down; falling back", chosen.name
+                )
                 return [p for p in ready if p.name != chosen.name]
 
             # Locked. A provider chosen in the Models page answers, or nothing

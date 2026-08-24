@@ -96,3 +96,72 @@ def test_the_run_key_name_matches_the_agent() -> None:
 
     assert f'VALUE_NAME = "{wake.VALUE_NAME}"' in source
     assert wake.RUN_KEY in source
+
+
+def test_the_gateway_lists_microphones_without_the_agent(monkeypatch) -> None:
+    """It asked the Agent by importing `marvi_agent.wake_daemon`, and in the
+    running Gateway that raised "No module named 'marvi_agent'" twice a second
+    for as long as the settings page was open, with an empty picker to show
+    for it.
+
+    They are separate uv projects. A cross-project import is only ever
+    accidentally true.
+    """
+    import sys
+
+    from marvi_gateway import wake
+
+    monkeypatch.setitem(sys.modules, "marvi_agent", None)
+    monkeypatch.setitem(sys.modules, "marvi_agent.wake_daemon", None)
+
+    assert isinstance(wake.microphones(), list)
+
+
+def test_one_microphone_is_offered_once(monkeypatch) -> None:
+    """Windows lists each device once per host API and MME truncates names to
+    31 characters, so the duplicates are not even equal."""
+    import sys
+    from types import SimpleNamespace
+
+    from marvi_gateway import wake
+
+    monkeypatch.setitem(
+        sys.modules,
+        "sounddevice",
+        SimpleNamespace(
+            query_devices=lambda kind=None: (
+                {"name": "Echo Cancelling Speakerphone (Konftel Ego)"}
+                if kind == "input"
+                else [
+                    {"name": "Echo Cancelling Speakerphone (K", "max_input_channels": 1},
+                    {"name": "Echo Cancelling Speakerphone (Konftel Ego)", "max_input_channels": 2},
+                    {"name": "Speakers (Realtek)", "max_input_channels": 0},
+                ]
+            )
+        ),
+    )
+
+    found = wake.microphones()
+
+    assert [entry["name"] for entry in found] == ["Echo Cancelling Speakerphone (Konftel Ego)"]
+    assert found[0]["default"] is True
+
+
+def test_the_two_services_dedupe_microphones_the_same_way() -> None:
+    """The Agent opens the device the Gateway offered. They enumerate
+    separately because they are separate projects, so nothing but this keeps
+    the two lists in step."""
+    from pathlib import Path
+
+    agent = (
+        Path(__file__).resolve().parents[3]
+        / "services"
+        / "agent"
+        / "src"
+        / "marvi_agent"
+        / "wake_daemon.py"
+    ).read_text(encoding="utf-8")
+
+    rule = "if not any(other != name and other.startswith(name) for other in names)"
+
+    assert rule in agent, "the Agent no longer drops truncated duplicate names"

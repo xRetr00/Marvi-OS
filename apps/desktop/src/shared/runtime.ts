@@ -678,4 +678,6 @@ export interface AuxiliaryPage {
   roles: AuxiliaryRole[]
   separator: string
   providers: { name: string; label: string }[]
+  /** The main provider, so the page can name jobs pinned away from it. */
+  main: string
 }

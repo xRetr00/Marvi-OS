@@ -161,3 +161,16 @@ def test_a_page_with_no_question_is_passed_through_whole() -> None:
     from marvi_gateway import distil
 
     assert distil.extract_answer(None, "x" * 5000, "") == ""
+
+
+def test_the_page_says_which_provider_is_the_main_one(monkeypatch) -> None:
+    """So it can name the jobs pinned away from it.
+
+    Switching your main model away from a provider leaves any job pinned to it
+    still spending there, quietly, because nothing said so. Named rather than
+    cleared: a deliberate pin is legitimate, and clearing it automatically
+    would be the surprise.
+    """
+    monkeypatch.setenv("MARVI_PROVIDER", "openrouter")
+
+    assert auxiliary.status()["main"] == "openrouter"

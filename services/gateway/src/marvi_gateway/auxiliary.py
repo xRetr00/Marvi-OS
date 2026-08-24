@@ -163,4 +163,12 @@ def status(available: list[dict[str, Any]] | None = None) -> dict[str, Any]:
                 "auto": not provider,
             }
         )
-    return {"roles": rows, "separator": SEPARATOR, "providers": available or []}
+    return {
+        "roles": rows,
+        "separator": SEPARATOR,
+        "providers": available or [],
+        # So the page can say which jobs are pinned away from it. A job left on
+        # a provider you have stopped using goes on spending there quietly, and
+        # nothing said so.
+        "main": os.environ.get("MARVI_PROVIDER", "").strip(),
+    }

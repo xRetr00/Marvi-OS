@@ -1496,6 +1496,14 @@ function ProvidersPanel(): React.JSX.Element {
           </ControlSection>
         )
       })}
+
+      <ControlSection
+        description="Marvi picks one model for the hardest thing she does and then uses it for everything. These jobs can have their own."
+        icon={Cpu}
+        title="Model for each job"
+      >
+        <AuxiliarySettings />
+      </ControlSection>
     </ControlPage>
   )
 }
@@ -2997,14 +3005,6 @@ function SpeechPanel(): React.JSX.Element {
         <VoicePicker />
       </ControlSection>
 
-      <ControlSection
-        description="Marvi picks one model for the hardest thing she does and then uses it for everything. These jobs can have their own."
-        icon={Cpu}
-        title="Model for each job"
-      >
-        <AuxiliarySettings />
-      </ControlSection>
-
       <ControlSection icon={Radio} title="Wake word">
         <div>
           <p>
@@ -3058,6 +3058,20 @@ function AuxiliarySettings(): React.JSX.Element {
     setReload((count) => count + 1)
   }
 
+  // A job pinned to a provider that is no longer the main one is the quiet
+  // credit-burn path: you switch your main model away from somewhere, and
+  // three background jobs keep spending there because nothing said so. Named
+  // rather than cleared, because a deliberate pin is a legitimate thing to
+  // have and clearing it automatically would be the surprise.
+  const stale = page.roles.filter((role) => !role.auto && role.provider !== page.main)
+
+  const resetAll = async (): Promise<void> => {
+    await window.marvi?.setProviderSettings(
+      Object.fromEntries(stale.map((role) => [role.setting, '']))
+    )
+    setReload((count) => count + 1)
+  }
+
   return (
     <>
       {page.roles.map((role) => (
@@ -3086,6 +3100,23 @@ function AuxiliarySettings(): React.JSX.Element {
           title={role.title}
         />
       ))}
+      {stale.length > 0 ? (
+        <ControlRow
+          action={
+            <ControlButton onClick={() => void resetAll()}>Reset all to main</ControlButton>
+          }
+          description={`${stale.map((role) => role.title).join(', ')} still ${
+            stale.length === 1 ? 'runs' : 'run'
+          } on ${
+            new Set(stale.map((role) => role.provider)).size === 1
+              ? stale[0].provider
+              : 'other providers'
+          }, not your main model. A job pinned to a provider you have stopped using goes on
+          spending there quietly.`}
+          icon={ShieldAlert}
+          title="Pinned away from your main model"
+        />
+      ) : null}
       {page.roles.some((role) => !role.auto) ? (
         <ControlRow
           description={page.roles

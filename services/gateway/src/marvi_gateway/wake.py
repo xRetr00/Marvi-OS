@@ -196,20 +196,75 @@ DEVICE_SETTING = "MARVI_WAKE_DEVICE"
 def microphones() -> list[dict[str, Any]]:
     """Input devices for the picker.
 
-    Enumerated here rather than in the browser: `navigator.mediaDevices` lists
-    what Chromium can open, and the listener is a separate Python process using
-    PortAudio, which sees a different set under different names. A picker built
-    from the wrong list offers devices the thing doing the listening cannot
-    open.
+    Enumerated here with PortAudio rather than in the browser: the listener is
+    a separate Python process using the same library, and `navigator.
+    mediaDevices` lists what Chromium can open, under different names. A picker
+    built from the wrong list offers microphones the thing doing the listening
+    cannot open.
 
-    The Agent owns the enumeration because it owns the listener; this reaches
-    into it because both run in the same environment. Never raises -- an empty
-    picker is a worse settings page, a failing one is no settings page.
+    This used to ask the Agent, by importing `marvi_agent.wake_daemon`. That
+    failed in the running Gateway with "No module named 'marvi_agent'" -- twice
+    a second for as long as the settings page was open, with an empty picker to
+    show for it. The two services are separate uv projects and a cross-project
+    import is only ever accidentally true. Duplicated instead, the way the
+    registry constants above are, with a test pinning the two together.
+
+    Two Windows quirks make the raw list unusable: the same microphone appears
+    once per host API, and MME truncates names to 31 characters, so the
+    duplicates are not even equal. A name that is a prefix of a longer one is
+    dropped in favour of the longer.
+
+    Never raises. An empty picker is a worse settings page; a failing one is no
+    settings page.
     """
     try:
-        from marvi_agent.wake_daemon import microphones as enumerate_inputs
-
-        return list(enumerate_inputs())
+        import sounddevice
     except Exception as exc:  # pragma: no cover - depends on the install
-        log.warning("cannot list microphones: %s", exc)
+        _say_once("audio", f"cannot list microphones: {exc}")
         return []
+    try:
+        devices = sounddevice.query_devices()
+        default_name = str(sounddevice.query_devices(kind="input").get("name", "")).strip()
+    except Exception as exc:  # pragma: no cover - depends on the machine
+        _say_once("audio", f"cannot list microphones: {exc}")
+        return []
+
+    _say_once("audio", "")
+    names: list[str] = []
+    for device in devices:
+        if int(device.get("max_input_channels", 0)) < 1:
+            continue
+        name = str(device.get("name", "")).strip()
+        if name and name not in names:
+            names.append(name)
+
+    kept = [
+        name
+        for name in names
+        if not any(other != name and other.startswith(name) for other in names)
+    ]
+    return [
+        {
+            # Handed to PortAudio verbatim: it matches on substrings, and a
+            # tidied name may no longer match anything.
+            "name": name,
+            # What a person reads. Bluetooth headsets arrive with a newline and
+            # a driver path in the middle of the name.
+            "label": " ".join(name.split())[:64],
+            "default": bool(name == default_name or (default_name and name.startswith(default_name))),
+        }
+        for name in kept
+    ]
+
+
+#: The last message announced per topic, so a warning is written when something
+#: changes rather than every time the settings page polls.
+_said: dict[str, str] = {}
+
+
+def _say_once(topic: str, message: str) -> None:
+    if _said.get(topic) == message:
+        return
+    _said[topic] = message
+    if message:
+        log.warning("%s", message)
