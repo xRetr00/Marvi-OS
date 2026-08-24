@@ -884,6 +884,9 @@ def create_app(
         )
 
     def current_status() -> RuntimeStatus:
+        # Polling the authoritative runtime is enough to expire confirmations
+        # and collapse terminal results; no second user action is required.
+        runtime_store.expire_transients()
         if sidecar is not None:
             runtime_store.observe_room_event(drain_room_events())
         livekit_ready = livekit_is_ready()

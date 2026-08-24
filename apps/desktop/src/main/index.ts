@@ -29,7 +29,12 @@ import {
 } from './config'
 import { configure as configureLogging, desktop, installCatchers } from './logger'
 import { killStrays } from './processes'
-import { offlineRuntime, normalizeRuntimeStatus } from './gateway-runtime'
+import {
+  offlineRuntime,
+  offlineRuntimeFrom,
+  normalizeRuntimeStatus,
+  reconcileRuntimeStatus
+} from './gateway-runtime'
 import { type ServiceReport, ServiceSupervisor, findUv } from './services'
 import {
   islandWindowBounds,
@@ -791,9 +796,6 @@ async function gatewayRequest(path: string, init?: RequestInit): Promise<Runtime
 const MISSES_BEFORE_OFFLINE = 5
 let missedPolls = 0
 
-/** Phases the renderer drives locally, faster than the Gateway poll. */
-const LIVE_PHASES = new Set(['wake', 'listening', 'thinking', 'speaking'])
-
 async function refreshGatewayRuntime(): Promise<RuntimeStatus> {
   try {
     const gateway = await gatewayRequest('/runtime')
@@ -813,16 +815,7 @@ async function refreshGatewayRuntime(): Promise<RuntimeStatus> {
     // driven by the renderer from LiveKit at a far higher rate than this
     // two-second poll, and adopting the Gateway's slower view would stutter
     // them. Anything else, the Gateway is right.
-    const live = LIVE_PHASES.has(runtimeStatus.assistant.phase)
-    return publishRuntime({
-      ...gateway,
-      assistant: {
-        ...(live ? runtimeStatus.assistant : gateway.assistant),
-        yolo: gateway.assistant.yolo,
-        confirmation: gateway.assistant.confirmation ?? runtimeStatus.assistant.confirmation,
-        roomEvent: gateway.assistant.roomEvent
-      }
-    })
+    return publishRuntime(reconcileRuntimeStatus(runtimeStatus, gateway))
   } catch {
     // One missed poll is not a dead Gateway. Installing a model, hashing a
     // file, or a busy machine can all cost more than the request timeout, and
@@ -831,7 +824,7 @@ async function refreshGatewayRuntime(): Promise<RuntimeStatus> {
     // 2.4 GB model was downloading.
     missedPolls += 1
     if (missedPolls < MISSES_BEFORE_OFFLINE) return runtimeStatus
-    return publishRuntime(offlineRuntime(app.getVersion()))
+    return publishRuntime(offlineRuntimeFrom(app.getVersion(), runtimeStatus))
   }
 }
 
@@ -1026,7 +1019,7 @@ function startApp(): void {
           })
         )
       } catch {
-        return publishRuntime(offlineRuntime(app.getVersion()))
+        return publishRuntime(offlineRuntimeFrom(app.getVersion(), runtimeStatus))
       }
     })
     ipcMain.handle('marvi:resolve-confirmation', async (_event, token, decision) => {
@@ -1048,7 +1041,9 @@ function startApp(): void {
         const normalized = normalizeRuntimeStatus(body.runtime)
         return normalized ? publishRuntime(normalized) : await refreshGatewayRuntime()
       } catch {
-        return runtimeStatus
+        // A dead Gateway cannot still own an actionable token. Drop the
+        // interactive prompt now instead of waiting for the poll miss budget.
+        return publishRuntime(offlineRuntimeFrom(app.getVersion(), runtimeStatus))
       }
     })
     ipcMain.handle('marvi:get-audit', async () => {

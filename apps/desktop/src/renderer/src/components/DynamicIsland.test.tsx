@@ -121,6 +121,30 @@ describe('DynamicIsland', () => {
     )
 
     expect(html).toContain('YOLO')
+    expect(html).toContain('island-yolo')
     expect(html).not.toContain('island-seed-line')
+    expect(html).not.toContain('Say Marvi')
+  })
+
+  it('locks both confirmation choices while a decision is resolving', () => {
+    const html = renderToStaticMarkup(
+      <DynamicIsland
+        confirmationPending
+        state={{
+          ...DEFAULT_ASSISTANT_STATE,
+          phase: 'confirmation',
+          confirmation: {
+            token: 'token-1',
+            action: 'Send email reply',
+            detail: 'To Alex',
+            tool: 'email_reply',
+            arguments: { to: 'Alex' }
+          }
+        }}
+      />
+    )
+
+    expect(html.match(/disabled=""/g)).toHaveLength(2)
+    expect(html).toContain('WAIT…')
   })
 })

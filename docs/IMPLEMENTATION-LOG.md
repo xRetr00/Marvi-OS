@@ -965,3 +965,20 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
 - Visually checked Overview, Providers, Preferences, Usage, and the narrow
   settings layout at 1180×760 and 760×700. Desktop typecheck, error-only lint,
   production renderer build, `git diff --check`, and all 218 desktop tests pass.
+
+## 2026-08-24 — Dynamic Island terminal-state recovery
+
+- Removed the reconciliation fallback that restored the previous confirmation
+  whenever the Gateway authoritatively returned `null`; approve, deny, expiry,
+  and mode changes now remove the exact prompt that settled.
+- Made runtime polling expire untouched 120-second confirmations and collapse
+  approved, denied, expired, or YOLO-transition notices after three seconds.
+- Enabling YOLO invalidates pending Confirm-mode tokens without executing them,
+  then settles into a compact persistent YOLO marker instead of an expanded
+  ready pill.
+- A failed approval request now changes the Island immediately to a
+  non-interactive Gateway-unavailable state. Approval buttons lock while a
+  request is in flight, preventing duplicate decisions.
+- Added focused Gateway and desktop regressions for every terminal path,
+  authoritative-null reconciliation, confirmation priority, offline cleanup,
+  and pending-button behavior.

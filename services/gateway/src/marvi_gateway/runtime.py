@@ -22,6 +22,7 @@ AssistantPhase = Literal[
 ]
 
 CONFIRMATION_TTL_SECONDS = 120.0
+TERMINAL_NOTIFICATION_TTL_SECONDS = 3.0
 AUDIT_TAIL_LIMIT = 200
 ROOM_EVENT_TTL_SECONDS = 25.0
 EXTERNAL_WRITE_TTL_SECONDS = 900.0
@@ -151,6 +152,7 @@ class RuntimeStore:
         self.assistant = AssistantState()
         self.audit_path = audit_path or default_audit_path()
         self._pending: dict[str, PendingConfirmation] = {}
+        self._notification_at: float | None = None
         self._last_room_event_id: int | None = None
         self._room_event_at: float | None = None
         # ponytail: in-memory, so a Gateway restart forgets completed external
@@ -189,6 +191,21 @@ class RuntimeStore:
 
     def set_yolo(self, enabled: bool) -> AssistantState:
         self.assistant = self.assistant.model_copy(update={"yolo": enabled})
+        # Enabling YOLO changes the execution contract. Existing confirm-mode
+        # tokens are not silently executed and cannot remain as stale controls.
+        if enabled and self._pending:
+            for pending in self._pending.values():
+                self.audit(
+                    "cancelled", pending.tool, pending.arguments, detail="YOLO enabled"
+                )
+            self._pending.clear()
+            current = self.assistant.confirmation
+            if current is not None:
+                self._clear_confirmation(
+                    current.token,
+                    caption="YOLO mode enabled",
+                    action="Pending action dismissed",
+                )
         return self.assistant
 
     @property
@@ -292,6 +309,7 @@ class RuntimeStore:
         write_key: str | None = None,
     ) -> ConfirmationRequest:
         self.expire_confirmations()
+        self._notification_at = None
         token = token_urlsafe(24)
         self._pending[token] = PendingConfirmation(
             token=token,
@@ -326,7 +344,29 @@ class RuntimeStore:
         for token in expired:
             pending = self._pending.pop(token)
             self.audit("expired", pending.tool, pending.arguments)
-            self._clear_confirmation(token, caption="Confirmation expired", action=pending.tool)
+            self._clear_confirmation(
+                token, caption="Confirmation expired", action=pending.tool, now=now
+            )
+
+    def expire_transients(self, now: float | None = None) -> None:
+        """Advance time-bound assistant UI without requiring another action."""
+        moment = now if now is not None else time.monotonic()
+        self.expire_confirmations(now=moment)
+        if (
+            self.assistant.phase == "notification"
+            and self._notification_at is not None
+            and moment - self._notification_at >= TERMINAL_NOTIFICATION_TTL_SECONDS
+        ):
+            self._notification_at = None
+            self.assistant = self.assistant.model_copy(
+                update={
+                    "phase": "ready",
+                    "caption": "Say Marvi",
+                    "detail": None,
+                    "confirmation": None,
+                    "level": 0.0,
+                }
+            )
 
     def take_confirmation(
         self, token: str, arguments: dict[str, Any]
@@ -347,7 +387,9 @@ class RuntimeStore:
     def settle_confirmation(self, token: str, caption: str, action: str) -> AssistantState:
         return self._clear_confirmation(token, caption=caption, action=action)
 
-    def _clear_confirmation(self, token: str, caption: str, action: str) -> AssistantState:
+    def _clear_confirmation(
+        self, token: str, caption: str, action: str, now: float | None = None
+    ) -> AssistantState:
         current = self.assistant.confirmation
         if current is not None and current.token != token:
             return self.assistant
@@ -359,4 +401,5 @@ class RuntimeStore:
                 "confirmation": None,
             }
         )
+        self._notification_at = now if now is not None else time.monotonic()
         return self.assistant

@@ -150,6 +150,9 @@ Target sizes at 100% scaling:
 Rules:
 
 - Return to compact state automatically after terminal events.
+- Approval, denial, expiry, and mode-change results remain visible for three
+  seconds, then return to the passive state. A Gateway outage removes stale
+  confirmation controls immediately and shows the non-interactive error state.
 - In passive sleep, remove the seed body completely and leave only its short
   light line at the work-area edge. Do not leave the ready pill, label, or
   waveform visible until wake/activity begins.
@@ -157,7 +160,9 @@ Rules:
 - Never animate merely to hide latency.
 - Coalesce audio-level rendering to a bounded frame rate.
 - Spoken approval and pointer approval resolve the same Gateway token.
-- YOLO mode shows a persistent lightning glyph and `YOLO` marker even asleep.
+- YOLO mode shows a compact persistent lightning glyph and `YOLO` marker even
+  asleep; it does not keep the full ready pill expanded. Enabling YOLO burns
+  any already-issued Confirm-mode tokens without executing their actions.
 - Camera/microphone local activity uses tiny state glyphs, not large banners.
 - Background events may animate the Island but may not focus the main window.
 - The native host follows measured content plus a small transparent shadow

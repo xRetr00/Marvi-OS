@@ -6,7 +6,11 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from marvi_gateway.app import create_app
-from marvi_gateway.runtime import RuntimeStore
+from marvi_gateway.runtime import (
+    CONFIRMATION_TTL_SECONDS,
+    TERMINAL_NOTIFICATION_TTL_SECONDS,
+    RuntimeStore,
+)
 from marvi_gateway.tools import ToolRegistry, ToolSpec
 
 
@@ -141,6 +145,32 @@ async def test_expired_token_is_rejected(client_factory, registry) -> None:
 
 
 @pytest.mark.asyncio
+async def test_runtime_poll_expires_and_then_collapses_confirmation(
+    client_factory,
+) -> None:
+    client, runtime = client_factory()
+    async with client:
+        requested = await client.post(
+            "/tools/room_set_light", json={"arguments": {"brightness": 40}}
+        )
+        token = requested.json()["token"]
+        issued = runtime.pending_issued_at(token)
+        runtime.expire_transients(now=issued + CONFIRMATION_TTL_SECONDS + 1)
+        assert runtime.assistant.phase == "notification"
+        assert runtime.assistant.confirmation is None
+
+        runtime.expire_transients(
+            now=issued
+            + CONFIRMATION_TTL_SECONDS
+            + TERMINAL_NOTIFICATION_TTL_SECONDS
+            + 2
+        )
+
+    assert runtime.assistant.phase == "ready"
+    assert runtime.assistant.confirmation is None
+
+
+@pytest.mark.asyncio
 async def test_denial_never_executes(client_factory, registry) -> None:
     client, _ = client_factory()
     async with client:
@@ -172,6 +202,29 @@ async def test_yolo_executes_sensitive_tools_without_confirmation(
     assert registry.calls == [{"brightness": 40}]
     assert runtime.assistant.confirmation is None
     assert runtime.assistant.yolo is True
+
+
+@pytest.mark.asyncio
+async def test_enabling_yolo_dismisses_existing_confirmation(
+    client_factory, registry
+) -> None:
+    client, runtime = client_factory()
+    async with client:
+        requested = await client.post(
+            "/tools/room_set_light", json={"arguments": {"brightness": 40}}
+        )
+        token = requested.json()["token"]
+        changed = await client.put("/runtime/mode", json={"yolo": True})
+        replay = await client.post(
+            f"/confirmations/{token}",
+            json={"decision": "approve", "arguments": {"brightness": 40}},
+        )
+
+    assert changed.json()["assistant"]["yolo"] is True
+    assert changed.json()["assistant"]["confirmation"] is None
+    assert replay.status_code == 404
+    assert registry.calls == []
+    assert runtime.assistant.confirmation is None
 
 
 @pytest.mark.asyncio

@@ -30,7 +30,9 @@ surface and its native-window behavior can be proven without the voice engine.
 - Gateway-authoritative projection for all passive, voice, action,
   notification, confirmation, and error states.
 - Exact-token Island approvals and denials; pointer/focus is enabled only while
-  an actionable confirmation is visible. YOLO remains visibly persistent.
+  an actionable confirmation is visible. Settled and expired prompts collapse
+  automatically, Gateway loss removes stale controls, and idle YOLO remains a
+  compact visibly persistent marker.
 - Settings for Confirm/YOLO mode and explicit display plus left/center/right
   Island placement, with accessible switch/pressed semantics.
 - Real Gateway/component, microphone, camera, phase, mode, and version data in
@@ -110,3 +112,7 @@ frame.
   reported; release idle profiling remains a Phase 7 optimization gate.
 - Native close verification: the Electron root stayed alive and renderer count
   changed from two to one (Island only), with no rejected polling promises.
+- 2026-08-24 resilience repair: focused Gateway tests cover approve, deny,
+  expiry, YOLO transition, and token invalidation; focused desktop tests cover
+  authoritative-null reconciliation, offline cleanup, confirmation priority,
+  pending-button locking, and compact idle YOLO. Desktop typecheck passed.

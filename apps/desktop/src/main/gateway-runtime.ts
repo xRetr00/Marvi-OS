@@ -132,3 +132,43 @@ export function normalizeRuntimeStatus(value: unknown): RuntimeStatus | null {
 export function offlineRuntime(version: string): RuntimeStatus {
   return { ...OFFLINE_RUNTIME, version }
 }
+
+const LIVE_PHASES = new Set<AssistantState['phase']>([
+  'wake',
+  'listening',
+  'thinking',
+  'speaking'
+])
+
+/** Reconcile the slow Gateway snapshot with the renderer's high-rate voice state.
+ * Confirmations and terminal states always win, including an authoritative null:
+ * retaining the old request here left the Island interactive after every outcome. */
+export function reconcileRuntimeStatus(
+  current: RuntimeStatus,
+  gateway: RuntimeStatus
+): RuntimeStatus {
+  const keepLiveRenderer =
+    LIVE_PHASES.has(current.assistant.phase) &&
+    (gateway.assistant.phase === 'ready' || LIVE_PHASES.has(gateway.assistant.phase))
+
+  if (!keepLiveRenderer) return gateway
+  return {
+    ...gateway,
+    assistant: {
+      ...current.assistant,
+      yolo: gateway.assistant.yolo,
+      confirmation: gateway.assistant.confirmation,
+      roomEvent: gateway.assistant.roomEvent
+    }
+  }
+}
+
+/** A dead Gateway must remove stale controls immediately while retaining the
+ * last authoritative mode marker so YOLO never becomes visually ambiguous. */
+export function offlineRuntimeFrom(version: string, current: RuntimeStatus): RuntimeStatus {
+  const offline = offlineRuntime(version)
+  return {
+    ...offline,
+    assistant: { ...offline.assistant, yolo: current.assistant.yolo }
+  }
+}

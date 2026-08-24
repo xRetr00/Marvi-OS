@@ -700,6 +700,21 @@ nav {
   background: transparent;
   box-shadow: none;
 }
+.dynamic-island.island-yolo {
+  display: grid;
+  grid-template-columns: 1fr;
+  width: 82px;
+  height: 18px;
+  padding: 0 8px;
+  place-items: center;
+  border-color: color-mix(in srgb, var(--ui-accent) 34%, transparent);
+}
+.dynamic-island.island-yolo strong {
+  color: var(--ui-text-primary);
+  font-size: 7px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+}
 .island-seed-line {
   width: 34px;
   height: 2px;
@@ -891,6 +906,10 @@ nav {
   border-color: var(--ui-accent);
   color: var(--ui-text-emphasis);
   background: var(--ui-accent);
+}
+.confirmation-actions button:disabled {
+  cursor: wait;
+  opacity: 0.55;
 }
 .island-signals {
   display: flex;

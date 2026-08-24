@@ -9,6 +9,7 @@ export function DynamicIsland({
   state,
   microphone = 'unknown',
   camera = 'unknown',
+  confirmationPending = false,
   onConfirmationDecision
 }: {
   state: VoiceState
@@ -18,6 +19,7 @@ export function DynamicIsland({
    * it defaults to unknown and only lights on evidence. */
   microphone?: DeviceState
   camera?: DeviceState
+  confirmationPending?: boolean
   onConfirmationDecision?: (decision: 'approve' | 'deny') => void
 }): React.JSX.Element {
   const voiceActive = VOICE_ACTIVE.has(state.phase)
@@ -58,6 +60,14 @@ export function DynamicIsland({
     )
   }
 
+  if (state.phase === 'ready' && state.yolo) {
+    return (
+      <div className="dynamic-island island-yolo" data-phase="ready" role="status">
+        <strong>⚡ YOLO</strong>
+      </div>
+    )
+  }
+
   if (state.phase === 'confirmation' && state.confirmation) {
     return (
       <div
@@ -72,15 +82,20 @@ export function DynamicIsland({
           <span>{state.confirmation.detail}</span>
         </div>
         <div className="confirmation-actions">
-          <button type="button" onClick={() => onConfirmationDecision?.('deny')}>
+          <button
+            disabled={confirmationPending}
+            type="button"
+            onClick={() => onConfirmationDecision?.('deny')}
+          >
             DENY
           </button>
           <button
             className="confirm-primary"
+            disabled={confirmationPending}
             type="button"
             onClick={() => onConfirmationDecision?.('approve')}
           >
-            APPROVE
+            {confirmationPending ? 'WAIT…' : 'APPROVE'}
           </button>
         </div>
       </div>

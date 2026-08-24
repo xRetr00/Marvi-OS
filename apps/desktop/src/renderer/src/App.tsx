@@ -3579,6 +3579,7 @@ function IslandSurface(): React.JSX.Element {
   const voice = useStore($voiceState)
   const runtime = useStore($runtimeState)
   const measureRef = useRef<HTMLDivElement>(null)
+  const [resolvingToken, setResolvingToken] = useState<string | null>(null)
 
   useEffect(() => {
     void window.marvi?.getRuntime().then(applyRuntimeState)
@@ -3610,11 +3611,17 @@ function IslandSurface(): React.JSX.Element {
     <div className={`island-stage island-stage-${voice.phase}`}>
       <div className="island-measure" ref={measureRef}>
         <DynamicIsland
-          onConfirmationDecision={(decision) => {
-            if (!voice.confirmation) return
-            void window.marvi
-              ?.resolveConfirmation(voice.confirmation.token, decision)
-              .then(applyRuntimeState)
+          confirmationPending={resolvingToken === voice.confirmation?.token}
+          onConfirmationDecision={async (decision) => {
+            if (!voice.confirmation || resolvingToken === voice.confirmation.token) return
+            const token = voice.confirmation.token
+            setResolvingToken(token)
+            try {
+              const next = await window.marvi?.resolveConfirmation(token, decision)
+              if (next) applyRuntimeState(next)
+            } finally {
+              setResolvingToken(null)
+            }
           }}
           camera={deviceState(runtime, 'camera')}
           microphone={deviceState(runtime, 'microphone')}
