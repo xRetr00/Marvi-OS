@@ -4804,6 +4804,152 @@ body {
   color: var(--ui-danger);
 }
 
+/* Accounts is a capability console, not a gallery of provider cards. The
+   horizontal authority strip stays visually louder than lifecycle controls so
+   the user can tell what Marvi may do before noticing what is connected. */
+.account-row-controls {
+  display: grid;
+  justify-items: end;
+  gap: 7px;
+}
+
+.account-scope {
+  display: inline-grid;
+  grid-template-columns: repeat(3, minmax(48px, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--ui-stroke-tertiary);
+  border-radius: 4px;
+}
+
+.account-scope button {
+  min-height: 23px;
+  padding: 3px 8px;
+  border: 0;
+  border-right: 1px solid var(--ui-stroke-tertiary);
+  background: transparent;
+  color: var(--ui-text-tertiary);
+  font: inherit;
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.account-scope button:last-child {
+  border-right: 0;
+}
+
+.account-scope button[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--ui-accent) 12%, var(--ui-bg-tertiary));
+  color: var(--ui-text-primary);
+}
+
+.account-scope button:hover:not(:disabled),
+.account-scope button:focus-visible {
+  outline: 0;
+  background: var(--ui-bg-tertiary);
+  color: var(--ui-text-primary);
+}
+
+.account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 5px;
+}
+
+.account-health-line,
+.account-catalog-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.account-health-line > span:last-child {
+  min-width: 0;
+  color: var(--ui-text-tertiary);
+}
+
+.account-memory-toggle {
+  margin-top: 5px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ui-text-tertiary);
+  font: inherit;
+  font-size: 9px;
+  text-decoration: underline;
+  text-decoration-color: var(--ui-stroke-secondary);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.account-memory-toggle:hover,
+.account-memory-toggle:focus-visible {
+  outline: 0;
+  color: var(--ui-text-primary);
+}
+
+.account-catalog-search {
+  display: grid;
+  grid-template-columns: auto minmax(180px, 1fr);
+  align-items: center;
+  gap: 14px;
+  padding: 10px 2px;
+  border-top: 1px solid var(--ui-stroke-tertiary);
+  border-bottom: 1px solid var(--ui-stroke-tertiary);
+}
+
+.account-configure {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.account-configure label {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.account-catalog-search label {
+  color: var(--ui-text-secondary);
+  font-size: 10px;
+}
+
+.account-catalog-search input {
+  min-height: 30px;
+  padding: 5px 9px;
+  border: 1px solid var(--ui-stroke-tertiary);
+  border-radius: 4px;
+  outline: 0;
+  background: var(--ui-bg-secondary);
+  color: var(--ui-text-primary);
+  font: inherit;
+  font-size: 10px;
+}
+
+.account-catalog-search input:focus {
+  border-color: color-mix(in srgb, var(--ui-accent) 55%, var(--ui-stroke-secondary));
+}
+
+.account-notice {
+  position: sticky;
+  bottom: 8px;
+  z-index: 2;
+  width: fit-content;
+  margin: -12px 0 0 auto;
+  padding: 7px 10px;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 4px;
+  background: var(--ui-bg-primary);
+  color: var(--ui-text-secondary);
+  font-size: 9px;
+}
+
 .control-actions {
   display: flex;
   flex-wrap: wrap;
@@ -5311,6 +5457,14 @@ body {
   }
 
   .control-actions {
+    justify-content: flex-start;
+  }
+
+  .account-row-controls {
+    justify-items: start;
+  }
+
+  .account-actions {
     justify-content: flex-start;
   }
 }

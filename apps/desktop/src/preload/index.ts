@@ -8,7 +8,8 @@ import type {
   ChatPage,
   ChatReply,
   ChatThread,
-  ConnectedAccount,
+  AccountPage,
+  AccountToolkit,
   DoctorReport,
   HardwareAnswer,
   IdentityStatus,
@@ -145,11 +146,24 @@ const marvi = {
   getMemoryGraph: (mode: MemoryGraphMode): Promise<MemoryGraphPage> =>
     ipcRenderer.invoke('marvi:get-memory-graph', mode),
   clearMemory: (): Promise<boolean> => ipcRenderer.invoke('marvi:clear-memory'),
-  getAccounts: (): Promise<{
-    available: boolean
-    detail: string
-    accounts: ConnectedAccount[]
-  }> => ipcRenderer.invoke('marvi:get-accounts'),
+  getAccounts: (): Promise<AccountPage> => ipcRenderer.invoke('marvi:get-accounts'),
+  getAccountCatalog: (): Promise<AccountToolkit[]> => ipcRenderer.invoke('marvi:get-account-catalog'),
+  configureAccounts: (apiKey: string): Promise<{ ok: boolean; detail: string }> =>
+    ipcRenderer.invoke('marvi:configure-accounts', apiKey),
+  connectAccount: (toolkit: string): Promise<{ ok: boolean; detail: string }> =>
+    ipcRenderer.invoke('marvi:connect-account', toolkit),
+  refreshAccount: (connectionId: string): Promise<{ ok: boolean; detail: string }> =>
+    ipcRenderer.invoke('marvi:refresh-account', connectionId),
+  setAccountEnabled: (connectionId: string, enabled: boolean): Promise<boolean> =>
+    ipcRenderer.invoke('marvi:set-account-enabled', connectionId, enabled),
+  deleteAccount: (connectionId: string): Promise<boolean> =>
+    ipcRenderer.invoke('marvi:delete-account', connectionId),
+  setAccountPolicy: (
+    toolkit: string,
+    update: { scope?: 'read' | 'write' | 'admin'; sync_enabled?: boolean }
+  ): Promise<boolean> => ipcRenderer.invoke('marvi:set-account-policy', toolkit, update),
+  syncAccount: (toolkit?: string, connectionId?: string): Promise<boolean> =>
+    ipcRenderer.invoke('marvi:sync-account', toolkit ?? '', connectionId ?? ''),
   getChat: (threadId?: string): Promise<ChatPage> => ipcRenderer.invoke('marvi:get-chat', threadId),
   getChatThreads: (archived = false): Promise<ChatThread[]> =>
     ipcRenderer.invoke('marvi:get-chat-threads', archived),

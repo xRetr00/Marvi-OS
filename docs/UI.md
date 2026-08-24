@@ -341,9 +341,23 @@ a reason to hide a record. Nothing on this view is sent anywhere.
 
 ## Accounts and Memory views
 
-Accounts lists every connected toolkit and its state. Marvi OS never collects a
-provider password and never runs an OAuth flow — Composio owns the connections,
-and a dead one says plainly that it must be reconnected there.
+Accounts owns the visible Composio lifecycle. It lists every connection rather
+than collapsing multiple accounts, opens Composio's hosted Connect Link in the
+system browser, and provides reconnect, enable/disable, two-step revoke, and
+manual sync actions. Marvi never renders the provider login or receives its
+credential.
+
+On first use, Accounts accepts the Composio project API key in a masked field.
+Gateway validates it before saving it through the existing local secret-setting
+path; the key is never echoed back to the renderer. A successful save activates
+the catalog and realtime listener immediately.
+
+Every account starts with a read-only capability ceiling. A compact three-state
+strip lets the user choose read, write, or admin; this limits agent discovery
+and execution but never bypasses Confirm/YOLO. Native Gmail, Calendar, Slack,
+Notion, GitHub, and Drive rows also expose memory auto-fetch and per-connection
+last-success/error health. The page identifies whether realtime triggers are
+connected or periodic polling is carrying observation.
 
 Memory shows what is stored, how much, and where each entry came from. An entry
 that originated outside the machine is labelled untrusted rather than shown as

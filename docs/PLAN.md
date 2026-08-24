@@ -99,11 +99,19 @@ Exit criteria:
 4. Select and integrate a memory foundation after an upstream bakeoff.
 5. Add event ingestion and a small current-world summary.
 
+Implemented extension: built-in Composio Connect lifecycle, dynamic scoped tool
+broker, six native memory providers with per-connection cursor/health state,
+and realtime/signed-webhook trigger ingestion into ARC.
+
 Exit criteria:
 
 - external data is never blindly injected into the prompt;
 - read/write flows are tested with account sandboxes;
 - reconnect, revoked OAuth, duplicate writes, and idempotency are covered.
+- Chat and Voice share dynamic account-tool schemas and the Gateway policy path;
+- Gmail, Calendar, Slack, Notion, GitHub, and Drive sync independently and a
+  failing provider remains visible without stopping the others;
+- trigger payloads are deduplicated, enveloped, and journaled as untrusted.
 
 ## Phase 6 — proactive behaviour and the mind
 

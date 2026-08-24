@@ -15,18 +15,21 @@ import {
   Gauge,
   History,
   House,
+  Link2,
   Lightbulb,
   Info,
   Mic,
   Pause,
   Play,
   Radio,
+  RefreshCw,
   Route,
   Server,
   ShieldAlert,
   Sparkles,
   SquareTerminal,
   Trash2,
+  Unplug,
   Users,
   Waves,
   Wifi,
@@ -97,6 +100,8 @@ import {
 } from './store/session-metrics'
 import { haptic } from './lib/haptics'
 import type {
+  AccountPage,
+  AccountToolkit,
   FaceLibrary,
   AuxiliaryPage,
   AuxiliaryRole,
@@ -1364,39 +1369,103 @@ function MemoryPanel(): React.JSX.Element {
 }
 
 function AccountsPanel(): React.JSX.Element {
-  const [accounts, setAccounts] = useState<ConnectedAccount[]>([])
-  const [detail, setDetail] = useState('Loading')
-  const [available, setAvailable] = useState(true)
+  const [page, setPage] = useState<AccountPage | null>(null)
+  const [catalog, setCatalog] = useState<AccountToolkit[]>([])
   const [loaded, setLoaded] = useState(false)
+  const [query, setQuery] = useState('')
+  const [busy, setBusy] = useState('')
+  const [notice, setNotice] = useState('')
+  const [deleteArmed, setDeleteArmed] = useState('')
+  const [projectKey, setProjectKey] = useState('')
+
+  const load = useCallback(async (): Promise<void> => {
+    const next = await window.marvi?.getAccounts()
+    if (!next) return
+    setPage(next)
+    setLoaded(true)
+    if (next.available && catalog.length === 0) {
+      setCatalog((await window.marvi?.getAccountCatalog()) ?? [])
+    }
+  }, [catalog.length])
 
   useEffect(() => {
     let disposed = false
-    const load = async (): Promise<void> => {
-      const page = await window.marvi?.getAccounts()
-      if (disposed || !page) return
-      setAccounts(page.accounts)
-      setDetail(page.detail)
-      setAvailable(page.available)
-      setLoaded(true)
+    const update = async (): Promise<void> => {
+      if (!disposed) await load()
     }
-    void load()
-    const timer = setInterval(() => void load(), 30_000)
+    void update()
+    const timer = setInterval(() => void update(), 10_000)
     return () => {
       disposed = true
       clearInterval(timer)
     }
-  }, [])
+  }, [load])
+
+  const act = useCallback(
+    async (key: string, work: () => Promise<boolean | { ok: boolean; detail: string }>): Promise<void> => {
+      setBusy(key)
+      setNotice('')
+      const result = await work()
+      const ok = typeof result === 'boolean' ? result : result.ok
+      setNotice(
+        typeof result === 'boolean'
+          ? ok
+            ? 'Account settings updated.'
+            : 'The account service refused that change.'
+          : result.detail
+      )
+      setBusy('')
+      if (ok) await load()
+    },
+    [load]
+  )
+
+  const accounts = page?.accounts ?? []
+  const available = page?.available ?? true
+  const existing = new Set(accounts.map((row) => row.toolkit))
+  const priority = ['gmail', 'googlecalendar', 'slack', 'notion', 'github', 'googledrive']
+  const connectable = catalog
+    .filter((row) => !existing.has(row.slug))
+    .filter((row) => {
+      const needle = query.trim().toLowerCase()
+      return !needle || `${row.name} ${row.slug} ${row.description}`.toLowerCase().includes(needle)
+    })
+    .sort((a, b) => {
+      const ai = priority.indexOf(a.slug)
+      const bi = priority.indexOf(b.slug)
+      if (ai !== -1 || bi !== -1) return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
+      return a.name.localeCompare(b.name)
+    })
+    .slice(0, query ? 20 : 6)
+
+  const syncFor = (account: ConnectedAccount): AccountPage['sync']['connections'][number] | undefined =>
+    page?.sync.connections.find(
+      (row) => row.toolkit === account.toolkit && (!account.id || row.connectionId === account.id)
+    )
 
   return (
-    <ControlPage description="Services connected through the account broker." title="Accounts">
-      <ControlSection icon={Users} title="Connected accounts">
+    <ControlPage
+      className="accounts-page"
+      description="Connect services, set ARC's authority, and control what enters memory."
+      title="Accounts"
+    >
+      <ControlSection
+        action={
+          <ControlPill tone={page?.triggers.connected ? 'ready' : 'neutral'}>
+            {page?.triggers.connected ? 'LIVE EVENTS' : 'POLLING'}
+          </ControlPill>
+        }
+        description="OAuth stays with Composio; credentials never enter Marvi OS."
+        icon={Users}
+        title="Connected accounts"
+      >
         {!loaded ? (
           <ProcessingCard compact detail="Checking connected accounts." title="Loading accounts" />
         ) : accounts.length === 0 ? (
           <ControlEmpty
             description={
               available
-                ? 'Connect an account to make its tools available on demand.'
+                ? 'Choose a service below. Every new connection starts read-only.'
                 : 'Configure the account service before connecting an account.'
             }
             icon={Users}
@@ -1407,30 +1476,210 @@ function AccountsPanel(): React.JSX.Element {
             <ControlRow
               action={
                 <ControlPill tone={available ? 'ready' : 'warning'}>
-                  {available ? detail : 'Not configured'}
+                  {available ? page?.detail : 'Not configured'}
                 </ControlPill>
               }
               title="Account service"
             />
-            {accounts.map((account) => (
-              <ControlRow
-                action={
-                  <ControlPill tone={account.connected ? 'ready' : 'danger'}>
-                    {account.connected ? 'Connected' : account.status}
-                  </ControlPill>
-                }
-                description={
-                  account.needsReconnect
-                    ? 'Authorisation ended. Reconnect this account with the account provider.'
-                    : 'Available for on-demand retrieval and actions.'
-                }
-                key={account.toolkit}
-                title={account.toolkit}
-              />
-            ))}
+            {accounts.map((account) => {
+              const sync = syncFor(account)
+              const key = account.id || account.toolkit
+              const label = catalog.find((row) => row.slug === account.toolkit)?.name ?? account.toolkit
+              return (
+                <ControlRow
+                  action={
+                    <div className="account-row-controls">
+                      <div aria-label={`${label} capability`} className="account-scope" role="group">
+                        {(['read', 'write', 'admin'] as const).map((scope) => (
+                          <button
+                            aria-pressed={account.scope === scope}
+                            disabled={busy === key}
+                            key={scope}
+                            onClick={() =>
+                              void act(key, () =>
+                                window.marvi!.setAccountPolicy(account.toolkit, { scope })
+                              )
+                            }
+                            type="button"
+                          >
+                            {scope}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="account-actions">
+                        <ControlButton
+                          disabled={busy === key || !account.connected}
+                          onClick={() =>
+                            void act(key, () =>
+                              window.marvi!.syncAccount(account.toolkit, account.id)
+                            )
+                          }
+                          title="Fetch new memory now"
+                        >
+                          <RefreshCw aria-hidden="true" /> Sync
+                        </ControlButton>
+                        {account.needsReconnect ? (
+                          <ControlButton
+                            disabled={busy === key}
+                            onClick={() =>
+                              void act(key, () => window.marvi!.refreshAccount(account.id))
+                            }
+                          >
+                            <Link2 aria-hidden="true" /> Reconnect
+                          </ControlButton>
+                        ) : (
+                          <ControlButton
+                            disabled={busy === key || !account.id}
+                            onClick={() =>
+                              void act(key, () =>
+                                window.marvi!.setAccountEnabled(account.id, !account.connected)
+                              )
+                            }
+                          >
+                            <Unplug aria-hidden="true" /> {account.connected ? 'Disable' : 'Enable'}
+                          </ControlButton>
+                        )}
+                        <ControlButton
+                          destructive={deleteArmed === key}
+                          disabled={busy === key || !account.id}
+                          onClick={() => {
+                            if (deleteArmed !== key) {
+                              setDeleteArmed(key)
+                              setNotice(`Press Remove again to revoke ${label}.`)
+                              return
+                            }
+                            setDeleteArmed('')
+                            void act(key, () => window.marvi!.deleteAccount(account.id))
+                          }}
+                        >
+                          <Trash2 aria-hidden="true" /> {deleteArmed === key ? 'Confirm remove' : 'Remove'}
+                        </ControlButton>
+                      </div>
+                    </div>
+                  }
+                  description={
+                    <span className="account-health-line">
+                      <ControlPill tone={account.connected ? 'ready' : 'danger'}>
+                        {account.connected ? 'CONNECTED' : account.status.toUpperCase()}
+                      </ControlPill>
+                      <span>
+                        {account.syncEnabled ? 'Memory on' : 'Memory off'} ·{' '}
+                        {sync?.lastSuccessAt
+                          ? `last sync ${new Date(sync.lastSuccessAt).toLocaleString()}`
+                          : 'not synced yet'}
+                        {sync?.lastError ? ` · ${sync.lastError}` : ''}
+                      </span>
+                    </span>
+                  }
+                  key={key}
+                  title={label}
+                >
+                  <button
+                    aria-pressed={account.syncEnabled}
+                    className="account-memory-toggle"
+                    disabled={busy === key}
+                    onClick={() =>
+                      void act(key, () =>
+                        window.marvi!.setAccountPolicy(account.toolkit, {
+                          sync_enabled: !account.syncEnabled
+                        })
+                      )
+                    }
+                    type="button"
+                  >
+                    {account.syncEnabled ? 'Stop memory auto-fetch' : 'Enable memory auto-fetch'}
+                  </button>
+                </ControlRow>
+              )
+            })}
           </>
         )}
       </ControlSection>
+
+      {!available && loaded ? (
+        <ControlSection
+          description="One Marvi project key enables hosted OAuth. Connected-service passwords and tokens never enter Marvi OS."
+          icon={Link2}
+          title="Connect Composio"
+        >
+          <div className="account-configure">
+            <label htmlFor="composio-project-key">Project API key</label>
+            <input
+              autoComplete="off"
+              id="composio-project-key"
+              onChange={(event) => setProjectKey(event.target.value)}
+              placeholder="Paste a Composio project key"
+              type="password"
+              value={projectKey}
+            />
+            <ControlButton
+              disabled={busy === 'configure' || projectKey.trim().length < 8}
+              onClick={() =>
+                void act('configure', async () => {
+                  const result = await window.marvi!.configureAccounts(projectKey)
+                  if (result.ok) setProjectKey('')
+                  return result
+                })
+              }
+            >
+              <Link2 aria-hidden="true" /> Connect account service
+            </ControlButton>
+          </div>
+        </ControlSection>
+      ) : null}
+
+      {available ? (
+        <ControlSection
+          description="The first six have native ARC memory providers; every connected service gets dynamic tools."
+          icon={Link2}
+          title="Connect a service"
+        >
+          <div className="account-catalog-search">
+            <label htmlFor="account-search">Find a toolkit</label>
+            <input
+              id="account-search"
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Slack, GitHub, Drive…"
+              type="search"
+              value={query}
+            />
+          </div>
+          {connectable.length ? (
+            connectable.map((toolkit) => (
+              <ControlRow
+                action={
+                  <ControlButton
+                    disabled={busy === `connect:${toolkit.slug}`}
+                    onClick={() =>
+                      void act(`connect:${toolkit.slug}`, () =>
+                        window.marvi!.connectAccount(toolkit.slug)
+                      )
+                    }
+                  >
+                    <Link2 aria-hidden="true" /> Connect
+                  </ControlButton>
+                }
+                description={toolkit.description || `Connect ${toolkit.name} through Composio.`}
+                key={toolkit.slug}
+                title={
+                  <span className="account-catalog-title">
+                    {toolkit.name}
+                    {toolkit.nativeMemory ? <ControlPill tone="accent">ARC MEMORY</ControlPill> : null}
+                  </span>
+                }
+              />
+            ))
+          ) : (
+            <ControlEmpty
+              description={query ? 'Try a broader service name.' : 'Every listed service is connected.'}
+              icon={Link2}
+              title={query ? 'No matching toolkit' : 'Catalog connected'}
+            />
+          )}
+        </ControlSection>
+      ) : null}
+
+      {notice ? <p aria-live="polite" className="account-notice">{notice}</p> : null}
     </ControlPage>
   )
 }

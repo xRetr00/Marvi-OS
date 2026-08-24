@@ -1017,3 +1017,33 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   labels, hover inspection, force-linked drag response, and reset view. All 231
   desktop tests, all 886 Gateway tests, the 6 voice catalogue/recall tests,
   typecheck, Ruff, and `git diff --check` pass.
+
+## 2026-08-24 — Built-in accounts and ARC world context
+
+- Replaced the status-only Accounts projection and three fixed Composio actions
+  with a built-in hosted-OAuth lifecycle: project-key validation, toolkit
+  catalog, connect/reconnect, enable/disable, revoke, and audited control-center
+  actions. Electron opens only allowlisted HTTPS Composio Connect URLs.
+- Added a stable account-tool discovery/execution broker over official live raw
+  schemas. Per-toolkit read/write/admin ceilings filter discovery and are
+  rechecked at execution; dynamic writes/admin inherit exact-argument
+  confirmation, idempotency, and audit. Chat and Voice preserve the broker's
+  nested JSON argument schema.
+- Added a native memory-provider registry for Gmail, Google Calendar, Slack,
+  Notion, GitHub, and Google Drive. Each connection owns its cursor, content
+  fingerprints, attempt/success/error timestamps, and counts; one provider
+  failure cannot stop the others.
+- Added local realtime Composio trigger subscription and optional signed-webhook
+  parsing. Trigger payloads are identity-checked, deduplicated, stored and
+  journaled as untrusted external data, and can prompt an immediate bounded
+  provider sync.
+- Rebuilt Accounts as a compact control-center surface for lifecycle, authority,
+  memory auto-fetch, manual sync, and trigger/sync health. No provider OAuth
+  credential crosses the renderer or enters Marvi storage.
+- Verified 896 Gateway tests, 125 LiveKit agent tests, 233 desktop tests,
+  desktop typecheck/production build, Gateway and agent Ruff, and ESLint with
+  zero errors (the repository's existing Windows line-ending warnings remain).
+  `git diff --check` also passes. Playwright visual checks at 1180×760 and 760×700
+  covered active/reconnect rows, capability controls, native-provider catalog,
+  and first-run project-key setup; the narrow pass exposed and removed a
+  duplicate Connect action for an account already waiting to reconnect.

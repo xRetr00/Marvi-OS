@@ -30,10 +30,51 @@ export interface RoomEvent {
 }
 
 export interface ConnectedAccount {
+  id: string
   toolkit: string
   status: string
   connected: boolean
   needsReconnect: boolean
+  alias: string
+  scope: 'read' | 'write' | 'admin'
+  syncEnabled: boolean
+}
+
+export interface AccountToolkit {
+  slug: string
+  name: string
+  description: string
+  logo: string
+  nativeMemory: boolean
+}
+
+export interface AccountSyncState {
+  toolkit: string
+  connectionId: string
+  cursor: string
+  status: string
+  lastAttemptAt: string | null
+  lastSuccessAt: string | null
+  lastError: string
+  itemsSeen: number
+  lastCount: number
+}
+
+export interface AccountPage {
+  available: boolean
+  detail: string
+  accounts: ConnectedAccount[]
+  sync: {
+    providers: Array<{ toolkit: string; label: string }>
+    connections: AccountSyncState[]
+  }
+  triggers: {
+    connected: boolean
+    received: number
+    lastEventAt: string | null
+    lastError: string
+    transport: string
+  }
 }
 
 export interface MemoryEntry {

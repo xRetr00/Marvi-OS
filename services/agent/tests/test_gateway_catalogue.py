@@ -65,6 +65,32 @@ async def test_the_schema_carries_what_is_required() -> None:
     assert set(schema["parameters"]["properties"]) == {"query", "limit"}
 
 
+async def test_voice_preserves_gateway_object_arguments_for_account_tools() -> None:
+    payload = {
+        "tools": [
+            {
+                "name": "account_tool_execute",
+                "description": "Execute a discovered account tool",
+                "arguments": ["arguments", "tool"],
+                "optional": [],
+                "sensitive": False,
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "tool": {"type": "string"},
+                        "arguments": {"type": "object", "additionalProperties": True},
+                    },
+                    "required": ["tool", "arguments"],
+                },
+            }
+        ]
+    }
+
+    built = await GatewayTools(client=gateway(payload=payload)).from_gateway()
+
+    assert built[0].info.raw_schema["parameters"]["properties"]["arguments"]["type"] == "object"
+
+
 async def test_calling_one_goes_through_the_gateway(monkeypatch) -> None:
     """Not around it. `/tools/{name}` is the one path with the confirmation
     flow and the audit line on it."""

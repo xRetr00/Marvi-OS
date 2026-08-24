@@ -93,9 +93,22 @@ class Initiative:
         if self.ingest is None:
             return {"ingested": []}
         result = self.ingest.poll()
-        for subject in result.get("ingested", []):
-            kind = "calendar" if subject.startswith("Event:") else "email"
-            self.journal.append("accounts", kind, subject, {"id": subject}, trusted=False)
+        events = result.get("events", [])
+        if events:
+            for event in events:
+                toolkit = str(event.get("toolkit", "account"))
+                self.journal.append(
+                    f"accounts:{toolkit}",
+                    toolkit,
+                    str(event.get("subject", toolkit)),
+                    event,
+                    trusted=False,
+                )
+        else:
+            # Compatibility with third-party/older ingestion adapters.
+            for subject in result.get("ingested", []):
+                kind = "calendar" if subject.startswith("Event:") else "email"
+                self.journal.append("accounts", kind, subject, {"id": subject}, trusted=False)
         return result
 
     def run_mind(self) -> dict[str, Any]:

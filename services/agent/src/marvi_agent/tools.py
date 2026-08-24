@@ -416,6 +416,18 @@ class GatewayTools:
                 continue
             required = [a for a in (entry.get("arguments") or []) if isinstance(a, str)]
             optional = [a for a in (entry.get("optional") or []) if isinstance(a, str)]
+            published_schema = entry.get("input_schema")
+            parameters = (
+                published_schema
+                if isinstance(published_schema, dict) and published_schema.get("type") == "object"
+                else {
+                    "type": "object",
+                    "properties": {
+                        argument: {"type": "string"} for argument in [*required, *optional]
+                    },
+                    "required": required,
+                }
+            )
 
             def caller(raw_arguments: dict[str, Any], _name: str = name) -> Any:
                 return self._call(_name, raw_arguments)
@@ -426,17 +438,7 @@ class GatewayTools:
                     raw_schema={
                         "name": name,
                         "description": str(entry.get("description") or name),
-                        "parameters": {
-                            "type": "object",
-                            # The Gateway reports argument names and which are
-                            # required. It does not report their types here, and
-                            # a string the handler coerces beats a type invented
-                            # on this side and rejected on the other.
-                            "properties": {
-                                argument: {"type": "string"} for argument in [*required, *optional]
-                            },
-                            "required": required,
-                        },
+                        "parameters": parameters,
                     },
                 )
             )
