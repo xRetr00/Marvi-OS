@@ -99,11 +99,19 @@ Exit criteria:
 4. Select and integrate a memory foundation after an upstream bakeoff.
 5. Add event ingestion and a small current-world summary.
 
+Implemented extension: built-in Composio Connect lifecycle, dynamic scoped tool
+broker, six native memory providers with per-connection cursor/health state,
+and realtime/signed-webhook trigger ingestion into ARC.
+
 Exit criteria:
 
 - external data is never blindly injected into the prompt;
 - read/write flows are tested with account sandboxes;
 - reconnect, revoked OAuth, duplicate writes, and idempotency are covered.
+- Chat and Voice share dynamic account-tool schemas and the Gateway policy path;
+- Gmail, Calendar, Slack, Notion, GitHub, and Drive sync independently and a
+  failing provider remains visible without stopping the others;
+- trigger payloads are deduplicated, enveloped, and journaled as untrusted.
 
 ## Phase 6 — proactive behaviour and the mind
 
@@ -138,6 +146,9 @@ The durable job bridge to Marvi Agent was dropped from this phase; see
    windows cannot be compared and mostly cannot be read back. Credit and window
    limits are displayed, not used for control.
 4. `SOUL.md` and `USER.md`, composed into the prompt under a token budget.
+5. Every background cognition call declares `job="aux"`: ARC mind/presence use
+   the `mind` role, reflection uses `memory`, and Auto resolves to the active
+   provider's auxiliary default rather than its main conversation model.
 
 Full plan and research in `phases/09-providers-identity.md`.
 
@@ -154,8 +165,11 @@ Full plan and research in `phases/09-providers-identity.md`.
    or yours to do. The line: anything that spends money, takes real time,
    downloads at scale, or touches another process is a decision, not a repair.
 4. Retry is bounded, jittered, and never applied to an external write.
+5. ARC/provider diagnostics correlate jobs and calls with route, model, timing,
+   usage, counts, and outcome while excluding prompts, completions, memory
+   bodies, and account payloads.
 
-5. `SOUL.md` ships with Marvi and Marvi never writes it; `USER.md` starts empty
+6. `SOUL.md` ships with Marvi and Marvi never writes it; `USER.md` starts empty
    and Marvi fills it by listening, asking at most one rationed question when
    the moment suits.
 

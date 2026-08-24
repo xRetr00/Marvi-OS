@@ -7,12 +7,15 @@ import type {
   ChatPage,
   ChatReply,
   ChatThread,
-  ConnectedAccount,
+  AccountPage,
+  AccountToolkit,
   DoctorReport,
   HardwareAnswer,
   IdentityStatus,
   InitiativeStatus,
   McpServerRow,
+  MemoryGraphMode,
+  MemoryGraphPage,
   MemoryPage,
   MindDecision,
   ModelPage,
@@ -85,12 +88,20 @@ export interface MarviDesktopApi {
   checkForUpdate: () => Promise<UpdateCheck>
   startUpdate: () => Promise<boolean>
   getMemory: () => Promise<MemoryPage>
+  getMemoryGraph: (mode: MemoryGraphMode) => Promise<MemoryGraphPage>
   clearMemory: () => Promise<boolean>
-  getAccounts: () => Promise<{
-    available: boolean
-    detail: string
-    accounts: ConnectedAccount[]
-  }>
+  getAccounts: () => Promise<AccountPage>
+  getAccountCatalog: () => Promise<AccountToolkit[]>
+  configureAccounts: (apiKey: string) => Promise<{ ok: boolean; detail: string }>
+  connectAccount: (toolkit: string) => Promise<{ ok: boolean; detail: string }>
+  refreshAccount: (connectionId: string) => Promise<{ ok: boolean; detail: string }>
+  setAccountEnabled: (connectionId: string, enabled: boolean) => Promise<boolean>
+  deleteAccount: (connectionId: string) => Promise<boolean>
+  setAccountPolicy: (
+    toolkit: string,
+    update: { scope?: 'read' | 'write' | 'admin'; sync_enabled?: boolean }
+  ) => Promise<boolean>
+  syncAccount: (toolkit?: string, connectionId?: string) => Promise<boolean>
   getChat: (threadId?: string) => Promise<ChatPage>
   getChatThreads: (archived?: boolean) => Promise<ChatThread[]>
   createChatThread: (title?: string) => Promise<ChatThread | null>

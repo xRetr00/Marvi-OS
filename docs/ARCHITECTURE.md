@@ -76,6 +76,49 @@ Marvi Gateway is the only backend address known to the renderer. It owns:
 - memory access;
 - update/status information.
 
+### ARC: memory, mind, and subconscious cycle
+
+ARC is the product name for Marvi's existing Gateway-owned cognition boundary,
+not another agent process. It has three stages:
+
+1. **Observe** — trusted and untrusted events enter the durable journal with
+   provenance; memories remain episodic or semantic in the local SQLite store.
+2. **Reflect** — the policy-bounded mind selects the least intrusive useful
+   surface and the scheduled reflection pass promotes stable repetition.
+3. **Commit** — decisions, memories, relationships, and audit evidence are
+   written by the Gateway. Tool side effects still pass through confirmation
+   or the visible YOLO mode.
+
+The initiative scheduler is ARC's subconscious loop: bounded ingest, mind,
+reflection, and consolidation jobs. An idle tick is a no-op, failures remain
+visible, and no cognition runs in React. The control center reads a projection
+from `/arc/memory/graph`; it never receives a SQLite handle or mutation
+authority. Tree mode groups memories by provenance, while Connections mode
+shows explicit entity relationships.
+
+Every LLM-assisted ARC operation is an auxiliary job. Mind deliberation and
+presence judgement use the `mind` role; scheduled and manual reflection use the
+`memory` role. A role pinned in Models → Auxiliary selects that provider/model;
+Auto uses the active provider's `default_aux_model`. Deterministic memory
+search, ingest, graph projection, and consolidation do not call an LLM.
+Provider calls and ARC jobs record route, model, timing, usage, outcome, and
+stable event/call identifiers in the rotating subsystem logs without recording
+prompts, completions, memory bodies, or external account payloads.
+
+Gmail, Google Calendar, Slack, Notion, GitHub, and Google Drive are native
+memory providers. The bounded ingest tick runs each active connection with its
+own durable cursor, content fingerprint set, last success/error, and item
+counts. New or changed items are written to durable memory as untrusted external
+content and enter the journal for the subconscious policy loop. Realtime
+Composio triggers take the same route, can prompt an immediate provider sync,
+and never become instructions. `memory_recall` is the
+canonical read-only Gateway tool: typed Chat receives it from the same registry
+that publishes `/tools`, and the LiveKit voice worker's spoken `recall` adapter
+invokes that published tool route.
+`memory_search` remains a compatibility alias. This native tool is preferred to
+adding an in-process MCP server; external MCP clients can still reach Gateway
+tools through the existing bridge boundary.
+
 It does not implement RTC, STT, TTS, home automation, OAuth providers, or model
 inference itself.
 
@@ -148,16 +191,32 @@ Room failures must degrade the room panel without disabling voice.
 
 ## Accounts and world context
 
-Composio supplies supported OAuth connections and actions. Marvi OS stores only
-connection identifiers and local projections needed for status, retrieval, and
-audit. External content is retrieved on demand or ingested as bounded events;
-it is not dumped wholesale into the voice prompt.
+Composio supplies hosted OAuth connections and actions. Electron asks Gateway
+for a Connect Link and opens only an HTTPS `*.composio.dev` URL in the system
+browser. Gateway owns reconnect, enable/disable, revoke, sync, and audit; Marvi
+stores connection identifiers and local policy/sync projections, never provider
+tokens. The Composio project key can be entered in Accounts, is validated before
+being written to the existing local provider-settings store, is never returned
+to the renderer, and activates the broker and trigger listener without a
+Gateway restart.
+
+The stable `account_tool_search` and `account_tool_execute` broker tools expose
+the live Composio catalog without loading hundreds of schemas into every LLM
+turn. Search returns only tools permitted by the toolkit's user-selected
+read/write/admin ceiling. Execution re-resolves the schema and scope. Reads are
+wrapped as untrusted; write/admin calls dynamically inherit confirmation,
+external-write idempotency, and audit. Typed Chat and LiveKit Voice receive the
+same nested JSON schema from `/tools` and call the same Gateway route.
 
 World context has three layers:
 
 1. A tiny live summary for immediate conversational awareness.
 2. Retrieval tools for current detail.
 3. A normalized event/memory store for durable history.
+
+Typed Chat also performs bounded automatic recall from the current user turn;
+voice recalls on demand through its spoken tool so the realtime prompt remains
+small. Both paths preserve the untrusted envelope stored by the memory service.
 
 ## Confirmation protocol
 

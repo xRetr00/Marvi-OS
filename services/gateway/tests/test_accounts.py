@@ -13,6 +13,7 @@ from httpx import ASGITransport, AsyncClient
 from marvi_gateway.accounts import (
     AccountAuthError,
     AccountRateLimitedError,
+    AccountStateStore,
     AccountsUnavailableError,
     AccountTransientError,
     ComposioAccounts,
@@ -146,9 +147,13 @@ def test_an_unsuccessful_payload_is_an_error_not_a_result() -> None:
 # -- router integration -----------------------------------------------------
 
 
-def build(sdk, tmp_path, yolo=False):
+def build(sdk, tmp_path, yolo=False, scope="read"):
     registry = ToolRegistry()
-    register_account_tools(registry, ComposioAccounts(key="k", client=sdk))
+    accounts = ComposioAccounts(
+        key="k", client=sdk, state=AccountStateStore(tmp_path / "accounts.sqlite3")
+    )
+    accounts.state.update("gmail", scope=scope)
+    register_account_tools(registry, accounts)
     runtime = RuntimeStore(audit_path=tmp_path / "audit.jsonl")
     runtime.set_yolo(yolo)
     app = create_app(version="0.1.0-test", runtime=runtime, tools=registry)
@@ -228,7 +233,7 @@ async def test_a_reconnected_account_starts_working_again(tmp_path) -> None:
 @pytest.mark.asyncio
 async def test_sending_email_requires_confirmation_and_is_deduplicated(tmp_path) -> None:
     sdk = FakeSdk(execute_result={"successful": True, "data": {"id": "msg-1"}})
-    client, _ = build(sdk, tmp_path)
+    client, _ = build(sdk, tmp_path, scope="write")
     args = {"recipient_email": "a@x.com", "subject": "hi", "body": "there"}
     async with client:
         asked = await client.post("/tools/send_email", json={"arguments": args})
@@ -247,7 +252,7 @@ async def test_sending_email_requires_confirmation_and_is_deduplicated(tmp_path)
 @pytest.mark.asyncio
 async def test_a_denied_send_never_reaches_the_provider(tmp_path) -> None:
     sdk = FakeSdk()
-    client, _ = build(sdk, tmp_path)
+    client, _ = build(sdk, tmp_path, scope="write")
     args = {"recipient_email": "a@x.com", "subject": "hi", "body": "there"}
     async with client:
         asked = await client.post("/tools/send_email", json={"arguments": args})

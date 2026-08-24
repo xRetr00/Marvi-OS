@@ -64,7 +64,9 @@ import {
   updateInProgress,
   updateStateDir
 } from './updater'
+import { isComposioConnectUrl, normaliseAccountPage } from './account-runtime'
 import type {
+  AccountToolkit,
   AssistantState,
   ModelPage,
   ProviderPage,
@@ -1166,6 +1168,18 @@ function startApp(): void {
         return { total: 0, entries: [], summary: {} }
       }
     })
+    ipcMain.handle('marvi:get-memory-graph', async (_event, requestedMode) => {
+      const mode = requestedMode === 'contacts' ? 'contacts' : 'tree'
+      try {
+        const response = await fetch(`${gateway()}/arc/memory/graph?mode=${mode}&limit=1000`, {
+          signal: AbortSignal.timeout(3_000)
+        })
+        if (!response.ok) return { mode, nodes: [], edges: [] }
+        return await response.json()
+      } catch {
+        return { mode, nodes: [], edges: [] }
+      }
+    })
     ipcMain.handle('marvi:clear-memory', async () => {
       try {
         const response = await fetch(`${gateway()}/memory`, {
@@ -1178,29 +1192,108 @@ function startApp(): void {
       }
     })
     ipcMain.handle('marvi:get-accounts', async () => {
-      try {
-        const response = await fetch(`${gateway()}/accounts`, {
-          signal: AbortSignal.timeout(5_000)
-        })
-        if (!response.ok) return { available: false, detail: 'Gateway unavailable', accounts: [] }
-        const body = (await response.json()) as {
-          available?: boolean
-          detail?: string
-          accounts?: Array<Record<string, unknown>>
-        }
-        return {
-          available: Boolean(body.available),
-          detail: typeof body.detail === 'string' ? body.detail : '',
-          accounts: (body.accounts ?? []).map((row) => ({
-            toolkit: String(row.toolkit ?? ''),
-            status: String(row.status ?? ''),
-            connected: Boolean(row.connected),
-            needsReconnect: Boolean(row.needs_reconnect)
-          }))
-        }
-      } catch {
-        return { available: false, detail: 'Gateway unavailable', accounts: [] }
+      const body = await gatewayJson('/accounts', undefined, 8_000)
+      return normaliseAccountPage(
+        body ?? { available: false, detail: 'Gateway unavailable', accounts: [] }
+      )
+    })
+    ipcMain.handle('marvi:get-account-catalog', async (): Promise<AccountToolkit[]> => {
+      const body = (await gatewayJson('/accounts/catalog?limit=100', undefined, 15_000)) as
+        | { toolkits?: Array<Record<string, unknown>> }
+        | null
+      return (body?.toolkits ?? []).map((row) => ({
+        slug: String(row.slug ?? ''),
+        name: String(row.name ?? row.slug ?? ''),
+        description: String(row.description ?? ''),
+        logo: String(row.logo ?? ''),
+        nativeMemory: Boolean(row.native_memory)
+      }))
+    })
+    ipcMain.handle('marvi:configure-accounts', async (_event, apiKey) => {
+      if (typeof apiKey !== 'string' || apiKey.trim().length < 8) {
+        return { ok: false, detail: 'Enter a Composio project API key' }
       }
+      const body = await gatewayJson('/accounts/config', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ api_key: apiKey.trim() })
+      }, 15_000)
+      return body
+        ? { ok: true, detail: 'Composio connected. Provider credentials stay in Composio.' }
+        : { ok: false, detail: 'Composio rejected that project key.' }
+    })
+    ipcMain.handle('marvi:connect-account', async (_event, toolkit) => {
+      if (typeof toolkit !== 'string' || !toolkit) return { ok: false, detail: 'Choose an account' }
+      const body = (await gatewayJson('/accounts/connect', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ toolkit })
+      })) as { redirect_url?: string } | null
+      const url = String(body?.redirect_url ?? '')
+      if (!isComposioConnectUrl(url)) return { ok: false, detail: 'Invalid authorization URL' }
+      await shell.openExternal(url)
+      return { ok: true, detail: 'Finish authorization in your browser' }
+    })
+    ipcMain.handle('marvi:refresh-account', async (_event, connectionId) => {
+      if (typeof connectionId !== 'string' || !connectionId) {
+        return { ok: false, detail: 'Missing connection' }
+      }
+      const body = (await gatewayJson(
+        `/accounts/${encodeURIComponent(connectionId)}/refresh`,
+        { method: 'POST' }
+      )) as { redirect_url?: string } | null
+      const url = String(body?.redirect_url ?? '')
+      if (url && isComposioConnectUrl(url)) {
+        await shell.openExternal(url)
+        return { ok: true, detail: 'Finish reconnecting in your browser' }
+      }
+      return { ok: body !== null, detail: body ? 'Connection refreshed' : 'Refresh failed' }
+    })
+    ipcMain.handle('marvi:set-account-enabled', async (_event, connectionId, enabled) => {
+      if (typeof connectionId !== 'string' || typeof enabled !== 'boolean') return false
+      return (
+        (await gatewayJson(`/accounts/${encodeURIComponent(connectionId)}/enabled`, {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ enabled })
+        })) !== null
+      )
+    })
+    ipcMain.handle('marvi:delete-account', async (_event, connectionId) => {
+      if (typeof connectionId !== 'string' || !connectionId) return false
+      return (
+        (await gatewayJson(`/accounts/${encodeURIComponent(connectionId)}`, {
+          method: 'DELETE'
+        })) !== null
+      )
+    })
+    ipcMain.handle('marvi:set-account-policy', async (_event, toolkit, update) => {
+      if (typeof toolkit !== 'string' || typeof update !== 'object' || update === null) return false
+      const safe: Record<string, unknown> = {}
+      if (update.scope === 'read' || update.scope === 'write' || update.scope === 'admin') {
+        safe.scope = update.scope
+      }
+      if (typeof update.sync_enabled === 'boolean') safe.sync_enabled = update.sync_enabled
+      return (
+        (await gatewayJson(`/accounts/policy/${encodeURIComponent(toolkit)}`, {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(safe)
+        })) !== null
+      )
+    })
+    ipcMain.handle('marvi:sync-account', async (_event, toolkit, connectionId) => {
+      const payload = {
+        toolkit: typeof toolkit === 'string' && toolkit ? toolkit : null,
+        connection_id: typeof connectionId === 'string' && connectionId ? connectionId : null
+      }
+      return (
+        (await gatewayJson('/accounts/sync', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(payload)
+        }, 60_000)) !== null
+      )
     })
     ipcMain.handle('marvi:get-schedules', () => gatewayJson('/schedules'))
     ipcMain.handle('marvi:add-schedule', (_event, body) =>
@@ -1708,10 +1801,7 @@ function startApp(): void {
     ipcMain.handle('marvi:get-wake-autostart', async () => wakeAutostart('status'))
     ipcMain.handle('marvi:set-wake-autostart', async (_event, enabled, device) => {
       if (typeof enabled !== 'boolean') return wakeAutostart('status')
-      return wakeAutostart(
-        enabled ? 'enable' : 'disable',
-        typeof device === 'string' ? device : ''
-      )
+      return wakeAutostart(enabled ? 'enable' : 'disable', typeof device === 'string' ? device : '')
     })
     ipcMain.handle('marvi:get-voices', async (): Promise<VoicePage | null> => {
       try {

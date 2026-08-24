@@ -299,7 +299,7 @@ def _judge(found: list[Signal], unknown: int, client: Any) -> Reading:
             job="aux",
             max_tokens=MAX_OUTPUT_TOKENS,
             temperature=0.1,
-            **auxiliary.overrides("mind"),
+            **auxiliary.fallback_overrides("mind"),
         )
         answer = json.loads((completion.text or "").strip().strip("`").removeprefix("json"))
     except Exception as exc:

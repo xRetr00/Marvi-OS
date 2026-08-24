@@ -44,6 +44,16 @@ class ToolSpec:
     #: where that description lives. Optional, so a tool that has not been
     #: given one still registers; the name alone is what it always had.
     describes: dict[str, str] = field(default_factory=dict)
+    # Some upstream tools have arrays and nested objects which cannot be
+    # represented by the small Python-type map above.  A supplied schema is
+    # passed to providers verbatim while the router still enforces the outer
+    # argument names and types.
+    schema: dict[str, Any] | None = None
+    # Account-broker tools decide confirmation/idempotency from the selected
+    # remote action.  Static tools leave these unset and retain the original
+    # booleans.
+    sensitive_when: Callable[[dict[str, Any]], bool] | None = None
+    external_when: Callable[[dict[str, Any]], bool] | None = None
 
     def summary(self, arguments: dict[str, Any]) -> str:
         """One short human line for the Island and the audit trail."""
@@ -51,6 +61,12 @@ class ToolSpec:
             return self.description
         rendered = ", ".join(f"{key}={value}" for key, value in sorted(arguments.items()))
         return f"{self.description} ({rendered})"
+
+    def is_sensitive(self, arguments: dict[str, Any]) -> bool:
+        return self.sensitive_when(arguments) if self.sensitive_when else self.sensitive
+
+    def is_external(self, arguments: dict[str, Any]) -> bool:
+        return self.external_when(arguments) if self.external_when else self.external
 
 
 def _type_matches(value: Any, expected: type) -> bool:

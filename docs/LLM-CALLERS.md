@@ -11,7 +11,10 @@ Traced from the code, not from memory.
 | Consumer | How it reaches a provider | Through `ProviderClient`? | What identity it sends |
 |---|---|---|---|
 | **Chat** (`chat.py`) | `ProviderClient.call_with_fallback()` | **Yes** | `identity.compose()` — SOUL.md, USER.md, the chat brief, curiosity guidance, plugin context lines |
-| **Mind** (`mind.py` → `deliberate.py`) | `ProviderClient` | **Yes** | its own `SYSTEM_PROMPT` constant |
+| **ARC mind** (`mind.py` → `deliberate.py`) | `ProviderClient.call_with_fallback(job="aux")`, Auxiliary `mind` role | **Yes** | its own bounded decision `SYSTEM_PROMPT` |
+| **Presence judgement** (`presence.py`) | `ProviderClient.call_with_fallback(job="aux")`, Auxiliary `mind` role | **Yes** | a presence-specific bounded prompt |
+| **ARC reflection** (`memory.py` → `distil.py`) | `ProviderClient.call_with_fallback(job="aux")`, Auxiliary `memory` role | **Yes** | repeated subjects/counts only |
+| **Distillation** (`distil.py`) | `ProviderClient.call_with_fallback(job="aux")`, named Auxiliary role | **Yes** | task-specific title/web prompts |
 | **Voice** (`marvi_agent/runtime.py`) | `livekit.plugins.openai.LLM`, direct to the provider | **No** | a hardcoded `instructions=` string in `session.py` |
 | **Vision** (`describe.py`) | raw `httpx.post(f"{base_url}/chat/completions")` | **No** | its own `PROMPT` constant |
 
@@ -20,10 +23,10 @@ Two more that look like LLM users and are not:
 - **Smart room** does not call a model. It is a *tool provider*: the room's
   tools are registered into the router and a model calls them during someone
   else's turn. There is no room turn.
-- **Memory** — `memory.reflect()` takes an optional `summarise` callable and
-  every caller (`initiative.run_reflect`, the `/memory/reflect` endpoint)
-  passes nothing. So reflection is deterministic today, not a model call.
-  Consolidation likewise. Worth knowing before anyone points a model at it.
+- **Memory recall, ingest, graph projection, and consolidation** are
+  deterministic and do not call a model. Reflection first asks the Auxiliary
+  `memory` role to summarise repeated subjects; an absent/failed/empty model
+  result continues through deterministic promotion.
 - **Curiosity** has no client. It picks *which* question is due by rule, and
   appends the wording to the chat prompt for the model already running.
 
@@ -33,8 +36,8 @@ Two more that look like LLM users and are not:
 
 `ProviderClient` is the *intended* one. It owns fallback across providers,
 cooldown after a rejected credential or a 429, token and billable accounting,
-cache policy and limit policy. Chat and Mind go through it. **Voice and Vision
-do not.**
+cache policy, structured route/latency diagnostics and limit policy. Chat, ARC,
+presence, and distillation go through it. **Voice and Vision do not.**
 
 Vision is the further gone of the two: it has its own credentials entirely —
 `MARVI_VLM_BASE_URL` and `MARVI_VLM_API_KEY` — so it is not merely bypassing
@@ -102,8 +105,8 @@ This changes the plan in `PHASE-12-PROVIDERS.md` again, and for the better:
    own env vars. Measure voice first-token latency before and after.
 2. **One harness seam.** `identity.compose()` gains a task parameter and every
    caller uses it. Three string literals are deleted.
-3. Then providers-as-documents, `models.py`, `effort.py`, `ModelChoice`,
-   auxiliary slots — each of which now has exactly one place to be implemented.
+3. Providers-as-documents, model choice, effort, and auxiliary slots now exist;
+   keep every new background caller on the shared `job="aux"` role boundary.
 4. Then the surfaces.
 
 Doing 3 before 1 and 2 means implementing model choice and reasoning effort

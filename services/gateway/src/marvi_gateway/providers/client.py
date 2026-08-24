@@ -26,6 +26,7 @@ import time
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any
+from uuid import uuid4
 
 from .base import (
     ProviderNotConfiguredError,
@@ -244,19 +245,44 @@ class ProviderClient:
         model = model or profile.model_for(job)  # type: ignore[arg-type]
         # An explicit effort wins; otherwise the provider's configured one.
         effort = effort or profile.effort_for()
-        body = profile.build_request(
-            messages,
-            model=model,
-            max_tokens=max_tokens,
-            stream=False,
-            effort=effort,
-            # Caching is on by default: the prefix is identical every turn and
-            # not asking for it is a silent cost.
-            cache_prefix=cache_prefix,
-            temperature=temperature,
-            tools=tools,
-            job=job,
-        )
+        call_id = uuid4().hex[:12]
+        started_at = time.perf_counter()
+        diagnostic = {
+            "marvi_call_id": call_id,
+            "marvi_job": job,
+            "marvi_provider": profile.name,
+            "marvi_model": model,
+            "marvi_message_count": len(messages),
+            "marvi_input_chars": sum(len(str(message.get("content", ""))) for message in messages),
+            "marvi_tool_count": len(tools or []),
+            "marvi_max_tokens": max_tokens or 0,
+        }
+        logger.info("model call started", extra=diagnostic)
+        try:
+            body = profile.build_request(
+                messages,
+                model=model,
+                max_tokens=max_tokens,
+                stream=False,
+                effort=effort,
+                # Caching is on by default: the prefix is identical every turn and
+                # not asking for it is a silent cost.
+                cache_prefix=cache_prefix,
+                temperature=temperature,
+                tools=tools,
+                job=job,
+            )
+        except Exception as exc:
+            logger.warning(
+                "model request build failed",
+                extra={
+                    **diagnostic,
+                    "marvi_latency_ms": round((time.perf_counter() - started_at) * 1000, 2),
+                    "marvi_error": str(exc)[:240],
+                },
+                exc_info=True,
+            )
+            raise ProviderCallError(f"{profile.name} request build failed: {exc}") from exc
         client = self._client()
         try:
             response = client.post(profile.endpoint(), json=body, headers=profile.headers())
@@ -270,21 +296,51 @@ class ProviderClient:
                 raise ProviderCallError(f"{profile.name} rejected the credential")
             response.raise_for_status()
             payload = response.json()
-        except ProviderCallError:
+        except ProviderCallError as exc:
+            logger.warning(
+                "model call failed",
+                extra={
+                    **diagnostic,
+                    "marvi_latency_ms": round((time.perf_counter() - started_at) * 1000, 2),
+                    "marvi_error": str(exc)[:240],
+                },
+            )
             raise
         except Exception as exc:
             self.stand_down(profile.name, DEFAULT_COOLDOWN_SECONDS, f"call failed: {exc}"[:120])
+            logger.warning(
+                "model call failed",
+                extra={
+                    **diagnostic,
+                    "marvi_latency_ms": round((time.perf_counter() - started_at) * 1000, 2),
+                    "marvi_error": str(exc)[:240],
+                },
+                exc_info=True,
+            )
             raise ProviderCallError(f"{profile.name} call failed: {exc}") from exc
 
         usage = profile.read_usage(payload)
+        tool_calls = profile.read_tool_calls(payload)
         self.record(profile.name, usage)
+        logger.info(
+            "model call completed",
+            extra={
+                **diagnostic,
+                "marvi_latency_ms": round((time.perf_counter() - started_at) * 1000, 2),
+                "marvi_input_tokens": usage.input,
+                "marvi_output_tokens": usage.output,
+                "marvi_cached_tokens": usage.cached_input,
+                "marvi_billable_tokens": usage.billable,
+                "marvi_tool_calls": len(tool_calls),
+            },
+        )
         return Completion(
             text=profile.read_text(payload),
             usage=usage,
             provider=profile.name,
             model=model,
             cached=usage.cached_input > 0,
-            tool_calls=profile.read_tool_calls(payload),
+            tool_calls=tool_calls,
         )
 
     def stream(
@@ -334,17 +390,42 @@ class ProviderClient:
         model = model or profile.model_for(job)  # type: ignore[arg-type]
         # An explicit effort wins; otherwise the provider's configured one.
         effort = effort or profile.effort_for()
-        body = profile.build_request(
-            messages,
-            model=model,
-            max_tokens=max_tokens,
-            stream=True,
-            effort=effort,
-            cache_prefix=cache_prefix,
-            temperature=temperature,
-            tools=tools,
-            job=job,
-        )
+        call_id = uuid4().hex[:12]
+        started_at = time.perf_counter()
+        diagnostic = {
+            "marvi_call_id": call_id,
+            "marvi_job": job,
+            "marvi_provider": profile.name,
+            "marvi_model": model,
+            "marvi_message_count": len(messages),
+            "marvi_input_chars": sum(len(str(message.get("content", ""))) for message in messages),
+            "marvi_tool_count": len(tools or []),
+            "marvi_max_tokens": max_tokens or 0,
+        }
+        logger.info("model stream started", extra=diagnostic)
+        try:
+            body = profile.build_request(
+                messages,
+                model=model,
+                max_tokens=max_tokens,
+                stream=True,
+                effort=effort,
+                cache_prefix=cache_prefix,
+                temperature=temperature,
+                tools=tools,
+                job=job,
+            )
+        except Exception as exc:
+            logger.warning(
+                "model stream request build failed",
+                extra={
+                    **diagnostic,
+                    "marvi_latency_ms": round((time.perf_counter() - started_at) * 1000, 2),
+                    "marvi_error": str(exc)[:240],
+                },
+                exc_info=True,
+            )
+            raise ProviderCallError(f"{profile.name} stream request build failed: {exc}") from exc
 
         client = self._client()
         usage = Usage()
@@ -381,10 +462,27 @@ class ProviderClient:
                         yield {"reasoning": piece["reasoning"]}
                     elif piece.get("tool_calls"):
                         _merge_tool_calls(pending_calls, piece["tool_calls"])
-        except ProviderCallError:
+        except ProviderCallError as exc:
+            logger.warning(
+                "model stream failed",
+                extra={
+                    **diagnostic,
+                    "marvi_latency_ms": round((time.perf_counter() - started_at) * 1000, 2),
+                    "marvi_error": str(exc)[:240],
+                },
+            )
             raise
         except Exception as exc:
             self.stand_down(profile.name, DEFAULT_COOLDOWN_SECONDS, f"call failed: {exc}"[:120])
+            logger.warning(
+                "model stream failed",
+                extra={
+                    **diagnostic,
+                    "marvi_latency_ms": round((time.perf_counter() - started_at) * 1000, 2),
+                    "marvi_error": str(exc)[:240],
+                },
+                exc_info=True,
+            )
             raise ProviderCallError(f"{profile.name} stream failed: {exc}") from exc
 
         if pending_calls:
@@ -393,6 +491,18 @@ class ProviderClient:
         # Recorded here rather than per chunk: a stream that was cut short still
         # cost whatever it produced, and this is the one place that knows.
         self.record(profile.name, usage)
+        logger.info(
+            "model stream completed",
+            extra={
+                **diagnostic,
+                "marvi_latency_ms": round((time.perf_counter() - started_at) * 1000, 2),
+                "marvi_input_tokens": usage.input,
+                "marvi_output_tokens": usage.output,
+                "marvi_cached_tokens": usage.cached_input,
+                "marvi_billable_tokens": usage.billable,
+                "marvi_tool_calls": len(pending_calls),
+            },
+        )
         yield {
             "done": True,
             "provider": profile.name,
@@ -551,10 +661,28 @@ class ProviderClient:
                 "No provider is available; all are unconfigured or cooling down."
             )
         last: Exception | None = None
+        logger.info(
+            "model fallback route resolved",
+            extra={
+                "marvi_streaming": False,
+                "marvi_preferred": preferred or "auto",
+                "marvi_candidates": ",".join(profile.name for profile in attempts),
+                "marvi_job": str(kwargs.get("job", "main")),
+                "marvi_model": str(kwargs.get("model", "auto") or "auto"),
+            },
+        )
         for profile in attempts:
             try:
                 return self.call(messages, provider=profile, **kwargs)
             except ProviderCallError as exc:
+                logger.warning(
+                    "model fallback attempt failed",
+                    extra={
+                        "marvi_provider": profile.name,
+                        "marvi_job": str(kwargs.get("job", "main")),
+                        "marvi_error": str(exc)[:240],
+                    },
+                )
                 last = exc
                 continue
         raise AllProvidersExhaustedError(f"every provider failed; last error: {last}")

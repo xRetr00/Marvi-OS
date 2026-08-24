@@ -20,12 +20,13 @@ from fastapi.responses import StreamingResponse
 from livekit import api
 from pydantic import BaseModel, Field
 
-from . import auxiliary, breadcrumb, delegate, latency, paths, selfaware, upgrade
+from . import auxiliary, breadcrumb, delegate, distil, latency, paths, selfaware, upgrade
 from . import doctor as doctor_module
 from . import plugins as plugins_module
 from . import room as room_module
 from . import schedule as schedule_module
 from . import setup as setup_module
+from .account_triggers import AccountTriggerIngest
 from .accounts import ComposioAccounts, register_account_tools
 from .activity import ActivityWatch, register_activity_tools
 from .announce import Announcer, announce_enabled
@@ -106,6 +107,7 @@ class ToolDescription(BaseModel):
     sensitive: bool
     arguments: list[str]
     optional: list[str]
+    input_schema: dict[str, Any] = Field(default_factory=dict)
 
 
 class ToolCatalog(BaseModel):
@@ -120,6 +122,12 @@ class MemoryPage(BaseModel):
     total: int
     entries: list[dict[str, Any]]
     summary: dict[str, Any]
+
+
+class MemoryGraphPage(BaseModel):
+    mode: Literal["tree", "contacts"]
+    nodes: list[dict[str, Any]]
+    edges: list[dict[str, Any]]
 
 
 class IngestResult(BaseModel):
@@ -457,16 +465,44 @@ class MindResult(BaseModel):
 
 
 class AccountRow(BaseModel):
+    id: str = ""
     toolkit: str
     status: str
     connected: bool
     needs_reconnect: bool
+    alias: str = ""
+    scope: Literal["read", "write", "admin"] = "read"
+    sync_enabled: bool = True
 
 
 class AccountPage(BaseModel):
     available: bool
     detail: str
     accounts: list[AccountRow]
+    sync: dict[str, Any] = Field(default_factory=dict)
+    triggers: dict[str, Any] = Field(default_factory=dict)
+
+
+class AccountConnect(BaseModel):
+    toolkit: str = Field(min_length=1, max_length=100)
+
+
+class AccountConfigure(BaseModel):
+    api_key: str = Field(min_length=8, max_length=500)
+
+
+class AccountPolicyUpdate(BaseModel):
+    scope: Literal["read", "write", "admin"] | None = None
+    sync_enabled: bool | None = None
+
+
+class AccountEnabledUpdate(BaseModel):
+    enabled: bool
+
+
+class AccountSyncRequest(BaseModel):
+    toolkit: str | None = None
+    connection_id: str | None = None
 
 
 def livekit_is_ready(host: str = "127.0.0.1", port: int = 7880) -> bool:
@@ -508,6 +544,7 @@ def create_app(
     version: str | None = None,
     runtime: RuntimeStore | None = None,
     tools: ToolRegistry | None = None,
+    account_service: ComposioAccounts | None = None,
 ) -> FastAPI:
     product_version = version or read_version()
     # Before anything opens a database or a log: move whatever is still in the
@@ -555,6 +592,7 @@ def create_app(
     ingest: AccountIngest | None = None
     journal: EventJournal | None = None
     initiative: Initiative | None = None
+    account_triggers: AccountTriggerIngest | None = None
     loaded_plugins: list[plugins_module.LoadedPlugin] = []
     #: Highest room event id already journaled. None until the first poll sets a
     #: baseline, so a restart does not replay the log into the mind.
@@ -597,16 +635,14 @@ def create_app(
                     else frozenset()
                 ),
             )
-        accounts = ComposioAccounts()
-        if accounts.available():
-            register_account_tools(tool_registry, accounts)
+        accounts = account_service or ComposioAccounts()
+        register_account_tools(tool_registry, accounts)
         memory = MemoryStore()
         register_memory_tools(tool_registry, memory)
         # Standing facts about the user go where every prompt reads them,
         # rather than into a store that only surfaces on a matching search.
         register_identity_tools(tool_registry, identity)
-        if accounts.available():
-            ingest = AccountIngest(accounts, memory)
+        ingest = AccountIngest(accounts, memory)
         register_web_tools(tool_registry, WebTools())
         workspace = Workspace()
         if workspace.available():
@@ -615,6 +651,7 @@ def create_app(
         if activity.available():
             register_activity_tools(tool_registry, activity)
         journal = EventJournal()
+        account_triggers = AccountTriggerIngest(accounts, memory, journal, ingest)
         initiative = Initiative(
             Mind(
                 journal,
@@ -626,6 +663,7 @@ def create_app(
             journal,
             ingest=ingest,
             memory=memory,
+            memory_summarise=lambda groups: distil.summarise_memories(provider_client, groups),
             room_state=(
                 lambda: {
                     "present": bool(
@@ -665,6 +703,8 @@ def create_app(
         install_asyncio_handler(asyncio.get_running_loop())
         if initiative is not None:
             initiative.start()
+        if account_triggers is not None and accounts is not None and accounts.available():
+            account_triggers.start()
         if scheduler is not None:
             # The journal and initiative are wired in here rather than at
             # construction, because the tools are registered before either
@@ -685,6 +725,8 @@ def create_app(
             dictation.close()
             if initiative is not None:
                 initiative.stop()
+            if account_triggers is not None:
+                account_triggers.stop()
             if scheduler is not None:
                 scheduler.stop()
             # Stopped in reverse, and never allowed to raise: a plugin that
@@ -973,9 +1015,11 @@ def create_app(
 
         runtime_store.audit("requested", spec.name, checked, detail="via chat")
         write_key = (
-            runtime_store.external_write_key(spec.name, checked, None) if spec.external else None
+            runtime_store.external_write_key(spec.name, checked, None)
+            if spec.is_external(checked)
+            else None
         )
-        if spec.sensitive and not runtime_store.assistant.yolo:
+        if spec.is_sensitive(checked) and not runtime_store.assistant.yolo:
             request = runtime_store.issue_confirmation(
                 tool=spec.name,
                 arguments=checked,
@@ -1777,6 +1821,7 @@ def create_app(
 
     @app.get("/tools", response_model=ToolCatalog)
     async def list_tools() -> ToolCatalog:
+        schemas = {row["name"]: row["parameters"] for row in schemas_from_registry(tool_registry)}
         return ToolCatalog(
             tools=[
                 ToolDescription(
@@ -1785,6 +1830,7 @@ def create_app(
                     sensitive=spec.sensitive,
                     arguments=sorted(spec.arguments),
                     optional=sorted(spec.optional),
+                    input_schema=schemas.get(spec.name, {}),
                 )
                 for spec in tool_registry
             ]
@@ -1804,7 +1850,7 @@ def create_app(
         runtime_store.audit("requested", spec.name, arguments)
 
         write_key: str | None = None
-        if spec.external:
+        if spec.is_external(arguments):
             write_key = runtime_store.external_write_key(spec.name, arguments, call.idempotency_key)
             already_done, previous = runtime_store.completed_external_write(write_key)
             if already_done:
@@ -1820,7 +1866,7 @@ def create_app(
                     runtime=current_status(),
                 )
 
-        if spec.sensitive and not runtime_store.assistant.yolo:
+        if spec.is_sensitive(arguments) and not runtime_store.assistant.yolo:
             request = runtime_store.issue_confirmation(
                 tool=spec.name,
                 arguments=arguments,
@@ -1870,6 +1916,15 @@ def create_app(
             entries=memory.recent(limit=max(1, min(limit, 200))),
             summary=memory.world_summary(),
         )
+
+    @app.get("/arc/memory/graph", response_model=MemoryGraphPage)
+    async def memory_graph(
+        mode: Literal["tree", "contacts"] = "tree", limit: int = 1000
+    ) -> MemoryGraphPage:
+        """Read-only ARC graph projection for the desktop control center."""
+        if memory is None:
+            return MemoryGraphPage(mode=mode, nodes=[], edges=[])
+        return MemoryGraphPage(**memory.graph_export(mode, limit))
 
     @app.post("/accounts/ingest", response_model=IngestResult)
     async def run_ingest() -> IngestResult:
@@ -1987,7 +2042,125 @@ def create_app(
             available=True,
             detail=f"{sum(1 for r in rows if r['connected'])} of {len(rows)} connected",
             accounts=[AccountRow(**row) for row in rows],
+            sync=ingest.health() if ingest is not None else {},
+            triggers=account_triggers.health() if account_triggers is not None else {},
         )
+
+    @app.put("/accounts/config")
+    async def account_configure(body: AccountConfigure) -> dict[str, Any]:
+        if accounts is None:
+            raise HTTPException(status_code=503, detail="account service is unavailable")
+        value = body.api_key.strip()
+        try:
+            # The project key follows the same local provider-settings storage
+            # contract as model keys. Provider OAuth tokens remain in Composio.
+            await anyio.to_thread.run_sync(lambda: accounts.configure(value))
+            provider_config.update({"COMPOSIO_API_KEY": value})
+            redactor().refresh()
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=str(exc)[:240]) from exc
+        if account_triggers is not None:
+            account_triggers.start()
+        runtime_store.audit("account-configure", "composio", {})
+        return {"configured": True}
+
+    @app.get("/accounts/catalog")
+    async def account_catalog(limit: int = 100) -> dict[str, Any]:
+        if accounts is None or not accounts.available():
+            raise HTTPException(status_code=503, detail="Composio is not configured")
+        try:
+            return {"toolkits": await anyio.to_thread.run_sync(lambda: accounts.toolkits(limit))}
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=str(exc)[:240]) from exc
+
+    @app.post("/accounts/connect")
+    async def account_connect(body: AccountConnect) -> dict[str, Any]:
+        if accounts is None or not accounts.available():
+            raise HTTPException(status_code=503, detail="Composio is not configured")
+        try:
+            result = await anyio.to_thread.run_sync(lambda: accounts.authorize(body.toolkit))
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=str(exc)[:240]) from exc
+        runtime_store.audit("account-connect", body.toolkit.lower(), {})
+        return result
+
+    @app.post("/accounts/{connection_id}/refresh")
+    async def account_refresh(connection_id: str) -> dict[str, Any]:
+        if accounts is None:
+            raise HTTPException(status_code=503, detail="Composio is not configured")
+        try:
+            result = await anyio.to_thread.run_sync(lambda: accounts.refresh(connection_id))
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=str(exc)[:240]) from exc
+        runtime_store.audit("account-refresh", connection_id, {})
+        return result
+
+    @app.put("/accounts/{connection_id}/enabled")
+    async def account_enabled(connection_id: str, body: AccountEnabledUpdate) -> dict[str, Any]:
+        if accounts is None:
+            raise HTTPException(status_code=503, detail="Composio is not configured")
+        try:
+            result = await anyio.to_thread.run_sync(
+                lambda: accounts.set_enabled(connection_id, body.enabled)
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=str(exc)[:240]) from exc
+        runtime_store.audit("account-enabled", connection_id, {"enabled": body.enabled})
+        return result
+
+    @app.delete("/accounts/{connection_id}")
+    async def account_delete(connection_id: str) -> dict[str, Any]:
+        if accounts is None:
+            raise HTTPException(status_code=503, detail="Composio is not configured")
+        try:
+            result = await anyio.to_thread.run_sync(lambda: accounts.delete(connection_id))
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=str(exc)[:240]) from exc
+        runtime_store.audit("account-delete", connection_id, {})
+        return result
+
+    @app.put("/accounts/policy/{toolkit}")
+    async def account_policy(toolkit: str, body: AccountPolicyUpdate) -> dict[str, Any]:
+        if accounts is None:
+            raise HTTPException(status_code=503, detail="Composio is not configured")
+        try:
+            policy = accounts.state.update(
+                toolkit, scope=body.scope, sync_enabled=body.sync_enabled
+            )
+            accounts.invalidate()
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        runtime_store.audit("account-policy", toolkit, policy)
+        return {"toolkit": toolkit.lower(), **policy}
+
+    @app.post("/accounts/sync")
+    async def account_sync(body: AccountSyncRequest) -> dict[str, Any]:
+        if ingest is None:
+            raise HTTPException(status_code=503, detail="account memory sync is unavailable")
+        if body.toolkit:
+            result = await anyio.to_thread.run_sync(
+                lambda: ingest.sync_connection(body.toolkit.lower(), body.connection_id or "")
+            )
+        else:
+            result = await anyio.to_thread.run_sync(ingest.poll)
+        runtime_store.audit(
+            "account-sync", body.toolkit or "all", {"connection_id": body.connection_id or ""}
+        )
+        return {**result, "health": ingest.health()}
+
+    @app.post("/accounts/webhook")
+    async def account_webhook(request: Request) -> dict[str, Any]:
+        if account_triggers is None:
+            raise HTTPException(status_code=503, detail="account triggers are unavailable")
+        try:
+            body = await request.body()
+            return await anyio.to_thread.run_sync(
+                lambda: account_triggers.parse_webhook(body, dict(request.headers))
+            )
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(status_code=401, detail="invalid Composio webhook") from exc
 
     @app.get("/room/events", response_model=RoomEventPage)
     async def room_events(limit: int = 50, notable_only: bool = True) -> RoomEventPage:

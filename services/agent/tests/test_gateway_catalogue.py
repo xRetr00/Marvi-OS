@@ -65,6 +65,32 @@ async def test_the_schema_carries_what_is_required() -> None:
     assert set(schema["parameters"]["properties"]) == {"query", "limit"}
 
 
+async def test_voice_preserves_gateway_object_arguments_for_account_tools() -> None:
+    payload = {
+        "tools": [
+            {
+                "name": "account_tool_execute",
+                "description": "Execute a discovered account tool",
+                "arguments": ["arguments", "tool"],
+                "optional": [],
+                "sensitive": False,
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "tool": {"type": "string"},
+                        "arguments": {"type": "object", "additionalProperties": True},
+                    },
+                    "required": ["tool", "arguments"],
+                },
+            }
+        ]
+    }
+
+    built = await GatewayTools(client=gateway(payload=payload)).from_gateway()
+
+    assert built[0].info.raw_schema["parameters"]["properties"]["arguments"]["type"] == "object"
+
+
 async def test_calling_one_goes_through_the_gateway(monkeypatch) -> None:
     """Not around it. `/tools/{name}` is the one path with the confirmation
     flow and the audit line on it."""
@@ -86,3 +112,26 @@ async def test_a_gateway_that_cannot_be_reached_is_not_fatal() -> None:
     tools = GatewayTools(client=httpx.AsyncClient(transport=httpx.MockTransport(broken)))
 
     assert await tools.from_gateway() == []
+
+
+async def test_spoken_recall_uses_the_canonical_gateway_memory_tool() -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(
+            200,
+            json={
+                "status": "executed",
+                "result": {"results": [{"subject": "Sam", "body": "likes tea"}]},
+            },
+        )
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    tools = GatewayTools(client=client)
+
+    answer = await tools.recall(None, "Sam")
+    await client.aclose()
+
+    assert answer == "Sam: likes tea"
+    assert seen[-1].url.path == "/tools/memory_recall"

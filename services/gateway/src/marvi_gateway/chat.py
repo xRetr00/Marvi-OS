@@ -1551,6 +1551,15 @@ def schemas_from_registry(registry: Any) -> list[dict[str, Any]]:
     json_types = {str: "string", int: "integer", float: "number", bool: "boolean"}
     described: list[dict[str, Any]] = []
     for spec in registry:
+        if getattr(spec, "schema", None):
+            described.append(
+                {
+                    "name": spec.name,
+                    "description": spec.description,
+                    "parameters": spec.schema,
+                }
+            )
+            continue
         describes = getattr(spec, "describes", None) or {}
         properties: dict[str, dict[str, Any]] = {}
         for key, kind in {**spec.arguments, **spec.optional}.items():

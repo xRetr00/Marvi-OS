@@ -66,17 +66,24 @@ Current implemented desktop surfaces:
   connection that degrades to stale reads without disturbing conversation;
 - filtered room event history plus Island micro-events that expand the seed
   briefly and can never overwrite a live voice turn or steal focus;
-- connected-account context through the official Composio SDK, where every
-  external payload arrives inside a nonce-delimited untrusted envelope and
-  external writes are confirmed, audited, and deduplicated;
+- built-in Composio Connect lifecycle (connect, reconnect, enable/disable, and
+  revoke), dynamic account-tool discovery behind per-toolkit read/write/admin
+  ceilings, and nonce-delimited untrusted reads; remote writes remain confirmed,
+  audited, and deduplicated;
 - local SQLite episodic and semantic memory with search, forget, and verbatim
   export, storing externally sourced entries as untrusted and re-wrapping them
   whenever they are recalled;
 - a knowledge graph, recall-based reinforcement, reflection that promotes
   repeated episodes into durable facts, and a consolidation pass that forgets
-  only what was never useful;
-- account event ingestion that deduplicates by provider id and never blocks the
-  voice path;
+  only what was never useful, presented as ARC with an Obsidian-style PixiJS +
+  d3-force local memory graph, provenance tree, explicit-connection view, and
+  shared Chat/Voice `memory_recall` tool; every LLM-assisted mind/reflection
+  call uses its Models → Auxiliary role with content-free route/latency/usage
+  diagnostics;
+- native Gmail, Google Calendar, Slack, Notion, GitHub, and Google Drive memory
+  providers with per-connection cursors, content-aware deduplication, visible
+  sync health, manual sync, and realtime Composio triggers entering ARC as
+  untrusted events without blocking the voice path;
 - a content-free, durable usage ledger shared by Chat, Voice, background work,
   and local models, with a dedicated Usage page and optional reconciliation
   against official provider account APIs;
@@ -120,9 +127,13 @@ npm run dev
 ```
 
 Before the first voice run, copy `services/agent/.env.example` to `.env`, add
-the OpenCode Go key, and run `marvi setup voice`. Connected
-accounts need `COMPOSIO_API_KEY` in the same file; Marvi OS reads it from the
-environment and never stores a provider credential of its own. See
+the OpenCode Go key, and run `marvi setup voice`. Accounts accepts the Composio
+project key directly in the control center, validates it before saving it in
+Marvi's local provider settings, and then creates hosted Connect Links;
+provider OAuth credentials remain in Composio and never enter Marvi OS.
+`COMPOSIO_API_KEY` remains supported for managed installs. Optional signed webhooks use
+`COMPOSIO_WEBHOOK_SECRET`; the local runtime otherwise consumes Composio's
+realtime trigger stream. See
 [`docs/VOICE-RUNTIME.md`](docs/VOICE-RUNTIME.md) for the native build and checks.
 
 Gateway and agent dependencies are isolated in the root `uv` workspace. These

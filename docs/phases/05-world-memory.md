@@ -119,3 +119,33 @@ discovered from configuration under `mcp__<server>__<tool>`.
   added — the live listing shows the same 9 connections with no `linkedin`. X
   is out of scope by request.
 - Letta remains a candidate for the mind rather than the store; see ADR-014a.
+
+## 2026-08-24 extension — built-in accounts and six-provider ARC sync
+
+The original Gmail/Calendar polling proof is now a provider registry with
+Gmail, Google Calendar, Slack, Notion, GitHub, and Google Drive in that rollout
+order. Sync state is durable per connection rather than per toolkit: cursor,
+content fingerprint, attempts, last success/error, and item counts are visible
+through Gateway and Accounts. A dead or malformed provider records its own
+error and cannot stop the remaining providers.
+
+Accounts now owns the complete Composio hosted-OAuth lifecycle and first-run
+project-key setup. Every toolkit starts at a read ceiling; the user can raise it
+to write or admin. The stable dynamic broker filters search and rechecks the
+ceiling at execution, while writes/admin use the existing confirmation,
+idempotency, and audit path. The fixed Gmail send compatibility tool is subject
+to the same ceiling.
+
+Realtime Composio trigger events and optional signed webhooks enter one
+identity-checked, deduplicated, untrusted ARC boundary and can initiate a bounded
+native-provider sync. The renderer receives status and controls only. Typed Chat
+and LiveKit Voice receive the same raw nested tool schema from Gateway.
+
+Acceptance evidence: 896 Gateway tests, 125 LiveKit agent tests, 233 desktop
+tests, production renderer build, both Python Ruff gates, desktop typecheck,
+ESLint with zero errors, and `git diff --check`. Playwright visual checks at 1180×760
+and 760×700 covered connected, expired/reconnect, and unconfigured first-run
+states. Live provider calls were not repeated for this extension because no
+Composio project key is configured in this worktree environment; the earlier
+real-account evidence above remains historical and the new SDK boundary is
+exercised with protocol-shaped fakes.

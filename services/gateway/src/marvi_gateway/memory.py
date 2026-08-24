@@ -21,9 +21,13 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal
 
+from .logs import get_logger
 from .untrusted import wrap_external
 
+log = get_logger("memory")
+
 MemoryKind = Literal["episodic", "semantic"]
+GraphMode = Literal["tree", "contacts"]
 DEFAULT_SEARCH_LIMIT = 10
 MAX_BODY_CHARS = 4_000
 # Consolidation defaults. Deliberately conservative: forgetting the user's
@@ -122,7 +126,19 @@ class MemoryStore:
             ),
         )
         self._db.commit()
-        return int(cursor.lastrowid or 0)
+        memory_id = int(cursor.lastrowid or 0)
+        log.info(
+            "memory stored",
+            extra={
+                "marvi_memory_id": memory_id,
+                "marvi_kind": kind,
+                "marvi_source": source,
+                "marvi_trusted": trusted,
+                "marvi_subject_chars": len(subject.strip()),
+                "marvi_body_chars": min(len(body), MAX_BODY_CHARS),
+            },
+        )
+        return memory_id
 
     def remember_external(self, subject: str, body: str, source: str, **kwargs: Any) -> int:
         """Anything originating outside this machine is never stored as trusted."""
@@ -156,9 +172,19 @@ class MemoryStore:
         ).fetchall()
         found = [self._row(row) for row in rows]
         self.reinforce([entry["id"] for entry in found])
+        log.info(
+            "memory search completed",
+            extra={
+                "marvi_query_chars": len(query),
+                "marvi_limit": max(1, min(limit, 100)),
+                "marvi_results": len(found),
+            },
+        )
         return found
 
-    def recent(self, limit: int = DEFAULT_SEARCH_LIMIT, kind: MemoryKind | None = None) -> list[dict[str, Any]]:
+    def recent(
+        self, limit: int = DEFAULT_SEARCH_LIMIT, kind: MemoryKind | None = None
+    ) -> list[dict[str, Any]]:
         if kind:
             rows = self._db.execute(
                 "SELECT * FROM memories WHERE kind = ? ORDER BY id DESC LIMIT ?",
@@ -178,7 +204,12 @@ class MemoryStore:
     def forget(self, memory_id: int) -> bool:
         cursor = self._db.execute("DELETE FROM memories WHERE id = ?", (memory_id,))
         self._db.commit()
-        return cursor.rowcount > 0
+        removed = cursor.rowcount > 0
+        log.info(
+            "memory deleted by id",
+            extra={"marvi_memory_id": memory_id, "marvi_removed": removed},
+        )
+        return removed
 
     def forget_matching(self, query: str) -> int:
         ids = [entry["id"] for entry in self.search(query, limit=100)]
@@ -186,12 +217,17 @@ class MemoryStore:
             return 0
         self._db.executemany("DELETE FROM memories WHERE id = ?", [(i,) for i in ids])
         self._db.commit()
+        log.info(
+            "memory deleted by query",
+            extra={"marvi_query_chars": len(query), "marvi_removed": len(ids)},
+        )
         return len(ids)
 
     def forget_all(self) -> int:
         removed = self.count()
         self._db.execute("DELETE FROM memories")
         self._db.commit()
+        log.warning("all memories deleted", extra={"marvi_removed": removed})
         return removed
 
     def export(self) -> list[dict[str, Any]]:
@@ -279,7 +315,16 @@ class MemoryStore:
             "SELECT id FROM relations WHERE subject_id = ? AND predicate = ? AND object_id = ?",
             (subject_id, predicate, object_id),
         ).fetchone()
-        return int(row["id"]) if row else 0
+        relation_id = int(row["id"]) if row else 0
+        log.info(
+            "memory relation stored",
+            extra={
+                "marvi_relation_id": relation_id,
+                "marvi_source": source,
+                "marvi_trusted": trusted,
+            },
+        )
+        return relation_id
 
     def neighbours(self, name: str, limit: int = 25) -> list[dict[str, Any]]:
         """Everything one hop from an entity, in either direction."""
@@ -307,10 +352,86 @@ class MemoryStore:
     def graph_size(self) -> dict[str, int]:
         return {
             "entities": int(self._db.execute("SELECT COUNT(*) n FROM entities").fetchone()["n"]),
-            "relations": int(
-                self._db.execute("SELECT COUNT(*) n FROM relations").fetchone()["n"]
-            ),
+            "relations": int(self._db.execute("SELECT COUNT(*) n FROM relations").fetchone()["n"]),
         }
+
+    def graph_export(self, mode: GraphMode = "tree", limit: int = 1000) -> dict[str, Any]:
+        """Project the local store into the renderer's read-only ARC graph.
+
+        This is deliberately a projection, not a second persistence model.  The
+        tree view groups memories beneath their provenance source; the contacts
+        view exposes the explicit entity relationships already held by Marvi.
+        Nothing in the renderer gets direct SQLite access or authority to
+        mutate memory.
+        """
+        if mode not in ("tree", "contacts"):
+            raise ValueError(f"unsupported graph mode: {mode}")
+        bounded = max(1, min(int(limit), 2_000))
+        if mode == "contacts":
+            entities = self._db.execute(
+                "SELECT id, name, kind FROM entities ORDER BY id DESC LIMIT ?", (bounded,)
+            ).fetchall()
+            entity_ids = {int(row["id"]) for row in entities}
+            nodes = [
+                {
+                    "id": f"entity:{row['id']}",
+                    "kind": "contact",
+                    "label": row["name"],
+                    "entity_kind": row["kind"],
+                }
+                for row in entities
+            ]
+            relations = self._db.execute(
+                "SELECT id, subject_id, predicate, object_id, source, trusted"
+                " FROM relations ORDER BY id DESC LIMIT ?",
+                (bounded,),
+            ).fetchall()
+            edges = [
+                {
+                    "id": f"relation:{row['id']}",
+                    "source": f"entity:{row['subject_id']}",
+                    "target": f"entity:{row['object_id']}",
+                    "label": row["predicate"],
+                    "trusted": bool(row["trusted"]),
+                    "provenance": row["source"],
+                }
+                for row in relations
+                if int(row["subject_id"]) in entity_ids and int(row["object_id"]) in entity_ids
+            ]
+            return {"mode": mode, "nodes": nodes, "edges": edges}
+
+        rows = self._db.execute(
+            "SELECT id, kind, subject, source, trusted, at FROM memories ORDER BY id DESC LIMIT ?",
+            (bounded,),
+        ).fetchall()
+        if not rows:
+            return {"mode": mode, "nodes": [], "edges": []}
+        sources = sorted({str(row["source"]) for row in rows})
+        nodes: list[dict[str, Any]] = [
+            {"id": "arc:memory", "kind": "root", "label": "Memory", "level": 2}
+        ]
+        edges: list[dict[str, Any]] = []
+        for source in sources:
+            source_id = f"source:{source}"
+            nodes.append({"id": source_id, "kind": "source", "label": source, "level": 1})
+            edges.append({"id": f"arc:{source_id}", "source": "arc:memory", "target": source_id})
+        for row in rows:
+            node_id = f"memory:{row['id']}"
+            source_id = f"source:{row['source']}"
+            nodes.append(
+                {
+                    "id": node_id,
+                    "kind": "summary" if row["kind"] == "semantic" else "chunk",
+                    "label": row["subject"],
+                    "level": 0,
+                    "memory_kind": row["kind"],
+                    "trusted": bool(row["trusted"]),
+                    "provenance": row["source"],
+                    "at": row["at"],
+                }
+            )
+            edges.append({"id": f"arc:{node_id}", "source": source_id, "target": node_id})
+        return {"mode": mode, "nodes": nodes, "edges": edges}
 
     def forget_entity(self, name: str) -> int:
         """Deleting an entity takes its relations with it."""
@@ -341,10 +462,26 @@ class MemoryStore:
 
         promoted: list[str] = []
         if summarise is not None:
-            for subject, body in summarise(groups) or []:
+            summarised = summarise(groups) or []
+            for subject, body in summarised:
                 self.remember(subject, body, kind="semantic", source="reflection")
                 promoted.append(subject)
-            return {"considered": len(groups), "promoted": promoted}
+            if promoted:
+                log.info(
+                    "memory reflection completed with auxiliary model",
+                    extra={
+                        "marvi_considered": len(groups),
+                        "marvi_promoted": len(promoted),
+                        "marvi_route": "auxiliary/memory",
+                    },
+                )
+                return {"considered": len(groups), "promoted": promoted}
+            # A missing/cooling/malformed Auxiliary model must not disable the
+            # deterministic reflection that existed before the model seam.
+            log.info(
+                "auxiliary memory reflection returned no facts; using deterministic pass",
+                extra={"marvi_considered": len(groups), "marvi_route": "auxiliary/memory"},
+            )
 
         for group in groups:
             already = self._db.execute(
@@ -360,6 +497,10 @@ class MemoryStore:
                 source="reflection",
             )
             promoted.append(group["subject"])
+        log.info(
+            "memory reflection completed deterministically",
+            extra={"marvi_considered": len(groups), "marvi_promoted": len(promoted)},
+        )
         return {"considered": len(groups), "promoted": promoted}
 
     def consolidate(self, now: datetime | None = None) -> dict[str, int]:
@@ -380,6 +521,10 @@ class MemoryStore:
             " (SELECT subject_id FROM relations UNION SELECT object_id FROM relations)"
         ).rowcount
         self._db.commit()
+        log.info(
+            "memory consolidation completed",
+            extra={"marvi_forgotten": forgotten, "marvi_orphan_entities": orphans},
+        )
         return {"forgotten": forgotten, "orphan_entities": orphans}
 
     def world_summary(self, limit: int = 5) -> dict[str, Any]:
@@ -402,6 +547,15 @@ def register_memory_tools(registry, memory: MemoryStore) -> None:
 
     def memory_search(query: str) -> dict[str, Any]:
         return {"results": memory.search(query)}
+
+    def memory_recall(query: str) -> dict[str, Any]:
+        """Canonical read tool shared by typed chat, voice and MCP clients.
+
+        Keep the older search name as a compatibility alias; recall names the
+        agent behaviour and makes the capability discoverable in `/tools`.
+        """
+        results = memory.search(query)
+        return {"query": query, "results": results}
 
     def memory_forget(query: str) -> dict[str, Any]:
         return {"forgotten": memory.forget_matching(query)}
@@ -439,8 +593,21 @@ def register_memory_tools(registry, memory: MemoryStore) -> None:
     )
     registry.register(
         ToolSpec(
+            name="memory_recall",
+            description=(
+                "Recall durable memories relevant to a person, topic, or past event. "
+                "Use this when earlier context may affect the answer."
+            ),
+            arguments={"query": str},
+            describes={"query": "Person, topic, fact, or past event to remember."},
+            sensitive=False,
+            handler=memory_recall,
+        )
+    )
+    registry.register(
+        ToolSpec(
             name="memory_search",
-            description="Search what Marvi remembers",
+            description="Compatibility alias for memory_recall",
             arguments={"query": str},
             describes={"query": "Words to look for. Plain phrasing, not a search syntax."},
             sensitive=False,
@@ -453,10 +620,7 @@ def register_memory_tools(registry, memory: MemoryStore) -> None:
             description="Forget everything matching a phrase",
             arguments={"query": str},
             describes={
-                "query": (
-                    "Phrase to match. Everything matching it is deleted, "
-                    "so be specific."
-                )
+                "query": ("Phrase to match. Everything matching it is deleted, so be specific.")
             },
             sensitive=True,
             handler=memory_forget,

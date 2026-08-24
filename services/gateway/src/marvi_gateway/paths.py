@@ -66,6 +66,15 @@ def memory_db() -> Path:
     return _from_env("MARVI_MEMORY_DB", "memory.sqlite3")
 
 
+def accounts_db() -> Path:
+    """Connected-account policy and synchronization state.
+
+    Provider credentials remain in Composio.  This database contains only
+    Marvi-owned capability ceilings, cursors, health, and provider item IDs.
+    """
+    return _from_env("MARVI_ACCOUNTS_DB", "accounts.sqlite3")
+
+
 def chat_db() -> Path:
     return _from_env("MARVI_CHAT_DB", "chat.sqlite3")
 
@@ -155,6 +164,7 @@ def describe() -> dict[str, str]:
         "identity": str(identity_dir()),
         "journal": str(journal_db()),
         "memory": str(memory_db()),
+        "accounts": str(accounts_db()),
         "chat": str(chat_db()),
         "providers": str(provider_config()),
         "usage": str(usage_ledger()),

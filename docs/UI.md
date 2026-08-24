@@ -130,6 +130,25 @@ The restrained blue eight-cell live voice meter is intentionally retained from
 Marvi's earlier voice design. Its version action opens build/update details
 without navigating away from the current task.
 
+## ARC memory graph
+
+The Memory page is ARC's inspection surface. Its graph keeps the interaction
+model of the pinned OpenHuman reference: node/link counts, an inline legend,
+tree/connection modes, reset-view control, pan, cursor-anchored zoom, draggable
+nodes that pull their linked neighbours, and a hover inspector. The production
+renderer uses PixiJS WebGL with d3-force physics, following the pinned MIT
+Advanced Graph View architecture rather than the earlier static radial SVG.
+OpenHuman remains a reference only because it is GPL-3.0 and Marvi OS is MIT.
+
+The graph remains inside the control-center shell and uses Marvi's monochrome
+tokens with blue only for the ARC root/status signal and red only for untrusted
+provenance. It never imports the reference's colorful palette, rounded app
+chrome, or renderer-side data ownership. Tree mode groups entries below their
+source; Connections mode renders only Gateway-authoritative entity relations.
+An empty graph explains how it will fill instead of showing a dead canvas.
+Reduced-motion mode settles the simulation immediately instead of leaving the
+graph in continuous motion.
+
 ## Dynamic Island
 
 The Island is smaller than Marvi's previous implementation and grows only for
@@ -322,9 +341,23 @@ a reason to hide a record. Nothing on this view is sent anywhere.
 
 ## Accounts and Memory views
 
-Accounts lists every connected toolkit and its state. Marvi OS never collects a
-provider password and never runs an OAuth flow — Composio owns the connections,
-and a dead one says plainly that it must be reconnected there.
+Accounts owns the visible Composio lifecycle. It lists every connection rather
+than collapsing multiple accounts, opens Composio's hosted Connect Link in the
+system browser, and provides reconnect, enable/disable, two-step revoke, and
+manual sync actions. Marvi never renders the provider login or receives its
+credential.
+
+On first use, Accounts accepts the Composio project API key in a masked field.
+Gateway validates it before saving it through the existing local secret-setting
+path; the key is never echoed back to the renderer. A successful save activates
+the catalog and realtime listener immediately.
+
+Every account starts with a read-only capability ceiling. A compact three-state
+strip lets the user choose read, write, or admin; this limits agent discovery
+and execution but never bypasses Confirm/YOLO. Native Gmail, Calendar, Slack,
+Notion, GitHub, and Drive rows also expose memory auto-fetch and per-connection
+last-success/error health. The page identifies whether realtime triggers are
+connected or periodic polling is carrying observation.
 
 Memory shows what is stored, how much, and where each entry came from. An entry
 that originated outside the machine is labelled untrusted rather than shown as

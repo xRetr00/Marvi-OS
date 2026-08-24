@@ -30,10 +30,51 @@ export interface RoomEvent {
 }
 
 export interface ConnectedAccount {
+  id: string
   toolkit: string
   status: string
   connected: boolean
   needsReconnect: boolean
+  alias: string
+  scope: 'read' | 'write' | 'admin'
+  syncEnabled: boolean
+}
+
+export interface AccountToolkit {
+  slug: string
+  name: string
+  description: string
+  logo: string
+  nativeMemory: boolean
+}
+
+export interface AccountSyncState {
+  toolkit: string
+  connectionId: string
+  cursor: string
+  status: string
+  lastAttemptAt: string | null
+  lastSuccessAt: string | null
+  lastError: string
+  itemsSeen: number
+  lastCount: number
+}
+
+export interface AccountPage {
+  available: boolean
+  detail: string
+  accounts: ConnectedAccount[]
+  sync: {
+    providers: Array<{ toolkit: string; label: string }>
+    connections: AccountSyncState[]
+  }
+  triggers: {
+    connected: boolean
+    received: number
+    lastEventAt: string | null
+    lastError: string
+    transport: string
+  }
 }
 
 export interface MemoryEntry {
@@ -49,7 +90,41 @@ export interface MemoryEntry {
 export interface MemoryPage {
   total: number
   entries: MemoryEntry[]
-  summary: { total?: number; facts?: string[]; recent_events?: string[] }
+  summary: {
+    total?: number
+    facts?: string[]
+    recent_events?: string[]
+    graph?: { entities: number; relations: number }
+  }
+}
+
+export type MemoryGraphMode = 'tree' | 'contacts'
+
+export interface MemoryGraphNode {
+  id: string
+  kind: 'root' | 'source' | 'summary' | 'chunk' | 'contact'
+  label: string
+  level?: number
+  memory_kind?: string
+  entity_kind?: string
+  trusted?: boolean
+  provenance?: string
+  at?: string
+}
+
+export interface MemoryGraphEdge {
+  id: string
+  source: string
+  target: string
+  label?: string
+  trusted?: boolean
+  provenance?: string
+}
+
+export interface MemoryGraphPage {
+  mode: MemoryGraphMode
+  nodes: MemoryGraphNode[]
+  edges: MemoryGraphEdge[]
 }
 
 export interface MindDecision {
@@ -652,7 +727,6 @@ export interface SchedulePage {
   actions: Record<string, string>
   running: boolean
 }
-
 
 /**
  * Which model does which job.

@@ -151,7 +151,7 @@ async def test_memory_tools_route_through_the_gateway(tmp_path) -> None:
                 json={"arguments": {"subject": "Prefers dark mode", "body": "always"}},
             )
             found = await client.post(
-                "/tools/memory_search", json={"arguments": {"query": "dark mode"}}
+                "/tools/memory_recall", json={"arguments": {"query": "dark mode"}}
             )
             # Forgetting is destructive, so it is a confirmed action.
             forget = await client.post(
@@ -159,6 +159,7 @@ async def test_memory_tools_route_through_the_gateway(tmp_path) -> None:
             )
 
         assert saved.json()["status"] == "executed"
+        assert found.json()["result"]["query"] == "dark mode"
         assert found.json()["result"]["results"][0]["subject"] == "Prefers dark mode"
         assert forget.json()["status"] == "confirmation_required"
         assert store.count() == 1

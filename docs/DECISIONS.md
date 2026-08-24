@@ -404,3 +404,39 @@ alongside the installer. A fresh install clones the checkout, builds, and
 atomically swaps it into place; updates are in-place with rollback. The updater
 can be refreshed by shipping a new bootstrap asset and having the app fetch it
 before handing off.
+
+## ADR-024 — Account authority stays in Gateway; credentials stay in Composio
+
+**Decision:** Marvi uses the official Composio SDK and hosted Connect Links for
+provider OAuth. Gateway owns the project-key setup, connection lifecycle,
+per-toolkit read/write/admin ceiling, dynamic tool broker, provider sync state,
+and trigger-to-ARC boundary. Provider OAuth tokens remain in Composio. The LLM
+receives two stable discovery/execution tools instead of the full remote
+catalog; every execution re-resolves its schema and capability class.
+
+Gmail, Google Calendar, Slack, Notion, GitHub, and Google Drive have native
+memory providers with independent per-connection cursors and health. Realtime
+subscriptions and optional signed webhooks enter the same deduplicated,
+untrusted journal/memory path. Typed Chat and LiveKit Voice consume the same
+Gateway-published raw JSON schemas and never call Composio directly.
+
+**Reason:** OAuth lifecycle, remote schemas, and event transport already exist
+upstream, while user authority, confirmation, audit, provenance, and durable
+memory are Marvi product policy. Keeping that seam in Gateway prevents React,
+voice workers, or external content from becoming a second execution authority.
+
+## ADR-025 — ARC cognition is auxiliary and observability is content-free
+
+**Decision:** Every LLM call made for ARC's mind, presence judgement, memory
+reflection, or subconscious schedule declares `job="aux"` and a named Models →
+Auxiliary role. A configured role pins its provider/model; Auto uses the active
+provider's `default_aux_model`. Deterministic ingest, recall, graph projection,
+and consolidation remain model-free. Provider, scheduler, mind, memory, and
+account boundaries log correlation IDs, routes, models, timing, usage, counts,
+fallbacks, and outcomes, but never prompts, completions, memory bodies, or
+external payloads.
+
+**Reason:** Background cognition must not silently consume the expensive main
+conversation model, and future failures must be traceable across scheduler,
+policy, memory, and provider boundaries. Content-free structured metadata gives
+that evidence without turning diagnostic files into a second memory database.

@@ -4804,6 +4804,152 @@ body {
   color: var(--ui-danger);
 }
 
+/* Accounts is a capability console, not a gallery of provider cards. The
+   horizontal authority strip stays visually louder than lifecycle controls so
+   the user can tell what Marvi may do before noticing what is connected. */
+.account-row-controls {
+  display: grid;
+  justify-items: end;
+  gap: 7px;
+}
+
+.account-scope {
+  display: inline-grid;
+  grid-template-columns: repeat(3, minmax(48px, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--ui-stroke-tertiary);
+  border-radius: 4px;
+}
+
+.account-scope button {
+  min-height: 23px;
+  padding: 3px 8px;
+  border: 0;
+  border-right: 1px solid var(--ui-stroke-tertiary);
+  background: transparent;
+  color: var(--ui-text-tertiary);
+  font: inherit;
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.account-scope button:last-child {
+  border-right: 0;
+}
+
+.account-scope button[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--ui-accent) 12%, var(--ui-bg-tertiary));
+  color: var(--ui-text-primary);
+}
+
+.account-scope button:hover:not(:disabled),
+.account-scope button:focus-visible {
+  outline: 0;
+  background: var(--ui-bg-tertiary);
+  color: var(--ui-text-primary);
+}
+
+.account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 5px;
+}
+
+.account-health-line,
+.account-catalog-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.account-health-line > span:last-child {
+  min-width: 0;
+  color: var(--ui-text-tertiary);
+}
+
+.account-memory-toggle {
+  margin-top: 5px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ui-text-tertiary);
+  font: inherit;
+  font-size: 9px;
+  text-decoration: underline;
+  text-decoration-color: var(--ui-stroke-secondary);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.account-memory-toggle:hover,
+.account-memory-toggle:focus-visible {
+  outline: 0;
+  color: var(--ui-text-primary);
+}
+
+.account-catalog-search {
+  display: grid;
+  grid-template-columns: auto minmax(180px, 1fr);
+  align-items: center;
+  gap: 14px;
+  padding: 10px 2px;
+  border-top: 1px solid var(--ui-stroke-tertiary);
+  border-bottom: 1px solid var(--ui-stroke-tertiary);
+}
+
+.account-configure {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.account-configure label {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.account-catalog-search label {
+  color: var(--ui-text-secondary);
+  font-size: 10px;
+}
+
+.account-catalog-search input {
+  min-height: 30px;
+  padding: 5px 9px;
+  border: 1px solid var(--ui-stroke-tertiary);
+  border-radius: 4px;
+  outline: 0;
+  background: var(--ui-bg-secondary);
+  color: var(--ui-text-primary);
+  font: inherit;
+  font-size: 10px;
+}
+
+.account-catalog-search input:focus {
+  border-color: color-mix(in srgb, var(--ui-accent) 55%, var(--ui-stroke-secondary));
+}
+
+.account-notice {
+  position: sticky;
+  bottom: 8px;
+  z-index: 2;
+  width: fit-content;
+  margin: -12px 0 0 auto;
+  padding: 7px 10px;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 4px;
+  background: var(--ui-bg-primary);
+  color: var(--ui-text-secondary);
+  font-size: 9px;
+}
+
 .control-actions {
   display: flex;
   flex-wrap: wrap;
@@ -5313,6 +5459,14 @@ body {
   .control-actions {
     justify-content: flex-start;
   }
+
+  .account-row-controls {
+    justify-items: start;
+  }
+
+  .account-actions {
+    justify-content: flex-start;
+  }
 }
 
 @media (max-width: 620px) {
@@ -5405,4 +5559,272 @@ body {
 
 .control-input:focus-visible {
   outline: 1px solid var(--ui-text-tertiary);
+}
+
+/* ARC memory graph -------------------------------------------------------
+   The interaction model mirrors the pinned OpenHuman graph reference while
+   the paint stays inside Marvi's monochrome + signal-blue UI contract. */
+
+.arc-memory-workspace {
+  display: grid;
+  gap: 12px;
+}
+
+.arc-memory-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 38px;
+  padding: 6px 8px 6px 12px;
+  border: 1px solid var(--ui-stroke-secondary);
+  background: var(--ui-bg-raised);
+}
+
+.arc-memory-toolbar-copy {
+  display: grid;
+  gap: 2px;
+}
+
+.arc-memory-toolbar-copy strong {
+  color: var(--ui-text-primary);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.arc-memory-toolbar-copy small {
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+.arc-memory-modes {
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  border: 1px solid var(--ui-stroke-primary);
+  background: var(--ui-bg);
+}
+
+.arc-memory-modes button {
+  min-height: 24px;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  color: var(--ui-text-tertiary);
+  font: inherit;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.arc-memory-modes button:hover,
+.arc-memory-modes button[aria-pressed='true'] {
+  background: var(--ui-accent-soft);
+  color: var(--ui-text-emphasis);
+}
+
+.arc-memory-modes button[aria-pressed='true'] {
+  box-shadow: inset 0 -1px var(--ui-accent);
+}
+
+.arc-graph-frame {
+  overflow: hidden;
+  border: 1px solid var(--ui-stroke-secondary);
+  background: var(--ui-bg-raised);
+}
+
+.arc-graph-header,
+.arc-graph-inspector {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 0 12px;
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+}
+
+.arc-graph-header {
+  border-bottom: 1px solid var(--ui-stroke-secondary);
+}
+
+.arc-graph-counts,
+.arc-graph-legend,
+.arc-graph-legend > span,
+.arc-graph-inspector {
+  display: flex;
+  align-items: center;
+}
+
+.arc-graph-counts,
+.arc-graph-legend {
+  gap: 10px;
+}
+
+.arc-graph-counts i {
+  color: var(--ui-stroke-primary);
+  font-style: normal;
+}
+
+.arc-graph-legend > span {
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.arc-graph-legend button {
+  display: flex;
+  min-height: 24px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border: 1px solid var(--ui-stroke-primary);
+  background: var(--ui-bg);
+  color: var(--ui-text-secondary);
+  font: inherit;
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.arc-graph-legend button:hover {
+  border-color: var(--ui-text-tertiary);
+  color: var(--ui-text-emphasis);
+}
+
+.arc-graph-legend button svg {
+  width: 11px;
+  height: 11px;
+}
+
+.arc-graph-key {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ui-text-tertiary);
+}
+
+.arc-graph-canvas {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: min(560px, calc(100vh - 310px));
+  min-height: 380px;
+  overflow: hidden;
+  touch-action: none;
+  background: radial-gradient(circle at 50% 45%, #15181d 0, var(--ui-bg) 68%);
+  cursor: grab;
+}
+
+.arc-graph-canvas canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.arc-graph-render-error {
+  display: grid;
+  place-content: center;
+  padding: 24px;
+  color: var(--ui-danger);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-align: center;
+}
+
+.arc-graph-canvas:active {
+  cursor: grabbing;
+}
+
+.arc-graph-node-root,
+.arc-graph-key.arc-graph-node-root {
+  fill: var(--ui-accent) !important;
+  background: var(--ui-accent);
+}
+
+.arc-graph-node-source,
+.arc-graph-key.arc-graph-node-source {
+  fill: var(--ui-text-emphasis) !important;
+  background: var(--ui-text-emphasis);
+}
+
+.arc-graph-node-summary,
+.arc-graph-key.arc-graph-node-summary,
+.arc-graph-node-contact,
+.arc-graph-key.arc-graph-node-contact {
+  fill: #aeb2b8 !important;
+  background: #aeb2b8;
+}
+
+.arc-graph-node-chunk,
+.arc-graph-key.arc-graph-node-chunk {
+  fill: #555960 !important;
+  background: #555960;
+}
+
+.arc-graph-node-untrusted,
+.arc-graph-key.arc-graph-node-untrusted {
+  fill: var(--ui-danger) !important;
+  background: var(--ui-danger);
+}
+
+.arc-graph-inspector {
+  min-height: 34px;
+  justify-content: flex-start;
+  border-top: 1px solid var(--ui-stroke-secondary);
+  background: var(--ui-bg-raised);
+}
+
+.arc-graph-inspector strong {
+  color: var(--ui-text-primary);
+  font-weight: 600;
+}
+
+.arc-graph-inspector span + span,
+.arc-graph-inspector strong + span {
+  margin-left: 12px;
+}
+
+.arc-graph-inspector .danger {
+  color: var(--ui-danger);
+}
+
+.arc-graph-empty {
+  display: grid;
+  height: min(560px, calc(100vh - 310px));
+  min-height: 380px;
+  place-content: center;
+  gap: 8px;
+  border: 1px solid var(--ui-stroke-secondary);
+  background: var(--ui-bg);
+  color: var(--ui-text-tertiary);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-align: center;
+}
+
+.arc-graph-empty small {
+  max-width: 42ch;
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+  letter-spacing: 0;
+  line-height: 1.45;
+}
+
+@media (max-width: 820px) {
+  .arc-memory-toolbar,
+  .arc-graph-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .arc-graph-header {
+    padding-block: 9px;
+  }
+
+  .arc-graph-legend {
+    flex-wrap: wrap;
+  }
 }

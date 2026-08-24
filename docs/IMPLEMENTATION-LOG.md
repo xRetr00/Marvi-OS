@@ -899,6 +899,7 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
 - Kept Marvi's earlier blue eight-cell live voice-level meter as the explicit
   product-specific exception and retained every existing health/settings/update
   action behind the new presentation.
+
 ## 2026-08-23 — measured desktop pet prototype
 
 - Added the supplied Marvi character as a packaged local v2 atlas and a
@@ -982,3 +983,84 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
 - Added focused Gateway and desktop regressions for every terminal path,
   authoritative-null reconciliation, confirmation priority, offline cleanup,
   and pending-button behavior.
+
+## 2026-08-24 — ARC memory graph
+
+- Cloned `tinyhumansai/openhuman` separately on `D:` and pinned the inspected
+  reference at `0b8b02cbd1b0a5ed5c1b893341383c036ebd4435`. Because it is
+  GPL-3.0 and Marvi OS is MIT, no OpenHuman source, assets, Rust runtime, or
+  package dependency was copied into Marvi.
+- Named Marvi's existing Gateway-owned memory, mind, and scheduled initiative
+  cycle ARC: observe → reflect → commit. The change preserves provenance,
+  untrusted-content envelopes, confirmation/YOLO, audit, and the rule that no
+  cognition runs in React.
+- Added a read-only `/arc/memory/graph` projection with provenance-tree and
+  explicit-connection modes, carried through validated Electron IPC and the
+  narrow preload bridge.
+- Independently implemented the reference graph's interaction contract in the
+  Marvi visual system: counts, legend, mode switch, reset, pan, zoom, draggable
+  nodes, hover inspector, and local empty state.
+- Replaced the first static radial SVG approximation with the actual
+  Obsidian-class rendering architecture: PixiJS 8.19.0 WebGL plus d3-force
+  3.0.0. The pinned MIT Advanced Graph View repository supplied the pan/zoom,
+  force-reheat, GPU-scene, and reduced-motion design reference; Marvi owns the
+  small React adapter and Gateway projection.
+- Verified the account-to-cognition path and closed its tool naming gap:
+  bounded Composio Gmail/Calendar ingest writes untrusted durable memory and
+  subconscious journal events, typed Chat performs bounded automatic recall,
+  and both Chat and LiveKit Voice can invoke canonical `memory_recall` through
+  the Gateway tool router. `memory_search` remains compatible.
+- Visually checked the production Electron renderer at 1180×760 with live
+  Gateway data. The CSP initially rejected Pixi's generated uniform functions;
+  the official `pixi.js/unsafe-eval` adapter fixed that by using static
+  polyfills without weakening Marvi's CSP. Verified node/link paint, crisp
+  labels, hover inspection, force-linked drag response, and reset view. All 231
+  desktop tests, all 886 Gateway tests, the 6 voice catalogue/recall tests,
+  typecheck, Ruff, and `git diff --check` pass.
+
+## 2026-08-24 — Built-in accounts and ARC world context
+
+- Replaced the status-only Accounts projection and three fixed Composio actions
+  with a built-in hosted-OAuth lifecycle: project-key validation, toolkit
+  catalog, connect/reconnect, enable/disable, revoke, and audited control-center
+  actions. Electron opens only allowlisted HTTPS Composio Connect URLs.
+- Added a stable account-tool discovery/execution broker over official live raw
+  schemas. Per-toolkit read/write/admin ceilings filter discovery and are
+  rechecked at execution; dynamic writes/admin inherit exact-argument
+  confirmation, idempotency, and audit. Chat and Voice preserve the broker's
+  nested JSON argument schema.
+- Added a native memory-provider registry for Gmail, Google Calendar, Slack,
+  Notion, GitHub, and Google Drive. Each connection owns its cursor, content
+  fingerprints, attempt/success/error timestamps, and counts; one provider
+  failure cannot stop the others.
+- Added local realtime Composio trigger subscription and optional signed-webhook
+  parsing. Trigger payloads are identity-checked, deduplicated, stored and
+  journaled as untrusted external data, and can prompt an immediate bounded
+  provider sync.
+- Rebuilt Accounts as a compact control-center surface for lifecycle, authority,
+  memory auto-fetch, manual sync, and trigger/sync health. No provider OAuth
+  credential crosses the renderer or enters Marvi storage.
+- Verified 896 Gateway tests, 125 LiveKit agent tests, 233 desktop tests,
+  desktop typecheck/production build, Gateway and agent Ruff, and ESLint with
+  zero errors (the repository's existing Windows line-ending warnings remain).
+  `git diff --check` also passes. Playwright visual checks at 1180×760 and 760×700
+  covered active/reconnect rows, capability controls, native-provider catalog,
+  and first-run project-key setup; the narrow pass exposed and removed a
+  duplicate Connect action for an account already waiting to reconnect.
+
+## 2026-08-24 — ARC auxiliary routing and diagnostics
+
+- Routed mind deliberation, presence judgement, and both scheduled/manual
+  LLM-assisted reflection through `job="aux"` and their `mind` or `memory`
+  Models → Auxiliary roles. Auto now has acceptance coverage proving it uses
+  the selected provider's `default_aux_model`; explicit role pins use the
+  fallback client's `preferred` contract without passing `provider` twice.
+- Preserved deterministic reflection when the auxiliary model is absent,
+  malformed, or unavailable instead of letting an empty model result suppress
+  stable-memory promotion.
+- Added content-free structured diagnostics across model calls and fallbacks,
+  deliberation, mind policy decisions, initiative jobs, memory operations,
+  account polling, and realtime triggers. Records include correlation IDs,
+  routes, models, timing, usage, counts, and outcomes while excluding prompts,
+  completions, memories, and account payloads.
+- Verified all 901 Gateway tests, Gateway Ruff, and `git diff --check`.
