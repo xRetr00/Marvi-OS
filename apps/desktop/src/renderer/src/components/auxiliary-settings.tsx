@@ -16,6 +16,8 @@ import { Picker } from './ui/picker'
 export function AuxiliarySettings(): React.JSX.Element {
   const [page, setPage] = useState<AuxiliaryPage | null>(null)
   const [reload, setReload] = useState(0)
+  // What is typed but not yet saved, per role.
+  const [models, setModels] = useState<Record<string, string>>({})
 
   useEffect(() => {
     let gone = false
@@ -39,7 +41,14 @@ export function AuxiliarySettings(): React.JSX.Element {
     )
   }
 
-  const choose = async (role: AuxiliaryRole, value: string): Promise<void> => {
+  // A provider without a model names nothing, and the Gateway said so on
+  // every start: "auxiliary role voice is set to 'openrouter/', which names no
+  // model". The picker offered the provider and the detail said to type the
+  // model, with nowhere to type it -- so choosing anything wrote a value that
+  // could only be ignored. Both halves are saved together or not at all.
+  const choose = async (role: AuxiliaryRole, provider: string, model: string): Promise<void> => {
+    const value = provider && model.trim() ? `${provider}${page.separator}${model.trim()}` : ''
+    if (value === (role.auto ? '' : `${role.provider}${page.separator}${role.model}`)) return
     await window.marvi?.setProviderSettings({ [role.setting]: value })
     setReload((count) => count + 1)
   }
@@ -63,23 +72,37 @@ export function AuxiliarySettings(): React.JSX.Element {
       {page.roles.map((role) => (
         <ControlRow
           action={
-            <Picker
-              options={[
-                {
-                  value: '',
-                  label: 'Auto',
-                  detail: 'Use the main model, as before'
-                },
-                ...page.providers.map((provider) => ({
-                  value: `${provider.name}${page.separator}`,
-                  label: provider.label,
-                  detail: 'Type the model after choosing'
-                }))
-              ]}
-              value={role.auto ? '' : `${role.provider}${page.separator}`}
-              onChange={(next) => void choose(role, next)}
-              placeholder="Auto"
-            />
+            <div className="provider-actions">
+              <Picker
+                options={[
+                  { value: '', label: 'Auto', detail: 'Use the main model, as before' },
+                  ...page.providers.map((provider) => ({
+                    value: provider.name,
+                    label: provider.label,
+                    detail: 'Name the model beside it'
+                  }))
+                ]}
+                value={role.provider}
+                onChange={(next) => void choose(role, next, models[role.key] ?? role.model)}
+                placeholder="Auto"
+              />
+              <input
+                aria-label={`Model for ${role.title}`}
+                className="control-input"
+                disabled={!role.provider}
+                onChange={(event) =>
+                  setModels((current) => ({ ...current, [role.key]: event.target.value }))
+                }
+                onBlur={() => void choose(role, role.provider, models[role.key] ?? '')}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    void choose(role, role.provider, models[role.key] ?? '')
+                  }
+                }}
+                placeholder="model id"
+                value={models[role.key] ?? role.model}
+              />
+            </div>
           }
           description={role.gain ? `${role.why} ${role.gain}` : role.why}
           key={role.key}

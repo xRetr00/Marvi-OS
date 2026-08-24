@@ -446,6 +446,9 @@ function startVoiceStack(): void {
     // Swept before starting, so a restart never leaves two.
     match: /marvi_gateway/i,
     installRoot: repoRoot ?? undefined,
+    // Only for explaining a bind failure: the one exit whose cause is another
+    // process entirely, and worth naming rather than retrying past.
+    port: Number(bind.port),
     command: uv,
     args: [
       'run',

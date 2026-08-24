@@ -4,7 +4,14 @@ import { join } from 'node:path'
 
 import { stateDir } from './config'
 import { log as writeLog } from './logger'
-import { groupSpawnOptions, isAlive, killStrays, killTree, stopTree } from './processes'
+import {
+  groupSpawnOptions,
+  isAlive,
+  killStrays,
+  killTree,
+  stopTree,
+  whoHasPort
+} from './processes'
 
 /**
  * Starting the local services, and knowing when they did not start.
@@ -90,6 +97,14 @@ export interface ServiceSpec {
   env?: Record<string, string>
   /** Where this installation lives, so another checkout is left alone. */
   installRoot?: string
+  /**
+   * The port this service listens on, if it does.
+   *
+   * Only used to explain a failure: "address already in use" is the one exit
+   * whose cause is somewhere else entirely, and naming the process that has
+   * the port is the difference between a fixable message and a restart loop.
+   */
+  port?: number
   /**
    * How to recognise this service among running processes, for sweeping a
    * previous copy before starting a new one. Without it a restart leaves the
@@ -237,7 +252,7 @@ class Service {
   }
 
   private fail(detail: string): void {
-    this.detail = detail
+    this.detail = this.explainPort(detail)
     if (this.restarts >= MAX_RESTARTS) {
       // A service that has failed this many times will not fix itself, and a
       // restart loop hides the original error under a wall of new ones.
@@ -250,6 +265,35 @@ class Service {
     this.onChange()
     const wait = RESTART_BASE_MS * 2 ** (this.restarts - 1)
     this.timer = setTimeout(() => this.start(), wait)
+  }
+
+  /**
+   * Turn "address already in use" into who has it.
+   *
+   * The Gateway wrote `[Errno 10048] only one usage of each socket address`
+   * and exited, the supervisor restarted it, and it failed the same way every
+   * ten seconds for an hour without once saying what was already there. It was
+   * a Gateway from a second checkout, running since the previous evening --
+   * invisible from here, because `killStrays` is scoped to this install root
+   * and correctly leaves another checkout's processes alone.
+   *
+   * So this names it rather than killing it: another checkout's Gateway may be
+   * something somebody is using, and the person reading this is the one who
+   * knows.
+   */
+  private explainPort(detail: string): string {
+    if (!/10048|EADDRINUSE|address already in use/i.test(`${detail} ${this.output.join(' ')}`)) {
+      return detail
+    }
+    const port = this.spec.port
+    if (!port) return detail
+    const holder = whoHasPort(port)
+    if (!holder) return `port ${port} is already in use, and nothing is listening on it now`
+    return (
+      `port ${port} is already taken by process ${holder.pid}` +
+      (holder.command ? ` (${holder.command})` : '') +
+      '. Close that, or change this one’s port.'
+    )
   }
 
   /**

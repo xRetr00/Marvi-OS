@@ -151,3 +151,39 @@ export function killStrays(installRoot?: string, match?: RegExp): number {
   }
   return stopped
 }
+
+/**
+ * Who is listening on a port, as something a person can act on.
+ *
+ * A Gateway that cannot bind writes `[Errno 10048] only one usage of each
+ * socket address` and exits; the supervisor restarts it, it fails the same
+ * way, and the loop says nothing about *what* is already there. The answer on
+ * this machine was a Gateway from a second checkout that had been running
+ * since the previous evening — invisible from inside Marvi, because
+ * `killStrays` is scoped to this install root and correctly leaves another
+ * checkout's processes alone.
+ *
+ * Identifying is not killing. Another checkout's Gateway may be something
+ * somebody is using.
+ */
+export function whoHasPort(port: number): { pid: number; command: string } | null {
+  if (!isWindows()) return null
+  try {
+    const output = execFileSync(
+      'powershell',
+      [
+        '-NoProfile',
+        '-Command',
+        `$c = Get-NetTCPConnection -LocalPort ${port} -State Listen -ErrorAction SilentlyContinue | ` +
+          'Select-Object -First 1; if ($c) { $p = Get-CimInstance Win32_Process -Filter ' +
+          '"ProcessId=$($c.OwningProcess)"; "$($c.OwningProcess)|$($p.ExecutablePath)" }'
+      ],
+      { encoding: 'utf8', windowsHide: true, timeout: 10_000 }
+    ).trim()
+    if (!output) return null
+    const [pid, command] = output.split('|')
+    return { pid: Number(pid), command: (command ?? '').trim() }
+  } catch {
+    return null
+  }
+}
