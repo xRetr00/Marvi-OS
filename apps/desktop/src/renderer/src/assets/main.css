@@ -5372,3 +5372,19 @@ body {
   font-size: 10px;
   line-height: 1.5;
 }
+
+.control-input {
+  min-width: 0;
+  width: 12ch;
+  padding: 4px 7px;
+  border: 1px solid var(--ui-stroke-tertiary);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ui-text-primary);
+  font: inherit;
+  font-size: 10px;
+}
+
+.control-input:focus-visible {
+  outline: 1px solid var(--ui-text-tertiary);
+}

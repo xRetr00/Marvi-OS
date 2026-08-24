@@ -636,16 +636,24 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
   const [snapshot, setSnapshot] = useState<RoomSnapshot | null>(null)
   const [events, setEvents] = useState<RoomEvent[]>([])
   const [error, setError] = useState<string | null>(null)
+  // `configured` and the broker come from `room_health`; `room_state` has the
+  // failure counters. Reading either from the other is what showed every
+  // device as "not set up" and the broker as `?:?`.
+  const [health, setHealth] = useState<Record<string, unknown>>({})
+  const [enrolling, setEnrolling] = useState(false)
+  const [faceName, setFaceName] = useState('')
 
   useEffect(() => {
     let disposed = false
     const load = async (): Promise<void> => {
-      const [response, history] = await Promise.all([
+      const [response, history, live] = await Promise.all([
         window.marvi?.getRoomState(),
-        window.marvi?.getRoomEvents()
+        window.marvi?.getRoomEvents(),
+        window.marvi?.getRoomHealth()
       ])
       if (disposed) return
       if (history) setEvents(history)
+      setHealth((live ?? {}) as Record<string, unknown>)
       if (!response || response.status !== 'executed' || !response.result) {
         setSnapshot(null)
         setError(response?.error ?? 'Marvi Gateway is unavailable')
@@ -688,7 +696,32 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
   const modes = readRecord(state, 'modes')
   const location = readRecord(state, 'location')
   const vision = readRecord(state, 'vision')
-  const mqtt = readRecord(state, 'mqtt')
+  const mqtt = readRecord(health, 'mqtt')
+
+  // The plugin has had `smart_room_vision_identity` all along and nothing in
+  // the app ever called it, so the only way to teach the camera a face was to
+  // ask out loud and hope. Enrolment reads several frames, so it takes a few
+  // seconds and has to say so.
+  const enrol = async (): Promise<void> => {
+    const name = faceName.trim()
+    if (!name) return
+    setEnrolling(true)
+    try {
+      const answer = await window.marvi?.roomCommand('smart_room_vision_identity', {
+        action: 'enroll_owner',
+        name,
+        seconds: 5
+      })
+      setPressed(
+        answer?.status === 'executed'
+          ? `Enrolled ${name}. Stand in front of the camera if it did not take.`
+          : (answer?.error ?? 'The camera could not enrol that face.')
+      )
+      if (answer?.status === 'executed') setFaceName('')
+    } finally {
+      setEnrolling(false)
+    }
+  }
 
   const press = async (tool: string, args: Record<string, unknown>): Promise<void> => {
     setBusy(tool)
@@ -858,7 +891,12 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
           ['Socket (Tuya HE20)', 'tuya_he20'],
           ['Presence sensor (ESP32)', 'esp32']
         ].map(([label, key]) => {
-          const device = readRecord(readRecord(state, 'devices'), key)
+          // `configured` and the broker live in `room_health`; `room_state`
+          // carries the failure counters. Reading either from the other showed
+          // every device as "not set up" and the broker as `?:?`.
+          const device = readRecord(readRecord(health, 'devices'), key)
+          const counters = readRecord(readRecord(state, 'devices'), key)
+          const failures = Number(counters.consecutive_failures ?? 0)
           return (
             <ControlRow
               action={
@@ -870,7 +908,15 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
                   {!device.configured ? 'not set up' : device.online ? 'online' : 'offline'}
                 </ControlPill>
               }
-              description={device.ip ? String(device.ip) : undefined}
+              description={
+                counters.circuit_open
+                  ? `Given up after ${failures.toLocaleString()} failed attempts. It will not be tried again until something changes.`
+                  : device.ip
+                    ? String(device.ip)
+                    : device.configured
+                      ? undefined
+                      : 'No address or key configured for it yet.'
+              }
               key={key}
               title={label}
             />
@@ -882,7 +928,13 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
               {mqtt.connected ? 'connected' : 'disconnected'}
             </ControlPill>
           }
-          description={`${String(mqtt.broker ?? '?')}:${String(mqtt.port ?? '?')}`}
+          description={
+            mqtt.broker
+              ? `${String(mqtt.broker)}:${String(mqtt.port ?? 1883)}${
+                  mqtt.connected ? '' : ' — nothing is answering there'
+                }`
+              : 'No broker configured. Presence and phone location both arrive over MQTT, so neither works without one.'
+          }
           title="MQTT broker"
         />
         <ControlRow
@@ -892,15 +944,46 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
             </ControlPill>
           }
           description={
-            location.source
+            location.source && location.source !== 'unknown'
               ? `Reported by ${String(location.source)}`
-              : 'No phone location reported yet — OwnTracks publishes these over MQTT.'
+              : 'Nothing has reported a phone location. OwnTracks publishes these to the broker above.'
           }
           title="Phone (OwnTracks)"
         />
       </ControlSection>
 
       <ControlSection icon={Eye} title="Vision">
+        <ControlRow
+          action={
+            <div className="provider-actions">
+              <input
+                className="control-input"
+                disabled={enrolling}
+                onChange={(event) => setFaceName(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') void enrol()
+                }}
+                placeholder="Name"
+                value={faceName}
+              />
+              <button
+                className="ghost-button"
+                disabled={enrolling || !faceName.trim()}
+                onClick={() => void enrol()}
+                type="button"
+              >
+                {enrolling ? 'LOOKING…' : 'ENROL'}
+              </button>
+            </div>
+          }
+          description={
+            vision.error
+              ? `The camera is not running: ${String(vision.error)}`
+              : 'Look at the camera and enrol. It reads a few seconds of frames, so give it a moment and keep one face in view.'
+          }
+          icon={Eye}
+          title="Teach it your face"
+        />
         {faces.length === 0 ? (
           <ControlEmpty
             description={

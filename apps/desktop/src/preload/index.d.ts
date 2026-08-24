@@ -62,6 +62,10 @@ export interface MarviDesktopApi {
   getRoomEvents: () => Promise<RoomEvent[]>
   /** Which model does which job. Roles default to the main model. */
   getAuxiliary: () => Promise<AuxiliaryPage | null>
+  /** Device reachability and the broker. Lives in `room_health`, not in
+   *  `room_state` - reading it from the state showed every device as "not set
+   *  up" and the broker as `?:?`, because neither field is there. */
+  getRoomHealth: () => Promise<Record<string, unknown> | null>
   /** Face crops the sidecar wrote when it recognised someone. Not a camera
    *  feed: the sidecar owns the camera and publishes no frames. */
   getRoomFaces: () => Promise<{ id: string; at: number; image: string }[]>

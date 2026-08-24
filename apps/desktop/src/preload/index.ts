@@ -116,6 +116,8 @@ const marvi = {
   getAudit: (): Promise<AuditEvent[]> => ipcRenderer.invoke('marvi:get-audit'),
   getRoomEvents: (): Promise<RoomEvent[]> => ipcRenderer.invoke('marvi:get-room-events'),
   getAuxiliary: (): Promise<AuxiliaryPage | null> => ipcRenderer.invoke('marvi:get-auxiliary'),
+  getRoomHealth: (): Promise<Record<string, unknown> | null> =>
+    ipcRenderer.invoke('marvi:get-room-health'),
   getRoomFaces: (): Promise<{ id: string; at: number; image: string }[]> =>
     ipcRenderer.invoke('marvi:get-room-faces'),
   roomCommand: (

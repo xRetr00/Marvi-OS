@@ -1898,6 +1898,21 @@ function startApp(): void {
         return null
       }
     })
+    ipcMain.handle('marvi:get-room-health', async () => {
+      try {
+        const response = await fetch(`${gateway()}/tools/room_health`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ arguments: {} }),
+          signal: AbortSignal.timeout(5_000)
+        })
+        if (!response.ok) return null
+        const body = (await response.json()) as { result?: { health?: unknown } }
+        return body.result?.health ?? null
+      } catch {
+        return null
+      }
+    })
     ipcMain.handle('marvi:get-room-faces', async () => {
       try {
         const response = await fetch(`${gateway()}/room/faces`, {
@@ -1911,7 +1926,12 @@ function startApp(): void {
       }
     })
     ipcMain.handle('marvi:room-command', async (_event, tool, args) => {
-      const allowed = ['room_set_light', 'room_set_mode', 'smart_room_cancel_sleep']
+      const allowed = [
+        'room_set_light',
+        'room_set_mode',
+        'smart_room_cancel_sleep',
+        'smart_room_vision_identity'
+      ]
       if (typeof tool !== 'string' || !allowed.includes(tool)) {
         return { status: 'failed', error: `not a room control: ${String(tool)}` }
       }
