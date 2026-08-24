@@ -1784,7 +1784,13 @@ function startApp(): void {
           listener: {
             autostart: Boolean((body.listener as Record<string, unknown>)?.['autostart']),
             running: Boolean((body.listener as Record<string, unknown>)?.['running']),
-            error: String((body.listener as Record<string, unknown>)?.['error'] ?? '')
+            error: String((body.listener as Record<string, unknown>)?.['error'] ?? ''),
+            silentFor:
+              (body.listener as Record<string, unknown>)?.['silent_for'] === null ||
+              (body.listener as Record<string, unknown>)?.['silent_for'] === undefined
+                ? null
+                : Number((body.listener as Record<string, unknown>)['silent_for']),
+            everRan: Boolean((body.listener as Record<string, unknown>)?.['ever_ran'])
           }
         }
       } catch {

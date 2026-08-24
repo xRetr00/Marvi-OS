@@ -137,12 +137,23 @@ def listener() -> dict[str, Any]:
         state = json.loads(listener_state_path().read_text(encoding="utf-8"))
 
     beat = state.get("heartbeat")
-    fresh = isinstance(beat, int | float) and (time.time() - beat) <= LISTENER_STALE_SECONDS
+    timed = isinstance(beat, int | float)
+    silent_for = (time.time() - float(beat)) if timed else None
+    fresh = timed and silent_for is not None and silent_for <= LISTENER_STALE_SECONDS
     heard_at = state.get("heard_at")
     return {
         "autostart": bool(command),
         "command": command,
         "running": bool(state.get("running")) and fresh,
+        # How long since it last said anything, or None when it has never run.
+        #
+        # "Registered but not running" was reported as one thing and it is two.
+        # A listener registered a second ago has not started yet; one whose
+        # last heartbeat was thirty hours back has died, and the status bar
+        # said STARTING for both -- so a wake word that had been dead since the
+        # previous morning looked like one that was still warming up.
+        "silent_for": None if silent_for is None else round(silent_for, 1),
+        "ever_ran": timed,
         "pid": state.get("pid"),
         "started_at": state.get("started_at"),
         "heartbeat": beat,

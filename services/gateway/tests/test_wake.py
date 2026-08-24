@@ -165,3 +165,59 @@ def test_the_two_services_dedupe_microphones_the_same_way() -> None:
     rule = "if not any(other != name and other.startswith(name) for other in names)"
 
     assert rule in agent, "the Agent no longer drops truncated duplicate names"
+
+
+def test_a_listener_that_died_is_not_a_listener_starting_up(monkeypatch, tmp_path) -> None:
+    """The status bar said STARTING for thirty hours.
+
+    "Registered but not running" was reported as one state and it is two: a
+    listener registered a second ago has not started yet, and one whose last
+    heartbeat was yesterday morning is dead. Told apart, the first is worth
+    waiting for and the second is worth a button.
+    """
+    import json
+    import time
+
+    from marvi_gateway import wake
+
+    state = tmp_path / "wake.json"
+    state.write_text(
+        json.dumps({"pid": 34608, "running": True, "heartbeat": time.time() - 107_000}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(wake, "listener_state_path", lambda: state)
+
+    live = wake.listener()
+
+    assert live["running"] is False
+    assert live["ever_ran"] is True
+    assert live["silent_for"] > 100_000
+
+
+def test_a_listener_that_has_never_run_says_so(monkeypatch, tmp_path) -> None:
+    """No state file at all: it was registered and has not started yet, which
+    is the one case where waiting is the right advice."""
+    from marvi_gateway import wake
+
+    monkeypatch.setattr(wake, "listener_state_path", lambda: tmp_path / "absent.json")
+
+    live = wake.listener()
+
+    assert live["running"] is False
+    assert live["ever_ran"] is False
+    assert live["silent_for"] is None
+
+
+def test_a_beating_listener_is_running(monkeypatch, tmp_path) -> None:
+    import json
+    import time
+
+    from marvi_gateway import wake
+
+    state = tmp_path / "wake.json"
+    state.write_text(
+        json.dumps({"running": True, "heartbeat": time.time()}), encoding="utf-8"
+    )
+    monkeypatch.setattr(wake, "listener_state_path", lambda: state)
+
+    assert wake.listener()["running"] is True

@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+
+import { AuxiliarySettings } from './auxiliary-settings'
 import { Brain, Route } from 'lucide-react'
 
 import type { ModelCard, ModelProvider, ProviderPage, UpstreamPage } from '../../../shared/runtime'
@@ -212,6 +214,14 @@ export function ModelsPanel(): React.JSX.Element {
           </div>
         </ControlSection>
       ) : null}
+
+      <ControlSection
+        description="This one model answers everything, including work that needs none of its reasoning. These jobs can have their own."
+        icon={Brain}
+        title="Model for each job"
+      >
+        <AuxiliarySettings />
+      </ControlSection>
 
       {loading ? (
         <ProcessingCard

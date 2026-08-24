@@ -404,6 +404,16 @@ export interface WakeStatus {
     autostart: boolean
     running: boolean
     error: string
+    /**
+     * Seconds since the listener last said anything, or null when it has
+     * never run.
+     *
+     * "Registered but not running" was reported as one state and it is two. A
+     * listener registered a second ago has not started yet; one silent for
+     * thirty hours has died — and the status bar said STARTING for both.
+     */
+    silentFor: number | null
+    everRan: boolean
   }
 }
 

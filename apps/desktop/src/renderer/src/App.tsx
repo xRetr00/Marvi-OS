@@ -10,7 +10,6 @@ import {
   CheckCircle2,
   Clock3,
   Database,
-  Cpu,
   Eye,
   Gauge,
   History,
@@ -103,8 +102,6 @@ import type {
   AccountPage,
   AccountToolkit,
   FaceLibrary,
-  AuxiliaryPage,
-  AuxiliaryRole,
   AuditEvent,
   ConnectedAccount,
   DeviceState,
@@ -872,7 +869,7 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
               </button>
             </div>
           }
-          description="Goes through the same tool Marvi uses, so the sleep rule still applies."
+          description="Goes through the same tool Marvi uses, so every guard and the audit line apply to a button too."
           icon={Lightbulb}
           title="Light"
         />
@@ -911,7 +908,7 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
               ))}
             </div>
           }
-          description="Sleep only ever allows the light off — that rule is Marvi's and a button cannot go round it."
+          description="Switching to sleep does not lock the light: that rule is off unless you turn it on."
           icon={House}
           title="Mode"
         />
@@ -1991,13 +1988,6 @@ function ProvidersPanel(): React.JSX.Element {
         )
       })}
 
-      <ControlSection
-        description="Marvi picks one model for the hardest thing she does and then uses it for everything. These jobs can have their own."
-        icon={Cpu}
-        title="Model for each job"
-      >
-        <AuxiliarySettings />
-      </ControlSection>
     </ControlPage>
   )
 }
@@ -2389,13 +2379,19 @@ function WakeStatusItem({ onOpen }: { onOpen: () => void }): React.JSX.Element |
 
   const { autostart, running } = wake.listener
   const heard = wake.recentlyHeard
-  const label = heard ? 'HEARD' : running ? 'LIVE' : autostart ? 'STARTING' : 'OFF'
+  // Registered and silent for a while is stopped, not starting. It said
+  // STARTING for thirty hours straight, which is a status bar lying rather
+  // than reporting.
+  const stopped = autostart && !running && (wake.listener.silentFor ?? 0) > 60
+  const label = heard ? 'HEARD' : running ? 'LIVE' : stopped ? 'STOPPED' : autostart ? 'STARTING' : 'OFF'
   const tooltip = heard
     ? `Heard her name at ${Math.round(wake.confidence * 100)}% confidence`
     : running
       ? 'Listening for “Marvi” — say it to join hands-free'
       : autostart
-        ? 'Registered to start at login, but not running right now'
+        ? stopped
+          ? `Registered, but it has not been heard from for ${sinceWhen(wake.listener.silentFor)}`
+          : 'Registered to start at login, and coming up'
         : 'Not listening. Turn it on in Voice settings.'
 
   return (
@@ -2444,6 +2440,15 @@ function WakeIndicator(): React.JSX.Element | null {
  * closed. The switch now registers the standalone listener to start at login,
  * which is the only arrangement in which a wake word means anything.
  */
+/** "two minutes", "30 hours" — enough to tell a hiccup from a death. */
+function sinceWhen(seconds: number | null): string {
+  if (seconds === null) return 'never'
+  if (seconds < 90) return `${Math.round(seconds)} seconds`
+  if (seconds < 5400) return `${Math.round(seconds / 60)} minutes`
+  if (seconds < 172800) return `${Math.round(seconds / 3600)} hours`
+  return `${Math.round(seconds / 86400)} days`
+}
+
 function WakeSettings(): React.JSX.Element {
   const wake = useWake(4000)
   // Held locally so the switch moves on the click rather than on the next
@@ -2458,12 +2463,15 @@ function WakeSettings(): React.JSX.Element {
   }
 
   const on = pending ?? wake.listener.autostart
-  const toggle = async (): Promise<void> => {
+  const toggle = async (want?: boolean): Promise<void> => {
+    const target = want ?? !on
     setBusy(true)
-    setPending(!on)
+    setPending(target)
     try {
-      const next = await window.marvi?.setWakeAutostart(!on, wake.device)
-      setPending(next?.autostart ?? !on)
+      // Enabling stops whatever is already running before starting, so asking
+      // for `true` while it is already registered is a restart.
+      const next = await window.marvi?.setWakeAutostart(target, wake.device)
+      setPending(next?.autostart ?? target)
     } finally {
       setBusy(false)
     }
@@ -2534,13 +2542,34 @@ function WakeSettings(): React.JSX.Element {
               placeholder="System default microphone"
             />
           ) : null}
+          {!wake.listener.running && wake.listener.everRan ? (
+            <ControlRow
+              action={
+                <button
+                  className="ghost-button"
+                  disabled={busy}
+                  onClick={() => void toggle(true)}
+                  type="button"
+                >
+                  START IT
+                </button>
+              }
+              description={`It last reported ${sinceWhen(
+                wake.listener.silentFor
+              )} ago and has not since. Starting it re-registers the listener and launches it now, rather than waiting for the next login.`}
+              icon={ShieldAlert}
+              title="The listener has stopped"
+            />
+          ) : null}
           <p className="notice">
             {!wake.modelPresent
               ? 'No wake word model found, so there is nothing to listen with.'
               : wake.listener.running
                 ? 'Running now, and at every login. Saying “Marvi” joins the same way pressing Join does — and opens Marvi first if she is closed.'
                 : wake.listener.error ||
-                  'Registered to start at login. It is not running yet; give it a moment.'}
+                  (wake.listener.everRan
+                    ? ''
+                    : 'Registered to start at login. It has not started yet; give it a moment.')}
           </p>
         </>
       ) : null}
@@ -3532,115 +3561,6 @@ function SpeechPanel(): React.JSX.Element {
         <WakeSettings />
       </ControlSection>
     </ControlPage>
-  )
-}
-
-/**
- * Which model does which job.
- *
- * One model was chosen for the hardest thing Marvi does and then used for
- * everything, including a one-sentence yes/no that runs many times an hour.
- * A role may point somewhere cheaper and faster; `auto` keeps the old
- * behaviour, which is a perfectly good answer and the default.
- */
-function AuxiliarySettings(): React.JSX.Element {
-  const [page, setPage] = useState<AuxiliaryPage | null>(null)
-  const [reload, setReload] = useState(0)
-
-  useEffect(() => {
-    let gone = false
-    void (async () => {
-      const next = await window.marvi?.getAuxiliary()
-      if (!gone) setPage(next ?? null)
-    })()
-    return () => {
-      gone = true
-    }
-  }, [reload])
-
-  if (!page) return <span className="construction">UNAVAILABLE</span>
-  if (page.providers.length === 0) {
-    return (
-      <ControlEmpty
-        description="Connect a provider on the Models page and these can point at it."
-        icon={ShieldAlert}
-        title="No providers configured"
-      />
-    )
-  }
-
-  const choose = async (role: AuxiliaryRole, value: string): Promise<void> => {
-    await window.marvi?.setProviderSettings({ [role.setting]: value })
-    setReload((count) => count + 1)
-  }
-
-  // A job pinned to a provider that is no longer the main one is the quiet
-  // credit-burn path: you switch your main model away from somewhere, and
-  // three background jobs keep spending there because nothing said so. Named
-  // rather than cleared, because a deliberate pin is a legitimate thing to
-  // have and clearing it automatically would be the surprise.
-  const stale = page.roles.filter((role) => !role.auto && role.provider !== page.main)
-
-  const resetAll = async (): Promise<void> => {
-    await window.marvi?.setProviderSettings(
-      Object.fromEntries(stale.map((role) => [role.setting, '']))
-    )
-    setReload((count) => count + 1)
-  }
-
-  return (
-    <>
-      {page.roles.map((role) => (
-        <ControlRow
-          action={
-            <Picker
-              options={[
-                {
-                  value: '',
-                  label: 'Auto',
-                  detail: 'Use the main model, as before'
-                },
-                ...page.providers.map((provider) => ({
-                  value: `${provider.name}${page.separator}`,
-                  label: provider.label,
-                  detail: 'Type the model after choosing'
-                }))
-              ]}
-              value={role.auto ? '' : `${role.provider}${page.separator}`}
-              onChange={(next) => void choose(role, next)}
-              placeholder="Auto"
-            />
-          }
-          description={role.gain ? `${role.why} ${role.gain}` : role.why}
-          key={role.key}
-          title={role.title}
-        />
-      ))}
-      {stale.length > 0 ? (
-        <ControlRow
-          action={<ControlButton onClick={() => void resetAll()}>Reset all to main</ControlButton>}
-          description={`${stale.map((role) => role.title).join(', ')} still ${
-            stale.length === 1 ? 'runs' : 'run'
-          } on ${
-            new Set(stale.map((role) => role.provider)).size === 1
-              ? stale[0].provider
-              : 'other providers'
-          }, not your main model. A job pinned to a provider you have stopped using goes on
-          spending there quietly.`}
-          icon={ShieldAlert}
-          title="Pinned away from your main model"
-        />
-      ) : null}
-      {page.roles.some((role) => !role.auto) ? (
-        <ControlRow
-          description={page.roles
-            .filter((role) => !role.auto)
-            .map((role) => `${role.title}: ${role.provider}/${role.model || '(no model named)'}`)
-            .join(' · ')}
-          title="Currently"
-        />
-      ) : null}
-    </>
   )
 }
 
