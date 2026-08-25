@@ -285,12 +285,16 @@ ASCII framing, or a grid of decorative cards. Content is capped at 880 px so
 labels and values remain easy to scan. Narrow windows stack row actions below
 their labels. Voice and Chat retain their purpose-built interaction layouts.
 
-Settings opens as one inset dialog with a 208 px navigation rail and the same
-content grammar. The rail uses sentence-case 28 px rows, a compact icon button
-to close, and becomes a two-column strip before stacking above content on small
-windows. The general navigation rail is 212 px expanded and 52 px collapsed;
-the app logo stays visible in the collapsed rail and the title bar owns the
-collapse action.
+Settings opens as one inset dialog with the Hermes-derived 208 px navigation
+rail and the same content grammar. The flat rail uses sentence-case 28 px rows,
+separates related destinations with whitespace instead of printed group labels,
+and leaves the compact close button floating at the dialog's top-right. Each
+setting is a container-responsive label/description/action row; controls align
+in one right column and stack below their copy only when the content pane is
+narrow. The rail becomes a two-column strip before stacking above content on
+small windows. The general navigation rail is 212 px expanded and 52 px
+collapsed; the app logo stays visible in the collapsed rail and the title bar
+owns the collapse action.
 
 Async page work uses the shared Processing Card. It shows a real percentage
 only when the underlying operation reports one; otherwise the scan and moving

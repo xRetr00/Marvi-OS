@@ -121,6 +121,17 @@ describe('shell layout', () => {
     expect(css).toContain('.settings-frame')
   })
 
+  it('organises settings with the Hermes overlay and row grammar', () => {
+    expect(app).toContain('className="settings-close"')
+    expect(app).toContain("'settings-group has-gap'")
+    expect(app).not.toContain('<h2>{group.label}</h2>')
+    expect(css).toContain('container-name: settings-content')
+    expect(css).toContain('@container settings-content (max-width: 620px)')
+    expect(app).toContain('title="Recognition accuracy"')
+    expect(app).toContain('title="Window translucency"')
+    expect(app).toContain('title="Alignment"')
+  })
+
   it('keeps one window-wide status bar below both sidebars and page content', () => {
     expect(lastBlock('.app-shell')).toContain('34px minmax(0, 1fr) 20px')
     expect(app).toMatch(/<\/div>\s*\{statusbar}\s*\{settings \? \(/)

@@ -160,8 +160,14 @@ const NAV_GROUPS = [
 
 /** Behind the gear: the things you set up. */
 const SETTINGS_GROUPS = [
-  { label: 'Connect', items: ['Providers', 'Models', 'Usage', 'Accounts', 'Skills', 'Plugins'] },
-  { label: 'System', items: ['Speech', 'Preferences', 'Schedules', 'Maintenance', 'About'] }
+  {
+    gapBefore: false,
+    items: ['Providers', 'Models', 'Usage', 'Accounts', 'Skills', 'Plugins']
+  },
+  {
+    gapBefore: true,
+    items: ['Speech', 'Preferences', 'Schedules', 'Maintenance', 'About']
+  }
 ] as const
 
 type Page = (typeof NAV_GROUPS)[number]['items'][number]
@@ -1399,7 +1405,10 @@ function AccountsPanel(): React.JSX.Element {
   }, [load])
 
   const act = useCallback(
-    async (key: string, work: () => Promise<boolean | { ok: boolean; detail: string }>): Promise<void> => {
+    async (
+      key: string,
+      work: () => Promise<boolean | { ok: boolean; detail: string }>
+    ): Promise<void> => {
       setBusy(key)
       setNotice('')
       const result = await work()
@@ -1435,7 +1444,9 @@ function AccountsPanel(): React.JSX.Element {
     })
     .slice(0, query ? 20 : 6)
 
-  const syncFor = (account: ConnectedAccount): AccountPage['sync']['connections'][number] | undefined =>
+  const syncFor = (
+    account: ConnectedAccount
+  ): AccountPage['sync']['connections'][number] | undefined =>
     page?.sync.connections.find(
       (row) => row.toolkit === account.toolkit && (!account.id || row.connectionId === account.id)
     )
@@ -1481,12 +1492,17 @@ function AccountsPanel(): React.JSX.Element {
             {accounts.map((account) => {
               const sync = syncFor(account)
               const key = account.id || account.toolkit
-              const label = catalog.find((row) => row.slug === account.toolkit)?.name ?? account.toolkit
+              const label =
+                catalog.find((row) => row.slug === account.toolkit)?.name ?? account.toolkit
               return (
                 <ControlRow
                   action={
                     <div className="account-row-controls">
-                      <div aria-label={`${label} capability`} className="account-scope" role="group">
+                      <div
+                        aria-label={`${label} capability`}
+                        className="account-scope"
+                        role="group"
+                      >
                         {(['read', 'write', 'admin'] as const).map((scope) => (
                           <button
                             aria-pressed={account.scope === scope}
@@ -1549,7 +1565,8 @@ function AccountsPanel(): React.JSX.Element {
                             void act(key, () => window.marvi!.deleteAccount(account.id))
                           }}
                         >
-                          <Trash2 aria-hidden="true" /> {deleteArmed === key ? 'Confirm remove' : 'Remove'}
+                          <Trash2 aria-hidden="true" />{' '}
+                          {deleteArmed === key ? 'Confirm remove' : 'Remove'}
                         </ControlButton>
                       </div>
                     </div>
@@ -1661,14 +1678,18 @@ function AccountsPanel(): React.JSX.Element {
                 title={
                   <span className="account-catalog-title">
                     {toolkit.name}
-                    {toolkit.nativeMemory ? <ControlPill tone="accent">ARC MEMORY</ControlPill> : null}
+                    {toolkit.nativeMemory ? (
+                      <ControlPill tone="accent">ARC MEMORY</ControlPill>
+                    ) : null}
                   </span>
                 }
               />
             ))
           ) : (
             <ControlEmpty
-              description={query ? 'Try a broader service name.' : 'Every listed service is connected.'}
+              description={
+                query ? 'Try a broader service name.' : 'Every listed service is connected.'
+              }
               icon={Link2}
               title={query ? 'No matching toolkit' : 'Catalog connected'}
             />
@@ -1676,7 +1697,11 @@ function AccountsPanel(): React.JSX.Element {
         </ControlSection>
       ) : null}
 
-      {notice ? <p aria-live="polite" className="account-notice">{notice}</p> : null}
+      {notice ? (
+        <p aria-live="polite" className="account-notice">
+          {notice}
+        </p>
+      ) : null}
     </ControlPage>
   )
 }
@@ -1987,7 +2012,6 @@ function ProvidersPanel(): React.JSX.Element {
           </ControlSection>
         )
       })}
-
     </ControlPage>
   )
 }
@@ -2383,7 +2407,15 @@ function WakeStatusItem({ onOpen }: { onOpen: () => void }): React.JSX.Element |
   // STARTING for thirty hours straight, which is a status bar lying rather
   // than reporting.
   const stopped = autostart && !running && (wake.listener.silentFor ?? 0) > 60
-  const label = heard ? 'HEARD' : running ? 'LIVE' : stopped ? 'STOPPED' : autostart ? 'STARTING' : 'OFF'
+  const label = heard
+    ? 'HEARD'
+    : running
+      ? 'LIVE'
+      : stopped
+        ? 'STOPPED'
+        : autostart
+          ? 'STARTING'
+          : 'OFF'
   const tooltip = heard
     ? `Heard her name at ${Math.round(wake.confidence * 100)}% confidence`
     : running
@@ -3459,18 +3491,22 @@ function SettingsShell({
       role="presentation"
     >
       <div aria-label="Settings" aria-modal="true" className="settings-frame" role="dialog">
+        <UiTooltip label="Close settings" side="left">
+          <button
+            aria-label="Close settings"
+            className="settings-close"
+            onClick={onClose}
+            type="button"
+          >
+            <AbstractIcon name="close" size={14} />
+          </button>
+        </UiTooltip>
         <nav className="settings-rail" aria-label="Settings sections">
-          <div className="settings-rail-head">
-            <strong>Settings</strong>
-            <UiTooltip label="Close settings" side="left">
-              <button aria-label="Close settings" onClick={onClose} type="button">
-                <AbstractIcon name="close" size={14} />
-              </button>
-            </UiTooltip>
-          </div>
-          {SETTINGS_GROUPS.map((group) => (
-            <div className="settings-group" key={group.label}>
-              <h2>{group.label}</h2>
+          {SETTINGS_GROUPS.map((group, index) => (
+            <div
+              className={group.gapBefore ? 'settings-group has-gap' : 'settings-group'}
+              key={index}
+            >
               {group.items.map((item) => (
                 <button
                   aria-current={page === item ? 'page' : undefined}
@@ -3588,37 +3624,45 @@ function RecognitionSettings(): React.JSX.Element {
   }
 
   return (
-    <div className="voice-choice">
-      <Picker
-        options={[
-          { value: '0.8', label: 'Fast', detail: 'Subtitles keep up; more mistakes' },
-          { value: '2.0', label: 'Accurate', detail: 'The default. Two seconds behind you' },
-          { value: '3.0', label: 'Most accurate', detail: 'Slowest subtitles' }
-        ]}
-        value={lookahead}
-        onChange={(next) => {
-          setLookahead(next)
-          save({ MARVI_STT_LOOKAHEAD: next })
-        }}
-        placeholder="Accurate"
+    <>
+      <ControlRow
+        action={
+          <Picker
+            options={[
+              { value: '0.8', label: 'Fast', detail: 'Subtitles keep up; more mistakes' },
+              { value: '2.0', label: 'Accurate', detail: 'The default. Two seconds behind you' },
+              { value: '3.0', label: 'Most accurate', detail: 'Slowest subtitles' }
+            ]}
+            value={lookahead}
+            onChange={(next) => {
+              setLookahead(next)
+              save({ MARVI_STT_LOOKAHEAD: next })
+            }}
+            placeholder="Accurate"
+          />
+        }
+        description="Longer lookahead improves accuracy while subtitles follow farther behind."
+        title="Recognition accuracy"
       />
-      {/* Measured on this machine: the same accuracy either way, four times
-          faster on the card -- but the card is also making the speech, and
-          that is what ran out of room. Hence a choice rather than a default. */}
-      <Picker
-        options={[
-          { value: 'cpu', label: 'Processor', detail: 'Leaves the graphics card to the voice' },
-          { value: 'cuda', label: 'Graphics card', detail: 'Faster, shares the card' }
-        ]}
-        value={device}
-        onChange={(next) => {
-          setDevice(next)
-          save({ MARVI_STT_DEVICE: next })
-        }}
-        placeholder="Processor"
+      <ControlRow
+        action={
+          <Picker
+            options={[
+              { value: 'cpu', label: 'Processor', detail: 'Leaves the graphics card to the voice' },
+              { value: 'cuda', label: 'Graphics card', detail: 'Faster, shares the card' }
+            ]}
+            value={device}
+            onChange={(next) => {
+              setDevice(next)
+              save({ MARVI_STT_DEVICE: next })
+            }}
+            placeholder="Processor"
+          />
+        }
+        description="Marvi restarts the voice worker after this changes."
+        title="Inference device"
       />
-      <p className="notice">Marvi restarts the voice worker to apply these.</p>
-    </div>
+    </>
   )
 }
 
@@ -3675,40 +3719,43 @@ function SettingsPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Eleme
       </ControlSection>
 
       <ControlSection icon={ShieldAlert} title="Confirmation mode">
-        <div>
-          <p>
-            The model requests confirmation when context requires it. YOLO bypasses every prompt.
-          </p>
-        </div>
-        <button
-          aria-checked={runtime.assistant.yolo}
-          className={runtime.assistant.yolo ? 'mode-switch active' : 'mode-switch'}
-          onClick={() => setYolo(!runtime.assistant.yolo)}
-          role="switch"
-          type="button"
-        >
-          {runtime.assistant.yolo ? 'YOLO · auto accept' : 'Confirm · ask me'}
-        </button>
+        <ControlRow
+          action={
+            <button
+              aria-checked={runtime.assistant.yolo}
+              className={runtime.assistant.yolo ? 'mode-switch active' : 'mode-switch'}
+              onClick={() => setYolo(!runtime.assistant.yolo)}
+              role="switch"
+              type="button"
+            >
+              {runtime.assistant.yolo ? 'YOLO · auto accept' : 'Confirm · ask me'}
+            </button>
+          }
+          description="Confirm asks before actions when the model decides approval is needed. YOLO bypasses every prompt."
+          title="Action approval"
+        />
       </ControlSection>
 
       <ControlSection icon={Sparkles} title="Window and backdrop">
-        <div>
-          <p>Translucency shows the desktop through the window. The backdrop stays local.</p>
-        </div>
-        <div className="appearance-controls">
-          <label>
-            Translucency {translucency}
-            <input
-              aria-label="Window translucency"
-              max={100}
-              min={0}
-              onChange={(event) => setTranslucency(Number(event.target.value))}
-              type="range"
-              value={translucency}
-            />
-          </label>
-          <label>
-            Backdrop
+        <ControlRow
+          action={
+            <label className="setting-range">
+              <span>{translucency}%</span>
+              <input
+                aria-label="Window translucency"
+                max={100}
+                min={0}
+                onChange={(event) => setTranslucency(Number(event.target.value))}
+                type="range"
+                value={translucency}
+              />
+            </label>
+          }
+          description="Show the desktop through the control center."
+          title="Window translucency"
+        />
+        <ControlRow
+          action={
             <select
               aria-label="Backdrop mode"
               onChange={(event) => setBackgroundMode(event.target.value as typeof backgroundMode)}
@@ -3717,29 +3764,33 @@ function SettingsPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Eleme
               <option value="electricGaze">Electric gaze</option>
               <option value="none">Off</option>
             </select>
-          </label>
-          <label>
-            Backdrop opacity {backgroundOpacity}
-            <input
-              aria-label="Backdrop opacity"
-              disabled={backgroundMode !== 'electricGaze'}
-              max={100}
-              min={0}
-              onChange={(event) => setBackgroundOpacity(Number(event.target.value))}
-              type="range"
-              value={backgroundOpacity}
-            />
-          </label>
-        </div>
+          }
+          description="The animated ASCII backdrop is packaged locally."
+          title="Backdrop"
+        />
+        <ControlRow
+          action={
+            <label className="setting-range">
+              <span>{backgroundOpacity}%</span>
+              <input
+                aria-label="Backdrop opacity"
+                disabled={backgroundMode !== 'electricGaze'}
+                max={100}
+                min={0}
+                onChange={(event) => setBackgroundOpacity(Number(event.target.value))}
+                type="range"
+                value={backgroundOpacity}
+              />
+            </label>
+          }
+          description="Adjust how strongly the backdrop appears behind page content."
+          title="Backdrop opacity"
+        />
       </ControlSection>
 
       <ControlSection icon={Info} title="Dynamic Island placement">
-        <div>
-          <p>Select the monitor and top-edge alignment. The recessed line remains click-through.</p>
-        </div>
-        <div className="placement-controls">
-          <label>
-            Display
+        <ControlRow
+          action={
             <select
               aria-label="Island display"
               onChange={(event) =>
@@ -3758,39 +3809,49 @@ function SettingsPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Eleme
                 </option>
               ))}
             </select>
-          </label>
-          <div className="alignment-buttons" aria-label="Island alignment">
-            {(['left', 'center', 'right'] as IslandAlignment[]).map((alignment) => (
-              <button
-                aria-pressed={placement.alignment === alignment}
-                className={placement.alignment === alignment ? 'active' : ''}
-                key={alignment}
-                onClick={() => updatePlacement({ ...placement, alignment })}
-                type="button"
-              >
-                {alignment}
-              </button>
-            ))}
-          </div>
-        </div>
+          }
+          description="Auto follows the current Windows display."
+          title="Display"
+        />
+        <ControlRow
+          action={
+            <div className="alignment-buttons" aria-label="Island alignment">
+              {(['left', 'center', 'right'] as IslandAlignment[]).map((alignment) => (
+                <button
+                  aria-pressed={placement.alignment === alignment}
+                  className={placement.alignment === alignment ? 'active' : ''}
+                  key={alignment}
+                  onClick={() => updatePlacement({ ...placement, alignment })}
+                  type="button"
+                >
+                  {alignment}
+                </button>
+              ))}
+            </div>
+          }
+          description="Place the recessed Island line along the selected display's top edge."
+          title="Alignment"
+        />
       </ControlSection>
 
       <ControlSection icon={Sparkles} title="Desktop companion">
-        <div>
-          <p>A click-through desktop companion mirrors Marvi&apos;s live assistant state.</p>
-        </div>
-        <div className="placement-controls pet-controls">
-          <button
-            aria-checked={petPreferences.enabled}
-            className={petPreferences.enabled ? 'mode-switch active' : 'mode-switch'}
-            onClick={() => updatePet({ ...petPreferences, enabled: !petPreferences.enabled })}
-            role="switch"
-            type="button"
-          >
-            {petPreferences.enabled ? 'Companion · visible' : 'Companion · hidden'}
-          </button>
-          <label>
-            Display
+        <ControlRow
+          action={
+            <button
+              aria-checked={petPreferences.enabled}
+              className={petPreferences.enabled ? 'mode-switch active' : 'mode-switch'}
+              onClick={() => updatePet({ ...petPreferences, enabled: !petPreferences.enabled })}
+              role="switch"
+              type="button"
+            >
+              {petPreferences.enabled ? 'Visible' : 'Hidden'}
+            </button>
+          }
+          description="Show a click-through companion that mirrors Marvi's live state."
+          title="Companion"
+        />
+        <ControlRow
+          action={
             <select
               aria-label="Pet display"
               onChange={(event) =>
@@ -3809,22 +3870,31 @@ function SettingsPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Eleme
                 </option>
               ))}
             </select>
-          </label>
-          <div className="alignment-buttons" aria-label="Pet side">
-            {(['left', 'right'] as PetSide[]).map((side) => (
-              <button
-                aria-pressed={petPreferences.side === side}
-                className={petPreferences.side === side ? 'active' : ''}
-                key={side}
-                onClick={() => updatePet({ ...petPreferences, side })}
-                type="button"
-              >
-                {side}
-              </button>
-            ))}
-          </div>
-          <label>
-            Size
+          }
+          description="Auto follows the current Windows display."
+          title="Display"
+        />
+        <ControlRow
+          action={
+            <div className="alignment-buttons" aria-label="Pet side">
+              {(['left', 'right'] as PetSide[]).map((side) => (
+                <button
+                  aria-pressed={petPreferences.side === side}
+                  className={petPreferences.side === side ? 'active' : ''}
+                  key={side}
+                  onClick={() => updatePet({ ...petPreferences, side })}
+                  type="button"
+                >
+                  {side}
+                </button>
+              ))}
+            </div>
+          }
+          description="Choose which lower corner holds the companion."
+          title="Corner"
+        />
+        <ControlRow
+          action={
             <select
               aria-label="Pet size"
               onChange={(event) =>
@@ -3837,8 +3907,10 @@ function SettingsPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Eleme
               <option value={0.7}>Medium · 70%</option>
               <option value={1}>Full · 100%</option>
             </select>
-          </label>
-        </div>
+          }
+          description="Scale the sprite and its compact control strip together."
+          title="Size"
+        />
       </ControlSection>
 
       <ControlSection icon={Gauge} title="Device status">

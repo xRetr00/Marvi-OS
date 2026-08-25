@@ -1092,3 +1092,20 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   `git diff --check`. A real isolated Setup run loaded PocketTTS/Alba in
   10.2 seconds; direct default-device playback returned `played=true` for
   1.84 seconds of generated PCM.
+
+## 2026-08-25 — Hermes-aligned Settings organization
+
+- Re-aligned the Settings overlay with the pinned Hermes desktop pattern: the
+  close action now floats above the content, the 208 px rail is one flat list
+  separated by whitespace, and narrow layouts retain Marvi's two-column strip.
+- Rebuilt the loose Preferences and speech controls as consistent
+  label/description/action rows. Selectors, segmented actions, switches, and
+  ranges now share one right-hand column and stack through a content-container
+  query rather than colliding with their explanatory copy.
+- Preserved every Marvi setting, IPC call, confirmation mode, and local runtime
+  authority boundary; this change is presentation-only.
+- Verified 238 desktop tests, both desktop TypeScript targets, ESLint with zero
+  errors (existing Windows line-ending warnings remain), and `git diff --check`.
+  Playwright visual checks at 1180×760, 760×700, and 600×700 covered aligned
+  desktop rows, content-responsive control stacking, and the two-column compact
+  settings rail.
