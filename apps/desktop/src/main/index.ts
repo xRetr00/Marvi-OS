@@ -829,7 +829,32 @@ async function refreshGatewayRuntime(): Promise<RuntimeStatus> {
     // 2.4 GB model was downloading.
     missedPolls += 1
     if (missedPolls < MISSES_BEFORE_OFFLINE) return runtimeStatus
-    return publishRuntime(offlineRuntimeFrom(app.getVersion(), runtimeStatus))
+    return publishRuntime(withServiceReason(offlineRuntimeFrom(app.getVersion(), runtimeStatus)))
+  }
+}
+
+/**
+ * Say why the Gateway is unreachable, when the supervisor knows.
+ *
+ * "Marvi Gateway unavailable" is what the boot-failure screen showed while the
+ * supervisor was holding the actual answer: `port 8765 is already taken by
+ * process 31816`. The status is built from a failed HTTP poll, which knows
+ * only that nothing answered, and it never asked the thing watching the
+ * process.
+ *
+ * A poll cannot tell a Gateway that is starting from one that will never
+ * start. The supervisor can, and it is two objects away.
+ */
+function withServiceReason(status: RuntimeStatus): RuntimeStatus {
+  const report = serviceReports.find((service) => service.name === 'gateway')
+  if (!report || !report.detail) return status
+  if (report.state !== 'failed' && report.state !== 'gave up') return status
+  return {
+    ...status,
+    components: {
+      ...status.components,
+      gateway: { state: 'error', detail: report.detail }
+    }
   }
 }
 
