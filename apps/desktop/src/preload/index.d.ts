@@ -1,5 +1,6 @@
 import type {
   FaceLibrary,
+  RoomVisionPreview,
   AuxiliaryPage,
   AssistantState,
   AuditEvent,
@@ -71,12 +72,13 @@ export interface MarviDesktopApi {
   getAuxiliary: () => Promise<AuxiliaryPage | null>
   /** Who the camera knows, and who is waiting to be named. */
   getFaceLibrary: () => Promise<FaceLibrary | null>
+  /** A compressed local preview, requested only while Vision is visible. */
+  getRoomVisionPreview: () => Promise<RoomVisionPreview | null>
   /** Device reachability and the broker. Lives in `room_health`, not in
    *  `room_state` - reading it from the state showed every device as "not set
    *  up" and the broker as `?:?`, because neither field is there. */
   getRoomHealth: () => Promise<Record<string, unknown> | null>
-  /** Press a room control. Goes through the Gateway's tool router, so the
-   *  sleep rule and the confirmation flow apply to a button as to a voice. */
+  /** Press a room control through the Gateway's audited tool router. */
   roomCommand: (
     tool: string,
     args: Record<string, unknown>

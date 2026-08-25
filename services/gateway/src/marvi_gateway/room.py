@@ -231,7 +231,9 @@ def sleep_rule_on() -> bool:
     return os.environ.get(SLEEP_RULE, "").strip().lower() in ("1", "true", "on", "yes")
 
 
-def assert_sleep_safe(mode: str | None, light_on: bool, action: str, params: dict[str, Any]) -> None:
+def assert_sleep_safe(
+    mode: str | None, light_on: bool, action: str, params: dict[str, Any]
+) -> None:
     """Enforce the sleep rule, when it is switched on.
 
     Deliberately a pure function of the room's state and the requested action,
@@ -525,7 +527,10 @@ def register_room_tools(registry, sidecar: RoomSidecar) -> None:
         return sidecar.call("set_mode", {"mode": mode})
 
     def room_set_light(
-        on: bool, brightness: int | None = None, color_temp: int | None = None
+        on: bool,
+        brightness: int | None = None,
+        color_temp: int | None = None,
+        rgb: list[Any] | None = None,
     ) -> dict[str, Any]:
         params: dict[str, Any] = {"on": on}
         if brightness is not None:
@@ -537,6 +542,14 @@ def register_room_tools(registry, sidecar: RoomSidecar) -> None:
             if not low <= color_temp <= high:
                 raise RoomRejectedError(f"color_temp must be between {low} and {high}")
             params["color_temp"] = color_temp
+        if rgb is not None:
+            if (
+                len(rgb) != 3
+                or any(isinstance(value, bool) or not isinstance(value, int) for value in rgb)
+                or any(value < 0 or value > 255 for value in rgb)
+            ):
+                raise RoomRejectedError("rgb must contain three integers from 0 to 255")
+            params["rgb"] = rgb
         current, light_on = read_sleep_state(sidecar)
         assert_sleep_safe(current, light_on, "set_light", params)
         return sidecar.call("set_light", params)
@@ -592,14 +605,14 @@ def register_room_tools(registry, sidecar: RoomSidecar) -> None:
             name="room_set_light",
             description="Change the room light",
             arguments={"on": bool},
-            optional={"brightness": int, "color_temp": int},
+            optional={"brightness": int, "color_temp": int, "rgb": list},
             describes={
                 "on": "True to switch the light on, False to switch it off.",
                 "brightness": "Percent, 1 to 100. Omit to leave unchanged.",
                 "color_temp": (
-                    "Kelvin, roughly 2000 (warm) to 6500 (cold). "
-                    "Omit to leave unchanged."
+                    "Kelvin, roughly 2000 (warm) to 6500 (cold). Omit to leave unchanged."
                 ),
+                "rgb": "Three integer channels from 0 to 255. Omit to leave unchanged.",
             },
             sensitive=False,
             handler=room_set_light,
@@ -667,6 +680,22 @@ def faces(sidecar: RoomSidecar) -> dict[str, Any]:
         # Known faces are still worth showing without the pending queue.
         pass
     return {"ok": True, "owner": owner, "people": known, "pending": waiting}
+
+
+def vision_preview(sidecar: RoomSidecar) -> dict[str, Any]:
+    """Ask the sidecar for one compressed preview frame.
+
+    The vision runtime owns capture and encoding. The Gateway only normalises
+    its public RPC response so Electron never reaches the private socket.
+    """
+    try:
+        answer = sidecar.call("vision_preview", {"width": 720, "quality": 72})
+        preview = answer.get("preview") if isinstance(answer, dict) else None
+        if not isinstance(preview, dict):
+            return {"available": False, "error": "the room returned no preview"}
+        return preview
+    except (RoomUnavailableError, RoomRejectedError) as exc:
+        return {"available": False, "error": str(exc)}
 
 
 def unconfirmed(state: dict[str, Any]) -> str:

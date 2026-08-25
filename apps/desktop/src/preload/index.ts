@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
   FaceLibrary,
+  RoomVisionPreview,
   AuxiliaryPage,
   AssistantState,
   AuditEvent,
@@ -126,8 +127,9 @@ const marvi = {
   getAuxiliary: (): Promise<AuxiliaryPage | null> => ipcRenderer.invoke('marvi:get-auxiliary'),
   getRoomHealth: (): Promise<Record<string, unknown> | null> =>
     ipcRenderer.invoke('marvi:get-room-health'),
-  getFaceLibrary: (): Promise<FaceLibrary | null> =>
-    ipcRenderer.invoke('marvi:get-face-library'),
+  getFaceLibrary: (): Promise<FaceLibrary | null> => ipcRenderer.invoke('marvi:get-face-library'),
+  getRoomVisionPreview: (): Promise<RoomVisionPreview | null> =>
+    ipcRenderer.invoke('marvi:get-room-vision-preview'),
   roomCommand: (
     tool: string,
     args: Record<string, unknown>
@@ -151,7 +153,8 @@ const marvi = {
     ipcRenderer.invoke('marvi:get-memory-graph', mode),
   clearMemory: (): Promise<boolean> => ipcRenderer.invoke('marvi:clear-memory'),
   getAccounts: (): Promise<AccountPage> => ipcRenderer.invoke('marvi:get-accounts'),
-  getAccountCatalog: (): Promise<AccountToolkit[]> => ipcRenderer.invoke('marvi:get-account-catalog'),
+  getAccountCatalog: (): Promise<AccountToolkit[]> =>
+    ipcRenderer.invoke('marvi:get-account-catalog'),
   configureAccounts: (apiKey: string): Promise<{ ok: boolean; detail: string }> =>
     ipcRenderer.invoke('marvi:configure-accounts', apiKey),
   connectAccount: (toolkit: string): Promise<{ ok: boolean; detail: string }> =>

@@ -1058,6 +1058,24 @@ def create_app(
         runtime_store.set_yolo(update.yolo)
         return current_status()
 
+    async def run_tool_off_the_loop(
+        spec: ToolSpec, arguments: dict[str, Any], write_key: str | None = None
+    ) -> ToolInvocation:
+        """Run a tool without stopping the Gateway.
+
+        Handlers are ordinary blocking functions -- a web search is nine HTTP
+        round trips, `terminal_run` may take a minute, a room call waits on a
+        sidecar -- and they were invoked directly from the async route. So the
+        event loop sat inside them: `/health` and `/runtime` stopped answering,
+        the shell declared "Gateway unavailable" over a Gateway that was
+        perfectly alive and merely busy, and asking Marvi to browse the skills
+        store looked exactly like a crash.
+
+        The chat surface keeps the synchronous entry point below, because it
+        calls from a worker thread already.
+        """
+        return await anyio.to_thread.run_sync(lambda: run_tool(spec, arguments, write_key))
+
     def run_tool(
         spec: ToolSpec, arguments: dict[str, Any], write_key: str | None = None
     ) -> ToolInvocation:
@@ -1629,8 +1647,7 @@ def create_app(
         from .providers import configured_profiles
 
         available = [
-            {"name": profile.name, "label": profile.label()}
-            for profile in configured_profiles()
+            {"name": profile.name, "label": profile.label()} for profile in configured_profiles()
         ]
         return auxiliary.status(available)
 
@@ -1649,8 +1666,12 @@ def create_app(
         try:
             state = (sidecar.state() or {}).get("state") or {}
         except RoomUnavailableError:
-            return {"present": False, "who": "unknown", "why": "the room is unreachable",
-                    "signals": []}
+            return {
+                "present": False,
+                "who": "unknown",
+                "why": "the room is unreachable",
+                "signals": [],
+            }
         return await anyio.to_thread.run_sync(
             lambda: presence.read(state, client=ProviderClient()).as_dict()
         )
@@ -1661,6 +1682,13 @@ def create_app(
         if sidecar is None:
             return {"ok": False, "detail": "no room sidecar", "people": [], "pending": []}
         return await anyio.to_thread.run_sync(lambda: room_module.faces(sidecar))
+
+    @app.get("/room/vision/preview")
+    async def read_vision_preview() -> dict[str, Any]:
+        """One bounded local preview frame; never a camera stream."""
+        if sidecar is None:
+            return {"available": False, "error": "no room sidecar"}
+        return await anyio.to_thread.run_sync(lambda: room_module.vision_preview(sidecar))
 
     @app.get("/plugins", response_model=PluginPage)
     async def read_plugins() -> PluginPage:
@@ -1957,7 +1985,7 @@ def create_app(
                 runtime=current_status(),
             )
 
-        return run_tool(spec, arguments, write_key)
+        return await run_tool_off_the_loop(spec, arguments, write_key)
 
     @app.post("/confirmations/{token}", response_model=ToolInvocation)
     async def resolve_confirmation(token: str, decision: ConfirmationDecision) -> ToolInvocation:
@@ -1980,7 +2008,7 @@ def create_app(
 
         runtime_store.audit("approved", pending.tool, pending.arguments)
         runtime_store.settle_confirmation(token, caption="Action approved", action=spec.description)
-        return run_tool(spec, pending.arguments, pending.write_key)
+        return await run_tool_off_the_loop(spec, pending.arguments, pending.write_key)
 
     @app.get("/memory", response_model=MemoryPage)
     async def memory_page(limit: int = 50) -> MemoryPage:

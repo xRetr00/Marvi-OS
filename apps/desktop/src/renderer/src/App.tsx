@@ -19,7 +19,9 @@ import {
   Info,
   Mic,
   Pause,
+  Palette,
   Play,
+  Power,
   Radio,
   RefreshCw,
   Route,
@@ -121,6 +123,7 @@ import type {
   ServiceReport,
   SkillReview,
   StoreSkill,
+  RoomVisionPreview,
   VoicePage,
   WakeStatus
 } from '../../shared/runtime'
@@ -642,6 +645,43 @@ interface RoomSnapshot {
 
 type RoomView = 'room' | 'vision'
 
+const LIGHT_COLORS = [
+  '#ff8c2a',
+  '#ffd0a0',
+  '#fff1dc',
+  '#ffffff',
+  '#7ca9ff',
+  '#ad72ff',
+  '#ed78d1',
+  '#ff6d55'
+]
+
+const ROOM_MODES = [
+  { id: 'normal', label: 'Normal', detail: '4000K · 70%' },
+  { id: 'reading', label: 'Reading', detail: '3000K · 70%' },
+  { id: 'focus', label: 'Focus', detail: '5000K · 100%' },
+  { id: 'relax', label: 'Relax', detail: '2700K · 40%' },
+  { id: 'night', label: 'Night', detail: 'Warm · 15%' },
+  { id: 'sleep', label: 'Sleep', detail: 'Lights off' },
+  { id: 'alarm', label: 'Alarm', detail: 'Bright alert' },
+  { id: 'off', label: 'Off', detail: 'Lights off' }
+] as const
+
+function rgbToHex(value: unknown): string {
+  if (!Array.isArray(value) || value.length !== 3) return '#ffffff'
+  return `#${value
+    .map((channel) =>
+      Math.max(0, Math.min(255, Number(channel) || 0))
+        .toString(16)
+        .padStart(2, '0')
+    )
+    .join('')}`
+}
+
+function hexToRgb(value: string): number[] {
+  return [1, 3, 5].map((offset) => Number.parseInt(value.slice(offset, offset + 2), 16))
+}
+
 function readRecord(source: Record<string, unknown>, key: string): Record<string, unknown> {
   const value = source[key]
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -667,6 +707,12 @@ function RoomPanel({
   const [faceName, setFaceName] = useState('')
   const [library, setLibrary] = useState<FaceLibrary | null>(null)
   const [visitorNames, setVisitorNames] = useState<Record<number, string>>({})
+  const [visionPreview, setVisionPreview] = useState<RoomVisionPreview | null>(null)
+  const [lightDraft, setLightDraft] = useState({
+    brightness: 70,
+    colorTemp: 3000,
+    color: '#ffffff'
+  })
 
   useEffect(() => {
     let disposed = false
@@ -684,6 +730,12 @@ function RoomPanel({
         setError(response?.error ?? 'Marvi Gateway is unavailable')
         return
       }
+      const nextLight = readRecord(response.result.state, 'light')
+      setLightDraft({
+        brightness: Number(nextLight.brightness ?? 70),
+        colorTemp: Number(nextLight.color_temp ?? 3000),
+        color: rgbToHex(nextLight.rgb)
+      })
       setSnapshot(response.result)
       setError(null)
     }
@@ -694,6 +746,23 @@ function RoomPanel({
       clearInterval(timer)
     }
   }, [])
+
+  useEffect(() => {
+    if (view !== 'vision') return
+    let disposed = false
+    const load = async (): Promise<void> => {
+      const next = await window.marvi?.getRoomVisionPreview()
+      if (!disposed && next) setVisionPreview(next)
+    }
+    void load()
+    // Hermes keeps the preview responsive without turning the renderer into a
+    // camera owner: each tick asks the sidecar for one bounded JPEG.
+    const timer = setInterval(() => void load(), 500)
+    return () => {
+      disposed = true
+      clearInterval(timer)
+    }
+  }, [view])
 
   const [busy, setBusy] = useState('')
   const [pressed, setPressed] = useState('')
@@ -843,6 +912,8 @@ function RoomPanel({
   const visionEvents = events.filter((event) =>
     /vision|camera|face|gesture|presence|sleep|person/i.test(`${event.type} ${event.summary}`)
   )
+  const lightKnown = Boolean(snapshot && !snapshot.caveat)
+  const roomControlsDisabled = busy !== '' || !snapshot?.live
 
   const pageComponent = view === 'vision' ? runtime.components.vision : runtime.components.room
   const pageState = pageComponent?.state ?? 'offline'
@@ -892,84 +963,182 @@ function RoomPanel({
               )}
             </ControlSection>
 
-            <ControlSection icon={Lightbulb} title="Quick controls">
+            <section className="room-light-console" aria-labelledby="room-light-title">
+              <header className="room-light-head">
+                <div>
+                  <Lightbulb aria-hidden="true" />
+                  <div>
+                    <h3 id="room-light-title">Light control</h3>
+                    <p>Live controls from Hermes, routed through Marvi Gateway.</p>
+                  </div>
+                </div>
+                <ControlPill tone={lightKnown && light.on ? 'ready' : 'neutral'}>
+                  {lightKnown ? (light.on ? 'powered on' : 'powered off') : 'unavailable'}
+                </ControlPill>
+              </header>
+
               {snapshot?.caveat ? (
-                <ControlRow
-                  description={snapshot.caveat}
-                  icon={ShieldAlert}
-                  title="Light state unavailable"
-                />
+                <div className="room-light-warning">
+                  <ShieldAlert aria-hidden="true" />
+                  <span>{snapshot.caveat}</span>
+                </div>
               ) : null}
-              <ControlRow
-                action={
-                  <div className="provider-actions">
-                    <button
-                      className="ghost-button"
-                      disabled={busy !== ''}
+
+              <div className="room-light-layout">
+                <div className="room-light-power">
+                  <div
+                    className={
+                      lightKnown && light.on ? 'room-light-orb is-on' : 'room-light-orb'
+                    }
+                    style={{ backgroundColor: lightDraft.color }}
+                  >
+                    <Power aria-hidden="true" />
+                  </div>
+                  <strong>{lightKnown ? `${lightDraft.brightness}%` : '—'}</strong>
+                  <span>
+                    {lightKnown
+                      ? `${lightDraft.colorTemp}K · ${String(light.scene ?? 'custom')}`
+                      : 'No current reading'}
+                  </span>
+                  <div className="room-power-actions">
+                    <ControlButton
+                      aria-pressed={lightKnown && light.on === true}
+                      className={lightKnown && light.on ? 'is-selected' : ''}
+                      disabled={roomControlsDisabled}
                       onClick={() => void press('room_set_light', { on: true })}
-                      type="button"
                     >
                       On
-                    </button>
-                    <button
-                      className="ghost-button"
-                      disabled={busy !== ''}
+                    </ControlButton>
+                    <ControlButton
+                      aria-pressed={lightKnown && light.on === false}
+                      className={lightKnown && !light.on ? 'is-selected' : ''}
+                      disabled={roomControlsDisabled}
                       onClick={() => void press('room_set_light', { on: false })}
-                      type="button"
                     >
                       Off
-                    </button>
+                    </ControlButton>
                   </div>
-                }
-                description="Uses the same audited Gateway tool as a spoken request."
-                title="Light"
-              />
-              <ControlRow
-                action={
-                  <div className="provider-actions room-level-actions">
-                    {[25, 50, 75, 100].map((level) => (
-                      <button
-                        className="ghost-button"
-                        disabled={busy !== ''}
-                        key={level}
-                        onClick={() =>
-                          void press('room_set_light', { on: true, brightness: level })
-                        }
-                        type="button"
-                      >
-                        {level}%
-                      </button>
-                    ))}
+                </div>
+
+                <div className="room-light-settings">
+                  <label className="room-light-slider">
+                    <span>
+                      <b>Brightness</b>
+                      <output>{lightDraft.brightness}%</output>
+                    </span>
+                    <input
+                      aria-label="Light brightness"
+                      disabled={roomControlsDisabled}
+                      max={100}
+                      min={1}
+                      onChange={(event) =>
+                        setLightDraft((current) => ({
+                          ...current,
+                          brightness: Number(event.target.value)
+                        }))
+                      }
+                      onKeyUp={(event) =>
+                        void press('room_set_light', {
+                          on: true,
+                          brightness: Number(event.currentTarget.value)
+                        })
+                      }
+                      onPointerUp={(event) =>
+                        void press('room_set_light', {
+                          on: true,
+                          brightness: Number(event.currentTarget.value)
+                        })
+                      }
+                      type="range"
+                      value={lightDraft.brightness}
+                    />
+                  </label>
+                  <label className="room-light-slider is-temperature">
+                    <span>
+                      <b>White temperature</b>
+                      <output>{lightDraft.colorTemp}K</output>
+                    </span>
+                    <input
+                      aria-label="Light white temperature"
+                      disabled={roomControlsDisabled}
+                      max={6500}
+                      min={2700}
+                      onChange={(event) =>
+                        setLightDraft((current) => ({
+                          ...current,
+                          colorTemp: Number(event.target.value)
+                        }))
+                      }
+                      onKeyUp={(event) =>
+                        void press('room_set_light', {
+                          on: true,
+                          color_temp: Number(event.currentTarget.value)
+                        })
+                      }
+                      onPointerUp={(event) =>
+                        void press('room_set_light', {
+                          on: true,
+                          color_temp: Number(event.currentTarget.value)
+                        })
+                      }
+                      step={100}
+                      type="range"
+                      value={lightDraft.colorTemp}
+                    />
+                  </label>
+                  <div className="room-light-color-row">
+                    <span>
+                      <Palette aria-hidden="true" /> Color
+                    </span>
+                    <div className="room-light-swatches">
+                      <input
+                        aria-label="Custom light color"
+                        disabled={roomControlsDisabled}
+                        onChange={(event) => {
+                          const color = event.target.value
+                          setLightDraft((current) => ({ ...current, color }))
+                          void press('room_set_light', { on: true, rgb: hexToRgb(color) })
+                        }}
+                        type="color"
+                        value={lightDraft.color}
+                      />
+                      {LIGHT_COLORS.map((color) => (
+                        <button
+                          aria-label={`Set light color ${color}`}
+                          aria-pressed={lightDraft.color.toLowerCase() === color}
+                          className="room-light-swatch"
+                          disabled={roomControlsDisabled}
+                          key={color}
+                          onClick={() => {
+                            setLightDraft((current) => ({ ...current, color }))
+                            void press('room_set_light', { on: true, rgb: hexToRgb(color) })
+                          }}
+                          style={{ backgroundColor: color }}
+                          type="button"
+                        />
+                      ))}
+                    </div>
                   </div>
-                }
-                title="Brightness"
-              />
-              <ControlRow
-                action={
-                  <div className="provider-actions room-mode-actions">
-                    {['day', 'evening', 'sleep', 'off'].map((mode) => (
-                      <button
-                        aria-pressed={modes.active_mode === mode}
-                        className={
-                          modes.active_mode === mode ? 'ghost-button active' : 'ghost-button'
-                        }
-                        disabled={busy !== ''}
-                        key={mode}
-                        onClick={() => void press('room_set_mode', { mode })}
-                        type="button"
-                      >
-                        {mode}
-                      </button>
-                    ))}
-                  </div>
-                }
-                description="Sleep does not lock the light unless that automation is enabled."
-                title="Mode"
-              />
-              {pressed ? (
-                <ControlRow description={pressed} icon={Clock3} title="Last command" />
-              ) : null}
-            </ControlSection>
+                </div>
+              </div>
+
+              <div className="room-mode-grid" aria-label="Room modes">
+                {ROOM_MODES.map((mode) => (
+                  <button
+                    aria-pressed={modes.active_mode === mode.id}
+                    className={modes.active_mode === mode.id ? 'room-mode active' : 'room-mode'}
+                    disabled={roomControlsDisabled}
+                    key={mode.id}
+                    onClick={() => void press('room_set_mode', { mode: mode.id })}
+                    type="button"
+                  >
+                    <strong>{mode.label}</strong>
+                    <span>{mode.detail}</span>
+                  </button>
+                ))}
+              </div>
+              {pressed ? <p className="room-command-result">{pressed}</p> : null}
+            </section>
           </div>
 
           <ControlSection icon={Wifi} title="Devices and presence">
@@ -1049,13 +1218,25 @@ function RoomPanel({
         <>
           <div className="vision-workspace-grid">
             <div className="vision-stage" aria-label="Local camera processing status">
-              <div className="vision-stage-body">
-                <Camera aria-hidden="true" />
-                <strong>{camera === 'ONLINE' ? 'Camera processing locally' : camera}</strong>
-                <p>
-                  Raw frames stay in the Smart Room sidecar. This renderer receives only derived
-                  presence, identity, sleep, and gesture state.
-                </p>
+              {visionPreview?.available && visionPreview.image ? (
+                <img
+                  alt="Live Smart Room camera preview"
+                  className="vision-preview-image"
+                  src={visionPreview.image}
+                />
+              ) : (
+                <div className="vision-stage-body">
+                  <Camera aria-hidden="true" />
+                  <strong>{camera === 'ONLINE' ? 'Waiting for a camera frame' : camera}</strong>
+                  <p>
+                    {visionPreview?.error ??
+                      'The preview appears here when the local vision service has a frame.'}
+                  </p>
+                </div>
+              )}
+              <div className="vision-preview-badge">
+                <span className={camera === 'ONLINE' ? 'is-live' : ''} />
+                Local preview
               </div>
               <div className="vision-stage-status">
                 <span>
@@ -1094,61 +1275,103 @@ function RoomPanel({
             icon={Users}
             title="Face identity"
           >
-            <ControlRow
-              action={
-                <div className="provider-actions vision-enrol-actions">
-                  <input
-                    className="control-input"
-                    disabled={enrolling}
-                    onChange={(event) => setFaceName(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') void enrol()
-                    }}
-                    placeholder="Person name"
-                    value={faceName}
-                  />
-                  <button
-                    className="ghost-button"
-                    disabled={enrolling || !faceName.trim()}
-                    onClick={() => void enrol()}
-                    type="button"
-                  >
-                    {enrolling ? 'Sampling…' : 'Enroll current face'}
-                  </button>
+            <div className="face-identity-workspace">
+              <div className="face-enrollment-card">
+                <div className="face-enrollment-preview">
+                  {visionPreview?.available && visionPreview.image ? (
+                    <img alt="Current face enrollment preview" src={visionPreview.image} />
+                  ) : (
+                    <Camera aria-hidden="true" />
+                  )}
+                  <span>Live enrollment view</span>
                 </div>
-              }
-              description={
-                vision.error
-                  ? `Camera unavailable: ${String(vision.error)}`
-                  : 'Keep one face in view while the sidecar samples several local frames.'
-              }
-              title="Enroll owner"
-            />
+                <div className="face-enrollment-copy">
+                  <span className="face-kicker">Enroll owner</span>
+                  <strong>Keep one face centered in the preview</strong>
+                  <p>
+                    Marvi samples several frames locally. The reviewed embedding stays in the Smart
+                    Room sidecar.
+                  </p>
+                  <div className="vision-enrol-actions">
+                    <input
+                      className="control-input"
+                      disabled={enrolling}
+                      onChange={(event) => setFaceName(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') void enrol()
+                      }}
+                      placeholder="Person name"
+                      value={faceName}
+                    />
+                    <ControlButton
+                      className="is-primary"
+                      disabled={enrolling || !faceName.trim()}
+                      onClick={() => void enrol()}
+                    >
+                      {enrolling ? 'Sampling…' : 'Enroll current face'}
+                    </ControlButton>
+                  </div>
+                  {vision.error ? (
+                    <span className="face-error">Camera unavailable: {String(vision.error)}</span>
+                  ) : null}
+                </div>
+              </div>
 
-            {(library?.people ?? []).map((person) => (
-              <ControlRow
-                action={
-                  <span className="control-value">
-                    {person.samples} sample{person.samples === 1 ? '' : 's'}
-                  </span>
-                }
-                description={person.owner ? 'Owner' : 'Known person'}
-                key={person.name}
-                title={person.name}
-              />
-            ))}
+              <div className="face-known-panel">
+                <header>
+                  <span className="face-kicker">Known people</span>
+                  <strong>{library?.people.length ?? 0} enrolled</strong>
+                </header>
+                <div>
+                  {(library?.people ?? []).length === 0 ? (
+                    <p>No reviewed identities yet.</p>
+                  ) : (
+                    (library?.people ?? []).map((person) => (
+                      <div className="face-known-row" key={person.name}>
+                        <span className="face-avatar">{person.name.slice(0, 1).toUpperCase()}</span>
+                        <div>
+                          <strong>{person.name}</strong>
+                          <span>{person.owner ? 'Owner' : 'Known person'}</span>
+                        </div>
+                        <output>{person.samples} samples</output>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
 
             {(library?.pending ?? []).length > 0 ? (
-              <ControlRow
-                description="Name a sighting to teach Marvi, or reject it without storing an identity."
-                icon={ShieldAlert}
-                title={`${library?.pending.length ?? 0} awaiting review`}
-              />
+              <div className="face-review-head">
+                <div>
+                  <span className="face-kicker">Review queue</span>
+                  <strong>{library?.pending.length ?? 0} awaiting review</strong>
+                </div>
+                <p>Name a sighting to teach Marvi, or reject it without storing an identity.</p>
+              </div>
             ) : null}
-            {(library?.pending ?? []).map((sighting) => (
-              <ControlRow
-                action={
-                  <div className="provider-actions vision-review-actions">
+            <div className="face-review-grid">
+              {(library?.pending ?? []).map((sighting) => (
+                <article className="face-review-card" key={sighting.id}>
+                  <div className="face-review-preview">
+                    {sighting.image ? (
+                      <img alt="An unrecognised face awaiting review" src={sighting.image} />
+                    ) : (
+                      <Users aria-hidden="true" />
+                    )}
+                    <span>
+                      {sighting.at ? String(sighting.at).slice(11, 19) : `#${sighting.id}`}
+                    </span>
+                  </div>
+                  <div className="face-review-body">
+                    <div>
+                      <strong>Unknown face</strong>
+                      <span>
+                        {typeof sighting.score === 'number'
+                          ? `${Math.round(sighting.score * 100)}% nearest match`
+                          : 'No reliable match'}
+                      </span>
+                    </div>
                     <input
                       className="control-input"
                       disabled={enrolling}
@@ -1161,37 +1384,26 @@ function RoomPanel({
                       placeholder="Name"
                       value={visitorNames[sighting.id] ?? ''}
                     />
-                    <button
-                      className="ghost-button"
-                      disabled={enrolling || !(visitorNames[sighting.id] ?? '').trim()}
-                      onClick={() => void review(sighting.id, 'approve')}
-                      type="button"
-                    >
-                      Accept
-                    </button>
-                    <button
-                      className="ghost-button danger"
-                      disabled={enrolling}
-                      onClick={() => void review(sighting.id, 'reject')}
-                      type="button"
-                    >
-                      Reject
-                    </button>
+                    <div className="vision-review-actions">
+                      <ControlButton
+                        className="is-primary"
+                        disabled={enrolling || !(visitorNames[sighting.id] ?? '').trim()}
+                        onClick={() => void review(sighting.id, 'approve')}
+                      >
+                        Accept as person
+                      </ControlButton>
+                      <ControlButton
+                        destructive
+                        disabled={enrolling}
+                        onClick={() => void review(sighting.id, 'reject')}
+                      >
+                        Reject
+                      </ControlButton>
+                    </div>
                   </div>
-                }
-                key={sighting.id}
-                title={
-                  sighting.image ? (
-                    <span className="face-inline">
-                      <img alt="An unrecognised face" className="face-thumb" src={sighting.image} />
-                      {sighting.at ? String(sighting.at).slice(11, 19) : `#${sighting.id}`}
-                    </span>
-                  ) : (
-                    `Sighting #${sighting.id}`
-                  )
-                }
-              />
-            ))}
+                </article>
+              ))}
+            </div>
 
             {pressed ? (
               <ControlRow description={pressed} icon={Clock3} title="Last camera action" />

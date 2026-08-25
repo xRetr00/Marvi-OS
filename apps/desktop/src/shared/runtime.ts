@@ -766,7 +766,6 @@ export interface AuxiliaryPage {
   main: string
 }
 
-
 /**
  * Who the camera knows, and who is waiting to be named.
  *
@@ -779,4 +778,13 @@ export interface FaceLibrary {
   owner: string
   people: { name: string; owner: boolean; samples: number; at?: string }[]
   pending: { id: number; at?: string; score?: number; image: string }[]
+}
+
+/** A bounded, compressed frame produced by the Smart Room sidecar on demand. */
+export interface RoomVisionPreview {
+  available: boolean
+  captured_at?: string
+  error?: string
+  image?: string
+  vision?: Record<string, unknown>
 }

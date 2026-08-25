@@ -23,6 +23,7 @@ from marvi_gateway.room import (
     faces,
     register_room_tools,
     unconfirmed,
+    vision_preview,
 )
 from marvi_gateway.runtime import RuntimeStore
 from marvi_gateway.tools import ToolRegistry
@@ -52,7 +53,10 @@ class FakeSidecar:
         if method == "ping":
             return {"success": True}
         if method == "get_state":
-            return {"success": True, "state": {"light": {"on": True}, "modes": {"active_mode": "focus"}}}
+            return {
+                "success": True,
+                "state": {"light": {"on": True}, "modes": {"active_mode": "focus"}},
+            }
         if method == "get_health":
             return {"success": True, "health": {"devices": {"tuya_bulb": {"online": True}}}}
         if method in {"set_mode", "set_light"}:
@@ -144,9 +148,7 @@ def test_dead_sidecar_is_unavailable_not_a_crash(sidecar) -> None:
         client.call("ping")
 
 
-def test_state_falls_back_to_the_disk_snapshot_while_the_sidecar_is_down(
-    sidecar, tmp_path
-) -> None:
+def test_state_falls_back_to_the_disk_snapshot_while_the_sidecar_is_down(sidecar, tmp_path) -> None:
     fake, client = sidecar
     (tmp_path / "state.json").write_text(
         json.dumps({"light": {"on": False}, "modes": {"active_mode": "sleep"}}), encoding="utf-8"
@@ -199,9 +201,7 @@ async def test_a_room_write_goes_straight_through_and_is_recorded(sidecar, tmp_p
     runtime = RuntimeStore(audit_path=tmp_path / "audit.jsonl")
     app = create_app(version="0.1.0-test", runtime=runtime, tools=registry)
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://marvi.local"
-    ) as http:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://marvi.local") as http:
         answer = await http.post(
             "/tools/room_set_light", json={"arguments": {"on": True, "brightness": 30}}
         )
@@ -213,6 +213,27 @@ async def test_a_room_write_goes_straight_through_and_is_recorded(sidecar, tmp_p
 
 
 @pytest.mark.asyncio
+async def test_room_light_accepts_the_sidecars_rgb_contract(sidecar, tmp_path) -> None:
+    fake, client = sidecar
+    registry = ToolRegistry()
+    register_room_tools(registry, client)
+    app = create_app(
+        version="0.1.0-test",
+        runtime=RuntimeStore(audit_path=tmp_path / "audit.jsonl"),
+        tools=registry,
+    )
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://marvi.local") as http:
+        answer = await http.post(
+            "/tools/room_set_light",
+            json={"arguments": {"on": True, "rgb": [255, 140, 42]}},
+        )
+
+    assert answer.json()["status"] == "executed"
+    assert fake.requests[-1]["params"] == {"on": True, "rgb": [255, 140, 42]}
+
+
+@pytest.mark.asyncio
 async def test_room_read_is_not_gated_and_survives_sidecar_death(sidecar, tmp_path) -> None:
     fake, client = sidecar
     registry = ToolRegistry()
@@ -220,9 +241,7 @@ async def test_room_read_is_not_gated_and_survives_sidecar_death(sidecar, tmp_pa
     runtime = RuntimeStore(audit_path=tmp_path / "audit.jsonl")
     app = create_app(version="0.1.0-test", runtime=runtime, tools=registry)
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://marvi.local"
-    ) as http:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://marvi.local") as http:
         live = await http.post("/tools/room_state", json={"arguments": {}})
         fake.stop()
         dead = await http.post("/tools/room_state", json={"arguments": {}})
@@ -244,22 +263,23 @@ async def test_invalid_room_arguments_never_reach_the_sidecar(sidecar, tmp_path)
     runtime.set_yolo(True)
     app = create_app(version="0.1.0-test", runtime=runtime, tools=registry)
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://marvi.local"
-    ) as http:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://marvi.local") as http:
         bad_mode = await http.post(
             "/tools/room_set_mode", json={"arguments": {"mode": "self_destruct"}}
         )
         bad_brightness = await http.post(
             "/tools/room_set_light", json={"arguments": {"on": True, "brightness": 900}}
         )
-        nonsense = await http.post(
-            "/tools/room_set_light", json={"arguments": {"on": "maybe"}}
+        nonsense = await http.post("/tools/room_set_light", json={"arguments": {"on": "maybe"}})
+        bad_rgb = await http.post(
+            "/tools/room_set_light",
+            json={"arguments": {"on": True, "rgb": [255, -1, 42]}},
         )
 
     assert bad_mode.json()["status"] == "failed"
     assert bad_brightness.json()["status"] == "failed"
     assert nonsense.status_code == 422
+    assert bad_rgb.json()["status"] == "failed"
     assert [request["method"] for request in fake.requests] == []
 
 
@@ -486,12 +506,8 @@ async def test_a_quoted_boolean_still_switches_the_light(sidecar, tmp_path) -> N
     runtime.set_yolo(True)
     app = create_app(version="0.1.0-test", runtime=runtime, tools=registry)
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://marvi.local"
-    ) as http:
-        answer = await http.post(
-            "/tools/room_set_light", json={"arguments": {"on": "true"}}
-        )
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://marvi.local") as http:
+        answer = await http.post("/tools/room_set_light", json={"arguments": {"on": "true"}})
 
     assert answer.json()["status"] == "executed"
     assert "set_light" in [request["method"] for request in fake.requests]
@@ -516,21 +532,36 @@ class FakeVision:
             return {"people": self._people, "owner": owner}
         if method == "vision_visitors":
             return {"visitors": self._visitors}
+        if method == "vision_preview":
+            return {
+                "success": True,
+                "preview": {
+                    "available": True,
+                    "image": "data:image/jpeg;base64,frame",
+                },
+            }
         raise AssertionError(method)
 
 
 def test_the_owner_is_named_from_the_library() -> None:
-    library = faces(
-        FakeVision(people=[{"name": "Shereef", "owner": True, "samples": 8}])
-    )
+    library = faces(FakeVision(people=[{"name": "Shereef", "owner": True, "samples": 8}]))
 
     assert library["ok"] is True
     assert library["owner"] == "Shereef"
     assert library["people"][0]["samples"] == 8
 
 
+def test_vision_preview_uses_one_bounded_sidecar_frame() -> None:
+    preview = vision_preview(FakeVision())
+
+    assert preview == {
+        "available": True,
+        "image": "data:image/jpeg;base64,frame",
+    }
+
+
 def test_a_pending_sighting_carries_the_face_that_produced_it(tmp_path) -> None:
-    """"One unknown visitor" is not something anybody can act on. A face is."""
+    """ "One unknown visitor" is not something anybody can act on. A face is."""
     crop = tmp_path / "visitor.jpg"
     crop.write_bytes(b"\xff\xd8\xff\xe0 not really a jpeg, but bytes")
 
@@ -543,9 +574,7 @@ def test_a_pending_sighting_carries_the_face_that_produced_it(tmp_path) -> None:
 
 
 def test_a_thumbnail_that_is_gone_is_a_missing_picture_not_an_error() -> None:
-    library = faces(
-        FakeVision(visitors=[{"id": 5, "thumbnail": "C:/nowhere/gone.jpg"}])
-    )
+    library = faces(FakeVision(visitors=[{"id": 5, "thumbnail": "C:/nowhere/gone.jpg"}]))
 
     assert library["ok"] is True
     assert library["pending"][0]["image"] == ""

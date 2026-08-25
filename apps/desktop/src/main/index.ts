@@ -1258,9 +1258,9 @@ function startApp(): void {
       )
     })
     ipcMain.handle('marvi:get-account-catalog', async (): Promise<AccountToolkit[]> => {
-      const body = (await gatewayJson('/accounts/catalog?limit=100', undefined, 15_000)) as
-        | { toolkits?: Array<Record<string, unknown>> }
-        | null
+      const body = (await gatewayJson('/accounts/catalog?limit=100', undefined, 15_000)) as {
+        toolkits?: Array<Record<string, unknown>>
+      } | null
       return (body?.toolkits ?? []).map((row) => ({
         slug: String(row.slug ?? ''),
         name: String(row.name ?? row.slug ?? ''),
@@ -1273,11 +1273,15 @@ function startApp(): void {
       if (typeof apiKey !== 'string' || apiKey.trim().length < 8) {
         return { ok: false, detail: 'Enter a Composio project API key' }
       }
-      const body = await gatewayJson('/accounts/config', {
-        method: 'PUT',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ api_key: apiKey.trim() })
-      }, 15_000)
+      const body = await gatewayJson(
+        '/accounts/config',
+        {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ api_key: apiKey.trim() })
+        },
+        15_000
+      )
       return body
         ? { ok: true, detail: 'Composio connected. Provider credentials stay in Composio.' }
         : { ok: false, detail: 'Composio rejected that project key.' }
@@ -1298,10 +1302,9 @@ function startApp(): void {
       if (typeof connectionId !== 'string' || !connectionId) {
         return { ok: false, detail: 'Missing connection' }
       }
-      const body = (await gatewayJson(
-        `/accounts/${encodeURIComponent(connectionId)}/refresh`,
-        { method: 'POST' }
-      )) as { redirect_url?: string } | null
+      const body = (await gatewayJson(`/accounts/${encodeURIComponent(connectionId)}/refresh`, {
+        method: 'POST'
+      })) as { redirect_url?: string } | null
       const url = String(body?.redirect_url ?? '')
       if (url && isComposioConnectUrl(url)) {
         await shell.openExternal(url)
@@ -1348,11 +1351,15 @@ function startApp(): void {
         connection_id: typeof connectionId === 'string' && connectionId ? connectionId : null
       }
       return (
-        (await gatewayJson('/accounts/sync', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(payload)
-        }, 60_000)) !== null
+        (await gatewayJson(
+          '/accounts/sync',
+          {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(payload)
+          },
+          60_000
+        )) !== null
       )
     })
     ipcMain.handle('marvi:get-schedules', () => gatewayJson('/schedules'))
@@ -2068,6 +2075,16 @@ function startApp(): void {
       try {
         const response = await fetch(`${gateway()}/room/vision/faces`, {
           signal: AbortSignal.timeout(8_000)
+        })
+        return response.ok ? await response.json() : null
+      } catch {
+        return null
+      }
+    })
+    ipcMain.handle('marvi:get-room-vision-preview', async () => {
+      try {
+        const response = await fetch(`${gateway()}/room/vision/preview`, {
+          signal: AbortSignal.timeout(3_000)
         })
         return response.ok ? await response.json() : null
       } catch {
