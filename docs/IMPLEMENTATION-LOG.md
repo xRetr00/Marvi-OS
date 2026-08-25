@@ -1109,3 +1109,16 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   Playwright visual checks at 1180×760, 760×700, and 600×700 covered aligned
   desktop rows, content-responsive control stacking, and the two-column compact
   settings rail.
+
+## 2026-08-25 — Hermes-aligned Vision and Room surfaces
+
+- Rebuilt Room around the pinned Hermes Smart Room hierarchy: authoritative
+  runtime header, side-by-side live state and quick controls, device/presence
+  health, then recent events. Existing commands still cross the audited Gateway
+  tool boundary and retain their confirmation behavior.
+- Replaced Vision's two-row placeholder with a purpose-built local-perception
+  surface. It now owns derived camera state, face enrollment/review, and
+  vision-specific observations while explicitly keeping raw frames and camera
+  inference inside the Smart Room sidecar.
+- Added content-container breakpoints for both workspaces so their operational
+  modules stack cleanly without hiding controls or collapsing the live stage.

@@ -132,6 +132,19 @@ describe('shell layout', () => {
     expect(app).toContain('title="Alignment"')
   })
 
+  it('separates Room and Vision with the Hermes Smart Room hierarchy', () => {
+    expect(app).toContain('<RoomPanel runtime={runtime} view="room" />')
+    expect(app).toContain('<RoomPanel runtime={runtime} view="vision" />')
+    expect(app).toContain('title="Live room"')
+    expect(app).toContain('title="Quick controls"')
+    expect(app).toContain('title="Devices and presence"')
+    expect(app).toContain('className="vision-stage"')
+    expect(app).toContain('title="Live perception"')
+    expect(app).toContain('title="Face identity"')
+    expect(css).toContain('container-name: room-page')
+    expect(css).toContain('@container room-page (max-width: 720px)')
+  })
+
   it('keeps one window-wide status bar below both sidebars and page content', () => {
     expect(lastBlock('.app-shell')).toContain('34px minmax(0, 1fr) 20px')
     expect(app).toMatch(/<\/div>\s*\{statusbar}\s*\{settings \? \(/)

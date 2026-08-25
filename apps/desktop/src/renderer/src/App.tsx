@@ -472,7 +472,9 @@ function MainSurface(): React.JSX.Element {
                   {page === 'Overview' ? (
                     <Overview runtime={runtime} voice={voice} />
                   ) : page === 'Room' ? (
-                    <RoomPanel runtime={runtime} />
+                    <RoomPanel runtime={runtime} view="room" />
+                  ) : page === 'Vision' ? (
+                    <RoomPanel runtime={runtime} view="vision" />
                   ) : page === 'Voice' ? (
                     <VoicePanel runtime={runtime} />
                   ) : page === 'Activity' ? (
@@ -484,7 +486,7 @@ function MainSurface(): React.JSX.Element {
                   ) : page === 'Mind' ? (
                     <MindPanel />
                   ) : (
-                    <PagePanel page={page} version={version} runtime={runtime} />
+                    <PagePanel page={page} />
                   )}
                 </div>
               </main>
@@ -638,6 +640,8 @@ interface RoomSnapshot {
   caveat?: string
 }
 
+type RoomView = 'room' | 'vision'
+
 function readRecord(source: Record<string, unknown>, key: string): Record<string, unknown> {
   const value = source[key]
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -645,7 +649,13 @@ function readRecord(source: Record<string, unknown>, key: string): Record<string
     : {}
 }
 
-function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
+function RoomPanel({
+  runtime,
+  view
+}: {
+  runtime: RuntimeStatus
+  view: RoomView
+}): React.JSX.Element {
   const [snapshot, setSnapshot] = useState<RoomSnapshot | null>(null)
   const [events, setEvents] = useState<RoomEvent[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -773,9 +783,9 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
     setBusy(tool)
     try {
       const answer = await window.marvi?.roomCommand(tool, args)
-      // A refusal is the interesting outcome: the sleep rule, an unreachable
-      // bulb, a confirmation the Island is holding. Saying "done" over any of
-      // those is the same fault as reporting a default as a reading.
+      // A refusal is the interesting outcome: an unreachable bulb, a device
+      // that has given up. Saying "done" over any of those is the same fault
+      // as reporting a default as a reading.
       setPressed(
         answer?.status === 'executed'
           ? 'Accepted.'
@@ -801,7 +811,7 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
     ? String(vision.gesture).replaceAll('_', ' ').toUpperCase()
     : 'NONE'
 
-  const rows: Array<[string, string]> = [
+  const roomRows: Array<[string, string]> = [
     ['MODE', String(modes.active_mode ?? 'unknown').toUpperCase()],
     [
       'LIGHT',
@@ -816,7 +826,10 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
           : 'OFF'
     ],
     ['PRESENCE', presence.detected ? 'IN ROOM' : 'AWAY'],
-    ['PHONE', location.home ? 'HOME' : String(location.zone ?? 'unknown').toUpperCase()],
+    ['PHONE', location.home ? 'HOME' : String(location.zone ?? 'unknown').toUpperCase()]
+  ]
+
+  const visionRows: Array<[string, string]> = [
     ['VISION', camera],
     ['SEEN', `${people} ${people === 1 ? 'PERSON' : 'PEOPLE'} / ${owner}`],
     [
@@ -827,308 +840,391 @@ function RoomPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
     ['VISITORS', `${Number(vision.pending_visitors ?? 0)} PENDING`]
   ]
 
+  const visionEvents = events.filter((event) =>
+    /vision|camera|face|gesture|presence|sleep|person/i.test(`${event.type} ${event.summary}`)
+  )
+
+  const pageComponent = view === 'vision' ? runtime.components.vision : runtime.components.room
+  const pageState = pageComponent?.state ?? 'offline'
+  const pageDetail =
+    pageComponent?.detail ??
+    (view === 'vision' ? 'Room camera processing unavailable' : 'Smart Room unavailable')
+
   return (
-    <ControlPage description="Live state reported by the local room service." title="Room">
-      <ControlSection icon={House} title="Connection">
-        <ControlRow
-          action={
-            <ControlPill tone={stateTone(runtime.components.room?.state)}>
-              {runtime.components.room?.state ?? 'offline'}
-            </ControlPill>
-          }
-          description={
-            snapshot?.stale
-              ? 'Showing the last snapshot because the live feed is unavailable.'
-              : undefined
-          }
-          icon={Wifi}
-          title="Room service"
-        />
-      </ControlSection>
+    <ControlPage
+      className={`room-page is-${view}`}
+      description={
+        view === 'vision'
+          ? 'Local camera perception, identity review, and gesture observations.'
+          : 'Live room state, direct controls, device health, and notable events.'
+      }
+      title={view === 'vision' ? 'Vision' : 'Room'}
+    >
+      <div className="room-runtime-head">
+        <div className="room-runtime-copy">
+          {view === 'vision' ? <Camera aria-hidden="true" /> : <House aria-hidden="true" />}
+          <div>
+            <strong>{view === 'vision' ? 'Room perception' : 'Smart Room'}</strong>
+            <span>{snapshot?.stale ? 'Last known state · live feed unavailable' : pageDetail}</span>
+          </div>
+        </div>
+        <ControlPill tone={stateTone(pageState)}>{pageState}</ControlPill>
+      </div>
 
-      <ControlSection icon={Lightbulb} title="Controls">
-        {snapshot?.caveat ? (
-          <ControlRow
-            description={snapshot.caveat}
-            icon={ShieldAlert}
-            title="The light cannot be read"
-          />
-        ) : null}
-        <ControlRow
-          action={
-            <div className="provider-actions">
-              <button
-                className="ghost-button"
-                disabled={busy !== ''}
-                onClick={() => void press('room_set_light', { on: true })}
-                type="button"
-              >
-                ON
-              </button>
-              <button
-                className="ghost-button"
-                disabled={busy !== ''}
-                onClick={() => void press('room_set_light', { on: false })}
-                type="button"
-              >
-                OFF
-              </button>
-            </div>
-          }
-          description="Goes through the same tool Marvi uses, so every guard and the audit line apply to a button too."
-          icon={Lightbulb}
-          title="Light"
-        />
-        <ControlRow
-          action={
-            <div className="provider-actions">
-              {[25, 50, 75, 100].map((level) => (
-                <button
-                  className="ghost-button"
-                  disabled={busy !== ''}
-                  key={level}
-                  onClick={() => void press('room_set_light', { on: true, brightness: level })}
-                  type="button"
-                >
-                  {level}%
-                </button>
-              ))}
-            </div>
-          }
-          icon={Gauge}
-          title="Brightness"
-        />
-        <ControlRow
-          action={
-            <div className="provider-actions">
-              {['day', 'evening', 'sleep', 'off'].map((mode) => (
-                <button
-                  className={modes.active_mode === mode ? 'ghost-button active' : 'ghost-button'}
-                  disabled={busy !== ''}
-                  key={mode}
-                  onClick={() => void press('room_set_mode', { mode })}
-                  type="button"
-                >
-                  {mode.toUpperCase()}
-                </button>
-              ))}
-            </div>
-          }
-          description="Switching to sleep does not lock the light: that rule is off unless you turn it on."
-          icon={House}
-          title="Mode"
-        />
-        {pressed ? <ControlRow description={pressed} icon={Clock3} title="Last command" /> : null}
-      </ControlSection>
+      {view === 'room' ? (
+        <>
+          <div className="room-workspace-grid">
+            <ControlSection icon={Gauge} title="Live room">
+              {error ? (
+                <ControlEmpty
+                  description={error}
+                  icon={ShieldAlert}
+                  title="Room state unavailable"
+                />
+              ) : (
+                roomRows.map(([label, value]) => (
+                  <ControlRow
+                    action={<span className="control-value">{value}</span>}
+                    key={label}
+                    title={label.toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase())}
+                  />
+                ))
+              )}
+            </ControlSection>
 
-      <ControlSection icon={Gauge} title="Live reading">
-        {error ? (
-          <ControlEmpty description={error} icon={ShieldAlert} title="Room state unavailable" />
-        ) : (
-          rows.map(([label, value]) => (
-            <ControlRow
-              action={<span className="control-value">{value}</span>}
-              key={label}
-              title={label.toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase())}
-            />
-          ))
-        )}
-      </ControlSection>
+            <ControlSection icon={Lightbulb} title="Quick controls">
+              {snapshot?.caveat ? (
+                <ControlRow
+                  description={snapshot.caveat}
+                  icon={ShieldAlert}
+                  title="Light state unavailable"
+                />
+              ) : null}
+              <ControlRow
+                action={
+                  <div className="provider-actions">
+                    <button
+                      className="ghost-button"
+                      disabled={busy !== ''}
+                      onClick={() => void press('room_set_light', { on: true })}
+                      type="button"
+                    >
+                      On
+                    </button>
+                    <button
+                      className="ghost-button"
+                      disabled={busy !== ''}
+                      onClick={() => void press('room_set_light', { on: false })}
+                      type="button"
+                    >
+                      Off
+                    </button>
+                  </div>
+                }
+                description="Uses the same audited Gateway tool as a spoken request."
+                title="Light"
+              />
+              <ControlRow
+                action={
+                  <div className="provider-actions room-level-actions">
+                    {[25, 50, 75, 100].map((level) => (
+                      <button
+                        className="ghost-button"
+                        disabled={busy !== ''}
+                        key={level}
+                        onClick={() =>
+                          void press('room_set_light', { on: true, brightness: level })
+                        }
+                        type="button"
+                      >
+                        {level}%
+                      </button>
+                    ))}
+                  </div>
+                }
+                title="Brightness"
+              />
+              <ControlRow
+                action={
+                  <div className="provider-actions room-mode-actions">
+                    {['day', 'evening', 'sleep', 'off'].map((mode) => (
+                      <button
+                        aria-pressed={modes.active_mode === mode}
+                        className={
+                          modes.active_mode === mode ? 'ghost-button active' : 'ghost-button'
+                        }
+                        disabled={busy !== ''}
+                        key={mode}
+                        onClick={() => void press('room_set_mode', { mode })}
+                        type="button"
+                      >
+                        {mode}
+                      </button>
+                    ))}
+                  </div>
+                }
+                description="Sleep does not lock the light unless that automation is enabled."
+                title="Mode"
+              />
+              {pressed ? (
+                <ControlRow description={pressed} icon={Clock3} title="Last command" />
+              ) : null}
+            </ControlSection>
+          </div>
 
-      <ControlSection icon={Wifi} title="Devices">
-        {[
-          ['Light (Tuya bulb)', 'tuya_bulb'],
-          ['Socket (Tuya HE20)', 'tuya_he20'],
-          ['Presence sensor (ESP32)', 'esp32']
-        ].map(([label, key]) => {
-          // `configured` and the broker live in `room_health`; `room_state`
-          // carries the failure counters. Reading either from the other showed
-          // every device as "not set up" and the broker as `?:?`.
-          const device = readRecord(readRecord(health, 'devices'), key)
-          const counters = readRecord(readRecord(state, 'devices'), key)
-          // The sidecar reports which Python libraries it actually has. A
-          // device whose driver is absent has never been contactable, and
-          // saying "offline" about it sends someone to check a plug.
-          const driver = key === 'esp32' ? '' : missing.tuya
-          return (
+          <ControlSection icon={Wifi} title="Devices and presence">
+            {[
+              ['Light (Tuya bulb)', 'tuya_bulb'],
+              ['Socket (Tuya HE20)', 'tuya_he20'],
+              ['Presence sensor (ESP32)', 'esp32']
+            ].map(([label, key]) => {
+              const device = readRecord(readRecord(health, 'devices'), key)
+              const counters = readRecord(readRecord(state, 'devices'), key)
+              const driver = key === 'esp32' ? '' : missing.tuya
+              return (
+                <ControlRow
+                  action={
+                    <ControlPill tone={deviceTone(driver, device)}>
+                      {deviceStanding(driver, device)}
+                    </ControlPill>
+                  }
+                  description={deviceStory(driver, device, counters)}
+                  key={key}
+                  title={label}
+                />
+              )
+            })}
             <ControlRow
               action={
-                <ControlPill tone={deviceTone(driver, device)}>
-                  {deviceStanding(driver, device)}
+                <ControlPill tone={mqtt.connected ? 'ready' : missing.mqtt ? 'neutral' : 'danger'}>
+                  {mqtt.connected ? 'connected' : 'disconnected'}
                 </ControlPill>
               }
-              description={deviceStory(driver, device, counters)}
-              key={key}
-              title={label}
+              description={
+                missing.mqtt
+                  ? `${missing.mqtt} is not installed, so MQTT is disabled.`
+                  : mqtt.broker
+                    ? `${String(mqtt.broker)}:${String(mqtt.port ?? 1883)}${
+                        mqtt.connected ? '' : ' · no response'
+                      }`
+                    : 'No broker configured. Presence and phone location both depend on MQTT.'
+              }
+              title="MQTT broker"
             />
-          )
-        })}
-        <ControlRow
-          action={
-            <ControlPill tone={mqtt.connected ? 'ready' : missing.mqtt ? 'neutral' : 'danger'}>
-              {mqtt.connected ? 'connected' : 'disconnected'}
-            </ControlPill>
-          }
-          description={
-            missing.mqtt
-              ? `${missing.mqtt} is not installed, so MQTT is switched off entirely. Presence and phone location both arrive over it.`
-              : mqtt.broker
-                ? `${String(mqtt.broker)}:${String(mqtt.port ?? 1883)}${
-                    mqtt.connected ? '' : ' — nothing is answering there'
-                  }`
-                : 'No broker configured. Presence and phone location both arrive over MQTT, so neither works without one.'
-          }
-          title="MQTT broker"
-        />
-        <ControlRow
-          action={
-            <ControlPill tone={location.home ? 'ready' : 'neutral'}>
-              {location.home ? 'home' : String(location.zone ?? 'unknown')}
-            </ControlPill>
-          }
-          description={
-            location.source && location.source !== 'unknown'
-              ? `Reported by ${String(location.source)}`
-              : 'Nothing has reported a phone location. OwnTracks publishes these to the broker above.'
-          }
-          title="Phone (OwnTracks)"
-        />
-      </ControlSection>
-
-      <ControlSection
-        description={
-          library?.owner
-            ? `Owner: ${library.owner}`
-            : 'No owner enrolled — the camera cannot tell you from anyone else yet.'
-        }
-        icon={Eye}
-        title="Faces"
-      >
-        <ControlRow
-          action={
-            <div className="provider-actions">
-              <input
-                className="control-input"
-                disabled={enrolling}
-                onChange={(event) => setFaceName(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') void enrol()
-                }}
-                placeholder="Name"
-                value={faceName}
-              />
-              <button
-                className="ghost-button"
-                disabled={enrolling || !faceName.trim()}
-                onClick={() => void enrol()}
-                type="button"
-              >
-                {enrolling ? 'LOOKING…' : 'ENROL'}
-              </button>
-            </div>
-          }
-          description={
-            vision.error
-              ? `The camera is not running: ${String(vision.error)}`
-              : 'Look at the camera and enrol. It reads a few seconds of frames, so keep one face in view.'
-          }
-          icon={Eye}
-          title="Enrol the face it sees"
-        />
-
-        {(library?.people ?? []).map((person) => (
-          <ControlRow
-            action={
-              <span className="control-value">
-                {person.samples} sample{person.samples === 1 ? '' : 's'}
-              </span>
-            }
-            description={person.owner ? 'Owner' : 'Known'}
-            key={person.name}
-            title={person.name}
-          />
-        ))}
-
-        {(library?.pending ?? []).length > 0 ? (
-          <ControlRow
-            description="Each of these was seen and not recognised. Name one to teach it, or reject it if it is not a person you want remembered."
-            icon={ShieldAlert}
-            title={`${library?.pending.length} waiting to be named`}
-          />
-        ) : null}
-        {(library?.pending ?? []).map((sighting) => (
-          <ControlRow
-            action={
-              <div className="provider-actions">
-                <input
-                  className="control-input"
-                  disabled={enrolling}
-                  onChange={(event) =>
-                    setVisitorNames((names) => ({ ...names, [sighting.id]: event.target.value }))
-                  }
-                  placeholder="Name"
-                  value={visitorNames[sighting.id] ?? ''}
-                />
-                <button
-                  className="ghost-button"
-                  disabled={enrolling || !(visitorNames[sighting.id] ?? '').trim()}
-                  onClick={() => void review(sighting.id, 'approve')}
-                  type="button"
-                >
-                  APPROVE
-                </button>
-                <button
-                  className="ghost-button"
-                  disabled={enrolling}
-                  onClick={() => void review(sighting.id, 'reject')}
-                  type="button"
-                >
-                  REJECT
-                </button>
-              </div>
-            }
-            icon={Eye}
-            key={sighting.id}
-            title={
-              sighting.image ? (
-                <span className="face-inline">
-                  <img alt="An unrecognised face" className="face-thumb" src={sighting.image} />
-                  {sighting.at ? String(sighting.at).slice(11, 19) : `#${sighting.id}`}
-                </span>
-              ) : (
-                `Sighting #${sighting.id}`
-              )
-            }
-          />
-        ))}
-
-        {library && !library.ok ? (
-          <ControlEmpty
-            description={library.detail ?? 'The room is not answering.'}
-            icon={ShieldAlert}
-            title="Cannot read the face library"
-          />
-        ) : null}
-      </ControlSection>
-
-      <ControlSection icon={History} title="Recent events">
-        {events.length === 0 ? (
-          <ControlEmpty
-            description="Notable presence, device, and room changes will appear here."
-            icon={Clock3}
-            title="No room events yet"
-          />
-        ) : (
-          events.map((event) => (
             <ControlRow
-              action={<span className="control-time">{event.at.slice(11, 19)}</span>}
-              description={event.summary}
-              key={event.id}
-              title={event.type.replaceAll('_', ' ')}
+              action={
+                <ControlPill tone={location.home ? 'ready' : 'neutral'}>
+                  {location.home ? 'home' : String(location.zone ?? 'unknown')}
+                </ControlPill>
+              }
+              description={
+                location.source && location.source !== 'unknown'
+                  ? `Reported by ${String(location.source)}`
+                  : 'Nothing has reported a phone location yet.'
+              }
+              title="Phone (OwnTracks)"
             />
-          ))
-        )}
-      </ControlSection>
+          </ControlSection>
+
+          <ControlSection icon={History} title="Recent room events">
+            {events.length === 0 ? (
+              <ControlEmpty
+                description="Notable presence, device, and room changes will appear here."
+                icon={Clock3}
+                title="No room events yet"
+              />
+            ) : (
+              events.map((event) => (
+                <ControlRow
+                  action={<span className="control-time">{event.at.slice(11, 19)}</span>}
+                  description={event.summary}
+                  key={event.id}
+                  title={event.type.replaceAll('_', ' ')}
+                />
+              ))
+            )}
+          </ControlSection>
+        </>
+      ) : (
+        <>
+          <div className="vision-workspace-grid">
+            <div className="vision-stage" aria-label="Local camera processing status">
+              <div className="vision-stage-body">
+                <Camera aria-hidden="true" />
+                <strong>{camera === 'ONLINE' ? 'Camera processing locally' : camera}</strong>
+                <p>
+                  Raw frames stay in the Smart Room sidecar. This renderer receives only derived
+                  presence, identity, sleep, and gesture state.
+                </p>
+              </div>
+              <div className="vision-stage-status">
+                <span>
+                  {people} {people === 1 ? 'person' : 'people'}
+                </span>
+                <span>{vision.owner_visible ? 'owner visible' : 'owner not visible'}</span>
+                <span>{gesture === 'NONE' ? 'no gesture' : gesture.toLowerCase()}</span>
+              </div>
+            </div>
+
+            <ControlSection icon={Eye} title="Live perception">
+              {error ? (
+                <ControlEmpty
+                  description={error}
+                  icon={ShieldAlert}
+                  title="Vision state unavailable"
+                />
+              ) : (
+                visionRows.map(([label, value]) => (
+                  <ControlRow
+                    action={<span className="control-value">{value}</span>}
+                    key={label}
+                    title={label.toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase())}
+                  />
+                ))
+              )}
+            </ControlSection>
+          </div>
+
+          <ControlSection
+            description={
+              library?.owner
+                ? `Owner: ${library.owner}`
+                : 'No owner enrolled — the camera cannot distinguish you from visitors yet.'
+            }
+            icon={Users}
+            title="Face identity"
+          >
+            <ControlRow
+              action={
+                <div className="provider-actions vision-enrol-actions">
+                  <input
+                    className="control-input"
+                    disabled={enrolling}
+                    onChange={(event) => setFaceName(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') void enrol()
+                    }}
+                    placeholder="Person name"
+                    value={faceName}
+                  />
+                  <button
+                    className="ghost-button"
+                    disabled={enrolling || !faceName.trim()}
+                    onClick={() => void enrol()}
+                    type="button"
+                  >
+                    {enrolling ? 'Sampling…' : 'Enroll current face'}
+                  </button>
+                </div>
+              }
+              description={
+                vision.error
+                  ? `Camera unavailable: ${String(vision.error)}`
+                  : 'Keep one face in view while the sidecar samples several local frames.'
+              }
+              title="Enroll owner"
+            />
+
+            {(library?.people ?? []).map((person) => (
+              <ControlRow
+                action={
+                  <span className="control-value">
+                    {person.samples} sample{person.samples === 1 ? '' : 's'}
+                  </span>
+                }
+                description={person.owner ? 'Owner' : 'Known person'}
+                key={person.name}
+                title={person.name}
+              />
+            ))}
+
+            {(library?.pending ?? []).length > 0 ? (
+              <ControlRow
+                description="Name a sighting to teach Marvi, or reject it without storing an identity."
+                icon={ShieldAlert}
+                title={`${library?.pending.length ?? 0} awaiting review`}
+              />
+            ) : null}
+            {(library?.pending ?? []).map((sighting) => (
+              <ControlRow
+                action={
+                  <div className="provider-actions vision-review-actions">
+                    <input
+                      className="control-input"
+                      disabled={enrolling}
+                      onChange={(event) =>
+                        setVisitorNames((names) => ({
+                          ...names,
+                          [sighting.id]: event.target.value
+                        }))
+                      }
+                      placeholder="Name"
+                      value={visitorNames[sighting.id] ?? ''}
+                    />
+                    <button
+                      className="ghost-button"
+                      disabled={enrolling || !(visitorNames[sighting.id] ?? '').trim()}
+                      onClick={() => void review(sighting.id, 'approve')}
+                      type="button"
+                    >
+                      Accept
+                    </button>
+                    <button
+                      className="ghost-button danger"
+                      disabled={enrolling}
+                      onClick={() => void review(sighting.id, 'reject')}
+                      type="button"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                }
+                key={sighting.id}
+                title={
+                  sighting.image ? (
+                    <span className="face-inline">
+                      <img alt="An unrecognised face" className="face-thumb" src={sighting.image} />
+                      {sighting.at ? String(sighting.at).slice(11, 19) : `#${sighting.id}`}
+                    </span>
+                  ) : (
+                    `Sighting #${sighting.id}`
+                  )
+                }
+              />
+            ))}
+
+            {pressed ? (
+              <ControlRow description={pressed} icon={Clock3} title="Last camera action" />
+            ) : null}
+            {library && !library.ok ? (
+              <ControlEmpty
+                description={library.detail ?? 'The room is not answering.'}
+                icon={ShieldAlert}
+                title="Cannot read the face library"
+              />
+            ) : null}
+          </ControlSection>
+
+          <ControlSection icon={History} title="Recent observations">
+            {visionEvents.length === 0 ? (
+              <ControlEmpty
+                description="Camera, presence, face, sleep, and gesture changes will appear here."
+                icon={Clock3}
+                title="No vision observations yet"
+              />
+            ) : (
+              visionEvents.map((event) => (
+                <ControlRow
+                  action={<span className="control-time">{event.at.slice(11, 19)}</span>}
+                  description={event.summary}
+                  key={event.id}
+                  title={event.type.replaceAll('_', ' ')}
+                />
+              ))
+            )}
+          </ControlSection>
+        </>
+      )}
     </ControlPage>
   )
 }
@@ -3366,17 +3462,8 @@ function ActivityPanel(): React.JSX.Element {
   )
 }
 
-function PagePanel({
-  page,
-  runtime
-}: {
-  page: Page
-  version: string
-  runtime: RuntimeStatus
-}): React.JSX.Element {
-  // The fallback for a sidebar page with no controls of its own. Vision stays
-  // a read-only Marvi status surface: camera ownership and identity operations
-  // remain in the Smart Room sidecar and travel through the normal Gateway.
+function PagePanel({ page }: { page: Page }): React.JSX.Element {
+  // The fallback for a sidebar page with no purpose-built surface yet.
   const descriptions: Record<Page, string> = {
     Overview: '',
     Voice: '',
@@ -3391,31 +3478,11 @@ function PagePanel({
 
   return (
     <ControlPage description={descriptions[page]} title={page}>
-      {page === 'Vision' ? (
-        <ControlSection icon={Eye} title="Room vision">
-          <ControlRow
-            action={
-              <ControlPill tone={stateTone(runtime.components.vision?.state)}>
-                {runtime.components.vision?.state ?? 'offline'}
-              </ControlPill>
-            }
-            description={runtime.components.vision?.detail ?? 'Room service unavailable'}
-            icon={Camera}
-            title="Camera processing"
-          />
-          <ControlRow
-            description="Presence and gesture observations are available in the Room view."
-            icon={Users}
-            title="Live observations"
-          />
-        </ControlSection>
-      ) : (
-        <ControlEmpty
-          description="This module has no controls to show yet."
-          icon={Sparkles}
-          title="Nothing here yet"
-        />
-      )}
+      <ControlEmpty
+        description="This module has no controls to show yet."
+        icon={Sparkles}
+        title="Nothing here yet"
+      />
     </ControlPage>
   )
 }

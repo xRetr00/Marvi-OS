@@ -332,11 +332,30 @@ def test_a_bridged_tool_requires_confirmation_unless_marvi_says_otherwise() -> N
     assert registry.get("p_read").sensitive is False
 
 
-def test_room_vision_reads_are_safe_but_identity_changes_are_not() -> None:
-    from marvi_gateway.room import READ_ONLY_PLUGIN_TOOLS
+def test_the_room_asks_before_nothing_and_records_everything() -> None:
+    """Confirmation is for what leaves this machine and cannot be undone.
 
-    assert "smart_room_vision" in READ_ONLY_PLUGIN_TOOLS
-    assert "smart_room_vision_identity" not in READ_ONLY_PLUGIN_TOOLS
+    Nothing in a room qualifies: a light, a mode, a face the camera should
+    learn are all local, reversible, and the user's own. The prompt made the
+    assistant tiring without making anything safer -- by voice it turned one
+    sentence into two. What stays is the audit line, which is where the
+    accountability actually lives.
+
+    Marvi still decides this, not the plugin. A plugin cannot add itself here.
+    """
+    from marvi_gateway.room import UNCONFIRMED_PLUGIN_TOOLS
+
+    for tool in (
+        "smart_room_vision",
+        "smart_room_vision_identity",
+        "smart_room_override",
+        "smart_room_alarm",
+        "smart_room_cancel_sleep",
+    ):
+        assert tool in UNCONFIRMED_PLUGIN_TOOLS, tool
+
+    # And a plugin tool Marvi has never heard of is still confirmed by default.
+    assert "smart_room_send_email" not in UNCONFIRMED_PLUGIN_TOOLS
 
 
 def test_json_schema_becomes_required_and_optional_arguments() -> None:

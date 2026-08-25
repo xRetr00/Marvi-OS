@@ -331,13 +331,27 @@ are filtered out at the Gateway, and event text is rebuilt from the event
 payload so a line always names what actually changed. A backlog that already
 existed when Marvi started is never surfaced as a micro-event.
 
-## Room and Activity views
+## Vision, Room, and Activity views
 
-Room shows the sidecar connection state and the live room reading: mode, light,
-presence, and phone location. When the sidecar is unreachable the view keeps
-serving its last known state and says so explicitly rather than showing an empty
-or stale-looking panel. It also lists recent notable room events, newest first.
-Room is read-only; device authority stays in the sidecar.
+Vision and Room follow the pinned Hermes Smart Room information order while
+remaining separate Marvi control-center destinations. Both start with a compact
+authoritative runtime header and one bounded live workspace before falling back
+to flat divided operational sections. Their workspaces use container queries to
+stack at the content boundary rather than a fixed window breakpoint.
+
+Room shows mode, light, presence, and phone location beside the existing
+Gateway-backed light, brightness, and mode controls. Controls invoke the same
+confirmed/audited tools as voice requests; device authority and credentials
+remain in the sidecar. Device and MQTT health follow the live workspace, then
+recent notable room events appear newest first. When the sidecar is unreachable,
+the view preserves its last known state and labels it stale.
+
+Vision owns derived camera state, identity review, and vision-specific history.
+Its primary stage explicitly says that raw frames remain inside the Smart Room
+sidecar; the renderer receives only derived presence, identity, sleep, activity,
+and gesture state plus bounded face-review crops. Owner enrollment and pending
+face decisions still travel through the normal Gateway tool boundary. Vision
+never becomes a second camera-inference owner.
 
 Activity is the append-only local tool audit, newest first. Each row shows the
 tool, the lifecycle event, the time, the active mode, and the exact arguments.

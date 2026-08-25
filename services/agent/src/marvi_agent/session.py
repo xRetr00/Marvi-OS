@@ -321,6 +321,24 @@ server = AgentServer(
     # worker at all. Loading the models early is right; pretending it is fast
     # is not.
     initialize_process_timeout=180.0,
+    # Never refuse a job for being busy.
+    #
+    # LiveKit marks a worker unavailable above 0.7 CPU load so a fleet can hand
+    # the job to a quieter machine. There is no quieter machine: this is one
+    # person's desktop and this is the only worker. Refusing does not move the
+    # work, it loses it -- pressing Join opened a room that nothing ever
+    # joined, and the log showed why only as a pair of lines flapping either
+    # side of the threshold:
+    #
+    #     worker is at full capacity, marking as unavailable  load 0.788
+    #     worker is below capacity, marking as available      load 0.684
+    #
+    # Speech recognition runs on the processor here by choice, so 0.7 is
+    # normal rather than exceptional. The honest trade is a busy machine
+    # answering slowly, which is what a person expects, instead of answering
+    # not at all, which reads as broken. `dev_default` is already infinity for
+    # exactly this reason; a single-user desktop is the same situation.
+    load_threshold=float("inf"),
 )
 
 

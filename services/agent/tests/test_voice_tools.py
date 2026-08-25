@@ -460,3 +460,24 @@ def test_updating_instructions_is_awaited() -> None:
     assert call in source
     if inspect.iscoroutinefunction(Agent.update_instructions):
         assert f"await {call}" in source, "update_instructions is async and is not awaited"
+
+
+def test_the_worker_never_refuses_a_job_for_being_busy() -> None:
+    """LiveKit marks a worker unavailable above 0.7 CPU load so a fleet can
+    hand the job to a quieter machine. There is no quieter machine.
+
+    This is one person's desktop and the only worker, so refusing does not move
+    the work, it loses it: pressing Join opened a room that nothing ever
+    joined. Speech recognition runs on the processor here by choice, which
+    makes 0.7 normal rather than exceptional.
+    """
+    import math
+
+    from marvi_agent.session import server
+
+    threshold = server._load_threshold
+    # It is a ServerEnvOption until the CLI resolves it, so take the value the
+    # production path would see rather than the wrapper.
+    value = getattr(threshold, "prod_default", threshold)
+
+    assert math.isinf(value), f"a busy desktop would be refused jobs at {value}"

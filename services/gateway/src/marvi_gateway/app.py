@@ -656,7 +656,7 @@ def create_app(
                 plugin,
                 guard=sleep_guard(sidecar) if plugin.name == room_module.PLUGIN_NAME else None,
                 read_only=(
-                    room_module.READ_ONLY_PLUGIN_TOOLS
+                    room_module.UNCONFIRMED_PLUGIN_TOOLS
                     if plugin.name == room_module.PLUGIN_NAME
                     else frozenset()
                 ),

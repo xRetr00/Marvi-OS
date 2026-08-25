@@ -184,9 +184,15 @@ def test_reconnect_after_restart_returns_to_live_reads(tmp_path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_room_write_needs_confirmation_and_reaches_the_sidecar(
-    sidecar, tmp_path
-) -> None:
+async def test_a_room_write_goes_straight_through_and_is_recorded(sidecar, tmp_path) -> None:
+    """Confirmation is for actions that leave this machine and cannot be taken
+    back. A light in your own room is local, reversible in one word, and yours
+    -- and by voice, asking first turned "turn the light on" into a two-turn
+    negotiation for no gain.
+
+    What must not go is the record. The audit line is the accountability; the
+    prompt was only ever friction.
+    """
     fake, client = sidecar
     registry = ToolRegistry()
     register_room_tools(registry, client)
@@ -196,19 +202,14 @@ async def test_room_write_needs_confirmation_and_reaches_the_sidecar(
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://marvi.local"
     ) as http:
-        requested = await http.post(
+        answer = await http.post(
             "/tools/room_set_light", json={"arguments": {"on": True, "brightness": 30}}
         )
-        token = requested.json()["token"]
-        approved = await http.post(
-            f"/confirmations/{token}",
-            json={"decision": "approve", "arguments": {"on": True, "brightness": 30}},
-        )
 
-    assert requested.json()["status"] == "confirmation_required"
-    assert approved.json()["status"] == "executed"
+    assert answer.json()["status"] == "executed"
     assert fake.requests[-1]["method"] == "set_light"
     assert fake.requests[-1]["params"] == {"on": True, "brightness": 30}
+    assert "set_light" in (tmp_path / "audit.jsonl").read_text(encoding="utf-8")
 
 
 @pytest.mark.asyncio

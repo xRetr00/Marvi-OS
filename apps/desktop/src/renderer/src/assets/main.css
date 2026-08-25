@@ -4789,6 +4789,255 @@ body {
   color: var(--ui-danger);
 }
 
+/* Room and Vision follow the pinned Hermes Smart Room information order:
+   runtime first, a bounded live workspace second, then flat operational lists.
+   Marvi keeps the surfaces monochrome and renderer-read-only for raw frames. */
+.room-page {
+  container-name: room-page;
+  container-type: inline-size;
+}
+
+.room-page .control-page-body {
+  gap: 28px;
+}
+
+.room-runtime-head {
+  display: flex;
+  min-height: 54px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 10px 12px;
+  border: 1px solid var(--ui-stroke-tertiary);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ui-bg-raised) 82%, transparent);
+}
+
+.room-runtime-copy {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.room-runtime-copy > svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  margin-top: 1px;
+  color: var(--ui-accent);
+  stroke-width: 1.7;
+}
+
+.room-runtime-copy strong,
+.room-runtime-copy span {
+  display: block;
+}
+
+.room-runtime-copy strong {
+  color: var(--ui-text-primary);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.room-runtime-copy span {
+  margin-top: 3px;
+  overflow: hidden;
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-workspace-grid,
+.vision-workspace-grid {
+  display: grid;
+  min-width: 0;
+  align-items: stretch;
+  gap: 14px;
+}
+
+.room-workspace-grid {
+  grid-template-columns: minmax(250px, 0.85fr) minmax(340px, 1.15fr);
+}
+
+.vision-workspace-grid {
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.8fr);
+}
+
+.room-workspace-grid > .control-section,
+.vision-workspace-grid > .control-section {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--ui-stroke-tertiary);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ui-bg-raised) 72%, transparent);
+}
+
+.room-workspace-grid .control-row {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 7px;
+}
+
+.room-workspace-grid .control-row-action {
+  width: 100%;
+  justify-self: stretch;
+  text-align: left;
+}
+
+.room-page .provider-actions {
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.room-page .room-level-actions,
+.room-page .room-mode-actions {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.room-page .ghost-button {
+  min-height: 28px;
+  padding: 4px 8px;
+  border-color: var(--ui-stroke-tertiary);
+  border-radius: 4px;
+  font-size: 9px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.room-page .ghost-button.active,
+.room-page .ghost-button[aria-pressed='true'] {
+  border-color: color-mix(in srgb, var(--ui-accent) 58%, var(--ui-stroke-secondary));
+  background: color-mix(in srgb, var(--ui-accent) 11%, transparent);
+  color: var(--ui-text-primary);
+}
+
+.room-page .ghost-button.danger {
+  color: var(--ui-danger);
+}
+
+.vision-stage {
+  position: relative;
+  display: grid;
+  min-height: 278px;
+  overflow: hidden;
+  grid-template-rows: minmax(0, 1fr) auto;
+  border: 1px solid var(--ui-stroke-tertiary);
+  border-radius: 8px;
+  background:
+    linear-gradient(
+      color-mix(in srgb, var(--ui-stroke-tertiary) 55%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--ui-stroke-tertiary) 55%, transparent) 1px,
+      transparent 1px
+    ),
+    var(--ui-bg-raised);
+  background-size: 36px 36px;
+}
+
+.vision-stage::after {
+  position: absolute;
+  inset: 14px;
+  border: 1px solid color-mix(in srgb, var(--ui-stroke-tertiary) 55%, transparent);
+  content: '';
+  pointer-events: none;
+}
+
+.vision-stage-body {
+  z-index: 1;
+  display: flex;
+  max-width: 45ch;
+  align-self: center;
+  align-items: center;
+  flex-direction: column;
+  justify-self: center;
+  padding: 36px;
+  text-align: center;
+}
+
+.vision-stage-body > svg {
+  width: 22px;
+  height: 22px;
+  margin-bottom: 10px;
+  color: var(--ui-accent);
+  stroke-width: 1.5;
+}
+
+.vision-stage-body strong {
+  color: var(--ui-text-primary);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.vision-stage-body p {
+  margin: 7px 0 0;
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+.vision-stage-status {
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 14px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--ui-stroke-tertiary);
+  background: var(--ui-bg-raised);
+  color: var(--ui-text-tertiary);
+  font-size: 8px;
+  text-transform: lowercase;
+}
+
+.vision-enrol-actions {
+  grid-template-columns: minmax(110px, 1fr) auto !important;
+}
+
+.vision-review-actions {
+  grid-template-columns: minmax(90px, 1fr) auto auto !important;
+}
+
+.room-page .control-input {
+  width: 100%;
+}
+
+@container room-page (max-width: 720px) {
+  .room-workspace-grid,
+  .vision-workspace-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .vision-stage {
+    min-height: 240px;
+  }
+}
+
+@container room-page (max-width: 480px) {
+  .room-runtime-head {
+    align-items: flex-start;
+  }
+
+  .room-runtime-copy span {
+    white-space: normal;
+  }
+
+  .room-page .room-level-actions,
+  .room-page .room-mode-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .vision-enrol-actions,
+  .vision-review-actions {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
 /* Accounts is a capability console, not a gallery of provider cards. The
    horizontal authority strip stays visually louder than lifecycle controls so
    the user can tell what Marvi may do before noticing what is connected. */

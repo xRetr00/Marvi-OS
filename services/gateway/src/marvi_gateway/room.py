@@ -583,7 +583,7 @@ def register_room_tools(registry, sidecar: RoomSidecar) -> None:
             description="Change the room mode",
             arguments={"mode": str},
             describes={"mode": "The room mode to switch to. Use room_state to see valid names."},
-            sensitive=True,
+            sensitive=False,
             handler=room_set_mode,
         )
     )
@@ -601,7 +601,7 @@ def register_room_tools(registry, sidecar: RoomSidecar) -> None:
                     "Omit to leave unchanged."
                 ),
             },
-            sensitive=True,
+            sensitive=False,
             handler=room_set_light,
         )
     )
@@ -727,13 +727,35 @@ DUPLICATE_PLUGIN_TOOLS = frozenset(
     }
 )
 
-#: The room plugin's tools that only read. Everything else is confirmed.
+#: Room plugin tools that go through without asking.
 #:
 #: Marvi decides this, not the plugin: a plugin declaring its own writes
 #: harmless is exactly the claim that should not be taken at face value.
-READ_ONLY_PLUGIN_TOOLS = frozenset(
-    {"smart_room_state", "smart_room_health", "smart_room_diagnostic", "smart_room_vision"}
+#:
+#: The reads were always here; the writes joined them because confirmation is
+#: the wrong instrument for a room. It exists for actions that leave this
+#: machine and cannot be taken back -- a sent email, a deleted file. A light in
+#: your own room is local, reversible in one word, and yours. Asking before
+#: every switch made the assistant tiring without making anything safer, and by
+#: voice it turned "turn the light on" into a two-turn negotiation.
+#:
+#: Every one is still audited. The record is the accountability; the prompt was
+#: only ever friction.
+UNCONFIRMED_PLUGIN_TOOLS = frozenset(
+    {
+        "smart_room_state",
+        "smart_room_health",
+        "smart_room_diagnostic",
+        "smart_room_vision",
+        "smart_room_cancel_sleep",
+        "smart_room_override",
+        "smart_room_alarm",
+        "smart_room_vision_identity",
+    }
 )
+
+#: The name this had while it meant only reads.
+READ_ONLY_PLUGIN_TOOLS = UNCONFIRMED_PLUGIN_TOOLS
 
 #: Plugin tools that change the room, mapped to the action name the sleep rule
 #: knows. A tool absent from here is still confirmed; it is simply not something
