@@ -987,9 +987,7 @@ function RoomPanel({
               <div className="room-light-layout">
                 <div className="room-light-power">
                   <div
-                    className={
-                      lightKnown && light.on ? 'room-light-orb is-on' : 'room-light-orb'
-                    }
+                    className={lightKnown && light.on ? 'room-light-orb is-on' : 'room-light-orb'}
                     style={{ backgroundColor: lightDraft.color }}
                   >
                     <Power aria-hidden="true" />

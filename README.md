@@ -46,9 +46,10 @@ Current implemented desktop surfaces:
   widgets, read aloud through the standalone PocketTTS announcer, and a dedicated
   searchable conversation sidebar, compact human/assistant turn pairs, tool
   disclosures, source rows, and compact shell chrome adapted from an internal desktop;
-- compact divided control surfaces across every non-Voice/non-Chat page, an
-  inset settings dialog with a persistent navigation rail, a collapsible
-  branded sidebar, consistent control tooltips, and audible desktop haptics;
+- compact divided control surfaces across every non-Voice/non-Chat page, a
+  tactile shared button language, an inset settings dialog with a persistent
+  navigation rail, a collapsible branded sidebar, consistent control tooltips,
+  and audible desktop haptics;
 - passive `76×8` top-edge Island seed that expands for active voice states;
 - canonical app icon rendered in the app, tray, taskbar/package, sidebar, and About.
 - action, notification, error, and confirmation Island states with automatic
@@ -104,8 +105,10 @@ Current implemented desktop surfaces:
   not wake herself;
 - an independently updated Smart Room sidecar as the sole camera/vision owner:
   local face, gesture, posture, and visitor logic publishes bounded facts and
-  events through authenticated Gateway contracts; the desktop has no plugin UI
-  or direct plugin connection;
+  events plus an on-demand compressed preview through authenticated Gateway
+  contracts; the desktop has no direct plugin connection. Room exposes the
+  sidecar's complete power, brightness, white-temperature, RGB, and mode
+  controls, while Vision provides preview-led owner enrollment and face review;
 - a protected sleep mode where the only thing Marvi may do to a sleeping room is
   switch a light off — enforced at the room boundary, and not overridable by
   YOLO.

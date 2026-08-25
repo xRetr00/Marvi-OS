@@ -1133,3 +1133,20 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
 - Verified 239 desktop tests, both desktop TypeScript targets, targeted ESLint,
   and `git diff --check`. Playwright checks at 1180×760 and 760×700 covered
   both views, their stacked content layout, and a clean browser console.
+
+## 2026-08-25 — complete Hermes Smart Room controls and preview flow
+
+- Replaced Room's preset-only quick controls with Hermes's complete light
+  editor: authoritative power state, on/off, continuous brightness, white
+  temperature, custom RGB/presets, and the eight real sidecar modes.
+- Added RGB to Marvi's validated and audited room tool adapter. Invalid channel
+  arrays are rejected before reaching the sidecar.
+- Added Hermes's preview-led Vision flow through a narrow Gateway/Electron
+  bridge. The sidecar captures and compresses one bounded frame; the renderer
+  polls it only while Vision is mounted and remains presentation-only.
+- Rebuilt owner enrollment, known identities, and pending sightings as a
+  responsive visual workspace with full face crops and explicit accept/reject
+  actions.
+- Modernized the shared button treatment and Settings workspace with tactile
+  state, clearer hover/focus feedback, and restrained depth while preserving
+  Marvi's monochrome industrial contract.

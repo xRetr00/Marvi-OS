@@ -347,12 +347,20 @@ credentials remain in the sidecar. Device and MQTT health follow the live
 workspace, then recent notable room events appear newest first. When the sidecar
 is unreachable, the view preserves its last known state and labels it stale.
 
-Vision owns derived camera state, identity review, and vision-specific history.
-Its primary stage explicitly says that raw frames remain inside the Smart Room
-sidecar; the renderer receives only derived presence, identity, sleep, activity,
-and gesture state plus bounded face-review crops. Owner enrollment and pending
-face decisions still travel through the normal Gateway tool boundary. Vision
-never becomes a second camera-inference owner.
+Vision owns presentation of camera state, identity review, and vision-specific
+history. The Smart Room sidecar remains the sole camera and inference owner.
+While the Vision page is mounted, the renderer requests one bounded 720 px JPEG
+preview every 500 ms through Gateway and Electron; frames are not queued,
+persisted, or fetched in the background. Derived presence, identity, sleep,
+activity, and gesture state remains separate from that presentation frame.
+Owner enrollment and pending face decisions use the same preview-led flow as
+Hermes and still travel through the normal Gateway tool boundary.
+
+Room's light editor follows Hermes's complete control flow: current power and
+brightness, on/off, a continuous brightness range, white temperature, custom
+RGB and preset swatches, then all eight room modes. RGB is functional device
+color rather than a decorative UI palette. Controls stay disabled until the
+Gateway has a live confirmed room state, and sliders apply on release.
 
 Activity is the append-only local tool audit, newest first. Each row shows the
 tool, the lifecycle event, the time, the active mode, and the exact arguments.
