@@ -1150,3 +1150,8 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
 - Modernized the shared button treatment and Settings workspace with tactile
   state, clearer hover/focus feedback, and restrained depth while preserving
   Marvi's monochrome industrial contract.
+- Verified all 924 Gateway tests and 240 desktop tests, the production desktop
+  build, both TypeScript targets, targeted ESLint, Ruff, and `git diff --check`.
+  Playwright checks covered Room and Vision at 1180×760 and 760×700,
+  preview and face-review fixture states, the Settings overlay, offline control
+  lockout, and a clean unmodified browser console.

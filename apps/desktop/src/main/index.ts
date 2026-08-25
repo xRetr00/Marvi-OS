@@ -2042,8 +2042,8 @@ function startApp(): void {
       }
     })
     // The room's write tools, through the same `/tools/{name}` path Marvi
-    // uses -- so the sleep rule, the confirmation flow and the audit line all
-    // apply to a button press exactly as they do to a spoken request. The
+    // uses -- so the sleep rule, local-action policy and audit line all apply
+    // to a button press exactly as they do to a spoken request. The
     // renderer names the tool; it cannot reach anything the Gateway has not
     // registered, and the allowlist here keeps it to the room.
     ipcMain.handle('marvi:get-auxiliary', async () => {
