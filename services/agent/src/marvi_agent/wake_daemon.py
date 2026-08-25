@@ -64,6 +64,7 @@ DEBOUNCE_SECONDS = 4.0
 #: that died. Comfortably inside the staleness window the Gateway applies.
 HEARTBEAT_SECONDS = 5.0
 DEFAULT_THRESHOLD = 0.5
+ANNOUNCEMENT_STALE_SECONDS = 3600.0
 
 
 def state_path() -> Path:
@@ -80,6 +81,73 @@ def state_path() -> Path:
         base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
         root = Path(base) / "Marvi-OS"
     return root / "state" / "wake.json"
+
+
+def announcement_path() -> Path:
+    """The Gateway's content-free marker while one-shot speech is playing."""
+    return state_path().with_name("announcing.json")
+
+
+def _process_alive(pid: int) -> bool:
+    """Non-destructively check the marker owner on Windows and Unix.
+
+    `os.kill(pid, 0)` is a Unix liveness idiom. On Windows Python sends every
+    non-console signal through TerminateProcess, including zero, so using that
+    idiom here killed the Gateway whose playback we were trying to detect.
+    """
+    if os.name == "nt":
+        import ctypes
+        from ctypes import wintypes
+
+        process_query_limited_information = 0x1000
+        still_active = 259
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        kernel32.OpenProcess.restype = wintypes.HANDLE
+        kernel32.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+        kernel32.GetExitCodeProcess.restype = wintypes.BOOL
+        kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+        kernel32.CloseHandle.restype = wintypes.BOOL
+        handle = kernel32.OpenProcess(process_query_limited_information, False, pid)
+        if not handle:
+            return False
+        try:
+            code = wintypes.DWORD()
+            return bool(kernel32.GetExitCodeProcess(handle, ctypes.byref(code))) and (
+                code.value == still_active
+            )
+        finally:
+            kernel32.CloseHandle(handle)
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
+
+
+def announcement_active(now: float | None = None) -> bool:
+    """Do not wake Marvi from her own direct speaker playback.
+
+    The marker includes the Gateway PID so a crash cannot leave the wake word
+    disabled. A one-hour age ceiling handles PID reuse and malformed cleanup.
+    """
+    marker = announcement_path()
+    try:
+        state = json.loads(marker.read_text(encoding="utf-8"))
+        pid = int(state["pid"])
+        started = float(state["started_at"])
+        moment = now if now is not None else time.time()
+        if moment - started > ANNOUNCEMENT_STALE_SECONDS:
+            marker.unlink(missing_ok=True)
+            return False
+        if not _process_alive(pid):
+            marker.unlink(missing_ok=True)
+            return False
+        return True
+    except (OSError, ValueError, KeyError, TypeError):
+        with contextlib.suppress(OSError):
+            marker.unlink()
+        return False
 
 
 def model_path() -> Path:
@@ -208,6 +276,14 @@ def listen(threshold: float, app: str = "", device: str = "") -> int:
             # Scoring a part-full buffer scores mostly silence, and the model
             # has no way to say so -- it returns a number either way.
             if filled < window or now - last_fired < DEBOUNCE_SECONDS:
+                continue
+
+            if announcement_active(now):
+                # Empty the rolling window too. Otherwise Marvi's last spoken
+                # syllables remain in it and are scored the instant the marker
+                # disappears.
+                buffer.fill(0)
+                filled = 0
                 continue
 
             # A dict of model name to score; this build ships one model.

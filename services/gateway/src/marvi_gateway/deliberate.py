@@ -30,7 +30,10 @@ import time
 from typing import Any
 
 from . import auxiliary
+from .cognition import MIND_TOOLS, CognitionHarness
+from .identity import IdentityFiles
 from .providers import ProviderCallError, ProviderClient, configured_profiles
+from .tools import ToolRegistry
 from .untrusted import wrap_external
 
 logger = logging.getLogger(__name__)
@@ -56,8 +59,12 @@ class Deliberator:
         self,
         client: ProviderClient | None = None,
         preferred: str | None = None,
+        identity: IdentityFiles | None = None,
+        tools: ToolRegistry | None = None,
+        harness: CognitionHarness | None = None,
     ) -> None:
         self.client = client or ProviderClient()
+        self.harness = harness or CognitionHarness(self.client, identity=identity, tools=tools)
         # Thinking in the background is exactly the work that should run on a
         # free local model when one is there.
         self.preferred = preferred or os.environ.get("MARVI_MIND_PROVIDER", "").strip() or None
@@ -85,10 +92,6 @@ class Deliberator:
         Falls back to the deterministic verdict on any failure, so a dead
         provider makes the mind quieter rather than broken.
         """
-        messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": self._prompt(event, verdict)},
-        ]
         route = auxiliary.fallback_overrides("mind")
         if self.preferred and "preferred" not in route:
             route["preferred"] = self.preferred
@@ -108,15 +111,13 @@ class Deliberator:
             },
         )
         try:
-            completion = self.client.call_with_fallback(
-                messages,
-                # A one-sentence yes/no is auxiliary work, not the main model.
-                job="aux",
-                # And if the `mind` role names one, that model rather than
-                # whichever the provider hardcoded as its auxiliary.
-                **route,
+            completion = self.harness.ask(
+                role="mind",
+                task=SYSTEM_PROMPT,
+                user=self._prompt(event, verdict),
                 max_tokens=MAX_OUTPUT_TOKENS,
-                temperature=0.2,
+                allowed_tools=MIND_TOOLS,
+                preferred=route.get("preferred"),
             )
         except ProviderCallError as exc:
             logger.warning(
@@ -173,8 +174,13 @@ def _parse(content: str) -> tuple[bool, str] | None:
     return bool(parsed["worth_it"]), str(parsed.get("say", "")).strip()
 
 
-def deliberator_from_env(client: ProviderClient | None = None) -> Deliberator | None:
+def deliberator_from_env(
+    client: ProviderClient | None = None,
+    identity: IdentityFiles | None = None,
+    tools: ToolRegistry | None = None,
+    harness: CognitionHarness | None = None,
+) -> Deliberator | None:
     """None when no provider is configured, which keeps the mind deterministic."""
     if not configured_profiles():
         return None
-    return Deliberator(client=client)
+    return Deliberator(client=client, identity=identity, tools=tools, harness=harness)

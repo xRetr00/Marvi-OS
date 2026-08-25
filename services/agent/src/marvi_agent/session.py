@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import os
 import time
@@ -37,9 +36,6 @@ log = logging.getLogger("marvi.voice")
 #: Short: this runs beside the audio path and a slow report must not delay a
 #: reply. Failing to tell the UI what was said is not a reason to stop saying it.
 REPORT_TIMEOUT = 1.5
-READ_ALOUD_METHOD = "marvi.read_aloud"
-STOP_READ_ALOUD_METHOD = "marvi.read_aloud.stop"
-MAX_READ_ALOUD_CHARS = 12_000
 
 
 def gateway_url() -> str:
@@ -85,48 +81,6 @@ def _report_transcript(*, heard: str = "", spoken: str = "") -> None:
             json={"heard": heard, "spoken": spoken},
             timeout=REPORT_TIMEOUT,
         )
-
-
-def register_read_aloud_rpc(room: Any, session: AgentSession) -> None:
-    """Let Chat use this session's configured TTS without creating a second engine."""
-    active: dict[str, Any] = {"handle": None}
-
-    @room.local_participant.register_rpc_method(READ_ALOUD_METHOD)
-    async def read_aloud(data: Any) -> str:
-        try:
-            body = json.loads(data.payload)
-        except (TypeError, json.JSONDecodeError):
-            return json.dumps({"ok": False, "error": "invalid read-aloud request"})
-        text = str(body.get("text") or "").strip()
-        if not text:
-            return json.dumps({"ok": False, "error": "nothing to read"})
-        if len(text) > MAX_READ_ALOUD_CHARS:
-            return json.dumps({"ok": False, "error": "response is too long to read aloud"})
-        previous = active.get("handle")
-        if previous is not None:
-            previous.interrupt()
-        handle = session.say(
-            text,
-            allow_interruptions=True,
-            # Reading a Chat message is playback, not a new Voice conversation
-            # item. Keeping it out prevents the same reply appearing twice.
-            add_to_chat_ctx=False,
-        )
-        active["handle"] = handle
-        try:
-            await handle.wait_for_playout()
-        finally:
-            if active.get("handle") is handle:
-                active["handle"] = None
-        return json.dumps({"ok": True})
-
-    @room.local_participant.register_rpc_method(STOP_READ_ALOUD_METHOD)
-    async def stop_read_aloud(_data: Any) -> str:
-        handle = active.get("handle")
-        if handle is not None:
-            handle.interrupt()
-            active["handle"] = None
-        return json.dumps({"ok": True})
 
 
 load_dotenv(Path(__file__).parents[2] / ".env")
@@ -423,7 +377,6 @@ async def marvi_session(ctx: JobContext) -> None:
 
     connecting = time.monotonic()
     await session.start(agent=MarviVoiceAgent(), room=ctx.room)
-    register_read_aloud_rpc(ctx.room, session)
     log.info("joined %s in %.1fs, listening", ctx.room.name, time.monotonic() - connecting)
 
     # How a conversation ends: the model decides, from what was said.
@@ -508,7 +461,13 @@ async def marvi_session(ctx: JobContext) -> None:
     # Marvi is running should be usable in the next session, not the next
     # release. `update_instructions` checked against the installed 1.6.10.
     if blocks := await gateway.context_blocks():
-        agent.update_instructions(agent.instructions + "\n\n" + "\n\n".join(blocks))
+        # Awaited. `inspect.signature` reports `-> None` and it is a coroutine
+        # function, so checking the signature said "synchronous" and the call
+        # returned a coroutine nobody ran -- every skill catalogue and every
+        # location block silently discarded, with one RuntimeWarning per
+        # session as the only sign. Ask `iscoroutinefunction`, not the return
+        # annotation.
+        await agent.update_instructions(agent.instructions + "\n\n" + "\n\n".join(blocks))
         log.info("prompt: %d context block(s) from the Gateway", len(blocks))
 
 

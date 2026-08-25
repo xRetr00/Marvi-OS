@@ -36,7 +36,7 @@ class FakeAnnouncer:
 
     def speak(self, text):
         self.said.append(text)
-        return {"published": True} if self.works else {"published": False, "error": "no room"}
+        return {"played": True} if self.works else {"played": False, "error": "no output"}
 
 
 # -- speech ----------------------------------------------------------------
@@ -80,8 +80,17 @@ def test_a_quieter_surface_never_speaks(journal) -> None:
 
 def test_empty_text_is_refused_rather_than_synthesised() -> None:
     result = Announcer().speak("   ")
-    assert result["published"] is False
+    assert result["played"] is False
     assert "nothing to say" in result["error"]
+
+
+def test_room_welcome_reaches_the_same_standalone_announcer(journal) -> None:
+    journal.append("room", "room_welcome", "Welcome home, Ada.", trusted=True)
+    announcer = FakeAnnouncer()
+
+    Mind(journal, announcer=announcer).tick(now=NOON)
+
+    assert announcer.said == ["Welcome home, Ada."]
 
 
 @pytest.mark.browser

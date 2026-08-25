@@ -9,8 +9,49 @@ about itself while nobody is looking.
 from __future__ import annotations
 
 import json
+import os
 
 from marvi_agent import wake_daemon
+
+
+def test_wake_scoring_pauses_while_the_standalone_announcer_is_playing(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setenv("MARVI_HOME", str(tmp_path))
+    marker = tmp_path / "state" / "announcing.json"
+    marker.parent.mkdir(parents=True)
+    marker.write_text(
+        json.dumps({"pid": os.getpid(), "started_at": 100.0, "purpose": "proactive"}),
+        encoding="utf-8",
+    )
+
+    assert wake_daemon.announcement_active(now=101.0) is True
+    assert marker.is_file()
+
+
+def test_the_windows_liveness_check_never_uses_os_kill(monkeypatch) -> None:
+    monkeypatch.setattr(wake_daemon.os, "name", "nt")
+    monkeypatch.setattr(
+        wake_daemon.os,
+        "kill",
+        lambda *_args: (_ for _ in ()).throw(AssertionError("would terminate the Gateway")),
+    )
+
+    assert isinstance(wake_daemon._process_alive(os.getpid()), bool)
+
+
+def test_a_stale_announcement_cannot_disable_wake_word(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("MARVI_HOME", str(tmp_path))
+    marker = tmp_path / "state" / "announcing.json"
+    marker.parent.mkdir(parents=True)
+    marker.write_text(
+        json.dumps({"pid": os.getpid(), "started_at": 1.0}), encoding="utf-8"
+    )
+
+    assert wake_daemon.announcement_active(
+        now=1.0 + wake_daemon.ANNOUNCEMENT_STALE_SECONDS + 1
+    ) is False
+    assert marker.exists() is False
 
 
 def test_the_app_is_reached_with_one_command_either_way(monkeypatch) -> None:

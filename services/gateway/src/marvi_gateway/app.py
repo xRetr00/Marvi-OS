@@ -20,7 +20,17 @@ from fastapi.responses import StreamingResponse
 from livekit import api
 from pydantic import BaseModel, Field
 
-from . import auxiliary, breadcrumb, delegate, distil, latency, paths, selfaware, upgrade
+from . import (
+    auxiliary,
+    breadcrumb,
+    conversation,
+    delegate,
+    distil,
+    latency,
+    paths,
+    selfaware,
+    upgrade,
+)
 from . import doctor as doctor_module
 from . import plugins as plugins_module
 from . import room as room_module
@@ -29,9 +39,10 @@ from . import setup as setup_module
 from .account_triggers import AccountTriggerIngest
 from .accounts import ComposioAccounts, register_account_tools
 from .activity import ActivityWatch, register_activity_tools
-from .announce import Announcer, announce_enabled
+from .announce import Announcer, announce_enabled, output_devices
 from .browser import BrowserSession, browser_enabled, register_browser_tools
 from .chat import Chat, ChatStore, ChatTurn, schemas_from_registry
+from .cognition import CognitionHarness
 from .curiosity import Curiosity, seed_identity
 from .deliberate import deliberator_from_env
 from .dictation import DictationError, DictationManager
@@ -84,6 +95,21 @@ class LiveKitConnection(BaseModel):
     url: str
     room: str
     token: str
+
+
+class ReadAloudRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=12_000)
+
+
+class VoiceSessionState(BaseModel):
+    active: bool
+
+
+class SpeechResult(BaseModel):
+    played: bool = False
+    cancelled: bool = False
+    seconds: float = 0.0
+    error: str = ""
 
 
 class ToolCall(BaseModel):
@@ -545,6 +571,7 @@ def create_app(
     runtime: RuntimeStore | None = None,
     tools: ToolRegistry | None = None,
     account_service: ComposioAccounts | None = None,
+    announcer_service: Announcer | None = None,
 ) -> FastAPI:
     product_version = version or read_version()
     # Before anything opens a database or a log: move whatever is still in the
@@ -586,9 +613,13 @@ def create_app(
     dictation = DictationManager()
     chat: Chat | None = None
     runtime_store = runtime or RuntimeStore()
+    # Explicit Read Aloud is available even when unprompted announcements are
+    # disabled. MARVI_ANNOUNCE governs initiative, not a button the user pressed.
+    one_shot = announcer_service or Announcer()
     sidecar: RoomSidecar | None = None
     accounts: ComposioAccounts | None = None
     memory: MemoryStore | None = None
+    memory_summarise: Any = None
     ingest: AccountIngest | None = None
     journal: EventJournal | None = None
     initiative: Initiative | None = None
@@ -638,7 +669,6 @@ def create_app(
         accounts = account_service or ComposioAccounts()
         register_account_tools(tool_registry, accounts)
         memory = MemoryStore()
-        register_memory_tools(tool_registry, memory)
         # Standing facts about the user go where every prompt reads them,
         # rather than into a store that only surfaces on a matching search.
         register_identity_tools(tool_registry, identity)
@@ -647,6 +677,12 @@ def create_app(
         workspace = Workspace()
         if workspace.available():
             register_workspace_tools(tool_registry, workspace)
+        cognition = CognitionHarness(provider_client, identity=identity, tools=tool_registry)
+
+        def memory_summarise(groups: list[dict[str, Any]]) -> list[tuple[str, str]]:
+            return distil.summarise_memories(cognition, groups)
+
+        register_memory_tools(tool_registry, memory, summarise=memory_summarise)
         activity = ActivityWatch()
         if activity.available():
             register_activity_tools(tool_registry, activity)
@@ -657,18 +693,24 @@ def create_app(
                 journal,
                 memory=memory,
                 settings=InitiativeSettings.from_env(),
-                deliberate=deliberator_from_env(client=provider_client),
-                announcer=Announcer() if announce_enabled() else None,
+                deliberate=deliberator_from_env(
+                    client=provider_client,
+                    identity=identity,
+                    tools=tool_registry,
+                    harness=cognition,
+                ),
+                announcer=one_shot if announce_enabled() else None,
             ),
             journal,
             ingest=ingest,
             memory=memory,
-            memory_summarise=lambda groups: distil.summarise_memories(provider_client, groups),
+            memory_summarise=memory_summarise,
             room_state=(
                 lambda: {
                     "present": bool(
                         ((sidecar.snapshot() or {}).get("presence") or {}).get("detected", True)
-                    )
+                    ),
+                    "conversation_active": conversation.active(),
                 }
             )
             if sidecar is not None
@@ -723,6 +765,8 @@ def create_app(
             yield
         finally:
             dictation.close()
+            one_shot.close()
+            conversation.reset()
             if initiative is not None:
                 initiative.stop()
             if account_triggers is not None:
@@ -977,6 +1021,37 @@ def create_app(
             .to_jwt()
         )
         return LiveKitConnection(url=url, room=room, token=token)
+
+    @app.post("/speech/read-aloud", response_model=SpeechResult)
+    async def read_aloud(request: ReadAloudRequest) -> SpeechResult:
+        outcome = await anyio.to_thread.run_sync(
+            lambda: one_shot.speak(request.text, purpose="read_aloud")
+        )
+        return SpeechResult(**outcome)
+
+    @app.post("/voice/session-state")
+    async def voice_session_state(update: VoiceSessionState) -> dict[str, bool]:
+        active = conversation.report(update.active)
+        get_logger("mind").info(
+            "foreground voice session state changed",
+            extra={"marvi_active": active, "marvi_session_active": update.active},
+        )
+        return {"conversation_active": active}
+
+    @app.post("/speech/stop")
+    async def stop_speech() -> dict[str, bool]:
+        return {"stopped": one_shot.stop()}
+
+    @app.get("/speech/status")
+    async def speech_status() -> dict[str, Any]:
+        return {
+            "enabled": True,
+            "proactive": announce_enabled(),
+            "voice": one_shot.voice,
+            "device": os.environ.get("MARVI_ANNOUNCE_DEVICE", ""),
+            "device_setting": "MARVI_ANNOUNCE_DEVICE",
+            "devices": output_devices(),
+        }
 
     @app.put("/runtime/mode", response_model=RuntimeStatus)
     async def set_mode(update: ModeUpdate) -> RuntimeStatus:
@@ -1312,7 +1387,7 @@ def create_app(
             )
         return SetupPage(
             components=rows,
-            plan=setup_module.plan(components),
+            plan=setup_module.plan(components, REPO_ROOT),
             install_root=str(setup_module.install_root()),
             disk_ok=enough,
             disk_detail=detail,
@@ -1941,7 +2016,7 @@ def create_app(
     async def run_reflect() -> ReflectResult:
         if memory is None:
             return ReflectResult(considered=0, promoted=[])
-        return ReflectResult(**memory.reflect())
+        return ReflectResult(**memory.reflect(summarise=memory_summarise))
 
     @app.post("/memory/consolidate", response_model=ConsolidateResult)
     async def run_consolidate() -> ConsolidateResult:

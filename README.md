@@ -43,7 +43,7 @@ Current implemented desktop surfaces:
 - Gateway-owned Chat threads and branches with per-thread model routing,
   typed sources/files/images, local document extraction, Parakeet dictation,
   safe GFM/math rendering, authoritative context facts, validated generative
-  widgets, read aloud through Marvi's configured Kokoro voice, and a dedicated
+  widgets, read aloud through the standalone PocketTTS announcer, and a dedicated
   searchable conversation sidebar, compact human/assistant turn pairs, tool
   disclosures, source rows, and compact shell chrome adapted from an internal desktop;
 - compact divided control surfaces across every non-Voice/non-Chat page, an
@@ -97,9 +97,10 @@ Current implemented desktop surfaces:
   where quiet hours, presence, cooldown, a live conversation, and a daily budget
   each downgrade or silence a proposal, and every decision records the rule
   behind it — including the decisions to stay quiet;
-- proactive speech on a CPU model published through the LiveKit room, so Marvi
-  can say something unprompted without borrowing the streaming voice stack or
-  hearing itself;
+- proactive speech and Chat Read Aloud through a cancellable CPU PocketTTS
+  announcer that plays directly to the selected Windows output without opening
+  Voice; a content-free playback marker suppresses wake scoring so Marvi does
+  not wake herself;
 - an independently updated Smart Room sidecar as the sole camera/vision owner:
   local face, gesture, posture, and visitor logic publishes bounded facts and
   events through authenticated Gateway contracts; the desktop has no plugin UI

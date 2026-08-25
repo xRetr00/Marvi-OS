@@ -101,6 +101,12 @@ presence judgement use the `mind` role; scheduled and manual reflection use the
 `memory` role. A role pinned in Models → Auxiliary selects that provider/model;
 Auto uses the active provider's `default_aux_model`. Deterministic memory
 search, ingest, graph projection, and consolidation do not call an LLM.
+Mind deliberation and memory reflection share a Gateway cognition harness that
+prepends SOUL.md, USER.md, local date/time, and the task brief. It offers only a
+fixed read-only subset of the existing registry (`memory_recall`, graph
+neighbours, web search/extract, workspace list/read, and Mind diagnostics).
+Skills, commands, writes, account actions, dynamic external tools, and
+confirmation bypasses are absent; the loop is capped at three model rounds.
 Provider calls and ARC jobs record route, model, timing, usage, outcome, and
 stable event/call identifiers in the rotating subsystem logs without recording
 prompts, completions, memory bodies, or external account payloads.

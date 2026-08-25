@@ -964,6 +964,63 @@ function startApp(): void {
       }
       return { url: value.url, room: value.room, token: value.token }
     })
+    ipcMain.handle('marvi:set-voice-session-active', async (_event, active) => {
+      try {
+        const response = await fetch(`${gateway()}/voice/session-state`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ active: Boolean(active) }),
+          signal: AbortSignal.timeout(2_000)
+        })
+        return response.ok
+      } catch {
+        desktop.warn('could not report foreground voice session state', {
+          active: Boolean(active)
+        })
+        return false
+      }
+    })
+    ipcMain.handle('marvi:read-aloud', async (_event, text) => {
+      if (typeof text !== 'string' || !text.trim()) throw new Error('There is nothing to read')
+      desktop.info('Chat Read Aloud requested', { chars: text.length })
+      try {
+        const response = await fetch(`${gateway()}/speech/read-aloud`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ text }),
+          signal: AbortSignal.timeout(300_000)
+        })
+        const value = (await response.json()) as Record<string, unknown>
+        if (!response.ok || (!value.played && !value.cancelled)) {
+          throw new Error(String(value.error || `Gateway returned HTTP ${response.status}`))
+        }
+        desktop.info('Chat Read Aloud completed', {
+          cancelled: Boolean(value.cancelled),
+          seconds: Number(value.seconds || 0)
+        })
+      } catch (cause) {
+        desktop.warn('Chat Read Aloud failed', {
+          error: cause instanceof Error ? cause.message : String(cause)
+        })
+        throw cause
+      }
+    })
+    ipcMain.handle('marvi:stop-read-aloud', async () => {
+      try {
+        const response = await fetch(`${gateway()}/speech/stop`, {
+          method: 'POST',
+          signal: AbortSignal.timeout(2_000)
+        })
+        if (!response.ok) return false
+        const value = (await response.json()) as Record<string, unknown>
+        return Boolean(value.stopped)
+      } catch (cause) {
+        desktop.warn('could not stop Chat Read Aloud', {
+          error: cause instanceof Error ? cause.message : String(cause)
+        })
+        return false
+      }
+    })
     ipcMain.handle('marvi:get-displays', () =>
       screen.getAllDisplays().map((display, index) => ({
         id: display.id,

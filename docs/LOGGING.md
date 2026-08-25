@@ -11,7 +11,7 @@ Where to look when something is wrong, and what guarantees the files make.
 | **`errors.log`** | **everything at WARNING and above, from every subsystem** |
 | `gateway.log` | HTTP, tool router, confirmations, uvicorn |
 | `providers.log` | model calls, tokens, cache hits, cooldowns, failover, `httpx` |
-| `voice.log` | the agent worker, LiveKit, STT/TTS, announcements |
+| `voice.log` | the agent worker, LiveKit, STT/TTS, one-shot announcement start/cancel/play/failure |
 | `room.log` | sidecar RPC, device actions, sleep-mode refusals |
 | `mind.log` | journal, policy, deliberation, the scheduler |
 | `memory.log`, `chat.log` | as named |
@@ -26,6 +26,10 @@ a call ID, job (`aux` for cognition), provider, model, message/tool counts,
 input character count, latency, token usage, fallback attempts, and outcome.
 Mind and scheduler records add stable event/job identifiers, policy rule,
 surface, and timing. Memory and account ingestion record sources and counts.
+The cognition harness records each offered read-tool refusal, completion, or
+failure by tool name; it never records tool output. One-shot speech records
+purpose, character/chunk counts, audio duration, latency, cancellation, and
+output failures without recording spoken text.
 Raw prompts, completions, memory text, email bodies, calendar contents, and
 trigger payloads are deliberately excluded; debugging metadata still passes
 through the global secret redactor.

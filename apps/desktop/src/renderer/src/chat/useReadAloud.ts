@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { readAloudWithMarvi, stopMarviReadAloud } from '../store/voice-session'
+import { readAloudWithMarvi, stopMarviReadAloud } from '../store/announcer'
 import { markdownToSpeechChunks } from './speech-text'
 
 export interface ReadAloudController {

@@ -1064,3 +1064,24 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   routes, models, timing, usage, counts, and outcomes while excluding prompts,
   completions, memories, and account payloads.
 - Verified all 901 Gateway tests, Gateway Ruff, and `git diff --check`.
+
+## 2026-08-25 — standalone announcer and ARC cognition harness
+
+- Added PocketTTS as an explicit Setup capability. Setup prepares the locked
+  package's revision-pinned model and Alba voice in Marvi's removable model
+  cache and records a versioned readiness marker.
+- Replaced proactive and Chat Read Aloud LiveKit RPCs with one cancellable
+  PocketTTS → sounddevice/PortAudio service. Trusted Room welcomes use the same
+  path; active Voice suppresses initiative, and a crash-safe marker prevents
+  the wake listener from scoring Marvi's own playback.
+- Replaced the Unix-only `os.kill(pid, 0)` marker-owner probe after proving
+  that Python maps it to `TerminateProcess` on Windows. The wake daemon now
+  uses a read-only process handle, so suppressing self-wake cannot kill Gateway.
+- Added a shared Mind/Memory cognition harness with identity, local time,
+  Auxiliary model routing, a three-round cap, and a declaration-checked
+  read-only memory/web/workspace allowlist. Skills and acting tools are absent.
+- Verified 921 Gateway tests, 126 LiveKit Agent tests, 237 desktop tests, both
+  desktop TypeScript targets, Gateway/Agent Ruff, lockfile consistency, and
+  `git diff --check`. A real isolated Setup run loaded PocketTTS/Alba in
+  10.2 seconds; direct default-device playback returned `played=true` for
+  1.84 seconds of generated PCM.

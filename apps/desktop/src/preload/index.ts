@@ -74,6 +74,10 @@ const marvi = {
   getRuntime: (): Promise<RuntimeStatus> => ipcRenderer.invoke('marvi:get-runtime'),
   getVoiceSession: (): Promise<{ url: string; room: string; token: string }> =>
     ipcRenderer.invoke('marvi:get-voice-session'),
+  setVoiceSessionActive: (active: boolean): Promise<boolean> =>
+    ipcRenderer.invoke('marvi:set-voice-session-active', active),
+  readAloud: (text: string): Promise<void> => ipcRenderer.invoke('marvi:read-aloud', text),
+  stopReadAloud: (): Promise<boolean> => ipcRenderer.invoke('marvi:stop-read-aloud'),
   getDisplays: (): Promise<Array<{ id: number; label: string; primary: boolean }>> =>
     ipcRenderer.invoke('marvi:get-displays'),
   getIslandPlacement: (): Promise<IslandPlacement> =>

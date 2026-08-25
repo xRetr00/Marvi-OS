@@ -72,6 +72,11 @@ def isolate_marvi_home(tmp_path_factory, monkeypatch):
     monkeypatch.delenv("MARVI_PROVIDER", raising=False)
     monkeypatch.delenv("OPENAI_ADMIN_KEY", raising=False)
     monkeypatch.delenv("ANTHROPIC_ADMIN_KEY", raising=False)
+    # And the standing YOLO choice, which is now saved rather than forgotten on
+    # every start. A test that turns it on writes to the real environment, so
+    # without this the next test inherits a Marvi that confirms nothing --
+    # which is both a wrong result and the least obvious one to trace.
+    monkeypatch.delenv("MARVI_YOLO", raising=False)
 
     yield home
 

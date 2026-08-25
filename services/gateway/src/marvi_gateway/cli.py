@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import sys
+from functools import partial
 from pathlib import Path
 
 from . import breadcrumb, doctor, logs, plugins
@@ -303,7 +304,7 @@ def cmd_setup(args: argparse.Namespace) -> int:
 
         return tui.run(
             components=setup_module.load(repo_root()),
-            plan=setup_module.plan,
+            plan=partial(setup_module.plan, repo_root=repo_root()),
             install=setup_module.install,
             root=repo_root(),
         )
@@ -311,7 +312,7 @@ def cmd_setup(args: argparse.Namespace) -> int:
     if not components:
         return 1
 
-    plan = setup_module.plan(components)
+    plan = setup_module.plan(components, repo_root())
     if not plan["install"]:
         print(f"Everything is already installed ({len(plan['already_installed'])} components).")
         return 0

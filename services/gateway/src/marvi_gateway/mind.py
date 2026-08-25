@@ -151,7 +151,7 @@ class Mind:
             spoken = ""
             if surface == "speak" and self.announcer is not None:
                 outcome = self.announcer.speak(sentence)
-                if outcome.get("published"):
+                if outcome.get("played"):
                     spoken = sentence
                 else:
                     # Losing a voice is not losing the decision; drop to the

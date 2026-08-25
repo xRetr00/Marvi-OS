@@ -2295,6 +2295,7 @@ dependencies = [
     { name = "playwright" },
     { name = "pocket-tts" },
     { name = "rich" },
+    { name = "sounddevice" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -2317,6 +2318,7 @@ requires-dist = [
     { name = "playwright", specifier = ">=1.49,<2" },
     { name = "pocket-tts", specifier = ">=2,<3" },
     { name = "rich", specifier = ">=13,<15" },
+    { name = "sounddevice", specifier = ">=0.5,<1" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.35,<1" },
 ]
 

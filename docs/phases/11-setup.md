@@ -66,7 +66,7 @@ phase generalises that pattern rather than inventing one.
 | Python environment | `uv sync` per service | lockfile |
 | Voice models — STT, TTS | Hugging Face | size + SHA256, already in `config/voice-models.json` |
 | Vision model — `buffalo_l` | InsightFace | size + SHA256 |
-| PocketTTS | Hugging Face | size + SHA256 |
+| PocketTTS | locked PyPI package + revision-pinned Hugging Face assets | wheel hash in `uv.lock`; Setup readiness marker after upstream cache preparation |
 | LiveKit server | GitHub release | version in `config/runtime.json` + SHA256 |
 | MCP servers | user-supplied command or package | a successful handshake |
 | Skills | a directory of instructions | schema validation |
@@ -80,6 +80,11 @@ Three properties every install must have:
   nothing and says so. An interrupted download continues.
 - **Reversible.** Everything lands under `%LOCALAPPDATA%\Marvi OS`, and
   `remove` takes it away. Nothing is written outside that tree and the repo.
+
+PocketTTS acceptance (2026-08-25): the command component prepared the locked
+2.1.0 package's revision-pinned English model and Alba embedding under Marvi's
+model root, `--check` returned zero, and a second installer call returned
+`already installed` without running the download command again.
 
 ## Skills and MCP need a trust decision
 
