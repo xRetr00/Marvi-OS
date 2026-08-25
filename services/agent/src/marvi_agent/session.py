@@ -42,6 +42,38 @@ def gateway_url() -> str:
     return os.environ.get("MARVI_GATEWAY_URL", "http://127.0.0.1:8765").rstrip("/")
 
 
+def apply_speech_settings() -> None:
+    """Ask the Gateway how the recogniser should be built, before building it.
+
+    Same hole as the voice, and the wake word before that: this process's
+    environment was fixed when the desktop spawned it, so choosing the graphics
+    card in Settings wrote somewhere nothing here reads. The log went on saying
+    `parakeet ready on cpu` after the setting changed, which is a setting that
+    visibly does nothing.
+
+    Written into the environment rather than threaded through, because every
+    reader of these already reads them from there. Never raises: a Gateway that
+    cannot answer leaves the defaults, which is what happened before.
+    """
+    import contextlib
+
+    with contextlib.suppress(Exception):
+        import httpx
+
+        body = httpx.get(f"{gateway_url()}/voice/speech", timeout=REPORT_TIMEOUT).json()
+        for name, key in (
+            ("MARVI_STT_DEVICE", "device"),
+            ("MARVI_STT_LOOKAHEAD", "lookahead"),
+        ):
+            if value := str(body.get(key) or "").strip():
+                os.environ[name] = value
+        log.info(
+            "speech settings from the Gateway: %s, %ss lookahead",
+            os.environ.get("MARVI_STT_DEVICE", "cpu"),
+            os.environ.get("MARVI_STT_LOOKAHEAD", "2.0"),
+        )
+
+
 def configured_voice() -> str:
     """Which voice Marvi speaks in, asked of the Gateway.
 
@@ -142,6 +174,12 @@ class MarviVoiceAgent(Agent):
                 situation() + " "
                 "You are Marvi, a concise voice-first personal assistant. Speak naturally in short "
                 "sentences. Never use Markdown, code fences, headings, or visual formatting. "
+                "Always answer in English, whatever language the question arrives in and whatever "
+                "language a tool result or a web page is written in. The voice speaking your "
+                "words is an English one and pronounces nothing else, so a reply in another "
+                "language does not come out as that language -- it comes out as noise. If the "
+                "user asks for something in another language, say the words but keep the "
+                "sentence around them English. "
                 "The user can interrupt you at any time. "
                 "When a tool says an action needs confirmation, say plainly what will happen and "
                 "wait for the user to answer before approving or denying it. "
@@ -185,6 +223,7 @@ def prewarm(proc: JobProcess) -> None:
     the model already resident and starts speaking immediately.
     """
     started = time.monotonic()
+    apply_speech_settings()
     voice = configured_voice()
     engine = KokoroTTS(voice=voice)
     try:

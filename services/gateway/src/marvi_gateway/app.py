@@ -1636,6 +1636,25 @@ def create_app(
         runtime_store.audit("schedule", action, {"id": schedule_id})
         return schedule_page()
 
+    @app.get("/voice/speech")
+    async def read_speech_settings() -> dict[str, Any]:
+        """How the recogniser should be built, asked for by the Agent.
+
+        The same hole the voice had and the wake word before it: the Agent is a
+        separate process whose environment is fixed when the desktop spawns it,
+        so choosing the graphics card in Settings wrote to something that
+        process never reads. The log kept saying `parakeet ready on cpu` after
+        the setting had been changed, which reads as a setting that does
+        nothing.
+        """
+        from marvi_gateway.wake import DEVICE_SETTING
+
+        return {
+            "device": os.environ.get("MARVI_STT_DEVICE", "").strip().lower() or "cpu",
+            "lookahead": os.environ.get("MARVI_STT_LOOKAHEAD", "").strip() or "2.0",
+            "microphone": os.environ.get(DEVICE_SETTING, "").strip(),
+        }
+
     @app.get("/auxiliary")
     async def read_auxiliary() -> dict[str, Any]:
         """Which model does which job, and what is on offer for each.

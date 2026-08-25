@@ -285,7 +285,7 @@ ASCII framing, or a grid of decorative cards. Content is capped at 880 px so
 labels and values remain easy to scan. Narrow windows stack row actions below
 their labels. Voice and Chat retain their purpose-built interaction layouts.
 
-Settings opens as one inset dialog with the Hermes-derived 208 px navigation
+Settings opens as one inset dialog with a 208 px navigation
 rail and the same content grammar. The flat rail uses sentence-case 28 px rows,
 separates related destinations with whitespace instead of printed group labels,
 and leaves the compact close button floating at the dialog's top-right. Each
@@ -334,7 +334,7 @@ existed when Marvi started is never surfaced as a micro-event.
 
 ## Vision, Room, and Activity views
 
-Vision and Room follow the pinned Hermes Smart Room information order while
+Vision and Room follow the smart room information order while
 remaining separate Marvi control-center destinations. Both start with a compact
 authoritative runtime header and one bounded live workspace before falling back
 to flat divided operational sections. Their workspaces use container queries to
@@ -354,9 +354,9 @@ preview every 500 ms through Gateway and Electron; frames are not queued,
 persisted, or fetched in the background. Derived presence, identity, sleep,
 activity, and gesture state remains separate from that presentation frame.
 Owner enrollment and pending face decisions use the same preview-led flow as
-Hermes and still travel through the normal Gateway tool boundary.
+that desktop and still travel through the normal Gateway tool boundary.
 
-Room's light editor follows Hermes's complete control flow: current power and
+Room's light editor follows that desktop's complete control flow: current power and
 brightness, on/off, a continuous brightness range, white temperature, custom
 RGB and preset swatches, then all eight room modes. RGB is functional device
 color rather than a decorative UI palette. Controls stay disabled until the

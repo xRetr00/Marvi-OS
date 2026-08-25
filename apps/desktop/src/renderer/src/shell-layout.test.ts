@@ -121,7 +121,7 @@ describe('shell layout', () => {
     expect(css).toContain('.settings-frame')
   })
 
-  it('organises settings with the Hermes overlay and row grammar', () => {
+  it('organises settings with the overlay and row grammar', () => {
     expect(app).toContain('className="settings-close"')
     expect(app).toContain("'settings-group has-gap'")
     expect(app).not.toContain('<h2>{group.label}</h2>')
@@ -132,7 +132,7 @@ describe('shell layout', () => {
     expect(app).toContain('title="Alignment"')
   })
 
-  it('separates Room and Vision with the Hermes Smart Room hierarchy', () => {
+  it('separates Room and Vision with the smart room hierarchy', () => {
     expect(app).toContain('<RoomPanel runtime={runtime} view="room" />')
     expect(app).toContain('<RoomPanel runtime={runtime} view="vision" />')
     expect(app).toContain('title="Live room"')

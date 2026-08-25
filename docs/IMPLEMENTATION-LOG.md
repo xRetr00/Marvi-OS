@@ -1101,9 +1101,9 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   10.2 seconds; direct default-device playback returned `played=true` for
   1.84 seconds of generated PCM.
 
-## 2026-08-25 — Hermes-aligned Settings organization
+## 2026-08-25 — Settings organisation
 
-- Re-aligned the Settings overlay with the pinned Hermes desktop pattern: the
+- Re-aligned the Settings overlay with an internal NeuRetro desktop pattern: the
   close action now floats above the content, the 208 px rail is one flat list
   separated by whitespace, and narrow layouts retain Marvi's two-column strip.
 - Rebuilt the loose Preferences and speech controls as consistent
@@ -1118,9 +1118,9 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   desktop rows, content-responsive control stacking, and the two-column compact
   settings rail.
 
-## 2026-08-25 — Hermes-aligned Vision and Room surfaces
+## 2026-08-25 — that desktop-aligned Vision and Room surfaces
 
-- Rebuilt Room around the pinned Hermes Smart Room hierarchy: authoritative
+- Rebuilt Room around the pinned that desktop Smart Room hierarchy: authoritative
   runtime header, side-by-side live state and quick controls, device/presence
   health, then recent events. Existing commands still cross the audited Gateway
   tool boundary and use the same local-action policy as voice requests.
@@ -1134,14 +1134,14 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   and `git diff --check`. Playwright checks at 1180×760 and 760×700 covered
   both views, their stacked content layout, and a clean browser console.
 
-## 2026-08-25 — complete Hermes Smart Room controls and preview flow
+## 2026-08-25 — complete that desktop Smart Room controls and preview flow
 
-- Replaced Room's preset-only quick controls with Hermes's complete light
+- Replaced Room's preset-only quick controls with that desktop's complete light
   editor: authoritative power state, on/off, continuous brightness, white
   temperature, custom RGB/presets, and the eight real sidecar modes.
 - Added RGB to Marvi's validated and audited room tool adapter. Invalid channel
   arrays are rejected before reaching the sidecar.
-- Added Hermes's preview-led Vision flow through a narrow Gateway/Electron
+- Added that desktop's preview-led Vision flow through a narrow Gateway/Electron
   bridge. The sidecar captures and compresses one bounded frame; the renderer
   polls it only while Vision is mounted and remains presentation-only.
 - Rebuilt owner enrollment, known identities, and pending sightings as a

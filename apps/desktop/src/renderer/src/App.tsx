@@ -755,7 +755,7 @@ function RoomPanel({
       if (!disposed && next) setVisionPreview(next)
     }
     void load()
-    // Hermes keeps the preview responsive without turning the renderer into a
+    // The preview stays responsive without turning the renderer into a
     // camera owner: each tick asks the sidecar for one bounded JPEG.
     const timer = setInterval(() => void load(), 500)
     return () => {
@@ -969,7 +969,7 @@ function RoomPanel({
                   <Lightbulb aria-hidden="true" />
                   <div>
                     <h3 id="room-light-title">Light control</h3>
-                    <p>Live controls from Hermes, routed through Marvi Gateway.</p>
+                    <p>Live control of the bulb, through the same tool Marvi uses.</p>
                   </div>
                 </div>
                 <ControlPill tone={lightKnown && light.on ? 'ready' : 'neutral'}>

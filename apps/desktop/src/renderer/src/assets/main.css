@@ -4200,7 +4200,7 @@ body {
   box-shadow: inset 0 1px 2px rgb(0 0 0 / 24%);
 }
 
-/* Full Hermes light editor, adapted to Marvi's restrained instrument panel. */
+/* Full light editor, in Marvi's restrained instrument panel. */
 .room-light-console {
   min-width: 0;
   overflow: hidden;
@@ -4488,7 +4488,7 @@ body {
   font-size: 8px;
 }
 
-/* Hermes camera + face-review flow. The preview is a bounded JPEG requested
+/* Camera and face-review flow. The preview is a bounded JPEG requested
  * only while Vision is mounted; the sidecar remains the inference owner. */
 .vision-preview-image {
   position: absolute;
@@ -5600,7 +5600,7 @@ body {
   color: var(--ui-danger);
 }
 
-/* Room and Vision follow the pinned Hermes Smart Room information order:
+/* Room and Vision follow the smart room information order:
    runtime first, a bounded live workspace second, then flat operational lists.
    Marvi keeps the surfaces monochrome and renderer-read-only for raw frames. */
 .room-page {

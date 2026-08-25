@@ -183,3 +183,39 @@ async def test_a_word_split_across_chunks_is_not_split_in_the_transcript() -> No
     assert finals, "the recogniser produced no final transcript"
     assert "actu ally" not in finals[-1], f"word split at a chunk boundary: {finals[-1]!r}"
     assert finals[-1] == "actually good"
+
+
+def test_the_recogniser_settings_come_from_the_gateway() -> None:
+    """Choosing the graphics card in Settings did nothing.
+
+    This process's environment is fixed when the desktop spawns it, so a
+    setting written by the UI is written somewhere the Agent never reads — the
+    same hole the voice had, and the wake word before that. The log went on
+    saying `parakeet ready on cpu` after the setting had been changed, which
+    reads as a switch that is not wired to anything.
+    """
+    import inspect
+
+    from marvi_agent import session
+
+    assert hasattr(session, "apply_speech_settings")
+    # Applied before the models are built, or it applies to nothing.
+    prewarm = inspect.getsource(session.prewarm)
+    assert "apply_speech_settings()" in prewarm
+    assert prewarm.index("apply_speech_settings()") < prewarm.index("ParakeetSTT(")
+
+
+def test_a_gateway_that_cannot_answer_leaves_the_defaults() -> None:
+    """Never raises: no answer means the behaviour there was before."""
+    import os
+
+    from marvi_agent.session import apply_speech_settings
+
+    before = os.environ.get("MARVI_STT_DEVICE")
+    os.environ["MARVI_GATEWAY_URL"] = "http://127.0.0.1:9"  # nothing listens there
+    try:
+        apply_speech_settings()
+    finally:
+        os.environ.pop("MARVI_GATEWAY_URL", None)
+
+    assert os.environ.get("MARVI_STT_DEVICE") == before
