@@ -34,6 +34,14 @@ AccessPath = Literal["api", "plan", "local"]
 AuthType = Literal["api_key", "oauth_external", "oauth_device_code", "token_exchange", "none"]
 CacheStyle = Literal["none", "automatic", "cache_key", "explicit_breakpoints"]
 ReasoningStyle = Literal["none", "effort", "budget_tokens"]
+
+#: Jobs that are never given a reasoning budget, whatever the user configured.
+#:
+#: `voice` because deliberation is silence on a spoken turn. `aux` because
+#: there is nothing to deliberate about: a thread title, a consolidated fact, a
+#: page summary and a one-sentence verdict are all short, unattended and
+#: frequent. `vision` is deliberately absent -- reading a picture can need it.
+DOES_NOT_DELIBERATE = frozenset({"voice", "aux"})
 LimitStyle = Literal["none", "credit", "rolling_windows"]
 
 
@@ -304,12 +312,26 @@ class ProviderProfile:
         chosen = model or self.model_for()
         limit = max_tokens or self.default_max_tokens
         wants_stream = stream and self.supports_streaming
-        # Voice never reasons. Thinking happens before the first token, and the
-        # first token is the entire experience of a spoken turn: a model that
+        # Voice and auxiliary work never reason, for two different reasons.
+        #
+        # Voice, because thinking happens before the first token and the first
+        # token is the entire experience of a spoken turn: a model that
         # deliberates for four seconds has not been thoughtful, it has been
-        # silent. Enforced here rather than at each call site, because a rule
-        # every caller has to remember is a rule that gets forgotten.
-        if job == "voice":
+        # silent.
+        #
+        # Auxiliary, because there is nothing to deliberate about. Naming a
+        # thread, promoting a repeated subject, pulling the answer out of a
+        # page, deciding whether an event is worth a sentence -- none of that
+        # is a hard question, and all of it runs unattended and often. It was
+        # inheriting the effort chosen for hard conversation, so every title
+        # and every background verdict was reasoned at medium, which is the
+        # opposite of why those roles exist.
+        #
+        # Vision is left alone: reading a picture can genuinely need it.
+        #
+        # Enforced here rather than at each call site, because a rule every
+        # caller has to remember is a rule that gets forgotten.
+        if job in DOES_NOT_DELIBERATE:
             effort = None
 
         if self.api_mode == "anthropic":
@@ -330,7 +352,7 @@ class ProviderProfile:
                 body["temperature"] = temperature
             if self.reasoning.style == "budget_tokens" and effort:
                 body["thinking"] = {"type": "enabled", "budget_tokens": int(effort)}
-            elif job == "voice" and self.reasoning.style == "budget_tokens":
+            elif job in DOES_NOT_DELIBERATE and self.reasoning.style == "budget_tokens":
                 body["thinking"] = {"type": "disabled"}
             if tools and self.supports_tools:
                 body["tools"] = [
@@ -379,7 +401,7 @@ class ProviderProfile:
         normalised = self.reasoning.normalise(effort)
         if normalised:
             body["reasoning_effort"] = normalised
-        elif job == "voice" and self.reasoning.style != "none":
+        elif job in DOES_NOT_DELIBERATE and self.reasoning.style != "none":
             # Asked off rather than merely left unset: several models reason by
             # default, and silence on the parameter is not the same as "do not".
             body["reasoning"] = {"enabled": False, "exclude": True}

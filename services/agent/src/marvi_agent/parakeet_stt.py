@@ -68,6 +68,29 @@ DEFAULT_LOOKAHEAD = 2.0
 #: accurate; the lookahead is the dial that matters.
 DEFAULT_CHUNK = 2.0
 
+#: How much of the past the encoder re-reads on every chunk.
+#:
+#: This is what the final flush pays for, and the final flush is the dead air
+#: between somebody finishing a sentence and Marvi knowing what they said.
+#: Measured on this machine with a full buffer:
+#:
+#:     left  10.0s   flush 1591ms
+#:     left   6.0s   flush  995ms
+#:     left   4.0s   flush  918ms
+#:     left   2.0s   flush  565ms
+#:
+#: And measured for accuracy on synthesised English, four sentences, scored
+#: against the text they were made from: 2.3% word errors at every one of those
+#: settings. Identical -- so on this material the window buys nothing and costs
+#: two thirds of a second per turn.
+#:
+#: Four rather than two, because that is where the latency curve flattens and
+#: because the accuracy check has a real limit worth naming: synthesised speech
+#: is easy audio. The 13.7% that chose this recogniser was measured on accented
+#: human speech, and that corpus is gone. If accented accuracy drops, this
+#: constant is the first thing to put back.
+DEFAULT_LEFT_CONTEXT = 4.0
+
 
 def lookahead_seconds() -> float:
     try:
@@ -135,7 +158,7 @@ class ParakeetSTT(stt.STT):
         self._asr = StreamingTdtASR(
             str(self._model_dir),
             chunk_secs=DEFAULT_CHUNK,
-            left_context_secs=10.0,
+            left_context_secs=DEFAULT_LEFT_CONTEXT,
             right_context_secs=lookahead_seconds(),
             providers=chosen,
         )

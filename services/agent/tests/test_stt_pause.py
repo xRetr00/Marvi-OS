@@ -219,3 +219,20 @@ def test_a_gateway_that_cannot_answer_leaves_the_defaults() -> None:
         os.environ.pop("MARVI_GATEWAY_URL", None)
 
     assert os.environ.get("MARVI_STT_DEVICE") == before
+
+
+def test_the_left_context_is_the_one_that_was_measured() -> None:
+    """The final flush is the dead air between somebody finishing a sentence
+    and Marvi knowing what they said, and it is what this window pays for.
+
+    Measured with a full buffer: 1591ms at ten seconds, 918ms at four. Measured
+    for accuracy on synthesised English scored against the text it was made
+    from: 2.3% word errors at every setting, identical. So the window bought
+    nothing and cost two thirds of a second per turn.
+
+    Pinned because it is a number with evidence behind it, and the next person
+    to change it should have to replace the evidence.
+    """
+    from marvi_agent.parakeet_stt import DEFAULT_LEFT_CONTEXT
+
+    assert DEFAULT_LEFT_CONTEXT == 4.0

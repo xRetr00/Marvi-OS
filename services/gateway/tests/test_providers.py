@@ -403,3 +403,78 @@ def test_configured_profiles_reflects_the_environment(monkeypatch) -> None:
 
     assert "opencode-go" in names
     assert "opencode-zen" not in names
+
+
+# -- which jobs are allowed to think ------------------------------------------
+#
+# `ProviderClient` resolves the configured effort and passes it in, so these
+# pass it explicitly: that is what the call path actually does.
+
+
+def test_auxiliary_work_is_never_given_a_reasoning_budget() -> None:
+    """It was inheriting the effort chosen for hard conversation.
+
+    Naming a thread, promoting a repeated subject, summarising a page and
+    deciding whether an event is worth a sentence are all short, unattended and
+    frequent, and none of them is a hard question. Every one was reasoned at
+    whatever the user picked for chat, which is the opposite of why those roles
+    exist.
+    """
+    from marvi_gateway.providers import get
+
+    body = get("openrouter").build_request(
+        [{"role": "user", "content": "hi"}], effort="medium", job="aux"
+    )
+
+    assert "reasoning_effort" not in body
+    # Asked off rather than left unset: several models reason by default.
+    assert body.get("reasoning") == {"enabled": False, "exclude": True}
+
+
+def test_voice_is_never_given_one_either() -> None:
+    from marvi_gateway.providers import get
+
+    body = get("openrouter").build_request(
+        [{"role": "user", "content": "hi"}], effort="high", job="voice"
+    )
+
+    assert "reasoning_effort" not in body
+
+
+def test_the_conversation_still_reasons() -> None:
+    """The one job where the user's choice is the point."""
+    from marvi_gateway.providers import get
+
+    body = get("openrouter").build_request(
+        [{"role": "user", "content": "hi"}], effort="medium", job="main"
+    )
+
+    assert body["reasoning_effort"] == "medium"
+
+
+def test_reading_a_picture_may_still_need_it() -> None:
+    """Vision is deliberately not in the list: a complex image is a real
+    question, unlike naming a thread."""
+    from marvi_gateway.providers import get
+    from marvi_gateway.providers.base import DOES_NOT_DELIBERATE
+
+    assert "vision" not in DOES_NOT_DELIBERATE
+
+    body = get("openrouter").build_request(
+        [{"role": "user", "content": "hi"}], effort="medium", job="vision"
+    )
+
+    assert body["reasoning_effort"] == "medium"
+
+
+def test_a_thinking_budget_is_disabled_for_the_same_jobs() -> None:
+    """Anthropic takes a token budget rather than a level, and silence on the
+    parameter is not the same as "do not"."""
+    from marvi_gateway.providers import get
+
+    profile = get("anthropic")
+    body = profile.build_request(
+        [{"role": "user", "content": "hi"}], effort="2048", job="aux"
+    )
+
+    assert body.get("thinking") == {"type": "disabled"}
