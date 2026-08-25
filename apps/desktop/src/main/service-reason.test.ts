@@ -30,7 +30,7 @@ const report = (state: string, detail: string): ServiceReport =>
 
 describe('explaining an unreachable gateway', () => {
   it('uses the supervisor’s reason when the service has given up', () => {
-    const taken = 'port 8765 is already taken by process 31816 (D:\Marvi-OS\.venv\python.exe)'
+    const taken = String.raw`port 8765 is already taken by process 31816 (D:\Marvi-OS\.venv)`
     const status = withServiceReason(offline, [report('gave up', taken)])
 
     expect(status.components.gateway.detail).toBe(taken)

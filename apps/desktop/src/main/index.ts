@@ -28,7 +28,7 @@ import {
   stateDir
 } from './config'
 import { configure as configureLogging, desktop, installCatchers } from './logger'
-import { killStrays } from './processes'
+import { killStrays, reclaimPort } from './processes'
 import {
   offlineRuntime,
   offlineRuntimeFrom,
@@ -386,6 +386,13 @@ function startVoiceStack(): void {
   const strays = killStrays(repoRoot ?? undefined)
   if (strays > 0) desktop.warn(`stopped ${strays} leftover process(es) from a previous session`)
 
+  // And the port, which the sweep above cannot reach: it is scoped to this
+  // install root, and a Gateway from a second installation holding 8765 is
+  // deliberately left alone. Ownership is the question that matters there, not
+  // which checkout it came from -- one whose parent is gone belongs to nobody.
+  const reclaimed = reclaimPort(Number(gatewayBind(repoRoot).port))
+  if (reclaimed) desktop.warn(reclaimed)
+
   const uv = findUv()
   if (!uv) {
     desktop.error('uv was not found on PATH or in any known install location')
@@ -417,7 +424,14 @@ function startVoiceStack(): void {
     LIVEKIT_API_SECRET: credentials.secret,
     MARVI_GATEWAY_URL: gateway(),
     MARVI_HOME: stateDir(),
-    MARVI_LOG_DIR: logsDir()
+    MARVI_LOG_DIR: logsDir(),
+    // So a child can notice this process going away and stop on its own.
+    //
+    // `before-quit` already stops everything on a clean exit, and a clean exit
+    // was never the problem. What leaves a Gateway holding port 8765 overnight
+    // is this process being killed — and then nothing runs the code that would
+    // have stopped anything.
+    MARVI_PARENT_PID: String(process.pid)
   }
 
   supervisor = new ServiceSupervisor((reports) => {

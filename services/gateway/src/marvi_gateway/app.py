@@ -27,6 +27,7 @@ from . import (
     delegate,
     distil,
     latency,
+    parent,
     paths,
     selfaware,
     upgrade,
@@ -743,6 +744,11 @@ def create_app(
         # restart never leaves an orphaned scheduler ticking.
         # asyncio reports unretrieved task exceptions to a stderr nobody reads.
         install_asyncio_handler(asyncio.get_running_loop())
+        # Die when the desktop does, however it goes. A clean quit already
+        # stops us; what leaves a Gateway holding port 8765 overnight is the
+        # desktop being killed, and then nothing runs the code that would have
+        # stopped anything.
+        parent.watch()
         if initiative is not None:
             initiative.start()
         if account_triggers is not None and accounts is not None and accounts.available():

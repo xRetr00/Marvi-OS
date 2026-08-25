@@ -542,7 +542,54 @@ def _worker_registered(*_args: Any) -> None:
 
 
 def main() -> None:
+    # Stop when the desktop stops, however it goes. A stale worker keeps a
+    # microphone, a GPU and a LiveKit registration, and a job dispatched to one
+    # simply never runs.
+    _watch_parent()
     cli.run_app(server)
+
+
+def _watch_parent() -> None:
+    """Exit when the process that started this one is gone.
+
+    Duplicated from the Gateway's `parent.py` rather than imported: they are
+    separate uv projects, and a cross-project import is only ever accidentally
+    true -- which is exactly how the microphone list broke.
+    """
+    import threading
+
+    parent = int(os.environ.get("MARVI_PARENT_PID", "0") or 0)
+    if not parent:
+        return
+
+    def alive() -> bool:
+        if os.name != "nt":
+            try:
+                os.kill(parent, 0)
+                return True
+            except OSError:
+                return False
+        import ctypes
+
+        handle = ctypes.windll.kernel32.OpenProcess(0x1000, False, parent)
+        if not handle:
+            return False
+        ctypes.windll.kernel32.CloseHandle(handle)
+        return True
+
+    if not alive():
+        return
+
+    def wait() -> None:
+        while alive():
+            time.sleep(2.0)
+        log.warning("the process that started this one is gone; shutting down")
+        # `os._exit`: this is a daemon thread, and a SystemExit raised here
+        # would be swallowed by the thread, which is the outcome being fixed.
+        os._exit(0)
+
+    threading.Thread(target=wait, name="parent-watchdog", daemon=True).start()
+    log.info("watching the parent process %d", parent)
 
 
 if __name__ == "__main__":

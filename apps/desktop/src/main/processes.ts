@@ -187,3 +187,66 @@ export function whoHasPort(port: number): { pid: number; command: string } | nul
     return null
   }
 }
+
+/**
+ * Take back a port held by a Marvi that no longer has an owner.
+ *
+ * `killStrays` is scoped to this install root and leaves another checkout's
+ * processes alone, which is the right rule for a second copy someone is
+ * developing in. It is the wrong rule for a fixed port: two installations
+ * share 8765, so a Gateway left behind by either one stops the other starting,
+ * and the sweep that could have cleared it is deliberately looking elsewhere.
+ *
+ * The distinction that matters is not which checkout it came from. It is
+ * whether anything still owns it. A Gateway whose parent is gone is nobody's:
+ * the desktop that started it has exited, it will never be stopped by anything
+ * except this, and it held the port overnight while every restart failed to
+ * bind.
+ *
+ * So: only a process that is recognisably a Marvi Gateway, only when its
+ * parent no longer exists, and never anything else on that port -- something
+ * unrelated listening on 8765 is a message for the user, not a process to
+ * kill.
+ */
+export function reclaimPort(port: number, match = /marvi_gateway/i): string {
+  const holder = whoHasPort(port)
+  if (!holder) return ''
+  const details = describeProcess(holder.pid)
+  if (!details || !match.test(`${details.command} ${details.executable}`)) {
+    return `port ${port} is held by process ${holder.pid}, which is not a Marvi service`
+  }
+  if (isAlive(details.parentPid)) {
+    return `port ${port} is held by another running Marvi (process ${holder.pid})`
+  }
+  return killTree(holder.pid, true)
+    ? `reclaimed port ${port} from an abandoned Marvi Gateway (process ${holder.pid})`
+    : `port ${port} is held by process ${holder.pid} and it could not be stopped`
+}
+
+/** One process's command line, image path and parent, or null. */
+export function describeProcess(
+  pid: number
+): { command: string; executable: string; parentPid: number } | null {
+  if (!isWindows()) return null
+  try {
+    const output = execFileSync(
+      'powershell',
+      [
+        '-NoProfile',
+        '-Command',
+        `$p = Get-CimInstance Win32_Process -Filter "ProcessId=${pid}"; ` +
+          'if ($p) { "$($p.ParentProcessId)|$($p.ExecutablePath)|$($p.CommandLine)" }'
+      ],
+      { encoding: 'utf8', windowsHide: true, timeout: 10_000 }
+    ).trim()
+    if (!output) return null
+    const parts = output.split('|')
+    return {
+      parentPid: Number(parts[0]),
+      executable: parts[1] ?? '',
+      command: parts.slice(2).join('|')
+    }
+  } catch {
+    return null
+  }
+}
