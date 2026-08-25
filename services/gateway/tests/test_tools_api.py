@@ -46,11 +46,15 @@ async def test_a_slow_tool_does_not_stop_the_gateway_answering(tmp_path) -> None
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://marvi.local"
     ) as http:
-        slow = asyncio.create_task(http.post("/tools/slow_read", json={"arguments": {}}))
-        await asyncio.sleep(0.15)
-        # Mid-call. This is the request the shell polls every two seconds, and
-        # it is the one that must not wait for a web search to finish.
+        # Timed from before the slow call starts, not after. Measuring inside
+        # meant the clock started once the block had already finished, and the
+        # test passed with the fix reverted -- which is the only reason it was
+        # checked.
         began = time.monotonic()
+        slow = asyncio.create_task(http.post("/tools/slow_read", json={"arguments": {}}))
+        await asyncio.sleep(0)  # let it start, and block if it is going to
+        # This is the request the shell polls every two seconds, and the one
+        # that must not wait for a web search to finish.
         health = await http.get("/health")
         waited = time.monotonic() - began
         answer = await slow
