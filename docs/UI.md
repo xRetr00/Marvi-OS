@@ -341,10 +341,10 @@ stack at the content boundary rather than a fixed window breakpoint.
 
 Room shows mode, light, presence, and phone location beside the existing
 Gateway-backed light, brightness, and mode controls. Controls invoke the same
-confirmed/audited tools as voice requests; device authority and credentials
-remain in the sidecar. Device and MQTT health follow the live workspace, then
-recent notable room events appear newest first. When the sidecar is unreachable,
-the view preserves its last known state and labels it stale.
+audited tools and local-action policy as voice requests; device authority and
+credentials remain in the sidecar. Device and MQTT health follow the live
+workspace, then recent notable room events appear newest first. When the sidecar
+is unreachable, the view preserves its last known state and labels it stale.
 
 Vision owns derived camera state, identity review, and vision-specific history.
 Its primary stage explicitly says that raw frames remain inside the Smart Room
