@@ -159,7 +159,6 @@ Target sizes at 100% scaling:
 | State        |           Size | Content                                                         |
 | ------------ | -------------: | --------------------------------------------------------------- |
 | sleep        |         `76×8` | recessed top-edge seed; only a short light line remains visible |
-| idle YOLO    |       `150×30` | full ready Island with persistent `⚡ YOLO` mode warning         |
 | listening    |       `210×38` | `LISTEN`, compact live waveform                                 |
 | thinking     |       `230×40` | `THINK`, low-cost ASCII pulse                                   |
 | speaking     |       `250×42` | `SPEAK`, output waveform, interrupt hint                        |
@@ -180,10 +179,11 @@ Rules:
 - Never animate merely to hide latency.
 - Coalesce audio-level rendering to a bounded frame rate.
 - Spoken approval and pointer approval resolve the same Gateway token.
-- YOLO mode keeps the full ready Island visible while idle with a persistent
-  lightning glyph and `YOLO` warning. Enabling YOLO burns any already-issued
-  Confirm-mode tokens without executing their actions.
-- Camera/microphone local activity uses tiny state glyphs, not large banners.
+- YOLO mode never changes Island presentation. Its persistent warning remains
+  in the control-center status bar and tray; enabling it burns any
+  already-issued Confirm-mode tokens without executing their actions.
+- Camera, microphone, and global mode indicators do not appear in the Island.
+  Their authoritative state remains available in the control center.
 - Background events may animate the Island but may not focus the main window.
 - The native host follows measured content plus a small transparent shadow
   inset. Resize only at content/state boundaries; never animate native window
@@ -324,7 +324,8 @@ a pending confirmation — a live phase and a confirmation both outrank it.
 A micro-event expands the seed into a two-column pill for a few seconds and
 collapses on its own. It carries no controls, never becomes interactive, and is
 announced politely rather than assertively, so it cannot pull focus. The
-persistent YOLO marker stays visible while one is showing.
+event label describes only the event; global mode and sensor status stay out of
+the Island.
 
 Only meaningful transitions qualify. Ambient sensor churn and bursty detections
 are filtered out at the Gateway, and event text is rebuilt from the event
@@ -412,5 +413,5 @@ Settings include:
 - privacy and audit retention.
 
 Enabling YOLO requires an explicit settings action and immediately updates the
-Island and status bar. The product does not add per-action confirmations while
-YOLO is active.
+status bar and tray. It does not keep the idle Island expanded. The product
+does not add per-action confirmations while YOLO is active.

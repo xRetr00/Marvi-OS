@@ -4076,7 +4076,6 @@ function AboutPanel({
 
 function IslandSurface(): React.JSX.Element {
   const voice = useStore($voiceState)
-  const runtime = useStore($runtimeState)
   const measureRef = useRef<HTMLDivElement>(null)
   const [resolvingToken, setResolvingToken] = useState<string | null>(null)
 
@@ -4122,8 +4121,6 @@ function IslandSurface(): React.JSX.Element {
               setResolvingToken(null)
             }
           }}
-          camera={deviceState(runtime, 'camera')}
-          microphone={deviceState(runtime, 'microphone')}
           state={voice}
         />
       </div>

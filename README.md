@@ -51,9 +51,10 @@ Current implemented desktop surfaces:
   branded sidebar, consistent control tooltips, and audible desktop haptics;
 - passive `76×8` top-edge Island seed that expands for active voice states;
 - canonical app icon rendered in the app, tray, taskbar/package, sidebar, and About.
-- action, notification, error, confirmation, and persistent full-size idle YOLO
-  Island states, with automatic terminal collapse and stale-control cleanup
-  when the Gateway is unavailable;
+- action, notification, error, and confirmation Island states with automatic
+  terminal collapse and stale-control cleanup when the Gateway is unavailable;
+- an idle Island that always recesses to its seed, with global YOLO and sensor
+  state kept in the control-center status surfaces instead;
 - Gateway-backed confirmation mode plus monitor/alignment placement controls.
 - pinned model downloads, integrity checks, 25 TTS voices, and repeatable RTX
   3060 latency/VRAM evidence;

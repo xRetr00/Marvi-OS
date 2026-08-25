@@ -14,7 +14,8 @@
 ## Acceptance evidence required
 
 - Token replay/argument mutation rejection.
-- Persistent visible YOLO indicator and zero confirmations while enabled.
+- Persistent visible YOLO indicator in the status bar/tray and zero
+  confirmations while enabled; the idle Island remains recessed.
 - Loss-aware room reconnect and ordinary conversation during sidecar failure.
 
 ## Implemented

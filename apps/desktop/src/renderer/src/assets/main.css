@@ -726,7 +726,7 @@ nav {
 }
 .dynamic-island {
   display: grid;
-  grid-template-columns: 20px 1fr 46px;
+  grid-template-columns: 20px 1fr;
   align-items: center;
   gap: 7px;
   width: 150px;
@@ -895,18 +895,6 @@ nav {
 .confirmation-actions button:disabled {
   cursor: wait;
   opacity: 0.55;
-}
-.island-signals {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 5px;
-  color: var(--ui-text-tertiary);
-  font-size: 5px;
-  letter-spacing: 0.08em;
-}
-.island-signals .signal-on {
-  color: var(--ui-accent);
 }
 /* Voice page orb --------------------------------------------------------- */
 .voice-orb-stage {

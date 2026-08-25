@@ -82,13 +82,13 @@ describe('DynamicIsland', () => {
     expect(html).toContain('APPROVE')
   })
 
-  it('keeps the persistent YOLO marker visible during a room event', () => {
+  it('does not mix the global YOLO mode into a room event', () => {
     const html = renderToStaticMarkup(
       <DynamicIsland state={{ ...DEFAULT_ASSISTANT_STATE, yolo: true, roomEvent: ROOM_EVENT }} />
     )
 
     expect(html).toContain('island-room-event')
-    expect(html).toContain('YOLO')
+    expect(html).not.toContain('YOLO')
   })
 
   it('renders exact action details and both confirmation paths', () => {
@@ -115,16 +115,33 @@ describe('DynamicIsland', () => {
     expect(html).toContain('DENY')
   })
 
-  it('keeps the full Island visible while YOLO is otherwise ready', () => {
+  it('recesses into the same idle seed while YOLO is enabled', () => {
     const html = renderToStaticMarkup(
       <DynamicIsland state={{ ...DEFAULT_ASSISTANT_STATE, yolo: true }} />
     )
 
-    expect(html).toContain('YOLO')
-    expect(html).toContain('island-orb')
-    expect(html).toContain('Say Marvi')
-    expect(html).not.toContain('island-yolo')
-    expect(html).not.toContain('island-seed-line')
+    expect(html).toContain('island-seed')
+    expect(html).toContain('island-seed-line')
+    expect(html).not.toContain('YOLO')
+    expect(html).not.toContain('Say Marvi')
+  })
+
+  it('never renders mode or sensor labels in active Island content', () => {
+    const html = renderToStaticMarkup(
+      <DynamicIsland
+        state={{
+          ...DEFAULT_ASSISTANT_STATE,
+          phase: 'action',
+          caption: 'Turning on the light',
+          yolo: true
+        }}
+      />
+    )
+
+    expect(html).toContain('ACTION')
+    expect(html).not.toContain('YOLO')
+    expect(html).not.toContain('MIC')
+    expect(html).not.toContain('CAM')
   })
 
   it('locks both confirmation choices while a decision is resolving', () => {

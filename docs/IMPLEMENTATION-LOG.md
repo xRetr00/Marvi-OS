@@ -991,6 +991,14 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   full Island presentation with its persistent warning, ready copy, orb, and
   sensor indicators.
 
+## 2026-08-25 — keep global status out of the Island
+
+- Corrected the idle contract from the full YOLO presentation above: ready now
+  always recesses to the line-only seed, including while YOLO is enabled.
+- Removed YOLO, microphone, and camera labels from every Island state. Global
+  mode and sensor health remain persistently available in the control-center
+  status surfaces without keeping the always-on overlay expanded.
+
 ## 2026-08-24 — ARC memory graph
 
 - Cloned `tinyhumansai/openhuman` separately on `D:` and pinned the inspected
