@@ -31,8 +31,8 @@ surface and its native-window behavior can be proven without the voice engine.
   notification, confirmation, and error states.
 - Exact-token Island approvals and denials; pointer/focus is enabled only while
   an actionable confirmation is visible. Settled and expired prompts collapse
-  automatically, Gateway loss removes stale controls, and idle YOLO remains a
-  compact visibly persistent marker.
+  automatically, Gateway loss removes stale controls, and idle YOLO keeps the
+  full ready Island visibly present.
 - Settings for Confirm/YOLO mode and explicit display plus left/center/right
   Island placement, with accessible switch/pressed semantics.
 - Real Gateway/component, microphone, camera, phase, mode, and version data in
@@ -115,4 +115,4 @@ frame.
 - 2026-08-24 resilience repair: focused Gateway tests cover approve, deny,
   expiry, YOLO transition, and token invalidation; focused desktop tests cover
   authoritative-null reconciliation, offline cleanup, confirmation priority,
-  pending-button locking, and compact idle YOLO. Desktop typecheck passed.
+  pending-button locking, and persistent idle YOLO. Desktop typecheck passed.

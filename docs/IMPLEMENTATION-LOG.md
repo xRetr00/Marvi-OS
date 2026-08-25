@@ -984,6 +984,13 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   authoritative-null reconciliation, confirmation priority, offline cleanup,
   and pending-button behavior.
 
+## 2026-08-25 — restore full idle YOLO presentation
+
+- Kept the confirmation recovery and token invalidation behavior unchanged,
+  but removed the compact idle-only YOLO marker. Idle YOLO now uses the normal
+  full Island presentation with its persistent warning, ready copy, orb, and
+  sensor indicators.
+
 ## 2026-08-24 — ARC memory graph
 
 - Cloned `tinyhumansai/openhuman` separately on `D:` and pinned the inspected

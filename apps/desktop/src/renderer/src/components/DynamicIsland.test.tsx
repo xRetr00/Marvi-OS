@@ -115,15 +115,16 @@ describe('DynamicIsland', () => {
     expect(html).toContain('DENY')
   })
 
-  it('keeps YOLO visible while otherwise ready', () => {
+  it('keeps the full Island visible while YOLO is otherwise ready', () => {
     const html = renderToStaticMarkup(
       <DynamicIsland state={{ ...DEFAULT_ASSISTANT_STATE, yolo: true }} />
     )
 
     expect(html).toContain('YOLO')
-    expect(html).toContain('island-yolo')
+    expect(html).toContain('island-orb')
+    expect(html).toContain('Say Marvi')
+    expect(html).not.toContain('island-yolo')
     expect(html).not.toContain('island-seed-line')
-    expect(html).not.toContain('Say Marvi')
   })
 
   it('locks both confirmation choices while a decision is resolving', () => {

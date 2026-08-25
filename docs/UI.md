@@ -159,6 +159,7 @@ Target sizes at 100% scaling:
 | State        |           Size | Content                                                         |
 | ------------ | -------------: | --------------------------------------------------------------- |
 | sleep        |         `76×8` | recessed top-edge seed; only a short light line remains visible |
+| idle YOLO    |       `150×30` | full ready Island with persistent `⚡ YOLO` mode warning         |
 | listening    |       `210×38` | `LISTEN`, compact live waveform                                 |
 | thinking     |       `230×40` | `THINK`, low-cost ASCII pulse                                   |
 | speaking     |       `250×42` | `SPEAK`, output waveform, interrupt hint                        |
@@ -179,9 +180,9 @@ Rules:
 - Never animate merely to hide latency.
 - Coalesce audio-level rendering to a bounded frame rate.
 - Spoken approval and pointer approval resolve the same Gateway token.
-- YOLO mode shows a compact persistent lightning glyph and `YOLO` marker even
-  asleep; it does not keep the full ready pill expanded. Enabling YOLO burns
-  any already-issued Confirm-mode tokens without executing their actions.
+- YOLO mode keeps the full ready Island visible while idle with a persistent
+  lightning glyph and `YOLO` warning. Enabling YOLO burns any already-issued
+  Confirm-mode tokens without executing their actions.
 - Camera/microphone local activity uses tiny state glyphs, not large banners.
 - Background events may animate the Island but may not focus the main window.
 - The native host follows measured content plus a small transparent shadow

@@ -60,14 +60,6 @@ export function DynamicIsland({
     )
   }
 
-  if (state.phase === 'ready' && state.yolo) {
-    return (
-      <div className="dynamic-island island-yolo" data-phase="ready" role="status">
-        <strong>⚡ YOLO</strong>
-      </div>
-    )
-  }
-
   if (state.phase === 'confirmation' && state.confirmation) {
     return (
       <div
