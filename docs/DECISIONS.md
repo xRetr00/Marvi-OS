@@ -242,9 +242,10 @@ Provenance for adapted work is still recorded in
 
 ## ADR-019 — Two voices for two jobs
 
-**Decision:** the full-duplex session keeps VibeVoice streaming on the GPU.
-Proactive announcements use kyutai PocketTTS on the CPU, published into the
-LiveKit room rather than to the sound card.
+**Decision:** the full-duplex session keeps its LiveKit-owned streaming voice
+path. Proactive announcements, Room welcomes, and Chat Read Aloud use kyutai
+PocketTTS on the CPU and play through a standalone PortAudio output path. They
+do not create, join, or depend on a LiveKit room.
 
 **Reason:** the two jobs have opposite requirements. A session reply is a
 first-token race that must be interruptible mid-sentence. A proactive sentence
@@ -254,11 +255,13 @@ it does not need, on a machine where the 2 GB VRAM headroom is already
 committed. PocketTTS measured 1.5 s to load and 0.811 RTF at 24 kHz on one CPU
 thread.
 
-Publishing into the room rather than the sound card is the load-bearing part.
-The microphone is always live for the wake word, so audio played outside the
-room would be captured and transcribed as if the user had spoken it — the same
-self-transcription failure Phase 3 exists to prevent. Inside the room, the
-client's WebRTC echo cancellation handles it.
+Direct output means the always-on wake listener could hear Marvi. While PCM is
+playing, Gateway writes a content-free, PID-bound marker and the wake daemon
+pauses scoring. On Windows the marker owner is checked through a read-only
+process handle—never the Unix `kill(pid, 0)` idiom, which terminates processes
+on Windows. Stale or malformed markers are removed, so a crash cannot leave the
+wake word disabled. Active full-duplex Voice is reported to Gateway and
+downgrades proactive speech through the existing policy.
 
 Speech failure degrades to the Island rather than losing the decision.
 

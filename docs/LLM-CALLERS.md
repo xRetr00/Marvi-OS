@@ -11,9 +11,9 @@ Traced from the code, not from memory.
 | Consumer | How it reaches a provider | Through `ProviderClient`? | What identity it sends |
 |---|---|---|---|
 | **Chat** (`chat.py`) | `ProviderClient.call_with_fallback()` | **Yes** | `identity.compose()` — SOUL.md, USER.md, the chat brief, curiosity guidance, plugin context lines |
-| **ARC mind** (`mind.py` → `deliberate.py`) | `ProviderClient.call_with_fallback(job="aux")`, Auxiliary `mind` role | **Yes** | its own bounded decision `SYSTEM_PROMPT` |
+| **ARC mind** (`mind.py` → `deliberate.py`) | shared `CognitionHarness` → `ProviderClient.call_with_fallback(job="aux")`, Auxiliary `mind` role | **Yes** | SOUL.md, USER.md, current date/time, bounded decision task, event envelope; bounded read-only tools |
 | **Presence judgement** (`presence.py`) | `ProviderClient.call_with_fallback(job="aux")`, Auxiliary `mind` role | **Yes** | a presence-specific bounded prompt |
-| **ARC reflection** (`memory.py` → `distil.py`) | `ProviderClient.call_with_fallback(job="aux")`, Auxiliary `memory` role | **Yes** | repeated subjects/counts only |
+| **ARC reflection** (`memory.py` → `distil.py`) | shared `CognitionHarness` → `ProviderClient.call_with_fallback(job="aux")`, Auxiliary `memory` role | **Yes** | SOUL.md, USER.md, current date/time, repeated subjects/counts; bounded memory/web/workspace reads |
 | **Distillation** (`distil.py`) | `ProviderClient.call_with_fallback(job="aux")`, named Auxiliary role | **Yes** | task-specific title/web prompts |
 | **Voice** (`marvi_agent/runtime.py`) | `livekit.plugins.openai.LLM`, direct to the provider | **No** | a hardcoded `instructions=` string in `session.py` |
 | **Vision** (`describe.py`) | raw `httpx.post(f"{base_url}/chat/completions")` | **No** | its own `PROMPT` constant |
@@ -50,15 +50,12 @@ and is for half the callers.
 
 ### 2. There is no single source of truth for the harness
 
-`identity.compose()` — the function that assembles SOUL.md and USER.md into a
-prompt — has **exactly one caller**: `chat.py:174`.
+`identity.compose()` now feeds both Chat and the shared ARC cognition harness.
+Mind and memory reflection therefore receive the same durable identity prefix,
+while retaining small task-specific instructions and Auxiliary routing. Voice
+and Vision still have separate latency/media-specific call paths.
 
-That means the identity files, the ones Marvi is supposed to keep filling in by
-asking the user questions, reach the typed surface and nowhere else. Voice, the
-primary interface, has a different personality written as a Python string
-literal. Mind has a third. Vision has a fourth.
-
-Four Marvis, and only one of them knows the user's name.
+The remaining identity gap is Voice and Vision, not Mind or memory reflection.
 
 **Is the harness sent on every turn?** For chat, yes: `_system()` runs per turn
 and `identity.compose()` is called each time, with the identity block first

@@ -82,6 +82,34 @@
       "essential": true
     },
     {
+      "name": "pocket-tts",
+      "kind": "command",
+      "title": "PocketTTS announcer",
+      "why": "Lets ARC, Room welcomes, and Chat Read Aloud speak without opening Voice chat.",
+      "needed_for": [
+        "announce"
+      ],
+      "source": {
+        "type": "command"
+      },
+      "project": "services/gateway",
+      "install_to": "models/pocket-tts",
+      "extra": {
+        "run": [
+          "python",
+          "-m",
+          "marvi_gateway.setup.pocket"
+        ],
+        "check": [
+          "python",
+          "-m",
+          "marvi_gateway.setup.pocket",
+          "--check"
+        ],
+        "note": "Downloads the pinned PocketTTS model and selected voice into Marvi's model root."
+      }
+    },
+    {
       "name": "playwright-browsers",
       "kind": "command",
       "title": "Browser engine (Chromium)",

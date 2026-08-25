@@ -98,16 +98,20 @@ barge into, so paying GPU streaming cost would be wrong. They use kyutai
 PocketTTS on the CPU — measured here at 1.5 s to load and **0.811 RTF** at
 24 kHz on a single torch thread.
 
-The audio publishes into the same LiveKit room the desktop client is already
-subscribed to, rather than straight to the sound card. That is the important
-part: the microphone is always live for the wake word, so a sentence played
-outside the room would be transcribed as if the user had said it. Routing
-through the room means the client's WebRTC echo cancellation — the same
-mechanism Phase 3 depends on — cancels it. This is the point where Phase 6
-touches Phase 3 again.
+The one-shot announcer is deliberately separate from LiveKit: it plays PCM
+through python-sounddevice/PortAudio to the selected Windows output and works
+when no Voice participant exists. A PID-bound marker pauses wake-word scoring
+only during playback and is removed on completion, failure, or staleness. Chat
+Read Aloud and trusted Room welcomes use this same cancellable service.
 
 If speech fails for any reason the decision is not lost; it drops to the Island
 so the user still sees it.
+
+2026-08-25 acceptance evidence: a real isolated PocketTTS/Alba preparation
+completed in 10.2 seconds and the standalone PortAudio path played 1.84 seconds
+of generated PCM through the default Windows device. Unit/integration coverage
+proves cancellation, output framing, bounded chunking, wake-marker cleanup,
+active-Voice suppression, Chat Read Aloud, and trusted `room_welcome` delivery.
 
 ## Deliberation (live)
 

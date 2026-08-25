@@ -32,6 +32,9 @@ describe('the voice session', () => {
   beforeEach(async () => {
     vi.resetModules()
     connect.mockReset()
+    vi.stubGlobal('window', {
+      marvi: { setVoiceSessionActive: vi.fn(async () => true) }
+    })
   })
 
   it('is off before anything starts it', async () => {
@@ -72,24 +75,6 @@ describe('the voice session', () => {
     expect(connect).toHaveBeenCalledTimes(1)
   })
 
-  it('uses an audio-only room and the agent RPC for read aloud', async () => {
-    const target = fakeRoom()
-    connect.mockResolvedValue(target)
-    const { readAloudWithMarvi } = await import('./voice-session')
-
-    await readAloudWithMarvi('A settled Chat response.')
-
-    expect(connect).toHaveBeenCalledWith({ microphone: false })
-    expect(target.localParticipant.performRpc).toHaveBeenCalledWith(
-      expect.objectContaining({
-        destinationIdentity: 'agent',
-        method: 'marvi.read_aloud',
-        payload: JSON.stringify({ text: 'A settled Chat response.' })
-      })
-    )
-    expect(target.disconnect).toHaveBeenCalled()
-  })
-
   it('falls back to off when the room refuses to connect', async () => {
     connect.mockRejectedValue(new Error('no gateway'))
     const { $voiceLink, startVoice } = await import('./voice-session')
@@ -126,6 +111,9 @@ describe('a failure to join', () => {
   beforeEach(async () => {
     vi.resetModules()
     connect.mockReset()
+    vi.stubGlobal('window', {
+      marvi: { setVoiceSessionActive: vi.fn(async () => true) }
+    })
   })
 
   it('keeps the reason instead of a canned caption', async () => {

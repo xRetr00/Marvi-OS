@@ -6,6 +6,25 @@ from marvi_gateway.runtime import RuntimeStore
 from marvi_gateway.tools import ToolRegistry, ToolSpec
 
 
+class FakeOneShot:
+    voice = "alba"
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str]] = []
+        self.stopped = False
+
+    def speak(self, text: str, purpose: str = "proactive") -> dict:
+        self.calls.append((text, purpose))
+        return {"played": True, "cancelled": False, "seconds": 0.25}
+
+    def stop(self) -> bool:
+        self.stopped = True
+        return True
+
+    def close(self) -> None:
+        return None
+
+
 async def health(monkeypatch, livekit_running: bool) -> dict:
     # Pin the probe. Reading the real port asserts a fact about the developer's
     # machine rather than about the code, and passes or fails depending on
@@ -63,6 +82,33 @@ async def test_livekit_session_issues_local_room_credentials() -> None:
     assert payload["url"] == "ws://127.0.0.1:7880"
     assert payload["room"] == "marvi-os-local"
     assert payload["token"].count(".") == 2
+
+
+@pytest.mark.asyncio
+async def test_read_aloud_uses_one_shot_speech_not_a_livekit_room() -> None:
+    speech = FakeOneShot()
+    app = create_app(tools=ToolRegistry(), announcer_service=speech)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://marvi.local") as client:
+        response = await client.post("/speech/read-aloud", json={"text": "Read this."})
+        stopped = await client.post("/speech/stop")
+
+    assert response.status_code == 200
+    assert response.json()["played"] is True
+    assert speech.calls == [("Read this.", "read_aloud")]
+    assert stopped.json() == {"stopped": True}
+
+
+@pytest.mark.asyncio
+async def test_voice_session_state_suppresses_proactive_speech() -> None:
+    app = create_app(tools=ToolRegistry(), announcer_service=FakeOneShot())
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://marvi.local") as client:
+        active = await client.post("/voice/session-state", json={"active": True})
+        inactive = await client.post("/voice/session-state", json={"active": False})
+
+    assert active.json() == {"conversation_active": True}
+    assert inactive.json() == {"conversation_active": False}
 
 
 @pytest.mark.asyncio

@@ -47,6 +47,9 @@ export interface MarviDesktopApi {
   onNavigate: (listener: (page: 'Voice' | 'Activity') => void) => () => void
   getRuntime: () => Promise<RuntimeStatus>
   getVoiceSession: () => Promise<{ url: string; room: string; token: string }>
+  setVoiceSessionActive: (active: boolean) => Promise<boolean>
+  readAloud: (text: string) => Promise<void>
+  stopReadAloud: () => Promise<boolean>
   getDisplays: () => Promise<Array<{ id: number; label: string; primary: boolean }>>
   getIslandPlacement: () => Promise<IslandPlacement>
   setIslandPlacement: (placement: IslandPlacement) => Promise<IslandPlacement>

@@ -539,7 +539,7 @@ class MemoryStore:
         }
 
 
-def register_memory_tools(registry, memory: MemoryStore) -> None:
+def register_memory_tools(registry, memory: MemoryStore, summarise: Any = None) -> None:
     from .tools import ToolSpec
 
     def memory_remember(subject: str, body: str) -> dict[str, Any]:
@@ -572,11 +572,7 @@ def register_memory_tools(registry, memory: MemoryStore) -> None:
         # enough and nothing else. A model reads the repeated subjects and
         # writes what is actually true about them; without one, the count-based
         # promotion runs exactly as before.
-        from . import distil
-        from .providers import ProviderClient
-
-        client = ProviderClient()
-        return memory.reflect(summarise=lambda groups: distil.summarise_memories(client, groups))
+        return memory.reflect(summarise=summarise)
 
     registry.register(
         ToolSpec(

@@ -1,81 +1,178 @@
-"""Proactive speech.
+"""One-shot local speech for ARC, Room events, and Chat Read Aloud.
 
-Two different jobs need two different voices. The full-duplex session needs a
-streaming model that can be interrupted mid-sentence, which is why Phase 3 pays
-for VibeVoice on the GPU. A proactive announcement is the opposite: one short
-sentence Marvi decided to say, with nobody waiting on a first token and nothing
-to barge into. Paying streaming-GPU cost for that would be wrong, so
-announcements use kyutai's PocketTTS on the CPU instead.
+This is deliberately not the LiveKit voice path. A proactive sentence and a
+finished Chat response need synthesis, cancellation, and the selected Windows
+speaker; they do not need a room, microphone, VAD, STT, interruption, or an
+agent job. PocketTTS renders on CPU and python-sounddevice writes the resulting
+PCM to PortAudio.
 
-Measured on this machine at 24 kHz: 1.5 s to load, 0.811 RTF with a single
-torch thread.
-
-The audio is published into the same LiveKit room the desktop client is already
-subscribed to, rather than played straight to the sound card. That matters:
-Marvi's microphone is always live for the wake word, so a proactive sentence
-played outside the room would be heard and transcribed as if the user had said
-it. Going through the room means the Electron client's WebRTC echo cancellation
-— the same mechanism Phase 3 relies on — cancels it.
+Direct speaker playback can be heard by the always-on wake listener. A small
+marker under Marvi's state directory tells that process not to score Marvi's
+own audio. It never contains speech or user content.
 """
 
 from __future__ import annotations
 
+import contextlib
+import json
 import logging
 import os
+import threading
+import time
+from pathlib import Path
 from typing import Any
 
-from .background import LoopThread
+from . import paths
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_VOICE = "alba"
 SPEAK_SAMPLE_RATE = 24_000
-PUBLISH_TIMEOUT = 120.0
-MAX_SPEECH_CHARS = 400
+MAX_PROACTIVE_CHARS = 400
+MAX_READ_ALOUD_CHARS = 12_000
+SYNTHESIS_CHUNK_CHARS = 400
+FRAME_MILLISECONDS = 20
 
 
 class AnnounceUnavailableError(Exception):
-    """PocketTTS or the LiveKit transport is not available."""
+    """PocketTTS or the local output device is unavailable."""
 
 
 def announce_enabled() -> bool:
     return os.environ.get("MARVI_ANNOUNCE", "1").strip().lower() not in ("0", "off", "false")
 
 
-class Announcer:
-    """One-shot CPU speech, published into the local LiveKit room."""
+def marker_path() -> Path:
+    return paths.root() / "state" / "announcing.json"
 
-    def __init__(
-        self,
-        voice: str | None = None,
-        room_url: str | None = None,
-        room_name: str | None = None,
-        token_factory: Any = None,
-        loop: LoopThread | None = None,
-    ) -> None:
+
+def pocket_cache_dir() -> Path:
+    """The Hugging Face cache Setup and runtime both own and can remove."""
+    return paths.models_dir() / "pocket-tts" / "huggingface"
+
+
+def _chunks(text: str, limit: int = SYNTHESIS_CHUNK_CHARS) -> list[str]:
+    """Split prose at sentence/word boundaries without dropping any text."""
+    compact = " ".join((text or "").split())
+    if not compact:
+        return []
+    chunks: list[str] = []
+    current = ""
+    for word in compact.split():
+        if len(word) > limit:
+            if current:
+                chunks.append(current)
+                current = ""
+            chunks.extend(word[offset : offset + limit] for offset in range(0, len(word), limit))
+            continue
+        proposed = f"{current} {word}".strip()
+        if current and len(proposed) > limit:
+            chunks.append(current)
+            current = word
+        else:
+            current = proposed
+    if current:
+        chunks.append(current)
+    return chunks
+
+
+class SoundDevicePlayer:
+    """Blocking PCM output through PortAudio's selected Windows endpoint."""
+
+    def __init__(self, device: str | None = None) -> None:
+        self.device = device if device is not None else os.environ.get("MARVI_ANNOUNCE_DEVICE", "")
+
+    def play(self, pcm: bytes, rate: int, cancelled: threading.Event) -> bool:
+        try:
+            import sounddevice
+        except ImportError as exc:
+            raise AnnounceUnavailableError("sounddevice is not installed") from exc
+
+        frame_bytes = max(1, int(rate * FRAME_MILLISECONDS / 1000)) * 2
+        chosen: str | None = self.device.strip() or None
+        try:
+            with sounddevice.RawOutputStream(
+                samplerate=rate,
+                channels=1,
+                dtype="int16",
+                blocksize=frame_bytes // 2,
+                device=chosen,
+            ) as stream:
+                for offset in range(0, len(pcm), frame_bytes):
+                    if cancelled.is_set():
+                        return False
+                    stream.write(pcm[offset : offset + frame_bytes])
+        except Exception as exc:
+            label = repr(chosen) if chosen else "the default output"
+            raise AnnounceUnavailableError(f"could not play through {label}: {exc}") from exc
+        return not cancelled.is_set()
+
+
+def output_devices() -> list[dict[str, object]]:
+    """PortAudio output endpoints, deduplicated by their stable names."""
+    try:
+        import sounddevice
+
+        devices = sounddevice.query_devices()
+        default_name = str(sounddevice.query_devices(kind="output").get("name", "")).strip()
+    except Exception as exc:  # pragma: no cover - depends on host audio
+        logger.warning("cannot list output devices: %s", exc)
+        return []
+    names: list[str] = []
+    for device in devices:
+        if int(device.get("max_output_channels", 0)) < 1:
+            continue
+        name = str(device.get("name", "")).strip()
+        if name and name not in names:
+            names.append(name)
+    kept = [
+        name
+        for name in names
+        if not any(other != name and other.startswith(name) for other in names)
+    ]
+    return [
+        {
+            "name": name,
+            "label": " ".join(name.split())[:64],
+            "default": bool(default_name)
+            and (name == default_name or name.startswith(default_name)),
+        }
+        for name in kept
+    ]
+
+
+class Announcer:
+    """Shared, cancellable PocketTTS synthesis and local playback service."""
+
+    def __init__(self, voice: str | None = None, player: Any = None) -> None:
         self.voice = voice or os.environ.get("MARVI_ANNOUNCE_VOICE", DEFAULT_VOICE)
-        self.room_url = room_url or os.environ.get("LIVEKIT_URL", "ws://127.0.0.1:7880")
-        self.room_name = room_name or os.environ.get("MARVI_LIVEKIT_ROOM", "marvi-os-local")
-        self._token_factory = token_factory
-        self._loop = loop
+        self.player = player or SoundDevicePlayer()
         self._model: Any = None
         self._voice_state: Any = None
-
-    # -- synthesis -----------------------------------------------------------
+        self._serial = threading.Lock()
+        self._state = threading.Lock()
+        self._current: threading.Event | None = None
 
     def _ensure_model(self) -> Any:
         if self._model is None:
+            cache = pocket_cache_dir()
+            cache.mkdir(parents=True, exist_ok=True)
+            # Setup must own every downloaded byte so Remove is honest. Do not
+            # inherit a process-wide cache elsewhere on disk.
+            os.environ["HF_HUB_CACHE"] = str(cache)
+            with contextlib.suppress(ImportError):
+                # Another Gateway dependency may have imported HF first; its
+                # constants are initialised at import time rather than per call.
+                from huggingface_hub import constants as hf_constants
+
+                hf_constants.HF_HUB_CACHE = str(cache)
             try:
                 from pocket_tts import TTSModel
             except ImportError as exc:
-                raise AnnounceUnavailableError("PocketTTS is not installed.") from exc
+                raise AnnounceUnavailableError("PocketTTS is not installed; open Setup") from exc
             try:
                 import torch
 
-                # ponytail: torch defaults to one thread here, which roughly
-                # doubles synthesis time. Raise it for announcements only; the
-                # GPU session is unaffected. Tune if it ever competes with the
-                # voice path for CPU.
                 torch.set_num_threads(max(1, min(4, os.cpu_count() or 1)))
             except ImportError:
                 pass
@@ -84,8 +181,7 @@ class Announcer:
         return self._model
 
     def synthesize(self, text: str) -> tuple[bytes, int]:
-        """Render one sentence to 16-bit PCM."""
-        spoken = (text or "").strip()[:MAX_SPEECH_CHARS]
+        spoken = (text or "").strip()
         if not spoken:
             raise AnnounceUnavailableError("nothing to say")
         model = self._ensure_model()
@@ -97,81 +193,101 @@ class Announcer:
         clipped = np.clip(samples, -1.0, 1.0)
         return (clipped * 32767.0).astype("<i2").tobytes(), int(model.sample_rate)
 
-    # -- publishing ----------------------------------------------------------
+    def prepare(self) -> dict[str, Any]:
+        """Download/load the configured model and voice without playing audio."""
+        started = time.perf_counter()
+        self._ensure_model()
+        return {
+            "ready": True,
+            "voice": self.voice,
+            "latency_ms": round((time.perf_counter() - started) * 1000, 2),
+        }
 
-    def _ensure_loop(self) -> LoopThread:
-        if self._loop is None:
-            self._loop = LoopThread(name="marvi-announce")
-        return self._loop
-
-    def _token(self) -> str:
-        if self._token_factory is not None:
-            return self._token_factory()
-        from livekit import api
-
-        return (
-            api.AccessToken(
-                os.environ.get("LIVEKIT_API_KEY", "devkey"),
-                os.environ.get("LIVEKIT_API_SECRET", "secret"),
-            )
-            .with_identity("marvi-announcer")
-            .with_name("Marvi")
-            .with_grants(
-                api.VideoGrants(
-                    room_join=True,
-                    room=self.room_name,
-                    can_publish=True,
-                    can_subscribe=False,
-                )
-            )
-            .to_jwt()
-        )
-
-    async def _publish(self, pcm: bytes, rate: int) -> dict[str, Any]:
-        from livekit import rtc
-
-        room = rtc.Room()
-        await room.connect(self.room_url, self._token())
+    @contextlib.contextmanager
+    def _wake_guard(self, purpose: str):
+        marker = marker_path()
         try:
-            source = rtc.AudioSource(rate, 1)
-            track = rtc.LocalAudioTrack.create_audio_track("marvi-announcement", source)
-            await room.local_participant.publish_track(
-                track, rtc.TrackPublishOptions(source=rtc.TrackSource.SOURCE_MICROPHONE)
+            marker.parent.mkdir(parents=True, exist_ok=True)
+            marker.write_text(
+                json.dumps({"pid": os.getpid(), "started_at": time.time(), "purpose": purpose}),
+                encoding="utf-8",
             )
-            # Push in 10 ms frames so playout paces naturally.
-            frame_samples = rate // 100
-            frame_bytes = frame_samples * 2
-            for offset in range(0, len(pcm), frame_bytes):
-                chunk = pcm[offset : offset + frame_bytes]
-                if len(chunk) < frame_bytes:
-                    chunk = chunk + b"\x00" * (frame_bytes - len(chunk))
-                await source.capture_frame(
-                    rtc.AudioFrame(
-                        data=chunk,
-                        sample_rate=rate,
-                        num_channels=1,
-                        samples_per_channel=frame_samples,
-                    )
-                )
-            await source.wait_for_playout()
-            return {"published": True, "seconds": round(len(pcm) / 2 / rate, 2)}
+        except OSError as exc:
+            logger.warning("could not arm wake suppression: %s", exc)
+        try:
+            yield
         finally:
-            await room.disconnect()
+            with contextlib.suppress(OSError):
+                marker.unlink()
 
-    def speak(self, text: str) -> dict[str, Any]:
-        """Synthesise and publish. Never raises into the caller's tick."""
+    def stop(self) -> bool:
+        with self._state:
+            current = self._current
+            if current is None:
+                return False
+            current.set()
+            logger.info("announcement cancellation requested")
+            return True
+
+    def speak(self, text: str, purpose: str = "proactive") -> dict[str, Any]:
+        """Replace current one-shot speech, synthesize, and play to completion."""
+        limit = MAX_READ_ALOUD_CHARS if purpose == "read_aloud" else MAX_PROACTIVE_CHARS
+        spoken = " ".join((text or "").split())[:limit]
+        pieces = _chunks(spoken)
+        if not pieces:
+            return {"played": False, "error": "nothing to say", "cancelled": False}
+
+        cancelled = threading.Event()
+        with self._state:
+            if self._current is not None:
+                self._current.set()
+            self._current = cancelled
+
+        started = time.perf_counter()
+        seconds = 0.0
+        logger.info(
+            "announcement started",
+            extra={
+                "marvi_purpose": purpose,
+                "marvi_chars": len(spoken),
+                "marvi_chunks": len(pieces),
+            },
+        )
         try:
-            pcm, rate = self.synthesize(text)
+            with self._serial:
+                if cancelled.is_set():
+                    logger.info("announcement cancelled before synthesis")
+                    return {"played": False, "cancelled": True, "error": ""}
+                for piece in pieces:
+                    pcm, rate = self.synthesize(piece)
+                    seconds += len(pcm) / 2 / rate
+                    with self._wake_guard(purpose):
+                        completed = self.player.play(pcm, rate, cancelled)
+                    if not completed:
+                        logger.info(
+                            "announcement cancelled during playback",
+                            extra={"marvi_purpose": purpose},
+                        )
+                        return {"played": False, "cancelled": True, "error": ""}
         except Exception as exc:
-            logger.warning("announcement synthesis failed: %s", exc)
-            return {"published": False, "error": str(exc)[:200]}
-        try:
-            return self._ensure_loop().submit(self._publish(pcm, rate), timeout=PUBLISH_TIMEOUT)
-        except Exception as exc:
-            logger.warning("announcement publish failed: %s", exc)
-            return {"published": False, "error": str(exc)[:200]}
+            logger.warning("announcement failed: %s", exc, exc_info=True)
+            return {"played": False, "cancelled": False, "error": str(exc)[:200]}
+        finally:
+            with self._state:
+                if self._current is cancelled:
+                    self._current = None
+
+        logger.info(
+            "announcement played",
+            extra={
+                "marvi_purpose": purpose,
+                "marvi_chars": len(spoken),
+                "marvi_chunks": len(pieces),
+                "marvi_audio_seconds": round(seconds, 2),
+                "marvi_latency_ms": round((time.perf_counter() - started) * 1000, 2),
+            },
+        )
+        return {"played": True, "cancelled": False, "seconds": round(seconds, 2)}
 
     def close(self) -> None:
-        if self._loop is not None:
-            self._loop.stop()
-            self._loop = None
+        self.stop()

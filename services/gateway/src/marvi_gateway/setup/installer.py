@@ -150,6 +150,8 @@ def install(
     if component.kind == "python":
         return _sync_project(component, repo_root, use_gpu=use_gpu)
     if component.kind == "command":
+        if not force and command_installed(component, repo_root):
+            return Outcome(component.name, True, "already installed", skipped=True)
         return _run_command(component, repo_root)
     if component.source_type == "git":
         return _git_subdirectory(component, force=force)
@@ -497,13 +499,17 @@ def remove(component: Component) -> Outcome:
     return Outcome(component.name, True, "removed")
 
 
-def plan(components: list[Component]) -> dict[str, Any]:
+def plan(components: list[Component], repo_root: Path | None = None) -> dict[str, Any]:
     """What a setup run would do, before it does it.
 
     Size matters here: a first run that downloads several gigabytes without
     saying so is a bad first run.
     """
-    missing = [c for c in components if not c.status()["installed"]]
+    def present(component: Component) -> bool:
+        state = state_of(component, repo_root) if repo_root is not None else component.status()
+        return bool(state["installed"])
+
+    missing = [component for component in components if not present(component)]
     return {
         "install": [
             {
@@ -516,7 +522,7 @@ def plan(components: list[Component]) -> dict[str, Any]:
             for c in missing
         ],
         "already_installed": [
-            c.name for c in components if c.status()["installed"]
+            c.name for c in components if present(c)
         ],
         "bytes_total": sum(c.bytes_total for c in missing),
     }
