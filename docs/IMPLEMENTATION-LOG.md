@@ -1118,6 +1118,24 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   desktop rows, content-responsive control stacking, and the two-column compact
   settings rail.
 
+## 2026-08-25 — purpose-built Settings destinations
+
+- Replaced the combined speech settings bucket with an expandable Voice family
+  containing three explicit pages: Speech recognition (STT), Wake word, and
+  Voice synthesis (TTS). Each page now follows the Models page hierarchy with a
+  concise lead, icon-led section, and aligned setting rows.
+- Added Appearance as its own destination and moved the window, backdrop,
+  Dynamic Island, and desktop-companion controls out of Preferences. Preferences
+  now contains only runtime, action approval, and device health.
+- Preserved the existing stores, Gateway calls, Electron bridge calls, and Voice
+  page shortcut; this milestone changes navigation and presentation ownership,
+  not service ownership.
+- Verified all 240 desktop tests, both desktop TypeScript targets, the production
+  Electron/Vite build, ESLint with zero errors (the repository's existing
+  Windows line-ending warnings remain), and `git diff --check`. Playwright
+  covered STT, TTS, Appearance, the full settings rail, and responsive row
+  stacking at 1180×760 and 600×700 with no browser warnings or errors.
+
 ## 2026-08-25 — that desktop-aligned Vision and Room surfaces
 
 - Rebuilt Room around the pinned that desktop Smart Room hierarchy: authoritative

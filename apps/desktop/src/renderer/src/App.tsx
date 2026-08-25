@@ -162,6 +162,8 @@ const NAV_GROUPS = [
 ] as const
 
 /** Behind the gear: the things you set up. */
+const SETTINGS_VOICE_PAGES = ['Speech recognition', 'Wake word', 'Voice synthesis'] as const
+
 const SETTINGS_GROUPS = [
   {
     gapBefore: false,
@@ -169,12 +171,14 @@ const SETTINGS_GROUPS = [
   },
   {
     gapBefore: true,
-    items: ['Speech', 'Preferences', 'Schedules', 'Maintenance', 'About']
+    items: ['Voice', 'Appearance', 'Preferences', 'Schedules', 'Maintenance', 'About']
   }
 ] as const
 
 type Page = (typeof NAV_GROUPS)[number]['items'][number]
-type SettingsPage = (typeof SETTINGS_GROUPS)[number]['items'][number]
+type SettingsPage =
+  | Exclude<(typeof SETTINGS_GROUPS)[number]['items'][number], 'Voice'>
+  | (typeof SETTINGS_VOICE_PAGES)[number]
 
 const NAV_CODES: Record<Page, string> = {
   Overview: 'OV',
@@ -200,14 +204,18 @@ const NAV_ICONS: Record<Page, AbstractIconName> = {
   Mind: 'mind'
 }
 
-const SETTINGS_ICONS: Record<SettingsPage, AbstractIconName> = {
+const SETTINGS_ICONS: Record<SettingsPage | 'Voice', AbstractIconName> = {
   Providers: 'providers',
   Models: 'models',
   Usage: 'activity',
   Accounts: 'accounts',
   Skills: 'skills',
   Plugins: 'plugins',
-  Speech: 'voice',
+  Voice: 'voice',
+  'Speech recognition': 'microphone',
+  'Voice synthesis': 'speaker',
+  'Wake word': 'voice',
+  Appearance: 'preferences',
   Preferences: 'preferences',
   Schedules: 'schedules',
   Maintenance: 'maintenance',
@@ -3751,6 +3759,8 @@ function SettingsShell({
   onNavigate: (next: SettingsPage) => void
   onClose: () => void
 }): React.JSX.Element {
+  const voiceOpen = (SETTINGS_VOICE_PAGES as readonly string[]).includes(page)
+
   useEffect(() => {
     const escape = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') onClose()
@@ -3784,18 +3794,55 @@ function SettingsShell({
               className={group.gapBefore ? 'settings-group has-gap' : 'settings-group'}
               key={index}
             >
-              {group.items.map((item) => (
-                <button
-                  aria-current={page === item ? 'page' : undefined}
-                  className={page === item ? 'settings-link active' : 'settings-link'}
-                  key={item}
-                  onClick={() => onNavigate(item)}
-                  type="button"
-                >
-                  <AbstractIcon name={SETTINGS_ICONS[item]} size={16} />
-                  <span>{item}</span>
-                </button>
-              ))}
+              {group.items.map((item) =>
+                item === 'Voice' ? (
+                  <div className="settings-nav-family" key={item}>
+                    <button
+                      aria-expanded={voiceOpen}
+                      className={voiceOpen ? 'settings-link active' : 'settings-link'}
+                      onClick={() => onNavigate(voiceOpen ? page : 'Speech recognition')}
+                      type="button"
+                    >
+                      <AbstractIcon name={SETTINGS_ICONS[item]} size={16} />
+                      <span>Voice</span>
+                      <span aria-hidden="true" className="settings-nav-chevron">
+                        {voiceOpen ? '−' : '+'}
+                      </span>
+                    </button>
+                    {voiceOpen ? (
+                      <div className="settings-subnav">
+                        {SETTINGS_VOICE_PAGES.map((voicePage) => (
+                          <button
+                            aria-current={page === voicePage ? 'page' : undefined}
+                            className={
+                              page === voicePage
+                                ? 'settings-link settings-sublink active'
+                                : 'settings-link settings-sublink'
+                            }
+                            key={voicePage}
+                            onClick={() => onNavigate(voicePage)}
+                            type="button"
+                          >
+                            <AbstractIcon name={SETTINGS_ICONS[voicePage]} size={16} />
+                            <span>{voicePage}</span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <button
+                    aria-current={page === item ? 'page' : undefined}
+                    className={page === item ? 'settings-link active' : 'settings-link'}
+                    key={item}
+                    onClick={() => onNavigate(item)}
+                    type="button"
+                  >
+                    <AbstractIcon name={SETTINGS_ICONS[item]} size={16} />
+                    <span>{item}</span>
+                  </button>
+                )
+              )}
             </div>
           ))}
         </nav>
@@ -3814,10 +3861,16 @@ function SettingsShell({
               <SkillsPanel />
             ) : page === 'Plugins' ? (
               <PluginsPanel />
-            ) : page === 'Speech' ? (
-              <SpeechPanel />
+            ) : page === 'Speech recognition' ? (
+              <SpeechRecognitionPanel />
+            ) : page === 'Voice synthesis' ? (
+              <VoiceSynthesisPanel />
+            ) : page === 'Wake word' ? (
+              <WakeWordPanel />
+            ) : page === 'Appearance' ? (
+              <AppearancePanel />
             ) : page === 'Preferences' ? (
-              <SettingsPanel runtime={runtime} />
+              <PreferencesPanel runtime={runtime} />
             ) : page === 'Schedules' ? (
               <SchedulesPanel />
             ) : page === 'Maintenance' ? (
@@ -3832,21 +3885,14 @@ function SettingsShell({
   )
 }
 
-/**
- * Everything about hearing and speaking, in one place.
- *
- * These were scattered: the wake word under Preferences, the voice three
- * clicks away beside it, the recogniser nowhere at all. Voice is the surface
- * Marvi is actually used through, and its settings were the hardest to find.
- */
-function SpeechPanel(): React.JSX.Element {
+function SpeechRecognitionPanel(): React.JSX.Element {
   return (
     <ControlPage
       className="settings-page"
-      description="What Marvi listens with, what she answers in, and what she answers to."
-      title="Hearing and speaking"
+      description="Configure speech-to-text accuracy and where local recognition runs."
+      title="Speech recognition"
     >
-      <ControlSection icon={Mic} title="Recognition">
+      <ControlSection icon={Mic} title="Speech to text · STT">
         <div>
           <p>
             How far ahead the recogniser listens before committing a word. Longer is more accurate
@@ -3856,14 +3902,34 @@ function SpeechPanel(): React.JSX.Element {
         </div>
         <RecognitionSettings />
       </ControlSection>
+    </ControlPage>
+  )
+}
 
-      <ControlSection icon={Waves} title="Voice">
+function VoiceSynthesisPanel(): React.JSX.Element {
+  return (
+    <ControlPage
+      className="settings-page"
+      description="Choose the voice Marvi uses when turning responses into speech."
+      title="Voice synthesis"
+    >
+      <ControlSection icon={Waves} title="Text to speech · TTS">
         <div>
-          <p>The voice Marvi speaks in. Also on the Voice page, beside the orb.</p>
+          <p>The voice Marvi speaks in. This choice is also available beside the Voice orb.</p>
         </div>
         <VoicePicker />
       </ControlSection>
+    </ControlPage>
+  )
+}
 
+function WakeWordPanel(): React.JSX.Element {
+  return (
+    <ControlPage
+      className="settings-page"
+      description="Set the local phrase that starts a hands-free voice session."
+      title="Wake word"
+    >
       <ControlSection icon={Radio} title="Wake word">
         <div>
           <p>
@@ -3943,7 +4009,7 @@ function RecognitionSettings(): React.JSX.Element {
   )
 }
 
-function SettingsPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
+function AppearancePanel(): React.JSX.Element {
   const translucency = useStore($translucency)
   const backgroundMode = useStore($backgroundMode)
   const backgroundOpacity = useStore($backgroundOpacity)
@@ -3974,45 +4040,12 @@ function SettingsPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Eleme
     void window.marvi?.setPetPreferences(next).then(setPetPreferences)
   }
 
-  const setYolo = (enabled: boolean): void => {
-    void window.marvi?.setYolo(enabled).then(applyRuntimeState)
-  }
-
   return (
     <ControlPage
-      aria-label="Marvi OS settings"
       className="settings-page"
-      description="Devices, interaction mode, appearance, and Island placement."
-      title="Preferences"
+      description="Shape the control center, Dynamic Island, and desktop companion."
+      title="Appearance"
     >
-      <ControlSection className="settings-services" icon={Server} title="Runtime">
-        <div>
-          <p>
-            Marvi starts these itself. When one will not start, the reason is its own output — shown
-            here rather than discarded.
-          </p>
-        </div>
-        <ServiceHealth compact />
-      </ControlSection>
-
-      <ControlSection icon={ShieldAlert} title="Confirmation mode">
-        <ControlRow
-          action={
-            <button
-              aria-checked={runtime.assistant.yolo}
-              className={runtime.assistant.yolo ? 'mode-switch active' : 'mode-switch'}
-              onClick={() => setYolo(!runtime.assistant.yolo)}
-              role="switch"
-              type="button"
-            >
-              {runtime.assistant.yolo ? 'YOLO · auto accept' : 'Confirm · ask me'}
-            </button>
-          }
-          description="Confirm asks before actions when the model decides approval is needed. YOLO bypasses every prompt."
-          title="Action approval"
-        />
-      </ControlSection>
-
       <ControlSection icon={Sparkles} title="Window and backdrop">
         <ControlRow
           action={
@@ -4187,6 +4220,49 @@ function SettingsPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Eleme
           }
           description="Scale the sprite and its compact control strip together."
           title="Size"
+        />
+      </ControlSection>
+    </ControlPage>
+  )
+}
+
+function PreferencesPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
+  const setYolo = (enabled: boolean): void => {
+    void window.marvi?.setYolo(enabled).then(applyRuntimeState)
+  }
+
+  return (
+    <ControlPage
+      aria-label="Marvi OS settings"
+      className="settings-page"
+      description="Manage local services, action approval, and connected devices."
+      title="Preferences"
+    >
+      <ControlSection className="settings-services" icon={Server} title="Runtime">
+        <div>
+          <p>
+            Marvi starts these itself. When one will not start, the reason is its own output — shown
+            here rather than discarded.
+          </p>
+        </div>
+        <ServiceHealth compact />
+      </ControlSection>
+
+      <ControlSection icon={ShieldAlert} title="Confirmation mode">
+        <ControlRow
+          action={
+            <button
+              aria-checked={runtime.assistant.yolo}
+              className={runtime.assistant.yolo ? 'mode-switch active' : 'mode-switch'}
+              onClick={() => setYolo(!runtime.assistant.yolo)}
+              role="switch"
+              type="button"
+            >
+              {runtime.assistant.yolo ? 'YOLO · auto accept' : 'Confirm · ask me'}
+            </button>
+          }
+          description="Confirm asks before actions when the model decides approval is needed. YOLO bypasses every prompt."
+          title="Action approval"
         />
       </ControlSection>
 

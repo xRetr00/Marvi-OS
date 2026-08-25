@@ -6334,6 +6334,35 @@ body {
   background: var(--ui-bg-tertiary);
 }
 
+.settings-nav-family {
+  display: grid;
+  gap: 2px;
+}
+
+.settings-nav-chevron {
+  margin-left: auto;
+  color: var(--ui-text-tertiary);
+  font-size: 12px;
+}
+
+.settings-subnav {
+  display: grid;
+  gap: 2px;
+  margin: 0 0 4px 14px;
+  padding-left: 7px;
+  border-left: 1px solid var(--ui-stroke-tertiary);
+}
+
+.settings-sublink {
+  min-height: 26px;
+  font-size: 10px;
+}
+
+.settings-sublink svg {
+  width: 12px;
+  height: 12px;
+}
+
 .settings-content {
   background: var(--ui-bg);
   container-name: settings-content;
@@ -6352,6 +6381,7 @@ body {
 .settings-scroll .control-page {
   width: 100%;
   padding: 0;
+  overflow: visible;
 }
 
 .settings-scroll .control-page-head {

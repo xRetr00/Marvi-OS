@@ -296,6 +296,14 @@ small windows. The general navigation rail is 212 px expanded and 52 px
 collapsed; the app logo stays visible in the collapsed rail and the title bar
 owns the collapse action.
 
+Settings destinations follow the Models page's one-purpose page structure:
+one quiet page heading, one or more icon-led sections, then flat setting rows.
+Voice expands to three purpose-built child pages: **Speech recognition** (STT),
+**Wake word**, and **Voice synthesis** (TTS), so opening a destination answers
+one question without crowding the top-level rail. Window, backdrop, Island, and
+desktop-companion presentation live under **Appearance**; runtime, approval
+mode, and device health remain under **Preferences**.
+
 Async page work uses the shared Processing Card. It shows a real percentage
 only when the underlying operation reports one; otherwise the scan and moving
 bar are explicitly indeterminate. The visual is adapted from the supplied
@@ -409,6 +417,8 @@ The sidebar and status bar remain visible in About.
 
 Settings include:
 
+- separate Speech recognition (STT), Voice synthesis (TTS), and Wake word pages;
+- an Appearance page for the control center, Island, and desktop companion;
 - startup and Island placement;
 - microphone, camera, wake word, presence, and gesture controls;
 - voice models and residency profile;

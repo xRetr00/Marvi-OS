@@ -48,8 +48,9 @@ Current implemented desktop surfaces:
   disclosures, source rows, and compact shell chrome adapted from an internal desktop;
 - compact divided control surfaces across every non-Voice/non-Chat page, a
   tactile shared button language, an inset settings dialog with a persistent
-  navigation rail, a collapsible branded sidebar, consistent control tooltips,
-  and audible desktop haptics;
+  navigation rail, dedicated STT, TTS, Wake word, Appearance, and Preferences
+  destinations, a collapsible branded sidebar, consistent control tooltips, and
+  audible desktop haptics;
 - passive `76×8` top-edge Island seed that expands for active voice states;
 - canonical app icon rendered in the app, tray, taskbar/package, sidebar, and About.
 - action, notification, error, and confirmation Island states with automatic
