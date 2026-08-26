@@ -210,3 +210,12 @@ Full acceptance boundary in `phases/14-messaging-companion.md`.
 4. Remove messaging submodule handling from build and update paths.
 
 Full acceptance boundary in `phases/15-standalone-messaging-runtime.md`.
+
+## Phase 16 — Marvi-owned messaging boundary
+
+1. Add the `marvi_messaging` application namespace and command surface.
+2. Call the reusable gateway lifecycle directly instead of the derived CLI dispatcher.
+3. Wrap configuration, health, planned shutdown, state, and compatibility names.
+4. Prove Electron and the packaged application launch only the Marvi entrypoint.
+
+Full acceptance boundary in `phases/16-marvi-messaging-boundary.md`.

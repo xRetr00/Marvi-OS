@@ -10,8 +10,8 @@
     "dev": "npm run dev --workspace marvi-os-desktop",
     "build": "npm run build --workspace marvi-os-desktop",
     "prepare:messaging": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-messaging-runtime.ps1",
-    "build:unpack": "npm run prepare:messaging && npm run build:unpack --workspace marvi-os-desktop",
-    "build:win": "npm run prepare:messaging && npm run build:win --workspace marvi-os-desktop",
+    "build:unpack": "npm run build:unpack --workspace marvi-os-desktop",
+    "build:win": "npm run build:win --workspace marvi-os-desktop",
     "test": "npm run test --workspace marvi-os-desktop",
     "typecheck": "npm run typecheck --workspace marvi-os-desktop",
     "lint": "npm run lint --workspace marvi-os-desktop"

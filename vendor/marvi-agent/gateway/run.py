@@ -3511,6 +3511,12 @@ def _resolve_hermes_bin() -> Optional[list[str]]:
 
     Returns argv parts ready for quoting/joining, or ``None`` if neither works.
     """
+    # Marvi OS owns restart/update lifecycle and must never fall back to the
+    # vendored application's CLI boundary. Its external supervisor observes
+    # exit 75 and relaunches ``marvi_messaging.main`` instead.
+    if os.environ.get("MARVI_MESSAGING_RUNTIME") == "1":
+        return None
+
     import shutil
 
     hermes_bin = shutil.which("hermes")
@@ -15827,13 +15833,18 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                             and store_profile != "default"
                             else ""
                         )
+                        pairing_instructions = (
+                            "Ask the bot owner to open Marvi OS Settings → Messaging "
+                            "and approve this code."
+                            if os.environ.get("MARVI_MESSAGING_RUNTIME") == "1"
+                            else f"Ask the bot owner to run:\n`hermes {profile_arg}pairing approve "
+                            f"{platform_name} {code}`"
+                        )
                         await adapter.send(
                             source.chat_id,
                             f"Hi~ I don't recognize you yet!\n\n"
                             f"Here's your pairing code: `{code}`\n\n"
-                            f"Ask the bot owner to run:\n"
-                            f"`hermes {profile_arg}pairing approve "
-                            f"{platform_name} {code}`"
+                            f"{pairing_instructions}"
                         )
                 else:
                     adapter = self._adapter_for_source(source)

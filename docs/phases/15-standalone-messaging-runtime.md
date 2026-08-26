@@ -1,5 +1,8 @@
 # Phase 15 — Standalone messaging runtime
 
+> Phase 16 supersedes the executable boundary described here. The vendoring and
+> offline packaging evidence remains valid; Electron no longer invokes the derived CLI.
+
 Status: complete
 
 ## Outcome
@@ -10,8 +13,9 @@ Marvi OS ships messaging as an application resource. The repository contains
 nested `.git`. The build stages those exact files, standalone CPython 3.11.15,
 and 140 resolved packages under `resources/messaging`.
 
-Electron locates `process.resourcesPath/messaging/source` and starts the sibling
-`python/python.exe` with `-m hermes_cli.main gateway run`. `UV_OFFLINE`,
+At this historical milestone Electron located `process.resourcesPath/messaging/source`
+and started the sibling Python through the derived CLI. Phase 16 replaced that
+boundary with `-m marvi_messaging.main`. `UV_OFFLINE`,
 `PIP_NO_INDEX`, `PYTHONNOUSERSITE`, and the managed-runtime marker make source
 or dependency acquisition unavailable during launch.
 

@@ -435,8 +435,9 @@ Settings include:
 - Composio connections;
 - a Messaging page that shows the exact bundled source commit and discovered
   platform adapters, launches the bundled interactive setup in a terminal,
-  selects the private profile directory, and enables/disables Electron-owned
-  supervision only after configuration exists;
+  selects the private profile directory, approves pending sender pairings by
+  server-side request id without exposing the one-time code, and enables/disables
+  Electron-owned supervision only after configuration exists;
 - Smart Room endpoint;
 - memory policy;
 - Confirm/YOLO mode;

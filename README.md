@@ -26,10 +26,12 @@ loudspeaker double-talk test plus the 60-minute duplex soak.
 Current implemented desktop surfaces:
 
 - tray-owned application lifetime and control-center window;
-- an opt-in, Electron-supervised bundled Messaging gateway derived from Marvi Agent commit
-  `61977bb4d6b97ab2aece57d2405fa2f0b19e3ae0`. Its unchanged upstream setup,
+- an opt-in, Electron-supervised Marvi Messaging runtime backed by implementation
+  modules derived from Marvi Agent commit
+  `61977bb4d6b97ab2aece57d2405fa2f0b19e3ae0`. Marvi owns its entrypoint, setup,
+  lifecycle, health, and shutdown APIs while preserving the derived
   platform adapters, sessions, streaming delivery, attachments, commands,
-  approvals, scheduled delivery, and toolsets are available from Settings →
+  approvals, scheduled delivery, and toolsets. Messaging is available from Settings →
   Messaging; it remains separate from the local LiveKit voice runtime;
 - an experimental Marvi desktop pet rendered by a supervised native Windows
   helper, with state-driven animation, cursor gaze, a gray/blue/green/red
@@ -154,7 +156,8 @@ realtime trigger stream. See
 
 Messaging is optional and requires no source or dependency download at launch.
 Its source, CPython 3.11 runtime, and locked platform dependencies are packaged
-with Marvi OS. Open Settings → Messaging → Open setup, configure platforms in the terminal,
+with Marvi OS. Electron launches `python.exe -m marvi_messaging.main`, never the
+vendored CLI application. Open Settings → Messaging → Open setup, configure platforms in the terminal,
 then enable the supervised service. Its credentials and state live under
 `%LOCALAPPDATA%\Marvi-OS\messaging-agent` by default and never cross renderer
 IPC.

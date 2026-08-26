@@ -114,6 +114,7 @@ import type {
   MemoryGraphMode,
   MemoryGraphPage,
   MessagingStatus,
+  MessagingPairingRequest,
   MindDecision,
   ModelPage,
   PluginPage,
@@ -3232,7 +3233,10 @@ function SchedulesPanel(): React.JSX.Element {
           </label>
           <label>
             <span>Job type</span>
-            <select value={mode} onChange={(event) => setMode(event.target.value as 'action' | 'agent')}>
+            <select
+              value={mode}
+              onChange={(event) => setMode(event.target.value as 'action' | 'agent')}
+            >
               <option value="action">Reminder / ARC action</option>
               <option value="agent">Agent task with tools</option>
             </select>
@@ -3268,14 +3272,20 @@ function SchedulesPanel(): React.JSX.Element {
                 <span>Reasoning</span>
                 <select value={effort} onChange={(event) => setEffort(event.target.value)}>
                   {(page?.efforts ?? ['', 'low', 'medium', 'high']).map((item) => (
-                    <option key={item || 'auto'} value={item}>{item || 'Auto'}</option>
+                    <option key={item || 'auto'} value={item}>
+                      {item || 'Auto'}
+                    </option>
                   ))}
                 </select>
               </label>
               <label>
                 <span>Delivery</span>
                 <select value={delivery} onChange={(event) => setDelivery(event.target.value)}>
-                  {(page?.delivery_targets ?? [{ id: 'local', name: 'Local (save only)', available: true }]).map((target) => (
+                  {(
+                    page?.delivery_targets ?? [
+                      { id: 'local', name: 'Local (save only)', available: true }
+                    ]
+                  ).map((target) => (
                     <option key={target.id} value={target.id} disabled={!target.available}>
                       {target.name}
                     </option>
@@ -3291,11 +3301,13 @@ function SchedulesPanel(): React.JSX.Element {
                       <input
                         type="checkbox"
                         checked={toolNames.includes(tool)}
-                        onChange={(event) => setToolNames((current) =>
-                          event.target.checked
-                            ? [...current, tool]
-                            : current.filter((item) => item !== tool)
-                        )}
+                        onChange={(event) =>
+                          setToolNames((current) =>
+                            event.target.checked
+                              ? [...current, tool]
+                              : current.filter((item) => item !== tool)
+                          )
+                        }
                       />
                       <span>{tool}</span>
                     </label>
@@ -3354,9 +3366,12 @@ function SchedulesPanel(): React.JSX.Element {
               </small>
               {row.mode === 'agent' ? (
                 <small>
-                  {row.provider || 'auto provider'} / {row.model || 'auto model'} / {row.effort || 'auto reasoning'}
-                  {' · '}{row.tool_names.length ? `${row.tool_names.length} tools` : 'all tools'}
-                  {' · '}{row.delivery}
+                  {row.provider || 'auto provider'} / {row.model || 'auto model'} /{' '}
+                  {row.effort || 'auto reasoning'}
+                  {' · '}
+                  {row.tool_names.length ? `${row.tool_names.length} tools` : 'all tools'}
+                  {' · '}
+                  {row.delivery}
                 </small>
               ) : null}
               {row.prompt ? <small>{row.prompt}</small> : null}
@@ -3366,7 +3381,9 @@ function SchedulesPanel(): React.JSX.Element {
               ) : row.last_run ? (
                 <small>last run {row.last_run}</small>
               ) : null}
-              {row.last_output ? <small className="schedule-output">{row.last_output}</small> : null}
+              {row.last_output ? (
+                <small className="schedule-output">{row.last_output}</small>
+              ) : null}
               <div className="provider-actions">
                 <button className="phase" type="button" onClick={() => void act(row.id, 'run')}>
                   Run now
@@ -3999,25 +4016,34 @@ function SettingsShell({
 
 function MessagingPanel(): React.JSX.Element {
   const [status, setStatus] = useState<MessagingStatus | null>(null)
+  const [pairings, setPairings] = useState<MessagingPairingRequest[]>([])
   const [home, setHome] = useState('')
   const [notice, setNotice] = useState('')
 
   const load = useCallback(async (): Promise<void> => {
-    const next = await window.marvi?.getMessaging()
+    const [next, pending] = await Promise.all([
+      window.marvi?.getMessaging(),
+      window.marvi?.getMessagingPairings()
+    ])
     if (next) {
       setStatus(next)
       setHome(next.home)
     }
+    if (pending) setPairings(pending)
   }, [])
 
   useEffect(() => {
     let disposed = false
-    void window.marvi?.getMessaging().then((next) => {
-      if (!disposed && next) {
-        setStatus(next)
-        setHome(next.home)
+    void Promise.all([window.marvi?.getMessaging(), window.marvi?.getMessagingPairings()]).then(
+      ([next, pending]) => {
+        if (disposed) return
+        if (next) {
+          setStatus(next)
+          setHome(next.home)
+        }
+        if (pending) setPairings(pending)
       }
-    })
+    )
     return () => {
       disposed = true
     }
@@ -4050,8 +4076,8 @@ function MessagingPanel(): React.JSX.Element {
               {status.installed ? 'BUNDLED' : 'MISSING'}
             </ControlPill>
           }
-          description={`Source ${status.sourceCommit.slice(0, 12)} · ${status.platforms.length} platform adapters`}
-          title="Messaging engine"
+          description={`Derived implementation ${status.sourceCommit.slice(0, 12)} · ${status.platforms.length} platform adapters`}
+          title="Marvi messaging runtime"
         />
         <ControlRow
           action={
@@ -4095,7 +4121,11 @@ function MessagingPanel(): React.JSX.Element {
           title="Interactive setup"
         />
         <ControlRow
-          action={<ControlButton onClick={() => void window.marvi?.openMessagingHome()}>Open</ControlButton>}
+          action={
+            <ControlButton onClick={() => void window.marvi?.openMessagingHome()}>
+              Open
+            </ControlButton>
+          }
           description={status.home}
           title="Private messaging data"
         />
@@ -4120,11 +4150,49 @@ function MessagingPanel(): React.JSX.Element {
         />
       </ControlSection>
 
+      <ControlSection icon={Users} title="Sender pairing">
+        {pairings.length === 0 ? (
+          <ControlEmpty
+            description="Unknown senders will appear here after the bot gives them a one-time pairing code."
+            title="No pending requests"
+          />
+        ) : (
+          pairings.map((pairing) => (
+            <ControlRow
+              action={
+                <ControlButton
+                  disabled={!pairing.requestId}
+                  onClick={async () => {
+                    const approved = await window.marvi?.approveMessagingPairing(
+                      pairing.platform,
+                      pairing.requestId
+                    )
+                    setNotice(
+                      approved
+                        ? `${pairing.userName || pairing.userId} approved for ${pairing.platform}.`
+                        : 'Pairing approval failed or expired. Refresh and try again.'
+                    )
+                    await load()
+                  }}
+                >
+                  Approve
+                </ControlButton>
+              }
+              description={`${pairing.platform} · ${pairing.userId} · ${pairing.ageMinutes} min ago`}
+              key={`${pairing.platform}:${pairing.requestId}:${pairing.userId}`}
+              title={pairing.userName || 'Unknown sender'}
+            />
+          ))
+        )}
+        <ControlButton onClick={() => void load()}>Refresh requests</ControlButton>
+      </ControlSection>
+
       <ControlSection icon={Link2} title="Included surfaces">
         <p>{status.platforms.join(' · ') || 'No adapters discovered.'}</p>
         <p>
-          Messages run inside the bundled gateway with its session lifecycle, streaming delivery,
-          attachments, slash commands, approvals, scheduled delivery, and complete toolsets.
+          Messages run through Marvi&apos;s bundled runtime with the derived gateway&apos;s
+          sessions, streaming delivery, attachments, slash commands, approvals, scheduled delivery,
+          and complete toolsets.
         </p>
       </ControlSection>
     </ControlPage>

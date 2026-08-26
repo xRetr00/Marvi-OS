@@ -1668,7 +1668,11 @@ class GatewaySlashCommandsMixin:
         return EphemeralReply(t("gateway.restart.restarting"))
 
     async def _handle_version_command(self, event: MessageEvent) -> str:
-        """Handle /version — show the running Marvi Agent version."""
+        """Handle /version — show the owning application version."""
+        if os.environ.get("MARVI_MESSAGING_RUNTIME") == "1":
+            implementation = os.environ.get("MARVI_MESSAGING_IMPLEMENTATION_COMMIT", "").strip()
+            suffix = f" · implementation {implementation[:12]}" if implementation else ""
+            return f"Marvi OS Messaging{suffix}"
         from hermes_cli.banner import format_banner_version_label
         """Handle /version — show the running Marvi Agent version."""
         from hermes_cli.slash_exec import CommandContext, execute_command
@@ -5700,6 +5704,9 @@ class GatewaySlashCommandsMixin:
         files are written so either the current gateway process or the next one
         can notify the user when the update finishes.
         """
+        if os.environ.get("MARVI_MESSAGING_RUNTIME") == "1":
+            return "Messaging updates are installed and managed by Marvi OS."
+
         from gateway.run import _hermes_home, _resolve_hermes_bin
         import json
         import shutil

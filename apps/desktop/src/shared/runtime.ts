@@ -621,6 +621,14 @@ export interface MessagingStatus extends MessagingPreferences {
   setupCommand: string
 }
 
+export interface MessagingPairingRequest {
+  platform: string
+  requestId: string
+  userId: string
+  userName: string
+  ageMinutes: number
+}
+
 export interface ComponentStatus {
   state: ComponentState
   detail: string
