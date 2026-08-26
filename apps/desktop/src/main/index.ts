@@ -54,6 +54,14 @@ import {
 } from './pet-window'
 import { NativePetHost, petActionPage, petTaskCount, resolvePetHostPaths } from './pet-host'
 import {
+  launchMessagingSetup,
+  messagingEnvironment,
+  messagingSourceRoot,
+  messagingStatus,
+  shouldStartMessaging,
+  writeMessagingPreferences
+} from './messaging-runtime'
+import {
   canUpdate,
   checkForUpdate,
   consumeUpdateResult,
@@ -492,6 +500,35 @@ function startVoiceStack(): void {
     args: ['run', '--project', 'services/agent', 'python', '-m', 'marvi_agent.session', 'start'],
     cwd: repoRoot,
     env: childEnv
+  })
+  const messagingSource = messagingSourceRoot(repoRoot)
+  supervisor.add({
+    name: 'messaging',
+    match: /hermes(?:\.exe)?\s+gateway\s+run|gateway[\\/]run\.py/i,
+    installRoot: messagingSource,
+    command: uv,
+    args: [
+      'run',
+      '--project',
+      messagingSource,
+      'hermes',
+      'gateway',
+      'run',
+      '--replace',
+      '--external-supervisor'
+    ],
+    cwd: messagingSource,
+    env: () => ({
+      ...childEnv,
+      ...messagingEnvironment(messagingStatus(repoRoot).home, process.pid)
+    }),
+    // Messaging is deliberately opt-in. The complete upstream engine is
+    // shipped, but no network connection is made until setup has produced a
+    // config and the user enables it.
+    when: () => {
+      const status = messagingStatus(repoRoot)
+      return shouldStartMessaging(status)
+    }
   })
   supervisor.startAll()
 }
@@ -1835,6 +1872,36 @@ function startApp(): void {
     ipcMain.handle('marvi:retry-service', (_event, name) => {
       if (typeof name !== 'string' || !supervisor) return false
       return supervisor.retry(name)
+    })
+    ipcMain.handle('marvi:get-messaging', () => messagingStatus(repoRoot))
+    ipcMain.handle('marvi:set-messaging', (event, update) => {
+      if (!isMarviPage(event.senderFrame?.url ?? '') || typeof update !== 'object' || !update) {
+        return messagingStatus(repoRoot)
+      }
+      const current = messagingStatus(repoRoot)
+      const record = update as { enabled?: unknown; home?: unknown }
+      const requestedHome = typeof record.home === 'string' ? record.home : current.home
+      const next = writeMessagingPreferences({
+        enabled: record.enabled === true,
+        // A running child already inherited its profile. Moving it in place
+        // would make the UI describe one home while the process writes to
+        // another, so changing profiles requires disabling first.
+        home: current.enabled ? current.home : requestedHome
+      })
+      if (next.enabled) supervisor?.start('messaging')
+      else supervisor?.stop('messaging')
+      return messagingStatus(repoRoot)
+    })
+    ipcMain.handle('marvi:setup-messaging', (event) => {
+      if (!isMarviPage(event.senderFrame?.url ?? '')) return false
+      const uv = findUv()
+      return uv ? launchMessagingSetup(uv, repoRoot, process.pid) : false
+    })
+    ipcMain.handle('marvi:open-messaging-home', async (event) => {
+      if (!isMarviPage(event.senderFrame?.url ?? '')) return false
+      const home = messagingStatus(repoRoot).home
+      mkdirSync(home, { recursive: true })
+      return (await shell.openPath(home)) === ''
     })
     ipcMain.handle('marvi:get-providers', async () => {
       try {

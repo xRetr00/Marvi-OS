@@ -14,7 +14,7 @@ the desktop application. The desktop icon source is
 
 ## Status
 
-Phases 2, 4, 5, and 6 are complete. Phase 3 is in hardware acceptance,
+Phases 2, 4, 5, 6, and 13 are complete. Phase 3 is in hardware acceptance,
 Phase 7 has the update handoff working and a packaged installer building, and
 Phase 8's vision ownership and contracts are complete with native camera
 calibration still pending. The
@@ -26,6 +26,11 @@ loudspeaker double-talk test plus the 60-minute duplex soak.
 Current implemented desktop surfaces:
 
 - tray-owned application lifetime and control-center window;
+- an opt-in, Electron-supervised Messaging gateway pinned to Marvi Agent commit
+  `61977bb4d6b97ab2aece57d2405fa2f0b19e3ae0`. Its unchanged upstream setup,
+  platform adapters, sessions, streaming delivery, attachments, commands,
+  approvals, scheduled delivery, and toolsets are available from Settings →
+  Messaging; it remains separate from the local LiveKit voice runtime;
 - an experimental Marvi desktop pet rendered by a supervised native Windows
   helper, with state-driven animation, cursor gaze, a gray/blue/green/red
   status line, refined hover Voice/Activity controls, display/side/40–100%
@@ -127,6 +132,7 @@ Current implemented desktop surfaces:
 ## Developer start
 
 ```powershell
+git submodule update --init --recursive
 npm install
 npm run icons
 npm run dev
@@ -141,6 +147,12 @@ provider OAuth credentials remain in Composio and never enter Marvi OS.
 `COMPOSIO_WEBHOOK_SECRET`; the local runtime otherwise consumes Composio's
 realtime trigger stream. See
 [`docs/VOICE-RUNTIME.md`](docs/VOICE-RUNTIME.md) for the native build and checks.
+
+Messaging is optional and makes no network connection by default. Open Settings
+→ Messaging → Open setup, configure the upstream platforms in the terminal,
+then enable the supervised service. Its credentials and state live under
+`%LOCALAPPDATA%\Marvi-OS\messaging-agent` by default and never cross renderer
+IPC.
 
 Gateway and agent dependencies are isolated in the root `uv` workspace. These
 commands are development tooling only; the shipped product has no CLI.

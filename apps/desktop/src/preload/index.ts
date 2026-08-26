@@ -19,6 +19,7 @@ import type {
   MemoryGraphMode,
   MemoryGraphPage,
   MemoryPage,
+  MessagingStatus,
   MindDecision,
   ModelPage,
   PluginPage,
@@ -284,6 +285,11 @@ const marvi = {
     ipcRenderer.invoke('marvi:get-logs', subsystem),
   getServices: (): Promise<ServiceReport[]> => ipcRenderer.invoke('marvi:get-services'),
   retryService: (name: string): Promise<boolean> => ipcRenderer.invoke('marvi:retry-service', name),
+  getMessaging: (): Promise<MessagingStatus> => ipcRenderer.invoke('marvi:get-messaging'),
+  setMessaging: (update: { enabled: boolean; home: string }): Promise<MessagingStatus> =>
+    ipcRenderer.invoke('marvi:set-messaging', update),
+  setupMessaging: (): Promise<boolean> => ipcRenderer.invoke('marvi:setup-messaging'),
+  openMessagingHome: (): Promise<boolean> => ipcRenderer.invoke('marvi:open-messaging-home'),
   onServices: (listener: (reports: ServiceReport[]) => void): (() => void) => {
     const handler = (_event: unknown, reports: ServiceReport[]): void => listener(reports)
     ipcRenderer.on('marvi:services', handler)

@@ -189,3 +189,15 @@ Full plan in `phases/10-resilience.md`; identity in `IDENTITY.md`.
    the command that will run, and a skill cannot grant itself tools.
 
 Full plan in `phases/11-setup.md`.
+
+## Phase 13 — optional messaging companion
+
+1. Pin the complete Marvi Agent messaging repository rather than extracting a
+   coupled subset of adapters and gateway code.
+2. Give it an isolated profile and explicit opt-in lifecycle under Electron.
+3. Reuse its setup, sessions, platform tools, approvals, delivery, and recovery
+   unchanged while keeping it outside the LiveKit voice runtime.
+4. Make source provenance, configuration state, adapter inventory, and process
+   failures visible in Settings → Messaging.
+
+Full acceptance boundary in `phases/13-messaging-companion.md`.

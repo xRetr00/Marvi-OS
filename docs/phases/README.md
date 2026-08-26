@@ -20,6 +20,7 @@ gates still apply.
 | 10 | [`10-resilience.md`](10-resilience.md) | complete |
 | 11 | [`11-setup.md`](11-setup.md) | complete |
 | 12 | [`12-pet-companion.md`](12-pet-companion.md) | in progress |
+| 13 | [`13-messaging-companion.md`](13-messaging-companion.md) | complete |
 
 Status vocabulary: `planned`, `scaffolded`, `in progress`, `blocked`, and
 `complete`. Only mark a phase complete when every acceptance gate has named

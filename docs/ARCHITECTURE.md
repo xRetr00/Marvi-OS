@@ -24,6 +24,8 @@ flowchart TB
     Room["D:\\smart-room-plugin"]
     Memory["Memory service"]
     Deep["Marvi Agent delegate"]
+    Messaging["Pinned Marvi Agent<br/>messaging gateway"]
+    Channels["Telegram, Discord, Slack,<br/>and other messaging services"]
 
     UI <--> Main
     Main -->|phase/count, gaze, hover, bounds| Pet
@@ -41,6 +43,8 @@ flowchart TB
     Tools --> Room
     Tools --> Memory
     Tools --> Deep
+    Main -->|optional lifecycle + status| Messaging
+    Messaging <--> Channels
     Room -->|events and logs| Gateway
     Sensors -->|local activation/context| Gateway
 ```
@@ -127,6 +131,24 @@ tools through the existing bridge boundary.
 
 It does not implement RTC, STT, TTS, home automation, OAuth providers, or model
 inference itself.
+
+## Optional messaging companion
+
+Messaging reuses the complete Marvi Agent repository as a pinned Git submodule
+at `vendor/marvi-agent`. Electron main supervises its gateway only after the
+user completes upstream setup and explicitly enables it. The companion receives
+its own `HERMES_HOME`, process tree, logs, platform credentials, conversations,
+approval state, and toolsets. The renderer receives only lifecycle status and
+paths; platform tokens never cross IPC.
+
+This is intentionally a companion deep-work surface, not a second voice
+runtime and not a transport shim into Marvi OS Chat. Remote messages therefore
+cannot join a LiveKit room, change the foreground voice prompt, or bypass Marvi
+Gateway's tool policy. Conversely, Marvi OS Confirm/YOLO does not silently
+govern the companion: its upstream approval behavior remains intact and is
+configured through the upstream setup flow. Pinning the whole source preserves
+end-to-end platform and tool behavior without copying a 30,000-line gateway
+into Marvi Gateway or moving its policy into React.
 
 ## Always-on lifecycle
 
