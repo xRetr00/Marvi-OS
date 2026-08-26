@@ -7034,3 +7034,14 @@ body .settings-scroll .control-row {
   padding-inline: 10px;
   border-radius: 8px;
 }
+
+/* A subtitle is a glance, not a transcript. The text is trimmed to its tail
+   before it gets here; this is the backstop, so a long line can never grow
+   past three of them and cover the orb it captions. */
+.voice-subtitles .voice-words {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}

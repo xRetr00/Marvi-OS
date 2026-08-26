@@ -342,3 +342,35 @@ def test_every_offered_voice_is_actually_downloaded() -> None:
     }
 
     assert set(KOKORO_VOICES) == fetched
+
+
+async def test_a_reply_that_is_flushed_mid_way_is_still_spoken_whole(engine) -> None:
+    """Long answers stop mid-sentence after speaking for a while.
+
+    `SynthesizeStream.push_text` drops tokens once a stream has seen more than
+    one segment, and `flush()` is what starts the second:
+
+        if not self._mtc_text:
+            if self._num_segments >= 1:
+                logger.warning("...deprecated...")
+                return
+
+    If the session flushes between sentences and keeps pushing into the same
+    stream, everything after the first flush is discarded before this plugin
+    sees it. This asserts the words, not the calls: what matters is that the
+    second half of the answer is spoken at all.
+    """
+    speaker = tts_with(engine)
+    stream = speaker.stream()
+
+    stream.push_text("First sentence here.")
+    stream.flush()
+    stream.push_text(" Second sentence here.")
+    stream.end_input()
+
+    await collect(stream)
+    await stream.aclose()
+
+    said = " ".join(engine.spoken)
+    assert "First sentence" in said
+    assert "Second sentence" in said, f"everything after the flush was dropped: {engine.spoken}"

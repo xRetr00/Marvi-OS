@@ -337,6 +337,37 @@ class _ClauseStream(tts.SynthesizeStream):
     voice that pauses to compose.
     """
 
+    def flush(self) -> None:
+        """End the clause, not the reply.
+
+        `SynthesizeStream.push_text` drops tokens once a stream has seen more
+        than one segment, and `flush()` is what starts the second:
+
+            if not self._mtc_text:
+                if self._num_segments >= 1:
+                    logger.warning("...deprecated...")
+                    return
+
+        `flush()` clears `_mtc_text`, so the first flush in a reply arms that
+        branch and everything after it is discarded before this plugin sees a
+        token. Heard as a long answer that speaks for a while and then stops
+        mid-sentence, with one deprecation warning as the only trace.
+
+        The remedy the warning gives -- a new stream per segment -- is not a
+        plugin's to take: the session owns the stream's lifetime. So the stream
+        is kept mid-segment instead. The flush sentinel still goes through, so
+        the clause is still spoken; what does not happen is the counter moving
+        on and the rest of the reply being thrown away.
+
+        `_num_segments` is left alone deliberately. It is also what the emitter
+        validates its segment count against, and resetting it trades a silent
+        cut for `number of segments mismatch`.
+        """
+        super().flush()
+        # Any non-empty value; `push_text` only tests it for emptiness.
+        if not self._mtc_text:
+            self._mtc_text = " "
+
     async def _run(self, output_emitter: tts.AudioEmitter) -> None:
         output_emitter.initialize(
             request_id=str(uuid.uuid4()),
@@ -428,11 +459,16 @@ class _ClauseStream(tts.SynthesizeStream):
 
         async for item in self._input_ch:
             if isinstance(item, self._FlushSentinel):
-                # End of a segment: whatever is left is a clause of its own,
-                # however short. Holding it back would drop the last words.
+                # Say what is buffered, and keep the segment open.
+                #
+                # A flush mid-reply means "the sentence you have is finished",
+                # not "the answer is over". Closing here opened a second
+                # segment for the rest of the same reply -- the arrangement the
+                # SDK deprecates -- and re-armed the cushion, so every sentence
+                # after the first paid the lead again. One reply is one
+                # segment, closed once, when the input actually ends.
                 await speak(buffer)
                 buffer = ""
-                close_segment()
                 continue
 
             buffer += item

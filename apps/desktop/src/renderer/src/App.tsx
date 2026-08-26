@@ -135,7 +135,7 @@ import {
   type PetScale,
   type PetSide
 } from '../../main/pet-window'
-import { $heard, $spoken } from './store/transcript'
+import { $heard, $spoken, subtitleTail } from './store/transcript'
 import { deviceStanding, deviceStory, deviceTone } from './room-devices'
 import { $voiceLink, startVoice, stopVoice } from './store/voice-session'
 
@@ -3087,7 +3087,7 @@ function Subtitles(): React.JSX.Element | null {
         <p className={`voice-line is-you${heard.final ? '' : ' is-live'}`} key={heard.id}>
           <span className="voice-who">YOU</span>
           <span className="voice-words">
-            <StreamingWords text={heard.text} live={!heard.final} />
+            <StreamingWords text={subtitleTail(heard.text)} live={!heard.final} />
           </span>
         </p>
       ) : null}
@@ -3095,7 +3095,7 @@ function Subtitles(): React.JSX.Element | null {
         <p className={`voice-line is-marvi${spoken.final ? '' : ' is-live'}`} key={spoken.id}>
           <span className="voice-who">MARVI</span>
           <span className="voice-words">
-            <StreamingWords text={spoken.text} live={!spoken.final} />
+            <StreamingWords text={subtitleTail(spoken.text)} live={!spoken.final} />
           </span>
         </p>
       ) : null}

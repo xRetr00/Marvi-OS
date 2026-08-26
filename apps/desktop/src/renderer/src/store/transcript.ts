@@ -61,3 +61,24 @@ export function clearTranscript(): void {
   $heard.set(null)
   $spoken.set(null)
 }
+
+/**
+ * How much of a line a subtitle shows.
+ *
+ * A glance, not a transcript — the component says so and the layout assumed
+ * it. Nothing enforced it, so a long answer wrapped line after line until it
+ * filled the window and covered the orb it was supposed to caption.
+ *
+ * The tail rather than the head: this is live text, and the words being said
+ * right now are the ones worth reading. Chat has the whole thing.
+ */
+export const SUBTITLE_CHARS = 180
+
+export function subtitleTail(text: string): string {
+  const compact = text.replace(/\s+/g, ' ').trim()
+  if (compact.length <= SUBTITLE_CHARS) return compact
+  const cut = compact.slice(-SUBTITLE_CHARS)
+  // Start at a word, so the line does not open mid-syllable.
+  const space = cut.indexOf(' ')
+  return `… ${space > 0 && space < 24 ? cut.slice(space + 1) : cut}`
+}
