@@ -1,6 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { $heard, $spoken, applyTranscript, clearTranscript } from './transcript'
+import {
+  $heard,
+  $spoken,
+  applyTranscript,
+  clearTranscript,
+  SUBTITLE_CHARS,
+  subtitleTail
+} from './transcript'
 
 /**
  * Subtitles are judged on one thing: do they read as the sentence being said,
@@ -70,5 +77,32 @@ describe('leaving the call', () => {
 
     expect($heard.get()).toBeNull()
     expect($spoken.get()).toBeNull()
+  })
+})
+
+describe('a subtitle is a glance, not a transcript', () => {
+  it('keeps a short line exactly as it is', () => {
+    expect(subtitleTail('Turning the light on.')).toBe('Turning the light on.')
+  })
+
+  it('shows the tail of a long one, not the head', () => {
+    // Live text: the words being said right now are the ones worth reading,
+    // and clamping from the top would show the opening of an answer that has
+    // long since moved on.
+    const long = `${'word '.repeat(200)}the final words here`
+    const shown = subtitleTail(long)
+
+    expect(shown).toContain('the final words here')
+    expect(shown.length).toBeLessThanOrEqual(SUBTITLE_CHARS + 4)
+  })
+
+  it('marks that something was cut', () => {
+    expect(subtitleTail('x '.repeat(400))).toMatch(/^…/)
+  })
+
+  it('collapses the newlines that filled the window', () => {
+    // A long answer wrapped line after line until it covered the orb it was
+    // meant to caption.
+    expect(subtitleTail('one\n\ntwo   three\n')).toBe('one two three')
   })
 })
