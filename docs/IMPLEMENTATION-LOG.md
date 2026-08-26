@@ -4,6 +4,20 @@ This is the chronological record of work that has actually happened. Planned
 work belongs in `docs/phases/`; architectural decisions belong in
 `docs/DECISIONS.md`.
 
+## 2026-08-26 — pinned end-to-end messaging companion
+
+- Created the isolated `codex/hermes-messaging` worktree at
+  `D:\Marvi-OS-hermes-messaging`.
+- Pinned the complete `D:\hermes-agent` source commit
+  `61977bb4d6b97ab2aece57d2405fa2f0b19e3ae0` as
+  `vendor/marvi-agent`, preserving every gateway, adapter, session, delivery,
+  attachment, command, approval, schedule, and tool implementation unchanged.
+- Added opt-in Electron lifecycle supervision, a separate private upstream
+  profile, interactive upstream setup, platform discovery, source/status UI,
+  and installer/update submodule materialization.
+- Added lifecycle and configuration tests. Final acceptance evidence and commit
+  are recorded in `phases/14-messaging-companion.md`.
+
 ## 2026-08-16 — repository foundation
 
 - Created the independent `D:\Marvi-OS` Git repository as `marvi-os`.

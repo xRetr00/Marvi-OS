@@ -231,12 +231,26 @@ pub fn reset_hard(dir: &Path, commit: &str) -> Result<(), GitError> {
     run(dir, &["reset", "--hard", commit]).map(|_| ())
 }
 
+/// Materialize every repository-owned upstream dependency at the commit the
+/// parent checkout records. Sync first so a changed URL is honoured on update.
+pub fn update_submodules(dir: &Path) -> Result<(), GitError> {
+    run(dir, &["submodule", "sync", "--recursive"])?;
+    run(dir, &["submodule", "update", "--init", "--recursive"]).map(|_| ())
+}
+
 /// Clone `url` into `dest`, checking out `refname` (tag or branch). Full clone
 /// so the resulting checkout can self-update over time.
 pub fn clone(url: &str, refname: &str, dest: &Path) -> Result<(), GitError> {
     run(
         dest.parent().unwrap_or(dest),
-        &["clone", "--branch", refname, url, dest.to_str().unwrap_or_default()],
+        &[
+            "clone",
+            "--recurse-submodules",
+            "--branch",
+            refname,
+            url,
+            dest.to_str().unwrap_or_default(),
+        ],
     )
     .map(|_| ())
 }
@@ -279,6 +293,56 @@ mod tests {
         let sha = current_commit(&repo).unwrap();
         assert_eq!(sha.len(), 40);
         assert!(sha.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn clone_materializes_pinned_submodules() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let child = tmp.path().join("child");
+        fs::create_dir(&child).unwrap();
+        run(&child, &["init", "-b", "main"]).unwrap();
+        run(&child, &["config", "user.email", "test@example.com"]).unwrap();
+        run(&child, &["config", "user.name", "Test"]).unwrap();
+        fs::write(child.join("engine.txt"), "pinned engine").unwrap();
+        run(&child, &["add", "engine.txt"]).unwrap();
+        run(&child, &["commit", "-m", "engine"]).unwrap();
+
+        let parent = tmp.path().join("parent");
+        fs::create_dir(&parent).unwrap();
+        run(&parent, &["init", "-b", "main"]).unwrap();
+        run(&parent, &["config", "user.email", "test@example.com"]).unwrap();
+        run(&parent, &["config", "user.name", "Test"]).unwrap();
+        run(
+            &parent,
+            &[
+                "-c",
+                "protocol.file.allow=always",
+                "submodule",
+                "add",
+                child.to_str().unwrap(),
+                "vendor/engine",
+            ],
+        )
+        .unwrap();
+        run(&parent, &["commit", "-m", "pin engine"]).unwrap();
+
+        // Git blocks local file transports by default. Permit it only for this
+        // hermetic fixture; production submodules use HTTPS.
+        let old_protocol = std::env::var_os("GIT_ALLOW_PROTOCOL");
+        std::env::set_var("GIT_ALLOW_PROTOCOL", "file");
+        let destination = tmp.path().join("clone");
+        let result = clone(parent.to_str().unwrap(), "main", &destination);
+        if let Some(value) = old_protocol {
+            std::env::set_var("GIT_ALLOW_PROTOCOL", value);
+        } else {
+            std::env::remove_var("GIT_ALLOW_PROTOCOL");
+        }
+        result.unwrap();
+
+        assert_eq!(
+            fs::read_to_string(destination.join("vendor/engine/engine.txt")).unwrap(),
+            "pinned engine"
+        );
     }
 }
 
