@@ -1,0 +1,123 @@
+"""MQTT contracts for OwnTracks and ESPresense v4 topics."""
+
+from __future__ import annotations
+
+from unittest.mock import MagicMock
+
+from plugins.smart_room.runtime.mqtt.client import MQTTClient
+
+
+def _client(owner_device_id: str = "irk:iphone") -> tuple[MQTTClient, MagicMock, MagicMock, MagicMock]:
+    presence = MagicMock()
+    geofence = MagicMock()
+    node_status = MagicMock()
+    client = MQTTClient(
+        {
+            "esp32": {
+                "room_id": "smart_room",
+                "owner_device_id": owner_device_id,
+                "rssi_enter_threshold": -70,
+                "rssi_exit_threshold": -85,
+                "enter_debounce_seconds": 0,
+            }
+        },
+        on_presence=presence,
+        on_geofence=geofence,
+        on_command=MagicMock(),
+        on_node_status=node_status,
+    )
+    return client, presence, geofence, node_status
+
+
+def test_espresense_v4_owner_topic_drives_presence_and_ignores_fingerprints():
+    client, presence, _, _ = _client()
+    client._handle_espresense(
+        "espresense/devices/irk:iphone/smart_room",
+        {"id": "irk:iphone", "rssi": -64.6, "distance": 1.1},
+    )
+    presence.assert_called_once_with(True, -65, "irk:iphone")
+
+    client._handle_espresense(
+        "espresense/devices/apple:1006:10-12/smart_room",
+        {"id": "apple:1006:10-12", "rssi": -55},
+    )
+    assert presence.call_count == 1
+
+
+def test_espresense_room_topics_update_health_not_presence():
+    client, presence, _, node_status = _client()
+    client._handle_espresense(
+        "espresense/rooms/smart_room/status", {"value": "online"}
+    )
+    client._handle_espresense(
+        "espresense/rooms/smart_room/telemetry", {"ip": "192.168.1.172"}
+    )
+    assert node_status.call_args_list[0].args == (True, None)
+    assert node_status.call_args_list[1].args == (True, "192.168.1.172")
+    presence.assert_not_called()
+
+
+def test_unenrolled_node_never_guesses_owner_from_generic_apple_id():
+    client, presence, _, _ = _client(owner_device_id="")
+    client._handle_espresense(
+        "espresense/devices/apple:1006:10-12/smart_room",
+        {"id": "apple:1006:10-12", "rssi": -50},
+    )
+    presence.assert_not_called()
+
+
+def test_owntracks_transition_normalizes_zone():
+    client, _, geofence, _ = _client()
+    client._handle_owntracks(
+        {"_type": "transition", "event": "enter", "desc": " Home "}
+    )
+    geofence.assert_called_once_with("enter", "home")
+
+
+def test_owntracks_location_initializes_current_region():
+    client, _, geofence, _ = _client()
+    client._handle_owntracks({"_type": "location", "inregions": [" Home "]})
+    geofence.assert_called_once_with("sync", "home")
+
+
+def test_every_owntracks_message_is_forwarded_for_history():
+    report = MagicMock()
+    client, _, _, _ = _client()
+    client._on_owntracks = report
+    payload = {"_type": "location", "lat": 41.1, "lon": 29.2, "tst": 1784358126}
+
+    client._handle_owntracks(payload, "owntracks/smart_room/iphone")
+
+    report.assert_called_once_with("owntracks/smart_room/iphone", payload)
+
+
+def test_network_worker_recreates_client_after_connect_failure(monkeypatch):
+    client, _, _, _ = _client()
+    first = MagicMock()
+    first.connect.side_effect = OSError("broker unavailable")
+    second = MagicMock()
+
+    def finish_loop(**_kwargs):
+        client._stop.set()
+
+    second.loop_forever.side_effect = finish_loop
+    monkeypatch.setattr(client, "_build_client", MagicMock(side_effect=[first, second]))
+    monkeypatch.setattr(client._stop, "wait", lambda _delay: False)
+
+    client._connect_loop()
+
+    assert client._build_client.call_count == 2
+    assert client.health()["reconnect_count"] == 1
+    first.disconnect.assert_called_once()
+
+
+def test_disconnect_health_is_observable_for_self_healing():
+    client, _, _, _ = _client()
+    client._connected = True
+
+    client._on_disconnect(MagicMock(), None, 7)
+
+    health = client.health()
+    assert health["connected"] is False
+    assert health["last_disconnected_at"] is not None
+    assert health["reconnect_count"] == 1

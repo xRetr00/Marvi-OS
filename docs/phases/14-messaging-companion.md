@@ -1,5 +1,8 @@
 # Phase 14 — Messaging companion
 
+> Historical implementation record. Phase 15 supersedes the submodule and
+> runtime-`uv` packaging described here with an ordinary vendored, offline bundle.
+
 Status: complete
 
 ## Outcome

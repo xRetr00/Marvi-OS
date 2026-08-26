@@ -82,6 +82,35 @@
       "essential": true
     },
     {
+      "name": "messaging-python",
+      "kind": "python",
+      "title": "Bundled messaging dependencies",
+      "why": "Messaging starts offline from Marvi's vendored runtime and cannot install packages on first launch.",
+      "needed_for": [
+        "messaging"
+      ],
+      "source": {
+        "type": "command"
+      },
+      "project": "vendor/marvi-agent",
+      "extra": {
+        "extras": [
+          "all",
+          "messaging",
+          "slack",
+          "matrix",
+          "wecom",
+          "dingtalk",
+          "feishu",
+          "homeassistant",
+          "sms",
+          "teams"
+        ],
+        "note": "Prepared by Marvi setup/update; the desktop launches .venv/Scripts/python.exe directly."
+      },
+      "essential": true
+    },
+    {
       "name": "pocket-tts",
       "kind": "command",
       "title": "PocketTTS announcer",

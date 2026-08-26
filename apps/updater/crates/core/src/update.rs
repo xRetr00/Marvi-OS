@@ -336,8 +336,7 @@ fn apply_target(root: &Path, channel: Channel, target_ref: &Option<String>) -> R
             let tag = target_ref.as_deref().ok_or("missing release tag")?;
             git::checkout(root, tag).map_err(|e| e.to_string())
         }
-    }?;
-    git::update_submodules(root).map_err(|e| e.to_string())
+    }
 }
 
 fn ensure_on_main(root: &Path) -> Result<(), String> {
@@ -425,7 +424,6 @@ fn restore_build_output(backups: &[Backup]) {
 /// Restore the previous commit and built runtime, then verify the restore.
 fn rollback(root: &Path, previous: &str, backups: &[Backup]) -> Result<(), String> {
     git::reset_hard(root, previous).map_err(|e| e.to_string())?;
-    git::update_submodules(root).map_err(|e| e.to_string())?;
     let now = git::current_commit(root).map_err(|e| e.to_string())?;
     if now != previous {
         return Err(format!(

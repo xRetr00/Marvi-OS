@@ -26,7 +26,7 @@ loudspeaker double-talk test plus the 60-minute duplex soak.
 Current implemented desktop surfaces:
 
 - tray-owned application lifetime and control-center window;
-- an opt-in, Electron-supervised Messaging gateway pinned to Marvi Agent commit
+- an opt-in, Electron-supervised bundled Messaging gateway derived from Marvi Agent commit
   `61977bb4d6b97ab2aece57d2405fa2f0b19e3ae0`. Its unchanged upstream setup,
   platform adapters, sessions, streaming delivery, attachments, commands,
   approvals, scheduled delivery, and toolsets are available from Settings →
@@ -137,7 +137,6 @@ Current implemented desktop surfaces:
 ## Developer start
 
 ```powershell
-git submodule update --init --recursive
 npm install
 npm run icons
 npm run dev
@@ -153,8 +152,9 @@ provider OAuth credentials remain in Composio and never enter Marvi OS.
 realtime trigger stream. See
 [`docs/VOICE-RUNTIME.md`](docs/VOICE-RUNTIME.md) for the native build and checks.
 
-Messaging is optional and makes no network connection by default. Open Settings
-→ Messaging → Open setup, configure the upstream platforms in the terminal,
+Messaging is optional and requires no source or dependency download at launch.
+Its source, CPython 3.11 runtime, and locked platform dependencies are packaged
+with Marvi OS. Open Settings → Messaging → Open setup, configure platforms in the terminal,
 then enable the supervised service. Its credentials and state live under
 `%LOCALAPPDATA%\Marvi-OS\messaging-agent` by default and never cross renderer
 IPC.

@@ -4031,7 +4031,7 @@ function MessagingPanel(): React.JSX.Element {
   if (!status) {
     return (
       <ControlPage description="Connect Marvi through messaging services." title="Messaging">
-        <ProcessingCard compact detail="Reading the pinned messaging engine." title="Loading" />
+        <ProcessingCard compact detail="Reading the bundled messaging runtime." title="Loading" />
       </ControlPage>
     )
   }
@@ -4039,7 +4039,7 @@ function MessagingPanel(): React.JSX.Element {
   return (
     <ControlPage
       className="settings-page"
-      description="Reach Marvi through the complete pinned Marvi Agent messaging gateway."
+      description="Reach Marvi through the complete bundled messaging runtime."
       title="Messaging"
     >
       {notice ? <p className="notice">{notice}</p> : null}
@@ -4047,7 +4047,7 @@ function MessagingPanel(): React.JSX.Element {
         <ControlRow
           action={
             <ControlPill tone={status.installed ? 'ready' : 'danger'}>
-              {status.installed ? 'PINNED' : 'MISSING'}
+              {status.installed ? 'BUNDLED' : 'MISSING'}
             </ControlPill>
           }
           description={`Source ${status.sourceCommit.slice(0, 12)} · ${status.platforms.length} platform adapters`}
@@ -4091,7 +4091,7 @@ function MessagingPanel(): React.JSX.Element {
               <ControlButton onClick={() => void load()}>Refresh</ControlButton>
             </div>
           }
-          description="The upstream setup owns platform OAuth, bot tokens, allowlists, and platform-specific options. Secrets never enter the renderer."
+          description="Marvi's messaging setup owns platform OAuth, bot tokens, allowlists, and platform-specific options. Secrets never enter the renderer."
           title="Interactive setup"
         />
         <ControlRow
@@ -4123,7 +4123,7 @@ function MessagingPanel(): React.JSX.Element {
       <ControlSection icon={Link2} title="Included surfaces">
         <p>{status.platforms.join(' · ') || 'No adapters discovered.'}</p>
         <p>
-          Messages run inside the pinned gateway with its session lifecycle, streaming delivery,
+          Messages run inside the bundled gateway with its session lifecycle, streaming delivery,
           attachments, slash commands, approvals, scheduled delivery, and complete toolsets.
         </p>
       </ControlSection>

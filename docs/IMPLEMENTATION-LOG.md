@@ -1,5 +1,16 @@
 # Implementation Log
 
+## 2026-08-26 — standalone vendored messaging runtime
+
+- Replaced the `vendor/marvi-agent` gitlink with 9,382 ordinary tracked files and
+  removed `.gitmodules` plus build/updater submodule materialization.
+- Added an exact-source packager that embeds standalone CPython 3.11 and 140
+  locked messaging/platform packages in the Electron application resources.
+- Replaced `uv run --project` at launch with direct bundled-Python module
+  execution and disabled runtime package/index access.
+- Built the unpacked Windows app and launched its packaged messaging CLI with
+  package downloads disabled.
+
 This is the chronological record of work that has actually happened. Planned
 work belongs in `docs/phases/`; architectural decisions belong in
 `docs/DECISIONS.md`.

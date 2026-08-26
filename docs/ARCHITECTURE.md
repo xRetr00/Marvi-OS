@@ -24,7 +24,7 @@ flowchart TB
     Room["D:\\smart-room-plugin"]
     Memory["Memory service"]
     Deep["Marvi Agent delegate"]
-    Messaging["Pinned Marvi Agent<br/>messaging gateway"]
+    Messaging["Bundled messaging<br/>runtime"]
     Channels["Telegram, Discord, Slack,<br/>and other messaging services"]
 
     UI <--> Main
@@ -158,8 +158,11 @@ changing cron records, execution, or the desktop contract.
 
 ## Optional messaging companion
 
-Messaging reuses the complete Marvi Agent repository as a pinned Git submodule
-at `vendor/marvi-agent`. Electron main supervises its gateway only after the
+Messaging vendors the complete pinned Marvi Agent source as ordinary files at
+`vendor/marvi-agent`; it is not a submodule or runtime checkout. Packaging copies
+that source to `resources/messaging/source` with a standalone CPython runtime and
+locked dependencies at `resources/messaging/python`. Electron main starts
+`python.exe -m hermes_cli.main gateway run` directly and supervises it only after the
 user completes upstream setup and explicitly enables it. The companion receives
 its own `HERMES_HOME`, process tree, logs, platform credentials, conversations,
 approval state, and toolsets. The renderer receives only lifecycle status and

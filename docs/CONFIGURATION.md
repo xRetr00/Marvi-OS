@@ -15,7 +15,7 @@ This document is the audit of that rule, and the map of where each thing lives.
 | `%LOCALAPPDATA%\Marvi OS\providers.env` | Provider keys, models, and proactivity settings | the control center |
 | `%LOCALAPPDATA%\Marvi OS\tokens.bin` | OAuth access and refresh tokens, DPAPI-encrypted | the OAuth flow |
 | `%LOCALAPPDATA%\Marvi-OS\messaging.json` | optional companion lifecycle and profile path (never credentials) | Settings → Messaging |
-| `%LOCALAPPDATA%\Marvi-OS\messaging-agent` | pinned messaging config, credentials, sessions, and logs | upstream interactive setup |
+| `%LOCALAPPDATA%\Marvi-OS\messaging-agent` | bundled messaging config, credentials, sessions, and logs | Marvi messaging setup |
 
 Real environment variables **override all three**. Launching with
 `OPENAI_API_KEY=...` in the shell is never silently replaced by a stale saved
@@ -79,7 +79,7 @@ quietly ignored.
 | `LIVEKIT_URL` | `ws://127.0.0.1:7880` | room server |
 | `MARVI_UV_PATH` | searched | `uv` binary, when it is not on PATH |
 | `MARVI_MANAGE_VOICE_STACK` | on | set `0` to run the services yourself |
-| `MARVI_MESSAGING_HOME` | `%LOCALAPPDATA%\Marvi-OS\messaging-agent` | private profile used by the optional pinned messaging gateway |
+| `MARVI_MESSAGING_HOME` | `%LOCALAPPDATA%\Marvi-OS\messaging-agent` | private profile used by the optional bundled messaging gateway |
 
 ### Storage
 

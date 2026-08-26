@@ -1,0 +1,31 @@
+name: smart_room
+version: 0.7.0
+description: "Smart room engine for Marvi — sensor/vision fusion, reviewed face identity, gesture controls, restricted LLM cognition, Tuya automation, and world-awareness context."
+author: xRetro Labs
+kind: backend
+platforms:
+  - windows
+pip_dependencies:
+  - tinytuya==1.20.0
+  - paho-mqtt==2.1.0
+  - PyYAML==6.0.3
+  - ai-edge-litert==2.1.6
+  - sounddevice==0.5.5
+  - opencv-contrib-python==5.0.0.93
+  - mediapipe==1.0.0
+  - insightface==1.0.1
+provides_tools:
+  - smart_room_state
+  - smart_room_set_mode
+  - smart_room_set_light
+  - smart_room_cancel_sleep
+  - smart_room_override
+  - smart_room_health
+  - smart_room_diagnostic
+  - smart_room_alarm
+  - smart_room_observe
+  - smart_room_vision_history
+  - smart_room_faces
+hooks:
+  - on_gateway_start
+  - on_gateway_stop

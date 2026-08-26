@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 
 import type { MessagingPreferences, MessagingStatus } from '../shared/runtime'
 import { stateDir } from './config'
@@ -11,8 +11,27 @@ function preferencesPath(): string {
   return join(stateDir(), 'messaging.json')
 }
 
-export function messagingSourceRoot(repoRoot: string | null): string {
+export function messagingSourceRoot(repoRoot: string | null, resourcesRoot?: string): string {
+  const packaged = resourcesRoot ? join(resourcesRoot, 'messaging', 'source') : ''
+  if (packaged && existsSync(join(packaged, 'gateway', 'run.py'))) return packaged
   return repoRoot ? join(repoRoot, 'vendor', 'marvi-agent') : ''
+}
+
+/** The messaging process never runs through uv. Installation/build creates
+ * this interpreter and all locked dependencies before the desktop can start. */
+export function messagingPython(sourceRoot: string): string {
+  const packaged = join(dirname(sourceRoot), 'python', 'python.exe')
+  const checkout = join(sourceRoot, '.venv', 'Scripts', 'python.exe')
+  return [packaged, checkout].find((candidate) => existsSync(candidate)) ?? ''
+}
+
+export function messagingLaunch(sourceRoot: string): {
+  command: string
+  args: string[]
+  cwd: string
+} | null {
+  const command = messagingPython(sourceRoot)
+  return command ? { command, args: ['-m', 'hermes_cli.main'], cwd: sourceRoot } : null
 }
 
 export function defaultMessagingHome(): string {
@@ -58,11 +77,13 @@ export function messagingPlatforms(sourceRoot: string): string[] {
   }
 }
 
-export function messagingStatus(repoRoot: string | null): MessagingStatus {
+export function messagingStatus(repoRoot: string | null, resourcesRoot?: string): MessagingStatus {
   const preferences = readMessagingPreferences()
-  const sourceRoot = messagingSourceRoot(repoRoot)
+  const sourceRoot = messagingSourceRoot(repoRoot, resourcesRoot)
+  const launch = sourceRoot ? messagingLaunch(sourceRoot) : null
   const installed = Boolean(
     sourceRoot &&
+      launch &&
       existsSync(join(sourceRoot, 'pyproject.toml')) &&
       existsSync(join(sourceRoot, 'gateway', 'run.py'))
   )
@@ -73,9 +94,9 @@ export function messagingStatus(repoRoot: string | null): MessagingStatus {
     sourceCommit: MESSAGING_SOURCE_COMMIT,
     platforms: installed ? messagingPlatforms(sourceRoot) : [],
     configured: existsSync(join(preferences.home, 'config.yaml')),
-    setupCommand: sourceRoot
-      ? `uv run --project "${sourceRoot}" hermes setup`
-      : 'Messaging source is not installed'
+    setupCommand: launch
+      ? `"${launch.command}" -m hermes_cli.main setup`
+      : 'Bundled messaging runtime is not installed'
   }
 }
 
@@ -89,27 +110,38 @@ export function messagingEnvironment(home: string, parentPid: number): Record<st
     MARVI_PARENT_PID: String(parentPid),
     // The upstream gateway has its own restart machinery. Electron is the
     // owner here, so it must exit back to our supervisor instead.
-    HERMES_GATEWAY_EXTERNAL_SUPERVISOR: '1'
+    HERMES_GATEWAY_EXTERNAL_SUPERVISOR: '1',
+    UV_OFFLINE: '1',
+    UV_PYTHON_DOWNLOADS: 'never',
+    PIP_NO_INDEX: '1',
+    PYTHONDONTWRITEBYTECODE: '1',
+    PYTHONNOUSERSITE: '1',
+    HERMES_MANAGED: 'marvi-os'
   }
 }
 
 /** Open the upstream interactive setup unchanged. Credentials are entered in
  * that process and written to its private home; they never cross renderer IPC. */
 export function launchMessagingSetup(
-  uv: string,
   repoRoot: string | null,
+  resourcesRoot: string | undefined,
   parentPid: number
 ): boolean {
-  const status = messagingStatus(repoRoot)
-  if (!status.installed) return false
+  const status = messagingStatus(repoRoot, resourcesRoot)
+  const launch = messagingLaunch(status.sourceRoot)
+  if (!status.installed || !launch) return false
   mkdirSync(status.home, { recursive: true })
   try {
-    const child = spawn(uv, ['run', '--project', status.sourceRoot, 'hermes', 'setup'], {
-      cwd: status.sourceRoot,
+    const environment = messagingEnvironment(status.home, parentPid)
+    // Setup writes the user's profile, so omit the package-manager write lock.
+    // Offline flags remain: setup cannot install or update code.
+    delete environment['HERMES_MANAGED']
+    const child = spawn(launch.command, [...launch.args, 'setup'], {
+      cwd: launch.cwd,
       detached: true,
       stdio: 'inherit',
       windowsHide: false,
-      env: { ...process.env, ...messagingEnvironment(status.home, parentPid) }
+      env: { ...process.env, ...environment }
     })
     child.unref()
     return true
