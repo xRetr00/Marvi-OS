@@ -65,6 +65,11 @@ Current implemented desktop surfaces:
 - a structured tool router with exact-argument, single-use confirmation tokens
   that reject replay and argument mutation, plus an append-only local audit that
   records YOLO executions identically to confirmed ones;
+- Gateway-owned cron jobs adapted from Hermes Agent, with durable one-shot,
+  interval, and cron schedules; per-job provider/model/reasoning and tool
+  controls; bounded agent execution through the existing audited tool router;
+  repeat limits, run history, local output, and a transport-neutral seam ready
+  for future messaging delivery;
 - spoken and Island approval resolving the same token, and a Smart Room sidecar
   connection that degrades to stale reads without disturbing conversation;
 - filtered room event history plus Island micro-events that expand the seed

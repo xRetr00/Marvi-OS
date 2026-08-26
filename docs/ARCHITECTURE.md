@@ -71,6 +71,7 @@ Marvi Gateway is the only backend address known to the renderer. It owns:
 - session identity and reconnect state;
 - confirmation tokens and YOLO mode state;
 - structured tool and audit events;
+- durable user cron jobs, isolated run history, and their provider/model/tool policy;
 - Smart Room event subscription;
 - Composio connection status;
 - memory access;
@@ -127,6 +128,29 @@ tools through the existing bridge boundary.
 
 It does not implement RTC, STT, TTS, home automation, OAuth providers, or model
 inference itself.
+
+### User cron jobs
+
+User schedules are separate from ARC's fixed internal ticks. Their durable
+SQLite records belong to Marvi Gateway; APScheduler is only the replaceable
+clock rebuilt from those records. Jobs accept one-shot durations/timestamps,
+recurring intervals, and five-field cron expressions. A fixed action job can
+write a reminder or invoke an existing ARC operation. An agent job runs a
+self-contained prompt through ProviderClient with optional per-job provider,
+model, reasoning effort, and an exact ToolRegistry allowlist. It has no Chat
+transcript and no private action path.
+
+Every attempt is recorded before execution and finished with route, model,
+tokens, tools, bounded output, error, and delivery outcome. Scheduled tool
+calls use the same audit and Confirm/YOLO boundary as Chat and Voice; a tool
+that needs live confirmation fails the unattended run visibly instead of
+bypassing policy. Creation and other standing-instruction mutations are
+sensitive model tools themselves.
+
+Delivery is a Gateway protocol boundary rather than platform logic in the
+scheduler. The installed adapter exposes only `local` (save output). A future
+messaging subsystem registers destinations and implements delivery without
+changing cron records, execution, or the desktop contract.
 
 ## Always-on lifecycle
 

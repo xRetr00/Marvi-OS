@@ -1173,3 +1173,27 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   Playwright checks covered Room and Vision at 1180×760 and 760×700,
   preview and face-review fixture states, the Settings overlay, offline control
   lockout, and a clean unmodified browser console.
+
+## 2026-08-26 — Hermes-compatible Gateway cron jobs
+
+- Replaced the reminder-only schedule seam with the reusable Hermes cron
+  contract adapted to Marvi Gateway ownership: one-shot, interval, and cron
+  schedules; durable executions; repeat limits; per-job provider/model/effort;
+  exact tool allowlists; and bounded retained output.
+- Added an isolated agent runner over the existing ProviderClient and audited
+  ToolRegistry dispatch. Scheduled tools retain Confirm/YOLO behavior and have
+  no private execution path.
+- Added a conditionally sensitive `cronjob` management tool while retaining the
+  original reminder aliases, expanded REST contracts, and moved run-now work
+  off the Gateway event loop.
+- Added the transport-neutral delivery adapter boundary. Only local retention
+  is currently advertised, leaving messaging integration explicit rather than
+  hardcoding platforms into the scheduler.
+- Expanded the desktop Schedules surface with agent task, model, reasoning,
+  tool, delivery, route, and output controls while preserving the control-center
+  visual contract.
+- Recorded the exact Hermes commit, MIT provenance, modification boundary, and
+  update method in `docs/UPSTREAM.md`.
+- Verified all 934 Gateway tests, all 252 desktop tests, Gateway Ruff, desktop
+  ESLint with zero errors (existing line-ending warnings remain), both desktop
+  TypeScript targets, the production Electron/Vite build, and `git diff --check`.

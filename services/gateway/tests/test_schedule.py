@@ -14,9 +14,11 @@ import pytest
 from marvi_gateway.policy import InitiativeSettings, WorldState, evaluate
 from marvi_gateway.schedule import (
     MINIMUM_INTERVAL_MINUTES,
+    CronAgentExecutor,
     ScheduleError,
     Scheduler,
     ScheduleStore,
+    parse_when,
     register_schedule_tools,
 )
 
@@ -266,3 +268,133 @@ def test_setting_a_schedule_requires_confirmation(store) -> None:
     assert registry.get("schedule_add").sensitive is True
     assert registry.get("schedule_remove").sensitive is True
     assert registry.get("schedule_list").sensitive is False
+
+
+# -- full cron jobs -----------------------------------------------------------
+
+
+def test_hermes_schedule_forms_are_supported() -> None:
+    now = datetime(2026, 8, 26, 12, 0, tzinfo=UTC)
+
+    assert parse_when("30m", now)[0] == "once"
+    assert parse_when("every 2h", now)[:2] == ("interval", "120")
+    assert parse_when("0 9 * * 1-5", now)[:2] == ("cron", "0 9 * * 1-5")
+    assert parse_when("2026-08-27T09:00:00+00:00", now)[0] == "once"
+
+
+def test_agent_controls_and_run_history_survive_restart(tmp_path) -> None:
+    path = tmp_path / "schedules.sqlite3"
+    first = ScheduleStore(path)
+    made = first.add(
+        name="briefing",
+        when="every 2h",
+        mode="agent",
+        prompt="Summarise the newest account events.",
+        provider="openrouter",
+        model="small-model",
+        effort="low",
+        tool_names=["memory_recall", "web_search"],
+        delivery="local",
+        repeat_count=3,
+    )
+    first.execution_finish(
+        first.execution_start(made.id, "test"),
+        success=True,
+        result={
+            "output": "Nothing urgent.",
+            "provider": "openrouter",
+            "model": "small-model",
+            "tokens": 17,
+            "tools_used": ["memory_recall"],
+            "delivery_status": "saved_local",
+        },
+    )
+    first.close()
+
+    second = ScheduleStore(path)
+    try:
+        found = second.get(made.id)
+        assert found.mode == "agent"
+        assert found.provider == "openrouter"
+        assert found.model == "small-model"
+        assert found.effort == "low"
+        assert found.tool_names == ("memory_recall", "web_search")
+        assert found.repeat_count == 3
+        assert found.completed_runs == 1
+        assert found.last_output == "Nothing urgent."
+        assert second.executions(made.id)[0]["tools_used"] == ["memory_recall"]
+    finally:
+        second.close()
+
+
+def test_agent_executor_honours_model_and_tool_allowlist(tmp_path) -> None:
+    from marvi_gateway.providers.base import Usage
+    from marvi_gateway.providers.client import Completion
+
+    class Client:
+        def __init__(self) -> None:
+            self.calls = []
+
+        def call_with_fallback(self, messages, **kwargs):
+            self.calls.append((messages, kwargs))
+            return Completion(
+                text="Done.", usage=Usage(input=4, output=2), provider="chosen",
+                model="pinned", tool_calls=[],
+            )
+
+    client = Client()
+    executor = CronAgentExecutor(
+        client,
+        lambda: [
+            {"name": "web_search", "parameters": {}},
+            {"name": "terminal_run", "parameters": {}},
+        ],
+        lambda _name, _arguments: {"status": "executed", "result": {}},
+    )
+    job = ScheduleStore(tmp_path / "agent.sqlite3")
+    try:
+        made = job.add(
+            name="search", when="30m", mode="agent", prompt="Find the release notes",
+            provider="openrouter", model="pinned", effort="high",
+            tool_names=["web_search"],
+        )
+        result = executor(made)
+    finally:
+        job.close()
+
+    assert result["output"] == "Done."
+    assert client.calls[0][1]["preferred"] == "openrouter"
+    assert client.calls[0][1]["model"] == "pinned"
+    assert client.calls[0][1]["effort"] == "high"
+    assert [tool["name"] for tool in client.calls[0][1]["tools"]] == ["web_search"]
+
+
+def test_unconnected_messaging_target_fails_visibly(store) -> None:
+    made = store.add("future DM", "remind", "interval", "60", delivery="telegram:me")
+    scheduler = Scheduler(store, journal=object())
+    # Use an agent job so the journal stub is irrelevant and delivery is the
+    # only failure under test.
+    store.update(made.id, {"mode": "agent", "prompt": "say hello"})
+    scheduler.executor = lambda _job: {"output": "hello"}
+
+    outcome = scheduler.fire(made.id)
+
+    assert outcome["ok"] is False
+    assert "messaging adapter" in (store.get(made.id).last_error or "")
+
+
+def test_cronjob_tool_exposes_management_and_is_conditionally_sensitive(store) -> None:
+    from marvi_gateway.tools import ToolRegistry
+
+    registry = ToolRegistry()
+    register_schedule_tools(registry, Scheduler(store))
+    spec = registry.get("cronjob")
+
+    assert spec.is_sensitive({"action": "list"}) is False
+    assert spec.is_sensitive({"action": "create"}) is True
+    made = spec.handler(
+        action="create", name="digest", when="every 1h", prompt="Write a digest",
+        provider="openrouter", model="small", tool_names=["web_search"],
+    )
+    assert made["mode"] == "agent"
+    assert spec.handler(action="runs", id=made["id"]) == {"executions": []}

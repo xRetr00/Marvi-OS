@@ -304,6 +304,15 @@ one question without crowding the top-level rail. Window, backdrop, Island, and
 desktop-companion presentation live under **Appearance**; runtime, approval
 mode, and device health remain under **Preferences**.
 
+Schedules is the control surface for Gateway cron jobs. Its compact form
+switches between fixed reminder/ARC actions and agent tasks. Agent tasks expose
+the self-contained brief, provider, model, reasoning effort, exact tool
+allowlist, and delivery destination; empty inference fields mean Auto and an
+empty tool selection means the current full catalogue. Rows show the schedule,
+execution mode, route, tools, delivery, latest bounded output/error, and
+run/pause/remove actions. Messaging platforms appear only when a delivery
+adapter reports them available; the default is visibly `Local (save only)`.
+
 Async page work uses the shared Processing Card. It shows a real percentage
 only when the underlying operation reports one; otherwise the scan and moving
 bar are explicitly indeterminate. The visual is adapted from the supplied

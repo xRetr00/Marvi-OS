@@ -1517,7 +1517,9 @@ nav {
 }
 
 .schedule-form input[type='text'],
-.schedule-form input:not([type]) {
+.schedule-form input:not([type]),
+.schedule-form select,
+.schedule-form textarea {
   padding: 9px 11px;
   border: 1px solid var(--ui-stroke-secondary);
   background: var(--ui-bg);
@@ -1526,9 +1528,61 @@ nav {
   font-size: 12px;
 }
 
-.schedule-form input:focus {
+.schedule-form textarea {
+  min-height: 78px;
+  resize: vertical;
+}
+
+.schedule-form input:focus,
+.schedule-form select:focus,
+.schedule-form textarea:focus {
   border-color: var(--ui-accent);
   outline: none;
+}
+
+.schedule-tools {
+  padding: 10px 12px;
+  border: 1px solid var(--ui-stroke-secondary);
+}
+
+.schedule-tools legend {
+  padding: 0 5px;
+  color: var(--ui-text-secondary);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+}
+
+.schedule-tools > small {
+  color: var(--ui-text-tertiary);
+}
+
+.schedule-tools > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 14px;
+  margin-top: 9px;
+}
+
+.schedule-tools label {
+  display: flex;
+  grid-template-columns: none;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.schedule-tools label > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.schedule-output {
+  max-height: 6.5em;
+  overflow: auto;
+  padding-left: 10px;
+  border-left: 1px solid var(--ui-accent);
+  white-space: pre-wrap;
 }
 
 /* The opt-in reads as a sentence, so its consequence is next to the tickbox

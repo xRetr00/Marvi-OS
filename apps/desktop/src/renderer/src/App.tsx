@@ -3138,6 +3138,13 @@ function SchedulesPanel(): React.JSX.Element {
   const [when, setWhen] = useState('')
   const [message, setMessage] = useState('')
   const [insist, setInsist] = useState(false)
+  const [mode, setMode] = useState<'action' | 'agent'>('action')
+  const [prompt, setPrompt] = useState('')
+  const [provider, setProvider] = useState('')
+  const [model, setModel] = useState('')
+  const [effort, setEffort] = useState('')
+  const [toolNames, setToolNames] = useState<string[]>([])
+  const [delivery, setDelivery] = useState('local')
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -3153,7 +3160,19 @@ function SchedulesPanel(): React.JSX.Element {
 
   const add = async (): Promise<void> => {
     setError('')
-    const next = await window.marvi?.addSchedule({ name, when, message, insist })
+    const next = await window.marvi?.addSchedule({
+      name,
+      when,
+      message,
+      insist,
+      mode,
+      prompt,
+      provider,
+      model,
+      effort,
+      tool_names: toolNames,
+      delivery
+    })
     if (!next) {
       setError('Marvi would not accept that. Check the time.')
       return
@@ -3163,6 +3182,11 @@ function SchedulesPanel(): React.JSX.Element {
     setWhen('')
     setMessage('')
     setInsist(false)
+    setPrompt('')
+    setProvider('')
+    setModel('')
+    setEffort('')
+    setToolNames([])
   }
 
   const act = async (
@@ -3203,6 +3227,80 @@ function SchedulesPanel(): React.JSX.Element {
               onChange={(event) => setMessage(event.target.value)}
             />
           </label>
+          <label>
+            <span>Job type</span>
+            <select value={mode} onChange={(event) => setMode(event.target.value as 'action' | 'agent')}>
+              <option value="action">Reminder / ARC action</option>
+              <option value="agent">Agent task with tools</option>
+            </select>
+          </label>
+          {mode === 'agent' ? (
+            <>
+              <label className="schedule-wide">
+                <span>Task</span>
+                <textarea
+                  value={prompt}
+                  placeholder="A self-contained instruction to run on this schedule"
+                  rows={4}
+                  onChange={(event) => setPrompt(event.target.value)}
+                />
+              </label>
+              <label>
+                <span>Provider</span>
+                <input
+                  value={provider}
+                  placeholder="Auto"
+                  onChange={(event) => setProvider(event.target.value)}
+                />
+              </label>
+              <label>
+                <span>Model</span>
+                <input
+                  value={model}
+                  placeholder="Auto auxiliary model"
+                  onChange={(event) => setModel(event.target.value)}
+                />
+              </label>
+              <label>
+                <span>Reasoning</span>
+                <select value={effort} onChange={(event) => setEffort(event.target.value)}>
+                  {(page?.efforts ?? ['', 'low', 'medium', 'high']).map((item) => (
+                    <option key={item || 'auto'} value={item}>{item || 'Auto'}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Delivery</span>
+                <select value={delivery} onChange={(event) => setDelivery(event.target.value)}>
+                  {(page?.delivery_targets ?? [{ id: 'local', name: 'Local (save only)', available: true }]).map((target) => (
+                    <option key={target.id} value={target.id} disabled={!target.available}>
+                      {target.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <fieldset className="schedule-tools schedule-wide">
+                <legend>Tools</legend>
+                <small>No selection gives the job the current full catalogue.</small>
+                <div>
+                  {(page?.tools ?? []).map((tool) => (
+                    <label key={tool}>
+                      <input
+                        type="checkbox"
+                        checked={toolNames.includes(tool)}
+                        onChange={(event) => setToolNames((current) =>
+                          event.target.checked
+                            ? [...current, tool]
+                            : current.filter((item) => item !== tool)
+                        )}
+                      />
+                      <span>{tool}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            </>
+          ) : null}
           <label className="schedule-insist">
             <input
               type="checkbox"
@@ -3219,7 +3317,7 @@ function SchedulesPanel(): React.JSX.Element {
           <button
             className="phase"
             type="button"
-            disabled={!name || !when}
+            disabled={!name || !when || (mode === 'agent' && !prompt.trim())}
             onClick={() => void add()}
           >
             Add schedule
@@ -3249,14 +3347,23 @@ function SchedulesPanel(): React.JSX.Element {
               </span>
               <small>
                 {row.kind === 'interval' ? `every ${row.expression} minutes` : row.expression} /{' '}
-                {row.action}
+                {row.mode === 'agent' ? 'agent task' : row.action}
               </small>
+              {row.mode === 'agent' ? (
+                <small>
+                  {row.provider || 'auto provider'} / {row.model || 'auto model'} / {row.effort || 'auto reasoning'}
+                  {' · '}{row.tool_names.length ? `${row.tool_names.length} tools` : 'all tools'}
+                  {' · '}{row.delivery}
+                </small>
+              ) : null}
+              {row.prompt ? <small>{row.prompt}</small> : null}
               {row.message ? <small>{row.message}</small> : null}
               {row.last_error ? (
                 <small className="provider-cooldown">{row.last_error}</small>
               ) : row.last_run ? (
                 <small>last run {row.last_run}</small>
               ) : null}
+              {row.last_output ? <small className="schedule-output">{row.last_output}</small> : null}
               <div className="provider-actions">
                 <button className="phase" type="button" onClick={() => void act(row.id, 'run')}>
                   Run now

@@ -174,6 +174,7 @@ class ScheduleStore:
         self._db = sqlite3.connect(str(self.path), timeout=5, check_same_thread=False)
         self._db.row_factory = sqlite3.Row
         self._db.execute("PRAGMA busy_timeout=5000")
+        self._db.execute("PRAGMA foreign_keys=ON")
         self._db.execute("PRAGMA journal_mode=WAL")
         self._db.executescript(
             """
@@ -480,7 +481,8 @@ class Scheduler:
         self.executor, self.delivery = executor, delivery or LocalDelivery()
         self.available_tools: Callable[[], list[str]] = lambda: []
         self._scheduler: Any = None
-        self._fire_lock = threading.Lock()
+        self._claim_lock = threading.Lock()
+        self._running: set[int] = set()
 
     def fire(self, schedule_id: int, source: str = "manual") -> dict[str, Any]:
         try:
@@ -489,8 +491,10 @@ class Scheduler:
             return {"ok": False, "detail": str(exc)}
         if not job.enabled:
             return {"ok": True, "detail": "disabled", "skipped": True}
-        if not self._fire_lock.acquire(blocking=False):
-            return {"ok": True, "detail": "another cron job is running", "skipped": True}
+        with self._claim_lock:
+            if schedule_id in self._running:
+                return {"ok": True, "detail": "this cron job is already running", "skipped": True}
+            self._running.add(schedule_id)
         execution_id = self.store.execution_start(schedule_id, source)
         result: dict[str, Any] = {}
         try:
@@ -531,7 +535,8 @@ class Scheduler:
             log.warning("cron job %s failed: %s", job.name, exc)
             return {"ok": False, "detail": str(exc)[:200], "execution_id": execution_id}
         finally:
-            self._fire_lock.release()
+            with self._claim_lock:
+                self._running.discard(schedule_id)
 
     def start(self) -> int:
         if self._scheduler is not None:
@@ -592,12 +597,13 @@ def register_schedule_tools(registry: Any, scheduler: Scheduler) -> None:
     from .tools import ToolSpec
 
     def cronjob(
-        action: str, id: int = 0, name: str = "", when: str = "", prompt: str = "",
+        action: str, id: int = 0,  # noqa: A002 - model-facing API field
+        name: str = "", when: str = "", prompt: str = "",
         scheduled_action: str = "remind", message: str = "", provider: str = "",
         model: str = "", effort: str = "", tool_names: list[str] | None = None,
         delivery: str = "local", insist: bool = False, repeat_count: int = 0,
         updates: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:  # noqa: A002
+    ) -> dict[str, Any]:
         verb = action.strip().lower()
         if verb == "create":
             made = scheduler.store.add(
@@ -637,6 +643,33 @@ def register_schedule_tools(registry: Any, scheduler: Scheduler) -> None:
                   "scheduled_action": str, "message": str, "provider": str, "model": str,
                   "effort": str, "tool_names": list, "delivery": str, "insist": bool,
                   "repeat_count": int, "updates": dict},
+        schema={
+            "type": "object",
+            "properties": {
+                "action": {"type": "string", "enum": [
+                    "create", "list", "get", "runs", "update", "pause", "resume", "run", "remove"
+                ]},
+                "id": {"type": "integer", "description": "Job id returned by list."},
+                "name": {"type": "string"},
+                "when": {"type": "string", "description": (
+                    "30m, every 2h, an ISO timestamp, local HH:MM, or five-field cron expression."
+                )},
+                "prompt": {"type": "string", "description": "Self-contained agent task."},
+                "scheduled_action": {"type": "string", "enum": sorted(ACTIONS)},
+                "message": {"type": "string"},
+                "provider": {"type": "string"},
+                "model": {"type": "string"},
+                "effort": {"type": "string", "enum": list(EFFORTS)},
+                "tool_names": {"type": "array", "items": {"type": "string"}},
+                "delivery": {"type": "string", "description": (
+                    "Delivery adapter target id; local saves output without messaging."
+                )},
+                "insist": {"type": "boolean"},
+                "repeat_count": {"type": "integer", "minimum": 1},
+                "updates": {"type": "object"},
+            },
+            "required": ["action"],
+        },
         sensitive=False,
         sensitive_when=lambda args: str(args.get("action", "")).lower()
         in {"create", "update", "pause", "resume", "run", "remove"},
