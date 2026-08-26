@@ -404,8 +404,23 @@ class ScheduleRow(BaseModel):
     enabled: bool
     created_at: str
     insist: bool
+    mode: Literal["action", "agent"] = "action"
+    prompt: str = ""
+    provider: str = ""
+    model: str = ""
+    effort: str = ""
+    tool_names: list[str] = Field(default_factory=list)
+    delivery: str = "local"
+    repeat_count: int | None = None
+    completed_runs: int = 0
+    next_run: str | None = None
     last_run: str | None = None
     last_error: str | None = None
+    last_output: str | None = None
+    last_provider: str | None = None
+    last_model: str | None = None
+    last_tokens: int = 0
+    last_delivery: str | None = None
 
 
 class SchedulePage(BaseModel):
@@ -413,6 +428,9 @@ class SchedulePage(BaseModel):
     #: What a schedule may trigger, so the page can offer exactly those.
     actions: dict[str, str]
     running: bool
+    tools: list[str] = Field(default_factory=list)
+    delivery_targets: list[dict[str, Any]] = Field(default_factory=list)
+    efforts: list[str] = Field(default_factory=list)
 
 
 class NewSchedule(BaseModel):
@@ -421,6 +439,18 @@ class NewSchedule(BaseModel):
     message: str = ""
     action: str = "remind"
     insist: bool = False
+    mode: Literal["action", "agent"] = "action"
+    prompt: str = ""
+    provider: str = ""
+    model: str = ""
+    effort: str = ""
+    tool_names: list[str] = Field(default_factory=list)
+    delivery: str = "local"
+    repeat_count: int | None = None
+
+
+class ScheduleUpdate(BaseModel):
+    updates: dict[str, Any]
 
 
 class PluginRow(BaseModel):
@@ -641,6 +671,10 @@ def create_app(
         # collects; nothing is started until the lifespan opens.
         scheduler = schedule_module.Scheduler(schedule_module.ScheduleStore())
         schedule_module.register_schedule_tools(tool_registry, scheduler)
+        # Read lazily so tools registered later in startup are available to a
+        # cron job without rebuilding the scheduler or maintaining a second
+        # catalogue.
+        scheduler.available_tools = lambda: [spec.name for spec in tool_registry]
         # Reading her own logs, and reading a skill she was told exists.
         selfaware.register_self_tools(tool_registry)
         selfaware.register_skill_tools(tool_registry)
@@ -1133,6 +1167,14 @@ def create_app(
     if chat is not None:
         chat.dispatch = dispatch_for_chat
         chat.tool_schemas = lambda: schemas_from_registry(tool_registry)
+    if scheduler is not None:
+        # Cron gets an isolated, transcript-free agent loop, but it calls the
+        # exact provider and audited tool paths used by Chat and Voice.
+        scheduler.executor = schedule_module.CronAgentExecutor(
+            provider_client,
+            lambda: schemas_from_registry(tool_registry),
+            dispatch_for_chat,
+        )
 
     @app.get("/chat", response_model=ChatHistory)
     async def chat_history(thread_id: str = "default") -> ChatHistory:
@@ -1432,6 +1474,9 @@ def create_app(
             schedules=[ScheduleRow(**row) for row in state["schedules"]],
             actions=state["actions"],
             running=bool(state["running"]),
+            tools=state["tools"],
+            delivery_targets=state["delivery_targets"],
+            efforts=state["efforts"],
         )
 
     class LlmTurn(BaseModel):
@@ -1600,20 +1645,21 @@ def create_app(
     async def add_schedule(body: NewSchedule) -> SchedulePage:
         if scheduler is None:
             raise HTTPException(status_code=503, detail="the scheduler is not running")
-        kind, expression = "cron", body.when.strip()
-        if expression.isdigit():
-            kind = "interval"
-        elif ":" in expression and len(expression.split(":")) == 2:
-            hour, _, minute = expression.partition(":")
-            try:
-                expression = f"{int(minute)} {int(hour)} * * *"
-            except ValueError as exc:
-                raise HTTPException(
-                    status_code=400, detail=f"{body.when!r} is not a time Marvi understands"
-                ) from exc
         try:
             scheduler.store.add(
-                body.name, body.action, kind, expression, body.message, insist=body.insist
+                name=body.name,
+                when=body.when,
+                action=body.action,
+                message=body.message,
+                insist=body.insist,
+                mode=body.mode,
+                prompt=body.prompt,
+                provider=body.provider,
+                model=body.model,
+                effort=body.effort,
+                tool_names=body.tool_names,
+                delivery=body.delivery,
+                repeat_count=body.repeat_count,
             )
         except schedule_module.ScheduleError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -1632,7 +1678,9 @@ def create_app(
             elif action in ("enable", "disable"):
                 scheduler.store.set_enabled(schedule_id, action == "enable")
             elif action == "run":
-                scheduler.fire(schedule_id)
+                await anyio.to_thread.run_sync(
+                    lambda: scheduler.fire(schedule_id, source="dashboard")
+                )
             else:
                 raise HTTPException(status_code=400, detail=f"unknown action {action}")
         except schedule_module.ScheduleError as exc:
@@ -1641,6 +1689,36 @@ def create_app(
             scheduler.reload()
         runtime_store.audit("schedule", action, {"id": schedule_id})
         return schedule_page()
+
+    @app.get("/schedules/{schedule_id}", response_model=ScheduleRow)
+    async def read_schedule(schedule_id: int) -> ScheduleRow:
+        if scheduler is None:
+            raise HTTPException(status_code=503, detail="the scheduler is not running")
+        try:
+            return ScheduleRow(**scheduler.store.get(schedule_id).as_dict())
+        except schedule_module.ScheduleError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.put("/schedules/{schedule_id}", response_model=SchedulePage)
+    async def update_schedule(schedule_id: int, body: ScheduleUpdate) -> SchedulePage:
+        if scheduler is None:
+            raise HTTPException(status_code=503, detail="the scheduler is not running")
+        try:
+            scheduler.store.update(schedule_id, body.updates)
+            scheduler.reload()
+        except schedule_module.ScheduleError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        runtime_store.audit("schedule", "update", {"id": schedule_id, **body.updates})
+        return schedule_page()
+
+    @app.get("/schedules/{schedule_id}/runs")
+    async def read_schedule_runs(schedule_id: int, limit: int = 20) -> dict[str, Any]:
+        if scheduler is None:
+            raise HTTPException(status_code=503, detail="the scheduler is not running")
+        try:
+            return {"executions": scheduler.store.executions(schedule_id, limit=limit)}
+        except schedule_module.ScheduleError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     @app.get("/voice/speech")
     async def read_speech_settings() -> dict[str, Any]:

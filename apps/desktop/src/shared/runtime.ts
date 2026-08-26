@@ -728,14 +728,52 @@ export interface ScheduleRow {
   created_at: string
   /** Speak even during quiet hours and while the room is asleep. Opt-in. */
   insist: boolean
+  mode: 'action' | 'agent'
+  /** A self-contained job brief. Empty for fixed Gateway actions. */
+  prompt: string
+  /** Empty provider/model/effort means use Marvi's automatic auxiliary route. */
+  provider: string
+  model: string
+  effort: string
+  /** Exact Gateway tools this job may see. Empty means the full current catalogue. */
+  tool_names: string[]
+  /** Messaging destination id. `local` retains output only. */
+  delivery: string
+  repeat_count: number | null
+  completed_runs: number
+  next_run: string | null
   last_run: string | null
   last_error: string | null
+  last_output: string | null
+  last_provider: string | null
+  last_model: string | null
+  last_tokens: number
+  last_delivery: string | null
 }
 
 export interface SchedulePage {
   schedules: ScheduleRow[]
   actions: Record<string, string>
   running: boolean
+  tools: string[]
+  delivery_targets: { id: string; name: string; available: boolean }[]
+  efforts: string[]
+}
+
+export interface NewSchedule {
+  name: string
+  when: string
+  message?: string
+  action?: string
+  insist?: boolean
+  mode?: 'action' | 'agent'
+  prompt?: string
+  provider?: string
+  model?: string
+  effort?: string
+  tool_names?: string[]
+  delivery?: string
+  repeat_count?: number | null
 }
 
 /**

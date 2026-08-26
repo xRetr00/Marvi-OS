@@ -247,6 +247,14 @@ const marvi = {
     message?: string
     action?: string
     insist?: boolean
+    mode?: 'action' | 'agent'
+    prompt?: string
+    provider?: string
+    model?: string
+    effort?: string
+    tool_names?: string[]
+    delivery?: string
+    repeat_count?: number | null
   }): Promise<SchedulePage | null> => ipcRenderer.invoke('marvi:add-schedule', body),
   scheduleAction: (
     id: number,
