@@ -253,6 +253,14 @@ function normaliseMemory(body: unknown): MemoryPolicy | null {
   const source =
     embedding.source === 'local' || embedding.source === 'provider' ? embedding.source : 'off'
   return {
+    provider: body.provider === 'honcho' || body.provider === 'mem0' ? body.provider : 'local',
+    providers: Array.isArray(body.providers)
+      ? body.providers.filter((item): item is string => typeof item === 'string')
+      : ['local', 'honcho', 'mem0'],
+    providerUrl: typeof body.url === 'string' ? body.url : '',
+    providerKeySet: body.key_set === true,
+    userId: typeof body.user_id === 'string' ? body.user_id : 'marvi-user',
+    workspace: typeof body.workspace === 'string' ? body.workspace : 'marvi-os',
     source,
     sources: Array.isArray(embedding.sources)
       ? embedding.sources.filter((item): item is string => typeof item === 'string')

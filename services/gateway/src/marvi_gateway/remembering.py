@@ -234,9 +234,20 @@ class Rememberer:
     run builds, and a daemon thread each was a thread each.
     """
 
-    def __init__(self, store: Any, client: Any, *, propose_skills: bool = True) -> None:
+    def __init__(
+        self,
+        store: Any,
+        client: Any,
+        *,
+        propose_skills: bool = True,
+        observe_callback: Any = None,
+    ) -> None:
         self._store = store
         self._client = client
+        # External memory providers own extraction. The same ordered worker is
+        # retained so provider I/O stays off the reply path and skill proposals
+        # still happen once per completed turn.
+        self._observe_callback = observe_callback
         #: Whether the same pass also asks "should a skill be written?".
         #: A second model call per turn, off the turn, and worth it: a
         #: correction about *how* Marvi works has nowhere else to go -- memory
@@ -288,7 +299,10 @@ class Rememberer:
             user, assistant = self._turns.get()
             self._working.set()
             try:
-                extract(mine, self._client, user, assistant)
+                if self._observe_callback is None:
+                    extract(mine, self._client, user, assistant)
+                else:
+                    self._observe_callback(user, assistant)
                 if self._propose_skills:
                     self._review_skills(user, assistant)
             except Exception as exc:  # pragma: no cover - the thread must survive

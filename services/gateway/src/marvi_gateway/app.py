@@ -60,6 +60,7 @@ from .logs import configure as configure_logging
 from .logs import get_logger, install_asyncio_handler, logs_dir, redactor, tail
 from .mcp_bridge import McpBridge, register_mcp_tools
 from .memory import MemoryStore, register_memory_tools
+from .memory_providers import MemoryRuntime
 from .mind import Mind
 from .policy import InitiativeSettings
 from .providers import ProviderClient, ProviderError, all_profiles
@@ -174,6 +175,11 @@ class MemorySettings(BaseModel):
     model: str | None = None
     url: str | None = None
     key: str | None = None
+    provider: str | None = None
+    provider_url: str | None = None
+    provider_key: str | None = None
+    user_id: str | None = None
+    workspace: str | None = None
 
 
 class ObservedTurn(BaseModel):
@@ -784,7 +790,7 @@ def create_app(
     one_shot = announcer_service or Announcer()
     sidecar: RoomSidecar | None = None
     accounts: ComposioAccounts | None = None
-    memory: MemoryStore | None = None
+    memory: MemoryRuntime | None = None
     memory_summarise: Any = None
     ingest: AccountIngest | None = None
     journal: EventJournal | None = None
@@ -842,7 +848,7 @@ def create_app(
             )
         accounts = account_service or ComposioAccounts()
         register_account_tools(tool_registry, accounts)
-        memory = MemoryStore()
+        memory = MemoryRuntime()
         # Standing facts about the user go where every prompt reads them,
         # rather than into a store that only surfaces on a matching search.
         register_identity_tools(tool_registry, identity)
@@ -872,7 +878,22 @@ def create_app(
         # Decides what to keep from a finished turn, on a worker thread. The
         # model used to do this by hand, mid-conversation, and could only add --
         # which is how five spellings of one name ended up as five memories.
-        rememberer = remembering.Rememberer(memory, cognition)
+        def observe_local(user: str, assistant: str) -> None:
+            # The memory worker owns this connection. Sharing the Gateway's
+            # SQLite connection across its thread caused native crashes even
+            # with ``check_same_thread=False``.
+            own = MemoryStore(memory.local.store.path)
+            try:
+                remembering.extract(own, cognition, user, assistant)
+            finally:
+                own.close()
+
+        memory.bind_local_observer(observe_local)
+        rememberer = remembering.Rememberer(
+            memory,
+            cognition,
+            observe_callback=memory.observe,
+        )
         activity = ActivityWatch()
         if activity.available():
             register_activity_tools(tool_registry, activity)
@@ -1961,9 +1982,10 @@ def create_app(
         the answer to "why did she not remember that" is usually "no model is
         configured for it" and that is worth saying where memory is configured.
         """
-        from . import embedding
+        from . import embedding, memory_providers
 
         return {
+            **memory_providers.describe(),
             "embedding": embedding.describe(),
             # Which model decides what to keep. Already a role; surfaced here so
             # the two settings that make memory work are in one place.
@@ -1974,7 +1996,7 @@ def create_app(
 
     @app.put("/memory/settings")
     async def set_memory_settings(update: MemorySettings) -> dict[str, Any]:
-        from . import embedding
+        from . import embedding, memory_providers
 
         values: dict[str, str] = {}
         if update.source is not None:
@@ -1989,6 +2011,23 @@ def create_app(
             # Written like any other credential and never read back: `describe`
             # reports whether one is set, never what it is.
             values[embedding.KEY_SETTING] = update.key.strip()
+        if update.provider is not None:
+            if update.provider not in memory_providers.PROVIDERS:
+                raise HTTPException(
+                    status_code=400, detail=f"unknown memory provider {update.provider!r}"
+                )
+            values[memory_providers.PROVIDER_SETTING] = update.provider
+        if update.user_id is not None:
+            values[memory_providers.USER_SETTING] = update.user_id.strip()
+        if update.workspace is not None:
+            values[memory_providers.WORKSPACE_SETTING] = update.workspace.strip()
+        # The provider endpoint/key deliberately share fields with neither the
+        # embedding service nor model providers. They carry durable memories,
+        # so selecting one must never silently redirect the other.
+        if update.provider_url is not None:
+            values[memory_providers.URL_SETTING] = update.provider_url.strip()
+        if update.provider_key is not None:
+            values[memory_providers.KEY_SETTING] = update.provider_key.strip()
         if values:
             provider_config.update(values)
             redactor().refresh()

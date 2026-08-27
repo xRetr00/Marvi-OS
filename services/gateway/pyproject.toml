@@ -17,6 +17,12 @@ dependencies = [
     "apscheduler>=3.10,<4",
     "fastapi>=0.116,<1",
     "httpx>=0.28,<1",
+    # Memory providers are deliberately pinned. Honcho's SDK is the supported
+    # adapter for both managed and self-hosted deployments. Mem0 2.x switched
+    # to ADD-only extraction, which can retain contradictory corrections; the
+    # last 1.x release still implements ADD / UPDATE / DELETE / NONE.
+    "honcho-ai==2.4.0",
+    "mem0ai==1.0.11",
     # `marvi setup` renders its screen with this. Already present
     # transitively; declared because depending on somebody else's
     # dependency is how a working install breaks on an unrelated bump.

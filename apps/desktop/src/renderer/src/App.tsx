@@ -1579,6 +1579,10 @@ function MemorySettingsSection(): React.JSX.Element {
   const [url, setUrl] = useState('')
   const [key, setKey] = useState('')
   const [model, setModel] = useState('')
+  const [providerUrl, setProviderUrl] = useState('')
+  const [providerKey, setProviderKey] = useState('')
+  const [userId, setUserId] = useState('marvi-user')
+  const [workspace, setWorkspace] = useState('marvi-os')
 
   useEffect(() => {
     let gone = false
@@ -1588,6 +1592,9 @@ function MemorySettingsSection(): React.JSX.Element {
       setPolicy(next)
       setUrl(next.url)
       setModel(next.model)
+      setProviderUrl(next.providerUrl)
+      setUserId(next.userId)
+      setWorkspace(next.workspace)
     })()
     return () => {
       gone = true
@@ -1600,11 +1607,15 @@ function MemorySettingsSection(): React.JSX.Element {
       if (next) {
         setPolicy(next)
         setModel(next.model)
+        setProviderUrl(next.providerUrl)
+        setUserId(next.userId)
+        setWorkspace(next.workspace)
       }
     })()
   }
 
   const source = policy?.source ?? 'off'
+  const provider = policy?.provider ?? 'local'
 
   return (
     <ControlSection
@@ -1613,14 +1624,88 @@ function MemorySettingsSection(): React.JSX.Element {
       title="How memory works"
     >
       <ControlRow
+        action={
+          <Picker
+            options={[
+              { value: 'local', label: 'Marvi local', detail: 'SQLite, on this machine' },
+              { value: 'mem0', label: 'Mem0', detail: 'Pinned OSS or managed' },
+              { value: 'honcho', label: 'Honcho', detail: 'Derived, traceable memory' }
+            ]}
+            value={provider}
+            onChange={(next) => apply({ provider: next })}
+            placeholder="Marvi local"
+          />
+        }
+        description="Only one provider is active. Switching changes where new turns and recall go; it does not merge stores."
+        title="Memory provider"
+      />
+      {provider !== 'local' ? (
+        <ControlRow
+          description={
+            provider === 'honcho'
+              ? 'Leave the endpoint blank for managed Honcho, or enter the base URL of a self-hosted server.'
+              : 'Enter “local” for pinned four-operation OSS, use a self-hosted base URL, or leave blank for ADD-only Mem0 Platform.'
+          }
+          title={`${provider === 'honcho' ? 'Honcho' : 'Mem0'} connection`}
+        >
+          <form
+            className="workspace-add"
+            onSubmit={(event) => {
+              event.preventDefault()
+              apply({
+                provider,
+                provider_url: providerUrl,
+                ...(providerKey ? { provider_key: providerKey } : {}),
+                user_id: userId,
+                ...(provider === 'honcho' ? { workspace } : {})
+              })
+              setProviderKey('')
+            }}
+          >
+            <input
+              aria-label="Memory provider endpoint"
+              onChange={(event) => setProviderUrl(event.target.value)}
+              placeholder={provider === 'honcho' ? 'https://api.honcho.dev' : 'managed, local, or URL'}
+              value={providerUrl}
+            />
+            <input
+              aria-label="Memory provider API key"
+              onChange={(event) => setProviderKey(event.target.value)}
+              placeholder={policy?.providerKeySet ? 'key saved' : 'API key'}
+              type="password"
+              value={providerKey}
+            />
+            <input
+              aria-label="Memory user ID"
+              onChange={(event) => setUserId(event.target.value)}
+              placeholder="marvi-user"
+              value={userId}
+            />
+            {provider === 'honcho' ? (
+              <input
+                aria-label="Honcho workspace"
+                onChange={(event) => setWorkspace(event.target.value)}
+                placeholder="marvi-os"
+                value={workspace}
+              />
+            ) : null}
+            <button className="ghost-button" type="submit">
+              Save
+            </button>
+          </form>
+        </ControlRow>
+      ) : null}
+      <ControlRow
         description={
-          policy?.roleConfigured
+          provider !== 'local'
+            ? `${provider === 'honcho' ? 'Honcho' : 'Mem0'} extracts memories from completed turns.`
+            : policy?.roleConfigured
             ? 'A model reads each finished exchange and decides what to keep. Chosen in Settings › Models.'
             : 'No model is set for this, so the main one does it. Choose a cheaper one in Settings › Models › Memory.'
         }
         title="Deciding what to remember"
       />
-      <ControlRow
+      {provider === 'local' ? <ControlRow
         action={
           <Picker
             options={[
@@ -1649,8 +1734,8 @@ function MemorySettingsSection(): React.JSX.Element {
               : 'Your memories are sent to whichever endpoint you name, on every recall.'
         }
         title="Searching by meaning"
-      />
-      {source !== 'off' ? (
+      /> : null}
+      {provider === 'local' && source !== 'off' ? (
         <ControlRow
           description={
             source === 'local'

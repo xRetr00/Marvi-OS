@@ -51,6 +51,11 @@ def isolate_marvi_home(tmp_path_factory, monkeypatch):
         "MARVI_SKILLS_DIR",
         "MARVI_MCP_CONFIG",
         "MARVI_USAGE_LEDGER",
+        "MARVI_MEMORY_PROVIDER",
+        "MARVI_MEMORY_URL",
+        "MARVI_MEMORY_KEY",
+        "MARVI_MEMORY_USER_ID",
+        "MARVI_MEMORY_WORKSPACE",
     ):
         monkeypatch.delenv(leaked, raising=False)
 

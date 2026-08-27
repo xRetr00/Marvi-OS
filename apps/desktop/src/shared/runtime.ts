@@ -969,6 +969,13 @@ export interface LanguageUpdate {
  * silently started calling an API would be a surprise nobody asked for.
  */
 export interface MemoryPolicy {
+  provider: 'local' | 'honcho' | 'mem0'
+  providers: string[]
+  providerUrl: string
+  /** Whether a memory-provider key is stored. Never the key. */
+  providerKeySet: boolean
+  userId: string
+  workspace: string
   source: 'off' | 'local' | 'provider'
   sources: string[]
   model: string
@@ -1002,6 +1009,11 @@ export interface SkillProposal {
 }
 
 export interface MemorySettingsUpdate {
+  provider?: string
+  provider_url?: string
+  provider_key?: string
+  user_id?: string
+  workspace?: string
   source?: string
   model?: string
   url?: string
