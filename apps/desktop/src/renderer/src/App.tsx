@@ -128,6 +128,8 @@ import type {
   StoreSkill,
   RoomVisionPreview,
   VoicePage,
+  PendingQuestion,
+  PendingSecret,
   WakeStatus,
   WorkspacePolicy,
   WorkspaceUpdate
@@ -3128,14 +3130,18 @@ function Subtitles(): React.JSX.Element | null {
  */
 function AskedQuestion(): React.JSX.Element | null {
   const runtime = useStore($runtimeState)
-  const link = useStore($voiceLink)
   const question = runtime.assistant.question
+
+  // Keyed by the question, so a new one arrives with an empty box rather than
+  // with whatever was half-typed in answer to the last. React's own answer to
+  // "reset state when the input changes", and it needs no effect.
+  return question ? <QuestionCard key={question.id} question={question} /> : null
+}
+
+function QuestionCard({ question }: { question: PendingQuestion }): React.JSX.Element {
+  const link = useStore($voiceLink)
   const [sending, setSending] = useState(false)
   const [typed, setTyped] = useState('')
-
-  useEffect(() => setTyped(''), [question?.id])
-
-  if (!question) return null
 
   const answer = (text: string): void => {
     const words = text.trim()
@@ -3214,16 +3220,17 @@ function AskedQuestion(): React.JSX.Element | null {
 function SecretField(): React.JSX.Element | null {
   const runtime = useStore($runtimeState)
   const request = runtime.assistant.secret
+
+  // Keyed, so a second request never inherits the first one's typed value or
+  // its revealed state. Remounting is the cheap correct reset here, and for a
+  // field holding a credential it is the one that leaves nothing behind.
+  return request ? <SecretCard key={request.id} request={request} /> : null
+}
+
+function SecretCard({ request }: { request: PendingSecret }): React.JSX.Element {
   const [value, setValue] = useState('')
   const [shown, setShown] = useState(false)
   const [saving, setSaving] = useState(false)
-
-  useEffect(() => {
-    setValue('')
-    setShown(false)
-  }, [request?.id])
-
-  if (!request) return null
 
   const settle = (secret: string): void => {
     if (saving) return
@@ -4514,7 +4521,7 @@ function WorkspacePanel(): React.JSX.Element {
             />
           }
           description={
-            "“Is my key set?” and “what is my key?” look like the same question. " +
+            '“Is my key set?” and “what is my key?” look like the same question. ' +
             'Names only answers the first without answering the second.'
           }
           title="Reading them"

@@ -197,9 +197,7 @@ function normaliseWorkspace(body: unknown): WorkspacePolicy | null {
     readScope: scope(body.read_scope),
     writeScope: scope(body.write_scope),
     secretAccess:
-      body.secret_access === 'masked' || body.secret_access === 'full'
-        ? body.secret_access
-        : 'off',
+      body.secret_access === 'masked' || body.secret_access === 'full' ? body.secret_access : 'off',
     blacklist: strings(body.blacklist),
     builtin: (Array.isArray(body.builtin) ? body.builtin : []).filter(isRecord).map((rule) => ({
       pattern: String(rule.pattern ?? ''),
