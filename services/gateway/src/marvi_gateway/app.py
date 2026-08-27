@@ -2215,6 +2215,31 @@ def create_app(
         Blocks rather than one string, so the caller decides what to use.
         """
         blocks = {"situation": selfaware.situation()}
+        # Who Marvi is and who she is talking to, which voice never had.
+        #
+        # `identity.py` states the contract in its own docstring -- "`USER.md`
+        # is what is true on every turn", and "every token in these files is
+        # paid on every turn, including the latency-critical voice path" -- and
+        # the voice path was the one surface that never received them. Chat
+        # composed them into its system prompt; the Agent builds its own
+        # instructions in another process and got neither.
+        #
+        # The visible cost: asked her name, Marvi did not know it, so she wrote
+        # it into memory instead. She wrote it five times, once per correction,
+        # because a name misheard is a name re-remembered. It was in `USER.md`
+        # the whole time.
+        who = identity.read()
+        if who.soul:
+            blocks["soul"] = who.soul
+        if who.user:
+            # Named, because the Agent appends these to its instructions and an
+            # unlabelled block of prose about a person reads as a note rather
+            # than as standing fact.
+            blocks["user"] = (
+                "About the person you are talking to. This is true on every "
+                "turn -- do not look it up, and do not write it into memory.\n\n"
+                + who.user
+            )
         try:
             from .setup import skills as skills_module
 

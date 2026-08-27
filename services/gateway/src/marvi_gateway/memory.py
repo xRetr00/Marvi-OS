@@ -30,6 +30,52 @@ MemoryKind = Literal["episodic", "semantic"]
 GraphMode = Literal["tree", "contacts"]
 DEFAULT_SEARCH_LIMIT = 10
 MAX_BODY_CHARS = 4_000
+
+#: How alike two semantic facts must be before one is treated as correcting the
+#: other rather than joining it.
+#:
+#: Measured as containment -- the shared significant words over the *smaller*
+#: set -- rather than as Jaccard, because a correction routinely adds words the
+#: original did not have. "The user's name is Sheriff (one F)" carries two
+#: qualifiers the first version lacked, and counting those against the match
+#: broke the chain: the real four-step correction ended as two memories instead
+#: of one, which is the bug in miniature.
+#:
+#: Not weaker than Jaccard here, because `MIN_WORDS_TO_SUPERSEDE` already rules
+#: out the short statements containment would over-match. Checked against the
+#: case it must not break: "the user's name is X, developer of Marvi" against
+#: "the user's brother is Y, developer of Marvi" scores 0.5 and stays two facts.
+SUPERSEDE_SIMILARITY = 0.7
+
+#: A statement shorter than this is not judged. "Likes tea" and "likes coffee"
+#: share almost every word and mean the opposite.
+MIN_WORDS_TO_SUPERSEDE = 4
+
+#: How far back to look. Recent facts are the ones being corrected; a scan of
+#: the whole store on every write is a table scan on the hot path.
+SUPERSEDE_SCAN = 50
+
+#: Words too common to carry meaning. Without this, every sentence about the
+#: user overlaps every other one on "the", "is" and "they".
+_COMMON = frozenset(
+    {
+        "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "has",
+        "have", "he", "her", "him", "his", "in", "is", "it", "its", "of", "on",
+        "or", "she", "that", "the", "their", "them", "they", "this", "to",
+        "user", "was", "were", "with", "you", "your",
+    }
+)
+
+
+def _significant(text: str) -> set[str]:
+    """The words of a statement that carry its meaning."""
+    return {
+        word
+        for word in re.findall(r"[a-z0-9]+", (text or "").lower())
+        if word not in _COMMON and len(word) > 1
+    }
+
+
 # Consolidation defaults. Deliberately conservative: forgetting the user's
 # own data is worse than keeping a little too much.
 EPISODIC_TTL_DAYS = 45
@@ -74,6 +120,16 @@ CREATE TRIGGER IF NOT EXISTS memories_ad AFTER DELETE ON memories BEGIN
     INSERT INTO memories_fts(memories_fts, rowid, subject, body)
         VALUES ('delete', old.id, old.subject, old.body);
 END;
+-- Corrections rewrite a row in place, and an external-content FTS5 index does
+-- not follow an UPDATE on its own. Without this, `memory_search` would go on
+-- matching the text a memory used to hold -- which is the duplicate problem
+-- again, hidden one layer down where nobody would look for it.
+CREATE TRIGGER IF NOT EXISTS memories_au AFTER UPDATE ON memories BEGIN
+    INSERT INTO memories_fts(memories_fts, rowid, subject, body)
+        VALUES ('delete', old.id, old.subject, old.body);
+    INSERT INTO memories_fts(rowid, subject, body)
+        VALUES (new.id, new.subject, new.body);
+END;
 """
 
 
@@ -111,8 +167,34 @@ class MemoryStore:
         source: str = "marvi",
         trusted: bool = True,
     ) -> int:
+        """Store a fact, replacing one it corrects rather than sitting beside it.
+
+        `INSERT` was the whole implementation, and a store that only inserts
+        cannot be corrected -- only added to. What that looked like in practice,
+        over two minutes of one conversation:
+
+            #20  The user's name is Sheriff and they are the developer of Marvi.
+            #21  The user's name is Sheriff (one F), and they are the developer.
+            #22  The user's name is Shrif, and they are the developer of Marvi.
+            #23  The user's name is Shreef (spelled S-H-R-E-E-F), ...
+            #24  The user's name is Shreef, spelled S-H-E-R-E-E-F, ...
+
+        Five memories, one fact, five spellings -- because the recogniser hears
+        a name differently each time and every correction was stored as an
+        additional truth. Recall then returns all five, and the most recent is
+        not distinguishable from the four it was meant to replace.
+
+        Keying on the subject alone would not have caught it: the subjects were
+        `Sheriff`, `Shrif` and `Shreef`, which is the same drift one level up.
+        So the match is on what the fact *says* -- see `_supersedes`.
+
+        Only semantic memories supersede. An episodic one is a record of a
+        moment and two of those are not a contradiction; they are two moments.
+        """
         if not subject.strip():
             raise ValueError("a memory needs a subject")
+        if kind == "semantic" and (previous := self._supersedes(body, source, trusted)):
+            return self._replace(previous, subject, body, kind, source, trusted)
         cursor = self._db.execute(
             "INSERT INTO memories (kind, subject, body, source, trusted, at)"
             " VALUES (?, ?, ?, ?, ?, ?)",
@@ -135,6 +217,74 @@ class MemoryStore:
                 "marvi_source": source,
                 "marvi_trusted": trusted,
                 "marvi_subject_chars": len(subject.strip()),
+                "marvi_body_chars": min(len(body), MAX_BODY_CHARS),
+            },
+        )
+        return memory_id
+
+    def _supersedes(self, body: str, source: str, trusted: bool) -> int | None:
+        """The id of the fact this one corrects, or None if it is new.
+
+        Matched on the *shape* of the statement rather than on the subject,
+        because the subject is the model's guess and it drifted with every
+        mishearing. What did not drift is the sentence: "the user's name is X
+        and they are the developer of Marvi", five times over.
+
+        So: two semantic facts are the same fact when the significant words of
+        the shorter one are mostly inside the longer. The words that differ are
+        the correction.
+
+        Deliberately conservative. Merging two facts that are merely related
+        loses one of them silently, which is worse than the duplication this
+        exists to stop -- so the bar is high, and a fact that clears it is one
+        a person would read as a restatement.
+        """
+        words = _significant(body)
+        if len(words) < MIN_WORDS_TO_SUPERSEDE:
+            # Too short to judge. "Likes tea" and "likes coffee" share almost
+            # everything and mean the opposite.
+            return None
+        for row in self._db.execute(
+            "SELECT id, body FROM memories WHERE kind = 'semantic' AND source = ?"
+            " AND trusted = ? ORDER BY id DESC LIMIT ?",
+            (source, 1 if trusted else 0, SUPERSEDE_SCAN),
+        ):
+            against = _significant(row["body"])
+            if not against:
+                continue
+            overlap = len(words & against) / min(len(words), len(against))
+            if overlap >= SUPERSEDE_SIMILARITY:
+                return int(row["id"])
+        return None
+
+    def _replace(
+        self, memory_id: int, subject: str, body: str, kind: str, source: str, trusted: bool
+    ) -> int:
+        """Overwrite a fact in place, keeping its id.
+
+        In place rather than delete-and-insert so anything already pointing at
+        this memory keeps pointing at the corrected version rather than at a
+        hole.
+        """
+        self._db.execute(
+            "UPDATE memories SET kind = ?, subject = ?, body = ?, source = ?,"
+            " trusted = ?, at = ? WHERE id = ?",
+            (
+                kind,
+                subject.strip()[:200],
+                body[:MAX_BODY_CHARS],
+                source,
+                1 if trusted else 0,
+                datetime.now(UTC).isoformat(),
+                memory_id,
+            ),
+        )
+        self._db.commit()
+        log.info(
+            "memory corrected in place",
+            extra={
+                "marvi_memory_id": memory_id,
+                "marvi_subject": subject.strip()[:80],
                 "marvi_body_chars": min(len(body), MAX_BODY_CHARS),
             },
         )
