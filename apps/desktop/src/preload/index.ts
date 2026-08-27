@@ -30,6 +30,7 @@ import type {
   ServiceReport,
   SetupPage,
   SkillReview,
+  SkillsPage,
   SkillProposal,
   StoreSkill,
   UpdateChannel,
@@ -280,6 +281,13 @@ const marvi = {
     ipcRenderer.invoke('marvi:install-component', name),
   removeComponent: (name: string): Promise<SetupPage | null> =>
     ipcRenderer.invoke('marvi:remove-component', name),
+  getInstalledSkills: (): Promise<SkillsPage | null> =>
+    ipcRenderer.invoke('marvi:get-installed-skills'),
+  pinSkill: (name: string, pinned: boolean): Promise<unknown> =>
+    ipcRenderer.invoke('marvi:pin-skill', name, pinned),
+  archiveSkill: (name: string): Promise<unknown> => ipcRenderer.invoke('marvi:archive-skill', name),
+  restoreSkill: (name: string): Promise<unknown> =>
+    ipcRenderer.invoke('marvi:restore-skill', name),
   getSkillStore: (): Promise<{ skills: StoreSkill[]; sources: string[] } | null> =>
     ipcRenderer.invoke('marvi:get-skill-store'),
   reviewSkill: (repo: string, path: string): Promise<SkillReview | null> =>

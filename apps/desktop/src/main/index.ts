@@ -1593,6 +1593,49 @@ function startApp(): void {
     ipcMain.handle('marvi:remove-skill', (_event, name) =>
       gatewayJson(`/skills/${encodeURIComponent(String(name))}`, { method: 'DELETE' })
     )
+    ipcMain.handle('marvi:get-installed-skills', async () => {
+      const body = await gatewayJson('/skills')
+      if (!isRecord(body)) return null
+      const rows = Array.isArray(body.skills) ? body.skills.filter(isRecord) : []
+      return {
+        skills: rows.map((row) => {
+          const usage = isRecord(row.usage) ? row.usage : {}
+          return {
+            name: String(row.name ?? ''),
+            description: String(row.description ?? ''),
+            source: String(row.source ?? ''),
+            platforms: Array.isArray(row.platforms) ? row.platforms.map(String) : [],
+            requires: Array.isArray(row.requires) ? row.requires.map(String) : [],
+            applies: row.applies !== false,
+            usage: {
+              uses: Number(usage.uses ?? 0),
+              lastUsed: String(usage.last_used ?? ''),
+              mine: usage.mine === true,
+              pinned: usage.pinned === true,
+              state: usage.state === 'stale' || usage.state === 'archived' ? usage.state : 'active'
+            }
+          }
+        }),
+        archived: Array.isArray(body.archived) ? body.archived.map(String) : [],
+        trustedSources: Array.isArray(body.trusted_sources)
+          ? body.trusted_sources.map(String)
+          : [],
+        trustedSetting: String(body.trusted_setting ?? '')
+      }
+    })
+    ipcMain.handle('marvi:pin-skill', (_event, name, pinned) =>
+      gatewayJson(`/skills/${encodeURIComponent(String(name))}/pin`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ pinned: pinned === true })
+      })
+    )
+    ipcMain.handle('marvi:archive-skill', (_event, name) =>
+      gatewayJson(`/skills/${encodeURIComponent(String(name))}/archive`, { method: 'POST' })
+    )
+    ipcMain.handle('marvi:restore-skill', (_event, name) =>
+      gatewayJson(`/skills/${encodeURIComponent(String(name))}/restore`, { method: 'POST' })
+    )
     ipcMain.handle('marvi:get-mcp', () => gatewayJson('/mcp'))
     ipcMain.handle('marvi:run-doctor', async () => {
       try {

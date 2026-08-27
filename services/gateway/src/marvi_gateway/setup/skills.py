@@ -44,6 +44,7 @@ from typing import Any
 
 from ..logs import get_logger
 from ..paths import skills_dir
+from . import skill_guard
 
 log = get_logger("setup")
 
@@ -75,6 +76,12 @@ class Skill:
     path: Path | None = None
     #: Spec violations that are worth saying but not worth refusing over.
     problems: tuple[str, ...] = ()
+    #: Which platforms this is for. Empty means all of them.
+    platforms: tuple[str, ...] = ()
+    #: Settings that must be present for this skill to be any use. A skill for
+    #: a service Marvi has no credential for is a line in every prompt for a
+    #: thing she cannot do -- and on voice that line is latency you can hear.
+    requires: tuple[str, ...] = ()
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -86,8 +93,34 @@ class Skill:
             "requested_tools": list(self.requested_tools),
             "source": self.source,
             "problems": list(self.problems),
+            "platforms": list(self.platforms),
+            "requires": list(self.requires),
+            "applies": self.applies(),
             "installed_at": str(self.path) if self.path else "",
         }
+
+
+    def applies(self) -> bool:
+        """Whether this skill is any use on this machine, right now.
+
+        Two conditions, both from hermes, and both about the same cost: a
+        skill's name and description sit in the prompt on every turn. One for a
+        platform you are not on, or for a service with no credential
+        configured, is a line spent advertising something that cannot happen.
+        """
+        import os
+        import sys
+
+        if self.platforms and not any(
+            sys.platform.startswith(PLATFORMS.get(name.strip().lower(), name.strip().lower()))
+            for name in self.platforms
+        ):
+            return False
+        return all(os.environ.get(name.strip(), "").strip() for name in self.requires if name.strip())
+
+
+#: What a skill author writes, and what Python calls it.
+PLATFORMS = {"windows": "win32", "macos": "darwin", "mac": "darwin", "linux": "linux"}
 
 
 class SkillError(Exception):
@@ -179,6 +212,16 @@ def parse(text: str, source: str = "") -> Skill:
     # with a note. Structural rules stay hard errors; these are soft.
     compatibility = str(data.get("compatibility", "")).strip()
 
+    def listed(key: str) -> tuple[str, ...]:
+        raw = data.get(key, "")
+        if isinstance(raw, list):
+            return tuple(str(item).strip() for item in raw if str(item).strip())
+        # `platforms: windows, linux` and `platforms: [windows, linux]` are
+        # both what people write, and neither is worth rejecting a skill over.
+        return tuple(
+            part.strip() for part in str(raw).strip("[]").replace(",", " ").split() if part.strip()
+        )
+
     raw_tools = data.get("allowed-tools", "")
     requested = tuple(t for t in str(raw_tools).split() if t) if raw_tools else ()
     metadata = data.get("metadata") if isinstance(data.get("metadata"), dict) else {}
@@ -200,6 +243,8 @@ def parse(text: str, source: str = "") -> Skill:
         compatibility=compatibility,
         metadata={str(k): str(v) for k, v in (metadata or {}).items()},
         requested_tools=requested,
+        platforms=listed("platforms"),
+        requires=listed("requires"),
         body=body,
         source=source,
     )
@@ -223,6 +268,19 @@ def read_skill(directory: Path) -> Skill:
 
 
 # -- what a skill is allowed to do -------------------------------------------------
+
+
+#: Sources whose skills get the benefit of the doubt, comma separated. A
+#: repository prefix is enough -- trusting `github.com/anthropics/skills` covers
+#: everything in it without listing each one.
+TRUSTED_SOURCES_SETTING = "MARVI_SKILL_TRUSTED_SOURCES"
+
+
+def trusted_sources() -> tuple[str, ...]:
+    import os
+
+    raw = os.environ.get(TRUSTED_SOURCES_SETTING, "")
+    return tuple(part.strip() for part in raw.split(",") if part.strip())
 
 
 def permitted_tools(skill: Skill, registry: Any) -> dict[str, Any]:
@@ -271,6 +329,10 @@ def review(skill: Skill, registry: Any = None) -> dict[str, Any]:
         # Shown, not summarised: it is instructions that will shape behaviour.
         "instructions": skill.body,
         "warnings": warnings,
+        # Read before Marvi reads it. The body was previously shown on screen
+        # with an Install button under it, and "you were shown it" is not a
+        # control -- nobody reads five hundred lines before clicking.
+        "scan": skill_guard.verdict(skill.body, skill.source, trusted_sources()),
     }
     if registry is not None:
         result["tools"] = permitted_tools(skill, registry)
@@ -332,6 +394,10 @@ def advertise(available: list[Skill] | None = None) -> str:
     latency on every single turn.
     """
     rows = available if available is not None else installed()
+    # Skills that cannot run here are not advertised. Not filtered out of the
+    # store or the page -- they exist and the user should see them -- only kept
+    # out of the prompt, where every line is paid for on every turn.
+    rows = [skill for skill in rows if skill.applies()]
     if not rows:
         return ""
     lines = [f"- {skill.name}: {skill.description}" for skill in rows]

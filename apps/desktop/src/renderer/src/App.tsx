@@ -127,6 +127,7 @@ import type {
   ServiceReport,
   SkillReview,
   SkillProposal,
+  SkillsPage,
   StoreSkill,
   RoomVisionPreview,
   VoicePage,
@@ -3906,6 +3907,7 @@ function SkillsPanel(): React.JSX.Element {
   const [filter, setFilter] = useState('')
   const [review, setReview] = useState<SkillReview | null>(null)
   const [proposal, setProposal] = useState<SkillProposal | null>(null)
+  const [installed, setInstalled] = useState<SkillsPage | null>(null)
   const [busy, setBusy] = useState('')
   const [loaded, setLoaded] = useState(false)
 
@@ -3916,6 +3918,7 @@ function SkillsPanel(): React.JSX.Element {
       setSources(page.sources)
       setLoaded(true)
     }
+    setInstalled((await window.marvi?.getInstalledSkills()) ?? null)
   }, [])
 
   useEffect(() => {
@@ -3926,6 +3929,8 @@ function SkillsPanel(): React.JSX.Element {
       setStore(page.skills)
       setSources(page.sources)
       setLoaded(true)
+      const mine = await window.marvi?.getInstalledSkills()
+      if (!disposed) setInstalled(mine ?? null)
     })()
     return () => {
       disposed = true
@@ -4036,6 +4041,115 @@ function SkillsPanel(): React.JSX.Element {
           </div>
         </ControlSection>
       ) : null}
+      {installed && installed.skills.length > 0 ? (
+        <ControlSection icon={Wrench} title="Your skills">
+          <div className="service-list">
+            {installed.skills.map((skill) => (
+              <div className="service-row" key={skill.name}>
+                <span className="service-name">{skill.name}</span>
+                <span
+                  className={`service-state state-${
+                    !skill.applies
+                      ? 'pending'
+                      : skill.usage.state === 'active'
+                        ? 'ready'
+                        : 'pending'
+                  }`}
+                >
+                  {!skill.applies
+                    ? 'Not here'
+                    : skill.usage.pinned
+                      ? 'Pinned'
+                      : skill.usage.state === 'active'
+                        ? ''
+                        : skill.usage.state}
+                </span>
+                <small>{skill.description}</small>
+                <small>
+                  {/* The number nothing used to know. Everything else on this
+                      row is a decision that needs it. */}
+                  {skill.usage.uses === 0
+                    ? 'Never used'
+                    : `Used ${skill.usage.uses} time${skill.usage.uses === 1 ? '' : 's'}${
+                        skill.usage.lastUsed
+                          ? `, last on ${skill.usage.lastUsed.slice(0, 10)}`
+                          : ''
+                      }`}
+                  {skill.usage.mine ? ' · written by Marvi' : ''}
+                  {!skill.applies && skill.platforms.length > 0
+                    ? ` · for ${skill.platforms.join(', ')}`
+                    : ''}
+                  {!skill.applies && skill.requires.length > 0
+                    ? ` · needs ${skill.requires.join(', ')}`
+                    : ''}
+                </small>
+                {/* Only Marvi's own can be swept, so only they need pinning.
+                    A skill you wrote is yours and is never touched. */}
+                {skill.usage.mine ? (
+                  <div className="provider-actions">
+                    <button
+                      className="phase"
+                      type="button"
+                      disabled={!!busy}
+                      onClick={() => {
+                        setBusy(skill.name)
+                        void window.marvi
+                          ?.pinSkill(skill.name, !skill.usage.pinned)
+                          .then(() => load())
+                          .finally(() => setBusy(''))
+                      }}
+                    >
+                      {skill.usage.pinned ? 'Unpin' : 'Keep always'}
+                    </button>
+                    <button
+                      className="phase"
+                      type="button"
+                      disabled={!!busy}
+                      onClick={() => {
+                        setBusy(skill.name)
+                        void window.marvi
+                          ?.archiveSkill(skill.name)
+                          .then(() => load())
+                          .finally(() => setBusy(''))
+                      }}
+                    >
+                      Archive
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+          {installed.archived.length > 0 ? (
+            <ControlRow
+              action={
+                <div className="provider-actions">
+                  {installed.archived.slice(0, 4).map((name) => (
+                    <button
+                      className="phase"
+                      key={name}
+                      type="button"
+                      disabled={!!busy}
+                      onClick={() => {
+                        setBusy(name)
+                        void window.marvi
+                          ?.restoreSkill(name)
+                          .then(() => load())
+                          .finally(() => setBusy(''))
+                      }}
+                    >
+                      {name}
+                    </button>
+                  ))}
+                </div>
+              }
+              description="Set aside because nothing had used them in a long time. Nothing was deleted; press one to bring it back."
+              icon={Database}
+              title="Archived"
+            />
+          ) : null}
+        </ControlSection>
+      ) : null}
       <ControlSection icon={Database} title="Catalog">
         <div className="context-line">
           <span>Sources</span>
@@ -4066,15 +4180,39 @@ function SkillsPanel(): React.JSX.Element {
                 ask you every time.
               </small>
             ) : null}
+            {/* Read before Marvi reads it. The body used to be shown with an
+                Install button under it, and "you were shown it" is not a
+                control — nobody reads five hundred lines before clicking. */}
+            {review.scan && review.scan.findings.length > 0 ? (
+              <div className="skill-scan">
+                <div className="panel-label">
+                  {review.scan.blocked ? 'Not recommended' : 'Worth knowing'} — {review.scan.reason}
+                </div>
+                {review.scan.findings.map((finding) => (
+                  <small
+                    className={finding.severity === 'danger' ? 'provider-cooldown' : ''}
+                    key={finding.rule}
+                  >
+                    <strong>{finding.rule.replace(/-/g, ' ')}</strong> · {finding.why}
+                    <br />
+                    <code>{finding.quote}</code>
+                  </small>
+                ))}
+              </div>
+            ) : null}
             <pre className="service-output skill-body">{review.instructions}</pre>
             <div className="provider-actions">
               <button
-                className="phase active"
+                className={review.scan?.blocked ? 'phase danger' : 'phase active'}
                 type="button"
                 disabled={busy === 'installing'}
                 onClick={() => void confirm()}
               >
-                {busy === 'installing' ? 'Installing' : 'Install'}
+                {busy === 'installing'
+                  ? 'Installing'
+                  : review.scan?.blocked
+                    ? 'Install anyway'
+                    : 'Install'}
               </button>
               <button className="phase" type="button" onClick={() => setReview(null)}>
                 Cancel

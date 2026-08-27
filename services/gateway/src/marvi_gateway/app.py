@@ -628,6 +628,10 @@ class SkillConfirm(BaseModel):
     staged: str
 
 
+class SkillPin(BaseModel):
+    pinned: bool
+
+
 class LogPage(BaseModel):
     subsystem: str
     lines: list[str]
@@ -2019,6 +2023,7 @@ def create_app(
         own instructions is a model that can rewrite its own behaviour, and
         this is the same review the skill store already required.
         """
+        from .setup import skill_usage
         from .setup import skills as skills_module
 
         found = rememberer.proposal if rememberer else None
@@ -2037,6 +2042,10 @@ def create_app(
             f"description: {found['description'] or found['why']}\n---\n\n"
         )
         (target / "SKILL.md").write_text(front + found["body"], encoding="utf-8")
+        # Marked as hers, which is what makes it eligible for the sweep later.
+        # A skill the user wrote is theirs and is never swept, however long it
+        # goes unread -- its being unused is not evidence it is unwanted.
+        skill_usage.mark_mine(found["name"])
         runtime_store.audit(
             "skills", f"proposal-{found['act']}", {"name": found["name"], "why": found["why"]}
         )
@@ -2429,9 +2438,62 @@ def create_app(
 
     @app.get("/skills")
     async def list_skills() -> dict[str, Any]:
-        from .setup import skills
+        from .setup import skill_usage, skills
 
-        return {"skills": [s.as_dict() for s in skills.installed()]}
+        rows = [s.as_dict() for s in skills.installed()]
+        # Use, state and provenance beside each. Without it the page can list
+        # what exists and nothing else -- not which are earning their line in
+        # the prompt, not which Marvi wrote herself, not which are about to be
+        # swept.
+        usage = skill_usage.describe([row["name"] for row in rows])
+        for row in rows:
+            row["usage"] = usage.get(row["name"], {})
+        return {
+            "skills": rows,
+            "archived": skill_usage.archived(),
+            "trusted_sources": list(skills.trusted_sources()),
+            "trusted_setting": skills.TRUSTED_SOURCES_SETTING,
+        }
+
+    @app.post("/skills/{name}/pin")
+    async def pin_skill(name: str, request: SkillPin) -> dict[str, Any]:
+        """Opt a skill out of the sweep, or back into it."""
+        from .setup import skill_usage
+
+        return {"name": name, **skill_usage.set_pinned(name, request.pinned)}
+
+    @app.post("/skills/{name}/archive")
+    async def archive_skill(name: str) -> dict[str, Any]:
+        """Move it aside. Never a delete -- `restore` is the whole reason this
+        is allowed to happen automatically at all."""
+        from .setup import skill_usage
+
+        moved = skill_usage.archive(name)
+        if moved:
+            runtime_store.audit("setup", "skill-archive", {"name": name})
+        return {"archived": moved, "name": name}
+
+    @app.post("/skills/{name}/restore")
+    async def restore_skill(name: str) -> dict[str, Any]:
+        from .setup import skill_usage
+
+        return {"restored": skill_usage.restore(name), "name": name}
+
+    @app.post("/skills/sweep")
+    async def sweep_skills() -> dict[str, Any]:
+        """Archive Marvi's own skills that nobody has used in a long time.
+
+        Beside the memory passes because it is the same kind of job: periodic,
+        conservative, and about what to stop carrying. It runs on a schedule
+        too; this is here because a background job nobody can trigger is a
+        background job nobody can tell is working.
+        """
+        from .setup import skill_usage
+
+        result = skill_usage.sweep()
+        if result["archived"]:
+            runtime_store.audit("setup", "skill-sweep", result)
+        return result
 
     @app.get("/skills/store")
     async def browse_skills() -> dict[str, Any]:

@@ -219,7 +219,24 @@ class Initiative:
         return {"considered": len(fresh), **counts}
 
     def run_consolidate(self) -> dict[str, Any]:
-        return self.memory.consolidate() if self.memory is not None else {"forgotten": 0}
+        """The sleep pass: memory forgets, and skills are set aside.
+
+        Both on the same tick because they are the same job on different
+        stores -- what has not been used in long enough to keep carrying. The
+        sweep touches only skills Marvi wrote herself and archives rather than
+        deletes; the details are in `setup/skill_usage.py`.
+        """
+        from .setup import skill_usage
+
+        forgotten = self.memory.consolidate() if self.memory is not None else {"forgotten": 0}
+        try:
+            swept = skill_usage.sweep()
+        except Exception as exc:
+            logger.warning("skill sweep failed: %s", exc)
+            swept = {"archived": [], "stale": []}
+        for name in swept["archived"]:
+            self.journal.append("skills", "archived", name, {"name": name}, trusted=True)
+        return {**forgotten, "skills_archived": swept["archived"]}
 
     # -- lifecycle -----------------------------------------------------------
 

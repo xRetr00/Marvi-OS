@@ -29,6 +29,7 @@ import type {
   ServiceReport,
   SetupPage,
   SkillReview,
+  SkillsPage,
   SkillProposal,
   StoreSkill,
   UpdateChannel,
@@ -189,6 +190,10 @@ export interface MarviDesktopApi {
   setHardware: (useGpu: boolean) => Promise<HardwareAnswer | null>
   installComponent: (name: string) => Promise<SetupPage | null>
   removeComponent: (name: string) => Promise<SetupPage | null>
+  getInstalledSkills: () => Promise<SkillsPage | null>
+  pinSkill: (name: string, pinned: boolean) => Promise<unknown>
+  archiveSkill: (name: string) => Promise<unknown>
+  restoreSkill: (name: string) => Promise<unknown>
   getSkillStore: () => Promise<{ skills: StoreSkill[]; sources: string[] } | null>
   reviewSkill: (repo: string, path: string) => Promise<SkillReview | null>
   installSkill: (staged: string) => Promise<{ ok: boolean; detail: string } | null>

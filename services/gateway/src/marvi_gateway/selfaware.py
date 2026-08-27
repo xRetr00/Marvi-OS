@@ -144,6 +144,7 @@ def register_skill_tools(registry: Any) -> None:
     The catalogue in the prompt is names and descriptions. This is how the
     instructions arrive, and only for the skill actually chosen.
     """
+    from .setup import skill_usage
     from .setup import skills as skills_module
     from .tools import ToolSpec
 
@@ -156,6 +157,11 @@ def register_skill_tools(registry: Any) -> None:
                 "detail": str(exc),
                 "available": [s.name for s in skills_module.installed()],
             }
+        # Counted here because this is the only place a skill is ever read.
+        # Without it "which of these has Marvi actually used?" had no answer,
+        # and nothing could be retired -- so the catalogue could only grow, and
+        # every skill in it costs a line in the prompt on every turn.
+        skill_usage.used(skill.name)
         return {
             "ok": True,
             "name": skill.name,

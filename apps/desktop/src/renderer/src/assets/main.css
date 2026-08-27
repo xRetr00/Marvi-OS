@@ -1385,6 +1385,21 @@ nav {
   gap: 6px;
   padding-top: 6px;
 }
+/* What the scanner found, shown above the Install button rather than beside
+   it: it is the thing that should be read before the button is pressed. */
+.skill-scan {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0;
+}
+.skill-scan code {
+  display: inline-block;
+  padding-top: 2px;
+  color: var(--ui-text-secondary);
+  font-size: 10px;
+  word-break: break-word;
+}
 .aux-current {
   display: inline-block;
   padding-top: 3px;

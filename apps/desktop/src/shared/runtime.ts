@@ -598,6 +598,52 @@ export interface StoreSkill {
   installed: boolean
 }
 
+/**
+ * What a skill's use says about it.
+ *
+ * Nothing knew which skills had ever been read, so "which of these is worth
+ * keeping?" had no answer and the catalogue could only grow — and every skill
+ * in it costs a line in the prompt on every turn.
+ */
+export interface SkillUsage {
+  uses: number
+  lastUsed: string
+  /** Marvi wrote it herself, which is what makes it eligible for the sweep. */
+  mine: boolean
+  pinned: boolean
+  state: 'active' | 'stale' | 'archived'
+}
+
+/** One installed skill, with what is known about its use. */
+export interface InstalledSkill {
+  name: string
+  description: string
+  source: string
+  /** Empty means every platform. */
+  platforms: string[]
+  /** Settings it needs before it is any use here. */
+  requires: string[]
+  /** False when it is for another platform, or needs something not configured.
+   * It stays listed here and is kept out of the prompt. */
+  applies: boolean
+  usage: SkillUsage
+}
+
+export interface SkillsPage {
+  skills: InstalledSkill[]
+  archived: string[]
+  trustedSources: string[]
+  trustedSetting: string
+}
+
+/** What reading a skill's text turned up before Marvi is given it. */
+export interface SkillScan {
+  tier: 'bundled' | 'trusted' | 'community'
+  blocked: boolean
+  reason: string
+  findings: Array<{ severity: 'danger' | 'caution'; rule: string; why: string; quote: string }>
+}
+
 export interface SkillReview {
   ok: boolean
   staged?: string
@@ -605,6 +651,7 @@ export interface SkillReview {
   instructions: string
   warnings: string[]
   tools?: { tools: string[]; unknown: string[]; still_sensitive: string[] }
+  scan?: SkillScan
 }
 
 export interface McpServerRow {
