@@ -2988,19 +2988,6 @@ function WakeSettings(): React.JSX.Element {
     }
   }
 
-  // The microphone is baked into the command the listener was started with, so
-  // saving the setting alone would change nothing until the next login. Saving
-  // and re-registering restarts it on the new device now.
-  const chooseMicrophone = async (name: string): Promise<void> => {
-    setBusy(true)
-    try {
-      await window.marvi?.setProviderSettings({ [wake.deviceSetting]: name })
-      if (on) await window.marvi?.setWakeAutostart(true, name)
-    } finally {
-      setBusy(false)
-    }
-  }
-
   return (
     <div className="voice-choice">
       <button
@@ -3034,25 +3021,6 @@ function WakeSettings(): React.JSX.Element {
             onChange={(next) => set({ [wake.thresholdSetting]: next })}
             placeholder="Balanced"
           />
-          {wake.devices.length > 0 ? (
-            <Picker
-              options={[
-                {
-                  value: '',
-                  label: 'System default microphone',
-                  detail: wake.devices.find((d) => d.default)?.label ?? 'Whatever Windows picks'
-                },
-                ...wake.devices.map((device) => ({
-                  value: device.name,
-                  label: device.label,
-                  detail: device.default ? 'Currently the system default' : ''
-                }))
-              ]}
-              value={wake.device}
-              onChange={(next) => void chooseMicrophone(next)}
-              placeholder="System default microphone"
-            />
-          ) : null}
           {!wake.listener.running && wake.listener.everRan ? (
             <ControlRow
               action={
@@ -3072,6 +3040,13 @@ function WakeSettings(): React.JSX.Element {
               title="The listener has stopped"
             />
           ) : null}
+          <p className="notice">
+            {wake.device
+              ? `Listening on ${wake.device}. `
+              : 'Listening on the system default microphone. '}
+            Right-click Marvi&rsquo;s tray icon to change it &mdash; the listener is the thing
+            that opens the microphone, so it is the only one that knows which ones it can open.
+          </p>
           <p className="notice">
             {!wake.modelPresent
               ? 'No wake word model found, so there is nothing to listen with.'
