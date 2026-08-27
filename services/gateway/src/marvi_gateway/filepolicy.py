@@ -37,6 +37,7 @@ from __future__ import annotations
 import fnmatch
 import os
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 
 #: How far a tool may reach.
@@ -86,12 +87,22 @@ def _home() -> Path:
 def builtin_rules() -> tuple[Rule, ...]:
     """Refusals that hold whatever the settings say.
 
-    Resolved at call time rather than at import, because `MARVI_HOME` is set by
-    the desktop after this module is first imported in some start-up orders,
-    and a rule that read it too early would protect nothing.
+    Read from the environment at call time rather than at import, because
+    `MARVI_HOME` is set by the desktop after this module is first imported in
+    some start-up orders, and a rule that read it too early would protect
+    nothing. Built once per distinct environment, because this is on the path
+    of every file a search touches.
     """
-    home = _home()
-    marvi_home = os.environ.get("MARVI_HOME", "").strip()
+    return _rules(str(_home()), os.environ.get("MARVI_HOME", "").strip(), _system_root())
+
+
+def _system_root() -> str:
+    return os.environ.get("SYSTEMROOT", "C:\\Windows") if os.name == "nt" else ""
+
+
+@lru_cache(maxsize=8)
+def _rules(home_path: str, marvi_home: str, system: str) -> tuple[Rule, ...]:
+    home = Path(home_path)
     rules = [
         Rule("*.env", "environment files hold credentials", secret=True),
         Rule(str(home / ".ssh"), "private keys", secret=True),
@@ -118,8 +129,7 @@ def builtin_rules() -> tuple[Rule, ...]:
         # Her own keys, her own memory, her own audit trail. Marvi editing the
         # record of what Marvi did is not a feature.
         rules.append(Rule(marvi_home, "Marvi's own keys and state", secret=True))
-    if os.name == "nt":
-        system = os.environ.get("SYSTEMROOT", "C:\\Windows")
+    if system:
         rules += [
             Rule(system, "Windows itself", blocks_reading=False),
             Rule("C:\\Program Files", "installed programs", blocks_reading=False),
@@ -162,10 +172,24 @@ def _matches(path: Path, pattern: str) -> bool:
         text, name, pattern = text.lower(), name.lower(), pattern.lower()
     if any(character in pattern for character in "*?["):
         return fnmatch.fnmatch(text, pattern) or fnmatch.fnmatch(name, pattern)
+    resolved = _resolved(pattern)
+    return bool(resolved) and _same_or_under(Path(text), Path(resolved))
+
+
+@lru_cache(maxsize=1024)
+def _resolved(pattern: str) -> str:
+    """A deny-list path, resolved once.
+
+    `Path.resolve()` is a filesystem call, and this runs for every rule against
+    every file a search touches -- twenty-two rules across three thousand files
+    is seventy-nine thousand syscalls, which was most of the time `file_search`
+    spent and why it timed out before reaching the source directory.
+    """
     try:
-        return _same_or_under(Path(text), Path(os.path.expanduser(pattern)).resolve())
+        found = str(Path(os.path.expanduser(pattern)).resolve())
     except OSError:
-        return False
+        return ""
+    return found.lower() if os.name == "nt" else found
 
 
 def _scope(setting: str, fallback: str = STRICT) -> str:

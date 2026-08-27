@@ -24,6 +24,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -53,6 +54,12 @@ SKIPPED_DIRS = frozenset(
         "dist",
         "build",
         "out",
+        # Rust and Java build output, in the same family as the three above.
+        # Not a small omission: `target/` is fourteen gigabytes across this
+        # repository's four crates, against about four megabytes of source, and
+        # searching it was most of why a search of the workspace root never
+        # reached `services/`.
+        "target",
         ".next",
         ".cache",
     }
@@ -62,9 +69,18 @@ SKIPPED_DIRS = frozenset(
 #: two-hundred-megabyte log to look for a function name has stopped being a
 #: search.
 MAX_SEARCH_BYTES = 2_000_000
-#: How many files one search will open. A bound, so a search rooted at a drive
-#: returns something rather than running until it is killed.
-MAX_SEARCH_FILES = 4_000
+#: How many files one search will open, and how long it may take.
+#:
+#: Both are bounds against a search rooted at a whole drive, and both are
+#: reported when they bite -- a sweep that stopped early is not a result, and
+#: the first version of this said "there are more" for it, which reads as
+#: "looked everywhere, found nothing".
+#:
+#: Four thousand was far too low: this repository alone has more than that
+#: before `services/` comes up alphabetically. The time budget is the bound
+#: that actually matters, because it is the one the caller is waiting on.
+MAX_SEARCH_FILES = 40_000
+SEARCH_SECONDS = 10.0
 
 
 class WorkspaceRefusedError(Exception):
@@ -319,16 +335,39 @@ class Workspace:
 
         matches: list[dict[str, Any]] = []
         opened = 0
-        cut_short = False
+        # Two different endings, and telling them apart is the whole point.
+        #
+        # `enough` means the limit of matches was reached: there are more, and
+        # the ones returned are real. `unfinished` means the sweep stopped
+        # before it had looked everywhere -- and an empty result then means
+        # "did not get that far", not "not there".
+        #
+        # Found by using it: searching this repository for `LEAD_SECONDS`
+        # returned no matches and "there are more", because four thousand
+        # vendored files came alphabetically before `services/`. That is the
+        # exact failure `file_search` was written to fix, reproduced one layer
+        # up, and a single shared flag was what allowed it.
+        enough = False
+        unfinished = False
+        deadline = time.monotonic() + SEARCH_SECONDS
         for file in self._walk(root, name):
-            if opened >= MAX_SEARCH_FILES:
-                cut_short = True
+            if opened >= MAX_SEARCH_FILES or time.monotonic() > deadline:
+                unfinished = True
                 break
             if pattern is None:
                 matches.append({"path": self.shown(file)})
             else:
+                text = self._text(file)
+                if text is None:
+                    continue
                 opened += 1
-                for number, line in self._lines(file):
+                # Once over the whole file before going line by line. Almost
+                # every file is a miss, and running the pattern per line on all
+                # of them was most of the time this spent -- the same search
+                # that timed out at 3,480 files finishes the repository now.
+                if not pattern.search(text):
+                    continue
+                for number, line in enumerate(text.splitlines(), start=1):
                     if pattern.search(line):
                         matches.append(
                             {
@@ -342,14 +381,17 @@ class Workspace:
                         if len(matches) >= limit:
                             break
             if len(matches) >= limit:
-                cut_short = True
+                enough = True
                 break
 
-        found = {"matches": matches[:limit], "files_read": opened}
-        if cut_short:
-            # Said, rather than left to be inferred from a round number. A
-            # truncated result read as a complete one is how "not found"
-            # becomes "not there".
+        found: dict[str, Any] = {"matches": matches[:limit], "files_read": opened}
+        if unfinished:
+            found["incomplete"] = (
+                f"Stopped after {opened} files without searching everything. "
+                "This is not a result: narrow `path` to the folder you mean "
+                "and search again."
+            )
+        elif enough:
             found["more"] = "There are more. Narrow the query or the path."
         return found
 
@@ -374,8 +416,8 @@ class Workspace:
                 yield file
 
     @staticmethod
-    def _lines(file: Path):
-        """Numbered lines of a text file. Binary files yield nothing.
+    def _text(file: Path) -> str | None:
+        """The text of a file, or None when it is not one.
 
         A null byte in the first block is the same test `grep` uses, and it is
         what keeps an image out of a search for a word.
@@ -383,11 +425,10 @@ class Workspace:
         try:
             raw = file.read_bytes()
         except OSError:
-            return
+            return None
         if b"\x00" in raw[:4096]:
-            return
-        text, _ = _decode(raw)
-        yield from enumerate(text.splitlines(), start=1)
+            return None
+        return _decode(raw)[0]
 
     def delete(self, relative: str) -> dict[str, Any]:
         target = self.resolve(relative, write=True)
