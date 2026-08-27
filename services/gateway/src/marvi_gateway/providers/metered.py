@@ -36,7 +36,13 @@ openrouter = register(
         key_env=("OPENROUTER_API_KEY",),
         default_model_env="MARVI_OPENROUTER_MODEL",
         default_model="anthropic/claude-sonnet-5",
-        default_aux_model="google/gemini-3-flash",
+        # Checked against the live catalog rather than guessed. The previous
+        # value, `google/gemini-3-flash`, has never existed -- OpenRouter
+        # answers "not a valid model ID" with a 400, so every auxiliary call
+        # failed: memory extraction, skill proposals, dreaming, titles, the
+        # background mind. Nothing said so, because every one of them treats
+        # "no answer" as a normal outcome and carries on.
+        default_aux_model="google/gemini-3.5-flash-lite",
         default_vision_model="anthropic/claude-sonnet-5",
         supports_vision=True,
         routes_upstream=True,

@@ -413,7 +413,7 @@ class ProviderProfile:
             # token, and choosing between them is a decision voice cares about.
             from .openrouter import route_for
 
-            route = route_for(job).as_body()
+            route = route_for(job, chosen).as_body()
             if route:
                 body["provider"] = route
         if tools and self.supports_tools:

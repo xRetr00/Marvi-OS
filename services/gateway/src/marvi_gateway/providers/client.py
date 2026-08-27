@@ -230,6 +230,20 @@ class ProviderClient:
         )
 
     @staticmethod
+    def _reasoning_is_mandatory(response: Any) -> bool:
+        """Whether this 400 is "you may not turn reasoning off".
+
+        Matched on the message because there is no code for it. Narrow on
+        purpose: a retry is only right for the one refusal that a retry fixes,
+        and every other 400 is still ours to fix rather than to paper over.
+        """
+        try:
+            text = response.text.lower()
+        except Exception:  # pragma: no cover - a body that cannot be read
+            return False
+        return "reasoning" in text and ("mandatory" in text or "cannot be disabled" in text)
+
+    @staticmethod
     def _retry_after(response: Any) -> float:
         header = (response.headers or {}).get("retry-after") if response is not None else None
         try:
@@ -324,7 +338,23 @@ class ProviderClient:
                 self.stand_down(profile.name, MAX_COOLDOWN_SECONDS, "authentication rejected")
                 raise ProviderCallError(f"{profile.name} rejected the credential")
             if 400 <= response.status_code < 500 and response.status_code != 408:
-                raise self._reject(profile, response, body=response.text)
+                if self._reasoning_is_mandatory(response) and "reasoning" in body:
+                    # Asking for reasoning off is an optimisation for jobs that
+                    # do not deliberate. Some models refuse to have it turned
+                    # off at all, and the request then fails outright -- which
+                    # is a worse outcome than paying for reasoning nobody
+                    # wanted. Drop the request and let the model do what it
+                    # insists on doing.
+                    logger.info(
+                        "model requires reasoning; asking again without disabling it",
+                        extra={**diagnostic},
+                    )
+                    body.pop("reasoning", None)
+                    response = client.post(
+                        profile.endpoint(), json=body, headers=profile.headers()
+                    )
+                if 400 <= response.status_code < 500 and response.status_code != 408:
+                    raise self._reject(profile, response, body=response.text)
             response.raise_for_status()
             payload = response.json()
         except ProviderCallError as exc:

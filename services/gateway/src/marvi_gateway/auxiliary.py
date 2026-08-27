@@ -57,6 +57,17 @@ class Role:
     def setting(self) -> str:
         return f"MARVI_AUX_{self.key.upper()}"
 
+    @property
+    def effort_setting(self) -> str:
+        """How hard the chosen model should think, when it can.
+
+        Its own setting rather than a third field in `provider/model`, because
+        it is a property of the model and not of the pairing: change the model
+        and an effort that no longer applies should stop applying, which is
+        what an empty value here does.
+        """
+        return f"MARVI_AUX_{self.key.upper()}_EFFORT"
+
 
 #: Every job Marvi runs a model for, other than the conversation itself.
 #:
@@ -136,6 +147,17 @@ def resolve(key: str) -> tuple[str, str]:
     return provider, model
 
 
+def effort(key: str) -> str:
+    """The reasoning effort chosen for a role, or "" for the model's own default."""
+    role = BY_KEY.get(key)
+    if role is None:
+        return ""
+    chosen = os.environ.get(role.effort_setting, "").strip().lower()
+    # Only meaningful alongside a chosen model. An effort left behind after a
+    # role goes back to auto would silently apply to the main model.
+    return chosen if chosen and configured(key) else ""
+
+
 def overrides(key: str) -> dict[str, str]:
     """Keyword arguments for direct `ProviderClient.call`, empty on auto.
 
@@ -154,7 +176,12 @@ def fallback_overrides(key: str) -> dict[str, str]:
     kwargs would pass it twice and fail before any model request was made.
     """
     provider, model = resolve(key)
-    return {"preferred": provider, "model": model} if provider else {}
+    if not provider:
+        return {}
+    chosen: dict[str, str] = {"preferred": provider, "model": model}
+    if picked := effort(key):
+        chosen["effort"] = picked
+    return chosen
 
 
 def status(available: list[dict[str, Any]] | None = None) -> dict[str, Any]:
@@ -171,6 +198,8 @@ def status(available: list[dict[str, Any]] | None = None) -> dict[str, Any]:
                 "setting": role.setting,
                 "provider": provider,
                 "model": model,
+                "effort": effort(role.key),
+                "effort_setting": role.effort_setting,
                 "auto": not provider,
             }
         )

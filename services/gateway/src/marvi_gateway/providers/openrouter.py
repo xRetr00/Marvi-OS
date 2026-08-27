@@ -89,8 +89,8 @@ def _slugs(raw: str) -> tuple[str, ...]:
     return tuple(part.strip() for part in raw.split(",") if part.strip())
 
 
-def route_for(job: str = "main") -> Route:
-    """The route this job should use, from the user's settings.
+def route_for(job: str = "main", model: str | None = None) -> Route:
+    """The route this request should use, from the user's settings.
 
     Per job, because the right answer differs: voice wants the fastest
     provider and a batch summarisation would rather have the cheapest. The
@@ -108,13 +108,29 @@ def route_for(job: str = "main") -> Route:
             )
         policy = default
 
+    # Upstream slugs name who serves *one model* -- `coreweave/fp8` is an
+    # endpoint of DeepSeek v4 Flash and not of anything else. They were sent on
+    # every request, so an auxiliary call for a different model went out pinned
+    # to an upstream that has never served it and OpenRouter refused it.
+    #
+    # The test is the model, not the job: voice and chat both run the model the
+    # pins were chosen for, and an auxiliary role left on auto does too. Only a
+    # request that has been pointed at a *different* model drops them. `model`
+    # unset means the caller did not override, which is the configured one.
+    chosen = (model or "").strip()
+    configured_model = os.environ.get("MARVI_OPENROUTER_MODEL", "").strip()
+    pinning = not chosen or not configured_model or chosen == configured_model
+
+    # The policy is a preference about how to choose, and travels either way.
+
     return Route(
         policy=policy,
-        order=_slugs(os.environ.get("MARVI_OPENROUTER_PROVIDERS", "")),
-        ignore=_slugs(os.environ.get("MARVI_OPENROUTER_IGNORE", "")),
+        order=_slugs(os.environ.get("MARVI_OPENROUTER_PROVIDERS", "")) if pinning else (),
+        ignore=_slugs(os.environ.get("MARVI_OPENROUTER_IGNORE", "")) if pinning else (),
         # Opt out explicitly. Pinning without fallback means an upstream outage
         # becomes Marvi's outage, so it is never the default.
-        allow_fallbacks=os.environ.get("MARVI_OPENROUTER_PIN", "").strip().lower()
+        allow_fallbacks=not pinning
+        or os.environ.get("MARVI_OPENROUTER_PIN", "").strip().lower()
         not in ("1", "true", "yes", "on"),
     )
 
