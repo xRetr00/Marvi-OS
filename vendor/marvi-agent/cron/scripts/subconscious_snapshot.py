@@ -1,0 +1,330 @@
+#!/usr/bin/env python3
+"""Composio smart-sync snapshot script -- Contract 1 entry point.
+
+Invoked by Marvi's subconscious-tick cron job (Workstream A,
+``cron/subconscious.py``) as a pre-script: the tick runs this, and only pays
+for an LLM pass when this script reports something actually changed.
+
+Per Contract 1 (see the design spec)::
+
+    The script prints to stdout either the literal line ``NO_CHANGE`` (tick
+    exits, zero LLM cost) or a human-readable diff of what changed.
+
+This script iterates the surfaces configured under ``composio.surfaces`` in
+config.yaml, calls each surface's delta fetcher
+(``cron/scripts/subconscious/<surface>.py::fetch_delta``), and aggregates.
+Every fetch is a DELTA fetch against a locally-stored cursor
+(``~/.hermes/subconscious/snapshots/<surface>.json``) -- never a blind full
+refetch -- which is what keeps this cheap enough to run on every tick
+without burning API rate limits (the explicit anti-goal from the design
+spec: no OpenHuman-style polling waste).
+
+Alongside the configured Composio surfaces, "builtin" surfaces (local,
+non-Composio fetchers -- currently just ``smart_room``, see
+``cron.scripts.subconscious.base.BUILTIN_SURFACES``) are auto-included
+whenever their plugin looks active, no ``composio.surfaces`` entry needed.
+Both kinds go through the exact same per-surface fetch/throttle/backoff loop
+(:func:`_fetch_surface_section`).
+
+A surface that isn't connected, is rate-limited, or errors out is logged to
+stderr and skipped; it can never crash this script or block the other
+surfaces from being checked.
+
+Runnable standalone::
+
+    python cron/scripts/subconscious_snapshot.py
+
+Exits 0 always (a broken surface is a stderr warning + skip, not a process
+failure) so the cron pre-script step never itself trips an error path in the
+scheduler.
+"""
+
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+# Make the repo importable when this script is invoked directly
+# (``python cron/scripts/subconscious_snapshot.py``) rather than through an
+# already-on-sys.path editable/installed `hermes` entry point. Mirrors the
+# project-root bootstrap used by the test suite for the same reason.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+# The exact Contract 1 sentinel. A dedicated constant so callers that want
+# to compare against it (tests, Workstream A's tick parser) import this
+# instead of re-typing the literal.
+NO_CHANGE_MARKER = "NO_CHANGE"
+
+
+def _eprint(*args: Any) -> None:
+    print(*args, file=sys.stderr)
+
+
+def _load_composio_config() -> Dict[str, Any]:
+    try:
+        from hermes_cli.config import load_config
+
+        config = load_config()
+    except Exception as e:
+        _eprint(f"subconscious_snapshot: could not load config ({e}); assuming no surfaces configured")
+        return {}
+    composio_cfg = (config or {}).get("composio") if isinstance(config, dict) else None
+    return composio_cfg if isinstance(composio_cfg, dict) else {}
+
+
+def _load_root_config() -> Dict[str, Any]:
+    try:
+        from hermes_cli.config import load_config
+
+        config = load_config()
+        return config if isinstance(config, dict) else {}
+    except Exception as exc:
+        _eprint(f"subconscious_snapshot: could not load config ({exc})")
+        return {}
+
+
+def _configured_surfaces(composio_cfg: Dict[str, Any]) -> List[str]:
+    surfaces = composio_cfg.get("surfaces")
+    if not isinstance(surfaces, list):
+        return []
+    out: List[str] = []
+    for s in surfaces:
+        name = str(s or "").strip().lower()
+        if name and name not in out:
+            out.append(name)
+    return out
+
+
+def _min_interval_seconds(composio_cfg: Dict[str, Any]) -> int:
+    from cron.scripts.subconscious.snapshot_store import DEFAULT_MIN_INTERVAL_SECONDS
+
+    value = composio_cfg.get("min_interval_seconds")
+    if isinstance(value, (int, float)) and value >= 0:
+        return int(value)
+    return DEFAULT_MIN_INTERVAL_SECONDS
+
+
+def _quiet_backoff_max(composio_cfg: Dict[str, Any]) -> int:
+    from cron.scripts.subconscious.snapshot_store import DEFAULT_QUIET_BACKOFF_MAX
+
+    value = composio_cfg.get("quiet_backoff_max")
+    if isinstance(value, (int, float)) and value >= 1:
+        return int(value)
+    return DEFAULT_QUIET_BACKOFF_MAX
+
+
+def _builtin_surfaces_disabled(root_config: Dict[str, Any]) -> set:
+    """Operator opt-out for builtin (non-Composio) surfaces.
+
+    ``subconscious.builtin_surfaces_disabled: [smart_room, ...]`` lets an
+    operator exclude a builtin surface from the tick even while its plugin
+    looks active -- the escape hatch for "the plugin runs but I don't want
+    it waking the subconscious".
+    """
+    from hermes_cli.config import cfg_get
+
+    disabled = cfg_get(root_config, "subconscious", "builtin_surfaces_disabled", default=[])
+    if not isinstance(disabled, list):
+        return set()
+    return {str(name or "").strip().lower() for name in disabled if str(name or "").strip()}
+
+
+def _active_builtin_surfaces(root_config: Dict[str, Any]) -> List[str]:
+    """Builtin surfaces (see ``cron.scripts.subconscious.base.BUILTIN_SURFACES``)
+    whose plugin looks active right now, minus any operator opt-out.
+
+    A builtin surface has no ``composio.surfaces`` entry to opt it in -- there's
+    no Composio connection to configure -- so it's auto-included based on a
+    cheap, RPC-free "is the plugin actually running" probe instead.
+    """
+    from cron.scripts.subconscious.base import BUILTIN_SURFACES
+
+    disabled = _builtin_surfaces_disabled(root_config)
+    active: List[str] = []
+    for name, probe in BUILTIN_SURFACES.items():
+        if name in disabled:
+            continue
+        try:
+            if probe():
+                active.append(name)
+        except Exception as exc:
+            _eprint(f"subconscious_snapshot: builtin surface {name!r} active-check failed ({exc})")
+    return active
+
+
+def _fetch_surface_section(
+    surface: str,
+    *,
+    min_interval_seconds: int,
+    quiet_backoff_max: int,
+) -> Optional[str]:
+    """Fetch one surface's delta through its store and return a ``## surface``
+    section, or None when nothing changed / the surface was skipped.
+
+    Shared by configured Composio surfaces and auto-included builtin
+    surfaces so both get identical throttle/backoff/error-handling
+    semantics -- a failing or unimplemented surface is a stderr warning and
+    a skip here, never a crash (see the module docstring's Contract 1
+    error-handling rule).
+    """
+    from cron.scripts.subconscious.base import get_fetcher, known_surfaces
+    from cron.scripts.subconscious.snapshot_store import open_store
+
+    fetcher = get_fetcher(surface)
+    if fetcher is None:
+        _eprint(
+            f"subconscious_snapshot: surface {surface!r} is configured but not "
+            f"implemented yet (known surfaces: {', '.join(known_surfaces())}); skipping"
+        )
+        return None
+
+    try:
+        store = open_store(
+            surface,
+            min_interval_seconds=min_interval_seconds,
+            quiet_backoff_max=quiet_backoff_max,
+        )
+    except Exception as e:
+        _eprint(f"subconscious_snapshot: surface {surface!r} has an invalid snapshot store ({e}); skipping")
+        return None
+
+    skip_reason = store.skip_reason()
+    if skip_reason:
+        _eprint(f"subconscious_snapshot: surface {surface!r} skipped ({skip_reason})")
+        return None
+
+    store.mark_attempt()
+    diff: Optional[str] = None
+    try:
+        diff = fetcher(store)
+        store.record_success(changed=bool(diff))
+    except Exception as e:
+        # A failing surface must NEVER crash the tick or block the other
+        # surfaces (design spec error-handling section: "Composio auth
+        # failure -> surface marked broken in status, never crash the
+        # tick"). record_failure() drives the exponential backoff that
+        # keeps a broken surface from being hammered every tick.
+        store.record_failure(str(e))
+        _eprint(f"subconscious_snapshot: surface {surface!r} fetch failed: {e}")
+    finally:
+        store.save()
+
+    return f"## {surface}\n{diff}" if diff else None
+
+
+def run() -> str:
+    """Run one subconscious-tick sync pass over every configured surface.
+
+    Returns the literal string ``"NO_CHANGE"`` when nothing changed
+    anywhere (including "no surfaces configured"), otherwise a compact diff
+    summary grouped by surface, one ``## <surface>`` section per surface
+    that reported a change.
+    """
+    from cron.scripts.subconscious.snapshot_store import open_store
+
+    initiative_sections: List[str] = []
+    root_config = _load_root_config()
+    try:
+        from cron.subconscious_initiatives import due_initiatives
+
+        presence = None
+        rhythm = None
+        try:
+            from tools.presence.aw_client import AWClient
+
+            afk = AWClient(timeout=0.5).get_afk_state()
+            presence = "idle" if afk == "afk" else "active" if afk == "not-afk" else None
+        except Exception:
+            pass
+        try:
+            from hermes_time import now as _now
+            from tools.presence.rhythm import get_rhythm
+
+            learned = get_rhythm() or {}
+            day = (learned.get("weekdays") or {}).get(str(_now().weekday())) or {}
+            minute = _now().hour * 60 + _now().minute
+            for window in day.get("deep_work_windows") or []:
+                start_h, start_m = map(int, window[0].split(":"))
+                end_h, end_m = map(int, window[1].split(":"))
+                if start_h * 60 + start_m <= minute <= end_h * 60 + end_m:
+                    rhythm = "deep_work"
+                    break
+        except Exception:
+            pass
+
+        due = due_initiatives(rhythm=rhythm, presence=presence)
+        if due:
+            initiative_sections.append("## Due initiatives\n" + json.dumps(due, ensure_ascii=False))
+    except Exception as exc:
+        _eprint(f"subconscious_snapshot: initiative evaluation failed ({exc})")
+
+    # ActivityWatch is a first-class local world-diff source. It establishes a
+    # silent baseline on first run, then wakes the proactive pass only when the
+    # stable foreground/AFK/media context changes. presence.enabled is the
+    # privacy boundary: paused presence performs no ActivityWatch read.
+    try:
+        from tools.presence.common import get_presence_config
+
+        if get_presence_config().get("enabled"):
+            from cron.scripts.subconscious.desktop import fetch_delta as fetch_desktop_delta
+
+            desktop_store = open_store("desktop", min_interval_seconds=0, quiet_backoff_max=1)
+            desktop_store.mark_attempt()
+            desktop_diff = fetch_desktop_delta(desktop_store)
+            desktop_store.record_success(changed=bool(desktop_diff))
+            desktop_store.save()
+            if desktop_diff:
+                initiative_sections.append(f"## desktop\n{desktop_diff}")
+    except Exception as exc:
+        _eprint(f"subconscious_snapshot: desktop context fetch failed ({exc})")
+
+    composio_cfg = _load_composio_config()
+    configured_surfaces = _configured_surfaces(composio_cfg)
+    min_interval = _min_interval_seconds(composio_cfg)
+    quiet_backoff_max = _quiet_backoff_max(composio_cfg)
+
+    sections: List[str] = list(initiative_sections)
+
+    for surface in configured_surfaces:
+        section = _fetch_surface_section(
+            surface, min_interval_seconds=min_interval, quiet_backoff_max=quiet_backoff_max
+        )
+        if section:
+            sections.append(section)
+
+    # Builtin (non-Composio) surfaces -- e.g. smart_room -- auto-included
+    # whenever their plugin looks active, regardless of composio.surfaces.
+    # These are local, cursor-based reads with no external API to rate
+    # limit, so they're never throttled/backed-off on the Composio cadence
+    # (min_interval_seconds=0, quiet_backoff_max=1 -- fetched every tick).
+    builtin_surfaces = [s for s in _active_builtin_surfaces(root_config) if s not in configured_surfaces]
+    for surface in builtin_surfaces:
+        section = _fetch_surface_section(surface, min_interval_seconds=0, quiet_backoff_max=1)
+        if section:
+            sections.append(section)
+
+    if not sections:
+        return NO_CHANGE_MARKER
+
+    return "\n\n".join(sections)
+
+
+def main() -> int:
+    try:
+        output = run()
+    except Exception as e:  # pragma: no cover - defensive last resort
+        # Even a totally unexpected failure must not look like "something
+        # changed" to the caller -- fail toward silence, not toward a
+        # spurious LLM wake-up. Warn on stderr so it's diagnosable.
+        _eprint(f"subconscious_snapshot: unexpected failure ({e}); reporting NO_CHANGE")
+        output = NO_CHANGE_MARKER
+    print(output)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

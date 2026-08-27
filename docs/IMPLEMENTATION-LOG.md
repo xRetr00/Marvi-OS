@@ -1,20 +1,5 @@
 # Implementation Log
 
-## 2026-08-27 — focused standalone messaging transplant
-
-- Transplanted the messaging dependency closure into the Marvi-owned
-  `services/messaging/marvi_messaging/engine` namespace and removed the
-  9,382-file repository snapshot.
-- Renamed runtime modules, profile variables, entrypoints, plugin assets, and
-  product strings; predecessor names remain only in the legal provenance ledger.
-- Added an executable parity manifest covering 24 platform enum values, 23
-  platform plugins, 123 tools, 68 toolsets, and 19 slash-command families.
-- Changed Electron and release packaging to locate only the bundled Marvi
-  package. The package builder installs 140 locked dependencies into standalone
-  CPython and proves offline import, health, pairing, start, and stop behavior.
-- Fixed gateway liveness recognition for the Marvi module entrypoint, discovered
-  by the real staged-process acceptance test.
-
 ## 2026-08-26 — Marvi-owned messaging application boundary
 
 - Added `services/messaging/marvi_messaging` with owned command, lifecycle,
@@ -30,7 +15,7 @@
 
 ## 2026-08-26 — standalone vendored messaging runtime
 
-- Replaced the predecessor gitlink with 9,382 ordinary tracked files and
+- Replaced the `vendor/marvi-agent` gitlink with 9,382 ordinary tracked files and
   removed `.gitmodules` plus build/updater submodule materialization.
 - Added an exact-source packager that embeds standalone CPython 3.11 and 140
   locked messaging/platform packages in the Electron application resources.
@@ -45,10 +30,11 @@ work belongs in `docs/phases/`; architectural decisions belong in
 
 ## 2026-08-26 — pinned end-to-end messaging companion
 
-- Created an isolated messaging worktree.
-- Pinned the complete predecessor source commit
+- Created the isolated `codex/hermes-messaging` worktree at
+  `D:\Marvi-OS-hermes-messaging`.
+- Pinned the complete `D:\hermes-agent` source commit
   `61977bb4d6b97ab2aece57d2405fa2f0b19e3ae0` as
-  as a repository snapshot, preserving every gateway, adapter, session, delivery,
+  `vendor/marvi-agent`, preserving every gateway, adapter, session, delivery,
   attachment, command, approval, schedule, and tool implementation unchanged.
 - Added opt-in Electron lifecycle supervision, a separate private upstream
   profile, interactive upstream setup, platform discovery, source/status UI,
@@ -1226,9 +1212,9 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   preview and face-review fixture states, the Settings overlay, offline control
   lockout, and a clean unmodified browser console.
 
-## 2026-08-26 — upstream-compatible Gateway cron jobs
+## 2026-08-26 — Hermes-compatible Gateway cron jobs
 
-- Replaced the reminder-only schedule seam with the reusable upstream cron
+- Replaced the reminder-only schedule seam with the reusable Hermes cron
   contract adapted to Marvi Gateway ownership: one-shot, interval, and cron
   schedules; durable executions; repeat limits; per-job provider/model/effort;
   exact tool allowlists; and bounded retained output.
@@ -1244,7 +1230,7 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
 - Expanded the desktop Schedules surface with agent task, model, reasoning,
   tool, delivery, route, and output controls while preserving the control-center
   visual contract.
-- Recorded the exact upstream commit, MIT provenance, modification boundary, and
+- Recorded the exact Hermes commit, MIT provenance, modification boundary, and
   update method in `docs/UPSTREAM.md`.
 - Verified all 934 Gateway tests, all 252 desktop tests, Gateway Ruff, desktop
   ESLint with zero errors (existing line-ending warnings remain), both desktop

@@ -443,7 +443,7 @@ def test_component_sync_installs_declared_locked_extras(monkeypatch, tmp_path) -
         kind="python",
         title="Messaging",
         why="offline runtime",
-        project="services/messaging/marvi_messaging/engine",
+        project="vendor/marvi-agent",
         extra={"extras": ["messaging", "teams"]},
     )
 
@@ -451,6 +451,6 @@ def test_component_sync_installs_declared_locked_extras(monkeypatch, tmp_path) -
 
     assert outcome.ok, outcome.detail
     assert seen["argv"] == [
-        "uv", "sync", "--inexact", "--project", "services/messaging/marvi_messaging/engine",
+        "uv", "sync", "--inexact", "--project", "vendor/marvi-agent",
         "--extra", "messaging", "--extra", "teams",
     ]

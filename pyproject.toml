@@ -1,6 +1,6 @@
 [tool.uv.workspace]
 members = ["services/agent", "services/gateway"]
-exclude = ["services/messaging/marvi_messaging/engine"]
+exclude = ["vendor/marvi-agent"]
 
 [tool.uv]
 constraint-dependencies = ["yarl<1.24"]

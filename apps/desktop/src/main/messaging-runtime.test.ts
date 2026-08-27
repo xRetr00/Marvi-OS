@@ -52,13 +52,10 @@ describe('messaging runtime', () => {
     const runtime = await import('./messaging-runtime')
     const checkout = join(root, 'checkout')
     const resources = join(root, 'resources')
-    const source = join(resources, 'messaging', 'runtime', 'marvi_messaging', 'engine')
+    const source = join(resources, 'messaging', 'vendor')
     const runtimeRoot = join(resources, 'messaging', 'runtime')
     const python = join(resources, 'messaging', 'python', 'python.exe')
-    mkdirSync(
-      join(checkout, 'services', 'messaging', 'marvi_messaging', 'engine'),
-      { recursive: true }
-    )
+    mkdirSync(join(checkout, 'vendor', 'marvi-agent'), { recursive: true })
     mkdirSync(join(source, 'gateway'), { recursive: true })
     mkdirSync(join(runtimeRoot, 'marvi_messaging'), { recursive: true })
     mkdirSync(join(resources, 'messaging', 'python'), { recursive: true })
@@ -73,12 +70,12 @@ describe('messaging runtime', () => {
       cwd: runtimeRoot,
       env: {
         PYTHONPATH: [runtimeRoot, source].join(process.platform === 'win32' ? ';' : ':'),
-        MARVI_MESSAGING_ENGINE_ROOT: source
+        MARVI_MESSAGING_VENDOR_ROOT: source
       }
     })
   })
 
-  it('uses a separate messaging home and declares Electron as supervisor', async () => {
+  it('uses a separate upstream home and declares Electron as supervisor', async () => {
     const runtime = await import('./messaging-runtime')
     expect(runtime.messagingEnvironment('C:\\private', 42)).toMatchObject({
       MARVI_MESSAGING_HOME: 'C:\\private',
@@ -115,15 +112,7 @@ describe('messaging runtime', () => {
 
   it('tracks the engine as ordinary Marvi files with no nested repository', async () => {
     const runtime = await import('./messaging-runtime')
-    const source = join(
-      process.cwd(),
-      '..',
-      '..',
-      'services',
-      'messaging',
-      'marvi_messaging',
-      'engine'
-    )
+    const source = join(process.cwd(), '..', '..', 'vendor', 'marvi-agent')
     if (!existsSync(join(source, 'gateway', 'run.py'))) return
 
     expect(existsSync(join(source, '.git'))).toBe(false)
@@ -131,7 +120,7 @@ describe('messaging runtime', () => {
     expect(runtime.messagingPlatforms(source).length).toBeGreaterThanOrEqual(20)
   })
 
-  it('keeps predecessor CLI dispatch out of Marvi runtime ownership', async () => {
+  it('keeps the Hermes CLI out of Marvi runtime ownership', async () => {
     const runtimeMain = join(
       process.cwd(),
       '..',
@@ -144,8 +133,8 @@ describe('messaging runtime', () => {
     const electronMain = join(process.cwd(), 'src', 'main', 'messaging-runtime.ts')
     if (!existsSync(runtimeMain)) return
 
-    expect(readFileSync(runtimeMain, 'utf8')).not.toMatch(/legacy[_-]cli/i)
-    expect(readFileSync(electronMain, 'utf8')).not.toMatch(/legacy[_-]cli/i)
+    expect(readFileSync(runtimeMain, 'utf8')).not.toContain('hermes_cli')
+    expect(readFileSync(electronMain, 'utf8')).not.toContain('hermes_cli.main')
   })
 
   it('contains no repository or package-manager operation in the launch boundary', () => {
