@@ -280,6 +280,7 @@ mod tests {
         assert_eq!(sha.len(), 40);
         assert!(sha.chars().all(|c| c.is_ascii_hexdigit()));
     }
+
 }
 
 #[cfg(test)]
