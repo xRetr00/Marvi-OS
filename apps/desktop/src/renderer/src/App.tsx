@@ -17,7 +17,6 @@ import {
   House,
   Link2,
   Lightbulb,
-  MessageSquare,
   Info,
   Mic,
   Pause,
@@ -115,8 +114,6 @@ import type {
   MemoryPage,
   MemoryGraphMode,
   MemoryGraphPage,
-  MessagingStatus,
-  MessagingPairingRequest,
   MindDecision,
   ModelPage,
   PluginPage,
@@ -174,7 +171,7 @@ const SETTINGS_VOICE_PAGES = ['Speech recognition', 'Wake word', 'Voice synthesi
 const SETTINGS_GROUPS = [
   {
     gapBefore: false,
-    items: ['Providers', 'Models', 'Usage', 'Accounts', 'Messaging', 'Skills', 'Plugins']
+    items: ['Providers', 'Models', 'Usage', 'Accounts', 'Skills', 'Plugins']
   },
   {
     gapBefore: true,
@@ -216,7 +213,6 @@ const SETTINGS_ICONS: Record<SettingsPage | 'Voice', AbstractIconName> = {
   Models: 'models',
   Usage: 'activity',
   Accounts: 'accounts',
-  Messaging: 'chat',
   Skills: 'skills',
   Plugins: 'plugins',
   Voice: 'voice',
@@ -4046,8 +4042,6 @@ function SettingsShell({
               <UsagePanel />
             ) : page === 'Accounts' ? (
               <AccountsPanel />
-            ) : page === 'Messaging' ? (
-              <MessagingPanel />
             ) : page === 'Skills' ? (
               <SkillsPanel />
             ) : page === 'Plugins' ? (
@@ -4075,191 +4069,6 @@ function SettingsShell({
         </div>
       </div>
     </div>
-  )
-}
-
-function MessagingPanel(): React.JSX.Element {
-  const [status, setStatus] = useState<MessagingStatus | null>(null)
-  const [pairings, setPairings] = useState<MessagingPairingRequest[]>([])
-  const [home, setHome] = useState('')
-  const [notice, setNotice] = useState('')
-
-  const load = useCallback(async (): Promise<void> => {
-    const [next, pending] = await Promise.all([
-      window.marvi?.getMessaging(),
-      window.marvi?.getMessagingPairings()
-    ])
-    if (next) {
-      setStatus(next)
-      setHome(next.home)
-    }
-    if (pending) setPairings(pending)
-  }, [])
-
-  useEffect(() => {
-    let disposed = false
-    void Promise.all([window.marvi?.getMessaging(), window.marvi?.getMessagingPairings()]).then(
-      ([next, pending]) => {
-        if (disposed) return
-        if (next) {
-          setStatus(next)
-          setHome(next.home)
-        }
-        if (pending) setPairings(pending)
-      }
-    )
-    return () => {
-      disposed = true
-    }
-  }, [])
-
-  const save = async (enabled: boolean): Promise<void> => {
-    const next = await window.marvi?.setMessaging({ enabled, home })
-    if (next) setStatus(next)
-  }
-
-  if (!status) {
-    return (
-      <ControlPage description="Connect Marvi through messaging services." title="Messaging">
-        <ProcessingCard compact detail="Reading the bundled messaging runtime." title="Loading" />
-      </ControlPage>
-    )
-  }
-
-  return (
-    <ControlPage
-      className="settings-page"
-      description="Reach Marvi through the complete bundled messaging runtime."
-      title="Messaging"
-    >
-      {notice ? <p className="notice">{notice}</p> : null}
-      <ControlSection icon={MessageSquare} title="Gateway">
-        <ControlRow
-          action={
-            <ControlPill tone={status.installed ? 'ready' : 'danger'}>
-              {status.installed ? 'BUNDLED' : 'MISSING'}
-            </ControlPill>
-          }
-          description={`Derived implementation ${status.sourceCommit.slice(0, 12)} · ${status.platforms.length} platform adapters`}
-          title="Marvi messaging runtime"
-        />
-        <ControlRow
-          action={
-            <ControlButton
-              disabled={!status.installed || !status.configured}
-              onClick={() => void save(!status.enabled)}
-            >
-              {status.enabled ? 'Disable' : 'Enable'}
-            </ControlButton>
-          }
-          description={
-            status.configured
-              ? 'Electron supervises the gateway and stops it with Marvi OS.'
-              : 'Run setup before enabling network connections.'
-          }
-          title="Lifecycle"
-        />
-      </ControlSection>
-
-      <ControlSection icon={Wrench} title="Setup and credentials">
-        <ControlRow
-          action={
-            <div className="provider-actions">
-              <ControlButton
-                disabled={!status.installed}
-                onClick={async () => {
-                  const opened = await window.marvi?.setupMessaging()
-                  setNotice(
-                    opened
-                      ? 'Setup opened in a terminal. Refresh after it finishes.'
-                      : 'Could not open setup. Check the Messaging service output.'
-                  )
-                }}
-              >
-                Open setup
-              </ControlButton>
-              <ControlButton onClick={() => void load()}>Refresh</ControlButton>
-            </div>
-          }
-          description="Marvi's messaging setup owns platform OAuth, bot tokens, allowlists, and platform-specific options. Secrets never enter the renderer."
-          title="Interactive setup"
-        />
-        <ControlRow
-          action={
-            <ControlButton onClick={() => void window.marvi?.openMessagingHome()}>
-              Open
-            </ControlButton>
-          }
-          description={status.home}
-          title="Private messaging data"
-        />
-        <ControlRow
-          action={
-            <ControlButton
-              disabled={status.enabled || home.trim() === status.home}
-              onClick={() => void save(status.enabled)}
-            >
-              Save path
-            </ControlButton>
-          }
-          description="Disable Messaging before changing profiles. Selecting a new home does not copy credentials."
-          title="Profile home"
-        />
-        <input
-          aria-label="Messaging profile home"
-          disabled={status.enabled}
-          onChange={(event) => setHome(event.target.value)}
-          spellCheck={false}
-          value={home}
-        />
-      </ControlSection>
-
-      <ControlSection icon={Users} title="Sender pairing">
-        {pairings.length === 0 ? (
-          <ControlEmpty
-            description="Unknown senders will appear here after the bot gives them a one-time pairing code."
-            title="No pending requests"
-          />
-        ) : (
-          pairings.map((pairing) => (
-            <ControlRow
-              action={
-                <ControlButton
-                  disabled={!pairing.requestId}
-                  onClick={async () => {
-                    const approved = await window.marvi?.approveMessagingPairing(
-                      pairing.platform,
-                      pairing.requestId
-                    )
-                    setNotice(
-                      approved
-                        ? `${pairing.userName || pairing.userId} approved for ${pairing.platform}.`
-                        : 'Pairing approval failed or expired. Refresh and try again.'
-                    )
-                    await load()
-                  }}
-                >
-                  Approve
-                </ControlButton>
-              }
-              description={`${pairing.platform} · ${pairing.userId} · ${pairing.ageMinutes} min ago`}
-              key={`${pairing.platform}:${pairing.requestId}:${pairing.userId}`}
-              title={pairing.userName || 'Unknown sender'}
-            />
-          ))
-        )}
-        <ControlButton onClick={() => void load()}>Refresh requests</ControlButton>
-      </ControlSection>
-
-      <ControlSection icon={Link2} title="Included surfaces">
-        <p>{status.platforms.join(' · ') || 'No adapters discovered.'}</p>
-        <p>
-          Messages run through Marvi&apos;s bundled runtime with the derived gateway&apos;s
-          sessions, streaming delivery, attachments, slash commands, approvals, scheduled delivery,
-          and complete toolsets.
-        </p>
-      </ControlSection>
-    </ControlPage>
   )
 }
 

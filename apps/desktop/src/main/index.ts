@@ -55,17 +55,6 @@ import {
 } from './pet-window'
 import { NativePetHost, petActionPage, petTaskCount, resolvePetHostPaths } from './pet-host'
 import {
-  approveMessagingPairing,
-  launchMessagingSetup,
-  listMessagingPairings,
-  messagingEnvironment,
-  messagingLaunch,
-  messagingSourceRoot,
-  messagingStatus,
-  shouldStartMessaging,
-  writeMessagingPreferences
-} from './messaging-runtime'
-import {
   canUpdate,
   checkForUpdate,
   consumeUpdateResult,
@@ -542,34 +531,6 @@ function startVoiceStack(): void {
     args: ['run', '--project', 'services/agent', 'python', '-m', 'marvi_agent.session', 'start'],
     cwd: repoRoot,
     env: childEnv
-  })
-  const messagingSource = messagingSourceRoot(repoRoot, process.resourcesPath)
-  const messagingRuntime = messagingLaunch(messagingSource)
-  supervisor.add({
-    name: 'messaging',
-    match: /marvi_messaging\.main\s+gateway\s+run/i,
-    installRoot: messagingSource,
-    command: messagingRuntime?.command ?? join(messagingSource, '.runtime-not-installed'),
-    args: [
-      ...(messagingRuntime?.args ?? []),
-      'gateway',
-      'run',
-      '--replace',
-      '--external-supervisor'
-    ],
-    cwd: messagingRuntime?.cwd ?? messagingSource,
-    env: () => ({
-      ...childEnv,
-      ...(messagingRuntime?.env ?? {}),
-      ...messagingEnvironment(messagingStatus(repoRoot, process.resourcesPath).home, process.pid)
-    }),
-    // Messaging is deliberately opt-in. The complete vendored implementation is
-    // shipped, but no network connection is made until setup has produced a
-    // config and the user enables it.
-    when: () => {
-      const status = messagingStatus(repoRoot, process.resourcesPath)
-      return shouldStartMessaging(status)
-    }
   })
   supervisor.startAll()
 }
@@ -1913,55 +1874,6 @@ function startApp(): void {
     ipcMain.handle('marvi:retry-service', (_event, name) => {
       if (typeof name !== 'string' || !supervisor) return false
       return supervisor.retry(name)
-    })
-    ipcMain.handle('marvi:get-messaging', () => messagingStatus(repoRoot, process.resourcesPath))
-    ipcMain.handle('marvi:set-messaging', (event, update) => {
-      if (!isMarviPage(event.senderFrame?.url ?? '') || typeof update !== 'object' || !update) {
-        return messagingStatus(repoRoot, process.resourcesPath)
-      }
-      const current = messagingStatus(repoRoot, process.resourcesPath)
-      const record = update as { enabled?: unknown; home?: unknown }
-      const requestedHome = typeof record.home === 'string' ? record.home : current.home
-      const next = writeMessagingPreferences({
-        enabled: record.enabled === true,
-        // A running child already inherited its profile. Moving it in place
-        // would make the UI describe one home while the process writes to
-        // another, so changing profiles requires disabling first.
-        home: current.enabled ? current.home : requestedHome
-      })
-      if (next.enabled) supervisor?.start('messaging')
-      else supervisor?.stop('messaging')
-      return messagingStatus(repoRoot, process.resourcesPath)
-    })
-    ipcMain.handle('marvi:setup-messaging', (event) => {
-      if (!isMarviPage(event.senderFrame?.url ?? '')) return false
-      return launchMessagingSetup(repoRoot, process.resourcesPath, process.pid)
-    })
-    ipcMain.handle('marvi:get-messaging-pairings', (event) => {
-      if (!isMarviPage(event.senderFrame?.url ?? '')) return []
-      return listMessagingPairings(repoRoot, process.resourcesPath, process.pid)
-    })
-    ipcMain.handle('marvi:approve-messaging-pairing', (event, platform, requestId) => {
-      if (
-        !isMarviPage(event.senderFrame?.url ?? '') ||
-        typeof platform !== 'string' ||
-        typeof requestId !== 'string'
-      ) {
-        return false
-      }
-      return approveMessagingPairing(
-        repoRoot,
-        process.resourcesPath,
-        process.pid,
-        platform,
-        requestId
-      )
-    })
-    ipcMain.handle('marvi:open-messaging-home', async (event) => {
-      if (!isMarviPage(event.senderFrame?.url ?? '')) return false
-      const home = messagingStatus(repoRoot, process.resourcesPath).home
-      mkdirSync(home, { recursive: true })
-      return (await shell.openPath(home)) === ''
     })
     ipcMain.handle('marvi:get-providers', async () => {
       try {

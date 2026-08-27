@@ -626,28 +626,6 @@ export interface ServiceReport {
   output: string[]
 }
 
-export interface MessagingPreferences {
-  enabled: boolean
-  home: string
-}
-
-export interface MessagingStatus extends MessagingPreferences {
-  installed: boolean
-  configured: boolean
-  sourceRoot: string
-  sourceCommit: string
-  platforms: string[]
-  setupCommand: string
-}
-
-export interface MessagingPairingRequest {
-  platform: string
-  requestId: string
-  userId: string
-  userName: string
-  ageMinutes: number
-}
-
 export interface ComponentStatus {
   state: ComponentState
   detail: string

@@ -189,33 +189,3 @@ Full plan in `phases/10-resilience.md`; identity in `IDENTITY.md`.
    the command that will run, and a skill cannot grant itself tools.
 
 Full plan in `phases/11-setup.md`.
-
-## Phase 14 — optional messaging companion
-
-1. Pin the complete Marvi Agent messaging repository rather than extracting a
-   coupled subset of adapters and gateway code.
-2. Give it an isolated profile and explicit opt-in lifecycle under Electron.
-3. Reuse its setup, sessions, platform tools, approvals, delivery, and recovery
-   unchanged while keeping it outside the LiveKit voice runtime.
-4. Make source provenance, configuration state, adapter inventory, and process
-   failures visible in Settings → Messaging.
-
-Full acceptance boundary in `phases/14-messaging-companion.md`.
-
-## Phase 15 — standalone messaging package
-
-1. Replace the messaging gitlink with ordinary vendored files.
-2. Package the exact source tree, standalone Python, and locked platform dependencies.
-3. Start the module directly with downloads disabled and prove the unpacked app offline.
-4. Remove messaging submodule handling from build and update paths.
-
-Full acceptance boundary in `phases/15-standalone-messaging-runtime.md`.
-
-## Phase 16 — Marvi-owned messaging boundary
-
-1. Add the `marvi_messaging` application namespace and command surface.
-2. Call the reusable gateway lifecycle directly instead of the derived CLI dispatcher.
-3. Wrap configuration, health, planned shutdown, state, and compatibility names.
-4. Prove Electron and the packaged application launch only the Marvi entrypoint.
-
-Full acceptance boundary in `phases/16-marvi-messaging-boundary.md`.

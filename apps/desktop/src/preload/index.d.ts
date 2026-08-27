@@ -18,8 +18,6 @@ import type {
   MemoryGraphMode,
   MemoryGraphPage,
   MemoryPage,
-  MessagingStatus,
-  MessagingPairingRequest,
   MindDecision,
   ModelPage,
   PluginPage,
@@ -199,12 +197,6 @@ export interface MarviDesktopApi {
   ) => Promise<{ subsystem: string; lines: string[]; available: string[] } | null>
   getServices: () => Promise<ServiceReport[]>
   retryService: (name: string) => Promise<boolean>
-  getMessaging: () => Promise<MessagingStatus>
-  setMessaging: (update: { enabled: boolean; home: string }) => Promise<MessagingStatus>
-  setupMessaging: () => Promise<boolean>
-  getMessagingPairings: () => Promise<MessagingPairingRequest[]>
-  approveMessagingPairing: (platform: string, requestId: string) => Promise<boolean>
-  openMessagingHome: () => Promise<boolean>
   onServices: (listener: (reports: ServiceReport[]) => void) => () => void
   getProviders: () => Promise<ProviderPage | null>
   getUsage: (refresh?: boolean) => Promise<UsagePage | null>

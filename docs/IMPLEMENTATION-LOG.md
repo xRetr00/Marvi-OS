@@ -1,60 +1,8 @@
 # Implementation Log
 
-## 2026-08-27 — focused standalone messaging transplant
-
-- Transplanted the messaging dependency closure into the Marvi-owned
-  `services/messaging/marvi_messaging/engine` namespace and removed the
-  9,382-file repository snapshot.
-- Renamed runtime modules, profile variables, entrypoints, plugin assets, and
-  product strings; predecessor names remain only in the legal provenance ledger.
-- Added an executable parity manifest covering 24 platform enum values, 23
-  platform plugins, 123 tools, 68 toolsets, and 19 slash-command families.
-- Changed Electron and release packaging to locate only the bundled Marvi
-  package. The package builder installs 140 locked dependencies into standalone
-  CPython and proves offline import, health, pairing, start, and stop behavior.
-- Fixed gateway liveness recognition for the Marvi module entrypoint, discovered
-  by the real staged-process acceptance test.
-
-## 2026-08-26 — Marvi-owned messaging application boundary
-
-- Added `services/messaging/marvi_messaging` with owned command, lifecycle,
-  configuration, health, shutdown, and private vendor-compatibility modules.
-- Changed Electron supervision and interactive setup to launch
-  `python -m marvi_messaging.main`; the derived monolithic CLI is no longer an
-  executable or imported runtime boundary.
-- Split the package payload into `runtime`, `vendor`, and `python`, retaining all
-  9,382 pinned implementation files while making ownership mechanically visible.
-- Added a Marvi-owned pending-pairing API and Settings surface; approval uses the
-  server-side request id, while derived self-update and detached CLI fallback
-  paths are disabled whenever Marvi owns the runtime.
-
-## 2026-08-26 — standalone vendored messaging runtime
-
-- Replaced the predecessor gitlink with 9,382 ordinary tracked files and
-  removed `.gitmodules` plus build/updater submodule materialization.
-- Added an exact-source packager that embeds standalone CPython 3.11 and 140
-  locked messaging/platform packages in the Electron application resources.
-- Replaced `uv run --project` at launch with direct bundled-Python module
-  execution and disabled runtime package/index access.
-- Built the unpacked Windows app and launched its packaged messaging CLI with
-  package downloads disabled.
-
 This is the chronological record of work that has actually happened. Planned
 work belongs in `docs/phases/`; architectural decisions belong in
 `docs/DECISIONS.md`.
-
-## 2026-08-26 — pinned end-to-end messaging companion
-
-- Created an isolated messaging worktree.
-- Pinned the complete predecessor source commit
-  `61977bb4d6b97ab2aece57d2405fa2f0b19e3ae0` as
-  as a repository snapshot, preserving every gateway, adapter, session, delivery,
-  attachment, command, approval, schedule, and tool implementation unchanged.
-- Added opt-in Electron lifecycle supervision, a separate private upstream
-  profile, interactive upstream setup, platform discovery, source/status UI,
-  and installer/update submodule materialization.
-- Added lifecycle and configuration tests. Final acceptance evidence and commit
-  are recorded in `phases/14-messaging-companion.md`.
 
 ## 2026-08-16 — repository foundation
 
@@ -1226,9 +1174,9 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   preview and face-review fixture states, the Settings overlay, offline control
   lockout, and a clean unmodified browser console.
 
-## 2026-08-26 — upstream-compatible Gateway cron jobs
+## 2026-08-26 — Hermes-compatible Gateway cron jobs
 
-- Replaced the reminder-only schedule seam with the reusable upstream cron
+- Replaced the reminder-only schedule seam with the reusable Hermes cron
   contract adapted to Marvi Gateway ownership: one-shot, interval, and cron
   schedules; durable executions; repeat limits; per-job provider/model/effort;
   exact tool allowlists; and bounded retained output.
@@ -1244,7 +1192,7 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
 - Expanded the desktop Schedules surface with agent task, model, reasoning,
   tool, delivery, route, and output controls while preserving the control-center
   visual contract.
-- Recorded the exact upstream commit, MIT provenance, modification boundary, and
+- Recorded the exact Hermes commit, MIT provenance, modification boundary, and
   update method in `docs/UPSTREAM.md`.
 - Verified all 934 Gateway tests, all 252 desktop tests, Gateway Ruff, desktop
   ESLint with zero errors (existing line-ending warnings remain), both desktop

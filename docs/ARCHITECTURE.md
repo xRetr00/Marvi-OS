@@ -24,8 +24,6 @@ flowchart TB
     Room["D:\\smart-room-plugin"]
     Memory["Memory service"]
     Deep["Marvi Agent delegate"]
-    Messaging["Bundled messaging<br/>runtime"]
-    Channels["Telegram, Discord, Slack,<br/>and other messaging services"]
 
     UI <--> Main
     Main -->|phase/count, gaze, hover, bounds| Pet
@@ -43,8 +41,6 @@ flowchart TB
     Tools --> Room
     Tools --> Memory
     Tools --> Deep
-    Main -->|optional lifecycle + status| Messaging
-    Messaging <--> Channels
     Room -->|events and logs| Gateway
     Sensors -->|local activation/context| Gateway
 ```
@@ -155,30 +151,6 @@ Delivery is a Gateway protocol boundary rather than platform logic in the
 scheduler. The installed adapter exposes only `local` (save output). A future
 messaging subsystem registers destinations and implements delivery without
 changing cron records, execution, or the desktop contract.
-
-## Optional messaging companion
-
-Messaging is a focused source transplant owned inside
-`services/messaging/marvi_messaging/engine`; it is neither a submodule, a vendor
-checkout, nor a separately installed application. Packaging copies the complete
-`marvi_messaging` package to `resources/messaging/runtime`, installs all locked
-dependencies into standalone CPython at `resources/messaging/python`, and then
-performs an offline import/command smoke test. Electron main starts
-`python.exe -m marvi_messaging.main gateway run` and supervises it only after the
-user completes Marvi messaging setup and explicitly enables it. The package owns
-argument parsing, lifecycle, health, planned shutdown, configuration, pairing,
-platform adapters, sessions, delivery, tools, and the private profile contract.
-The runtime receives its own Marvi messaging home, process tree, logs, platform
-credentials, conversations, approval state, and toolsets. The renderer receives
-only lifecycle status and paths; platform tokens never cross IPC.
-
-This is intentionally a companion deep-work surface, not a second voice
-runtime and not a transport shim into Marvi OS Chat. Remote messages therefore
-cannot join a LiveKit room, change the foreground voice prompt, or bypass Marvi
-Gateway's tool policy. Conversely, Marvi OS Confirm/YOLO does not silently
-govern the companion: its messaging approval behavior remains intact and is
-configured through Marvi's setup adapter. The transplant preserves end-to-end
-platform and tool behavior without moving messaging policy into React.
 
 ## Always-on lifecycle
 

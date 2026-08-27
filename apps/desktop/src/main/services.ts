@@ -94,8 +94,7 @@ export interface ServiceSpec {
   cwd: string
   /** Skip silently when false — an optional service, not a failure. */
   when?: () => boolean
-  /** Static environment, or a resolver for settings that can change between starts. */
-  env?: Record<string, string> | (() => Record<string, string>)
+  env?: Record<string, string>
   /** Where this installation lives, so another checkout is left alone. */
   installRoot?: string
   /**
@@ -157,7 +156,6 @@ class Service {
   }
 
   start(): void {
-    if (this.child && isAlive(this.child.pid)) return
     if (this.spec.when && !this.spec.when()) {
       this.state = 'stopped'
       this.detail = 'not installed'
@@ -193,13 +191,12 @@ class Service {
 
     let child: ChildProcess
     try {
-      const serviceEnv = typeof this.spec.env === 'function' ? this.spec.env() : this.spec.env
       child = spawn(this.spec.command, this.spec.args, {
         cwd: this.spec.cwd,
         windowsHide: true,
         // Piped, not ignored. This is the whole point.
         stdio: ['ignore', 'pipe', 'pipe'],
-        env: { ...process.env, ...serviceEnv },
+        env: { ...process.env, ...this.spec.env },
         // Its own process group, so the whole tree can be signalled at once.
         // Every service here is `uv` launching Python, so the process that
         // matters is a grandchild.
@@ -350,20 +347,6 @@ export class ServiceSupervisor {
 
   startAll(): void {
     for (const service of this.services.values()) service.start()
-  }
-
-  start(name: string): boolean {
-    const service = this.services.get(name)
-    if (!service) return false
-    service.start()
-    return true
-  }
-
-  stop(name: string): boolean {
-    const service = this.services.get(name)
-    if (!service) return false
-    service.stop()
-    return true
   }
 
   stopAll(): void {
