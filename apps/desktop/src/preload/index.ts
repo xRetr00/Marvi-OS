@@ -30,6 +30,7 @@ import type {
   ServiceReport,
   SetupPage,
   SkillReview,
+  SkillProposal,
   StoreSkill,
   UpdateChannel,
   UpdateCheck,
@@ -323,6 +324,11 @@ const marvi = {
     ipcRenderer.invoke('marvi:get-memory-settings'),
   setMemorySettings: (update: MemorySettingsUpdate): Promise<MemoryPolicy | null> =>
     ipcRenderer.invoke('marvi:set-memory-settings', update),
+  getSkillProposal: (): Promise<SkillProposal | null> =>
+    ipcRenderer.invoke('marvi:get-skill-proposal'),
+  /** True when the gateway settled it. Declining writes nothing. */
+  settleSkillProposal: (accept: boolean): Promise<boolean> =>
+    ipcRenderer.invoke('marvi:settle-skill-proposal', accept),
   getLanguage: (): Promise<LanguagePolicy | null> => ipcRenderer.invoke('marvi:get-language'),
   setLanguage: (update: LanguageUpdate): Promise<LanguagePolicy | null> =>
     ipcRenderer.invoke('marvi:set-language', update),

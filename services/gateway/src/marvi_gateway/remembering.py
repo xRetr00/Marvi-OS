@@ -228,9 +228,18 @@ class Rememberer:
     run builds, and a daemon thread each was a thread each.
     """
 
-    def __init__(self, store: Any, client: Any) -> None:
+    def __init__(self, store: Any, client: Any, *, propose_skills: bool = True) -> None:
         self._store = store
         self._client = client
+        #: Whether the same pass also asks "should a skill be written?".
+        #: A second model call per turn, off the turn, and worth it: a
+        #: correction about *how* Marvi works has nowhere else to go -- memory
+        #: holds facts about the world and the prompt is fixed, so the same
+        #: mistake returns next session.
+        self._propose_skills = propose_skills
+        #: What the last turn suggested writing down, waiting for a person.
+        #: One slot: two unreviewed proposals is a queue nobody empties.
+        self.proposal: dict[str, Any] | None = None
         self._turns: queue.Queue[tuple[str, str]] = queue.Queue(maxsize=QUEUE_DEPTH)
         #: Set while a turn is being extracted, so `drain` can tell "nothing
         #: queued" from "nothing queued and nothing in flight".
@@ -274,11 +283,40 @@ class Rememberer:
             self._working.set()
             try:
                 extract(mine, self._client, user, assistant)
+                if self._propose_skills:
+                    self._review_skills(user, assistant)
             except Exception as exc:  # pragma: no cover - the thread must survive
                 log.warning("memory worker recovered from: %s", exc)
             finally:
                 self._working.clear()
                 self._turns.task_done()
+
+    def _review_skills(self, user: str, assistant: str) -> None:
+        """Ask whether this turn taught something worth writing down.
+
+        Proposed rather than written. A skill is instructions Marvi will follow
+        later, so a model that can write one silently is a model that can
+        rewrite its own behaviour -- and the Skills page already has a review
+        flow, because that argument was settled when skills became installable
+        from a store.
+        """
+        from . import learning
+        from .setup import skills as skills_module
+
+        try:
+            available = skills_module.installed()
+        except Exception:  # pragma: no cover - depends on what is on disk
+            available = []
+        found = learning.propose(self._client, user, assistant, available)
+        if found:
+            self.proposal = found
+            log.info(
+                "skill proposed: %s %s -- %s",
+                found["act"],
+                found["name"],
+                found["why"],
+                extra={"marvi_skill": found["name"], "marvi_act": found["act"]},
+            )
 
     def drain(self, timeout: float = 5.0) -> bool:
         """Wait for what is queued. For tests, and for a clean shutdown.

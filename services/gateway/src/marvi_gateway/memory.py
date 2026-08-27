@@ -15,8 +15,10 @@ adopted here.
 
 from __future__ import annotations
 
+import math
 import re
 import sqlite3
+import struct
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal
@@ -67,6 +69,41 @@ _COMMON = frozenset(
 )
 
 
+#: Below this, a memory is not about the query, and returning it is worse than
+#: returning nothing.
+#:
+#: Measured on this machine with the default model rather than picked as a
+#: round number. With bge-small, unrelated text lands at 0.41-0.48 and a real
+#: answer at 0.55 or above. An absolute 0.3 would have returned every memory
+#: for every query -- "photosynthesis" scores 0.48 against a note about coffee.
+#:
+#: Model-specific, deliberately. Changing the embedding model means measuring
+#: this again; a number that means something different for every model means
+#: nothing.
+SIMILAR_ENOUGH = 0.52
+
+
+def _normalise(vector: list[float]) -> list[float]:
+    """Unit length, so a dot product is a cosine.
+
+    Done once on the way in rather than on every comparison: a search over a
+    few hundred memories would otherwise compute the same magnitudes again for
+    each one.
+    """
+    total = math.sqrt(sum(value * value for value in vector))
+    return [value / total for value in vector] if total else list(vector)
+
+
+def _to_blob(vector: list[float]) -> bytes:
+    """float32, little-endian. Half the size of float64 and past the point
+    where the extra precision changes which memory comes back."""
+    return struct.pack(f"<{len(vector)}f", *vector)
+
+
+def _from_blob(blob: bytes) -> list[float]:
+    return list(struct.unpack(f"<{len(blob) // 4}f", blob))
+
+
 def _significant(text: str) -> set[str]:
     """The words of a statement that carry its meaning."""
     return {
@@ -111,6 +148,17 @@ CREATE TABLE IF NOT EXISTS relations (
 );
 CREATE INDEX IF NOT EXISTS relations_subject ON relations(subject_id);
 CREATE INDEX IF NOT EXISTS relations_object ON relations(object_id);
+-- One vector per memory, when embeddings are switched on.
+--
+-- Its own table rather than a column: a memory is complete without one, the
+-- model can change under it, and `ON DELETE CASCADE` means forgetting a memory
+-- cannot leave a vector behind to be matched against later.
+CREATE TABLE IF NOT EXISTS vectors (
+    memory_id INTEGER PRIMARY KEY REFERENCES memories(id) ON DELETE CASCADE,
+    model     TEXT NOT NULL,
+    dimension INTEGER NOT NULL,
+    vector    BLOB NOT NULL
+);
 CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts
     USING fts5(subject, body, content='memories', content_rowid='id');
 CREATE TRIGGER IF NOT EXISTS memories_ai AFTER INSERT ON memories BEGIN
@@ -151,6 +199,14 @@ class MemoryStore:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._db = sqlite3.connect(self.path, check_same_thread=False)
         self._db.row_factory = sqlite3.Row
+        # On for the connection, not just inside the one method that remembered
+        # to ask. SQLite defaults it off, so `ON DELETE CASCADE` is decoration
+        # until somebody turns it on -- and a forgotten memory would leave its
+        # vector behind for ever. The join hides that (an orphan matches no
+        # row), which is exactly why it would never have been noticed.
+        self._db.execute("PRAGMA foreign_keys = ON")
+        #: Built on first use, because most stores never need one.
+        self._embed: Any = None
         self._db.executescript(SCHEMA)
         self._db.commit()
 
@@ -209,6 +265,10 @@ class MemoryStore:
         )
         self._db.commit()
         memory_id = int(cursor.lastrowid or 0)
+        # Indexed on the way in, so a memory is searchable by meaning from the
+        # moment it exists. Costs 10ms on the CPU and happens on the worker
+        # thread, off the turn.
+        self.index(memory_id, f"{subject}: {body}")
         log.info(
             "memory stored",
             extra={
@@ -280,6 +340,10 @@ class MemoryStore:
             ),
         )
         self._db.commit()
+        # The text changed, so the vector is wrong. Re-indexed rather than
+        # left, because a stale vector matches what the memory used to say --
+        # the same failure as the FTS index without its update trigger.
+        self.index(memory_id, f"{subject}: {body}")
         log.info(
             "memory corrected in place",
             extra={
@@ -311,16 +375,144 @@ class MemoryStore:
             entry["body"] = wrap_external(entry["source"], entry["body"]).text
         return entry
 
-    def search(self, query: str, limit: int = DEFAULT_SEARCH_LIMIT) -> list[dict[str, Any]]:
-        match = _fts_query(query)
-        if not match:
-            return []
+    # -- searching by meaning -------------------------------------------------
+
+    def _embedder(self) -> Any:
+        """The shared embedder, built on first use.
+
+        Held on the store rather than passed in, because every caller of
+        `search` would otherwise have to know about embeddings -- including the
+        tools, which have no business knowing.
+        """
+        if self._embed is None:
+            from .embedding import Embedder
+
+            self._embed = Embedder()
+        return self._embed
+
+    def index(self, memory_id: int, text: str) -> bool:
+        """Give one memory a vector. False when embeddings are off or failed.
+
+        Never raises. A memory without a vector is still a memory, and still
+        findable by keyword -- which is what the whole store did until now.
+        """
+        embedder = self._embedder()
+        if not embedder.ready:
+            return False
+        vectors = embedder.embed([text])
+        if not vectors:
+            return False
+        from .embedding import model_name
+
+        vector = _normalise(vectors[0])
+        self._db.execute(
+            "INSERT OR REPLACE INTO vectors (memory_id, model, dimension, vector)"
+            " VALUES (?, ?, ?, ?)",
+            (memory_id, model_name(), len(vector), _to_blob(vector)),
+        )
+        self._db.commit()
+        return True
+
+    def index_missing(self, limit: int = 200) -> int:
+        """Give vectors to memories that have none, or whose model has changed.
+
+        Switching embedding model invalidates every vector: two models put the
+        same sentence in different places, and comparing across them returns
+        confident nonsense. Rows from another model are treated as missing
+        rather than migrated, because there is nothing to migrate -- the text
+        has to go through the new model.
+        """
+        from .embedding import model_name
+
+        current = model_name()
         rows = self._db.execute(
-            "SELECT m.* FROM memories_fts f JOIN memories m ON m.id = f.rowid"
-            " WHERE memories_fts MATCH ? ORDER BY rank LIMIT ?",
-            (match, max(1, min(limit, 100))),
+            "SELECT m.id, m.subject, m.body FROM memories m"
+            " LEFT JOIN vectors v ON v.memory_id = m.id"
+            " WHERE v.memory_id IS NULL OR v.model != ? LIMIT ?",
+            (current, max(1, min(limit, 1000))),
         ).fetchall()
+        done = 0
+        for row in rows:
+            if self.index(int(row["id"]), f"{row['subject']}: {row['body']}"):
+                done += 1
+        if done:
+            log.info(
+                "memory: %d entries indexed for semantic search",
+                done,
+                extra={"marvi_model": current},
+            )
+        return done
+
+    def search_similar(self, query: str, limit: int = DEFAULT_SEARCH_LIMIT) -> list[dict[str, Any]]:
+        """Memories that mean something like the query.
+
+        The gap keyword search cannot close: "who am I" shares no word with
+        "the user's name is Shereef", so FTS5 returns nothing and Marvi looks
+        like she has forgotten something she is holding.
+
+        A full scan with a dot product. There is no index and there does not
+        need to be one -- this is a personal memory of hundreds of rows, not a
+        corpus, and 384 floats times a few hundred is microseconds. A vector
+        index here would be infrastructure for a problem nobody has.
+        """
+        embedder = self._embedder()
+        if not embedder.ready or not query.strip():
+            return []
+        asked = embedder.embed([query], query=True)
+        if not asked:
+            return []
+        from .embedding import model_name
+
+        wanted = _normalise(asked[0])
+        rows = self._db.execute(
+            "SELECT m.*, v.vector FROM vectors v JOIN memories m ON m.id = v.memory_id"
+            " WHERE v.model = ? AND v.dimension = ?",
+            (model_name(), len(wanted)),
+        ).fetchall()
+
+        scored = []
+        for row in rows:
+            stored = _from_blob(row["vector"])
+            if len(stored) != len(wanted):
+                continue
+            # Both sides are unit length, so the dot product is the cosine.
+            score = sum(a * b for a, b in zip(wanted, stored, strict=True))
+            if score >= SIMILAR_ENOUGH:
+                scored.append((score, row))
+        scored.sort(key=lambda pair: -pair[0])
+        return [self._row(row) for _, row in scored[: max(1, limit)]]
+
+    def search(self, query: str, limit: int = DEFAULT_SEARCH_LIMIT) -> list[dict[str, Any]]:
+        """Keywords and meaning together, whichever finds it.
+
+        Both, not either. Keyword search is exact and finds a name, an error
+        code, a filename -- the things an embedding blurs. Semantic search
+        finds the note whose words you have forgotten, which is most of what
+        anybody actually asks memory for. Running one alone means losing the
+        other's best case, and the union is short enough not to matter.
+
+        Keyword results lead, because a literal match is more likely to be the
+        thing that was asked for than a close one.
+        """
+        capped = max(1, min(limit, 100))
+        match = _fts_query(query)
+        rows = (
+            self._db.execute(
+                "SELECT m.* FROM memories_fts f JOIN memories m ON m.id = f.rowid"
+                " WHERE memories_fts MATCH ? ORDER BY rank LIMIT ?",
+                (match, capped),
+            ).fetchall()
+            if match
+            else []
+        )
         found = [self._row(row) for row in rows]
+        seen = {entry["id"] for entry in found}
+        for entry in self.search_similar(query, limit=capped):
+            if entry["id"] not in seen and len(found) < capped:
+                found.append(entry)
+                seen.add(entry["id"])
+        if not found:
+            return []
         self.reinforce([entry["id"] for entry in found])
         log.info(
             "memory search completed",

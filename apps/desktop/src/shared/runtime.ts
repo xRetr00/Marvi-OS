@@ -909,6 +909,25 @@ export interface MemoryPolicy {
   roleConfigured: boolean
 }
 
+/**
+ * A skill the last turn suggested writing down, waiting for a person.
+ *
+ * Almost always absent. It appears when the user corrected *how* Marvi works
+ * — "stop formatting like that" — which is the correction that used to be
+ * forgotten by the next session, because memory holds facts and the prompt is
+ * fixed.
+ */
+export interface SkillProposal {
+  /** `create` for a new skill, `patch` to replace one that exists. */
+  act: 'create' | 'patch'
+  name: string
+  description: string
+  /** The whole SKILL.md body, shown before anything is written. */
+  body: string
+  /** One sentence on what in the conversation prompted it. */
+  why: string
+}
+
 export interface MemorySettingsUpdate {
   source?: string
   model?: string

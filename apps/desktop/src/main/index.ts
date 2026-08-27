@@ -78,6 +78,7 @@ import type {
   VoicePage,
   LanguagePolicy,
   MemoryPolicy,
+  SkillProposal,
   WakeStatus,
   WorkspacePolicy
 } from '../shared/runtime'
@@ -231,6 +232,21 @@ function normaliseLanguage(body: unknown): LanguagePolicy | null {
 }
 
 /** The memory policy, in the renderer's spelling. */
+function normaliseProposal(body: Record<string, unknown>): SkillProposal | null {
+  const name = typeof body.name === 'string' ? body.name : ''
+  const skillBody = typeof body.body === 'string' ? body.body : ''
+  // Both or neither. A proposal missing its body is a review sheet with
+  // nothing to review, and the button under it still writes a file.
+  if (!name || !skillBody) return null
+  return {
+    act: body.act === 'patch' ? 'patch' : 'create',
+    name,
+    description: typeof body.description === 'string' ? body.description : '',
+    body: skillBody,
+    why: typeof body.why === 'string' ? body.why : ''
+  }
+}
+
 function normaliseMemory(body: unknown): MemoryPolicy | null {
   if (!isRecord(body)) return null
   const embedding = isRecord(body.embedding) ? body.embedding : {}
@@ -2135,6 +2151,31 @@ function startApp(): void {
         return response.ok ? normaliseMemory(await response.json()) : null
       } catch {
         return null
+      }
+    })
+    ipcMain.handle('marvi:get-skill-proposal', async () => {
+      try {
+        const response = await fetch(`${gateway()}/memory/proposal`, {
+          signal: AbortSignal.timeout(5_000)
+        })
+        if (!response.ok) return null
+        const body = await response.json()
+        return isRecord(body) && isRecord(body.proposal) ? normaliseProposal(body.proposal) : null
+      } catch {
+        return null
+      }
+    })
+    ipcMain.handle('marvi:settle-skill-proposal', async (_event, accept) => {
+      try {
+        const response = await fetch(`${gateway()}/memory/proposal`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ accept: accept === true }),
+          signal: AbortSignal.timeout(8_000)
+        })
+        return response.ok
+      } catch {
+        return false
       }
     })
     ipcMain.handle('marvi:get-language', async () => {

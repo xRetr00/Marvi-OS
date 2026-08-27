@@ -157,6 +157,12 @@ class SecretAnswer(BaseModel):
     value: str = ""
 
 
+class ProposalDecision(BaseModel):
+    """Whether a skill Marvi proposed gets written."""
+
+    accept: bool = False
+
+
 class MemorySettings(BaseModel):
     """Where embeddings come from, when memory starts using them.
 
@@ -779,6 +785,10 @@ def create_app(
     #: baseline, so a restart does not replay the log into the mind.
     room_cursor: int | None = None
     scheduler: schedule_module.Scheduler | None = None
+    # None when a caller supplied its own tools -- a test, mostly. The memory
+    # routes answer honestly rather than pretending, because a Gateway built
+    # without the tool stack has no worker to hand a turn to.
+    rememberer: remembering.Rememberer | None = None
     if tools is not None:
         tool_registry = tools
     else:
@@ -963,6 +973,10 @@ def create_app(
         redoc_url=None,
         lifespan=lifespan,
     )
+    # Reachable from outside, so a proposal can be placed and settled without a
+    # model in the loop -- and so a test of what happens to a proposal tests
+    # that, rather than the extraction that produced it.
+    app.state.rememberer = rememberer
 
     def accounts_status() -> ComponentStatus:
         if accounts is None or not accounts.available():
@@ -1961,7 +1975,67 @@ def create_app(
             provider_config.update(values)
             redactor().refresh()
             runtime_store.audit("memory", "settings", {"changed": sorted(values)})
+            # Everything already remembered predates the embedding, so without
+            # this switching it on would make only *future* memories findable
+            # by meaning -- and the ones worth finding are the old ones.
+            #
+            # Off the request: indexing a few hundred memories is seconds of
+            # CPU, and the settings page should return as soon as the setting
+            # is saved.
+            if rememberer is not None:
+                threading.Thread(
+                    target=memory.index_missing,
+                    kwargs={"limit": 1000},
+                    name="marvi-reindex",
+                    daemon=True,
+                ).start()
         return await read_memory_settings()
+
+    @app.get("/memory/proposal")
+    async def read_proposal() -> dict[str, Any]:
+        """What the last turn suggested writing down as a skill, if anything.
+
+        Almost always nothing, and that is the design: this fires when the user
+        corrects *how* Marvi works, which is the correction that had nowhere to
+        go. Memory holds facts about the world and the prompt is fixed, so
+        "stop formatting like that" was forgotten by the next session every
+        time.
+        """
+        return {"proposal": rememberer.proposal if rememberer else None}
+
+    @app.post("/memory/proposal")
+    async def settle_proposal(decision: ProposalDecision) -> dict[str, Any]:
+        """Accept a proposed skill, or throw it away.
+
+        Accepting writes it. Nothing else does -- a model that could write its
+        own instructions is a model that can rewrite its own behaviour, and
+        this is the same review the skill store already required.
+        """
+        from .setup import skills as skills_module
+
+        found = rememberer.proposal if rememberer else None
+        if found is None:
+            raise HTTPException(status_code=404, detail="nothing is proposed")
+        if rememberer is not None:
+            rememberer.proposal = None
+        if not decision.accept:
+            runtime_store.audit("skills", "proposal-declined", {"name": found["name"]})
+            return {"written": False, "name": found["name"]}
+
+        target = paths.skills_dir() / found["name"]
+        target.mkdir(parents=True, exist_ok=True)
+        front = (
+            f"---\nname: {found['name']}\n"
+            f"description: {found['description'] or found['why']}\n---\n\n"
+        )
+        (target / "SKILL.md").write_text(front + found["body"], encoding="utf-8")
+        runtime_store.audit(
+            "skills", f"proposal-{found['act']}", {"name": found["name"], "why": found["why"]}
+        )
+        get_logger("gateway").info(
+            "skill %s from a conversation: %s", found["act"], found["name"]
+        )
+        return {"written": True, "name": found["name"], "skills": len(skills_module.installed())}
 
     @app.get("/memory/recall")
     async def recall_memory(text: str = "", limit: int = 5) -> dict[str, Any]:
@@ -1983,8 +2057,9 @@ def create_app(
         somebody, and whether a fact gets kept is not something they should
         wait to find out.
         """
-        queued = rememberer.observe(turn.user, turn.assistant)
-        return {"queued": queued}
+        if rememberer is None:
+            return {"queued": False, "detail": "no memory worker in this Gateway"}
+        return {"queued": rememberer.observe(turn.user, turn.assistant)}
 
     @app.get("/language")
     async def read_language() -> dict[str, Any]:

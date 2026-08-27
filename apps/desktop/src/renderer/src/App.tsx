@@ -126,6 +126,7 @@ import type {
   SchedulePage,
   ServiceReport,
   SkillReview,
+  SkillProposal,
   StoreSkill,
   RoomVisionPreview,
   VoicePage,
@@ -3929,6 +3930,7 @@ function SkillsPanel(): React.JSX.Element {
   const [sources, setSources] = useState<string[]>([])
   const [filter, setFilter] = useState('')
   const [review, setReview] = useState<SkillReview | null>(null)
+  const [proposal, setProposal] = useState<SkillProposal | null>(null)
   const [busy, setBusy] = useState('')
   const [loaded, setLoaded] = useState(false)
 
@@ -3954,6 +3956,33 @@ function SkillsPanel(): React.JSX.Element {
       disposed = true
     }
   }, [])
+
+  // A proposal arrives from a conversation happening somewhere else, so this
+  // page has to keep asking rather than read once when it opened.
+  useEffect(() => {
+    let disposed = false
+    const look = async (): Promise<void> => {
+      const found = await window.marvi?.getSkillProposal()
+      if (!disposed) setProposal(found ?? null)
+    }
+    void look()
+    const timer = setInterval(() => void look(), 10_000)
+    return () => {
+      disposed = true
+      clearInterval(timer)
+    }
+  }, [])
+
+  const settle = async (accept: boolean): Promise<void> => {
+    setBusy('proposal')
+    try {
+      await window.marvi?.settleSkillProposal(accept)
+      setProposal(null)
+      if (accept) await load()
+    } finally {
+      setBusy('')
+    }
+  }
 
   const open = async (skill: StoreSkill): Promise<void> => {
     setBusy(skill.name)
@@ -3999,6 +4028,39 @@ function SkillsPanel(): React.JSX.Element {
       description="Instructions that teach Marvi how to complete specific work."
       title="Skills"
     >
+      {proposal ? (
+        <ControlSection icon={Wrench} title="Learned from a conversation">
+          <div className="skill-review">
+            <div className="panel-label">{proposal.name}</div>
+            <p>{proposal.description || proposal.why}</p>
+            <small className="provider-cooldown">
+              {proposal.act === 'patch'
+                ? 'This replaces the skill of that name, in full.'
+                : 'A new skill. Nothing is written until you accept it.'}
+            </small>
+            {proposal.why ? <small>Because · {proposal.why}</small> : null}
+            <pre className="service-output skill-body">{proposal.body}</pre>
+            <div className="provider-actions">
+              <button
+                className="phase active"
+                type="button"
+                disabled={busy === 'proposal'}
+                onClick={() => void settle(true)}
+              >
+                {proposal.act === 'patch' ? 'Replace' : 'Add skill'}
+              </button>
+              <button
+                className="phase"
+                type="button"
+                disabled={busy === 'proposal'}
+                onClick={() => void settle(false)}
+              >
+                Discard
+              </button>
+            </div>
+          </div>
+        </ControlSection>
+      ) : null}
       <ControlSection icon={Database} title="Catalog">
         <div className="context-line">
           <span>Sources</span>

@@ -41,13 +41,44 @@ OFF, LOCAL, PROVIDER = "off", "local", "provider"
 SOURCES = (OFF, LOCAL, PROVIDER)
 
 #: Small, permissively licensed, and fast enough on a CPU that is already busy.
-#: Measured on this machine rather than chosen from a leaderboard.
-DEFAULT_LOCAL_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+#: Measured on this machine rather than chosen from a leaderboard -- and the
+#: measurement changed the answer.
+#:
+#: MiniLM-L6 is faster (10ms against 18ms) and wrong for this. Recall here is
+#: *asymmetric*: a short first-person question against a third-person
+#: statement, "who am I" against "the user's name is Shereef". MiniLM is
+#: trained for symmetric similarity and scored that pair at 0.14 -- below
+#: anything usable -- while matching "photosynthesis" to a note about coffee at
+#: 0.21. bge-small is trained for query-to-passage with an instruction prefix
+#: and scores the same pair at 0.58 against a 0.33 field.
+#:
+#: Eight milliseconds is not worth the case this exists to fix.
+DEFAULT_LOCAL_MODEL = "BAAI/bge-small-en-v1.5"
 DEFAULT_PROVIDER_MODEL = "text-embedding-3-small"
 
 #: A recall that has not answered by now is worse than a keyword search that
 #: has. This sits in front of every turn.
 TIMEOUT = 8.0
+
+#: What a model wants in front of a query, and in front of a stored passage.
+#:
+#: Not decoration: bge and e5 were trained with these and score noticeably
+#: worse without them. Keyed by a fragment of the model name, so somebody who
+#: types `BAAI/bge-base-en-v1.5` gets the right treatment without a second
+#: setting to get wrong.
+PREFIXES: tuple[tuple[str, str, str], ...] = (
+    ("bge", "Represent this sentence for searching relevant passages: ", ""),
+    ("e5", "query: ", "passage: "),
+)
+
+
+def prefixes() -> tuple[str, str]:
+    """`(query, passage)` for the configured model."""
+    name = model_name().lower()
+    for fragment, query, passage in PREFIXES:
+        if fragment in name:
+            return query, passage
+    return "", ""
 
 
 def source() -> str:
@@ -82,10 +113,18 @@ class Embedder:
     def ready(self) -> bool:
         return source() != OFF
 
-    def embed(self, texts: list[str]) -> list[list[float]]:
+    def embed(self, texts: list[str], *, query: bool = False) -> list[list[float]]:
+        """Vectors for some text. `query` picks the asking side of the prefix.
+
+        The distinction is the reason this model was chosen: a question and the
+        statement that answers it are not the same kind of text, and a model
+        trained to know that needs telling which is which.
+        """
         wanted = [text for text in texts if text.strip()]
         if not wanted or not self.ready:
             return []
+        asking, storing = prefixes()
+        wanted = [(asking if query else storing) + text for text in wanted]
         try:
             if source() == LOCAL:
                 return self._locally(wanted)

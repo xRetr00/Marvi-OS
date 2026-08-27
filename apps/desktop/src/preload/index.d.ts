@@ -29,6 +29,7 @@ import type {
   ServiceReport,
   SetupPage,
   SkillReview,
+  SkillProposal,
   StoreSkill,
   UpdateChannel,
   UpdateCheck,
@@ -214,6 +215,8 @@ export interface MarviDesktopApi {
   setProviderSettings: (values: Record<string, string>) => Promise<ProviderPage | null>
   getMemorySettings: () => Promise<MemoryPolicy | null>
   setMemorySettings: (update: MemorySettingsUpdate) => Promise<MemoryPolicy | null>
+  getSkillProposal: () => Promise<SkillProposal | null>
+  settleSkillProposal: (accept: boolean) => Promise<boolean>
   getLanguage: () => Promise<LanguagePolicy | null>
   setLanguage: (update: LanguageUpdate) => Promise<LanguagePolicy | null>
   getWorkspace: () => Promise<WorkspacePolicy | null>

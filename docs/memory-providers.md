@@ -16,8 +16,9 @@ on three others, and those are not bugs to fix but a system to adopt:
 | | Marvi, now | Honcho | Mem0 |
 |---|---|---|---|
 | Write path | async worker, LLM picks the operation | async **Deriver** | async extraction |
-| Consolidation | repeat-count promotion | **Dreamer**: inductive conclusions across many messages, removes stale ones, rewrites the peer card | periodic |
-| Retrieval | FTS5 keyword (embeddings pending) | semantic, and **traces a conclusion back to its premises** | semantic |
+| Consolidation | repeat-count promotion, TTL sweep | **Dreamer**: inductive conclusions across many messages, removes stale ones, rewrites the peer card | periodic |
+| Learning *how* | proposes a skill after a turn | — | — |
+| Retrieval | keyword **and** semantic, hybrid | semantic, and **traces a conclusion back to its premises** | semantic |
 | Always present | `SOUL.md` + `USER.md`, hand-written | **peer card**, derived and kept current | — |
 | Multi-agent | one store | separate **peers**, no cross-contamination | scoped |
 
@@ -46,6 +47,13 @@ class MemoryProvider(Protocol):
     def forget(self, memory_id: str) -> bool: ...
     def forget_all(self) -> int: ...
 ```
+
+Semantic search sits **underneath** this, not beside it. `search_similar` and
+`index` are the local store's business; a provider that does its own retrieval
+implements `recall_block` and never sees the embedding setting. Do not thread
+embeddings through the Protocol -- Honcho and Mem0 both embed for themselves,
+and a provider being handed vectors it did not ask for is a seam in the wrong
+place.
 
 `memory_id` becomes a string, because ours is an integer row id and theirs are
 UUIDs. That is the only change the local store needs.
@@ -113,6 +121,29 @@ better at this than the code it replaces.
    shape does not fit — peer cards and the Dialectic API have no local
    equivalent, and pretending they map onto `recall_block` would waste what
    makes it good.
+
+## What we learned building the local one
+
+Three findings that will save the next person a day, all measured on this
+machine rather than assumed:
+
+**Recall is asymmetric, and the obvious model is wrong for it.** The query is a
+short first-person question; the memory is a third-person statement. MiniLM-L6
+is trained for symmetric similarity and scored "who am I" against "the user's
+name is Shereef" at **0.14** -- unusable -- while matching "photosynthesis" to a
+note about coffee at 0.21. `bge-small-en-v1.5` with its instruction prefix
+scores the same pair at **0.58** against a 0.33 field. If a provider is given
+the query and passage sides without that distinction, it will be worse than the
+local store at the one case this exists for.
+
+**Absolute similarity thresholds are per-model and nearly meaningless across
+them.** bge-small puts unrelated text at 0.41-0.48; e5-small puts *everything*
+between 0.71 and 0.83. A threshold copied from one to the other returns either
+nothing or all of it.
+
+**Query latency is what matters, not throughput.** It is paid before Marvi can
+answer. On this CPU: MiniLM 10ms, bge-small 18ms, bge-base 66ms. All are free
+next to a 500ms first token, so pick on quality, not speed.
 
 ## What not to do
 

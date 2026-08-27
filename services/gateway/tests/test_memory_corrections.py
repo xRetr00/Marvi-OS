@@ -108,3 +108,18 @@ def test_a_related_but_different_fact_is_not_swallowed(store) -> None:
     store.remember("brother", "The user's brother is Ahmed, developer of Marvi.", kind="semantic")
 
     assert len(store.recent(limit=20)) == 2
+
+
+def test_forgetting_a_memory_takes_its_vector_with_it(store) -> None:
+    """`ON DELETE CASCADE` is decoration until foreign keys are switched on,
+    and SQLite defaults them off. The join hides the leak -- an orphan vector
+    matches no row -- which is exactly why nobody would have noticed it."""
+    memory_id = store.remember("tea", "The user prefers tea to coffee.", kind="semantic")
+    store._db.execute(
+        "INSERT OR REPLACE INTO vectors VALUES (?, ?, ?, ?)", (memory_id, "m", 2, b"\x00" * 8)
+    )
+    store._db.commit()
+
+    store.forget(memory_id)
+
+    assert store._db.execute("SELECT COUNT(*) FROM vectors").fetchone()[0] == 0
