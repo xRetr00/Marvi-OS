@@ -832,6 +832,10 @@ export interface AuxiliaryRole {
   setting: string
   provider: string
   model: string
+  /** How hard the chosen model should think. Empty means the model's own
+   * default, and it is cleared whenever the role goes back to auto. */
+  effort: string
+  effortSetting: string
   auto: boolean
 }
 

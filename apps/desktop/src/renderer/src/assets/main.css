@@ -1376,6 +1376,22 @@ nav {
   display: flex;
   gap: 6px;
 }
+/* The auxiliary role editor: provider, model, effort and the buttons, in one
+   line where there is room and wrapped where there is not. */
+.aux-draft {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-top: 6px;
+}
+.aux-current {
+  display: inline-block;
+  padding-top: 3px;
+  color: var(--ui-text-secondary);
+  font-family: var(--ui-font-mono, ui-monospace, monospace);
+  font-size: 10px;
+}
 .identity-field {
   display: flex;
   flex-direction: column;

@@ -2372,7 +2372,20 @@ function startApp(): void {
         const response = await fetch(`${gateway()}/auxiliary`, {
           signal: AbortSignal.timeout(5_000)
         })
-        return response.ok ? await response.json() : null
+        if (!response.ok) return null
+        const body = await response.json()
+        if (!isRecord(body)) return null
+        // Passed through except for the one field whose name has two words in
+        // it. Everything else in this shape is a single word and survives.
+        const roles = Array.isArray(body.roles) ? body.roles : []
+        return {
+          ...body,
+          roles: roles.filter(isRecord).map((role) => ({
+            ...role,
+            effort: typeof role.effort === 'string' ? role.effort : '',
+            effortSetting: typeof role.effort_setting === 'string' ? role.effort_setting : ''
+          }))
+        }
       } catch {
         return null
       }
