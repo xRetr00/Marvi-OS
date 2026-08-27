@@ -1,35 +1,53 @@
 # Architectural Decisions
 
+## ADR-029 — Messaging is a Marvi-owned source transplant
+
+**Decision:** replace the complete repository snapshot from ADR-027 with the
+focused implementation under `services/messaging/marvi_messaging/engine`.
+Electron and packaging resolve that tree directly. All runtime namespaces,
+profile variables, process identification, setup and update behavior are Marvi
+owned. Legal provenance remains in `docs/UPSTREAM.md` and the shipped MIT
+license; it is not a runtime dependency.
+
+**Reason:** a standalone product should not carry another application's full
+repository, UI, website, CI, installer, updater, or Git-era compatibility ABI.
+The executable capability manifest and real offline staged-process test provide
+a stronger parity gate than directory completeness.
+
+**Boundary:** release packaging includes the complete Marvi package and installs
+locked dependencies before distribution. Runtime source acquisition and lazy
+dependency installation are disabled. Updates are reviewed source transplants,
+never end-user clones or separate application launches.
+
 ## ADR-028 — Marvi owns the messaging application boundary
+
+**Superseded in implementation storage by ADR-029.** The owned application
+boundary remains in force.
 
 **Decision:** Electron launches only `python -m marvi_messaging.main`.
 `services/messaging/marvi_messaging` owns commands, gateway lifecycle, health,
-planned shutdown, setup/pairing orchestration, and the mapping from Marvi state to the
-legacy names still required inside the pinned implementation. Gateway startup
-calls `gateway.run.start_gateway` directly; `hermes_cli.main` is never imported
-or executed by Marvi.
+planned shutdown, setup/pairing orchestration, and the mapping from Marvi state
+to the bundled engine. Gateway startup calls `gateway.run.start_gateway`
+directly; no second application CLI is imported or executed by Marvi.
 
-**Reason:** vendoring source makes deployment standalone but does not establish
+**Reason:** bundling source makes deployment standalone but does not establish
 product ownership if the executable boundary remains another application's CLI.
 A small stable facade lets Marvi retain every adapter/session/tool behavior while
 treating the derived tree as libraries that can be updated or incrementally
 separated later.
 
 **Boundary:** imports from `gateway.*` and selected interactive configuration
-helpers are implementation dependencies. Legacy `HERMES_*` variables exist only
-inside `_vendor.py` as a compatibility ABI; Electron, UI, process matching, and
+helpers are implementation dependencies. Electron, UI, process matching, and
 public health/setup commands use `MARVI_MESSAGING_*` and Marvi branding.
-The derived self-update command is disabled under this marker; updates are
+The bundled self-update command is disabled under this marker; updates are
 performed only by Marvi's application updater.
 
 ## ADR-027 — Messaging ships as a self-contained application resource
 
-**Extended by ADR-028:** the self-contained payload now separates its Marvi-owned
-runtime from the vendored implementation tree.
+**Superseded by ADR-029.** Retained as the decision that prohibited runtime
+source and dependency acquisition.
 
-**Decision:** supersede ADR-026's gitlink mechanism. The same pinned upstream
-tree is tracked as ordinary files under `vendor/marvi-agent`. Release builds
-copy exactly those files and bundle standalone CPython plus locked messaging
+**Decision:** release builds bundle standalone CPython plus locked messaging
 dependencies. Electron invokes the module directly; runtime Git and `uv` are
 not in the messaging launch path, and download mechanisms are disabled.
 
@@ -48,9 +66,8 @@ integrations are distinct from obtaining the shipped runtime.
 **Superseded in packaging mechanism by ADR-027.** Its product/runtime ownership
 boundary remains in force.
 
-**Decision:** ship the complete Marvi Agent repository at commit
-`61977bb4d6b97ab2aece57d2405fa2f0b19e3ae0` as the `vendor/marvi-agent` Git
-submodule. Electron supervises its messaging gateway only after upstream setup
+**Decision:** the original implementation shipped the complete predecessor
+repository at the pinned commit as a Git submodule. Electron supervised its messaging gateway only after setup
 has created a private profile and the user enables it. The source is not copied
 piecemeal into Marvi Gateway and is never used as the LiveKit voice runtime.
 

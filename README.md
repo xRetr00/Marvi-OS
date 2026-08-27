@@ -26,10 +26,10 @@ loudspeaker double-talk test plus the 60-minute duplex soak.
 Current implemented desktop surfaces:
 
 - tray-owned application lifetime and control-center window;
-- an opt-in, Electron-supervised Marvi Messaging runtime backed by implementation
-  modules derived from Marvi Agent commit
-  `61977bb4d6b97ab2aece57d2405fa2f0b19e3ae0`. Marvi owns its entrypoint, setup,
-  lifecycle, health, and shutdown APIs while preserving the derived
+- an opt-in, Electron-supervised Marvi Messaging runtime implemented as a
+  focused, Marvi-owned source transplant under `services/messaging`. It ships
+  with bundled CPython and locked dependencies, needs no separate repository,
+  and owns its entrypoint, setup, lifecycle, health, and shutdown APIs while preserving the
   platform adapters, sessions, streaming delivery, attachments, commands,
   approvals, scheduled delivery, and toolsets. Messaging is available from Settings →
   Messaging; it remains separate from the local LiveKit voice runtime;
@@ -72,7 +72,7 @@ Current implemented desktop surfaces:
 - a structured tool router with exact-argument, single-use confirmation tokens
   that reject replay and argument mutation, plus an append-only local audit that
   records YOLO executions identically to confirmed ones;
-- Gateway-owned cron jobs adapted from Hermes Agent, with durable one-shot,
+- Gateway-owned cron jobs adapted from pinned upstream contracts, with durable one-shot,
   interval, and cron schedules; per-job provider/model/reasoning and tool
   controls; bounded agent execution through the existing audited tool router;
   repeat limits, run history, local output, and a transport-neutral seam ready

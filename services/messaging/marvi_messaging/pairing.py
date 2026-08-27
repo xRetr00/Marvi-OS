@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ._vendor import activate
+from ._engine import activate
 
 
 def list_pending() -> list[dict[str, Any]]:

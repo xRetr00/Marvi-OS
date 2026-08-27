@@ -1,0 +1,20 @@
+{
+  "id": "marvi-messaging",
+  "name": "Marvi Messaging",
+  "version": "0.19.0",
+  "description": "Self-improving open-source AI agent by NeuRetro Labs Research with ACP editor integration, persistent memory, skills, and rich tool support. Legacy compatibility keeps the `marvi` command, `MARVI_MESSAGING_*` env vars, and `~/.marvi` home path available for existing installs.",
+  "repository": "https://github.com/xRetr00/Marvi",
+  "website": "https://github.com/xRetr00/Marvi",
+  "authors": [
+    "NeuRetro Labs Research"
+  ],
+  "license": "MIT",
+  "distribution": {
+    "uvx": {
+      "package": "marvi-messaging[acp]==0.19.0",
+      "args": [
+        "marvi-acp"
+      ]
+    }
+  }
+}

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ._vendor import activate
+from ._engine import activate
 
 
 SECTIONS = ("model", "tts", "terminal", "gateway", "tools", "telemetry", "agent")
@@ -12,7 +12,7 @@ SECTIONS = ("model", "tts", "terminal", "gateway", "tools", "telemetry", "agent"
 
 def config_path() -> Path:
     activate(managed=False)
-    from hermes_cli.config import get_config_path
+    from runtime_support.config import get_config_path
     return get_config_path()
 
 
@@ -22,8 +22,8 @@ def is_configured() -> bool:
 
 def _configure_messaging_platforms() -> None:
     """Configure adapters without installing or restarting an upstream service."""
-    from hermes_cli.gateway import _all_platforms, _configure_platform, _platform_status
-    from hermes_cli.setup import prompt_checklist
+    from runtime_support.gateway import _all_platforms, _configure_platform, _platform_status
+    from runtime_support.setup import prompt_checklist
 
     platforms = _all_platforms()
     choices: list[str] = []
@@ -49,13 +49,13 @@ def run_setup(section: str = "gateway", *, reset: bool = False) -> None:
     entrypoint are intentionally not used.
     """
     activate(managed=False)
-    from hermes_cli.config import DEFAULT_CONFIG, ensure_hermes_home, load_config, save_config
-    from hermes_cli.setup import SETUP_SECTIONS
+    from runtime_support.config import DEFAULT_CONFIG, ensure_marvi_home, load_config, save_config
+    from runtime_support.setup import SETUP_SECTIONS
     import copy
 
     if section not in SECTIONS:
         raise ValueError(f"Unknown messaging setup section: {section}")
-    ensure_hermes_home()
+    ensure_marvi_home()
     config = copy.deepcopy(DEFAULT_CONFIG) if reset else load_config()
     handlers = {key: (label, handler) for key, label, handler in SETUP_SECTIONS}
     handlers["gateway"] = ("Messaging Platforms", lambda _config: _configure_messaging_platforms())

@@ -1,10 +1,10 @@
-"""Stable Marvi health facade for the vendored runtime status ledger."""
+"""Stable Marvi health facade for the bundled runtime status ledger."""
 
 from __future__ import annotations
 
 from typing import Any
 
-from ._vendor import activate
+from ._engine import activate
 
 
 def snapshot() -> dict[str, Any]:

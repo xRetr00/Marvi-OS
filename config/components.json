@@ -85,14 +85,14 @@
       "name": "messaging-python",
       "kind": "python",
       "title": "Bundled messaging dependencies",
-      "why": "Messaging starts offline from Marvi's vendored runtime and cannot install packages on first launch.",
+      "why": "Messaging starts offline from Marvi's bundled runtime and cannot install packages on first launch.",
       "needed_for": [
         "messaging"
       ],
       "source": {
         "type": "command"
       },
-      "project": "vendor/marvi-agent",
+      "project": "services/messaging/marvi_messaging/engine",
       "extra": {
         "extras": [
           "all",
@@ -106,7 +106,7 @@
           "sms",
           "teams"
         ],
-        "note": "Prepared by Marvi setup/update; the desktop launches .venv/Scripts/python.exe directly."
+        "note": "Prepared by Marvi setup/update; release packaging bundles Python and every locked dependency."
       },
       "essential": true
     },

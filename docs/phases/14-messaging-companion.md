@@ -7,7 +7,7 @@ Status: complete
 
 ## Outcome
 
-Ship the messaging gateway from `D:\hermes-agent` end to end without a partial
+Ship the pinned messaging gateway end to end without a partial
 rewrite. The exact source commit is a repository-owned Git submodule, and the
 desktop supplies lifecycle, setup, status, and private-profile controls.
 
@@ -43,7 +43,7 @@ desktop supplies lifecycle, setup, status, and private-profile controls.
   from the pinned checkout confirmed the `--external-supervisor` contract.
 - One additional upstream topic-session test fails at the pinned commit because
   it observes a new `asyncio.to_thread` task. The identical test fails in the
-  original `D:\hermes-agent` checkout at the same commit, proving it is an
+  original pinned checkout at the same commit, proving it is an
   upstream baseline defect rather than a submodule or Marvi OS integration
   regression. The vendored source remains unchanged.
 - `git diff --check` passed. Full-repository ESLint still emits the checkout's

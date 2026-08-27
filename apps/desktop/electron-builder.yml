@@ -22,9 +22,6 @@ extraResources:
     filter:
       - '**/*'
       - '**/.*'
-  # electron-builder omits dotfiles from directory FileSets on Windows.
-  - from: resources/messaging-runtime/vendor/contributors/emails/.gitkeep
-    to: messaging/vendor/contributors/emails/.gitkeep
 win:
   executableName: Marvi-OS
   icon: icon.ico

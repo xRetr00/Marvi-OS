@@ -1,11 +1,11 @@
-"""Marvi-owned lifecycle API over the reusable vendored gateway engine."""
+"""Marvi-owned lifecycle API over the bundled messaging engine."""
 
 from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
 
-from ._vendor import activate
+from ._engine import activate
 
 
 @dataclass(frozen=True)

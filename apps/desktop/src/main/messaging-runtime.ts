@@ -1,6 +1,6 @@
 import { execFile, spawn } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { delimiter, dirname, join, resolve } from 'node:path'
+import { delimiter, join, resolve } from 'node:path'
 import { promisify } from 'node:util'
 
 import type {
@@ -19,16 +19,21 @@ function preferencesPath(): string {
 }
 
 export function messagingSourceRoot(repoRoot: string | null, resourcesRoot?: string): string {
-  const packaged = resourcesRoot ? join(resourcesRoot, 'messaging', 'vendor') : ''
+  const packaged = resourcesRoot
+    ? join(resourcesRoot, 'messaging', 'runtime', 'marvi_messaging', 'engine')
+    : ''
   if (packaged && existsSync(join(packaged, 'gateway', 'run.py'))) return packaged
-  return repoRoot ? join(repoRoot, 'vendor', 'marvi-agent') : ''
+  return repoRoot
+    ? join(repoRoot, 'services', 'messaging', 'marvi_messaging', 'engine')
+    : ''
 }
 
 /** The messaging process never runs through uv. Installation/build creates
  * this interpreter and all locked dependencies before the desktop can start. */
 export function messagingPython(sourceRoot: string): string {
-  const packaged = join(dirname(sourceRoot), 'python', 'python.exe')
-  const checkout = join(sourceRoot, '.venv', 'Scripts', 'python.exe')
+  const runtimeRoot = resolve(sourceRoot, '..', '..')
+  const packaged = resolve(runtimeRoot, '..', 'python', 'python.exe')
+  const checkout = join(runtimeRoot, '.venv', 'Scripts', 'python.exe')
   return [packaged, checkout].find((candidate) => existsSync(candidate)) ?? ''
 }
 
@@ -39,11 +44,7 @@ export function messagingLaunch(sourceRoot: string): {
   env: Record<string, string>
 } | null {
   const command = messagingPython(sourceRoot)
-  const packagedRuntime = join(dirname(sourceRoot), 'runtime')
-  const checkoutRuntime = resolve(sourceRoot, '..', '..', 'services', 'messaging')
-  const runtimeRoot = [packagedRuntime, checkoutRuntime].find((candidate) =>
-    existsSync(join(candidate, 'marvi_messaging', 'main.py'))
-  )
+  const runtimeRoot = resolve(sourceRoot, '..', '..')
   return command && runtimeRoot
     ? {
         command,
@@ -51,7 +52,7 @@ export function messagingLaunch(sourceRoot: string): {
         cwd: runtimeRoot,
         env: {
           PYTHONPATH: [runtimeRoot, sourceRoot].join(delimiter),
-          MARVI_MESSAGING_VENDOR_ROOT: sourceRoot
+          MARVI_MESSAGING_ENGINE_ROOT: sourceRoot
         }
       }
     : null
@@ -87,7 +88,7 @@ export function writeMessagingPreferences(update: MessagingPreferences): Messagi
   return next
 }
 
-/** Read the platform enum from the pinned source instead of maintaining a list
+/** Read the platform enum from the bundled engine instead of maintaining a list
  * that inevitably drifts from the messaging engine. */
 export function messagingPlatforms(sourceRoot: string): string[] {
   try {
@@ -133,7 +134,7 @@ export function messagingEnvironment(home: string, parentPid: number): Record<st
   return {
     MARVI_MESSAGING_HOME: home,
     MARVI_MESSAGING_PARENT_PID: String(parentPid),
-    // The upstream gateway has its own restart machinery. Electron is the
+    // The bundled gateway has its own restart machinery. Electron is the
     // owner here, so it must exit back to our supervisor instead.
     MARVI_MESSAGING_EXTERNAL_SUPERVISOR: '1',
     MARVI_MESSAGING_IMPLEMENTATION_COMMIT: MESSAGING_SOURCE_COMMIT,
