@@ -1,8 +1,11 @@
-//! The wake word pipeline, as a library so the binary and the tests share it.
+//! The wake word listener, as a library so the binary and the tests share it.
 //!
 //! Split out for one reason: the parity test needs to call the detector
 //! directly. A test that could only drive the executable would be testing
-//! argument parsing as much as inference, and the thing worth guarding here is
-//! the arithmetic.
+//! argument parsing as much as inference, and the arithmetic is what is worth
+//! guarding here.
 
+pub mod audio;
+pub mod autostart;
 pub mod detector;
+pub mod state;

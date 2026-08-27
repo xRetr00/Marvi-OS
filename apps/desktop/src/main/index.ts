@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process'
+import { execFile, spawn } from 'node:child_process'
 import { promisify } from 'node:util'
 
 import {
@@ -568,44 +568,69 @@ const execFileAsync = promisify(execFile)
  * things that side cannot know: where `uv` is, and where this executable
  * actually lives -- which changes on every update.
  */
+/** Where the wake listener lives: packaged beside the app, or built in place. */
+function wakeHostPath(): string {
+  const packaged = join(process.resourcesPath, 'wake-host', 'marvi-wake-host.exe')
+  if (existsSync(packaged)) return packaged
+  return resolve(
+    __dirname,
+    '..',
+    '..',
+    '..',
+    'wake-host',
+    'target',
+    'release',
+    'marvi-wake-host.exe'
+  )
+}
+
+/**
+ * Start, stop, or ask after the wake listener.
+ *
+ * It used to be `uv run python -m marvi_agent.wake_autostart` writing a Run key
+ * that pointed at an interpreter inside a virtual environment several
+ * directories away — which stopped resolving after a reinstall, and left a
+ * feature that looked registered and could not run.
+ *
+ * The listener owns its own registration now. It knows where it is; nothing
+ * here has to tell it, and an update that moves it re-registers on next launch.
+ */
 async function wakeAutostart(
   action: 'enable' | 'disable' | 'status',
   device = ''
 ): Promise<{ autostart: boolean; running: boolean }> {
   const fallback = { autostart: false, running: false }
-  const uv = findUv()
-  if (!repoRoot || !uv) return fallback
-  const args = [
-    'run',
-    '--project',
-    'services/agent',
-    'python',
-    '-m',
-    'marvi_agent.wake_autostart',
-    action
-  ]
-  if (action === 'enable') {
-    args.push('--app', app.getPath('exe'))
-    // Baked into the registered command line, so a changed microphone only
-    // takes effect once the listener is re-registered and restarted -- which
-    // is why `enable` stops whatever is already running before starting.
-    if (device.trim()) args.push('--device', device.trim())
-  }
+  const listener = wakeHostPath()
+  if (!existsSync(listener)) return fallback
+
   try {
-    const { stdout } = await execFileAsync(uv, args, {
-      cwd: repoRoot,
-      windowsHide: true,
-      // The registered command is baked at this moment and then run by the
-      // login shell, which has its own PATH and almost certainly not `uv` on
-      // it. Passing the resolved path through means the registration holds an
-      // absolute one rather than a name that only resolves in here.
-      env: { ...process.env, MARVI_UV_PATH: uv }
-    })
-    const parsed = JSON.parse(stdout || '{}') as Record<string, unknown>
-    // `registered` is the command line; its presence is the answer.
-    const autostart =
-      action === 'disable' ? false : Boolean(parsed['registered'] || parsed['autostart'])
-    return { autostart, running: autostart }
+    if (action === 'status') {
+      const { stdout } = await execFileAsync(listener, ['--autostart', 'status'], {
+        windowsHide: true
+      })
+      const on = stdout.trim() === 'on'
+      return { autostart: on, running: on }
+    }
+    const on = action === 'enable'
+    await execFileAsync(listener, ['--autostart', on ? 'on' : 'off'], { windowsHide: true })
+    if (on) {
+      // Started now as well as at next login, so enabling it in Settings does
+      // something you can hear rather than something you have to reboot for.
+      // The chosen microphone rides in the environment: the listener re-reads
+      // it on start, so changing it is a restart rather than a re-registration.
+      const child = spawn(listener, [], {
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: true,
+        env: {
+          ...process.env,
+          MARVI_APP_COMMAND: app.getPath('exe'),
+          ...(device.trim() ? { MARVI_WAKE_DEVICE: device.trim() } : {})
+        }
+      })
+      child.unref()
+    }
+    return { autostart: on, running: on }
   } catch {
     return fallback
   }
