@@ -92,6 +92,39 @@ _install_progress: dict[str, dict[str, Any]] = {}
 REPO_ROOT = Path(__file__).resolve().parents[4]
 
 
+# Request bodies live at module scope, all of them.
+#
+# Not a style preference. This module is `from __future__ import annotations`,
+# so every annotation is a string and FastAPI resolves it with the module's
+# globals. A model declared inside `create_app` is not in them: the name does
+# not resolve, the parameter stops looking like a body, and FastAPI falls back
+# to reading it as a query parameter. The route then answers every correct
+# request with 422 "field required in query".
+#
+# `POST /llm` and `POST /voice/transcript` were both declared in there and both
+# did exactly that -- 198 rejected transcript posts in one evening, and the
+# single seam every surface is supposed to reach a model through answering
+# nothing at all.
+
+
+class LlmTurn(BaseModel):
+    messages: list[dict[str, Any]]
+    #: Which job this turn is, so the right model and later the right
+    #: auxiliary slot is chosen. Not a provider name: callers say what they
+    #: are doing and the Gateway decides who does it.
+    job: str = "main"
+    surface: str = "unknown"
+    max_tokens: int | None = None
+    effort: str | None = None
+    temperature: float | None = None
+    tools: list[dict[str, Any]] | None = None
+
+
+class Transcript(BaseModel):
+    heard: str = ""
+    spoken: str = ""
+
+
 class LiveKitConnection(BaseModel):
     url: str
     room: str
@@ -1479,18 +1512,6 @@ def create_app(
             efforts=state["efforts"],
         )
 
-    class LlmTurn(BaseModel):
-        messages: list[dict[str, Any]]
-        #: Which job this turn is, so the right model and later the right
-        #: auxiliary slot is chosen. Not a provider name: callers say what they
-        #: are doing and the Gateway decides who does it.
-        job: str = "main"
-        surface: str = "unknown"
-        max_tokens: int | None = None
-        effort: str | None = None
-        temperature: float | None = None
-        tools: list[dict[str, Any]] | None = None
-
     @app.post("/llm")
     async def llm_turn(turn: LlmTurn) -> StreamingResponse:
         """One LLM turn, streamed, for any caller.
@@ -1542,10 +1563,6 @@ def create_app(
             # loopback, and a proxy that helpfully batches would undo the point.
             headers={"cache-control": "no-cache", "x-accel-buffering": "no"},
         )
-
-    class Transcript(BaseModel):
-        heard: str = ""
-        spoken: str = ""
 
     @app.post("/voice/transcript", response_model=RuntimeStatus)
     async def set_transcript(update: Transcript) -> RuntimeStatus:

@@ -65,20 +65,50 @@ export function clearTranscript(): void {
 /**
  * How much of a line a subtitle shows.
  *
- * A glance, not a transcript — the component says so and the layout assumed
+ * A glance, not a transcript -- the component says so and the layout assumed
  * it. Nothing enforced it, so a long answer wrapped line after line until it
  * filled the window and covered the orb it was supposed to caption.
  *
- * The tail rather than the head: this is live text, and the words being said
- * right now are the ones worth reading. Chat has the whole thing.
+ * ## Whole sentences, counted from the end
+ *
+ * The tail rather than the head, because this is live text and the words being
+ * said right now are the ones worth reading. Chat has the rest.
+ *
+ * But a tail measured in characters cuts wherever the budget lands, and a subtitle
+ * that opens mid-clause reads as damage rather than as continuation: "...
+ * running perfectly. Presence is detected via the sensor" is a fragment of a
+ * sentence nobody can see the start of. So the cut is made at sentence
+ * boundaries and the character budget only decides how many sentences fit.
+ *
+ * The sentence being spoken is always kept whole, even alone. Only when that
+ * one sentence is longer than the entire budget does this fall back to cutting
+ * inside it -- and then it says so.
  */
-export const SUBTITLE_CHARS = 180
+//: Sized to the box it goes in: the line is `min(46ch, 100%)` wide and clamped
+//: to three of them, so anything past about 130 characters is cut by the CSS
+//: without anybody deciding where. This decides instead, one line short of the
+//: clamp.
+export const SUBTITLE_CHARS = 120
+
+/** After `.`, `!`, `?` or an ellipsis, at a space. Keeps the punctuation. */
+const SENTENCE_END = /(?<=[.!?…])\s+/
 
 export function subtitleTail(text: string): string {
   const compact = text.replace(/\s+/g, ' ').trim()
   if (compact.length <= SUBTITLE_CHARS) return compact
-  const cut = compact.slice(-SUBTITLE_CHARS)
-  // Start at a word, so the line does not open mid-syllable.
+
+  const sentences = compact.split(SENTENCE_END)
+  // The last one is in progress; it is the subtitle whatever its length.
+  let shown = sentences.pop() ?? ''
+  while (sentences.length) {
+    const earlier = sentences[sentences.length - 1]
+    if (earlier.length + 1 + shown.length > SUBTITLE_CHARS) break
+    shown = `${sentences.pop()} ${shown}`
+  }
+  if (shown.length <= SUBTITLE_CHARS) return shown
+
+  // One sentence, longer than the budget. Cut it at a word, and mark the cut.
+  const cut = shown.slice(-SUBTITLE_CHARS)
   const space = cut.indexOf(' ')
-  return `… ${space > 0 && space < 24 ? cut.slice(space + 1) : cut}`
+  return `… ${space >= 0 ? cut.slice(space + 1) : cut}`
 }

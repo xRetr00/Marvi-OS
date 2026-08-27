@@ -202,3 +202,49 @@ def test_voice_usage_reports_only_the_increment(monkeypatch) -> None:
     assert reports[0]["input"] == 100
     assert reports[1]["input"] == 60
     assert reports[1]["output"] == 15
+
+
+def test_usage_is_read_from_the_shape_the_sdk_sends() -> None:
+    """`AgentSessionUsage` is a list of per-model rows, not a flat object.
+
+    The old reader looked for `llm_prompt_tokens` on the event itself, which is
+    the shape from before that change. Every field came back None, every delta
+    was zero, and the Voice page showed TOKENS 0 through every conversation.
+    """
+    from livekit.agents.metrics.usage import AgentSessionUsage, LLMModelUsage
+
+    from marvi_agent.observability import _report_usage
+
+    usage = AgentSessionUsage(
+        model_usage=[
+            LLMModelUsage(
+                provider="openrouter",
+                model="deepseek/deepseek-v4-flash-0731",
+                input_tokens=1200,
+                input_cached_tokens=800,
+                output_tokens=90,
+            )
+        ]
+    )
+
+    # No provider, so nothing is posted; the reading itself is what is under
+    # test.
+    assert _report_usage("", usage, {}) == {
+        "input": 1200,
+        "output": 90,
+        "cached_input": 800,
+        "reasoning": 0,
+    }
+
+
+def test_an_empty_usage_event_reads_as_nothing_rather_than_raising() -> None:
+    from livekit.agents.metrics.usage import AgentSessionUsage
+
+    from marvi_agent.observability import _report_usage
+
+    assert _report_usage("", AgentSessionUsage(model_usage=[]), {}) == {
+        "input": 0,
+        "output": 0,
+        "cached_input": 0,
+        "reasoning": 0,
+    }

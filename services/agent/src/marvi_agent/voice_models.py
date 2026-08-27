@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 import threading
 import time
 import uuid
@@ -317,6 +318,35 @@ _LEAD_BYTES = int(_BYTES_PER_SECOND * max(0.0, LEAD_SECONDS))
 _LEAD_TIMEOUT = float(os.environ.get("MARVI_TTS_LEAD_TIMEOUT", "0.7") or 0.7)
 
 
+#: Tool-call markup a model sometimes writes as prose instead of calling a tool.
+#:
+#: Seen in a real session: "The file is saved in my workspace at shreef.txt.
+#: Let me check it's still there. <invoke name=..." -- and Marvi read the tag,
+#: the parameter names and the file contents aloud, thirty-nine seconds of it.
+#: Two separate faults, and this is only the second one: the tool did not run,
+#: and then what should have been the tool call was spoken.
+#:
+#: Anthropic-style `<invoke>`, OpenAI-style `<tool_call>`, and the namespaced
+#: variants of both.
+_TOOL_MARKUP = re.compile(
+    r"<\s*/?\s*(antml:)?(invoke|function_calls?|parameter|tool_call)\b", re.I
+)
+
+
+def _speakable(text: str) -> tuple[str, bool]:
+    """What is worth saying out loud, and whether markup started here.
+
+    Everything before the markup is real speech and is kept; the markup and
+    everything after it is machinery. The caller stops speaking for the rest of
+    the reply rather than resuming after the tag, because what follows a tool
+    call written as text is the arguments, and those are not sentences either.
+    """
+    match = _TOOL_MARKUP.search(text)
+    if not match:
+        return text, False
+    return text[: match.start()].rstrip(), True
+
+
 def _next_clause(buffer: str) -> tuple[str, str]:
     """Split off the first speakable clause, if there is one.
 
@@ -388,6 +418,8 @@ class _ClauseStream(tts.SynthesizeStream):
         # never filled still has to be ended, and the clause splitter cannot
         # promise there will be anything to say.
         open_segment = False
+        #: Set when the model starts writing markup where speech should be.
+        muted = False
         began = time.monotonic()
         # Boxed so the release closure can add to it without another
         # nonlocal declaration.
@@ -440,7 +472,20 @@ class _ClauseStream(tts.SynthesizeStream):
             released = True
 
         async def speak(text: str) -> None:
-            nonlocal open_segment
+            nonlocal open_segment, muted
+            if muted:
+                return
+            text, markup = _speakable(text)
+            if markup:
+                # For the rest of this reply. A stream carries one reply, so
+                # the flag clears with it; a stream that carried two would
+                # silence the second, which is the safer half of a turn that
+                # has already gone wrong.
+                muted = True
+                log.warning(
+                    "tts: the model wrote a tool call as text instead of calling one; "
+                    "not speaking the rest of this reply"
+                )
             if not text.strip():
                 return
             if not open_segment:

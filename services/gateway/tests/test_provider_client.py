@@ -161,6 +161,32 @@ def test_a_429_without_a_header_still_cools_down() -> None:
     assert client.resting("openai") > 0
 
 
+def test_a_bad_request_does_not_cool_the_provider_down() -> None:
+    """A 400 is our request, not their availability.
+
+    It cooled OpenRouter down for five minutes, every time, over a background
+    verdict nobody was waiting for -- and the conversation then fell through to
+    a provider whose key was dead and ended at "No provider is available".
+    """
+    client = ProviderClient(
+        http=responder(status=400, json={"error": {"message": "tools not supported"}})
+    )
+    with pytest.raises(ProviderCallError, match="rejected the request"):
+        client.call(MESSAGES, provider="openai")
+
+    assert client.resting("openai") == 0.0
+    assert "openai" not in client.cooldowns()
+
+
+def test_a_bad_request_carries_what_the_provider_said() -> None:
+    """httpx's own message is "Client error '400 Bad Request'" and nothing else."""
+    client = ProviderClient(
+        http=responder(status=400, json={"error": {"message": "tools not supported"}})
+    )
+    with pytest.raises(ProviderCallError, match="tools not supported"):
+        client.call(MESSAGES, provider="openai")
+
+
 def test_a_rejected_credential_cools_down_hard() -> None:
     client = ProviderClient(http=responder(status=401))
     with pytest.raises(ProviderCallError, match="credential"):

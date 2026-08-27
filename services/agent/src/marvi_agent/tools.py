@@ -47,6 +47,15 @@ def gateway_base_url() -> str:
 #: be usable, short enough that nothing reads a page aloud.
 MAX_RESULT_CHARS = 900
 
+#: How many items of a list the model is shown. A directory listing is the
+#: common case and its entries are short, so this is generous enough to cover
+#: one; whatever it does not cover is counted rather than dropped, and the
+#: character budget above is the real limit.
+MAX_LIST_ITEMS = 12
+
+#: Said out loud rather than left to be inferred from a sentence that stops.
+CUT_SHORT = " ... (cut short)"
+
 #: Keys that say a call worked rather than what it answered.
 #:
 #: "ok True" is not an answer, it is the absence of one, and reading it out is
@@ -82,7 +91,15 @@ def describe(result: Any) -> str:
                 f"{'someone is present' if presence.get('detected') else 'nobody detected'}."
             )
     rendered = _render(result)
-    return rendered[:MAX_RESULT_CHARS] if rendered else "Done."
+    if not rendered:
+        return "Done."
+    # Marked, for the same reason. A result cut at nine hundred characters
+    # without saying so is read as a complete one.
+    if len(rendered) > MAX_RESULT_CHARS:
+        # Inside the budget, not on top of it: the cap is what keeps a spoken
+        # turn from reading a web page aloud.
+        return rendered[: MAX_RESULT_CHARS - len(CUT_SHORT)] + CUT_SHORT
+    return rendered
 
 
 def _render(value: Any, depth: int = 0) -> str:
@@ -96,8 +113,18 @@ def _render(value: Any, depth: int = 0) -> str:
     if depth > 2:
         return ""
     if isinstance(value, list):
-        parts = [_render(item, depth + 1) for item in value[:5]]
-        return "; ".join(part for part in parts if part)
+        parts = [_render(item, depth + 1) for item in value[:MAX_LIST_ITEMS]]
+        shown = "; ".join(part for part in parts if part)
+        left = len(value) - MAX_LIST_ITEMS
+        # Saying how many were dropped is the whole difference between a short
+        # answer and a wrong one.
+        #
+        # This cut a 28-entry directory listing to its first five, all of them
+        # dot-directories, and said nothing. Marvi read that as the directory
+        # and told the user their file was not there and the workspace looked
+        # unfamiliar -- which was an accurate report of what she had been
+        # given. An hour went into the file tools; the file tools were fine.
+        return f"{shown} (and {left} more)" if left > 0 and shown else shown
     if isinstance(value, dict):
         # The common shape from a search or a listing: the payload is one key
         # and the rest is bookkeeping.

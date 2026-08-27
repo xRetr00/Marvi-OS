@@ -442,7 +442,17 @@ function startVoiceStack(): void {
     // was never the problem. What leaves a Gateway holding port 8765 overnight
     // is this process being killed — and then nothing runs the code that would
     // have stopped anything.
-    MARVI_PARENT_PID: String(process.pid)
+    MARVI_PARENT_PID: String(process.pid),
+    // Python's stdout on Windows is the console codepage — cp1252 here — and
+    // every log line with an em dash, an ellipsis or a name that is not Latin-1
+    // raised UnicodeEncodeError inside `logging` itself. The line was lost and
+    // a forty-line traceback was written in its place: six of them in one voice
+    // session, each hiding whatever it was trying to say.
+    //
+    // Inherited by everything downstream, which matters because the LiveKit
+    // worker spawns its own job processes and they are where the transcript is
+    // written.
+    PYTHONIOENCODING: 'utf-8'
   }
 
   supervisor = new ServiceSupervisor((reports) => {

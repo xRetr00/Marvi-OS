@@ -96,7 +96,30 @@ describe('a subtitle is a glance, not a transcript', () => {
     expect(shown.length).toBeLessThanOrEqual(SUBTITLE_CHARS + 4)
   })
 
-  it('marks that something was cut', () => {
+  it('starts at a sentence, not wherever the budget ran out', () => {
+    // What was on screen: "… running perfectly. Presence is detected via the
+    // sensor…" -- a fragment of a sentence whose start nobody can see, which
+    // reads as damage rather than as a caption.
+    const reply =
+      'I went through every service just now and all of them came back healthy. ' +
+      'Presence is detected via the sensor, and the light and the camera are both confirmed working.'
+    const shown = subtitleTail(reply)
+
+    expect(shown).toBe(
+      'Presence is detected via the sensor, and the light and the camera are both confirmed working.'
+    )
+    expect(shown.startsWith('…')).toBe(false)
+  })
+
+  it('fills the rest of the budget with whole sentences and no half ones', () => {
+    const shown = subtitleTail(`${'Said before. '.repeat(30)}This last one is being said now.`)
+
+    expect(shown.endsWith('This last one is being said now.')).toBe(true)
+    expect(shown.startsWith('Said before.')).toBe(true)
+    expect(shown.length).toBeLessThanOrEqual(SUBTITLE_CHARS)
+  })
+
+  it('marks a cut when one sentence is longer than the whole budget', () => {
     expect(subtitleTail('x '.repeat(400))).toMatch(/^…/)
   })
 

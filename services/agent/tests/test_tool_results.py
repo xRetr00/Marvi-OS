@@ -73,3 +73,31 @@ def test_a_deeply_nested_result_does_not_recurse_forever() -> None:
 
 def test_a_list_of_plain_values_is_readable() -> None:
     assert describe(["one", "two"]) == "one; two"
+
+
+def test_a_long_listing_says_how_much_it_left_out() -> None:
+    """A directory read as five dot-directories is a wrong answer, not a short one.
+
+    From a real session: `file_list` returned 28 entries, the model was shown
+    the first five -- `.claude`, `.git`, `.github`, `.playwright-cli`,
+    `.pytest_cache` -- and Marvi told the user their file was not in the
+    workspace and the directories looked unfamiliar. She was reporting exactly
+    what she had been given.
+    """
+    from marvi_agent.tools import describe
+
+    entries = [{"name": f"dir{index}", "directory": True} for index in range(20)]
+    entries.append({"name": "shreef.txt", "directory": False})
+
+    said = describe({"entries": entries})
+
+    assert "(and 9 more)" in said
+
+
+def test_a_short_listing_says_nothing_about_more() -> None:
+    from marvi_agent.tools import describe
+
+    said = describe({"entries": [{"name": "notes.md"}, {"name": "todo.md"}]})
+
+    assert "more" not in said
+    assert "notes.md" in said

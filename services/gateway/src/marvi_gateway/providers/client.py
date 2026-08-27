@@ -201,6 +201,35 @@ class ProviderClient:
     # -- calling -------------------------------------------------------------
 
     @staticmethod
+    def _reject(profile: Any, response: Any, *, body: str) -> ProviderCallError:
+        """A 4xx that is about this request, not about the provider.
+
+        Deliberately without a cooldown. A malformed request is ours, and the
+        same provider answers the next well-formed one -- but the generic
+        handler treated it as an outage and stood the provider down for five
+        minutes. A background verdict nobody was waiting for could take the
+        conversation offline, and did: every OpenRouter 400 in the logs is
+        followed by the main model falling through to a provider whose key was
+        dead, and then by "No provider is available".
+
+        The body is carried into the error because httpx's own message is
+        "Client error '400 Bad Request'" and nothing else, which says only that
+        something in a request of several thousand characters was wrong.
+        """
+        detail = " ".join(body.split())[:400]
+        logger.warning(
+            "provider rejected the request; not cooling it down",
+            extra={
+                "marvi_provider": profile.name,
+                "marvi_status": str(response.status_code),
+                "marvi_body": detail,
+            },
+        )
+        return ProviderCallError(
+            f"{profile.name} rejected the request ({response.status_code}): {detail}"
+        )
+
+    @staticmethod
     def _retry_after(response: Any) -> float:
         header = (response.headers or {}).get("retry-after") if response is not None else None
         try:
@@ -294,6 +323,8 @@ class ProviderClient:
                 # A dead credential will not fix itself on retry.
                 self.stand_down(profile.name, MAX_COOLDOWN_SECONDS, "authentication rejected")
                 raise ProviderCallError(f"{profile.name} rejected the credential")
+            if 400 <= response.status_code < 500 and response.status_code != 408:
+                raise self._reject(profile, response, body=response.text)
             response.raise_for_status()
             payload = response.json()
         except ProviderCallError as exc:
@@ -444,6 +475,10 @@ class ProviderClient:
                 if response.status_code in (401, 403):
                     self.stand_down(profile.name, MAX_COOLDOWN_SECONDS, "authentication rejected")
                     raise ProviderCallError(f"{profile.name} rejected the credential")
+                if 400 <= response.status_code < 500 and response.status_code != 408:
+                    # Streamed, so the body has not been read yet.
+                    response.read()
+                    raise self._reject(profile, response, body=response.text)
                 response.raise_for_status()
 
                 for line in response.iter_lines():

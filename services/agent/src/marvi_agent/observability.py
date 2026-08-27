@@ -73,14 +73,44 @@ def _number(value: Any, *names: str) -> int:
     return 0
 
 
+def _llm_entries(usage: Any) -> list[Any]:
+    """The LLM rows of a session usage event, in the shape 1.6 sends.
+
+    `AgentSessionUsage` is `model_usage: list[ModelUsage]` -- one row per
+    provider and model, tagged by `type`. This module read a flat object with
+    `llm_prompt_tokens` on it, which is the shape from before that change, so
+    every field came back `None`, every delta was zero, and the Voice page has
+    said `TOKENS 0` through every conversation since.
+    """
+    rows = getattr(usage, "model_usage", None)
+    if rows is None and isinstance(usage, dict):
+        rows = usage.get("model_usage")
+    return [row for row in (rows or []) if str(getattr(row, "type", "")) == "llm_usage"]
+
+
 def _report_usage(provider: str, usage: Any, previous: dict[str, int]) -> dict[str, int]:
     """Send only the delta from LiveKit's cumulative session usage event."""
-    current = {
-        "input": _number(usage, "llm_prompt_tokens", "input_tokens", "prompt_tokens"),
-        "output": _number(usage, "llm_completion_tokens", "output_tokens", "completion_tokens"),
-        "cached_input": _number(usage, "llm_cached_prompt_tokens", "cached_input_tokens"),
-        "reasoning": _number(usage, "llm_reasoning_tokens", "reasoning_tokens"),
-    }
+    rows = _llm_entries(usage)
+    if rows:
+
+        def total(*names: str) -> int:
+            return sum(_number(row, *names) for row in rows)
+
+        current = {
+            "input": total("input_tokens"),
+            "output": total("output_tokens"),
+            "cached_input": total("input_cached_tokens"),
+            # Not reported per model in this shape; kept so the delta keys and
+            # the Gateway's fields stay the same either way.
+            "reasoning": 0,
+        }
+    else:
+        current = {
+            "input": _number(usage, "llm_prompt_tokens", "input_tokens", "prompt_tokens"),
+            "output": _number(usage, "llm_completion_tokens", "output_tokens", "completion_tokens"),
+            "cached_input": _number(usage, "llm_cached_prompt_tokens", "cached_input_tokens"),
+            "reasoning": _number(usage, "llm_reasoning_tokens", "reasoning_tokens"),
+        }
     delta = {name: max(0, value - previous.get(name, 0)) for name, value in current.items()}
     if provider and any(delta.values()):
         with contextlib.suppress(Exception):
@@ -183,7 +213,11 @@ def attach(session: AgentSession, provider: str = "") -> None:
     def _usage(event: Any) -> None:
         nonlocal last_usage
         usage = getattr(event, "usage", event)
-        log.info("usage: %s", usage)
+        # Only when there is something in it. This fired 654 times in one
+        # evening with an empty list every time, and those lines are most of
+        # what is in the log around a conversation.
+        if _llm_entries(usage):
+            log.info("usage: %s", usage)
         last_usage = _report_usage(provider, usage, last_usage)
 
 
