@@ -28,7 +28,7 @@ dependencies = [
     # `read_screen` grabs the display with it. Already present transitively;
     # declared because depending on somebody else's dependency is how a working
     # install breaks on an unrelated bump -- the same reason `rich` is here.
-    "pillow>=10,<13",
+    "pillow>=12.3.0,<13",
 ]
 
 [project.scripts]
