@@ -443,3 +443,17 @@ external payloads.
 conversation model, and future failures must be traceable across scheduler,
 policy, memory, and provider boundaries. Content-free structured metadata gives
 that evidence without turning diagnostic files into a second memory database.
+
+## ADR-026 — Durable memory is one provider, selected at the Gateway
+
+**Decision:** Gateway exposes a five-method `MemoryProvider` seam and selects
+exactly one of the local SQLite store, Mem0, or Honcho. Provider-owned semantic
+retrieval stays below that seam. The local ARC reflection/dreamer is disabled
+when an external provider owns consolidation. `USER.md` remains authoritative
+over Honcho's derived peer card. Mem0 is pinned to 1.0.11; upgrading to its
+ADD-only 2.x algorithm requires passing the correction acceptance case first.
+
+**Reason:** Running stores in parallel recreates conflicting truth with no
+authority marker. Honcho and Mem0 already own extraction/retrieval, while
+Marvi's product-specific responsibility is provider choice, untrusted-content
+containment, UI configuration, audit, and foreground-safe degradation.

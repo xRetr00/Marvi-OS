@@ -1197,3 +1197,28 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
 - Verified all 934 Gateway tests, all 252 desktop tests, Gateway Ruff, desktop
   ESLint with zero errors (existing line-ending warnings remain), both desktop
   TypeScript targets, the production Electron/Vite build, and `git diff --check`.
+
+## 2026-08-28 — selectable durable-memory providers
+
+- Added the Gateway-owned `MemoryProvider` protocol and a live one-at-a-time
+  runtime over Local, Mem0, and Honcho. Existing Chat, Voice, Gateway tools,
+  account ingest, and the Memory page keep their stable boundary.
+- Added official SDK adapters for managed/self-hosted Honcho 2.4.0 and Mem0,
+  including pinned in-process Mem0 1.0.11 and the documented self-hosted
+  unversioned REST surface with `X-API-Key` authentication.
+- Preserved Honcho peer attribution by sending user and assistant as separate
+  messages. Recall uses current session context, including summary,
+  representation, and peer card; conclusion IDs remain deletable strings.
+- Pinned Mem0 OSS to the last four-operation release because official 2.x docs
+  and open regressions confirm that current extraction is deliberately
+  ADD-only. Added a version/prompt correction gate so an accidental upgrade
+  fails tests. Managed Mem0 remains selectable but is explicitly identified as
+  server-side ADD-only; an old client cannot change that platform behavior.
+- Added write-only provider credentials and provider/user/workspace selection
+  to Settings → Memory. Local embedding controls remain provider-local and are
+  hidden when an external provider owns retrieval.
+- Provider outages return empty recall/list projections instead of delaying or
+  failing a foreground answer. Local ARC dreaming/consolidation does not run
+  behind an external provider, preventing a shadow second store.
+- Provider recall is enclosed in Marvi's nonce-delimited untrusted-data
+  boundary before it enters a prompt.

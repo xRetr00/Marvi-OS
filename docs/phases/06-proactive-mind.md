@@ -84,11 +84,15 @@ projection with tree and explicit-connection modes.
 | Graph runtime         | production Electron CSP paints Pixi WebGL and force-linked dragging responds   |
 | Auxiliary routing     | mind/presence use `mind`; reflection uses `memory`; Auto uses provider aux model |
 | Diagnostics           | route, model, IDs, latency, usage, outcomes logged without cognitive content    |
+| Memory provider seam  | local/Mem0/Honcho share observe/recall/forget; only one is active                |
+| Mem0 correction gate  | 1.0.11 pin retains ADD/UPDATE/DELETE/NONE; 2.x upgrade is intentionally blocked  |
+| Honcho attribution    | user and assistant are separate peer messages; context includes card/representation |
 
 Acceptance coverage remains in the focused journal, policy, mind, scheduler,
-memory, ingest, desktop graph, and voice catalogue tests. The auxiliary-routing
-follow-up passes all 901 Gateway tests; the graph milestone's 231 desktop tests
-remain the recorded renderer evidence because this follow-up changes no UI.
+memory, memory-provider, ingest, desktop graph, and voice catalogue tests. The
+provider milestone passes the full Gateway and desktop suites, both desktop
+TypeScript targets, desktop production build, Ruff, ESLint with zero errors
+(existing line-ending warnings remain), and `git diff --check`.
 
 ## Proactive speech (ADR-019)
 

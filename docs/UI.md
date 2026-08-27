@@ -149,6 +149,13 @@ An empty graph explains how it will fill instead of showing a dead canvas.
 Reduced-motion mode settles the simulation immediately instead of leaving the
 graph in continuous motion.
 
+Settings → Memory places the durable provider picker above the local embedding
+controls. It offers Local, Mem0, and Honcho, states that only one store is
+active, and reveals endpoint/key/user fields only for an external provider.
+Honcho also exposes its workspace scope. Keys are write-only. Local embedding
+controls disappear when an external provider owns retrieval; provider-owned
+embeddings are never presented as a Marvi embedding setting.
+
 ## Dynamic Island
 
 The Island is smaller than Marvi's previous implementation and grows only for

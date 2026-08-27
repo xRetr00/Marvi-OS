@@ -1,7 +1,15 @@
 # Memory providers: Honcho, Mem0, and the local store
 
-*A plan, not an implementation. Written after fixing the local store, because
-the fixes made the shape of the seam obvious.*
+**Status: implemented 2026-08-28.** The rationale below is retained because it
+defines the seam. `marvi_gateway.memory_providers` now supplies the Protocol,
+the local adapter, and one-at-a-time Honcho/Mem0 selection.
+
+The implementation was checked against the current official
+[Honcho SDK reference](https://honcho.dev/docs/v3/documentation/reference/sdk),
+[Honcho self-hosting guide](https://github.com/plastic-labs/honcho#self-hosting),
+[Mem0 managed migration reference](https://docs.mem0.ai/migration/platform-v2-to-v3),
+and [Mem0 OSS REST reference](https://docs.mem0.ai/open-source/features/rest-api)
+on 2026-08-28.
 
 ## Why this is worth doing at all
 
@@ -101,13 +109,15 @@ a vector store and an LLM behind it.
 | `recall_block(text)` | `search(query, user_id=...)` |
 | the four operations | its own extraction, already |
 
-Adopting Mem0 would mean deleting `remembering.py` and letting theirs decide,
-which is a fair trade. **But**: Mem0 v3 regressed to ADD-only extraction and
-users are filing exactly the bug we just fixed —
+When Mem0 is selected, `remembering.py` only supplies the ordered off-turn
+queue and skill-proposal review; Mem0 owns memory extraction. **But**: Mem0 v3
+regressed to ADD-only extraction and users are filing exactly the bug we just fixed —
 [#5867](https://github.com/mem0ai/mem0/issues/5867),
-[#4956](https://github.com/mem0ai/mem0/issues/4956). Pin the version and test
-the correction case before trusting it, rather than assuming a library is
-better at this than the code it replaces.
+[#4956](https://github.com/mem0ai/mem0/issues/4956). Marvi therefore pins
+`mem0ai==1.0.11`, the last pre-v3 release, and its acceptance test asserts both
+the installed version and the four-operation `ADD` / `UPDATE` / `DELETE` /
+`NONE` prompt. Do not upgrade this dependency until a real correction case
+passes again.
 
 ## Order
 
@@ -119,8 +129,33 @@ better at this than the code it replaces.
    whether the seam is real.
 4. **Honcho after**, because it is the one worth having and the one whose
    shape does not fit — peer cards and the Dialectic API have no local
-   equivalent, and pretending they map onto `recall_block` would waste what
-   makes it good.
+    equivalent, and pretending they map onto `recall_block` would waste what
+    makes it good.
+
+All four steps are complete. The local store remains the default. The Memory
+settings page switches `MARVI_MEMORY_PROVIDER` among `local`, `honcho`, and
+`mem0`; it never merges stores. Provider URL, key-presence, user scope, and
+Honcho workspace are persisted through the Gateway settings store and secrets
+are never returned to Electron.
+
+Deployment mapping:
+
+- Honcho with a blank URL uses managed `https://api.honcho.dev`; a URL points
+  the same official SDK at a self-hosted v3 server.
+- Mem0 with a blank URL uses the managed client. Mem0 Platform has rolled its
+  ADD-only algorithm out server-side to every project and offers no opt-out;
+  pinning Marvi's client cannot restore automatic correction there. `local`
+  selects the pinned in-process OSS `Memory` implementation and is the Mem0
+  mode covered by the four-operation acceptance gate.
+- An HTTP(S) URL uses the official OSS server's unversioned `/memories` and
+  `/search` routes with `X-API-Key` authentication. That server must itself
+  remain on 1.0.11 for four-operation extraction. Current 2.x servers are
+  ADD-only even though their CRUD endpoints expose manual update/delete.
+- External provider outages degrade recall/listing to empty results and never
+  block the foreground answer. Writes stay queued, ordered, and observable in
+  the memory log.
+- Provider-produced recall crosses Marvi's nonce-delimited untrusted-data
+  boundary. It remains useful context, but can never become an instruction.
 
 ## What we learned building the local one
 

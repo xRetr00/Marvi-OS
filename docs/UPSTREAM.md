@@ -62,6 +62,17 @@ be updated with the exact version/commit and local modification path.
 | Shell chrome adaptation       | `the predecessor assistant\apps\desktop\src\components\` (decode-text, glyph-spinner, gateway-connecting-overlay, boot-failure-overlay, haptics-provider, translucency, background store, shell-context-menu) | internal                                                    | adapt with provenance; local-only, no remote fetches                                                                                                                                                                                                                          | adopted                                                                                                      |
 | Electric Gaze backdrop        | 21st.dev ascii-recipe render `assets.21st.dev/ascii-recipes/.../c458eb38-....mp4` (412 KB) + poster webp                                                                                                      | verify at re-fetch                                          | vendored local asset; never fetched at runtime                                                                                                                                                                                                                                | adopted                                                                                                      |
 
+## Durable-memory provider dependencies
+
+| Dependency | Source and pin | License / service terms | Modification boundary | Update method |
+| ---------- | -------------- | ----------------------- | --------------------- | ------------- |
+| Honcho Python SDK | [plastic-labs/honcho](https://github.com/plastic-labs/honcho) / `honcho-ai==2.4.0` | Apache-2.0 SDK; managed service terms separate; self-hosted server is AGPL-3.0 | official SDK unchanged; `marvi_gateway.memory_providers.HonchoProvider` maps Marvi peers, session messages, context, conclusions, and forgetting | update the exact pin with uv only after re-verifying v3 SDK signatures and managed/self-hosted tests |
+| Mem0 Python SDK | [mem0ai/mem0](https://github.com/mem0ai/mem0) / `mem0ai==1.0.11` | Apache-2.0; managed service terms separate | official SDK unchanged; thin Marvi adapter selects managed (server-side ADD-only), pinned in-process OSS, or documented self-hosted REST routes | do not cross OSS into 2.x until the correction test proves stale facts are updated/deleted; managed Platform behavior is independent of this client pin |
+
+No provider source is copied or vendored. The local adapters contain only
+Marvi-specific protocol mapping, foreground degradation, untrusted provenance,
+and UI configuration behavior.
+
 ## Owned pet asset
 
 The Marvi desktop-pet atlas is not third-party upstream. It was converted on

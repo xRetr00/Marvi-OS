@@ -78,9 +78,10 @@ Current implemented desktop surfaces:
   revoke), dynamic account-tool discovery behind per-toolkit read/write/admin
   ceilings, and nonce-delimited untrusted reads; remote writes remain confirmed,
   audited, and deduplicated;
-- local SQLite episodic and semantic memory with search, forget, and verbatim
-  export, storing externally sourced entries as untrusted and re-wrapping them
-  whenever they are recalled;
+- one selected durable-memory provider—Marvi's local SQLite store (default),
+  pinned four-operation Mem0, or managed/self-hosted Honcho—with shared
+  observe, recall, inspect, forget, and clear behavior; externally sourced
+  entries retain an untrusted boundary and provider stores are never merged;
 - a knowledge graph, recall-based reinforcement, reflection that promotes
   repeated episodes into durable facts, and a consolidation pass that forgets
   only what was never useful, presented as ARC with an Obsidian-style PixiJS +

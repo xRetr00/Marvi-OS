@@ -126,6 +126,17 @@ invokes that published tool route.
 adding an in-process MCP server; external MCP clients can still reach Gateway
 tools through the existing bridge boundary.
 
+Durable conversational memory is selected behind the Gateway-owned
+`MemoryProvider` protocol. Exactly one of `local`, `mem0`, or `honcho` owns
+observe and recall at a time. Local search keeps its embedding implementation
+below the adapter; external providers receive text and own extraction,
+embedding, and consolidation. Honcho receives user and assistant messages as
+separate peer-attributed messages and recall uses session context (summary,
+representation, and peer card). Mem0 receives the same two-role message list
+and is pinned to 1.0.11 because current 2.x extraction is ADD-only. The local
+ARC reflection/dreamer jobs become no-ops while an external provider is active,
+so there is no shadow store or merged answer.
+
 It does not implement RTC, STT, TTS, home automation, OAuth providers, or model
 inference itself.
 
