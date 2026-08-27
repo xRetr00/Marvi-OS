@@ -90,9 +90,9 @@ projection with tree and explicit-connection modes.
 
 Acceptance coverage remains in the focused journal, policy, mind, scheduler,
 memory, memory-provider, ingest, desktop graph, and voice catalogue tests. The
-provider milestone passes the full Gateway and desktop suites, both desktop
-TypeScript targets, desktop production build, Ruff, ESLint with zero errors
-(existing line-ending warnings remain), and `git diff --check`.
+provider milestone passes all 1,185 Gateway tests and 257 desktop tests, both
+desktop TypeScript targets, the desktop production build, Ruff, ESLint with
+zero errors (existing line-ending warnings remain), and `git diff --check`.
 
 ## Proactive speech (ADR-019)
 
