@@ -1,0 +1,36 @@
+[package]
+name = "marvi-wake-host"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Listens for Marvi's name and starts her. One job, one tray icon."
+
+[dependencies]
+# The three-stage wake word pipeline. `download-binaries` fetches a matching
+# ONNX Runtime at build time, which is what keeps this a single .exe with no
+# Python underneath it -- the whole point of replacing the daemon.
+ort = { version = "=2.0.0-rc.10", default-features = false, features = [
+  "std",
+  "ndarray",
+  "download-binaries",
+] }
+ndarray = "0.16"
+# Microphone capture. WASAPI underneath on Windows, and it resolves devices by
+# name rather than index -- indices move when a headset is plugged in.
+cpal = "0.15"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[target.'cfg(windows)'.dependencies]
+tray-icon = "0.19"
+windows-sys = { version = "0.61.2", features = [
+  "Win32_Foundation",
+  "Win32_System_Registry",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
