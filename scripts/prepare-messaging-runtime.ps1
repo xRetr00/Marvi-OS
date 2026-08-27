@@ -15,10 +15,9 @@ if (Test-Path -LiteralPath $stageRoot) {
   Remove-Item -LiteralPath $stageRoot -Recurse -Force
 }
 
-$sourceStage = Join-Path $stageRoot 'vendor'
-$runtimeStage = Join-Path $stageRoot 'runtime\marvi_messaging'
+$sourceStage = Join-Path $stageRoot 'source'
 $pythonStage = Join-Path $stageRoot 'python'
-New-Item -ItemType Directory -Path $sourceStage, $runtimeStage, $pythonStage -Force | Out-Null
+New-Item -ItemType Directory -Path $sourceStage, $pythonStage -Force | Out-Null
 
 # Ship exactly the files Marvi tracks for the vendored tree. This excludes a
 # developer .venv, caches, logs, and repository metadata by construction.
@@ -29,16 +28,6 @@ foreach ($tracked in $vendorFiles) {
   $parent = Split-Path -Parent $destination
   if ($parent) { New-Item -ItemType Directory -Path $parent -Force | Out-Null }
   Copy-Item -LiteralPath (Join-Path $repoRoot $tracked) -Destination $destination -Force
-}
-
-$marviRuntimeRoot = Join-Path $repoRoot 'services\messaging\marvi_messaging'
-$marviRuntimeFiles = @(Get-ChildItem -LiteralPath $marviRuntimeRoot -File -Recurse -Filter *.py)
-foreach ($runtimeFile in $marviRuntimeFiles) {
-  $relative = $runtimeFile.FullName.Substring($marviRuntimeRoot.Length + 1)
-  $destination = Join-Path $runtimeStage $relative
-  $parent = Split-Path -Parent $destination
-  if ($parent) { New-Item -ItemType Directory -Path $parent -Force | Out-Null }
-  Copy-Item -LiteralPath $runtimeFile.FullName -Destination $destination -Force
 }
 
 $pythonVersion = (Get-Content (Join-Path $vendorRoot '.python-version') | Select-Object -First 1).Trim()
@@ -74,44 +63,18 @@ $previousPythonPath = $env:PYTHONPATH
 $previousUvOffline = $env:UV_OFFLINE
 $previousPipIndex = $env:PIP_NO_INDEX
 $previousNoBytecode = $env:PYTHONDONTWRITEBYTECODE
-$previousMessagingHome = $env:MARVI_MESSAGING_HOME
-$previousVendorRoot = $env:MARVI_MESSAGING_VENDOR_ROOT
-$smokeHome = Join-Path $stageRoot 'smoke-home'
-$smokeError = Join-Path $stageRoot 'smoke-stderr.txt'
 try {
-  $env:PYTHONPATH = (Split-Path -Parent $runtimeStage)
-  $env:MARVI_MESSAGING_HOME = $smokeHome
-  New-Item -ItemType Directory -Path $env:MARVI_MESSAGING_HOME -Force | Out-Null
-  '{}' | Set-Content -Encoding ascii (Join-Path $env:MARVI_MESSAGING_HOME 'config.yaml')
-  $env:MARVI_MESSAGING_VENDOR_ROOT = $sourceStage
+  $env:PYTHONPATH = $sourceStage
   $env:UV_OFFLINE = '1'
   $env:PIP_NO_INDEX = '1'
   $env:PYTHONDONTWRITEBYTECODE = '1'
-  $previousErrorAction = $ErrorActionPreference
-  $ErrorActionPreference = 'Continue'
-  & $runtimePython -c "from marvi_messaging._vendor import activate; activate(managed=True); import gateway.run" 2> $smokeError
-  $smokeExitCode = $LASTEXITCODE
-  $ErrorActionPreference = $previousErrorAction
-  if ($smokeExitCode -ne 0) {
-    Get-Content -LiteralPath $smokeError | Write-Host
-    throw 'Bundled messaging runtime failed its offline import check'
-  }
-  Write-Host 'marvi-messaging-runtime-ok'
-  & $runtimePython -m marvi_messaging.main gateway run --help | Out-Null
-  if ($LASTEXITCODE -ne 0) { throw 'Marvi messaging entrypoint failed its offline command check' }
+  & $runtimePython -c "import gateway.run, hermes_cli.main; print('messaging-runtime-ok')"
+  if ($LASTEXITCODE -ne 0) { throw 'Bundled messaging runtime failed its offline import check' }
 } finally {
   $env:PYTHONPATH = $previousPythonPath
   $env:UV_OFFLINE = $previousUvOffline
   $env:PIP_NO_INDEX = $previousPipIndex
   $env:PYTHONDONTWRITEBYTECODE = $previousNoBytecode
-  $env:MARVI_MESSAGING_HOME = $previousMessagingHome
-  $env:MARVI_MESSAGING_VENDOR_ROOT = $previousVendorRoot
-  if (Test-Path -LiteralPath $smokeHome) {
-    Remove-Item -LiteralPath $smokeHome -Recurse -Force
-  }
-  if (Test-Path -LiteralPath $smokeError) {
-    Remove-Item -LiteralPath $smokeError -Force
-  }
 }
 
 # Python writes bytecode beside imported source by default. The smoke test must
@@ -137,7 +100,6 @@ $manifest = [ordered]@{
   source = 'https://github.com/xRetr00/Marvi.git'
   sourceCommit = '61977bb4d6b97ab2aece57d2405fa2f0b19e3ae0'
   upstreamFiles = $vendorFiles.Count
-  marviRuntimeFiles = $marviRuntimeFiles.Count
   python = (& $runtimePython -c 'import platform; print(platform.python_version())').Trim()
   requirementsSha256 = $requirementsHash
 }

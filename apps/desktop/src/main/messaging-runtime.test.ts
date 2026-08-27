@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -52,35 +52,28 @@ describe('messaging runtime', () => {
     const runtime = await import('./messaging-runtime')
     const checkout = join(root, 'checkout')
     const resources = join(root, 'resources')
-    const source = join(resources, 'messaging', 'vendor')
-    const runtimeRoot = join(resources, 'messaging', 'runtime')
+    const source = join(resources, 'messaging', 'source')
     const python = join(resources, 'messaging', 'python', 'python.exe')
     mkdirSync(join(checkout, 'vendor', 'marvi-agent'), { recursive: true })
     mkdirSync(join(source, 'gateway'), { recursive: true })
-    mkdirSync(join(runtimeRoot, 'marvi_messaging'), { recursive: true })
     mkdirSync(join(resources, 'messaging', 'python'), { recursive: true })
     writeFileSync(join(source, 'gateway', 'run.py'), '')
-    writeFileSync(join(runtimeRoot, 'marvi_messaging', 'main.py'), '')
     writeFileSync(python, '')
 
     expect(runtime.messagingSourceRoot(checkout, resources)).toBe(source)
     expect(runtime.messagingLaunch(source)).toEqual({
       command: python,
-      args: ['-m', 'marvi_messaging.main'],
-      cwd: runtimeRoot,
-      env: {
-        PYTHONPATH: [runtimeRoot, source].join(process.platform === 'win32' ? ';' : ':'),
-        MARVI_MESSAGING_VENDOR_ROOT: source
-      }
+      args: ['-m', 'hermes_cli.main'],
+      cwd: source
     })
   })
 
   it('uses a separate upstream home and declares Electron as supervisor', async () => {
     const runtime = await import('./messaging-runtime')
     expect(runtime.messagingEnvironment('C:\\private', 42)).toMatchObject({
-      MARVI_MESSAGING_HOME: 'C:\\private',
-      MARVI_MESSAGING_PARENT_PID: '42',
-      MARVI_MESSAGING_EXTERNAL_SUPERVISOR: '1'
+      HERMES_HOME: 'C:\\private',
+      MARVI_PARENT_PID: '42',
+      HERMES_GATEWAY_EXTERNAL_SUPERVISOR: '1'
     })
   })
 
@@ -118,31 +111,5 @@ describe('messaging runtime', () => {
     expect(existsSync(join(source, '.git'))).toBe(false)
     expect(existsSync(join(source, '..', '..', '.gitmodules'))).toBe(false)
     expect(runtime.messagingPlatforms(source).length).toBeGreaterThanOrEqual(20)
-  })
-
-  it('keeps the Hermes CLI out of Marvi runtime ownership', async () => {
-    const runtimeMain = join(
-      process.cwd(),
-      '..',
-      '..',
-      'services',
-      'messaging',
-      'marvi_messaging',
-      'main.py'
-    )
-    const electronMain = join(process.cwd(), 'src', 'main', 'messaging-runtime.ts')
-    if (!existsSync(runtimeMain)) return
-
-    expect(readFileSync(runtimeMain, 'utf8')).not.toContain('hermes_cli')
-    expect(readFileSync(electronMain, 'utf8')).not.toContain('hermes_cli.main')
-  })
-
-  it('contains no repository or package-manager operation in the launch boundary', () => {
-    const electronMain = join(process.cwd(), 'src', 'main', 'messaging-runtime.ts')
-    const source = readFileSync(electronMain, 'utf8')
-
-    expect(source).not.toMatch(/git\s+(clone|pull|fetch)/i)
-    expect(source).not.toMatch(/\b(?:uv|pip|npm)\s+(?:run|sync|install)\b/i)
-    expect(source).not.toContain('github.com')
   })
 })

@@ -20,7 +20,6 @@ import type {
   MemoryGraphPage,
   MemoryPage,
   MessagingStatus,
-  MessagingPairingRequest,
   MindDecision,
   ModelPage,
   PluginPage,
@@ -300,10 +299,6 @@ const marvi = {
   setMessaging: (update: { enabled: boolean; home: string }): Promise<MessagingStatus> =>
     ipcRenderer.invoke('marvi:set-messaging', update),
   setupMessaging: (): Promise<boolean> => ipcRenderer.invoke('marvi:setup-messaging'),
-  getMessagingPairings: (): Promise<MessagingPairingRequest[]> =>
-    ipcRenderer.invoke('marvi:get-messaging-pairings'),
-  approveMessagingPairing: (platform: string, requestId: string): Promise<boolean> =>
-    ipcRenderer.invoke('marvi:approve-messaging-pairing', platform, requestId),
   openMessagingHome: (): Promise<boolean> => ipcRenderer.invoke('marvi:open-messaging-home'),
   onServices: (listener: (reports: ServiceReport[]) => void): (() => void) => {
     const handler = (_event: unknown, reports: ServiceReport[]): void => listener(reports)

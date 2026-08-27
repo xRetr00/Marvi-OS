@@ -1,18 +1,5 @@
 # Implementation Log
 
-## 2026-08-26 — Marvi-owned messaging application boundary
-
-- Added `services/messaging/marvi_messaging` with owned command, lifecycle,
-  configuration, health, shutdown, and private vendor-compatibility modules.
-- Changed Electron supervision and interactive setup to launch
-  `python -m marvi_messaging.main`; the derived monolithic CLI is no longer an
-  executable or imported runtime boundary.
-- Split the package payload into `runtime`, `vendor`, and `python`, retaining all
-  9,382 pinned implementation files while making ownership mechanically visible.
-- Added a Marvi-owned pending-pairing API and Settings surface; approval uses the
-  server-side request id, while derived self-update and detached CLI fallback
-  paths are disabled whenever Marvi owns the runtime.
-
 ## 2026-08-26 — standalone vendored messaging runtime
 
 - Replaced the `vendor/marvi-agent` gitlink with 9,382 ordinary tracked files and

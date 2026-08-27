@@ -23,7 +23,6 @@ gates still apply.
 | 13 | [`13-cron-jobs.md`](13-cron-jobs.md) | complete |
 | 14 | [`14-messaging-companion.md`](14-messaging-companion.md) | complete |
 | 15 | [`15-standalone-messaging-runtime.md`](15-standalone-messaging-runtime.md) | complete |
-| 16 | [`16-marvi-messaging-boundary.md`](16-marvi-messaging-boundary.md) | complete |
 
 Status vocabulary: `planned`, `scaffolded`, `in progress`, `blocked`, and
 `complete`. Only mark a phase complete when every acceptance gate has named

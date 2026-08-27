@@ -158,17 +158,13 @@ changing cron records, execution, or the desktop contract.
 
 ## Optional messaging companion
 
-Messaging vendors the complete pinned Marvi Agent source as ordinary implementation
-files at `vendor/marvi-agent`; it is not a submodule or runtime checkout. Packaging
-separates those files at `resources/messaging/vendor` from Marvi-owned application
-code at `resources/messaging/runtime/marvi_messaging`, with standalone CPython and
+Messaging vendors the complete pinned Marvi Agent source as ordinary files at
+`vendor/marvi-agent`; it is not a submodule or runtime checkout. Packaging copies
+that source to `resources/messaging/source` with a standalone CPython runtime and
 locked dependencies at `resources/messaging/python`. Electron main starts
-`python.exe -m marvi_messaging.main gateway run` and supervises it only after the
-user completes Marvi messaging setup and explicitly enables it. `marvi_messaging`
-owns argument parsing, lifecycle, health, planned shutdown, configuration and pairing paths,
-and the private compatibility bridge; it calls `gateway.run.start_gateway` as a
-library. The runtime receives its own Marvi messaging home, process tree, logs,
-platform credentials, conversations,
+`python.exe -m hermes_cli.main gateway run` directly and supervises it only after the
+user completes upstream setup and explicitly enables it. The companion receives
+its own `HERMES_HOME`, process tree, logs, platform credentials, conversations,
 approval state, and toolsets. The renderer receives only lifecycle status and
 paths; platform tokens never cross IPC.
 
@@ -176,8 +172,8 @@ This is intentionally a companion deep-work surface, not a second voice
 runtime and not a transport shim into Marvi OS Chat. Remote messages therefore
 cannot join a LiveKit room, change the foreground voice prompt, or bypass Marvi
 Gateway's tool policy. Conversely, Marvi OS Confirm/YOLO does not silently
-govern the companion: its derived approval behavior remains intact and is
-configured through Marvi's setup adapter. Pinning the whole source preserves
+govern the companion: its upstream approval behavior remains intact and is
+configured through the upstream setup flow. Pinning the whole source preserves
 end-to-end platform and tool behavior without copying a 30,000-line gateway
 into Marvi Gateway or moving its policy into React.
 
