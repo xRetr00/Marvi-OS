@@ -4970,18 +4970,38 @@ body {
  * The transcript used to sit at the bottom of the page, below the model table
  * and the session metrics, which is a long way from the thing it is describing.
  * Reading it meant looking away from the orb you were talking to. */
-.voice-subtitles {
+/* Everything that sits over the orb and under the conversation: the
+ * subtitles, a question Marvi asked, a credential she needs. Positioned once,
+ * here, so the cards cannot each invent their own idea of where the bottom of
+ * the field is — and so they stack in a fixed order instead of overlapping.
+ *
+ * The orb's canvas fills the surface, so a card left in normal flow lands
+ * below the field's bottom edge, outside it. That is what was happening. */
+.voice-stack {
   position: absolute;
   right: 0;
-  bottom: 14%;
+  bottom: 8%;
   left: 0;
   z-index: 2;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  /* Never taller than the field it sits in: a long question plus a secret
+   * field would otherwise grow up past the top and out of the window. */
+  max-height: 76%;
   padding: 0 8%;
+  overflow-y: auto;
+  /* The container is a pass-through; the cards inside turn this back on. */
   pointer-events: none;
+}
+
+.voice-subtitles {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
 }
 
 .voice-line {
@@ -5071,8 +5091,8 @@ body {
 }
 
 @media (max-width: 980px) {
-  .voice-subtitles {
-    bottom: 10%;
+  .voice-stack {
+    bottom: 6%;
     padding: 0 4%;
   }
   .voice-line {
@@ -7113,7 +7133,6 @@ body .settings-scroll .control-row {
   gap: 8px;
   align-items: center;
   max-width: min(52ch, 100%);
-  margin: 10px auto 0;
   padding: 12px 16px;
   border: 1px solid var(--ui-stroke-primary);
   border-left: 2px solid var(--ui-accent);
@@ -7232,7 +7251,6 @@ body .settings-scroll .control-row {
   flex-direction: column;
   gap: 8px;
   max-width: min(56ch, 100%);
-  margin: 10px auto 0;
   padding: 12px 16px;
   border: 1px solid var(--ui-stroke-primary);
   border-left: 2px solid var(--ui-accent);

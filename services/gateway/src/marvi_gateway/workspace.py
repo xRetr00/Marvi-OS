@@ -95,6 +95,41 @@ def default_root() -> Path | None:
     return Access.from_env().root
 
 
+#: Which interpreters `terminal_run` will use, by name.
+SHELLS = frozenset({"powershell", "cmd", "sh"})
+
+
+def default_shell() -> str:
+    """PowerShell on Windows, the system shell everywhere else."""
+    return "powershell" if os.name == "nt" else "sh"
+
+
+def _powershell() -> str:
+    """PowerShell 7 when it is installed, Windows PowerShell otherwise.
+
+    `pwsh` is the current one and is what anybody writing PowerShell today
+    expects; `powershell.exe` ships with Windows and is always there.
+    """
+    return shutil.which("pwsh") or "powershell.exe"
+
+
+def _shell_command(shell: str, command: str) -> tuple[Any, bool]:
+    """`(argv, shell=)` for `subprocess.run`.
+
+    `-NoProfile` and `-NonInteractive` are not tidiness. A profile can print a
+    banner into stdout that the caller reads as output, and an interactive
+    prompt with nothing to answer it blocks until the timeout -- which looks
+    exactly like a command that hung.
+    """
+    if shell == "powershell":
+        return [_powershell(), "-NoProfile", "-NonInteractive", "-Command", command], False
+    if shell == "cmd":
+        # `/d` skips AutoRun commands from the registry, which are somebody
+        # else's idea of what should happen in every shell.
+        return ["cmd.exe", "/d", "/c", command], False
+    return command, True
+
+
 #: A UTF-8 byte order mark. Windows editors write them, and a file that had one
 #: and comes back without it reads as changed on its first line, every time.
 BOM = b"\xef\xbb\xbf"
@@ -444,16 +479,38 @@ class Workspace:
 
     # -- terminal ---------------------------------------------------------
 
-    def run(self, command: str, timeout: int = DEFAULT_COMMAND_TIMEOUT) -> dict[str, Any]:
+    def run(
+        self, command: str, timeout: int = DEFAULT_COMMAND_TIMEOUT, shell: str = ""
+    ) -> dict[str, Any]:
+        """Run a command in the workspace, in a shell that was actually chosen.
+
+        `shell=True` was the whole implementation, and on Windows that means
+        `cmd.exe`. Every PowerShell command therefore failed -- `Get-ChildItem`,
+        `Get-Date`, anything with a `$` -- with "is not recognized as an
+        internal or external command", which reads as a missing program rather
+        than as the wrong interpreter. Nothing in the tool said which shell it
+        was, so neither Marvi nor the user could tell why.
+
+        PowerShell is the default here because on Windows in 2026 it is the
+        shell people mean, and because it is the one whose syntax a model
+        reaches for. `cmd` stays available by name for the things that only
+        work there.
+        """
         if self.root is None:
             raise WorkspaceRefusedError("No workspace root configured.")
         if not command.strip():
             raise WorkspaceRefusedError("empty command")
         seconds = max(1, min(int(timeout), MAX_COMMAND_TIMEOUT))
+        chosen = (shell or "").strip().lower() or default_shell()
+        if chosen not in SHELLS:
+            raise WorkspaceRefusedError(
+                f"{shell!r} is not a shell here. Use one of: {', '.join(sorted(SHELLS))}."
+            )
+        argv, use_shell = _shell_command(chosen, command)
         try:
             completed = subprocess.run(
-                command,
-                shell=True,
+                argv,
+                shell=use_shell,
                 cwd=str(self.root),
                 capture_output=True,
                 text=True,
@@ -461,10 +518,16 @@ class Workspace:
                 encoding="utf-8",
                 errors="replace",
             )
+        except FileNotFoundError as exc:
+            raise CommandFailedError(f"{chosen} is not installed on this machine") from exc
         except subprocess.TimeoutExpired as exc:
             raise CommandFailedError(f"command timed out after {seconds}s") from exc
         return {
             "command": command,
+            # Reported, because the same command succeeds in one shell and
+            # fails in the other, and a caller that cannot see which one ran
+            # cannot tell a broken command from a mismatched interpreter.
+            "shell": chosen,
             "exit_code": completed.returncode,
             "stdout": (completed.stdout or "")[:MAX_OUTPUT_CHARS],
             "stderr": (completed.stderr or "")[:MAX_OUTPUT_CHARS],
@@ -545,10 +608,13 @@ def register_workspace_tools(registry, workspace: Workspace) -> None:
     def file_delete(path: str) -> dict[str, Any]:
         return workspace.delete(path)
 
-    def terminal_run(command: str, timeout: int = DEFAULT_COMMAND_TIMEOUT) -> dict[str, Any]:
-        result = workspace.run(command, timeout)
+    def terminal_run(
+        command: str, timeout: int = DEFAULT_COMMAND_TIMEOUT, shell: str = ""
+    ) -> dict[str, Any]:
+        result = workspace.run(command, timeout, shell)
         return {
             "exit_code": result["exit_code"],
+            "shell": result["shell"],
             "output": wrap_external(
                 f"terminal:{result['command'][:60]}",
                 {"stdout": result["stdout"], "stderr": result["stderr"]},
@@ -634,9 +700,29 @@ def register_workspace_tools(registry, workspace: Workspace) -> None:
             arguments={"path": str}, sensitive=True, handler=file_delete,
         ),
         ToolSpec(
-            name="terminal_run", description="Run a command in the workspace",
-            arguments={"command": str}, optional={"timeout": int},
-            sensitive=True, handler=terminal_run,
+            name="terminal_run",
+            # The keywords are the discoverability fix, not decoration. A search
+            # for "powershell" or "cmd" found nothing at all, because neither
+            # word appeared in the name, the description or the arguments -- so
+            # asking Marvi to run a PowerShell command got "I don't have a tool
+            # for that" while the tool sat there.
+            description=(
+                "Run a shell command in the terminal: PowerShell, cmd, or sh. "
+                "Use for git, npm, python, builds, and anything a command line does"
+            ),
+            arguments={"command": str},
+            optional={"timeout": int, "shell": str},
+            sensitive=True,
+            handler=terminal_run,
+            describes={
+                "command": "The command line to run, exactly as it would be "
+                "typed. It runs in the workspace folder.",
+                "timeout": "Seconds to wait before giving up. Default 60.",
+                "shell": "Which shell: `powershell` (the default on Windows), "
+                "`cmd` for the few things that only work there, or `sh`. "
+                "Write the command in the syntax of the shell you name -- a "
+                "PowerShell cmdlet in cmd fails as 'not recognized'.",
+            },
         ),
         ToolSpec(
             name="process_list", description="List running processes",

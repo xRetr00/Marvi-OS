@@ -2608,9 +2608,19 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
     <section className="voice-page">
       <div className="voice-orb-surface">
         <VoiceOrb active={speaking || listening} level={voice.level} phase={voice.phase} />
-        <Subtitles />
-        <AskedQuestion />
-        <SecretField />
+        {/* One stack, positioned once.
+         *
+         * The orb's canvas fills the surface, so anything after it in normal
+         * flow lands below the bottom edge — outside the field entirely, which
+         * is where the question and the secret field were appearing. The
+         * subtitles escaped that by positioning themselves, and copying that
+         * trick per card is how three things end up overlapping each other.
+         * They share a container instead. */}
+        <div className="voice-stack">
+          <Subtitles />
+          <AskedQuestion />
+          <SecretField />
+        </div>
       </div>
 
       {/* Top-left: what Marvi is doing, and what is stopping it. */}

@@ -200,7 +200,11 @@ def test_deleting_a_missing_file_is_not_an_error(workspace) -> None:
 
 
 def test_commands_run_inside_the_root(workspace) -> None:
-    command = "cd" if sys.platform == "win32" else "pwd"
+    # `Get-Location`, not `cd`. Bare `cd` prints the working directory in cmd
+    # and prints nothing in PowerShell, and the default shell on Windows is
+    # PowerShell now -- which is the whole point of the change: a command
+    # written for one shell does not mean the same thing in the other.
+    command = "Get-Location" if sys.platform == "win32" else "pwd"
     result = workspace.run(command)
     assert result["exit_code"] == 0
     assert str(workspace.root).lower() in result["stdout"].strip().lower()
@@ -268,3 +272,66 @@ async def test_escaping_the_root_through_the_router_fails_cleanly(workspace, tmp
 
     assert escape.json()["status"] == "failed"
     assert alive.status_code == 200
+
+
+# -- which shell ------------------------------------------------------------
+
+
+def test_powershell_is_the_default_on_windows(workspace) -> None:
+    """`shell=True` was the whole implementation, and on Windows that means
+    cmd.exe -- so every PowerShell command failed with "is not recognized as an
+    internal or external command", which reads as a missing program rather than
+    as the wrong interpreter."""
+    if sys.platform != "win32":
+        pytest.skip("Windows shells")
+
+    result = workspace.run("Get-Date -Format yyyy", timeout=25)
+
+    assert result["shell"] == "powershell"
+    assert result["exit_code"] == 0
+    assert result["stdout"].strip().isdigit()
+
+
+def test_cmd_is_still_available_by_name(workspace) -> None:
+    if sys.platform != "win32":
+        pytest.skip("Windows shells")
+
+    result = workspace.run("echo hello", timeout=25, shell="cmd")
+
+    assert result["shell"] == "cmd"
+    assert result["stdout"].strip() == "hello"
+
+
+def test_the_result_says_which_shell_ran_it(workspace) -> None:
+    """The same command succeeds in one and fails in the other, and a caller
+    that cannot see which one ran cannot tell a broken command from a
+    mismatched interpreter."""
+    assert "shell" in workspace.run("echo hi", timeout=25)
+
+
+def test_an_unknown_shell_is_refused_with_the_list(workspace) -> None:
+    with pytest.raises(WorkspaceRefusedError, match="powershell"):
+        workspace.run("echo hi", timeout=25, shell="fish")
+
+
+def test_the_terminal_tool_can_be_found_by_the_words_people_use() -> None:
+    """A search for "powershell" or "cmd" found nothing at all, because neither
+    word appeared in the name, the description or the arguments -- so asking
+    Marvi to run a PowerShell command got "I don't have a tool for that" while
+    the tool sat there."""
+    from marvi_gateway.toolsearch import search
+
+    catalogue = [
+        {
+            "name": "terminal_run",
+            "description": (
+                "Run a shell command in the terminal: PowerShell, cmd, or sh. "
+                "Use for git, npm, python, builds, and anything a command line does"
+            ),
+            "arguments": ["command"],
+            "optional": ["timeout", "shell"],
+        }
+    ]
+
+    for asked in ("powershell", "cmd", "terminal", "run a command", "git"):
+        assert [t["name"] for t in search(catalogue, asked)] == ["terminal_run"], asked
