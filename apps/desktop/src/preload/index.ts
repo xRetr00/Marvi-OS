@@ -18,6 +18,8 @@ import type {
   McpServerRow,
   MemoryGraphMode,
   MemoryGraphPage,
+  MemoryImportPreview,
+  MemoryImportResult,
   MemoryPage,
   MindDecision,
   ModelPage,
@@ -345,6 +347,12 @@ const marvi = {
     ipcRenderer.invoke('marvi:set-workspace', update),
   /** The native folder picker. Empty string when the user cancelled. */
   chooseFolder: (): Promise<string> => ipcRenderer.invoke('marvi:choose-folder'),
+  /** Memory files to import. Empty when the user cancelled. */
+  chooseMemoryFiles: (): Promise<string[]> => ipcRenderer.invoke('marvi:choose-memory-files'),
+  previewMemoryImport: (paths: string[]): Promise<MemoryImportPreview | null> =>
+    ipcRenderer.invoke('marvi:preview-memory-import', paths),
+  importMemories: (paths: string[]): Promise<MemoryImportResult | null> =>
+    ipcRenderer.invoke('marvi:import-memories', paths),
   answerQuestion: (id: string, answer: string): Promise<boolean> =>
     ipcRenderer.invoke('marvi:answer-question', { id, answer }),
   /** A credential the user typed. Goes to the settings store and stops there. */

@@ -632,6 +632,12 @@ class SkillPin(BaseModel):
     pinned: bool
 
 
+class MemoryImport(BaseModel):
+    #: Files the user chose in the native picker. Absolute paths; the renderer
+    #: never reads them itself.
+    paths: list[str] = []
+
+
 class LogPage(BaseModel):
     subsystem: str
     lines: list[str]
@@ -2681,6 +2687,42 @@ def create_app(
         if memory is None:
             return ReflectResult(considered=0, promoted=[])
         return ReflectResult(**memory.reflect(summarise=memory_summarise))
+
+    @app.post("/memory/import/preview")
+    async def preview_import(request: MemoryImport) -> dict[str, Any]:
+        """What is in these files, before anything is written.
+
+        Shown first because the failure mode of picking the wrong file is
+        silence rather than an error -- a config file reads as empty and the
+        import reports success.
+        """
+        from . import memory_import
+
+        return memory_import.preview([Path(p) for p in request.paths])
+
+    @app.post("/memory/import")
+    async def run_import(request: MemoryImport) -> dict[str, Any]:
+        """Bring memories in from another assistant, organised on the way.
+
+        Then dream over what arrived: an imported set is a pile of statements
+        with relations between them that nobody has drawn, which is the case
+        dreaming exists for. It is why the graph fills the moment somebody
+        imports two years of notes rather than after two years of talking.
+        """
+        import anyio
+
+        from . import memory_import
+
+        if memory is None:
+            return {"found": 0, "imported": 0, "detail": "memory is not configured"}
+        result = await anyio.to_thread.run_sync(
+            lambda: memory_import.run(memory, cognition, [Path(p) for p in request.paths])
+        )
+        if result.get("imported"):
+            runtime_store.audit("memory", "imported", result)
+            if initiative is not None:
+                result["dreamt"] = await anyio.to_thread.run_sync(initiative.run_dream)
+        return result
 
     @app.post("/memory/dream")
     async def run_dream() -> dict[str, Any]:

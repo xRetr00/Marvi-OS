@@ -2327,6 +2327,41 @@ function startApp(): void {
       })
       return chosen.canceled ? '' : (chosen.filePaths[0] ?? '')
     })
+    ipcMain.handle('marvi:choose-memory-files', async () => {
+      const chosen = await dialog.showOpenDialog({
+        title: 'Choose memory files to import',
+        // Markdown for a hand-written MEMORY.md, JSON for a Mem0 or Honcho
+        // export. `All files` last, because an export can arrive named
+        // anything and refusing to show it is worse than reading it and
+        // finding nothing.
+        filters: [
+          { name: 'Memory files', extensions: ['md', 'json', 'jsonl', 'txt'] },
+          { name: 'All files', extensions: ['*'] }
+        ],
+        properties: ['openFile', 'multiSelections']
+      })
+      return chosen.canceled ? [] : chosen.filePaths
+    })
+    ipcMain.handle('marvi:preview-memory-import', (_event, paths) =>
+      gatewayJson('/memory/import/preview', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ paths: Array.isArray(paths) ? paths : [] })
+      })
+    )
+    ipcMain.handle('marvi:import-memories', (_event, paths) =>
+      gatewayJson(
+        '/memory/import',
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ paths: Array.isArray(paths) ? paths : [] })
+        },
+        // A model call per twenty-five memories, then a dream over the result.
+        // Five minutes is a large import, not a hung one.
+        300_000
+      )
+    )
     ipcMain.handle('marvi:start-oauth', async (_event, name) => {
       if (typeof name !== 'string') return { ok: false, detail: 'no provider' }
       try {

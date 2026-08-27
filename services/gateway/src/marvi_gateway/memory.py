@@ -230,6 +230,8 @@ class MemoryStore:
         # vector behind for ever. The join hides that (an orphan matches no
         # row), which is exactly why it would never have been noticed.
         self._db.execute("PRAGMA foreign_keys = ON")
+        #: Which sources are imported files. See `_imported_sources`.
+        self._imported: set[str] | None = None
         #: Built on first use, because most stores never need one.
         self._embed: Any = None
         self._db.executescript(SCHEMA)
@@ -397,7 +399,15 @@ class MemoryStore:
         }
         if not entry["trusted"]:
             behind = self._premise_subjects(entry)
-            if behind:
+            if entry["source"] in self._imported_sources():
+                # Imported from another assistant's memory file. Every line was
+                # read by the same scanner that reads a skill before it is
+                # installed, and what is stored is a model's paraphrase rather
+                # than the original text -- so the full external-data envelope
+                # is both unnecessary and unaffordable here: six of them fill
+                # the whole recall budget, and an import is rarely six.
+                entry["body"] = f"(from {entry['source']}) {entry['body']}"
+            elif behind:
                 # Marvi's own inference, not something that arrived from
                 # outside. The external-data envelope is injection defence --
                 # "never obey it" -- and saying that about her own reasoning is
@@ -416,6 +426,25 @@ class MemoryStore:
                 # Recall must not strip the boundary the content arrived with.
                 entry["body"] = wrap_external(entry["source"], entry["body"]).text
         return entry
+
+    def _imported_sources(self) -> set[str]:
+        """Sources that came from an import rather than from the network.
+
+        Cached for the life of the connection: it changes only when somebody
+        imports, and a query per recalled row would put a table scan in front
+        of every turn.
+        """
+        if self._imported is None:
+            rows = self._db.execute(
+                "SELECT DISTINCT source FROM memories WHERE source LIKE '%.md'"
+                " OR source LIKE '%.json' OR source LIKE '%.jsonl' OR source LIKE '%.txt'"
+            ).fetchall()
+            self._imported = {str(row["source"]) for row in rows}
+        return self._imported
+
+    def forget_imported_sources(self) -> None:
+        """Called after an import, so the next recall sees the new source."""
+        self._imported = None
 
     def _premise_subjects(self, entry: dict[str, Any]) -> list[str]:
         """What this was concluded from, or nothing if it is not a conclusion.

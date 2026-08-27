@@ -114,6 +114,9 @@ import type {
   IdentityStatus,
   InitiativeStatus,
   MemoryPage,
+  MemoryEntry,
+  MemoryImportPreview,
+  MemoryImportResult,
   MemoryGraphMode,
   MemoryGraphPage,
   MindDecision,
@@ -172,7 +175,7 @@ import { $voiceLink, sayAsUser, startVoice, stopVoice } from './store/voice-sess
 const NAV_GROUPS = [
   { label: 'Core', items: ['Overview', 'Voice', 'Chat'] },
   { label: 'Context', items: ['Vision', 'Room', 'Activity'] },
-  { label: 'ARC', items: ['Identity', 'Memory', 'Mind'] }
+  { label: 'ARC', items: ['Identity', 'Graph', 'Mind'] }
 ] as const
 
 /** Behind the gear: the things you set up. */
@@ -181,7 +184,7 @@ const SETTINGS_VOICE_PAGES = ['Speech recognition', 'Wake word', 'Voice synthesi
 const SETTINGS_GROUPS = [
   {
     gapBefore: false,
-    items: ['Providers', 'Models', 'Usage', 'Accounts', 'Skills', 'Plugins']
+    items: ['Providers', 'Models', 'Usage', 'Accounts', 'Skills', 'Memory', 'Plugins']
   },
   {
     gapBefore: true,
@@ -202,7 +205,7 @@ const NAV_CODES: Record<Page, string> = {
   Room: 'RM',
   Activity: 'AC',
   Identity: 'ID',
-  Memory: 'ME',
+  Graph: 'GR',
   Mind: 'MI'
 }
 
@@ -214,7 +217,7 @@ const NAV_ICONS: Record<Page, AbstractIconName> = {
   Room: 'room',
   Activity: 'activity',
   Identity: 'identity',
-  Memory: 'memory',
+  Graph: 'memory',
   Mind: 'mind'
 }
 
@@ -224,6 +227,7 @@ const SETTINGS_ICONS: Record<SettingsPage | 'Voice', AbstractIconName> = {
   Usage: 'activity',
   Accounts: 'accounts',
   Skills: 'skills',
+  Memory: 'memory',
   Plugins: 'plugins',
   Voice: 'voice',
   'Speech recognition': 'microphone',
@@ -507,7 +511,7 @@ function MainSurface(): React.JSX.Element {
                     <ActivityPanel />
                   ) : page === 'Identity' ? (
                     <IdentityPanel />
-                  ) : page === 'Memory' ? (
+                  ) : page === 'Graph' ? (
                     <MemoryPanel />
                   ) : page === 'Mind' ? (
                     <MindPanel />
@@ -1773,8 +1777,6 @@ function MemoryPanel(): React.JSX.Element {
         <ArcMemoryGraph graph={graph} loading={graphLoading} />
       </div>
 
-      <MemorySettingsSection />
-
       <ControlSection
         action={
           confirmClear ? (
@@ -1813,29 +1815,219 @@ function MemoryPanel(): React.JSX.Element {
         />
       </ControlSection>
 
-      <ControlSection icon={History} title="Stored memories">
-        {page.entries.length === 0 ? (
-          <ControlEmpty
-            description="Useful preferences and facts will appear after Marvi has something worth retaining."
-            icon={Database}
-            title="Nothing remembered yet"
-          />
-        ) : (
-          page.entries.map((entry) => (
+      <MemoryList entries={page.entries} />
+    </ControlPage>
+  )
+}
+
+/**
+ * Everything about memory that is a setting rather than a picture.
+ *
+ * Split off the graph page because the two answer different questions. The
+ * graph is something you look at; this is something you change, and having
+ * both on one page meant scrolling past a canvas to reach a dropdown.
+ *
+ * Tabs rather than sections stacked down the page: there are three unrelated
+ * subjects here and only one of them is ever the reason somebody came.
+ */
+const MEMORY_TABS = ['How it works', 'What is remembered', 'Import'] as const
+
+function MemorySettingsPanel(): React.JSX.Element {
+  const [tab, setTab] = useState<(typeof MEMORY_TABS)[number]>('How it works')
+  const [page, setPage] = useState<MemoryPage>({ total: 0, entries: [], summary: {} })
+
+  useEffect(() => {
+    let gone = false
+    void (async () => {
+      const next = await window.marvi?.getMemory()
+      if (!gone && next) setPage(next)
+    })()
+    return () => {
+      gone = true
+    }
+  }, [tab])
+
+  return (
+    <ControlPage
+      className="settings-page"
+      description="What Marvi keeps from a conversation, how she finds it again, and what she already knows."
+      title="Memory"
+    >
+      <div className="arc-memory-modes" aria-label="Memory settings">
+        {MEMORY_TABS.map((name) => (
+          <button
+            aria-pressed={tab === name}
+            key={name}
+            onClick={() => setTab(name)}
+            type="button"
+          >
+            {name.toUpperCase()}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'How it works' ? <MemorySettingsSection /> : null}
+      {tab === 'What is remembered' ? (
+        <>
+          <ControlSection icon={Database} title="Local store">
+            <ControlRow
+              action={<span className="control-value">{page.total}</span>}
+              title="Entries"
+            />
             <ControlRow
               action={
-                <ControlPill tone={entry.trusted ? 'neutral' : 'danger'}>
-                  {entry.trusted ? entry.kind : 'Untrusted'}
-                </ControlPill>
+                <span className="control-value">
+                  {page.summary.graph?.entities ?? 0} / {page.summary.graph?.relations ?? 0}
+                </span>
               }
-              description={`${entry.at.slice(0, 10)} · ${entry.source}`}
-              key={entry.id}
-              title={entry.subject}
+              description="Entities / relationships. Filled by dreaming, not by hand."
+              title="Knowledge graph"
             />
-          ))
-        )}
-      </ControlSection>
+          </ControlSection>
+          <MemoryList entries={page.entries} />
+        </>
+      ) : null}
+      {tab === 'Import' ? <MemoryImportSection /> : null}
     </ControlPage>
+  )
+}
+
+/**
+ * Bringing memories in from another assistant.
+ *
+ * Two steps on purpose. Picking the wrong file fails silently -- a config file
+ * reads as empty and an import would report success -- so what was found is
+ * shown before anything is written.
+ */
+function MemoryImportSection(): React.JSX.Element {
+  const [paths, setPaths] = useState<string[]>([])
+  const [found, setFound] = useState<MemoryImportPreview | null>(null)
+  const [result, setResult] = useState<MemoryImportResult | null>(null)
+  const [busy, setBusy] = useState('')
+
+  const choose = async (): Promise<void> => {
+    const chosen = (await window.marvi?.chooseMemoryFiles()) ?? []
+    if (chosen.length === 0) return
+    setPaths(chosen)
+    setResult(null)
+    setBusy('reading')
+    try {
+      setFound((await window.marvi?.previewMemoryImport(chosen)) ?? null)
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const run = async (): Promise<void> => {
+    setBusy('importing')
+    try {
+      setResult((await window.marvi?.importMemories(paths)) ?? null)
+      setFound(null)
+      setPaths([])
+    } finally {
+      setBusy('')
+    }
+  }
+
+  return (
+    <ControlSection
+      action={
+        <ControlButton disabled={!!busy} onClick={() => void choose()}>
+          Choose files
+        </ControlButton>
+      }
+      description="A MEMORY.md or USER.md from hermes or OpenClaw, or a JSON export from Mem0 or Honcho. Each memory is rewritten to fit Marvi rather than pasted in, and what she already knows is not repeated."
+      icon={Database}
+      title="Import from another assistant"
+    >
+      {found ? (
+        <>
+          <ControlRow
+            action={<span className="control-value">{found.found}</span>}
+            description={found.files.map((file) => `${file.name} (${file.found})`).join(' · ')}
+            title="Memories found"
+          />
+          {found.sample.length > 0 ? (
+            <pre className="service-output skill-body">{found.sample.join('\n')}</pre>
+          ) : null}
+          <div className="provider-actions">
+            <ControlButton disabled={found.found === 0 || !!busy} onClick={() => void run()}>
+              {busy === 'importing' ? 'Importing' : `Import ${found.found}`}
+            </ControlButton>
+            <ControlButton
+              onClick={() => {
+                setFound(null)
+                setPaths([])
+              }}
+            >
+              Cancel
+            </ControlButton>
+          </div>
+          {busy === 'importing' ? (
+            <p className="notice">
+              A model is rewriting each one to fit Marvi, then dreaming over the result to draw
+              the relations between them. A large file takes a few minutes.
+            </p>
+          ) : null}
+        </>
+      ) : null}
+      {busy === 'reading' ? <p className="notice">Reading those files…</p> : null}
+      {result ? (
+        <ControlRow
+          description={
+            result.imported > 0
+              ? `${result.imported} of ${result.found} kept${
+                  result.dreamt?.linked
+                    ? `, and ${result.dreamt.linked} relationship${
+                        result.dreamt.linked === 1 ? '' : 's'
+                      } drawn between them`
+                    : ''
+                }. The rest were duplicates of what she already knew, or not about you.`
+              : result.detail || 'Nothing in those files looked like a memory.'
+          }
+          icon={result.imported > 0 ? Database : ShieldAlert}
+          title={result.imported > 0 ? 'Imported' : 'Nothing imported'}
+        />
+      ) : null}
+    </ControlSection>
+  )
+}
+
+/** What is remembered, newest first. Shared by the graph page and Settings. */
+function MemoryList({ entries }: { entries: MemoryEntry[] }): React.JSX.Element {
+  return (
+    <ControlSection icon={History} title="Stored memories">
+      {entries.length === 0 ? (
+        <ControlEmpty
+          description="Useful preferences and facts will appear after Marvi has something worth retaining."
+          icon={Database}
+          title="Nothing remembered yet"
+        />
+      ) : (
+        entries.map((entry) => (
+          <ControlRow
+            action={
+              <ControlPill
+                tone={entry.source === 'dreaming' ? 'neutral' : entry.trusted ? 'neutral' : 'danger'}
+              >
+                {/* Something Marvi worked out is neither a fact she was told
+                    nor content from outside, and calling it "Untrusted"
+                    alongside an imported email said the wrong thing about
+                    both. */}
+                {entry.source === 'dreaming'
+                  ? 'Worked out'
+                  : entry.trusted
+                    ? entry.kind
+                    : 'From outside'}
+              </ControlPill>
+            }
+            description={`${entry.at.slice(0, 10)} · ${entry.source}`}
+            key={entry.id}
+            title={entry.subject}
+          />
+        ))
+      )}
+    </ControlSection>
   )
 }
 
@@ -4329,7 +4521,7 @@ function PagePanel({ page }: { page: Page }): React.JSX.Element {
     Room: '',
     Activity: 'Local event and tool history.',
     Identity: "Marvi's identity and your standing preferences.",
-    Memory: 'What Marvi remembers on this machine.',
+    Graph: 'What Marvi knows, and how it connects.',
     Mind: 'Autonomous decisions and initiative controls.',
     Vision: 'Local presence and gesture processing from the room camera.'
   }
@@ -4507,6 +4699,8 @@ function SettingsShell({
               <VoiceSynthesisPanel />
             ) : page === 'Wake word' ? (
               <WakeWordPanel />
+            ) : page === 'Memory' ? (
+              <MemorySettingsPanel />
             ) : page === 'Workspace' ? (
               <WorkspacePanel />
             ) : page === 'Appearance' ? (

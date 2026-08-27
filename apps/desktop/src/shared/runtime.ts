@@ -98,6 +98,28 @@ export interface MemoryPage {
   }
 }
 
+/**
+ * What is in the files somebody picked, before anything is written.
+ *
+ * Shown first because the failure mode of choosing the wrong file is silence
+ * rather than an error: a config file reads as empty and the import reports
+ * success.
+ */
+export interface MemoryImportPreview {
+  files: Array<{ name: string; found: number }>
+  found: number
+  sample: string[]
+}
+
+export interface MemoryImportResult {
+  found: number
+  imported: number
+  detail: string
+  source?: string
+  /** The dream run over what arrived, when anything did. */
+  dreamt?: { considered: number; concluded: number; linked: number; retired: number }
+}
+
 export type MemoryGraphMode = 'tree' | 'contacts'
 
 export interface MemoryGraphNode {
