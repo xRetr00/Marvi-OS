@@ -154,3 +154,47 @@ def test_the_schema_the_model_sees_explains_the_arguments() -> None:
 
     assert "cannot be pressed" in properties["question"]["description"]
     assert "best first" in properties["choices"]["description"]
+
+
+def test_the_router_accepts_the_choices_the_schema_advertises() -> None:
+    """The bug that made this tool useless with options.
+
+    The router validates argument *names* against `arguments`/`optional`
+    whether or not a tool supplies its own schema. `choices` was in the schema
+    the model reads and missing from the maps the router checks, so every call
+    with options came back `422 unexpected arguments: choices` -- and the only
+    reachable form of the tool was the open-ended one. Marvi reported it
+    exactly: she could not send multiple options.
+    """
+    with TestClient(create_app()) as client:
+        response = client.post(
+            "/tools/clarify",
+            json={
+                "arguments": {
+                    "question": "Which account should send it?",
+                    "choices": ["Work", "Personal"],
+                    "multi_select": True,
+                }
+            },
+        )
+        asked = client.get("/runtime").json()["assistant"]["question"]
+
+    assert response.status_code == 200, response.text
+    assert asked["choices"] == ["Work", "Personal"]
+    assert asked["multi_select"] is True
+
+
+def test_every_advertised_argument_is_one_the_router_will_take() -> None:
+    """Pins the class of bug rather than the one instance. A tool that supplies
+    its own schema still has to declare its argument names, and nothing stopped
+    the two drifting apart."""
+    with TestClient(create_app()) as client:
+        catalogue = client.get("/tools").json()["tools"]
+
+    for tool in catalogue:
+        advertised = set(tool["input_schema"].get("properties", {}))
+        declared = set(tool["arguments"]) | set(tool["optional"])
+        assert advertised <= declared, (
+            f"{tool['name']} advertises {sorted(advertised - declared)} "
+            "to the model and the router refuses it"
+        )

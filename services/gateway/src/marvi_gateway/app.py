@@ -156,6 +156,17 @@ class SecretAnswer(BaseModel):
     value: str = ""
 
 
+class LanguageUpdate(BaseModel):
+    """A change to what Marvi listens for, or what she answers in.
+
+    Optional and `None` means "leave it alone", so the two pickers on the page
+    cannot overwrite each other.
+    """
+
+    understand: str | None = None
+    speak: str | None = None
+
+
 class WorkspaceUpdate(BaseModel):
     """A change to where the file tools may reach.
 
@@ -1865,11 +1876,63 @@ def create_app(
         """
         from marvi_gateway.wake import DEVICE_SETTING
 
+        from . import language
+
         return {
             "device": os.environ.get("MARVI_STT_DEVICE", "").strip().lower() or "cpu",
             "lookahead": os.environ.get("MARVI_STT_LOOKAHEAD", "").strip() or "2.0",
             "microphone": os.environ.get(DEVICE_SETTING, "").strip(),
+            "stt_language": language.understand(),
+            "tts_language": language.speak(),
+            # The sentence, not the code. Worded once here and used verbatim by
+            # the Agent: the same rule written out in two packages is two rules
+            # that drift, which is how voice and chat ended up with different
+            # tool lists in the first place.
+            "reply_instruction": language.reply_instruction(),
         }
+
+    @app.get("/language")
+    async def read_language() -> dict[str, Any]:
+        """Which language Marvi listens in, and which she answers in.
+
+        Reports whether the recognition setting is a lock or a preference,
+        because that is the honest part: only English has a model that cannot
+        produce anything else.
+        """
+        from . import language
+        from .setup import catalog
+
+        page = language.describe()
+        # Whether the English-only recogniser is actually on disk. Selecting
+        # English without it silently falls back to the multilingual model,
+        # and a settings page that does not say so is the setting lying.
+        page["english_model_installed"] = catalog.installed_english_stt()
+        return page
+
+    @app.put("/language")
+    async def set_language(update: LanguageUpdate) -> dict[str, Any]:
+        from . import language
+
+        values: dict[str, str] = {}
+        if update.understand is not None:
+            if update.understand not in (language.ANY, "en", *language.RECOGNISED):
+                raise HTTPException(
+                    status_code=400, detail=f"unknown language {update.understand!r}"
+                )
+            values[language.UNDERSTAND_SETTING] = update.understand
+        if update.speak is not None:
+            if update.speak not in language.speakable():
+                # Refused rather than accepted and ignored: a language with no
+                # voice comes out as English phonemes reading foreign words.
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"no installed voice speaks {update.speak!r}",
+                )
+            values[language.SPEAK_SETTING] = update.speak
+        if values:
+            provider_config.update(values)
+            runtime_store.audit("language", "settings", {"changed": sorted(values)})
+        return await read_language()
 
     @app.get("/workspace")
     async def read_workspace() -> dict[str, Any]:

@@ -16,6 +16,7 @@ import {
   History,
   House,
   KeyRound,
+  Languages,
   Link2,
   Lightbulb,
   Info,
@@ -130,6 +131,8 @@ import type {
   VoicePage,
   PendingQuestion,
   PendingSecret,
+  LanguagePolicy,
+  LanguageUpdate,
   WakeStatus,
   WorkspacePolicy,
   WorkspaceUpdate
@@ -4215,6 +4218,9 @@ function SpeechRecognitionPanel(): React.JSX.Element {
       description="Configure speech-to-text accuracy and where local recognition runs."
       title="Speech recognition"
     >
+      <ControlSection icon={Languages} title="Language">
+        <UnderstandRow />
+      </ControlSection>
       <ControlSection icon={Mic} title="Speech to text · STT">
         <div>
           <p>
@@ -4236,6 +4242,9 @@ function VoiceSynthesisPanel(): React.JSX.Element {
       description="Choose the voice Marvi uses when turning responses into speech."
       title="Voice synthesis"
     >
+      <ControlSection icon={Languages} title="Language">
+        <SpeakRow />
+      </ControlSection>
       <ControlSection icon={Waves} title="Text to speech · TTS">
         <div>
           <p>The voice Marvi speaks in. This choice is also available beside the Voice orb.</p>
@@ -4558,6 +4567,104 @@ function WorkspacePanel(): React.JSX.Element {
 
       {error ? <p className="control-note is-danger">{error}</p> : null}
     </ControlPage>
+  )
+}
+
+/**
+ * Which language Marvi listens in, and which she answers in.
+ *
+ * Shared by the two voice pages because they are two halves of one setting and
+ * a copy each is how they drift. The honest part is `enforceable`: only English
+ * has a recogniser that cannot produce another language, so every other choice
+ * is a preference the multilingual model is free to ignore — and the page says
+ * so rather than implying a lock it cannot deliver.
+ */
+function useLanguage(): {
+  policy: LanguagePolicy | null
+  apply: (update: LanguageUpdate) => void
+} {
+  const [policy, setPolicy] = useState<LanguagePolicy | null>(null)
+
+  useEffect(() => {
+    let gone = false
+    void (async () => {
+      const page = await window.marvi?.getLanguage()
+      if (!gone) setPolicy(page ?? null)
+    })()
+    return () => {
+      gone = true
+    }
+  }, [])
+
+  const apply = (update: LanguageUpdate): void => {
+    void (async () => {
+      const next = await window.marvi?.setLanguage(update)
+      if (next) setPolicy(next)
+    })()
+  }
+  return { policy, apply }
+}
+
+/** The half of the language setting that belongs to the recogniser. */
+function UnderstandRow(): React.JSX.Element {
+  const { policy, apply } = useLanguage()
+  const understand = policy?.understand ?? 'auto'
+  const missing = understand === 'en' && policy !== null && !policy.englishModelInstalled
+
+  return (
+    <ControlRow
+      action={
+        <Picker
+          options={(policy?.understandOptions ?? []).map((option) => ({
+            value: option.code,
+            label: option.name,
+            detail: option.locked
+              ? option.code === 'auto'
+                ? 'Transcribes whatever it hears'
+                : 'A different model, which knows no other language'
+              : 'A preference — this model decides for itself'
+          }))}
+          value={understand}
+          onChange={(next) => apply({ understand: next })}
+          placeholder="Any language"
+        />
+      }
+      description={
+        missing
+          ? 'The English-only recogniser is not installed, so this is doing nothing yet. Install “Speech recognition (English only)” on the Maintenance page.'
+          : understand === 'en'
+            ? 'A different model with no other language in its vocabulary. It cannot mishear you into one.'
+            : understand === 'auto'
+              ? 'She transcribes whatever language she hears, and answers in it unless told otherwise.'
+              : 'Parakeet takes no language argument, so this is a preference rather than a lock. Only English has a model that can enforce it.'
+      }
+      title="Language she listens for"
+    />
+  )
+}
+
+/** The half that belongs to the voice, and to what she writes. */
+function SpeakRow(): React.JSX.Element {
+  const { policy, apply } = useLanguage()
+  const options = policy?.speakOptions ?? []
+
+  return (
+    <ControlRow
+      action={
+        <Picker
+          options={options.map((option) => ({ value: option.code, label: option.name }))}
+          value={policy?.speak ?? 'en'}
+          onChange={(next) => apply({ speak: next })}
+          placeholder="English"
+        />
+      }
+      description={
+        options.length > 1
+          ? 'What she writes and what the voice pronounces. Both, so they cannot disagree.'
+          : 'Only languages with an installed voice are offered: one without is read with English phonemes, which is noise rather than an accent.'
+      }
+      title="Language she answers in"
+    />
   )
 }
 

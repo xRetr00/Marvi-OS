@@ -55,6 +55,41 @@ APP_DATA = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"
 #: Where the installer puts the ONNX export. Matches `install_to` in the setup
 #: catalog; a test pins the two together.
 PARAKEET_ROOT = APP_DATA / "models/stt/parakeet-tdt-0.6b-v3-onnx"
+#: The English-only export, when it is installed. Optional, 2.5GB.
+PARAKEET_ENGLISH_ROOT = APP_DATA / "models/stt/parakeet-tdt-0.6b-v2-onnx"
+
+#: What the desktop writes when recognition is set to English only.
+LANGUAGE_SETTING = "MARVI_STT_LANGUAGE"
+
+
+def chosen_model() -> Path:
+    """Which recogniser to load, from the language setting.
+
+    The only real language lock there is. v3 recognises twenty-five languages
+    and takes no argument to narrow that -- NVIDIA's card says it detects the
+    language itself, and the request for a parameter was closed without one.
+    So an accented sentence, or one foreign word, comes back as a line of
+    another language, and the model then answers in it. A prompt saying
+    "reply in English" is one sentence against the whole visible conversation,
+    and it loses.
+
+    v2 has no other language in its vocabulary. It cannot make that mistake.
+
+    Falls back to v3 when English is asked for and v2 was never installed:
+    hearing you in a model that guesses is better than not hearing you, and the
+    settings page is where that gets said rather than here.
+    """
+    if os.environ.get(LANGUAGE_SETTING, "").strip().lower() != "en":
+        return PARAKEET_ROOT
+    if (PARAKEET_ENGLISH_ROOT / "encoder-model.onnx").exists():
+        return PARAKEET_ENGLISH_ROOT
+    log.warning(
+        "stt: English-only recognition is selected but %s is not installed; "
+        "using the multilingual model, which decides the language for itself. "
+        "Install it from Settings > Speech recognition.",
+        PARAKEET_ENGLISH_ROOT.name,
+    )
+    return PARAKEET_ROOT
 
 SAMPLE_RATE = 16_000
 
@@ -122,7 +157,8 @@ def providers() -> list[str]:
 class ParakeetSTT(stt.STT):
     """Streaming recognition, one recogniser shared by every stream."""
 
-    def __init__(self, *, model_dir: Path = PARAKEET_ROOT) -> None:
+    def __init__(self, *, model_dir: Path | None = None) -> None:
+        model_dir = model_dir or chosen_model()
         super().__init__(
             capabilities=stt.STTCapabilities(
                 streaming=True,
@@ -138,7 +174,10 @@ class ParakeetSTT(stt.STT):
 
     @property
     def model(self) -> str:
-        return "parakeet-tdt-0.6b-v3"
+        # From the directory actually loaded, not a constant. The Voice page
+        # reads this, and a page that names v3 while v2 is running is the
+        # reason nobody could tell which language rule was in force.
+        return self._model_dir.name.removesuffix("-onnx")
 
     @property
     def provider(self) -> str:

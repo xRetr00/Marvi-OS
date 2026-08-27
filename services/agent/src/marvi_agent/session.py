@@ -64,14 +64,42 @@ def apply_speech_settings() -> None:
         for name, key in (
             ("MARVI_STT_DEVICE", "device"),
             ("MARVI_STT_LOOKAHEAD", "lookahead"),
+            # Which recogniser to load. Read by `chosen_model` before the STT
+            # is built, which is why this has to happen here rather than after.
+            ("MARVI_STT_LANGUAGE", "stt_language"),
+            # The sentence itself, not the language code. Built once in the
+            # Gateway and used verbatim, because the same rule written out in
+            # two packages is two rules that drift -- which is how voice and
+            # chat ended up with different tool lists.
+            ("MARVI_REPLY_INSTRUCTION", "reply_instruction"),
         ):
             if value := str(body.get(key) or "").strip():
                 os.environ[name] = value
         log.info(
-            "speech settings from the Gateway: %s, %ss lookahead",
+            "speech settings from the Gateway: %s, %ss lookahead, understands %s, speaks %s",
             os.environ.get("MARVI_STT_DEVICE", "cpu"),
             os.environ.get("MARVI_STT_LOOKAHEAD", "2.0"),
+            os.environ.get("MARVI_STT_LANGUAGE", "auto"),
+            str(body.get("tts_language") or "en"),
         )
+
+
+#: What to say when the Gateway has not said. English, because that is what the
+#: hardcoded rule said and an unreachable Gateway should not change behaviour --
+#: only the Gateway's answer should.
+DEFAULT_REPLY_RULE = (
+    "Always answer in English, whatever language the question arrives in and "
+    "whatever language a tool result or a web page is written in. The voice "
+    "speaking your words is an English one and pronounces nothing else, so a "
+    "reply in another language does not come out as that language -- it comes "
+    "out as noise. If the user asks for something in another language, say the "
+    "words but keep the sentence around them English."
+)
+
+
+def reply_instruction() -> str:
+    """Which language to answer in, as the Gateway worded it."""
+    return os.environ.get("MARVI_REPLY_INSTRUCTION", "").strip() or DEFAULT_REPLY_RULE
 
 
 def configured_voice() -> str:
@@ -174,12 +202,17 @@ class MarviVoiceAgent(Agent):
                 situation() + " "
                 "You are Marvi, a concise voice-first personal assistant. Speak naturally in short "
                 "sentences. Never use Markdown, code fences, headings, or visual formatting. "
-                "Always answer in English, whatever language the question arrives in and whatever "
-                "language a tool result or a web page is written in. The voice speaking your "
-                "words is an English one and pronounces nothing else, so a reply in another "
-                "language does not come out as that language -- it comes out as noise. If the "
-                "user asks for something in another language, say the words but keep the "
-                "sentence around them English. "
+                # Built from the setting rather than hardcoded to English.
+                #
+                # It was hardcoded, it did not hold, and the reason is upstream
+                # of this sentence: the recogniser decides the language of the
+                # transcript, so the model can be looking at a user message
+                # written in Arabic while one line of prompt asks for English.
+                # The prompt loses. The lock that works is the recogniser --
+                # see `chosen_model` -- and this now agrees with it instead of
+                # being the only thing trying.
+                + reply_instruction()
+                + " "
                 "The user can interrupt you at any time. "
                 "When a tool says an action needs confirmation, say plainly what will happen and "
                 "wait for the user to answer before approving or denying it. "

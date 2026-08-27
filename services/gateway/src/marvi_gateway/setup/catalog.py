@@ -228,6 +228,25 @@ def _voice_components(repo_root: Path) -> list[Component]:
                 extra={"language": stt.get("language", "")},
             )
         )
+    english = manifest.get("stt_en") or {}
+    if english:
+        # Optional, and the page says why it is 2.5GB: it is the only real way
+        # to hold recognition to one language. v3 takes no language argument,
+        # so "understand English only" is a model choice or it is nothing.
+        components.append(
+            Component(
+                name="voice-stt-english",
+                kind="model",
+                title="Speech recognition (English only)",
+                why=str(english.get("note", "")),
+                needed_for=(),
+                source_id=english.get("id", ""),
+                revision=english.get("revision", ""),
+                install_to="models/stt/parakeet-tdt-0.6b-v2-onnx",
+                files=_files_from(english.get("files")),
+                extra={"language": english.get("language", ""), "optional": "true"},
+            )
+        )
     if tts:
         components.append(
             Component(
@@ -339,3 +358,14 @@ def voice_model_names(repo_root: Path) -> dict[str, str]:
         elif isinstance(entry, dict):
             names[job] = str(entry.get("id") or "")
     return names
+
+
+def installed_english_stt() -> bool:
+    """Whether the English-only recogniser is actually on disk.
+
+    Asked by the settings page. Selecting English without it falls back to the
+    multilingual model, and a page that does not say so is the setting lying
+    about what it did.
+    """
+    target = install_root() / "models/stt/parakeet-tdt-0.6b-v2-onnx" / "encoder-model.onnx"
+    return target.exists()

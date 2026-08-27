@@ -36,6 +36,8 @@ import type {
   UpdateStatus,
   UpstreamPage,
   VoicePage,
+  LanguagePolicy,
+  LanguageUpdate,
   WakeStatus,
   WorkspacePolicy,
   WorkspaceUpdate
@@ -208,6 +210,8 @@ export interface MarviDesktopApi {
   getVoices: () => Promise<VoicePage | null>
   getWake: () => Promise<WakeStatus | null>
   setProviderSettings: (values: Record<string, string>) => Promise<ProviderPage | null>
+  getLanguage: () => Promise<LanguagePolicy | null>
+  setLanguage: (update: LanguageUpdate) => Promise<LanguagePolicy | null>
   getWorkspace: () => Promise<WorkspacePolicy | null>
   setWorkspace: (update: WorkspaceUpdate) => Promise<WorkspacePolicy | null>
   chooseFolder: () => Promise<string>

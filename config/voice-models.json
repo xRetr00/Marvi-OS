@@ -91,5 +91,38 @@
         "B5204750DCBA01029D2AC9CEC17AEC3B20A6D64073C579D694A23CB40EFFBD0E"
       ]
     }
+  },
+  "stt_en": {
+    "id": "istupakov/parakeet-tdt-0.6b-v2-onnx",
+    "revision": "main",
+    "language": "en",
+    "note": "The English-only Parakeet, and the only real way to lock recognition to one language. v3 is multilingual and takes no language argument -- NVIDIA's card says it detects the language itself, and the request for a parameter was closed without one -- so an accented sentence or a single foreign word can come back as a line of another language, which the model then answers in. v2 has no other language in its vocabulary and cannot. Optional: 2.5GB, and only worth it if that is happening to you.",
+    "optional": true,
+    "files": {
+      "encoder-model.onnx": [
+        41770866,
+        "3987BCD28175D829D12888A996A84E8F62A0E374D9FFD640662C1515ADC679D3"
+      ],
+      "encoder-model.onnx.data": [
+        2435420160,
+        "4DAB7362D4874D85965045B1E41B2D61DD2CC0FB25671A7F6B3DC47BF120CC41"
+      ],
+      "decoder_joint-model.onnx": [
+        35792059,
+        "CBB52A07BD70AB5B67F8439D4B3CD8704B18467B4430BCACB5ADABE154B8D191"
+      ],
+      "nemo128.onnx": [
+        139764,
+        "A9FDE1486EBFCC08F328D75AD4610C67835FEA58C73BA57E3209A6F6CF019E9F"
+      ],
+      "vocab.txt": [
+        9384,
+        "EC182B70DD42113AFF6C5372C75CAC58C952443EB22322F57BBD7F53977D497D"
+      ],
+      "config.json": [
+        97,
+        "666903C76B9798CAF2C210AFD4F6CD60B08A8DBF9800EC8D7A3BC0D2148AC466"
+      ]
+    }
   }
 }

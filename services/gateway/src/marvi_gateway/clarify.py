@@ -170,7 +170,16 @@ def register_clarify_tool(registry: Any, runtime: Any) -> None:
             name="clarify",
             description="Ask the user a question and wait for their next answer",
             arguments={"question": str},
-            optional={"multi_select": bool},
+            # `choices` belongs here as well as in the schema below, and leaving
+            # it out is why this tool could not be used with options at all.
+            #
+            # The router validates argument *names* against these maps whether
+            # or not a tool supplies its own schema, so `choices` was advertised
+            # to the model and then refused on arrival: `422 unexpected
+            # arguments: choices`. Marvi reported it exactly -- she could not
+            # send multiple options -- and the only reachable form of the tool
+            # was the open-ended one.
+            optional={"choices": list, "multi_select": bool},
             sensitive=False,
             handler=clarify,
             describes={

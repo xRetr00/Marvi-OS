@@ -865,6 +865,30 @@ export interface WorkspacePolicy {
   tools: { read: string[]; write: string[] }
 }
 
+/**
+ * Which language Marvi listens in, and which she answers in.
+ *
+ * Two questions, not one: for a bilingual household the point is to speak one
+ * language at her and get another back. `enforceable` is the honest part —
+ * only English has a recogniser that cannot produce anything else, so every
+ * other choice is a preference the multilingual model may ignore.
+ */
+export interface LanguagePolicy {
+  understand: string
+  understandOptions: { code: string; name: string; locked: boolean }[]
+  speak: string
+  speakOptions: { code: string; name: string }[]
+  /** False when the choice is a preference rather than a lock. */
+  enforceable: boolean
+  /** Whether the English-only recogniser is actually on disk. */
+  englishModelInstalled: boolean
+}
+
+export interface LanguageUpdate {
+  understand?: string
+  speak?: string
+}
+
 export interface WorkspaceUpdate {
   root?: string
   read_scope?: string

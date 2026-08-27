@@ -76,6 +76,7 @@ import type {
   RuntimeStatus,
   UpstreamPage,
   VoicePage,
+  LanguagePolicy,
   WakeStatus,
   WorkspacePolicy
 } from '../shared/runtime'
@@ -206,6 +207,25 @@ function normaliseWorkspace(body: unknown): WorkspacePolicy | null {
       secret: rule.secret === true
     })),
     tools: { read: strings(tools.read), write: strings(tools.write) }
+  }
+}
+
+/** The language policy, in the renderer's spelling. */
+function normaliseLanguage(body: unknown): LanguagePolicy | null {
+  if (!isRecord(body)) return null
+  const options = (value: unknown): { code: string; name: string; locked: boolean }[] =>
+    (Array.isArray(value) ? value : []).filter(isRecord).map((row) => ({
+      code: String(row.code ?? ''),
+      name: String(row.name ?? ''),
+      locked: row.locked === true
+    }))
+  return {
+    understand: typeof body.understand === 'string' ? body.understand : 'auto',
+    understandOptions: options(body.understand_options),
+    speak: typeof body.speak === 'string' ? body.speak : 'en',
+    speakOptions: options(body.speak_options).map(({ code, name }) => ({ code, name })),
+    enforceable: body.enforceable === true,
+    englishModelInstalled: body.english_model_installed === true
   }
 }
 
@@ -2040,6 +2060,30 @@ function startApp(): void {
           signal: AbortSignal.timeout(8_000)
         })
         return response.ok ? normaliseProviderPage(await response.json()) : null
+      } catch {
+        return null
+      }
+    })
+    ipcMain.handle('marvi:get-language', async () => {
+      try {
+        const response = await fetch(`${gateway()}/language`, {
+          signal: AbortSignal.timeout(5_000)
+        })
+        return response.ok ? normaliseLanguage(await response.json()) : null
+      } catch {
+        return null
+      }
+    })
+    ipcMain.handle('marvi:set-language', async (_event, update) => {
+      if (!isRecord(update)) return null
+      try {
+        const response = await fetch(`${gateway()}/language`, {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(update),
+          signal: AbortSignal.timeout(8_000)
+        })
+        return response.ok ? normaliseLanguage(await response.json()) : null
       } catch {
         return null
       }

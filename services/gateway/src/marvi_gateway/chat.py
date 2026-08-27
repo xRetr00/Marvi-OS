@@ -36,7 +36,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from . import latency, selfaware
+from . import language, latency, selfaware
 from .chat_widgets import (
     external_text,
     present_tool_schema,
@@ -131,8 +131,11 @@ def situation() -> str:
 SYSTEM_PROMPT = (
     "You are Marvi, answering in a typed chat window on the user's own machine. "
     "Be brief and concrete; this is a conversation, not a document.\n"
-    "Answer in English unless the user asks for another language, whatever "
-    "language the question or a tool result happens to be written in.\n"
+    # The language rule is not here. It comes from the setting at call time, so
+    # the typed surface and the spoken one answer in the same language -- this
+    # said "English" and the Agent said "English", which agreed by coincidence
+    # rather than by construction.
+
     "You have tools. Use them when the user asks for something that needs one, "
     "and say what you did. Some actions need the user's confirmation — when that "
     "happens you will be told, and you should tell the user plainly rather than "
@@ -834,7 +837,7 @@ class Chat:
         # turn, which is what makes the prefix cacheable.
         # The date leads the changing half: it is the shortest line here and the
         # one whose absence produced the most confident wrong answers.
-        brief = SYSTEM_PROMPT + "\n\n" + situation()
+        brief = SYSTEM_PROMPT + language.reply_instruction() + "\n\n" + situation()
         if self.curiosity is not None:
             # Appended after the cacheable identity block, because this part
             # legitimately changes: it carries at most one question, and only

@@ -236,3 +236,54 @@ def test_the_left_context_is_the_one_that_was_measured() -> None:
     from marvi_agent.parakeet_stt import DEFAULT_LEFT_CONTEXT
 
     assert DEFAULT_LEFT_CONTEXT == 4.0
+
+
+# -- which recogniser --------------------------------------------------------
+
+
+def test_the_multilingual_model_is_the_default(monkeypatch) -> None:
+    from marvi_agent.parakeet_stt import PARAKEET_ROOT, chosen_model
+
+    monkeypatch.delenv("MARVI_STT_LANGUAGE", raising=False)
+
+    assert chosen_model() == PARAKEET_ROOT
+
+
+def test_english_selects_the_english_only_model(monkeypatch, tmp_path) -> None:
+    """The only real language lock there is. v3 takes no language argument, so
+    "understand English only" is a model choice or it is nothing."""
+    import marvi_agent.parakeet_stt as module
+
+    english = tmp_path / "parakeet-tdt-0.6b-v2-onnx"
+    english.mkdir()
+    (english / "encoder-model.onnx").write_bytes(b"x")
+    monkeypatch.setattr(module, "PARAKEET_ENGLISH_ROOT", english)
+    monkeypatch.setenv("MARVI_STT_LANGUAGE", "en")
+
+    assert module.chosen_model() == english
+
+
+def test_english_without_the_model_falls_back_and_says_so(monkeypatch, tmp_path, caplog) -> None:
+    """Hearing you in a model that guesses beats not hearing you -- but silence
+    about it is how a setting looks like it did something."""
+    import logging
+
+    import marvi_agent.parakeet_stt as module
+
+    monkeypatch.setattr(module, "PARAKEET_ENGLISH_ROOT", tmp_path / "absent")
+    monkeypatch.setenv("MARVI_STT_LANGUAGE", "en")
+
+    with caplog.at_level(logging.WARNING, logger="marvi.voice"):
+        assert module.chosen_model() == module.PARAKEET_ROOT
+
+    assert "not installed" in caplog.text
+
+
+def test_the_reported_model_is_the_one_loaded(tmp_path) -> None:
+    """The Voice page reads this. Naming v3 while v2 runs is why nobody could
+    tell which language rule was in force."""
+    from marvi_agent.parakeet_stt import ParakeetSTT
+
+    assert ParakeetSTT(model_dir=tmp_path / "parakeet-tdt-0.6b-v2-onnx").model == (
+        "parakeet-tdt-0.6b-v2"
+    )

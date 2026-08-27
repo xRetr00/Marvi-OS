@@ -72,6 +72,20 @@ def to_pcm(audio: Any) -> tuple[bytes, int]:
     return (np.clip(audio, -1, 1) * 32767).astype(np.int16).tobytes(), over
 
 
+#: Kokoro's first letter is its language: `a` American and `b` British English,
+#: then one letter per language. Its own convention, not a table invented here.
+_G2P = {"a": "a", "b": "a", "e": "e", "f": "f", "h": "h", "i": "i", "j": "j", "p": "p", "z": "z"}
+
+
+def g2p_code(voice: str) -> str:
+    """Which grapheme-to-phoneme rules a voice needs.
+
+    British English uses the American rules here because Kokoro's `b` voices
+    are trained on them; the accent lives in the voice, not in the phonemiser.
+    """
+    return _G2P.get(voice[:1].lower(), "a") if voice else "a"
+
+
 def resolve_voice(voice: str) -> str:
     """A voice this engine actually has, whatever was asked for.
 
@@ -161,9 +175,13 @@ class _KokoroEngine:
             log.info("no installed Kokoro at %s; fetching it", KOKORO_ROOT)
             model = True  # KPipeline builds and downloads its own
 
-        # `lang_code="a"` is Kokoro's American English. The voice carries the
-        # accent; this selects the grapheme-to-phoneme rules.
-        self._pipeline = KPipeline(lang_code="a", model=model, device=device)
+        # The grapheme-to-phoneme rules, from the voice rather than from a
+        # constant. It was hardcoded to `a` -- American English -- which is
+        # right until somebody installs a Spanish voice, at which point Spanish
+        # text gets read with English rules and comes out as noise. Kokoro's
+        # first letter is its language, so the voice already says which rules
+        # it needs.
+        self._pipeline = KPipeline(lang_code=g2p_code(self.voice), model=model, device=device)
         self._seed_voice(torch, device)
         # The first call compiles and warms. Doing it here keeps it off the
         # first spoken turn, which is where it would be felt.
