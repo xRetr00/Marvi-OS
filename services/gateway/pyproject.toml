@@ -25,6 +25,10 @@ dependencies = [
     "livekit-api>=1,<2",
     "markitdown[pdf,docx,xlsx,pptx]>=0.1.7,<1",
     "uvicorn[standard]>=0.35,<1",
+    # `read_screen` grabs the display with it. Already present transitively;
+    # declared because depending on somebody else's dependency is how a working
+    # install breaks on an unrelated bump -- the same reason `rich` is here.
+    "pillow>=10,<13",
 ]
 
 [project.scripts]
