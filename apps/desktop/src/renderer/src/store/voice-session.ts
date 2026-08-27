@@ -97,3 +97,28 @@ export async function setMuted(muted: boolean): Promise<void> {
 export function voiceRoom(): Room | null {
   return room
 }
+
+/** The topic LiveKit's agents already read as a user turn. */
+export const CHAT_TOPIC = 'lk.chat'
+
+/**
+ * Say something into the conversation without saying it.
+ *
+ * Used by the answer buttons on a question Marvi asked. Pressing one is the
+ * user answering, so it goes in as the user's own turn -- the agent framework
+ * reads this topic exactly as it reads speech, and it lands in the transcript
+ * where the answer to a question belongs.
+ *
+ * The alternative was posting the answer back through the Gateway as a tool
+ * result, which puts Marvi in the position of replying to something the
+ * conversation never shows her being told.
+ *
+ * False when there is no call. A question can still be answered out loud, and
+ * the caller uses this to decide whether the buttons are worth offering.
+ */
+export async function sayAsUser(text: string): Promise<boolean> {
+  const words = text.trim()
+  if (!room || !words) return false
+  await room.localParticipant.sendText(words, { topic: CHAT_TOPIC })
+  return true
+}

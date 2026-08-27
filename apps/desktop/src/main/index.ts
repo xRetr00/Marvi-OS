@@ -5,6 +5,7 @@ import {
   app,
   BrowserWindow,
   clipboard,
+  dialog,
   ipcMain,
   Menu,
   nativeImage,
@@ -86,7 +87,8 @@ import type {
   RuntimeStatus,
   UpstreamPage,
   VoicePage,
-  WakeStatus
+  WakeStatus,
+  WorkspacePolicy
 } from '../shared/runtime'
 
 let mainWindow: BrowserWindow | null = null
@@ -185,6 +187,33 @@ function normaliseUpstreamPage(body: unknown): UpstreamPage | null {
         uptime: number(row.uptime)
       }
     })
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+/** The file policy, in the renderer's spelling. */
+function normaliseWorkspace(body: unknown): WorkspacePolicy | null {
+  if (!isRecord(body)) return null
+  const strings = (value: unknown): string[] =>
+    Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
+  const scope = (value: unknown): 'strict' | 'general' =>
+    value === 'general' ? 'general' : 'strict'
+  const tools = isRecord(body.tools) ? body.tools : {}
+  return {
+    root: typeof body.root === 'string' ? body.root : '',
+    rootExists: body.root_exists === true,
+    readScope: scope(body.read_scope),
+    writeScope: scope(body.write_scope),
+    blacklist: strings(body.blacklist),
+    builtin: (Array.isArray(body.builtin) ? body.builtin : []).filter(isRecord).map((rule) => ({
+      pattern: String(rule.pattern ?? ''),
+      why: String(rule.why ?? ''),
+      reading: rule.reading === true
+    })),
+    tools: { read: strings(tools.read), write: strings(tools.write) }
   }
 }
 
@@ -2099,6 +2128,67 @@ function startApp(): void {
       } catch {
         return null
       }
+    })
+    ipcMain.handle('marvi:get-workspace', async () => {
+      try {
+        const response = await fetch(`${gateway()}/workspace`, {
+          signal: AbortSignal.timeout(5_000)
+        })
+        return response.ok ? normaliseWorkspace(await response.json()) : null
+      } catch {
+        return null
+      }
+    })
+    ipcMain.handle('marvi:set-workspace', async (_event, update) => {
+      if (typeof update !== 'object' || update === null) return null
+      try {
+        const response = await fetch(`${gateway()}/workspace`, {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(update),
+          signal: AbortSignal.timeout(8_000)
+        })
+        const body = await response.json().catch(() => null)
+        // The body carries why on a refusal — a root that is not a folder, a
+        // scope that is not a scope. A bare null here would read as "nothing
+        // happened", which is the one thing it did not do.
+        if (!response.ok) {
+          const detail = isRecord(body) ? body.detail : null
+          return { error: typeof detail === 'string' ? detail : 'the change was refused' }
+        }
+        return normaliseWorkspace(body)
+      } catch {
+        return null
+      }
+    })
+    ipcMain.handle('marvi:answer-question', async (_event, update) => {
+      // Only clears the card. The answer itself goes into the room as the
+      // user's own turn, from the renderer, because that is what an answer is.
+      if (!isRecord(update)) return false
+      try {
+        const response = await fetch(`${gateway()}/voice/question/answer`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            id: String(update.id ?? ''),
+            answer: String(update.answer ?? '')
+          }),
+          signal: AbortSignal.timeout(5_000)
+        })
+        return response.ok
+      } catch {
+        return false
+      }
+    })
+    ipcMain.handle('marvi:choose-folder', async () => {
+      // The native picker, rather than a text field. A workspace root typed by
+      // hand is a workspace root with a typo in it, and the refusal that
+      // follows names a path that looks correct.
+      const chosen = await dialog.showOpenDialog({
+        title: 'Choose a workspace folder',
+        properties: ['openDirectory', 'createDirectory']
+      })
+      return chosen.canceled ? '' : (chosen.filePaths[0] ?? '')
     })
     ipcMain.handle('marvi:start-oauth', async (_event, name) => {
       if (typeof name !== 'string') return { ok: false, detail: 'no provider' }

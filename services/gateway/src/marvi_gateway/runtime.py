@@ -11,6 +11,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from .clarify import Question
+
 AssistantPhase = Literal[
     "ready",
     "wake",
@@ -97,6 +99,12 @@ class AssistantState(BaseModel):
     # A background room event rides its own channel so it can never take over a
     # live voice phase. The Island shows it only while idle.
     room_event: RoomEvent | None = None
+    #: A question Marvi asked, with the options she offered.
+    #:
+    #: Its own channel rather than the confirmation one, which is a yes or no
+    #: about a tool that is waiting. This is neither: nothing is held open, the
+    #: answer is the user's next turn, and the card is a shortcut to saying it.
+    question: Question | None = None
 
 
 class ModelSummary(BaseModel):
@@ -363,6 +371,46 @@ class RuntimeStore:
             }
         )
         return request
+
+    # -- questions ----------------------------------------------------------
+
+    def ask(self, text: str, choices: list[str], multi_select: bool = False) -> Question:
+        """Put a question on screen. Never blocks and never waits.
+
+        Replaces whatever was there: two questions on screen at once is a
+        conversation that has lost track of itself, and the older one is always
+        the one nobody is going to answer.
+        """
+        question = Question(
+            id=token_urlsafe(8),
+            text=text,
+            choices=list(choices),
+            multi_select=multi_select,
+            asked_at=time.time(),
+        )
+        self.assistant = self.assistant.model_copy(update={"question": question})
+        return question
+
+    def answered(self, question_id: str = "") -> None:
+        """Take it off screen.
+
+        An id that does not match is ignored rather than clearing whatever is
+        there now -- a late click on a question that has already moved on must
+        not take down its replacement.
+        """
+        current = self.assistant.question
+        if current is None:
+            return
+        if question_id and current.id != question_id:
+            return
+        self.assistant = self.assistant.model_copy(update={"question": None})
+
+    def expire_questions(self, now: float | None = None) -> None:
+        """Drop one nobody answered. Not a cancellation: the user may still say
+        the answer out loud. It just stops sitting on the screen."""
+        current = self.assistant.question
+        if current is not None and current.stale(now):
+            self.assistant = self.assistant.model_copy(update={"question": None})
 
     def pending_issued_at(self, token: str) -> float:
         return self._pending[token].issued_at

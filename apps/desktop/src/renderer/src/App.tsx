@@ -11,6 +11,7 @@ import {
   Clock3,
   Database,
   Eye,
+  FolderOpen,
   Gauge,
   History,
   House,
@@ -28,6 +29,7 @@ import {
   Route,
   Server,
   ShieldAlert,
+  ShieldOff,
   Sparkles,
   SquareTerminal,
   Trash2,
@@ -44,7 +46,7 @@ import { ConversationBar } from './components/conversation-bar'
 import { ModelsPanel } from './components/models-panel'
 import { UsagePanel } from './components/usage-panel'
 import { ProcessingCard } from './components/ui/processing-card'
-import { Picker } from './components/ui/picker'
+import { Picker, type PickerOption } from './components/ui/picker'
 import { CommandCard } from './components/ui/command-card'
 import { ConnectingOverlay } from './components/ConnectingOverlay'
 import { DynamicIsland } from './components/DynamicIsland'
@@ -128,7 +130,9 @@ import type {
   StoreSkill,
   RoomVisionPreview,
   VoicePage,
-  WakeStatus
+  WakeStatus,
+  WorkspacePolicy,
+  WorkspaceUpdate
 } from '../../shared/runtime'
 import { deviceLabel, deviceState } from '../../shared/runtime'
 import type { IslandAlignment, IslandPlacement } from '../../main/island-window'
@@ -140,7 +144,7 @@ import {
 } from '../../main/pet-window'
 import { $heard, $spoken, subtitleTail } from './store/transcript'
 import { deviceStanding, deviceStory, deviceTone } from './room-devices'
-import { $voiceLink, startVoice, stopVoice } from './store/voice-session'
+import { $voiceLink, sayAsUser, startVoice, stopVoice } from './store/voice-session'
 
 /**
  * The sidebar, grouped by what a page is *for*.
@@ -174,7 +178,15 @@ const SETTINGS_GROUPS = [
   },
   {
     gapBefore: true,
-    items: ['Voice', 'Appearance', 'Preferences', 'Schedules', 'Maintenance', 'About']
+    items: [
+      'Voice',
+      'Workspace',
+      'Appearance',
+      'Preferences',
+      'Schedules',
+      'Maintenance',
+      'About'
+    ]
   }
 ] as const
 
@@ -219,6 +231,7 @@ const SETTINGS_ICONS: Record<SettingsPage | 'Voice', AbstractIconName> = {
   'Speech recognition': 'microphone',
   'Voice synthesis': 'speaker',
   'Wake word': 'voice',
+  Workspace: 'archive',
   Appearance: 'preferences',
   Preferences: 'preferences',
   Schedules: 'schedules',
@@ -2605,6 +2618,7 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
       <div className="voice-orb-surface">
         <VoiceOrb active={speaking || listening} level={voice.level} phase={voice.phase} />
         <Subtitles />
+        <AskedQuestion />
       </div>
 
       {/* Top-left: what Marvi is doing, and what is stopping it. */}
@@ -3103,6 +3117,62 @@ function Subtitles(): React.JSX.Element | null {
           </span>
         </p>
       ) : null}
+    </div>
+  )
+}
+
+/**
+ * A question Marvi asked, as options rather than as prose.
+ *
+ * Nothing is waiting on this. Marvi says the question out loud and carries on;
+ * the card is a shortcut for saying the answer back, and pressing an option
+ * sends exactly those words into the room as the user's own turn -- which is
+ * what would have happened had they spoken it.
+ *
+ * So there is no decline button and no token. A question can be answered by
+ * saying something else entirely, and that is a complete answer.
+ */
+function AskedQuestion(): React.JSX.Element | null {
+  const runtime = useStore($runtimeState)
+  const link = useStore($voiceLink)
+  const question = runtime.assistant.question
+  const [sending, setSending] = useState('')
+
+  if (!question) return null
+
+  const answer = (choice: string): void => {
+    setSending(choice)
+    void (async () => {
+      // Into the room first: that is the answer. Clearing the card is
+      // bookkeeping, and doing it first would take the question off screen
+      // even when there is no call to send it into.
+      const said = await sayAsUser(choice)
+      if (said) await window.marvi?.answerQuestion(question.id, choice)
+      setSending('')
+    })()
+  }
+
+  return (
+    <div className="voice-question" role="group" aria-label="Marvi asked">
+      <p className="voice-question-text">{question.text}</p>
+      {question.choices.length ? (
+        <div className="voice-question-choices">
+          {question.choices.map((choice) => (
+            <button
+              className="ghost-button"
+              disabled={link !== 'live' || sending !== ''}
+              key={choice}
+              onClick={() => answer(choice)}
+              type="button"
+            >
+              {choice}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      <p className="voice-question-note">
+        {link === 'live' ? 'Or just say it.' : 'Join to answer, or say it when you do.'}
+      </p>
     </div>
   )
 }
@@ -3996,6 +4066,8 @@ function SettingsShell({
               <VoiceSynthesisPanel />
             ) : page === 'Wake word' ? (
               <WakeWordPanel />
+            ) : page === 'Workspace' ? (
+              <WorkspacePanel />
             ) : page === 'Appearance' ? (
               <AppearancePanel />
             ) : page === 'Preferences' ? (
@@ -4320,6 +4392,200 @@ function RecognitionSettings(): React.JSX.Element {
         title="Inference device"
       />
     </>
+  )
+}
+
+/**
+ * Where Marvi may read, where she may write, and what is off limits to both.
+ *
+ * Three settings rather than one, because the honest answer is usually
+ * asymmetric: read the whole disk, write only where I said. The blacklist
+ * holds over both — including the general setting, which is the only reason
+ * the general setting is on offer.
+ *
+ * The built-in rules are shown and cannot be removed. A deny list with
+ * invisible entries in it is one nobody can reason about, and the first time
+ * an invisible entry bites it reads as a bug rather than as a rule.
+ */
+function WorkspacePanel(): React.JSX.Element {
+  const [policy, setPolicy] = useState<WorkspacePolicy | null>(null)
+  const [error, setError] = useState('')
+  const [adding, setAdding] = useState('')
+
+  useEffect(() => {
+    let gone = false
+    void (async () => {
+      const page = await window.marvi?.getWorkspace()
+      if (!gone) setPolicy(page ?? null)
+    })()
+    return () => {
+      gone = true
+    }
+  }, [])
+
+  const apply = async (update: WorkspaceUpdate): Promise<void> => {
+    const next = (await window.marvi?.setWorkspace(update)) as
+      | (WorkspacePolicy & { error?: string })
+      | null
+    if (!next) return setError('Marvi is not answering.')
+    // A refusal says why. Showing nothing would read as the switch not working.
+    if (typeof next.error === 'string') return setError(next.error)
+    setError('')
+    setPolicy(next)
+  }
+
+  const scopeOptions = (what: 'Reading' | 'Writing'): PickerOption[] => [
+    {
+      value: 'strict',
+      label: 'Workspace only',
+      detail: `${what} anywhere else is refused`
+    },
+    {
+      value: 'general',
+      label: 'Anywhere on this PC',
+      detail: 'Still refused everything on the blacklist'
+    }
+  ]
+
+  return (
+    <ControlPage
+      className="settings-page"
+      description="Which folders the file tools may touch, and what is refused to all of them."
+      title="Workspace"
+    >
+      <ControlSection
+        description="Where a path without a drive letter means. Marvi works here by default."
+        icon={FolderOpen}
+        title="Workspace folder"
+      >
+        <ControlRow
+          action={
+            <button
+              className="ghost-button"
+              onClick={() => {
+                void (async () => {
+                  const chosen = await window.marvi?.chooseFolder()
+                  if (chosen) void apply({ root: chosen })
+                })()
+              }}
+              type="button"
+            >
+              Choose folder
+            </button>
+          }
+          description={
+            policy?.root
+              ? policy.rootExists
+                ? 'Relative paths resolve here, in both modes.'
+                : 'This folder is missing. Every file tool refuses until it is set again.'
+              : 'Nothing is set, so Marvi has nowhere to work and says so when asked.'
+          }
+          title={policy?.root || 'No workspace chosen'}
+        />
+      </ControlSection>
+
+      <ControlSection
+        description="Asked separately, because the useful answer is usually different for each."
+        icon={Eye}
+        title="How far the tools may reach"
+      >
+        <ControlRow
+          action={
+            <Picker
+              options={scopeOptions('Reading')}
+              value={policy?.readScope ?? 'strict'}
+              onChange={(next) => void apply({ read_scope: next })}
+              placeholder="Workspace only"
+            />
+          }
+          description={`Used by ${(policy?.tools.read ?? []).join(', ') || 'the reading tools'}.`}
+          title="Reading"
+        />
+        <ControlRow
+          action={
+            <Picker
+              options={scopeOptions('Writing')}
+              value={policy?.writeScope ?? 'strict'}
+              onChange={(next) => void apply({ write_scope: next })}
+              placeholder="Workspace only"
+            />
+          }
+          description={`Used by ${(policy?.tools.write ?? []).join(', ') || 'the writing tools'}.`}
+          title="Writing"
+        />
+      </ControlSection>
+
+      <ControlSection
+        description="Refused in both modes. A folder covers everything inside it; an entry with a * matches by name anywhere."
+        icon={ShieldOff}
+        title="Never touch"
+      >
+        <div className="workspace-blacklist">
+          {(policy?.blacklist ?? []).map((entry) => (
+            <div className="workspace-entry" key={entry}>
+              <code>{entry}</code>
+              <button
+                aria-label={`Remove ${entry}`}
+                className="ghost-button"
+                onClick={() =>
+                  void apply({
+                    blacklist: (policy?.blacklist ?? []).filter((item) => item !== entry)
+                  })
+                }
+                type="button"
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+          {policy && policy.blacklist.length === 0 ? (
+            <p className="control-note">
+              Nothing added. The built-in rules below still apply.
+            </p>
+          ) : null}
+          <form
+            className="workspace-add"
+            onSubmit={(event) => {
+              event.preventDefault()
+              const entry = adding.trim()
+              if (!entry) return
+              setAdding('')
+              void apply({ blacklist: [...(policy?.blacklist ?? []), entry] })
+            }}
+          >
+            <input
+              aria-label="Path or pattern to refuse"
+              onChange={(event) => setAdding(event.target.value)}
+              placeholder="C:\\Users\\me\\Private   or   *.key"
+              value={adding}
+            />
+            <button className="ghost-button" type="submit">
+              Add
+            </button>
+          </form>
+        </div>
+      </ControlSection>
+
+      <ControlSection
+        description="These hold whatever the settings say. Reading a credential is the same disclosure as writing one, so most of them cover both."
+        icon={ShieldAlert}
+        title="Always refused"
+      >
+        <div className="workspace-builtin">
+          {(policy?.builtin ?? []).map((rule) => (
+            <div className="workspace-entry" key={rule.pattern}>
+              <code>{rule.pattern}</code>
+              <span>
+                {rule.why}
+                {rule.reading ? '' : ' — writing only'}
+              </span>
+            </div>
+          ))}
+        </div>
+      </ControlSection>
+
+      {error ? <p className="control-note is-danger">{error}</p> : null}
+    </ControlPage>
   )
 }
 

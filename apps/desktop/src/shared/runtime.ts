@@ -209,6 +209,25 @@ export interface AssistantState {
   confirmation: ConfirmationRequest | null
   /** Background room event. Rendered only while idle; never steals focus. */
   roomEvent: RoomEvent | null
+  /** A question Marvi asked, with the options she offered. */
+  question: PendingQuestion | null
+}
+
+/**
+ * Something Marvi asked, drawn as options rather than said as prose.
+ *
+ * Nothing is waiting on it. The card is a shortcut for saying the answer out
+ * loud: pressing an option sends those words into the conversation as the
+ * user's turn, which is what would have happened anyway. That is why there is
+ * no token here and no way to decline — a question can simply be answered by
+ * saying something else.
+ */
+export interface PendingQuestion {
+  id: string
+  text: string
+  /** In order, best first. The first carries the recommendation label. */
+  choices: string[]
+  multiSelect: boolean
 }
 
 export interface ProviderRow {
@@ -652,7 +671,8 @@ export const DEFAULT_ASSISTANT_STATE: AssistantState = {
   heard: '',
   spoken: '',
   confirmation: null,
-  roomEvent: null
+  roomEvent: null,
+  question: null
 }
 
 export const OFFLINE_RUNTIME: RuntimeStatus = {
@@ -824,6 +844,33 @@ export interface AuxiliaryPage {
   providers: { name: string; label: string }[]
   /** The main provider, so the page can name jobs pinned away from it. */
   main: string
+}
+
+/**
+ * How far the file tools may reach, and what is refused to all of them.
+ *
+ * Three settings rather than one, because the honest answer is usually
+ * asymmetric: read the whole disk, write only where I said. The blacklist
+ * holds over both, including `general` — which is the only reason `general`
+ * is on offer at all.
+ */
+export interface WorkspacePolicy {
+  root: string
+  rootExists: boolean
+  readScope: 'strict' | 'general'
+  writeScope: 'strict' | 'general'
+  /** What the user added. The built-in rules are separate and always apply. */
+  blacklist: string[]
+  /** Refusals that hold whatever the settings say, and cannot be removed. */
+  builtin: { pattern: string; why: string; reading: boolean }[]
+  tools: { read: string[]; write: string[] }
+}
+
+export interface WorkspaceUpdate {
+  root?: string
+  read_scope?: string
+  write_scope?: string
+  blacklist?: string[]
 }
 
 /**

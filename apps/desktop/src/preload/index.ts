@@ -39,7 +39,9 @@ import type {
   UpdateStatus,
   UpstreamPage,
   VoicePage,
-  WakeStatus
+  WakeStatus,
+  WorkspacePolicy,
+  WorkspaceUpdate,
 } from '../shared/runtime'
 import type { IslandPlacement } from '../main/island-window'
 import type { PetPreferences } from '../main/pet-window'
@@ -324,6 +326,13 @@ const marvi = {
   getWake: (): Promise<WakeStatus | null> => ipcRenderer.invoke('marvi:get-wake'),
   setProviderSettings: (values: Record<string, string>): Promise<ProviderPage | null> =>
     ipcRenderer.invoke('marvi:set-provider-settings', values),
+  getWorkspace: (): Promise<WorkspacePolicy | null> => ipcRenderer.invoke('marvi:get-workspace'),
+  setWorkspace: (update: WorkspaceUpdate): Promise<WorkspacePolicy | null> =>
+    ipcRenderer.invoke('marvi:set-workspace', update),
+  /** The native folder picker. Empty string when the user cancelled. */
+  chooseFolder: (): Promise<string> => ipcRenderer.invoke('marvi:choose-folder'),
+  answerQuestion: (id: string, answer: string): Promise<boolean> =>
+    ipcRenderer.invoke('marvi:answer-question', { id, answer }),
   startOauth: (name: string): Promise<{ ok: boolean; detail: string }> =>
     ipcRenderer.invoke('marvi:start-oauth', name),
   pollOauth: (name: string): Promise<Record<string, unknown> | null> =>

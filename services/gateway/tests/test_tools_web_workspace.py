@@ -157,7 +157,10 @@ def test_no_configured_root_refuses_everything(monkeypatch) -> None:
     monkeypatch.delenv("MARVI_WORKSPACE_ROOT", raising=False)
     empty = Workspace()
     assert empty.available() is False
-    with pytest.raises(WorkspaceRefusedError, match="MARVI_WORKSPACE_ROOT"):
+    # Named where it is set rather than by its environment variable: it is a
+    # settings page now, and a refusal that tells you to edit an env var is
+    # telling you to do the wrong thing.
+    with pytest.raises(WorkspaceRefusedError, match="no workspace root"):
         empty.read("anything.txt")
 
 

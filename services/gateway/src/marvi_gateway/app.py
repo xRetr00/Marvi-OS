@@ -43,6 +43,7 @@ from .activity import ActivityWatch, register_activity_tools
 from .announce import Announcer, announce_enabled, output_devices
 from .browser import BrowserSession, browser_enabled, register_browser_tools
 from .chat import Chat, ChatStore, ChatTurn, schemas_from_registry
+from .clarify import register_clarify_tool
 from .cognition import CognitionHarness
 from .curiosity import Curiosity, seed_identity
 from .deliberate import deliberator_from_env
@@ -123,6 +124,32 @@ class LlmTurn(BaseModel):
 class Transcript(BaseModel):
     heard: str = ""
     spoken: str = ""
+
+
+class QuestionAnswer(BaseModel):
+    """Which question was answered, and with what.
+
+    The id is optional so a surface that has lost track can still clear the
+    card, and checked when it is given so a late press on a question that has
+    already moved on cannot take down its replacement.
+    """
+
+    id: str = ""
+    answer: str = ""
+
+
+class WorkspaceUpdate(BaseModel):
+    """A change to where the file tools may reach.
+
+    Every field optional and `None` meaning "leave it alone", so the page can
+    send one switch without having to send the whole policy back -- and so two
+    panels editing different parts of it cannot overwrite each other.
+    """
+
+    root: str | None = None
+    read_scope: str | None = None
+    write_scope: str | None = None
+    blacklist: list[str] | None = None
 
 
 class LiveKitConnection(BaseModel):
@@ -742,9 +769,14 @@ def create_app(
         register_identity_tools(tool_registry, identity)
         ingest = AccountIngest(accounts, memory)
         register_web_tools(tool_registry, WebTools())
+        register_clarify_tool(tool_registry, runtime_store)
         workspace = Workspace()
-        if workspace.available():
-            register_workspace_tools(tool_registry, workspace)
+        # Registered whether or not a root is configured. They used to appear
+        # only when one was, so an unset root did not produce a refusal that
+        # said what to do -- it produced an assistant with no file tools, who
+        # could only say she was unable to. The policy refuses by name now, and
+        # names the settings page while it does it.
+        register_workspace_tools(tool_registry, workspace)
         cognition = CognitionHarness(provider_client, identity=identity, tools=tool_registry)
 
         def memory_summarise(groups: list[dict[str, Any]]) -> list[tuple[str, str]]:
@@ -1580,6 +1612,30 @@ def create_app(
         )
         return current_status()
 
+    @app.post("/voice/question/answer", response_model=RuntimeStatus)
+    async def answer_question(update: QuestionAnswer) -> RuntimeStatus:
+        """Take a question off screen once it has been answered.
+
+        The answer itself does not come through here. It goes into the room as
+        the user's next turn -- spoken, or sent as text when they press an
+        option -- because that is what an answer is, and because a tool result
+        posted behind the conversation's back would leave Marvi replying to
+        something the transcript never shows her being told.
+
+        This only clears the card, and records what was chosen so the audit
+        trail shows the question and its answer together.
+        """
+        from .clarify import bare
+
+        answer = bare(update.answer)
+        current = runtime_store.assistant.question
+        if current is not None and (not update.id or current.id == update.id):
+            runtime_store.audit(
+                "clarify", "clarify", {"question": current.text, "answer": answer}
+            )
+        runtime_store.answered(update.id)
+        return current_status()
+
     @app.post("/voice/agent")
     async def set_agent_ready(update: dict[str, Any]) -> dict[str, Any]:
         """The Agent saying whether its worker is registered.
@@ -1755,6 +1811,64 @@ def create_app(
             "lookahead": os.environ.get("MARVI_STT_LOOKAHEAD", "").strip() or "2.0",
             "microphone": os.environ.get(DEVICE_SETTING, "").strip(),
         }
+
+    @app.get("/workspace")
+    async def read_workspace() -> dict[str, Any]:
+        """Where the file tools may reach, and what is refused to all of them.
+
+        The built-in rules come back with it. A deny list with invisible
+        entries is one nobody can reason about, and the first time an invisible
+        entry bites it reads as a bug rather than as a rule.
+        """
+        from . import filepolicy
+
+        page = filepolicy.describe()
+        page["tools"] = {
+            "read": ["file_read", "file_list"],
+            "write": ["file_write", "file_edit", "file_delete"],
+        }
+        return page
+
+    @app.put("/workspace")
+    async def set_workspace(update: WorkspaceUpdate) -> dict[str, Any]:
+        """Change the reach, the root, or the blacklist.
+
+        Written through the same settings store as everything else, so it
+        applies to the running Gateway rather than at the next restart -- which
+        matters more here than usual, because the first thing anyone does after
+        changing this is try the tool that was refused.
+        """
+        from . import filepolicy
+
+        values: dict[str, str] = {}
+        if update.root is not None:
+            root = update.root.strip()
+            if root and not Path(root).expanduser().is_dir():
+                # A root that does not exist is a trap: every tool refuses and
+                # the settings page says it is configured.
+                raise HTTPException(status_code=400, detail=f"{root} is not a folder")
+            values[filepolicy.ROOT_SETTING] = str(Path(root).expanduser()) if root else ""
+        for scope, setting in (
+            (update.read_scope, filepolicy.READ_SETTING),
+            (update.write_scope, filepolicy.WRITE_SETTING),
+        ):
+            if scope is not None:
+                if scope not in filepolicy.SCOPES:
+                    raise HTTPException(status_code=400, detail=f"unknown scope {scope!r}")
+                values[setting] = scope
+        if update.blacklist is not None:
+            entries = [entry.strip() for entry in update.blacklist if entry.strip()]
+            if any(filepolicy.SEPARATOR in entry for entry in entries):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"a path may not contain {filepolicy.SEPARATOR!r}",
+                )
+            values[filepolicy.BLACKLIST_SETTING] = filepolicy.SEPARATOR.join(entries)
+
+        if values:
+            provider_config.update(values)
+            runtime_store.audit("workspace", "settings", {"changed": sorted(values)})
+        return await read_workspace()
 
     @app.get("/auxiliary")
     async def read_auxiliary() -> dict[str, Any]:

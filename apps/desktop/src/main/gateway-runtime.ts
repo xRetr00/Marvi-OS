@@ -105,6 +105,22 @@ export function normalizeRuntimeStatus(value: unknown): RuntimeStatus | null {
     }
   }
 
+  // A question Marvi asked. Dropped rather than refused when it arrives
+  // malformed: a shape this window does not understand is a reason to show no
+  // card, never a reason to reject the whole runtime and blank the shell.
+  let question: AssistantState['question'] = null
+  if (isRecord(assistant.question) && typeof assistant.question.text === 'string') {
+    const choices = Array.isArray(assistant.question.choices)
+      ? assistant.question.choices.filter((choice): choice is string => typeof choice === 'string')
+      : []
+    question = {
+      id: typeof assistant.question.id === 'string' ? assistant.question.id : '',
+      text: assistant.question.text,
+      choices,
+      multiSelect: assistant.question.multi_select === true
+    }
+  }
+
   return {
     product: 'Marvi OS',
     version: value.version,
@@ -119,7 +135,8 @@ export function normalizeRuntimeStatus(value: unknown): RuntimeStatus | null {
       heard: typeof assistant.heard === 'string' ? assistant.heard : '',
       spoken: typeof assistant.spoken === 'string' ? assistant.spoken : '',
       confirmation,
-      roomEvent
+      roomEvent,
+      question
     },
     model: {
       llm: typeof model.llm === 'string' ? model.llm : '',
@@ -158,7 +175,12 @@ export function reconcileRuntimeStatus(
       ...current.assistant,
       yolo: gateway.assistant.yolo,
       confirmation: gateway.assistant.confirmation,
-      roomEvent: gateway.assistant.roomEvent
+      roomEvent: gateway.assistant.roomEvent,
+      // From the Gateway, like the confirmation and for the same reason: the
+      // renderer's own voice state has no idea a question was asked, and
+      // keeping the local copy would leave a card on screen after it was
+      // answered, or hide one that just appeared.
+      question: gateway.assistant.question
     }
   }
 }

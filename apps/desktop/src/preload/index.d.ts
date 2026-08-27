@@ -38,7 +38,9 @@ import type {
   UpdateStatus,
   UpstreamPage,
   VoicePage,
-  WakeStatus
+  WakeStatus,
+  WorkspacePolicy,
+  WorkspaceUpdate,
 } from '../shared/runtime'
 import type { IslandPlacement } from '../main/island-window'
 import type { PetPreferences } from '../main/pet-window'
@@ -214,6 +216,10 @@ export interface MarviDesktopApi {
   getVoices: () => Promise<VoicePage | null>
   getWake: () => Promise<WakeStatus | null>
   setProviderSettings: (values: Record<string, string>) => Promise<ProviderPage | null>
+  getWorkspace: () => Promise<WorkspacePolicy | null>
+  setWorkspace: (update: WorkspaceUpdate) => Promise<WorkspacePolicy | null>
+  chooseFolder: () => Promise<string>
+  answerQuestion: (id: string, answer: string) => Promise<boolean>
   startOauth: (name: string) => Promise<{ ok: boolean; detail: string }>
   pollOauth: (name: string) => Promise<Record<string, unknown> | null>
   disconnectProvider: (name: string) => Promise<ProviderPage | null>
