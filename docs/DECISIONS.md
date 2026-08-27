@@ -1,28 +1,5 @@
 # Architectural Decisions
 
-## ADR-026 — Messaging is a pinned companion, not a gateway rewrite
-
-**Decision:** ship the complete Marvi Agent repository at commit
-`61977bb4d6b97ab2aece57d2405fa2f0b19e3ae0` as the `vendor/marvi-agent` Git
-submodule. Electron supervises its messaging gateway only after upstream setup
-has created a private profile and the user enables it. The source is not copied
-piecemeal into Marvi Gateway and is never used as the LiveKit voice runtime.
-
-**Reason:** messaging in that repository is an end-to-end system: more than two
-dozen adapters plus sessions, streaming/edit recovery, media, commands,
-approvals, scheduling, delivery ledgers, profile routing, and platform-specific
-tools. Extracting selected files would advertise parity while silently losing
-coupled behavior. The repository's upstream-first rule prefers the maintained
-dependency unchanged; a gitlink also preserves provenance and makes updates
-reviewable.
-
-**Boundary:** the companion owns its remote conversations and tools. Marvi OS
-owns its lifecycle/status surface but does not claim those conversations are
-the canonical Chat or Voice session. Credentials remain in the companion home
-and never enter renderer IPC. This is a deliberate new companion surface and
-does not reverse ADR-020's rejection of coupling the ambient voice loop to a
-durable coding-agent bridge.
-
 ## ADR-001 — Separate product from Marvi Agent
 
 **Decision:** Marvi OS is an independent repository and runtime. Marvi Agent is

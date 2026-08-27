@@ -183,29 +183,6 @@ describe('supervising a service', () => {
     expect(seen.at(-1)?.[0].detail).toBe('not installed')
   })
 
-  it('resolves dynamic service settings when the process actually starts', async () => {
-    const seen: ServiceReport[][] = []
-    let profile = 'second-profile'
-    const supervisor = new ServiceSupervisor((reports) => seen.push(reports))
-    supervisor.add({
-      name: 'dynamic',
-      command: process.execPath,
-      args: ['-e', 'console.log(process.env.MARVI_TEST_PROFILE)'],
-      cwd: root,
-      env: () => ({ MARVI_TEST_PROFILE: profile })
-    })
-    profile = 'selected-at-start'
-    supervisor.startAll()
-
-    await vi.waitFor(
-      () => {
-        expect(seen.at(-1)?.[0].output.join('\n')).toContain('selected-at-start')
-      },
-      { timeout: 8_000 }
-    )
-    supervisor.stopAll()
-  })
-
   it('gives up rather than looping forever', async () => {
     const seen: ServiceReport[][] = []
     const supervisor = new ServiceSupervisor((reports) => seen.push(reports))
