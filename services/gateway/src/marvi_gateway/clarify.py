@@ -172,12 +172,34 @@ def register_clarify_tool(registry: Any, runtime: Any) -> None:
                 "multi_select": "True when more than one option can be picked "
                 "at once. Default false.",
             },
+            # Spelled out here as well as in `describes`, because a spec that
+            # supplies its own schema is passed through verbatim and the
+            # per-argument descriptions are never merged into it. `choices` is
+            # an array, which the router's small type map cannot express, so
+            # this tool has to carry one -- and carrying one silently dropped
+            # every word of guidance above.
             schema={
                 "type": "object",
                 "properties": {
-                    "question": {"type": "string"},
-                    "choices": {"type": "array", "items": {"type": "string"}},
-                    "multi_select": {"type": "boolean"},
+                    "question": {
+                        "type": "string",
+                        "description": "What you need to know, as one sentence. "
+                        "Never put the options in here -- they go in `choices`, "
+                        "and options written into the question cannot be pressed.",
+                    },
+                    "choices": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Up to four options, best first: the first "
+                        "is shown as your recommendation. Typing something else "
+                        "is always available, so never offer 'other' as a choice. "
+                        "Omit entirely for an open question.",
+                    },
+                    "multi_select": {
+                        "type": "boolean",
+                        "description": "True when more than one option can be "
+                        "picked at once. Default false.",
+                    },
                 },
                 "required": ["question"],
             },

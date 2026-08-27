@@ -148,3 +148,63 @@ describe('reconcileRuntimeStatus', () => {
     })
   })
 })
+
+describe('a question Marvi asked', () => {
+  const valid = {
+    product: 'Marvi OS',
+    version: '0.5.0',
+    state: 'ready',
+    components: {},
+    assistant: {
+      phase: 'ready',
+      caption: 'Say Marvi',
+      detail: null,
+      level: 0,
+      yolo: false,
+      heard: '',
+      spoken: '',
+      confirmation: null,
+      room_event: null
+    },
+    model: { llm: '', stt: '', tts: '' }
+  }
+
+  it('carries the options through', () => {
+    const normalized = normalizeRuntimeStatus({
+      ...valid,
+      assistant: {
+        ...valid.assistant,
+        question: {
+          id: 'q1',
+          text: 'Which folder should I work in?',
+          choices: ['Marvi-OS (recommended)', 'Documents'],
+          multi_select: false
+        }
+      }
+    })
+
+    expect(normalized?.assistant.question).toEqual({
+      id: 'q1',
+      text: 'Which folder should I work in?',
+      choices: ['Marvi-OS (recommended)', 'Documents'],
+      multiSelect: false
+    })
+  })
+
+  it('shows no card rather than blanking the shell when the shape is wrong', () => {
+    // A confirmation is refused outright because acting on a malformed one is
+    // dangerous. This is a prompt: not understanding it is a reason to draw
+    // nothing, never a reason to reject the whole runtime.
+    const normalized = normalizeRuntimeStatus({
+      ...valid,
+      assistant: { ...valid.assistant, question: { id: 5 } }
+    })
+
+    expect(normalized).not.toBeNull()
+    expect(normalized?.assistant.question).toBeNull()
+  })
+
+  it('is nothing when the Gateway did not send one', () => {
+    expect(normalizeRuntimeStatus(valid)?.assistant.question).toBeNull()
+  })
+})

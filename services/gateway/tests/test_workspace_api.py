@@ -11,7 +11,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from marvi_gateway.app import create_app
-from marvi_gateway.filepolicy import BLACKLIST_SETTING, READ_SETTING, ROOT_SETTING
+from marvi_gateway.filepolicy import BLACKLIST_SETTING, ROOT_SETTING
 
 
 def test_it_reports_the_policy_and_the_rules_that_cannot_be_removed() -> None:

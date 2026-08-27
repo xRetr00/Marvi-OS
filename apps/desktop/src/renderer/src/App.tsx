@@ -178,15 +178,7 @@ const SETTINGS_GROUPS = [
   },
   {
     gapBefore: true,
-    items: [
-      'Voice',
-      'Workspace',
-      'Appearance',
-      'Preferences',
-      'Schedules',
-      'Maintenance',
-      'About'
-    ]
+    items: ['Voice', 'Workspace', 'Appearance', 'Preferences', 'Schedules', 'Maintenance', 'About']
   }
 ] as const
 
@@ -4425,8 +4417,7 @@ function WorkspacePanel(): React.JSX.Element {
 
   const apply = async (update: WorkspaceUpdate): Promise<void> => {
     const next = (await window.marvi?.setWorkspace(update)) as
-      | (WorkspacePolicy & { error?: string })
-      | null
+      (WorkspacePolicy & { error?: string }) | null
     if (!next) return setError('Marvi is not answering.')
     // A refusal says why. Showing nothing would read as the switch not working.
     if (typeof next.error === 'string') return setError(next.error)
@@ -4539,9 +4530,7 @@ function WorkspacePanel(): React.JSX.Element {
             </div>
           ))}
           {policy && policy.blacklist.length === 0 ? (
-            <p className="control-note">
-              Nothing added. The built-in rules below still apply.
-            </p>
+            <p className="control-note">Nothing added. The built-in rules below still apply.</p>
           ) : null}
           <form
             className="workspace-add"

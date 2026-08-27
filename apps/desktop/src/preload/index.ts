@@ -41,7 +41,7 @@ import type {
   VoicePage,
   WakeStatus,
   WorkspacePolicy,
-  WorkspaceUpdate,
+  WorkspaceUpdate
 } from '../shared/runtime'
 import type { IslandPlacement } from '../main/island-window'
 import type { PetPreferences } from '../main/pet-window'

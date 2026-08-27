@@ -150,12 +150,7 @@ export function offlineRuntime(version: string): RuntimeStatus {
   return { ...OFFLINE_RUNTIME, version }
 }
 
-const LIVE_PHASES = new Set<AssistantState['phase']>([
-  'wake',
-  'listening',
-  'thinking',
-  'speaking'
-])
+const LIVE_PHASES = new Set<AssistantState['phase']>(['wake', 'listening', 'thinking', 'speaking'])
 
 /** Reconcile the slow Gateway snapshot with the renderer's high-rate voice state.
  * Confirmations and terminal states always win, including an authoritative null:
