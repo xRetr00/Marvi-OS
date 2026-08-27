@@ -87,14 +87,10 @@ def test_the_run_key_name_matches_the_agent() -> None:
     from marvi_gateway import wake
 
     source = (
-        Path(__file__).resolve().parents[2]
-        / "agent"
-        / "src"
-        / "marvi_agent"
-        / "wake_autostart.py"
+        Path(__file__).resolve().parents[3] / "apps" / "wake-host" / "src" / "autostart.rs"
     ).read_text(encoding="utf-8")
 
-    assert f'VALUE_NAME = "{wake.VALUE_NAME}"' in source
+    assert f'pub const VALUE: &str = "{wake.VALUE_NAME}";' in source
     assert wake.RUN_KEY in source
 
 
@@ -147,24 +143,56 @@ def test_one_microphone_is_offered_once(monkeypatch) -> None:
     assert found[0]["default"] is True
 
 
-def test_the_two_services_dedupe_microphones_the_same_way() -> None:
-    """The Agent opens the device the Gateway offered. They enumerate
-    separately because they are separate projects, so nothing but this keeps
-    the two lists in step."""
-    from pathlib import Path
+def test_the_picker_offers_what_the_listener_can_open(monkeypatch, tmp_path) -> None:
+    """Two lists, and they were not the same list.
 
-    agent = (
-        Path(__file__).resolve().parents[3]
-        / "services"
-        / "agent"
-        / "src"
-        / "marvi_agent"
-        / "wake_daemon.py"
-    ).read_text(encoding="utf-8")
+    PortAudio here offered ten devices -- every host API's view of the machine,
+    plus "Microsoft Sound Mapper - Input", which is not a microphone -- where
+    the listener's cpal could open three. Choosing one of the other seven wrote
+    a name the listener matched nothing against, so it fell back to the default
+    microphone while Settings showed the device you picked.
 
-    rule = "if not any(other != name and other.startswith(name) for other in names)"
+    Deduping the two enumerations was the old answer and it could not work:
+    they see different devices, not differently spelled ones.
+    """
+    import json
 
-    assert rule in agent, "the Agent no longer drops truncated duplicate names"
+    from marvi_gateway import wake
+
+    monkeypatch.setenv("MARVI_HOME", str(tmp_path))
+    (tmp_path / "state").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "state" / "wake.json").write_text(
+        json.dumps(
+            {
+                "pid": 1,
+                "running": True,
+                "heartbeat": time.time(),
+                "devices": ["Echo Cancelling Speakerphone (Konftel Ego)", "Microphone (Realtek)"],
+                "default_device": "Microphone (Realtek)",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    offered = wake.microphones()
+
+    assert [row["name"] for row in offered] == [
+        "Echo Cancelling Speakerphone (Konftel Ego)",
+        "Microphone (Realtek)",
+    ]
+    # Named by the listener rather than taken from the order. Enumeration order
+    # is not preference order: taking the first put a game controller at the
+    # top of the picker labelled "currently the system default".
+    assert [row["default"] for row in offered] == [False, True]
+
+
+def test_the_picker_still_answers_before_the_listener_has_ever_run(monkeypatch, tmp_path) -> None:
+    """An empty picker is a worse settings page than an imperfect one."""
+    from marvi_gateway import wake
+
+    monkeypatch.setenv("MARVI_HOME", str(tmp_path))
+
+    assert isinstance(wake.microphones(), list)
 
 
 def test_a_listener_that_died_is_not_a_listener_starting_up(monkeypatch, tmp_path) -> None:

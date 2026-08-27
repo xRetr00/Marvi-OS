@@ -113,7 +113,13 @@ fn threshold() -> f32 {
 /// Listen until told to stop. `quit` is set by the tray.
 fn listen(quit: &dyn Fn() -> bool) -> Result<(), Box<dyn std::error::Error>> {
     let started = state::now();
-    let mut report = State { pid: std::process::id(), started_at: started, ..Default::default() };
+    let mut report = State {
+        pid: std::process::id(),
+        started_at: started,
+        devices: audio::microphones(),
+        default_device: audio::default_microphone(),
+        ..Default::default()
+    };
 
     let wanted = std::env::var("MARVI_WAKE_DEVICE").unwrap_or_default();
     let microphone = match audio::open(&wanted) {
@@ -200,6 +206,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("{name}");
         }
         return Ok(());
+    }
+
+    // Nothing below this line opens the microphone until it is the only thing
+    // that will be. Enabling from Settings starts one now and registers it for
+    // login, so the second start is the normal case rather than the odd one.
+    if !marvi_wake_host::takeover::only_instance() {
+        eprintln!("another listener is already running");
+        return Ok(());
+    }
+    if marvi_wake_host::takeover::take() {
+        eprintln!("stopped the listener that was running before this one");
     }
 
     tray::run(listen)

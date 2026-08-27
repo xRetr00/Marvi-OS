@@ -113,7 +113,7 @@ def test_turning_it_off_is_reported(monkeypatch) -> None:
 
 
 def test_the_gateway_and_the_wake_listener_agree_on_the_threshold() -> None:
-    """Duplicated, because they run in different Python environments.
+    """Duplicated, because the listener is a separate program.
 
     The Gateway reports the sensitivity and the listener acts on it. If they
     disagree the screen shows a number that is not the one deciding whether
@@ -124,13 +124,13 @@ def test_the_gateway_and_the_wake_listener_agree_on_the_threshold() -> None:
     from marvi_gateway import wake
 
     source = (
-        pathlib.Path(__file__).resolve().parents[2]
-        / "agent"
+        pathlib.Path(__file__).resolve().parents[3]
+        / "apps"
+        / "wake-host"
         / "src"
-        / "marvi_agent"
-        / "wake_daemon.py"
+        / "main.rs"
     ).read_text(encoding="utf-8")
 
-    threshold = re.search(r"DEFAULT_THRESHOLD = ([\d.]+)", source)
+    threshold = re.search(r"DEFAULT_THRESHOLD: f32 = ([\d.]+)", source)
 
     assert threshold and float(threshold.group(1)) == wake.DEFAULT_THRESHOLD

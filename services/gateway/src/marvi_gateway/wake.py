@@ -160,14 +160,22 @@ def listener() -> dict[str, Any]:
         "heard_at": heard_at,
         "confidence": state.get("confidence", 0.0),
         "error": state.get("error", ""),
+        # What it can actually open, and which one it opens by default. See
+        # `microphones()`.
+        "devices": state.get("devices", []),
+        "default_device": state.get("default_device", ""),
     }
 
 
 def status() -> dict[str, Any]:
     path = model_path()
     enabled = _flag("MARVI_WAKE_WORD", True)
-    present = path.is_file()
     live = listener()
+    # A listener that is running has a model, whatever this path says. The
+    # listener ships its own copy beside its executable and the Gateway cannot
+    # see that directory, so checking only the Agent's copy would put "no wake
+    # word model found" on screen while the wake word was working.
+    present = path.is_file() or bool(live["running"])
     # The standalone listener does not post detections -- it may fire while the
     # Gateway is not even running, which is the whole point of it -- so its file
     # is the more recent truth whenever it has one.
@@ -205,7 +213,44 @@ DEVICE_SETTING = "MARVI_WAKE_DEVICE"
 
 
 def microphones() -> list[dict[str, Any]]:
-    """Input devices for the picker.
+    """Input devices for the picker -- the listener's own list when it has one.
+
+    The listener is the thing that opens the device, so it is the only source
+    that can be right about which devices exist. It writes its list into
+    `wake.json` at start, and this prefers that over enumerating separately.
+
+    They were not the same list. PortAudio here offered ten entries -- every
+    host API's view of the machine, plus "Microsoft Sound Mapper - Input" and
+    "Primary Sound Capture Driver", which are not microphones -- where cpal in
+    the listener could open three. Choosing one of the other seven wrote a name
+    the listener matched nothing against, and it fell back to the default
+    microphone without saying so: the settings page showed the device you
+    picked while a different one was listening.
+
+    The fallback below still runs when the listener has never started, because
+    an empty picker is a worse settings page than an imperfect one -- but it is
+    the fallback now, not the answer.
+    """
+    from_listener = listener().get("devices")
+    if isinstance(from_listener, list) and from_listener:
+        names = [str(name) for name in from_listener if str(name).strip()]
+        # Named by the listener, not inferred from the order. Enumeration order
+        # is not preference order, and taking the first put a game controller
+        # at the top of the picker as "currently the system default".
+        default = str(listener().get("default_device") or "")
+        return [
+            {
+                "name": name,
+                "label": " ".join(name.split())[:64],
+                "default": name == default,
+            }
+            for name in names
+        ]
+    return _enumerated()
+
+
+def _enumerated() -> list[dict[str, Any]]:
+    """PortAudio's view, for when the listener has never run.
 
     Enumerated here with PortAudio rather than in the browser: the listener is
     a separate Python process using the same library, and `navigator.

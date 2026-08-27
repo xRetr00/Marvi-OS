@@ -30,6 +30,22 @@ pub struct State {
     pub confidence: f32,
     #[serde(skip_serializing_if = "str::is_empty")]
     pub error: String,
+    /// Every microphone this listener can open, for the settings picker.
+    ///
+    /// Written by the thing that does the opening, which is the only source
+    /// that can be right. The Gateway enumerated with PortAudio and offered
+    /// ten devices where cpal can open three -- so choosing the wrong seven
+    /// set a name nothing matched, and the listener quietly fell back to the
+    /// default microphone while Settings showed the one you picked.
+    ///
+    /// ponytail: written once at start. A microphone plugged in mid-session
+    /// does not appear until the listener restarts; toggling it in Settings is
+    /// a restart.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub devices: Vec<String>,
+    /// Which of `devices` this opens when nothing is chosen.
+    #[serde(skip_serializing_if = "str::is_empty")]
+    pub default_device: String,
 }
 
 pub fn now() -> f64 {

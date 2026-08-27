@@ -9,3 +9,4 @@ pub mod audio;
 pub mod autostart;
 pub mod detector;
 pub mod state;
+pub mod takeover;

@@ -131,6 +131,17 @@ where
     )
 }
 
+/// The microphone Windows would pick, which is what this opens when nothing
+/// is chosen. Reported rather than inferred: the enumeration order is not the
+/// preference order, and labelling the first device "default" put a game
+/// controller at the top of the settings picker.
+pub fn default_microphone() -> String {
+    cpal::default_host()
+        .default_input_device()
+        .and_then(|device| device.name().ok())
+        .unwrap_or_default()
+}
+
 /// Every input device, by name, for the settings page.
 pub fn microphones() -> Vec<String> {
     cpal::default_host()
