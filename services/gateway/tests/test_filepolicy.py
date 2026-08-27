@@ -138,13 +138,33 @@ def test_several_entries_use_the_platform_separator(workspace, monkeypatch) -> N
 # -- what cannot be allowed --------------------------------------------------
 
 
-def test_env_files_are_refused_even_for_reading(workspace, monkeypatch) -> None:
-    """A key read into a reply is a key on its way out."""
+def test_env_files_are_refused_for_reading_until_that_is_turned_on(
+    workspace, monkeypatch
+) -> None:
+    """A key read into a reply is a key on its way out -- so this is off by
+    default, and the refusal says where the switch is rather than pretending
+    there is not one."""
     monkeypatch.setenv(READ_SETTING, GENERAL)
+    monkeypatch.delenv("MARVI_SECRET_ACCESS", raising=False)
     (workspace / ".env").write_text("KEY=secret", encoding="utf-8")
 
-    with pytest.raises(PathRefusedError, match="always refused"):
+    with pytest.raises(PathRefusedError, match="Settings > Workspace"):
         Access.from_env().resolve(".env", write=False)
+
+
+def test_writing_an_env_file_is_refused_even_when_reading_is_allowed(
+    workspace, monkeypatch
+) -> None:
+    """Reading became a setting; writing did not. `ask_secret` is how a
+    credential gets set, and it is better because the value never passes
+    through the model at all."""
+    monkeypatch.setenv(READ_SETTING, GENERAL)
+    monkeypatch.setenv(WRITE_SETTING, GENERAL)
+    monkeypatch.setenv("MARVI_SECRET_ACCESS", "full")
+    (workspace / ".env").write_text("KEY=secret", encoding="utf-8")
+
+    with pytest.raises(PathRefusedError, match="ask_secret"):
+        Access.from_env().resolve(".env", write=True)
 
 
 def test_marvi_own_state_is_refused(workspace, tmp_path_factory, monkeypatch) -> None:
@@ -161,12 +181,15 @@ def test_marvi_own_state_is_refused(workspace, tmp_path_factory, monkeypatch) ->
 def test_a_builtin_rule_cannot_be_lifted_by_emptying_the_blacklist(
     workspace, monkeypatch
 ) -> None:
+    """The blacklist is the user's list. These are not on it and cannot be
+    taken off it -- reading a key file is governed by its own setting, and
+    writing one is refused outright."""
     monkeypatch.setenv(BLACKLIST_SETTING, "")
-    monkeypatch.setenv(READ_SETTING, GENERAL)
+    monkeypatch.setenv(WRITE_SETTING, GENERAL)
     (workspace / "id_rsa").write_text("-----BEGIN", encoding="utf-8")
 
     with pytest.raises(PathRefusedError, match="always refused"):
-        Access.from_env().resolve("id_rsa", write=False)
+        Access.from_env().resolve("id_rsa", write=True)
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows paths")
