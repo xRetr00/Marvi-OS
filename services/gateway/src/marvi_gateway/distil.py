@@ -50,11 +50,32 @@ MAX_PAGE_CHARS = 24_000
 WORTH_SUMMARISING = 1_200
 
 
-def _ask(client: Any, role: str, system: str, user: str, max_tokens: int) -> str:
+def ask(
+    client: Any,
+    role: str,
+    system: str,
+    user: str,
+    max_tokens: int,
+    *,
+    tools: bool = True,
+    temperature: float = 0.2,
+) -> str:
     """One call, or "" when there is no model to make it.
 
     Never raises. Every caller has something sensible to do with nothing, and
     that is the point of this module.
+
+    The one place that knows a "client" may be either a `ProviderClient` or a
+    `CognitionHarness` wrapping one. Three modules had each grown their own
+    copy of this call, and each of them assumed the raw client -- so handing
+    over the harness, which is what the app does, made every one of them raise
+    `AttributeError` into its own broad except and log "unavailable". The
+    after-turn memory worker did that on every turn for a day.
+
+    `tools=False` for anything that has to answer in JSON. The harness's own
+    path offers the memory tools, and a model given both a tool and a schema
+    will sometimes call the tool -- which is right for reflection and wrong for
+    everything that needs a parseable answer back.
     """
     if client is None:
         log.info(
@@ -74,6 +95,8 @@ def _ask(client: Any, role: str, system: str, user: str, max_tokens: int) -> str
             "marvi_max_tokens": max_tokens,
         },
     )
+    if not tools and isinstance(client, CognitionHarness):
+        client = client.client
     try:
         if isinstance(client, CognitionHarness):
             completion = client.ask(
@@ -91,7 +114,7 @@ def _ask(client: Any, role: str, system: str, user: str, max_tokens: int) -> str
                 ],
                 job="aux",
                 max_tokens=max_tokens,
-                temperature=0.2,
+                temperature=temperature,
                 **route,
             )
     except Exception as exc:  # pragma: no cover - depends on what is configured
@@ -136,7 +159,7 @@ def title(client: Any, first_message: str, fallback: str) -> str:
     text = " ".join((first_message or "").split())[:600]
     if not text:
         return fallback
-    answer = _ask(client, "title", TITLE_SYSTEM, text, TITLE_TOKENS)
+    answer = ask(client, "title", TITLE_SYSTEM, text, TITLE_TOKENS)
     if not answer:
         return fallback
     # A model that ignored the instruction and wrote a paragraph is worse than
@@ -169,7 +192,7 @@ def summarise_memories(client: Any, groups: list[dict[str, Any]]) -> list[tuple[
     listed = "\n".join(
         f"- {group.get('subject', '')} (seen {group.get('count', 0)} times)" for group in groups
     )
-    answer = _ask(client, "memory", MEMORY_SYSTEM, listed, MEMORY_TOKENS)
+    answer = ask(client, "memory", MEMORY_SYSTEM, listed, MEMORY_TOKENS)
     if not answer:
         return []
 
@@ -205,7 +228,7 @@ def extract_answer(client: Any, text: str, question: str) -> str:
     body = (text or "").strip()
     if not question.strip() or len(body) < WORTH_SUMMARISING:
         return ""
-    return _ask(
+    return ask(
         client,
         "web",
         EXTRACT_SYSTEM,

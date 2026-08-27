@@ -43,7 +43,7 @@ import threading
 import time
 from typing import Any
 
-from . import auxiliary
+from . import distil
 from .logs import get_logger
 
 log = get_logger("memory")
@@ -174,25 +174,31 @@ def extract(store: Any, client: Any, user: str, assistant: str) -> dict[str, int
         or "(nothing remembered yet)"
     )
     try:
-        completion = client.call_with_fallback(
-            [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {
-                    "role": "user",
-                    "content": f"Already remembered:\n{listed}\n\n"
-                    f"The exchange:\n{_turn_text(user, assistant)}",
-                },
-            ],
-            job="aux",
-            max_tokens=MAX_OUTPUT_TOKENS,
+        # One place knows a "client" may be a ProviderClient or the harness
+        # wrapping one. This had its own copy of the call and assumed the raw
+        # client, so being handed the harness -- which is what the app does --
+        # made every turn raise AttributeError into the except below and log
+        # "unavailable". It did that for a day.
+        #
+        # `tools=False`: it has to come back as JSON. A model offered the
+        # memory tools alongside a schema will sometimes write the memory
+        # itself and answer nothing, which is the operation this replaces,
+        # done worse and without the delete.
+        answer = distil.ask(
+            client,
+            "memory",
+            SYSTEM_PROMPT,
+            f"Already remembered:\n{listed}\n\n"
+            f"The exchange:\n{_turn_text(user, assistant)}",
+            MAX_OUTPUT_TOKENS,
+            tools=False,
             temperature=0.1,
-            **auxiliary.fallback_overrides("memory"),
         )
     except Exception as exc:
         log.info("memory extraction unavailable (%s); nothing recorded this turn", exc)
         return {"add": 0, "update": 0, "delete": 0, "ignored": 0}
 
-    operations = _parse(getattr(completion, "text", "") or "")
+    operations = _parse(answer)
     done = apply(store, operations)
     if any(done.values()):
         log.info(

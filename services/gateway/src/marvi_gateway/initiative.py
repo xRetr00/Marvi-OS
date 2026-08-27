@@ -7,6 +7,7 @@ that the foreground never waits on.
     ingest      pull new account items into the journal
     mind        decide what, if anything, to do about pending events
     reflect     promote repeated episodes into durable facts
+    dream       conclude across memories, and build the graph from them
     consolidate the sleep pass: forget stale, never-recalled episodes
 
 Every job is wrapped so a failure is recorded and skipped rather than killing
@@ -26,6 +27,9 @@ logger = logging.getLogger(__name__)
 INGEST_MINUTES = 10
 MIND_MINUTES = 2
 REFLECT_HOURS = 6
+#: Slower than reflection on purpose. Reflection is a GROUP BY; this is a model
+#: reading eighty memories, and there is nothing to conclude from a morning.
+DREAM_HOURS = 12
 CONSOLIDATE_HOURS = 24
 
 
@@ -39,6 +43,7 @@ class Initiative:
         ingest: Any = None,
         memory: Any = None,
         memory_summarise: Any = None,
+        auxiliary_client: Any = None,
         room_state: Any = None,
     ) -> None:
         self.mind = mind
@@ -46,6 +51,9 @@ class Initiative:
         self.ingest = ingest
         self.memory = memory
         self.memory_summarise = memory_summarise
+        # The model that dreams. None is normal -- no auxiliary configured
+        # means the deterministic passes still run and this one does not.
+        self.auxiliary_client = auxiliary_client
         self.room_state = room_state
         self._scheduler: Any = None
         self.last_runs: dict[str, str] = {}
@@ -157,6 +165,59 @@ class Initiative:
             self.journal.append("memory", "reflection", subject, {"id": subject}, trusted=True)
         return result
 
+    def _own_store(self) -> Any:
+        """A connection to the memory database for this thread."""
+        path = getattr(self.memory, "path", None)
+        if path is None:
+            return self.memory
+        from .memory import MemoryStore
+
+        return MemoryStore(path)
+
+    def run_dream(self) -> dict[str, Any]:
+        """Read across what has arrived, conclude, and relate.
+
+        Reflection counts repeats of one subject and cannot see that two things
+        that each happened once say a third together. This is that pass, and it
+        is where the entity graph gets built -- it had stayed empty because
+        filling it was left to a model choosing `memory_link` mid-conversation,
+        which no model ever did while it had an answer to give instead.
+        """
+        from . import dreaming
+
+        if self.memory is None or self.auxiliary_client is None:
+            return {"concluded": 0, "linked": 0, "retired": 0}
+        # A private connection, the way the after-turn worker takes one. This
+        # runs on a scheduler thread and writes a great deal more than the
+        # other jobs; sharing the foreground's connection is what crashed the
+        # process the last time a background thread wrote memories.
+        store = self._own_store()
+        fresh = store.undreamt(limit=dreaming.WINDOW)
+        if len(fresh) < dreaming.MIN_PREMISES:
+            return {"concluded": 0, "linked": 0, "retired": 0, "considered": len(fresh)}
+
+        found = dreaming.dream(self.auxiliary_client, fresh, store.conclusions())
+        counts = dreaming.apply(store, found) if found else {
+            "concluded": 0, "linked": 0, "retired": 0
+        }
+        # The watermark moves whether or not anything was concluded. A dream
+        # that found nothing has still read these, and re-reading them every
+        # twelve hours would pay for the same silence forever.
+        store.record_dream(
+            through_id=max(int(row["id"]) for row in fresh),
+            considered=len(fresh),
+            **counts,
+        )
+        for item in (found.get("conclusions") if found else []) or []:
+            self.journal.append(
+                "memory", "conclusion", item["subject"], {"from": item["premises"]}, trusted=False
+            )
+        logger.info(
+            "dreaming completed",
+            extra={"marvi_considered": len(fresh), **{f"marvi_{k}": v for k, v in counts.items()}},
+        )
+        return {"considered": len(fresh), **counts}
+
     def run_consolidate(self) -> dict[str, Any]:
         return self.memory.consolidate() if self.memory is not None else {"forgotten": 0}
 
@@ -181,6 +242,10 @@ class Initiative:
             hours=REFLECT_HOURS, id="reflect", max_instances=1, coalesce=True,
         )
         scheduler.add_job(
+            self._guard("dream", self.run_dream), "interval",
+            hours=DREAM_HOURS, id="dream", max_instances=1, coalesce=True,
+        )
+        scheduler.add_job(
             self._guard("consolidate", self.run_consolidate), "interval",
             hours=CONSOLIDATE_HOURS, id="consolidate", max_instances=1, coalesce=True,
         )
@@ -192,6 +257,7 @@ class Initiative:
                 "marvi_ingest_minutes": INGEST_MINUTES,
                 "marvi_mind_minutes": MIND_MINUTES,
                 "marvi_reflect_hours": REFLECT_HOURS,
+                "marvi_dream_hours": DREAM_HOURS,
                 "marvi_consolidate_hours": CONSOLIDATE_HOURS,
             },
         )

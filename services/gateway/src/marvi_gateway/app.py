@@ -885,6 +885,10 @@ def create_app(
             ingest=ingest,
             memory=memory,
             memory_summarise=memory_summarise,
+            # The same model the after-turn worker uses. Dreaming is the other
+            # half of that job: one decides what to keep from a turn, this
+            # reads across what was kept.
+            auxiliary_client=cognition,
             room_state=(
                 lambda: {
                     "present": bool(
@@ -977,6 +981,10 @@ def create_app(
     # model in the loop -- and so a test of what happens to a proposal tests
     # that, rather than the extraction that produced it.
     app.state.rememberer = rememberer
+    # Published for the same reason, and to let a test check that the scheduler
+    # was handed a client it can actually call. That was wrong for the whole
+    # first day the after-turn worker existed.
+    app.state.initiative = initiative if tools is None else None
 
     def accounts_status() -> ComponentStatus:
         if accounts is None or not accounts.available():
@@ -2611,6 +2619,21 @@ def create_app(
         if memory is None:
             return ReflectResult(considered=0, promoted=[])
         return ReflectResult(**memory.reflect(summarise=memory_summarise))
+
+    @app.post("/memory/dream")
+    async def run_dream() -> dict[str, Any]:
+        """One dream now, rather than at the next twelve-hour tick.
+
+        Beside reflect and consolidate because it is the third pass of the same
+        kind, and because a background job nobody can trigger is a background
+        job nobody can tell is working. That was the wake word's whole problem.
+        """
+        if initiative is None:
+            return {"considered": 0, "concluded": 0, "linked": 0, "retired": 0}
+        result = initiative.run_dream()
+        if result.get("concluded") or result.get("linked"):
+            runtime_store.audit("dreamt", "memory", result)
+        return result
 
     @app.post("/memory/consolidate", response_model=ConsolidateResult)
     async def run_consolidate() -> ConsolidateResult:

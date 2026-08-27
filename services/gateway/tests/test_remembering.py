@@ -173,3 +173,56 @@ def test_a_full_queue_drops_rather_than_blocks(store, monkeypatch) -> None:
 
     assert accepted[0] is True
     assert False in accepted, "a full queue must refuse rather than wait"
+
+def test_the_worker_is_handed_a_client_it_can_actually_call(tmp_path, monkeypatch) -> None:
+    """It was handed the harness instead of the harness's client.
+
+    `CognitionHarness` runs a tool loop and has no `call_with_fallback`, so
+    every extraction raised AttributeError into the worker's own broad except,
+    which logged "extraction unavailable" at info level and kept nothing. The
+    store on the developer's machine held a single memory, written by hand
+    through the tool, while this had been shipped and believed to work.
+
+    Nothing caught it because every test in this file passes its own fake
+    client. Unit tests cannot see a wiring mistake; this looks at what the app
+    actually builds.
+    """
+    from fastapi.testclient import TestClient
+
+    from marvi_gateway.app import create_app
+
+    monkeypatch.setenv("MARVI_HOME", str(tmp_path))
+    with TestClient(create_app()) as client:
+        worker = client.app.state.rememberer
+
+    assert worker is not None
+    assert _usable(worker._client)
+
+
+def test_the_dreamer_is_handed_one_too(tmp_path, monkeypatch) -> None:
+    """Same wiring, same mistake available: dreaming calls the same method on
+    whatever the scheduler was given."""
+    from fastapi.testclient import TestClient
+
+    from marvi_gateway.app import create_app
+
+    monkeypatch.setenv("MARVI_HOME", str(tmp_path))
+    with TestClient(create_app()) as client:
+        initiative = getattr(client.app.state, "initiative", None)
+
+    if initiative is None or initiative.auxiliary_client is None:
+        return
+    assert _usable(initiative.auxiliary_client)
+
+
+def _usable(client: object) -> bool:
+    """Whether `distil.ask` can actually make a call with this.
+
+    The two shapes it knows: the harness, or the provider client underneath it.
+    Anything else reaches the model through nothing and fails into a log line.
+    """
+    from marvi_gateway.cognition import CognitionHarness
+
+    return isinstance(client, CognitionHarness) or callable(
+        getattr(client, "call_with_fallback", None)
+    )

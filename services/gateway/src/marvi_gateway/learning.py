@@ -45,7 +45,7 @@ import json
 import re
 from typing import Any
 
-from . import auxiliary
+from . import distil
 from .logs import get_logger
 
 log = get_logger("memory")
@@ -127,26 +127,24 @@ def propose(client: Any, user: str, assistant: str, available: list[Any]) -> dic
     if client is None or not (user.strip() and assistant.strip()):
         return {}
     try:
-        completion = client.call_with_fallback(
-            [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {
-                    "role": "user",
-                    "content": f"Skills that exist:\n{_skills_listing(available)}\n\n"
-                    f"The exchange:\nUser: {user.strip()[:4000]}\n\n"
-                    f"Assistant: {assistant.strip()[:4000]}",
-                },
-            ],
-            job="aux",
-            max_tokens=MAX_OUTPUT_TOKENS,
-            temperature=0.2,
-            **auxiliary.fallback_overrides("memory"),
+        # Through `distil.ask` for the reason its docstring gives: it is the
+        # one place that knows a client may be the harness rather than the
+        # provider underneath it. `tools=False` because this answers in JSON.
+        answer = distil.ask(
+            client,
+            "memory",
+            SYSTEM_PROMPT,
+            f"Skills that exist:\n{_skills_listing(available)}\n\n"
+            f"The exchange:\nUser: {user.strip()[:4000]}\n\n"
+            f"Assistant: {assistant.strip()[:4000]}",
+            MAX_OUTPUT_TOKENS,
+            tools=False,
         )
     except Exception as exc:
         log.info("skill review unavailable (%s); nothing proposed", exc)
         return {}
 
-    proposal = _parse(getattr(completion, "text", "") or "")
+    proposal = _parse(answer)
     act = str(proposal.get("act") or "none").strip().lower()
     if act not in ("patch", "create"):
         return {}

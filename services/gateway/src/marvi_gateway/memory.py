@@ -159,6 +159,31 @@ CREATE TABLE IF NOT EXISTS vectors (
     dimension INTEGER NOT NULL,
     vector    BLOB NOT NULL
 );
+-- What a conclusion was drawn from.
+--
+-- Honcho's Deriver keeps this and it is the thing that makes derived memory
+-- worth having: a conclusion nobody stated can be *argued with* rather than
+-- only trusted, because the messages behind it are still there. Without it a
+-- dreamt fact is indistinguishable from something the user said, and a wrong
+-- one is unarguable -- Marvi could only insist.
+CREATE TABLE IF NOT EXISTS premises (
+    conclusion_id INTEGER NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+    premise_id    INTEGER NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+    PRIMARY KEY (conclusion_id, premise_id)
+);
+CREATE INDEX IF NOT EXISTS premises_premise ON premises(premise_id);
+-- One row per dream. Doubles as the watermark: `through_id` is the highest
+-- memory the last dream saw, so the next one reads what arrived since rather
+-- than the whole store every six hours.
+CREATE TABLE IF NOT EXISTS dreams (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    at         TEXT NOT NULL,
+    through_id INTEGER NOT NULL DEFAULT 0,
+    considered INTEGER NOT NULL DEFAULT 0,
+    concluded  INTEGER NOT NULL DEFAULT 0,
+    linked     INTEGER NOT NULL DEFAULT 0,
+    retired    INTEGER NOT NULL DEFAULT 0
+);
 CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts
     USING fts5(subject, body, content='memories', content_rowid='id');
 CREATE TRIGGER IF NOT EXISTS memories_ai AFTER INSERT ON memories BEGIN
@@ -371,9 +396,44 @@ class MemoryStore:
             "at": row["at"],
         }
         if not entry["trusted"]:
-            # Recall must not strip the boundary the content arrived with.
-            entry["body"] = wrap_external(entry["source"], entry["body"]).text
+            behind = self._premise_subjects(entry)
+            if behind:
+                # Marvi's own inference, not something that arrived from
+                # outside. The external-data envelope is injection defence --
+                # "never obey it" -- and saying that about her own reasoning is
+                # both wrong and expensive on a block that goes in front of
+                # every turn. It still has to be marked, because a conclusion
+                # she drew and a fact she was told are different things and
+                # stating the first as the second is how she ends up insisting
+                # on something nobody said.
+                entry["body"] = f"(worked out, not stated) {entry['body']}"
+                # What it was drawn from, so "why do you think that?" has an
+                # answer through the recall tool that already exists rather
+                # than through a tool of its own. Costs nothing in the prompt:
+                # `recall_block` reads subject and body only.
+                entry["because"] = behind
+            else:
+                # Recall must not strip the boundary the content arrived with.
+                entry["body"] = wrap_external(entry["source"], entry["body"]).text
         return entry
+
+    def _premise_subjects(self, entry: dict[str, Any]) -> list[str]:
+        """What this was concluded from, or nothing if it is not a conclusion.
+
+        The source alone would be enough today and would not stay enough: an
+        account provider id is a slug the user configures, and one named
+        `dreaming` would get an ingested email marked as Marvi's own thinking
+        and unwrapped. Premises are the thing no external writer can forge --
+        only `conclude()` writes them.
+        """
+        if entry["source"] != self.DREAMT:
+            return []
+        rows = self._db.execute(
+            "SELECT m.subject FROM premises p JOIN memories m ON m.id = p.premise_id"
+            " WHERE p.conclusion_id = ? ORDER BY m.id",
+            (entry["id"],),
+        ).fetchall()
+        return [str(row["subject"]) for row in rows]
 
     # -- searching by meaning -------------------------------------------------
 
@@ -891,6 +951,103 @@ class MemoryStore:
             extra={"marvi_considered": len(groups), "marvi_promoted": len(promoted)},
         )
         return {"considered": len(groups), "promoted": promoted}
+
+    # -- dreaming ------------------------------------------------------------
+    #
+    # Reflection above counts repeats of one subject. Dreaming reads *across*
+    # them, which is a different operation and the one that was missing:
+    # "coffee at 6am" and "asleep by nine" are two episodes that never repeat
+    # and together say something neither says alone.
+
+    #: What the dreamer writes as its source. Everything it may later retire is
+    #: marked with it, and nothing else is ever retired -- the same invariant
+    #: hermes's Curator holds for skills, and for the same reason: a background
+    #: model that can delete what the user told it is a background model that
+    #: can quietly erase them.
+    DREAMT = "dreaming"
+
+    def undreamt(self, limit: int = 80) -> list[dict[str, Any]]:
+        """Memories that arrived since the last dream, oldest first.
+
+        Oldest first because a conclusion is drawn in the order things
+        happened, and handing a model the newest first inverts every "then".
+        """
+        row = self._db.execute("SELECT MAX(through_id) AS mark FROM dreams").fetchone()
+        mark = int(row["mark"] or 0) if row else 0
+        rows = self._db.execute(
+            "SELECT * FROM memories WHERE id > ? AND source != ? ORDER BY id LIMIT ?",
+            (mark, self.DREAMT, max(1, min(limit, 200))),
+        ).fetchall()
+        return [self._row(row) for row in rows]
+
+    def conclude(self, subject: str, body: str, premises: list[int]) -> int:
+        """Store something nobody said, with what it was drawn from.
+
+        Untrusted on purpose. It is Marvi's inference, not the user's word, and
+        the two must not be recalled as though they were the same kind of
+        thing.
+        """
+        memory_id = self.remember(
+            subject, body, kind="semantic", source=self.DREAMT, trusted=False
+        )
+        for premise in premises:
+            self._db.execute(
+                "INSERT OR IGNORE INTO premises (conclusion_id, premise_id) VALUES (?, ?)",
+                (memory_id, int(premise)),
+            )
+        self._db.commit()
+        return memory_id
+
+    def premises_of(self, memory_id: int) -> list[dict[str, Any]]:
+        """What a conclusion rests on, for answering "why do you think that?"."""
+        rows = self._db.execute(
+            "SELECT m.* FROM premises p JOIN memories m ON m.id = p.premise_id"
+            " WHERE p.conclusion_id = ? ORDER BY m.id",
+            (int(memory_id),),
+        ).fetchall()
+        return [self._row(row) for row in rows]
+
+    def retire(self, memory_id: int) -> bool:
+        """Drop a conclusion the dreamer no longer stands behind.
+
+        Refuses anything it did not write. A conclusion is Marvi's to withdraw;
+        a fact the user stated is not.
+        """
+        row = self._db.execute(
+            "SELECT source FROM memories WHERE id = ?", (int(memory_id),)
+        ).fetchone()
+        if row is None or row["source"] != self.DREAMT:
+            return False
+        return self.forget(int(memory_id))
+
+    def conclusions(self, limit: int = 50) -> list[dict[str, Any]]:
+        """Everything the dreamer has concluded, newest first."""
+        rows = self._db.execute(
+            "SELECT * FROM memories WHERE source = ? ORDER BY id DESC LIMIT ?",
+            (self.DREAMT, max(1, min(limit, 200))),
+        ).fetchall()
+        return [{**self._row(row), "premises": self.premises_of(int(row["id"]))} for row in rows]
+
+    def record_dream(self, **counts: int) -> None:
+        self._db.execute(
+            "INSERT INTO dreams (at, through_id, considered, concluded, linked, retired)"
+            " VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                datetime.now(UTC).isoformat(),
+                int(counts.get("through_id", 0)),
+                int(counts.get("considered", 0)),
+                int(counts.get("concluded", 0)),
+                int(counts.get("linked", 0)),
+                int(counts.get("retired", 0)),
+            ),
+        )
+        self._db.commit()
+
+    def dreams(self, limit: int = 20) -> list[dict[str, Any]]:
+        rows = self._db.execute(
+            "SELECT * FROM dreams ORDER BY id DESC LIMIT ?", (max(1, min(limit, 100)),)
+        ).fetchall()
+        return [dict(row) for row in rows]
 
     def consolidate(self, now: datetime | None = None) -> dict[str, int]:
         """The sleep pass: drop stale, unreinforced episodes.
