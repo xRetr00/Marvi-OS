@@ -14,7 +14,7 @@ the desktop application. The desktop icon source is
 
 ## Status
 
-Phases 2, 4, 5, and 6 are complete. Phase 3 is in hardware acceptance,
+Phases 2, 4, 5, 6, and 13 are complete. Phase 3 is in hardware acceptance,
 Phase 7 has the update handoff working and a packaged installer building, and
 Phase 8's vision ownership and contracts are complete with native camera
 calibration still pending. The

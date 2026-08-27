@@ -3291,7 +3291,10 @@ function SchedulesPanel(): React.JSX.Element {
           </label>
           <label>
             <span>Job type</span>
-            <select value={mode} onChange={(event) => setMode(event.target.value as 'action' | 'agent')}>
+            <select
+              value={mode}
+              onChange={(event) => setMode(event.target.value as 'action' | 'agent')}
+            >
               <option value="action">Reminder / ARC action</option>
               <option value="agent">Agent task with tools</option>
             </select>
@@ -3327,14 +3330,20 @@ function SchedulesPanel(): React.JSX.Element {
                 <span>Reasoning</span>
                 <select value={effort} onChange={(event) => setEffort(event.target.value)}>
                   {(page?.efforts ?? ['', 'low', 'medium', 'high']).map((item) => (
-                    <option key={item || 'auto'} value={item}>{item || 'Auto'}</option>
+                    <option key={item || 'auto'} value={item}>
+                      {item || 'Auto'}
+                    </option>
                   ))}
                 </select>
               </label>
               <label>
                 <span>Delivery</span>
                 <select value={delivery} onChange={(event) => setDelivery(event.target.value)}>
-                  {(page?.delivery_targets ?? [{ id: 'local', name: 'Local (save only)', available: true }]).map((target) => (
+                  {(
+                    page?.delivery_targets ?? [
+                      { id: 'local', name: 'Local (save only)', available: true }
+                    ]
+                  ).map((target) => (
                     <option key={target.id} value={target.id} disabled={!target.available}>
                       {target.name}
                     </option>
@@ -3350,11 +3359,13 @@ function SchedulesPanel(): React.JSX.Element {
                       <input
                         type="checkbox"
                         checked={toolNames.includes(tool)}
-                        onChange={(event) => setToolNames((current) =>
-                          event.target.checked
-                            ? [...current, tool]
-                            : current.filter((item) => item !== tool)
-                        )}
+                        onChange={(event) =>
+                          setToolNames((current) =>
+                            event.target.checked
+                              ? [...current, tool]
+                              : current.filter((item) => item !== tool)
+                          )
+                        }
                       />
                       <span>{tool}</span>
                     </label>
@@ -3413,9 +3424,12 @@ function SchedulesPanel(): React.JSX.Element {
               </small>
               {row.mode === 'agent' ? (
                 <small>
-                  {row.provider || 'auto provider'} / {row.model || 'auto model'} / {row.effort || 'auto reasoning'}
-                  {' · '}{row.tool_names.length ? `${row.tool_names.length} tools` : 'all tools'}
-                  {' · '}{row.delivery}
+                  {row.provider || 'auto provider'} / {row.model || 'auto model'} /{' '}
+                  {row.effort || 'auto reasoning'}
+                  {' · '}
+                  {row.tool_names.length ? `${row.tool_names.length} tools` : 'all tools'}
+                  {' · '}
+                  {row.delivery}
                 </small>
               ) : null}
               {row.prompt ? <small>{row.prompt}</small> : null}
@@ -3425,7 +3439,9 @@ function SchedulesPanel(): React.JSX.Element {
               ) : row.last_run ? (
                 <small>last run {row.last_run}</small>
               ) : null}
-              {row.last_output ? <small className="schedule-output">{row.last_output}</small> : null}
+              {row.last_output ? (
+                <small className="schedule-output">{row.last_output}</small>
+              ) : null}
               <div className="provider-actions">
                 <button className="phase" type="button" onClick={() => void act(row.id, 'run')}>
                   Run now
