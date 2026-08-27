@@ -110,6 +110,22 @@ fn threshold() -> f32 {
         .unwrap_or(DEFAULT_THRESHOLD)
 }
 
+/// Set by the tray when the chosen microphone changes.
+///
+/// Re-opening a stream rather than restarting the process, for one reason: a
+/// restart has to get past the single-instance mutex the replacement would
+/// find still held by the process that spawned it. Swapping the stream is also
+/// most of a second faster and keeps the tray icon on screen throughout.
+static SWITCH: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+pub fn ask_for_a_new_microphone() {
+    SWITCH.store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
+fn switch_requested() -> bool {
+    SWITCH.swap(false, std::sync::atomic::Ordering::Relaxed)
+}
+
 /// Listen until told to stop. `quit` is set by the tray.
 fn listen(quit: &dyn Fn() -> bool) -> Result<(), Box<dyn std::error::Error>> {
     let started = state::now();
@@ -121,8 +137,12 @@ fn listen(quit: &dyn Fn() -> bool) -> Result<(), Box<dyn std::error::Error>> {
         ..Default::default()
     };
 
-    let wanted = std::env::var("MARVI_WAKE_DEVICE").unwrap_or_default();
-    let microphone = match audio::open(&wanted) {
+    // From the environment when the desktop started this, from the settings
+    // file when Windows did. A login-started listener inherits nothing, and
+    // read only from the environment it opened the default microphone however
+    // carefully another had been chosen.
+    let wanted = marvi_wake_host::settings::get("MARVI_WAKE_DEVICE");
+    let mut microphone = match audio::open(&wanted) {
         Ok(open) => open,
         Err(error) => {
             // Written down rather than only logged: the settings page shows
@@ -146,6 +166,30 @@ fn listen(quit: &dyn Fn() -> bool) -> Result<(), Box<dyn std::error::Error>> {
     loop {
         if quit() {
             break;
+        }
+        if switch_requested() {
+            let wanted = marvi_wake_host::settings::get("MARVI_WAKE_DEVICE");
+            match audio::open(&wanted) {
+                Ok(open) => {
+                    eprintln!("switched to {}", open.name);
+                    report.error.clear();
+                    // The old stream is dropped here, which closes it. Half a
+                    // second of samples from the previous microphone is still
+                    // in `pending`; mixing two devices' audio inside one
+                    // two-second window is a detection made of both.
+                    microphone = open;
+                    pending.clear();
+                    detector = Detector::load(&models_dir())?;
+                }
+                Err(error) => {
+                    // Keep listening on the one that works. A chosen device
+                    // that cannot be opened must not leave Marvi deaf.
+                    eprintln!("could not switch microphone: {error}");
+                    report.error = error;
+                }
+            }
+            report.heartbeat = state::now();
+            report.write();
         }
         // Timed rather than blocking, so the tray's Quit is acted on within a
         // beat even when the microphone has gone quiet or gone away.
@@ -230,7 +274,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 mod tray {
     use std::sync::atomic::{AtomicBool, Ordering};
 
-    use tray_icon::menu::{Menu, MenuEvent, MenuItem};
+    use tray_icon::menu::{CheckMenuItem, Menu, MenuEvent, MenuItem, Submenu};
     use tray_icon::{Icon, TrayIconBuilder};
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         DispatchMessageW, PeekMessageW, TranslateMessage, MSG, PM_REMOVE,
@@ -273,7 +317,28 @@ mod tray {
             true,
             None,
         );
+        // The microphone lives here rather than in Marvi's settings page,
+        // because this is the program that opens it. The page listed what
+        // PortAudio could see and this can only open what cpal can, so the two
+        // lists disagreed and choosing from the wrong one silently fell back
+        // to the default.
+        let chosen = marvi_wake_host::settings::get("MARVI_WAKE_DEVICE");
+        let devices = marvi_wake_host::audio::microphones();
+        let microphones = Submenu::new("Microphone", true);
+        let default_item = CheckMenuItem::new("System default", true, chosen.is_empty(), None);
+        microphones.append(&default_item)?;
+        let mut device_items = Vec::with_capacity(devices.len());
+        for name in &devices {
+            // Names arrive with newlines and driver paths in the middle of
+            // them on Bluetooth headsets; a menu item is one line either way.
+            let label: String = name.split_whitespace().collect::<Vec<_>>().join(" ");
+            let item = CheckMenuItem::new(&label, true, *name == chosen, None);
+            microphones.append(&item)?;
+            device_items.push((item, name.clone()));
+        }
+
         let quit_item = MenuItem::new("Quit", true, None);
+        menu.append(&microphones)?;
         menu.append(&autostart_item)?;
         menu.append(&quit_item)?;
 
@@ -285,6 +350,7 @@ mod tray {
 
         let quit_id = quit_item.id().clone();
         let autostart_id = autostart_item.id().clone();
+        let default_id = default_item.id().clone();
 
         // The listener runs on its own thread; this one pumps messages, which
         // on Windows is what keeps a tray icon alive at all.
@@ -307,6 +373,28 @@ mod tray {
             while let Ok(event) = receiver.try_recv() {
                 if event.id == quit_id {
                     QUIT.store(true, Ordering::Relaxed);
+                } else if event.id == default_id || device_items.iter().any(|(i, _)| *i.id() == event.id) {
+                    let picked = if event.id == default_id {
+                        String::new()
+                    } else {
+                        device_items
+                            .iter()
+                            .find(|(item, _)| *item.id() == event.id)
+                            .map(|(_, name)| name.clone())
+                            .unwrap_or_default()
+                    };
+                    // Saved where the settings page keeps it, then acted on
+                    // now: a choice that only takes effect at the next login
+                    // is one you cannot tell you made.
+                    marvi_wake_host::settings::set("MARVI_WAKE_DEVICE", &picked);
+                    super::ask_for_a_new_microphone();
+                    // The click already toggled the item it landed on. Every
+                    // other one has to be cleared, or two microphones show a
+                    // tick and the menu stops meaning anything.
+                    default_item.set_checked(picked.is_empty());
+                    for (item, name) in &device_items {
+                        item.set_checked(*name == picked);
+                    }
                 } else if event.id == autostart_id {
                     let now_on = !marvi_wake_host::autostart::registered();
                     marvi_wake_host::autostart::set(now_on);
