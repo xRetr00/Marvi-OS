@@ -133,6 +133,8 @@ import type {
   PendingSecret,
   LanguagePolicy,
   LanguageUpdate,
+  MemoryPolicy,
+  MemorySettingsUpdate,
   WakeStatus,
   WorkspacePolicy,
   WorkspaceUpdate
@@ -1558,6 +1560,143 @@ function MindPanel(): React.JSX.Element {
   )
 }
 
+/**
+ * How memory is written, and how it will be searched.
+ *
+ * Two settings, because two different things have to be configured for memory
+ * to work at all and the answer to "why did she not remember that" is usually
+ * one of them being unset. The role decides what is kept from a turn; the
+ * embedding decides whether recall can match meaning rather than words.
+ */
+function MemorySettingsSection(): React.JSX.Element {
+  const [policy, setPolicy] = useState<MemoryPolicy | null>(null)
+  const [url, setUrl] = useState('')
+  const [key, setKey] = useState('')
+  const [model, setModel] = useState('')
+
+  useEffect(() => {
+    let gone = false
+    void (async () => {
+      const next = await window.marvi?.getMemorySettings()
+      if (gone || !next) return
+      setPolicy(next)
+      setUrl(next.url)
+      setModel(next.model)
+    })()
+    return () => {
+      gone = true
+    }
+  }, [])
+
+  const apply = (update: MemorySettingsUpdate): void => {
+    void (async () => {
+      const next = await window.marvi?.setMemorySettings(update)
+      if (next) {
+        setPolicy(next)
+        setModel(next.model)
+      }
+    })()
+  }
+
+  const source = policy?.source ?? 'off'
+
+  return (
+    <ControlSection
+      description="What gets kept from a conversation, and how it is found again."
+      icon={Brain}
+      title="How memory works"
+    >
+      <ControlRow
+        description={
+          policy?.roleConfigured
+            ? 'A model reads each finished exchange and decides what to keep. Chosen in Settings › Models.'
+            : 'No model is set for this, so the main one does it. Choose a cheaper one in Settings › Models › Memory.'
+        }
+        title="Deciding what to remember"
+      />
+      <ControlRow
+        action={
+          <Picker
+            options={[
+              { value: 'off', label: 'Words only', detail: 'Keyword search. No model, no cost' },
+              {
+                value: 'local',
+                label: 'On this machine',
+                detail: '10ms a search, 23M parameters, nothing leaves'
+              },
+              {
+                value: 'provider',
+                label: 'An API',
+                detail: 'Anything OpenAI-compatible, including a local server'
+              }
+            ]}
+            value={source}
+            onChange={(next) => apply({ source: next })}
+            placeholder="Words only"
+          />
+        }
+        description={
+          source === 'off'
+            ? 'Today “who am I” does not match “the user’s name is …”, because they share no words. An embedding fixes that.'
+            : source === 'local'
+              ? 'Runs on the processor, beside speech recognition. The graphics card stays free for the voice.'
+              : 'Your memories are sent to whichever endpoint you name, on every recall.'
+        }
+        title="Searching by meaning"
+      />
+      {source !== 'off' ? (
+        <ControlRow
+          description={
+            source === 'local'
+              ? `Downloaded on first use. Default: ${policy?.defaultLocalModel ?? ''}`
+              : 'The endpoint and model. Any server that answers POST /v1/embeddings.'
+          }
+          title="Model"
+        >
+          <form
+            className="workspace-add"
+            onSubmit={(event) => {
+              event.preventDefault()
+              apply({
+                model,
+                ...(source === 'provider' ? { url, ...(key ? { key } : {}) } : {})
+              })
+              setKey('')
+            }}
+          >
+            <input
+              aria-label="Embedding model"
+              onChange={(event) => setModel(event.target.value)}
+              placeholder={policy?.defaultLocalModel ?? 'model'}
+              value={model}
+            />
+            {source === 'provider' ? (
+              <>
+                <input
+                  aria-label="Endpoint"
+                  onChange={(event) => setUrl(event.target.value)}
+                  placeholder="http://127.0.0.1:11434/v1"
+                  value={url}
+                />
+                <input
+                  aria-label="API key"
+                  onChange={(event) => setKey(event.target.value)}
+                  placeholder={policy?.keySet ? 'key saved' : 'key, if needed'}
+                  type="password"
+                  value={key}
+                />
+              </>
+            ) : null}
+            <button className="ghost-button" type="submit">
+              Save
+            </button>
+          </form>
+        </ControlRow>
+      ) : null}
+    </ControlSection>
+  )
+}
+
 function MemoryPanel(): React.JSX.Element {
   const [page, setPage] = useState<MemoryPage>({ total: 0, entries: [], summary: {} })
   const [mode, setMode] = useState<MemoryGraphMode>('tree')
@@ -1631,6 +1770,8 @@ function MemoryPanel(): React.JSX.Element {
         </div>
         <ArcMemoryGraph graph={graph} loading={graphLoading} />
       </div>
+
+      <MemorySettingsSection />
 
       <ControlSection
         action={

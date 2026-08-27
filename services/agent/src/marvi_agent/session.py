@@ -125,6 +125,52 @@ def configured_voice() -> str:
     return os.environ.get("MARVI_TTS_VOICE", KOKORO_DEFAULT_VOICE)
 
 
+def _recall(text: str) -> str:
+    """What Marvi already knows that bears on this message.
+
+    The Gateway does the searching, so the two surfaces cannot drift into
+    remembering differently -- chat had its own copy of this and voice had
+    none at all. Never raises: a recall that fails is a turn without notes,
+    not a turn that does not happen.
+    """
+    import contextlib
+
+    if not text.strip():
+        return ""
+    with contextlib.suppress(Exception):
+        import httpx
+
+        found = httpx.get(
+            f"{gateway_url()}/memory/recall",
+            params={"text": text},
+            timeout=REPORT_TIMEOUT,
+        )
+        return str(found.json().get("block") or "")
+    return ""
+
+
+def _observe_turn(user: str, assistant: str) -> None:
+    """Hand a finished exchange to the Gateway's memory worker.
+
+    Fire and forget, deliberately. The turn is over, the user has their answer,
+    and whether a fact gets kept is not something a voice session should wait
+    to find out -- which is exactly what a `memory_remember` tool call in the
+    middle of the turn was making it do.
+    """
+    import contextlib
+
+    if not (user.strip() or assistant.strip()):
+        return
+    with contextlib.suppress(Exception):
+        import httpx
+
+        httpx.post(
+            f"{gateway_url()}/memory/observe",
+            json={"user": user, "assistant": assistant},
+            timeout=REPORT_TIMEOUT,
+        )
+
+
 def _report_transcript(*, heard: str = "", spoken: str = "") -> None:
     """Send what was heard or said to the Gateway, for the Voice page.
 
@@ -242,6 +288,22 @@ class MarviVoiceAgent(Agent):
         text = " ".join(str(part) for part in new_message.content).strip()
         log.info("heard: %s", text[:200] or "(nothing)")
         _report_transcript(heard=text)
+
+        # What Marvi already knows that bears on this, in front of the model
+        # before it answers.
+        #
+        # Chat did this on every message and voice did not, so the spoken
+        # surface could only reach memory by deciding to call a tool -- and
+        # anything it had been told and not asked about was, in practice,
+        # forgotten. Asked her own name, Marvi did not look it up. She wrote it
+        # down again, five times, once per mishearing.
+        #
+        # Into the turn's context rather than the instructions: this is true of
+        # this turn, and baking it into the persona would carry one message's
+        # recall through the whole session.
+        if block := _recall(text):
+            turn_ctx.add_message(role="system", content=block)
+            log.info("recall: %d characters of memory added to the turn", len(block))
 
 
 def prewarm(proc: JobProcess) -> None:
@@ -457,13 +519,30 @@ async def marvi_session(ctx: JobContext) -> None:
         # they are still being recognised, not a sentence arriving at once.
         _report_transcript(heard=getattr(event, "transcript", "") or "")
 
+    # The last thing the user said, so a finished exchange can be handed over
+    # whole. What is worth remembering is often in neither half alone: "yes,
+    # that one" means nothing without the question it answered.
+    last_heard = {"text": ""}
+
+    @session.on("user_input_transcribed")
+    def _keep_heard(event: Any) -> None:
+        if getattr(event, "is_final", False):
+            last_heard["text"] = getattr(event, "transcript", "") or ""
+
     @session.on("conversation_item_added")
     def _spoke(event: Any) -> None:
         # Separate from the logging above because this one leaves the process:
         # the Voice page's transcript is fed from here.
         item = getattr(event, "item", None)
-        if getattr(item, "role", "") == "assistant":
-            _report_transcript(spoken=getattr(item, "text_content", "") or "")
+        if getattr(item, "role", "") != "assistant":
+            return
+        spoken = getattr(item, "text_content", "") or ""
+        _report_transcript(spoken=spoken)
+        # Handed over rather than decided here. Marvi used to choose what to
+        # remember by calling a tool mid-conversation, which put the decision
+        # on the latency path and could only ever add. The Gateway takes the
+        # turn, returns immediately, and works it out on a thread.
+        _observe_turn(last_heard["text"], spoken)
 
     connecting = time.monotonic()
     await session.start(agent=MarviVoiceAgent(), room=ctx.room)

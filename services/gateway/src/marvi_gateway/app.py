@@ -29,6 +29,7 @@ from . import (
     latency,
     parent,
     paths,
+    remembering,
     selfaware,
     toolsearch,
     upgrade,
@@ -154,6 +155,30 @@ class SecretAnswer(BaseModel):
     #: Empty means the user dismissed the field. Saving nothing is a real
     #: answer -- "I would rather do this myself" -- and must not be an error.
     value: str = ""
+
+
+class MemorySettings(BaseModel):
+    """Where embeddings come from, when memory starts using them.
+
+    `None` means leave it alone, so changing the source does not blank the
+    endpoint somebody typed a moment earlier.
+    """
+
+    source: str | None = None
+    model: str | None = None
+    url: str | None = None
+    key: str | None = None
+
+
+class ObservedTurn(BaseModel):
+    """One finished exchange, handed to the memory worker.
+
+    Both halves, because what is worth remembering is often in neither alone:
+    "yes, that one" means nothing without the question it answered.
+    """
+
+    user: str = ""
+    assistant: str = ""
 
 
 class LanguageUpdate(BaseModel):
@@ -824,6 +849,10 @@ def create_app(
             return distil.summarise_memories(cognition, groups)
 
         register_memory_tools(tool_registry, memory, summarise=memory_summarise)
+        # Decides what to keep from a finished turn, on a worker thread. The
+        # model used to do this by hand, mid-conversation, and could only add --
+        # which is how five spellings of one name ended up as five memories.
+        rememberer = remembering.Rememberer(memory, cognition)
         activity = ActivityWatch()
         if activity.available():
             register_activity_tools(tool_registry, activity)
@@ -862,6 +891,7 @@ def create_app(
             # MARVI_BROWSER asks for it.
             register_browser_tools(tool_registry, BrowserSession(), workspace)
         chat = Chat(
+            rememberer=rememberer,
             store=ChatStore(),
             client=provider_client,
             identity=identity,
@@ -1890,6 +1920,71 @@ def create_app(
             # tool lists in the first place.
             "reply_instruction": language.reply_instruction(),
         }
+
+    @app.get("/memory/settings")
+    async def read_memory_settings() -> dict[str, Any]:
+        """How memory is written and, later, how it will be searched.
+
+        The auxiliary role is named here as well as on the Models page, because
+        the answer to "why did she not remember that" is usually "no model is
+        configured for it" and that is worth saying where memory is configured.
+        """
+        from . import embedding
+
+        return {
+            "embedding": embedding.describe(),
+            # Which model decides what to keep. Already a role; surfaced here so
+            # the two settings that make memory work are in one place.
+            "role": "memory",
+            "role_setting": auxiliary.BY_KEY["memory"].setting,
+            "role_configured": bool(auxiliary.configured("memory")),
+        }
+
+    @app.put("/memory/settings")
+    async def set_memory_settings(update: MemorySettings) -> dict[str, Any]:
+        from . import embedding
+
+        values: dict[str, str] = {}
+        if update.source is not None:
+            if update.source not in embedding.SOURCES:
+                raise HTTPException(status_code=400, detail=f"unknown source {update.source!r}")
+            values[embedding.SOURCE_SETTING] = update.source
+        if update.model is not None:
+            values[embedding.MODEL_SETTING] = update.model.strip()
+        if update.url is not None:
+            values[embedding.URL_SETTING] = update.url.strip()
+        if update.key is not None:
+            # Written like any other credential and never read back: `describe`
+            # reports whether one is set, never what it is.
+            values[embedding.KEY_SETTING] = update.key.strip()
+        if values:
+            provider_config.update(values)
+            redactor().refresh()
+            runtime_store.audit("memory", "settings", {"changed": sorted(values)})
+        return await read_memory_settings()
+
+    @app.get("/memory/recall")
+    async def recall_memory(text: str = "", limit: int = 5) -> dict[str, Any]:
+        """What Marvi already knows that bears on this message.
+
+        Published so voice can have it. Chat called its own copy on every turn
+        and voice had nothing -- the spoken surface could only reach memory by
+        deciding to call a tool, so anything it had been told and not asked
+        about was, in practice, forgotten. Asked her own name, Marvi did not
+        look it up; she wrote it down again, five times.
+        """
+        return {"block": memory.recall_block(text, limit=max(1, min(limit, 20)))}
+
+    @app.post("/memory/observe", status_code=202)
+    async def observe_turn(turn: ObservedTurn) -> dict[str, Any]:
+        """A finished exchange, for the memory worker to think about later.
+
+        202 and nothing else: the caller is a surface that has just answered
+        somebody, and whether a fact gets kept is not something they should
+        wait to find out.
+        """
+        queued = rememberer.observe(turn.user, turn.assistant)
+        return {"queued": queued}
 
     @app.get("/language")
     async def read_language() -> dict[str, Any]:

@@ -889,6 +889,33 @@ export interface LanguageUpdate {
   speak?: string
 }
 
+/**
+ * Where embeddings come from, when memory starts using them.
+ *
+ * `off` is the default and keyword recall still works — a memory system that
+ * silently started calling an API would be a surprise nobody asked for.
+ */
+export interface MemoryPolicy {
+  source: 'off' | 'local' | 'provider'
+  sources: string[]
+  model: string
+  url: string
+  /** Whether a key is stored. Never the key. */
+  keySet: boolean
+  defaultLocalModel: string
+  defaultProviderModel: string
+  /** The auxiliary role that decides what to keep from a turn. */
+  role: string
+  roleConfigured: boolean
+}
+
+export interface MemorySettingsUpdate {
+  source?: string
+  model?: string
+  url?: string
+  key?: string
+}
+
 export interface WorkspaceUpdate {
   root?: string
   read_scope?: string

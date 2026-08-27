@@ -594,6 +594,53 @@ class MemoryStore:
 
     # -- reflection and consolidation ---------------------------------------
 
+    def recall_block(self, text: str, limit: int = 5, budget: int = 1_200) -> str:
+        """What Marvi already knows that bears on this message, as prompt text.
+
+        Lives here rather than in Chat because both surfaces need it and the
+        one that did not have it was voice -- so memory reached the typed
+        conversation on every turn and the spoken one never, unless the model
+        thought to call a tool. Asked her own name, Marvi did not look; she
+        wrote it down again.
+
+        Searched rather than dumped: the store grows without limit and the
+        prompt does not. Untrusted entries arrive already enveloped by the
+        layer below, so the boundary they came with survives recall.
+        """
+        if not text.strip():
+            return ""
+        try:
+            found = self.search(text, limit=limit)
+        except Exception as exc:  # pragma: no cover - depends on the store
+            log.warning("recall unavailable: %s", exc)
+            return ""
+
+        lines: list[str] = []
+        spent = 0
+        for entry in found:
+            body = str(entry.get("body") or "").strip()
+            if not body:
+                continue
+            subject = str(entry.get("subject") or "").strip()
+            line = f"- {subject}: {body}" if subject else f"- {body}"
+            if spent + len(line) > budget:
+                break
+            lines.append(line)
+            spent += len(line)
+        if not lines:
+            return ""
+        nl = chr(10)
+        return (
+            "# What you remember"
+            + nl
+            + nl
+            + nl.join(lines)
+            + nl
+            + nl
+            + "Your own notes from earlier. They may be out of date; prefer "
+            "what the user says now, and do not repeat them back unprompted."
+        )
+
     def reflect(self, summarise: Any = None, limit: int = 50) -> dict[str, Any]:
         """Turn repeated episodes into durable facts.
 

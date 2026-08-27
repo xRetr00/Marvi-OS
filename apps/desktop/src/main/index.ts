@@ -77,6 +77,7 @@ import type {
   UpstreamPage,
   VoicePage,
   LanguagePolicy,
+  MemoryPolicy,
   WakeStatus,
   WorkspacePolicy
 } from '../shared/runtime'
@@ -226,6 +227,29 @@ function normaliseLanguage(body: unknown): LanguagePolicy | null {
     speakOptions: options(body.speak_options).map(({ code, name }) => ({ code, name })),
     enforceable: body.enforceable === true,
     englishModelInstalled: body.english_model_installed === true
+  }
+}
+
+/** The memory policy, in the renderer's spelling. */
+function normaliseMemory(body: unknown): MemoryPolicy | null {
+  if (!isRecord(body)) return null
+  const embedding = isRecord(body.embedding) ? body.embedding : {}
+  const source =
+    embedding.source === 'local' || embedding.source === 'provider' ? embedding.source : 'off'
+  return {
+    source,
+    sources: Array.isArray(embedding.sources)
+      ? embedding.sources.filter((item): item is string => typeof item === 'string')
+      : ['off', 'local', 'provider'],
+    model: typeof embedding.model === 'string' ? embedding.model : '',
+    url: typeof embedding.url === 'string' ? embedding.url : '',
+    keySet: embedding.key_set === true,
+    defaultLocalModel:
+      typeof embedding.default_local_model === 'string' ? embedding.default_local_model : '',
+    defaultProviderModel:
+      typeof embedding.default_provider_model === 'string' ? embedding.default_provider_model : '',
+    role: typeof body.role === 'string' ? body.role : 'memory',
+    roleConfigured: body.role_configured === true
   }
 }
 
@@ -2085,6 +2109,30 @@ function startApp(): void {
           signal: AbortSignal.timeout(8_000)
         })
         return response.ok ? normaliseProviderPage(await response.json()) : null
+      } catch {
+        return null
+      }
+    })
+    ipcMain.handle('marvi:get-memory-settings', async () => {
+      try {
+        const response = await fetch(`${gateway()}/memory/settings`, {
+          signal: AbortSignal.timeout(5_000)
+        })
+        return response.ok ? normaliseMemory(await response.json()) : null
+      } catch {
+        return null
+      }
+    })
+    ipcMain.handle('marvi:set-memory-settings', async (_event, update) => {
+      if (!isRecord(update)) return null
+      try {
+        const response = await fetch(`${gateway()}/memory/settings`, {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(update),
+          signal: AbortSignal.timeout(8_000)
+        })
+        return response.ok ? normaliseMemory(await response.json()) : null
       } catch {
         return null
       }

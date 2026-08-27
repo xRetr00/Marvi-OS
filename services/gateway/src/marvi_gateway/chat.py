@@ -744,6 +744,7 @@ class Chat:
         store: ChatStore | None = None,
         client: ProviderClient | None = None,
         identity: IdentityFiles | None = None,
+        rememberer: Any = None,
         dispatch: ToolDispatch | None = None,
         tool_schemas: Callable[[], list[dict[str, Any]]] | None = None,
         memory: Any = None,
@@ -753,6 +754,10 @@ class Chat:
         self.store = store or ChatStore()
         self.client = client or ProviderClient()
         self.identity = identity or IdentityFiles()
+        #: Decides what to keep from a finished turn, off the turn. None means
+        #: nothing is written -- which is what the old code should have done
+        #: rather than storing every reply verbatim.
+        self.rememberer = rememberer
         self.dispatch = dispatch
         self.tool_schemas = tool_schemas
         self.memory = memory
@@ -787,50 +792,22 @@ class Chat:
             )
 
     def _recall(self, text: str) -> str:
-        """What Marvi already knows that bears on this message.
+        """Delegated, so voice and chat recall the same way.
 
-        Memory was written after every reply and never read again. The only way
-        back in was the `memory_search` tool -- so recall cost a whole extra
-        round trip, and happened only when the model thought to ask. Anything
-        it had been told and not asked about was, in practice, forgotten.
-
-        Searched rather than dumped: the store grows without limit and the
-        prompt does not. Untrusted entries arrive already enveloped by the
-        memory layer, so the boundary they came with survives recall.
+        This was chat's alone, and voice had nothing -- which is how the spoken
+        surface ended up unable to remember anything it had not been asked to
+        look up. One implementation, in the store, used by both.
         """
-        if self.memory is None or not text.strip():
+        if self.memory is None:
             return ""
         try:
-            found = self.memory.search(text, limit=RECALL_LIMIT)
+            return self.memory.recall_block(text, limit=RECALL_LIMIT, budget=RECALL_CHARS)
         except Exception as exc:  # pragma: no cover - depends on the store
+            # A turn without notes, not a turn that fails. The store is on the
+            # path of every message now that recall is automatic, so anything
+            # wrong with it would otherwise end every conversation.
             logger.warning("recall unavailable: %s", exc)
             return ""
-
-        lines: list[str] = []
-        spent = 0
-        for entry in found:
-            body = str(entry.get("body") or "").strip()
-            if not body:
-                continue
-            subject = str(entry.get("subject") or "").strip()
-            line = f"- {subject}: {body}" if subject else f"- {body}"
-            if spent + len(line) > RECALL_CHARS:
-                break
-            lines.append(line)
-            spent += len(line)
-        if not lines:
-            return ""
-        nl = chr(10)
-        return (
-            "# What you remember"
-            + nl
-            + nl
-            + nl.join(lines)
-            + nl
-            + nl
-            + "Your own notes from earlier. They may be out of date; prefer "
-            "what the user says now, and do not repeat them back unprompted."
-        )
 
     def _system(self, gap: Any = None, recalled: str = "") -> str:
         # Identity leads, then the chat brief. Identity is byte-identical every
@@ -1345,8 +1322,12 @@ class Chat:
                     output_tokens=usage["output"],
                     cached_tokens=usage["cached_input"],
                 )
-                if self.memory is not None and reply:
-                    self.memory.remember(text[:200], reply[:2000], kind="episodic")
+                if self.rememberer is not None and reply:
+                    # Handed over, not decided here. This used to file the
+                    # user's message as a subject and the whole reply as a
+                    # body, every turn -- a transcript stored as facts, which
+                    # is how "Hi Sharif." became a memory about the world.
+                    self.rememberer.observe(text, reply)
                 yield {
                     "done": True,
                     "reply": reply,
@@ -1508,10 +1489,12 @@ class Chat:
                     output_tokens=completion.usage.output,
                     cached_tokens=completion.usage.cached_input,
                 )
-                if self.memory is not None and reply:
-                    # Chat is a real conversation, so it belongs in the same
-                    # memory the voice path writes to.
-                    self.memory.remember(text[:200], reply[:2000], kind="episodic")
+                if self.rememberer is not None and reply:
+                    # Handed over, not decided here. This used to file the
+                    # user's message as a subject and the whole reply as a
+                    # body, every turn -- a transcript stored as facts, which
+                    # is how "Hi Sharif." became a memory about the world.
+                    self.rememberer.observe(text, reply)
                 return ChatTurn(reply=reply, tools_used=used, tokens=tokens, provider=provider)
 
             for call in calls:

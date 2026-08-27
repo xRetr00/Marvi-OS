@@ -1,0 +1,295 @@
+"""What Marvi remembers from a turn, decided after the turn.
+
+Three things were wrong with how memory was written, and they were one thing:
+the model did it, mid-conversation, by hand.
+
+* **It happened during the turn.** Deciding to remember cost a tool call on the
+  latency-critical path. Honcho stores the message and returns immediately --
+  "nothing about the reasoning that follows blocks the caller" -- and Mem0 does
+  the same. Marvi was the only one making you wait to be remembered.
+* **It stored what the model typed.** No extraction pass, so a memory was
+  whatever phrasing the model reached for. That is how `Hi Sharif.` became an
+  episodic memory whose subject was "Hello": her own reply, filed as a fact
+  about the world.
+* **It could only add.** `remember` was an unconditional INSERT, so a
+  correction joined the fact it corrected instead of replacing it -- five
+  spellings of one name inside two minutes.
+
+## Four operations, chosen by a model
+
+Mem0's shape, because it is the right one and the failure it prevents is the
+failure we had: the candidate fact is weighed against the memories nearest to
+it and the answer is `add`, `update`, `delete` or `noop`, decided *at write
+time* rather than left for recall to sort out.
+
+The string-similarity supersede in `MemoryStore.remember` stays underneath as
+the floor. It catches five spellings of a name; it cannot catch "I moved to
+Cairo" superseding "lives in Alexandria", because those share no words. A model
+can. When there is no model, the floor is what is left, and it is still better
+than an append-only store.
+
+## Off the turn
+
+The queue is the point, not an optimisation. `observe()` returns as soon as the
+turn is on it; a worker thread does the extraction whenever the model answers.
+Nothing a user waits for is behind this.
+"""
+
+from __future__ import annotations
+
+import json
+import queue
+import threading
+import time
+from typing import Any
+
+from . import auxiliary
+from .logs import get_logger
+
+log = get_logger("memory")
+
+#: How many existing memories the model is shown when judging a new one.
+#: Enough to spot the fact being corrected, few enough to stay cheap.
+NEIGHBOURS = 8
+
+#: A turn longer than this is trimmed. Extraction wants the gist; a model
+#: reading a 4,000-word reply to find one fact is paying for the wrong thing.
+MAX_TURN_CHARS = 4_000
+
+MAX_OUTPUT_TOKENS = 700
+
+#: Dropped rather than queued without limit. Falling behind on memory is
+#: survivable; growing a queue until the process dies is not.
+QUEUE_DEPTH = 32
+
+SYSTEM_PROMPT = (
+    "You decide what an assistant should remember from one exchange, and what "
+    "to do about what it already remembers.\n"
+    "Reply with a JSON array and nothing else. Each element is one operation:\n"
+    '  {"op":"add","subject":"...","body":"...","kind":"semantic"}\n'
+    '  {"op":"update","id":12,"subject":"...","body":"..."}\n'
+    '  {"op":"delete","id":12}\n'
+    "An empty array is the right answer most of the time. Reply [] unless the "
+    "exchange contains something durably true about the user, their world, or "
+    "their standing preferences.\n"
+    "\n"
+    "Rules that matter:\n"
+    "- `update` when the exchange corrects or refines an existing memory. Use "
+    "it rather than `add`: a correction that is added sits beside the thing it "
+    "was meant to replace, and both come back on recall.\n"
+    "- `delete` only when a memory is now known to be false. Being out of date "
+    "is what `update` is for.\n"
+    "- Never store the assistant's own words, pleasantries, or the fact that a "
+    "conversation happened. 'The user said hello' is not a memory.\n"
+    "- Never store anything already true on every turn -- the user's name and "
+    "standing preferences live in their identity file, not here.\n"
+    "- A memory is one durable sentence stating what is true, not a summary of "
+    "what was said.\n"
+    "- `kind` is `semantic` for what is true and `episodic` for what happened. "
+    "Prefer semantic; episodic entries expire."
+)
+
+
+def _turn_text(user: str, assistant: str) -> str:
+    user, assistant = user.strip()[:MAX_TURN_CHARS], assistant.strip()[:MAX_TURN_CHARS]
+    return f"User: {user}\n\nAssistant: {assistant}"
+
+
+def _existing(store: Any) -> list[dict[str, Any]]:
+    """The memories a new fact is most likely to be about.
+
+    Recent rather than searched, because the search is keyword-only and the
+    fact being corrected is routinely worded differently -- which is the whole
+    reason the string floor was not enough.
+    """
+    try:
+        return store.recent(limit=NEIGHBOURS)
+    except Exception:  # pragma: no cover - depends on the store
+        return []
+
+
+def _parse(text: str) -> list[dict[str, Any]]:
+    """Operations from a model's reply, or none.
+
+    Never raises. This runs on a worker thread behind a queue; a malformed
+    answer means nothing is remembered from one turn, which is a far better
+    outcome than a thread that dies and takes every later turn with it.
+    """
+    body = (text or "").strip().strip("`")
+    if body.lower().startswith("json"):
+        body = body[4:].strip()
+    start, end = body.find("["), body.rfind("]")
+    if start < 0 or end <= start:
+        return []
+    try:
+        parsed = json.loads(body[start : end + 1])
+    except ValueError:
+        return []
+    return [item for item in parsed if isinstance(item, dict)] if isinstance(parsed, list) else []
+
+
+def apply(store: Any, operations: list[dict[str, Any]]) -> dict[str, int]:
+    """Carry out what the model decided. Returns what was done, by operation."""
+    done = {"add": 0, "update": 0, "delete": 0, "ignored": 0}
+    for operation in operations:
+        name = str(operation.get("op") or "").strip().lower()
+        body = str(operation.get("body") or "").strip()
+        subject = str(operation.get("subject") or "").strip()
+        kind = "episodic" if str(operation.get("kind")) == "episodic" else "semantic"
+        try:
+            if name == "add" and body and subject:
+                store.remember(subject, body, kind=kind)
+                done["add"] += 1
+            elif name == "update" and body and operation.get("id") is not None:
+                # Through `forget` and `remember` rather than a bespoke write,
+                # so the FTS index and the supersede floor both still apply.
+                store.forget(int(operation["id"]))
+                store.remember(subject or body[:60], body, kind=kind)
+                done["update"] += 1
+            elif name == "delete" and operation.get("id") is not None:
+                store.forget(int(operation["id"]))
+                done["delete"] += 1
+            else:
+                done["ignored"] += 1
+        except Exception as exc:  # pragma: no cover - depends on the store
+            log.warning("memory operation failed: %s", exc, extra={"marvi_op": name})
+            done["ignored"] += 1
+    return done
+
+
+def extract(store: Any, client: Any, user: str, assistant: str) -> dict[str, int]:
+    """Decide and apply what to remember from one exchange.
+
+    Synchronous, so it can be tested without a queue. `observe` is what
+    callers use.
+    """
+    if client is None or not (user.strip() or assistant.strip()):
+        return {"add": 0, "update": 0, "delete": 0, "ignored": 0}
+
+    known = _existing(store)
+    listed = (
+        "\n".join(
+            f"[{row['id']}] ({row['kind']}) {row['subject']}: {row['body']}" for row in known
+        )
+        or "(nothing remembered yet)"
+    )
+    try:
+        completion = client.call_with_fallback(
+            [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {
+                    "role": "user",
+                    "content": f"Already remembered:\n{listed}\n\n"
+                    f"The exchange:\n{_turn_text(user, assistant)}",
+                },
+            ],
+            job="aux",
+            max_tokens=MAX_OUTPUT_TOKENS,
+            temperature=0.1,
+            **auxiliary.fallback_overrides("memory"),
+        )
+    except Exception as exc:
+        log.info("memory extraction unavailable (%s); nothing recorded this turn", exc)
+        return {"add": 0, "update": 0, "delete": 0, "ignored": 0}
+
+    operations = _parse(getattr(completion, "text", "") or "")
+    done = apply(store, operations)
+    if any(done.values()):
+        log.info(
+            "memory: %d added, %d updated, %d deleted",
+            done["add"],
+            done["update"],
+            done["delete"],
+            extra={"marvi_route": "auxiliary/memory", "marvi_considered": str(len(known))},
+        )
+    return done
+
+
+class Rememberer:
+    """A worker that reads turns off a queue and decides what to keep.
+
+    One thread, because the work is a single model call and ordering matters:
+    two extractions racing on the same store could each decide to correct the
+    same memory and one would win by scheduling.
+
+    ## Its own connection
+
+    The worker opens its own `MemoryStore` rather than sharing the caller's. A
+    `sqlite3.Connection` is not safe to use from two threads at once even with
+    `check_same_thread=False`, and sharing one crashed the test suite with a
+    Windows access violation -- not an exception, a segfault, surfacing inside
+    pytest's unrelated path handling. One connection per thread avoids the
+    whole class.
+
+    ## Started on demand
+
+    The thread starts with the first turn rather than at construction. Every
+    `create_app()` builds one of these, including the several hundred a test
+    run builds, and a daemon thread each was a thread each.
+    """
+
+    def __init__(self, store: Any, client: Any) -> None:
+        self._store = store
+        self._client = client
+        self._turns: queue.Queue[tuple[str, str]] = queue.Queue(maxsize=QUEUE_DEPTH)
+        #: Set while a turn is being extracted, so `drain` can tell "nothing
+        #: queued" from "nothing queued and nothing in flight".
+        self._working = threading.Event()
+        self._thread: threading.Thread | None = None
+        self._starting = threading.Lock()
+
+    def _ensure_running(self) -> None:
+        with self._starting:
+            if self._thread is None or not self._thread.is_alive():
+                self._thread = threading.Thread(
+                    target=self._run, name="marvi-memory", daemon=True
+                )
+                self._thread.start()
+
+    def _own_store(self) -> Any:
+        """A private connection to the same database, for this thread."""
+        path = getattr(self._store, "path", None)
+        if path is None:
+            return self._store
+        from .memory import MemoryStore
+
+        return MemoryStore(path)
+
+    def observe(self, user: str, assistant: str) -> bool:
+        """Hand over a finished turn. Never blocks; False when the queue is full."""
+        self._ensure_running()
+        try:
+            self._turns.put_nowait((user, assistant))
+            return True
+        except queue.Full:
+            # Said out loud rather than swallowed. A memory quietly not written
+            # is the failure this whole module exists to fix.
+            log.warning("memory queue is full; this turn will not be remembered")
+            return False
+
+    def _run(self) -> None:
+        mine = self._own_store()
+        while True:
+            user, assistant = self._turns.get()
+            self._working.set()
+            try:
+                extract(mine, self._client, user, assistant)
+            except Exception as exc:  # pragma: no cover - the thread must survive
+                log.warning("memory worker recovered from: %s", exc)
+            finally:
+                self._working.clear()
+                self._turns.task_done()
+
+    def drain(self, timeout: float = 5.0) -> bool:
+        """Wait for what is queued. For tests, and for a clean shutdown.
+
+        Returns whether it emptied. Bounded rather than `Queue.join()`, because
+        a worker wedged on a model that never answers must not hold a shutdown
+        open for ever.
+        """
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if self._turns.empty() and not self._working.is_set():
+                return True
+            time.sleep(0.02)
+        return False

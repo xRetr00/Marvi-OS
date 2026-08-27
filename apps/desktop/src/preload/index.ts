@@ -39,6 +39,8 @@ import type {
   VoicePage,
   LanguagePolicy,
   LanguageUpdate,
+  MemoryPolicy,
+  MemorySettingsUpdate,
   WakeStatus,
   WorkspacePolicy,
   WorkspaceUpdate
@@ -317,6 +319,10 @@ const marvi = {
   getWake: (): Promise<WakeStatus | null> => ipcRenderer.invoke('marvi:get-wake'),
   setProviderSettings: (values: Record<string, string>): Promise<ProviderPage | null> =>
     ipcRenderer.invoke('marvi:set-provider-settings', values),
+  getMemorySettings: (): Promise<MemoryPolicy | null> =>
+    ipcRenderer.invoke('marvi:get-memory-settings'),
+  setMemorySettings: (update: MemorySettingsUpdate): Promise<MemoryPolicy | null> =>
+    ipcRenderer.invoke('marvi:set-memory-settings', update),
   getLanguage: (): Promise<LanguagePolicy | null> => ipcRenderer.invoke('marvi:get-language'),
   setLanguage: (update: LanguageUpdate): Promise<LanguagePolicy | null> =>
     ipcRenderer.invoke('marvi:set-language', update),
