@@ -5,20 +5,30 @@ hope the answer came back in a shape she could use. Both are worse than they
 sound on voice, where "which of these three did you mean" spoken as a paragraph
 is a paragraph the user has to hold in their head while answering.
 
+## The answer comes back through the screen, not through the microphone
+
+This is the whole reason it is worth having. A spoken answer goes through the
+recogniser, and the recogniser is where the meaning is lost: "the second one"
+arrives as "the seconde one", a filename comes back misspelled, a number comes
+back as a word. Asking a clarifying question and then mis-hearing the answer is
+worse than not asking, because now both sides believe the ambiguity is settled.
+
+Pressing an option sends *exactly* those characters into the conversation. No
+recogniser is involved, so the one thing the question exists to pin down is the
+one thing that cannot be corrupted. Marvi is told to point at the screen rather
+than read the options aloud -- reading them invites a spoken answer, which is
+the path this is here to avoid.
+
 ## Why it does not block
 
 The obvious implementation waits for an answer and returns it. That is what a
 command-line agent does, and it is wrong here: the session is a live
-conversation, a tool that blocks holds the turn open, and the user is going to
-answer by *talking* -- which is a new turn, not a return value.
+conversation, and a tool that blocks holds the turn open while the user reads.
 
-So this posts the question and returns immediately. Marvi says it out loud,
-the desktop draws it as buttons, and whichever way the user answers, the answer
-arrives as their next turn. The tool's own result is the fact that the question
-was asked, and the instruction to ask it aloud.
-
-That also means it cannot deadlock, cannot time out, and works identically when
-nobody is looking at the screen.
+So this posts the question and returns immediately, and the answer arrives as
+the user's next turn like anything else they say. It cannot deadlock and cannot
+time out. Somebody who answers out loud anyway is still answering -- it is just
+the path with the recogniser in it.
 
 ## Options are options, not prose
 
@@ -146,10 +156,12 @@ def register_clarify_tool(registry: Any, runtime: Any) -> None:
             # The instruction is the useful half of this result. Without it a
             # model treats "asked: true" as the answer and carries on.
             "note": (
-                "Say this question out loud now, and read the options. "
-                "Then stop and wait: the answer arrives as the user's next "
-                "message, whether they say it or press it. Do not call clarify "
-                "again for the same question."
+                "The question and its options are on screen now. Say one short "
+                "line pointing at it -- 'I have put the options on screen' -- "
+                "and do not read the options out loud. Then stop and wait: the "
+                "answer comes back as the user's next message, as exactly the "
+                "words they pressed or typed. Do not call clarify again for "
+                "the same question."
             ),
         }
 
@@ -164,7 +176,11 @@ def register_clarify_tool(registry: Any, runtime: Any) -> None:
             describes={
                 "question": "What you need to know, as one sentence. Never put "
                 "the options in here -- they go in `choices`, and options "
-                "written into the question cannot be pressed.",
+                "written into the question cannot be pressed. Use this "
+                "whenever the answer must be exact: a filename, a number, one "
+                "of several similar things. Pressing an option sends those "
+                "characters exactly, where a spoken answer goes through the "
+                "recogniser and can come back wrong.",
                 "choices": "Up to four options, best first: the first is shown "
                 "as your recommendation. Typing something else is always "
                 "available, so never offer 'other' as a choice. Omit entirely "

@@ -53,6 +53,10 @@ MAX_RESULT_CHARS = 900
 #: character budget above is the real limit.
 MAX_LIST_ITEMS = 12
 
+#: The Gateway's own name for the tool that finds the others. Named here rather
+#: than matched by string in three places.
+SEARCH_TOOL = "tool_search"
+
 #: Said out loud rather than left to be inferred from a sentence that stops.
 CUT_SHORT = " ... (cut short)"
 
@@ -158,6 +162,19 @@ class GatewayTools:
         #: while the first is still live, and the Gateway's own 120s expiry is
         #: what releases the slot if nobody ever answers.
         self._pending_at = 0.0
+        #: Every tool the Gateway has, by name, whether or not it is loaded.
+        #: Kept so a search can add one without another round trip.
+        self._catalogue: dict[str, dict[str, Any]] = {}
+        #: What the model can currently call. Grows when a search finds
+        #: something; never shrinks, because a tool that worked a minute ago
+        #: and has quietly gone is worse than one that was never there.
+        self._loaded: set[str] = set()
+        #: Set once the Agent exists, which is after these tools are built.
+        self._agent: Any = None
+
+    def attach(self, agent: Any) -> None:
+        """Give these tools the Agent, so a search can add to it."""
+        self._agent = agent
 
     @property
     def pending_token(self) -> str | None:
@@ -205,7 +222,20 @@ class GatewayTools:
             )
         if outcome == "failed":
             raise ToolError(str(body.get("error", "the action failed")))
-        return describe(body.get("result"))
+
+        result = body.get("result")
+        if tool == SEARCH_TOOL and isinstance(result, dict):
+            # The half of the search that matters. Telling the model a tool
+            # exists and leaving it uncallable is worse than not having the
+            # search: it produces a confident description of something that
+            # then fails.
+            found = [
+                str(row.get("name"))
+                for row in (result.get("tools") or [])
+                if isinstance(row, dict) and row.get("name")
+            ]
+            await self._load_found(found)
+        return describe(result)
 
     # -- room tools ---------------------------------------------------------
 
@@ -406,24 +436,64 @@ class GatewayTools:
             if self._client is None:
                 await client.aclose()
 
+    def _as_function_tool(self, entry: dict[str, Any]) -> Any:
+        """One catalogue entry as a LiveKit function tool.
+
+        Every call goes back through `/tools/{name}`, which is the one path
+        with the confirmation flow and the audit line on it.
+        """
+        from livekit.agents import function_tool
+
+        name = str(entry.get("name") or "")
+        required = [a for a in (entry.get("arguments") or []) if isinstance(a, str)]
+        optional = [a for a in (entry.get("optional") or []) if isinstance(a, str)]
+        published_schema = entry.get("input_schema")
+        parameters = (
+            published_schema
+            if isinstance(published_schema, dict) and published_schema.get("type") == "object"
+            else {
+                "type": "object",
+                "properties": {
+                    argument: {"type": "string"} for argument in [*required, *optional]
+                },
+                "required": required,
+            }
+        )
+
+        def caller(raw_arguments: dict[str, Any], _name: str = name) -> Any:
+            return self._call(_name, raw_arguments)
+
+        return function_tool(
+            caller,
+            raw_schema={
+                "name": name,
+                "description": str(entry.get("description") or name),
+                "parameters": parameters,
+            },
+        )
+
     async def from_gateway(self) -> list[Any]:
-        """Every other tool the Gateway has, built from its own catalogue.
+        """The tools voice starts with: the core set, and the way to find the rest.
 
         Voice had seven tools and chat had seventeen, maintained by hand in two
         places -- so asking Marvi out loud to search the web got "I don't have a
-        web search tool", truthfully, while the same question typed worked. Any
-        tool added since, and every MCP server, reached one surface only.
+        web search tool", truthfully, while the same question typed worked.
+        Building from `/tools` fixed that and then overshot: fifty-six tools,
+        five thousand tokens of schema, in front of the model on every turn
+        including the ones that are somebody saying good morning.
 
-        Built from `/tools` rather than duplicated again: the Gateway already
-        publishes each tool's schema for exactly this, and every call goes back
-        through `/tools/{name}`, which is the one path with the confirmation
-        flow and the audit line on it.
+        Past thirty to fifty tools a model's ability to pick the right one
+        degrades -- that is Anthropic's published number, and it is a plain
+        mechanical account of "most of the tools do not work" that has nothing
+        to do with which model is answering.
+
+        So the Gateway marks a core set, that is what loads, and the rest are
+        found with `tool_search` and added mid-session. The whole catalogue is
+        kept here so adding one later costs nothing.
 
         Never raises. Voice with the seven it wrote itself is worse than voice
         with all of them, and far better than no voice at all.
         """
-        from livekit.agents import function_tool
-
         client = self._client or httpx.AsyncClient(timeout=REQUEST_TIMEOUT)
         try:
             response = await client.get(f"{self._base_url}/tools")
@@ -436,38 +506,54 @@ class GatewayTools:
             if self._client is None:
                 await client.aclose()
 
-        built: list[Any] = []
-        for entry in catalogue:
-            name = str(entry.get("name") or "")
-            if not name or name in self.SPOKEN_BADLY:
-                continue
-            required = [a for a in (entry.get("arguments") or []) if isinstance(a, str)]
-            optional = [a for a in (entry.get("optional") or []) if isinstance(a, str)]
-            published_schema = entry.get("input_schema")
-            parameters = (
-                published_schema
-                if isinstance(published_schema, dict) and published_schema.get("type") == "object"
-                else {
-                    "type": "object",
-                    "properties": {
-                        argument: {"type": "string"} for argument in [*required, *optional]
-                    },
-                    "required": required,
-                }
+        self._catalogue = {
+            str(entry.get("name") or ""): entry
+            for entry in catalogue
+            if str(entry.get("name") or "") and str(entry.get("name")) not in self.SPOKEN_BADLY
+        }
+        # A Gateway that names no core set is one that does not know about
+        # deferring, and the answer there is every tool rather than none.
+        # Reading "no tool said it was core" as "nothing is core" would leave
+        # voice with one tool against an older Gateway -- absence of the flag
+        # is a fact about the Gateway, not about the tools.
+        defers = any(entry.get("core") for entry in self._catalogue.values())
+        self._loaded = {
+            name
+            for name, entry in self._catalogue.items()
+            if not defers or entry.get("core") or name == SEARCH_TOOL
+        }
+        loaded = [self._as_function_tool(self._catalogue[name]) for name in self._loaded]
+        if defers:
+            log.info(
+                "%d of %d Gateway tools loaded; the rest are found with %s",
+                len(loaded),
+                len(self._catalogue),
+                SEARCH_TOOL,
             )
+        else:
+            log.info("%d tools from the Gateway, which names no core set", len(loaded))
+        return loaded
 
-            def caller(raw_arguments: dict[str, Any], _name: str = name) -> Any:
-                return self._call(_name, raw_arguments)
+    async def _load_found(self, names: list[str]) -> None:
+        """Add tools a search just found, for the rest of the session.
 
-            built.append(
-                function_tool(
-                    caller,
-                    raw_schema={
-                        "name": name,
-                        "description": str(entry.get("description") or name),
-                        "parameters": parameters,
-                    },
-                )
-            )
-        log.info("%d tools from the Gateway, on top of the spoken ones", len(built))
-        return built
+        Without this the search is overhead: the model would be told a tool
+        exists and still have no way to call it. `update_tools` is on the
+        Agent rather than the session, and it is a coroutine -- checked with
+        `iscoroutinefunction`, because the annotation on this SDK says `-> None`
+        on methods that must be awaited and believing it once already cost a
+        release's worth of silently discarded instructions.
+        """
+        agent = self._agent
+        if agent is None:
+            return
+        fresh = [
+            self._as_function_tool(self._catalogue[name])
+            for name in names
+            if name in self._catalogue and name not in self._loaded
+        ]
+        if not fresh:
+            return
+        self._loaded.update(names)
+        await agent.update_tools([*agent.tools, *fresh])
+        log.info("tool_search: loaded %s", ", ".join(names))

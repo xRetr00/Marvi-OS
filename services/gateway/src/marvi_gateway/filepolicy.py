@@ -60,7 +60,7 @@ class PathRefusedError(Exception):
 
 @dataclass(frozen=True)
 class Rule:
-    """One built-in refusal, and why it is not negotiable."""
+    """One built-in refusal, and what it takes to lift it."""
 
     #: A path prefix, or a glob when it contains a wildcard.
     pattern: str
@@ -68,6 +68,15 @@ class Rule:
     #: False for the rules that only guard writing -- a system directory is
     #: fine to read and not fine to modify.
     blocks_reading: bool = True
+    #: True when this guards a credential rather than the machine.
+    #:
+    #: Those are the ones reading can be opted into, in Settings > Workspace.
+    #: A hard block there was wrong: an assistant that sets things up has to be
+    #: able to see whether a key is configured, and "which variables are in
+    #: this file" is not the same question as "what is my key". Writing is
+    #: still refused -- `ask_secret` is the way a credential gets set, and it
+    #: is a better way, because the value never passes through the model.
+    secret: bool = False
 
 
 def _home() -> Path:
@@ -84,31 +93,31 @@ def builtin_rules() -> tuple[Rule, ...]:
     home = _home()
     marvi_home = os.environ.get("MARVI_HOME", "").strip()
     rules = [
-        Rule("*.env", "environment files hold credentials"),
-        Rule(str(home / ".ssh"), "private keys"),
-        Rule(str(home / ".aws"), "cloud credentials"),
-        Rule(str(home / ".gnupg"), "private keys"),
-        Rule(str(home / ".kube"), "cluster credentials"),
-        Rule(str(home / ".docker"), "registry credentials"),
-        Rule(str(home / ".azure"), "cloud credentials"),
-        Rule(str(home / ".config" / "gh"), "GitHub credentials"),
-        Rule(str(home / ".config" / "gcloud"), "cloud credentials"),
-        Rule(str(home / ".netrc"), "stored logins"),
-        Rule(str(home / ".pgpass"), "database passwords"),
-        Rule(str(home / ".npmrc"), "registry tokens"),
-        Rule(str(home / ".pypirc"), "registry tokens"),
-        Rule(str(home / ".git-credentials"), "stored logins"),
+        Rule("*.env", "environment files hold credentials", secret=True),
+        Rule(str(home / ".ssh"), "private keys", secret=True),
+        Rule(str(home / ".aws"), "cloud credentials", secret=True),
+        Rule(str(home / ".gnupg"), "private keys", secret=True),
+        Rule(str(home / ".kube"), "cluster credentials", secret=True),
+        Rule(str(home / ".docker"), "registry credentials", secret=True),
+        Rule(str(home / ".azure"), "cloud credentials", secret=True),
+        Rule(str(home / ".config" / "gh"), "GitHub credentials", secret=True),
+        Rule(str(home / ".config" / "gcloud"), "cloud credentials", secret=True),
+        Rule(str(home / ".netrc"), "stored logins", secret=True),
+        Rule(str(home / ".pgpass"), "database passwords", secret=True),
+        Rule(str(home / ".npmrc"), "registry tokens", secret=True),
+        Rule(str(home / ".pypirc"), "registry tokens", secret=True),
+        Rule(str(home / ".git-credentials"), "stored logins", secret=True),
         # Writable is not the question. Reading one and saying it out loud is
         # the same disclosure.
-        Rule("*id_rsa*", "private keys"),
-        Rule("*id_ed25519*", "private keys"),
-        Rule("*.pem", "private keys"),
-        Rule("*.pfx", "private keys"),
+        Rule("*id_rsa*", "private keys", secret=True),
+        Rule("*id_ed25519*", "private keys", secret=True),
+        Rule("*.pem", "private keys", secret=True),
+        Rule("*.pfx", "private keys", secret=True),
     ]
     if marvi_home:
         # Her own keys, her own memory, her own audit trail. Marvi editing the
         # record of what Marvi did is not a feature.
-        rules.append(Rule(marvi_home, "Marvi's own keys and state"))
+        rules.append(Rule(marvi_home, "Marvi's own keys and state", secret=True))
     if os.name == "nt":
         system = os.environ.get("SYSTEMROOT", "C:\\Windows")
         rules += [
@@ -190,6 +199,16 @@ class Access:
     def scope_for(self, *, write: bool) -> str:
         return self.write_scope if write else self.read_scope
 
+    @staticmethod
+    def guards_a_secret(path: Path) -> bool:
+        """Whether this path is one the credential rules cover.
+
+        Asked by `file_read` so it knows whether to mask what it found. The
+        rules are the single list of what counts as a credential file; a second
+        list would be a second thing to keep in step.
+        """
+        return any(rule.secret and _matches(path, rule.pattern) for rule in builtin_rules())
+
     def refusal(self, path: Path, *, write: bool) -> str:
         """Why this path is refused, or "" when it is allowed.
 
@@ -199,8 +218,30 @@ class Access:
         workspace would come back allowed in strict mode.
         """
         for rule in builtin_rules():
-            if (write or rule.blocks_reading) and _matches(path, rule.pattern):
-                return f"{rule.why}; this path is always refused"
+            if not _matches(path, rule.pattern):
+                continue
+            if rule.secret and not write:
+                # Opt-in rather than a block. An assistant that sets things up
+                # has to be able to see whether a key is configured, and
+                # "which variables are in this file" is not the same question
+                # as "what is my key" -- the masked setting answers the first
+                # without answering the second.
+                from . import credentials
+
+                if credentials.level() == credentials.OFF:
+                    return (
+                        f"{rule.why}. Reading these is off. Turn it on in "
+                        "Settings > Workspace, where masked shows which "
+                        "settings exist without their values."
+                    )
+                continue
+            if write or rule.blocks_reading:
+                extra = (
+                    " Use ask_secret to set a credential: it never passes through you."
+                    if rule.secret
+                    else ""
+                )
+                return f"{rule.why}; this path is always refused.{extra}"
         for entry in self.blacklist:
             if _matches(path, entry):
                 return f"on your blacklist ({entry})"
@@ -256,6 +297,8 @@ def describe() -> dict[str, object]:
     it is one nobody can reason about -- and the first time an invisible entry
     bites, it reads as a bug.
     """
+    from . import credentials
+
     access = Access.from_env()
     return {
         "root": str(access.root) if access.root else "",
@@ -269,8 +312,19 @@ def describe() -> dict[str, object]:
         "blacklist_setting": BLACKLIST_SETTING,
         "separator": SEPARATOR,
         "scopes": list(SCOPES),
+        "secret_access": credentials.level(),
+        "secret_setting": credentials.SETTING,
+        "secret_levels": list(credentials.LEVELS),
         "builtin": [
-            {"pattern": rule.pattern, "why": rule.why, "reading": rule.blocks_reading}
+            {
+                "pattern": rule.pattern,
+                "why": rule.why,
+                "reading": rule.blocks_reading,
+                # Which rules the secret setting governs, so the page can say
+                # "these are the ones that switch unlocks" rather than listing
+                # them as unconditional and then not behaving that way.
+                "secret": rule.secret,
+            }
             for rule in builtin_rules()
         ],
     }

@@ -30,6 +30,7 @@ from . import (
     parent,
     paths,
     selfaware,
+    toolsearch,
     upgrade,
 )
 from . import doctor as doctor_module
@@ -45,6 +46,7 @@ from .browser import BrowserSession, browser_enabled, register_browser_tools
 from .chat import Chat, ChatStore, ChatTurn, schemas_from_registry
 from .clarify import register_clarify_tool
 from .cognition import CognitionHarness
+from .credentials import register_secret_tool
 from .curiosity import Curiosity, seed_identity
 from .deliberate import deliberator_from_env
 from .dictation import DictationError, DictationManager
@@ -77,6 +79,7 @@ from .runtime import (
     RuntimeStore,
     TokenRejectedError,
 )
+from .screen import register_screen_tools
 from .tools import InvalidArgumentsError, ToolRegistry, ToolSpec, UnknownToolError
 from .web import WebTools, register_web_tools
 from .workspace import Workspace, register_workspace_tools
@@ -138,6 +141,21 @@ class QuestionAnswer(BaseModel):
     answer: str = ""
 
 
+class SecretAnswer(BaseModel):
+    """A credential on its way to the settings store, and nowhere else.
+
+    Deliberately not a `RuntimeStatus` response: the runtime is polled, cached
+    and rendered in several places, and a value that rode back on it would be
+    in three windows before anybody noticed.
+    """
+
+    id: str = ""
+    name: str
+    #: Empty means the user dismissed the field. Saving nothing is a real
+    #: answer -- "I would rather do this myself" -- and must not be an error.
+    value: str = ""
+
+
 class WorkspaceUpdate(BaseModel):
     """A change to where the file tools may reach.
 
@@ -150,6 +168,8 @@ class WorkspaceUpdate(BaseModel):
     read_scope: str | None = None
     write_scope: str | None = None
     blacklist: list[str] | None = None
+    #: off / masked / full. What Marvi may do with a file that holds credentials.
+    secret_access: str | None = None
 
 
 class LiveKitConnection(BaseModel):
@@ -195,6 +215,9 @@ class ToolDescription(BaseModel):
     arguments: list[str]
     optional: list[str]
     input_schema: dict[str, Any] = Field(default_factory=dict)
+    #: Whether a surface should load this one up front rather than wait for
+    #: `tool_search` to find it.
+    core: bool = False
 
 
 class ToolCatalog(BaseModel):
@@ -770,6 +793,13 @@ def create_app(
         ingest = AccountIngest(accounts, memory)
         register_web_tools(tool_registry, WebTools())
         register_clarify_tool(tool_registry, runtime_store)
+        register_secret_tool(tool_registry, runtime_store)
+        register_screen_tools(tool_registry, provider_client)
+        # Registered last so it can see everything registered before it, and
+        # given the builder rather than a snapshot: plugins and MCP servers add
+        # tools after this line, and a search that could not find them would be
+        # worse than no search at all.
+        toolsearch.register_tool_search(tool_registry, lambda: tool_catalogue())
         workspace = Workspace()
         # Registered whether or not a root is configured. They used to appear
         # only when one was, so an unset root did not produce a refusal that
@@ -1636,6 +1666,35 @@ def create_app(
         runtime_store.answered(update.id)
         return current_status()
 
+    @app.post("/voice/secret")
+    async def save_secret(update: SecretAnswer) -> dict[str, Any]:
+        """The user typing a credential into the masked field.
+
+        The only path a secret takes, and it goes desktop -> Gateway -> settings
+        store. It is never returned, never put on the assistant state, never
+        logged, and never sent into the room the way a `clarify` answer is. The
+        model is told the name and that it was saved; that is the whole of what
+        it learns.
+
+        `redactor().refresh()` afterwards for the same reason the providers
+        page does it: a value typed a moment ago must not turn up in the next
+        log line.
+        """
+        from . import credentials
+
+        name = update.name.strip().upper()
+        if not credentials.VALID_NAME.match(name):
+            raise HTTPException(status_code=400, detail=f"{name!r} is not a setting name")
+        value = update.value
+        if value:
+            provider_config.update({name: value})
+            redactor().refresh()
+            # The name only. Auditing the value would put it in a file that
+            # exists to be read.
+            runtime_store.audit("secret", "ask_secret", {"setting": name})
+        runtime_store.secret_settled(update.id)
+        return {"stored": bool(value), "name": name}
+
     @app.post("/voice/agent")
     async def set_agent_ready(update: dict[str, Any]) -> dict[str, Any]:
         """The Agent saying whether its worker is registered.
@@ -1856,6 +1915,14 @@ def create_app(
                 if scope not in filepolicy.SCOPES:
                     raise HTTPException(status_code=400, detail=f"unknown scope {scope!r}")
                 values[setting] = scope
+        if update.secret_access is not None:
+            from . import credentials
+
+            if update.secret_access not in credentials.LEVELS:
+                raise HTTPException(
+                    status_code=400, detail=f"unknown level {update.secret_access!r}"
+                )
+            values[credentials.SETTING] = update.secret_access
         if update.blacklist is not None:
             entries = [entry.strip() for entry in update.blacklist if entry.strip()]
             if any(filepolicy.SEPARATOR in entry for entry in entries):
@@ -2156,22 +2223,29 @@ def create_app(
             directory=str(logs_dir()),
         )
 
+    def tool_catalogue() -> list[dict[str, Any]]:
+        """Every tool, in the shape `/tools` publishes. One builder, so what
+        the search ranks is exactly what a caller would have been sent."""
+        schemas = {row["name"]: row["parameters"] for row in schemas_from_registry(tool_registry)}
+        return [
+            {
+                "name": spec.name,
+                "description": spec.description,
+                "sensitive": spec.sensitive,
+                "arguments": sorted(spec.arguments),
+                "optional": sorted(spec.optional),
+                "input_schema": schemas.get(spec.name, {}),
+                # Which tools a surface should load up front. Decided here
+                # rather than in each surface, so voice and chat cannot drift
+                # into different ideas of what is always available.
+                "core": spec.name in toolsearch.core_tools(),
+            }
+            for spec in tool_registry
+        ]
+
     @app.get("/tools", response_model=ToolCatalog)
     async def list_tools() -> ToolCatalog:
-        schemas = {row["name"]: row["parameters"] for row in schemas_from_registry(tool_registry)}
-        return ToolCatalog(
-            tools=[
-                ToolDescription(
-                    name=spec.name,
-                    description=spec.description,
-                    sensitive=spec.sensitive,
-                    arguments=sorted(spec.arguments),
-                    optional=sorted(spec.optional),
-                    input_schema=schemas.get(spec.name, {}),
-                )
-                for spec in tool_registry
-            ]
-        )
+        return ToolCatalog(tools=[ToolDescription(**row) for row in tool_catalogue()])
 
     @app.post("/tools/{name}", response_model=ToolInvocation)
     async def call_tool(name: str, call: ToolCall) -> ToolInvocation:

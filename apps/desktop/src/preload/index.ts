@@ -322,6 +322,9 @@ const marvi = {
   chooseFolder: (): Promise<string> => ipcRenderer.invoke('marvi:choose-folder'),
   answerQuestion: (id: string, answer: string): Promise<boolean> =>
     ipcRenderer.invoke('marvi:answer-question', { id, answer }),
+  /** A credential the user typed. Goes to the settings store and stops there. */
+  saveSecret: (update: { id: string; name: string; value: string }): Promise<boolean> =>
+    ipcRenderer.invoke('marvi:save-secret', update),
   startOauth: (name: string): Promise<{ ok: boolean; detail: string }> =>
     ipcRenderer.invoke('marvi:start-oauth', name),
   pollOauth: (name: string): Promise<Record<string, unknown> | null> =>

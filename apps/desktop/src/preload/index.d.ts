@@ -212,6 +212,7 @@ export interface MarviDesktopApi {
   setWorkspace: (update: WorkspaceUpdate) => Promise<WorkspacePolicy | null>
   chooseFolder: () => Promise<string>
   answerQuestion: (id: string, answer: string) => Promise<boolean>
+  saveSecret: (update: { id: string; name: string; value: string }) => Promise<boolean>
   startOauth: (name: string) => Promise<{ ok: boolean; detail: string }>
   pollOauth: (name: string) => Promise<Record<string, unknown> | null>
   disconnectProvider: (name: string) => Promise<ProviderPage | null>

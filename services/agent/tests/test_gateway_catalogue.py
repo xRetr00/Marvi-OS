@@ -135,3 +135,121 @@ async def test_spoken_recall_uses_the_canonical_gateway_memory_tool() -> None:
 
     assert answer == "Sam: likes tea"
     assert seen[-1].url.path == "/tools/memory_recall"
+
+
+# -- deferred loading --------------------------------------------------------
+
+
+async def test_only_the_core_tools_load_up_front() -> None:
+    """Fifty-six tools, five thousand tokens of schema, in front of the model on
+    every turn including the ones that are somebody saying good morning. Past
+    thirty to fifty, tool selection degrades."""
+    import httpx
+
+    from marvi_agent.tools import GatewayTools
+
+    catalogue = {
+        "tools": [
+            {"name": "room_state", "description": "Room", "arguments": [], "core": True},
+            {"name": "tool_search", "description": "Find a tool", "arguments": ["query"], "core": True},
+            {"name": "send_email", "description": "Send mail", "arguments": ["to"]},
+            {"name": "browser_open", "description": "Open a page", "arguments": ["url"]},
+        ]
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=catalogue)
+
+    tools = GatewayTools(client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    loaded = await tools.from_gateway()
+
+    # `room_state` is in SPOKEN_BADLY -- voice writes that one by hand -- so
+    # what is left of the core here is the search itself.
+    assert [tool.info.name for tool in loaded] == ["tool_search"]
+
+
+async def test_a_search_makes_the_tools_it_found_callable() -> None:
+    """The half that matters. Telling the model a tool exists and leaving it
+    uncallable produces a confident description of something that then fails."""
+    import httpx
+
+    from marvi_agent.tools import GatewayTools
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/tools":
+            return httpx.Response(
+                200,
+                json={
+                    "tools": [
+                        {
+                            "name": "tool_search",
+                            "description": "Find a tool",
+                            "arguments": ["query"],
+                            "core": True,
+                        },
+                        {"name": "send_email", "description": "Send mail", "arguments": ["to"]},
+                    ]
+                },
+            )
+        return httpx.Response(
+            200,
+            json={
+                "status": "executed",
+                "result": {"tools": [{"name": "send_email", "description": "Send mail"}]},
+            },
+        )
+
+    class Agent:
+        def __init__(self) -> None:
+            self.tools: list = []
+
+        async def update_tools(self, tools) -> None:
+            self.tools = list(tools)
+
+    tools = GatewayTools(client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    agent = Agent()
+
+    await tools.from_gateway()
+    tools.attach(agent)
+    await tools._call("tool_search", {"query": "email"})
+
+    assert [tool.info.name for tool in agent.tools] == ["send_email"]
+
+
+async def test_searching_twice_does_not_add_the_same_tool_twice() -> None:
+    import httpx
+
+    from marvi_agent.tools import GatewayTools
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/tools":
+            return httpx.Response(
+                200,
+                json={
+                    "tools": [
+                        {"name": "tool_search", "description": "Find", "arguments": ["query"], "core": True},
+                        {"name": "send_email", "description": "Send mail", "arguments": ["to"]},
+                    ]
+                },
+            )
+        return httpx.Response(
+            200,
+            json={"status": "executed", "result": {"tools": [{"name": "send_email"}]}},
+        )
+
+    class Agent:
+        def __init__(self) -> None:
+            self.tools: list = []
+
+        async def update_tools(self, tools) -> None:
+            self.tools = list(tools)
+
+    tools = GatewayTools(client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    agent = Agent()
+
+    await tools.from_gateway()
+    tools.attach(agent)
+    await tools._call("tool_search", {"query": "email"})
+    await tools._call("tool_search", {"query": "email"})
+
+    assert [tool.info.name for tool in agent.tools] == ["send_email"]

@@ -509,6 +509,11 @@ async def marvi_session(ctx: JobContext) -> None:
     agent = session.current_agent
     gateway = GatewayTools()
     catalogue = await gateway.from_gateway()
+    # Handed the Agent so `tool_search` can add what it finds. Without this the
+    # search is overhead: the model is told a tool exists and still has no way
+    # to call it, which produces a confident description of something that then
+    # fails.
+    gateway.attach(agent)
     await agent.update_tools([*agent.tools, end_conversation, *catalogue])
     log.info("%d tools available, including end_conversation", len(agent.tools))
 

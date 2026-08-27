@@ -18,13 +18,16 @@ narrow and boring on purpose:
 
 from __future__ import annotations
 
+import fnmatch
 import os
+import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
+from . import credentials
 from .filepolicy import Access, PathRefusedError
 from .untrusted import wrap_external
 
@@ -32,6 +35,36 @@ MAX_READ_BYTES = 200_000
 MAX_OUTPUT_CHARS = 20_000
 DEFAULT_COMMAND_TIMEOUT = 60
 MAX_COMMAND_TIMEOUT = 600
+
+#: Never walked into. Not a preference: `.git` and `node_modules` are most of
+#: the files in a repository and none of them is what anybody meant.
+SKIPPED_DIRS = frozenset(
+    {
+        ".git",
+        ".hg",
+        ".svn",
+        "node_modules",
+        ".venv",
+        "venv",
+        "__pycache__",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        "dist",
+        "build",
+        "out",
+        ".next",
+        ".cache",
+    }
+)
+
+#: A file larger than this is not read while searching. A search that opens a
+#: two-hundred-megabyte log to look for a function name has stopped being a
+#: search.
+MAX_SEARCH_BYTES = 2_000_000
+#: How many files one search will open. A bound, so a search rooted at a drive
+#: returns something rather than running until it is killed.
+MAX_SEARCH_FILES = 4_000
 
 
 class WorkspaceRefusedError(Exception):
@@ -142,11 +175,22 @@ class Workspace:
         if not target.is_file():
             raise WorkspaceRefusedError(f"{relative} is not a file")
         raw = target.read_bytes()[:MAX_READ_BYTES]
-        return {
+        text = _decode(raw)[0]
+        found = {
             "path": self.shown(target),
             "truncated": target.stat().st_size > MAX_READ_BYTES,
-            "text": _decode(raw)[0],
+            "text": text,
         }
+        # A credential file, read under the masked setting: the names and the
+        # shape, none of the values. "Is my key set?" and "what is my key?"
+        # look like the same question and are not, and this answers the first.
+        if credentials.level() == credentials.MASKED and self.access.guards_a_secret(target):
+            found["text"] = credentials.mask_text(text)
+            found["masked"] = (
+                "Values are masked. This shows which settings exist and which "
+                "are empty. Never guess at a masked value."
+            )
+        return found
 
     def write(self, relative: str, content: str) -> dict[str, Any]:
         target = self.resolve(relative, write=True)
@@ -234,6 +278,116 @@ class Workspace:
             "replacements": count,
             "bytes": len(updated.encode("utf-8")),
         }
+
+    def search(
+        self,
+        query: str = "",
+        name: str = "",
+        path: str = ".",
+        limit: int = 20,
+    ) -> dict[str, Any]:
+        """Find files by name, or lines by what is in them.
+
+        Search rather than listing, which is the difference between a tool that
+        answers a question and one that fills the context with a directory.
+        `file_list` showed twenty-eight entries, the model was given five, and
+        it concluded the file it had just written was not there.
+
+        Both filters in one tool rather than two, because the useful question
+        is usually both at once -- "where is `LEAD_SECONDS` set, in the Python
+        files" -- and chaining two tools to ask it is two round trips and a
+        list in between that nobody wanted.
+
+        Every result carries its line number and the line, so the next call can
+        be a `file_read` of one place rather than of one file.
+        """
+        root = self.resolve(path)
+        if not root.is_dir():
+            raise WorkspaceRefusedError(f"{path} is not a directory")
+        if not query and not name:
+            raise WorkspaceRefusedError("give something to search for: `query`, `name`, or both")
+
+        try:
+            pattern = re.compile(query, re.IGNORECASE) if query else None
+        except re.error as exc:
+            # An actionable message. "bad escape" with no hint sends a model
+            # into rewriting the same broken pattern.
+            raise WorkspaceRefusedError(
+                f"{query!r} is not a valid regular expression ({exc}). "
+                "Search for plain text, or escape the punctuation."
+            ) from exc
+
+        matches: list[dict[str, Any]] = []
+        opened = 0
+        cut_short = False
+        for file in self._walk(root, name):
+            if opened >= MAX_SEARCH_FILES:
+                cut_short = True
+                break
+            if pattern is None:
+                matches.append({"path": self.shown(file)})
+            else:
+                opened += 1
+                for number, line in self._lines(file):
+                    if pattern.search(line):
+                        matches.append(
+                            {
+                                "path": self.shown(file),
+                                "line": number,
+                                # Bounded: one match should not be able to put
+                                # a minified bundle into the answer.
+                                "text": line.strip()[:200],
+                            }
+                        )
+                        if len(matches) >= limit:
+                            break
+            if len(matches) >= limit:
+                cut_short = True
+                break
+
+        found = {"matches": matches[:limit], "files_read": opened}
+        if cut_short:
+            # Said, rather than left to be inferred from a round number. A
+            # truncated result read as a complete one is how "not found"
+            # becomes "not there".
+            found["more"] = "There are more. Narrow the query or the path."
+        return found
+
+    def _walk(self, root: Path, name: str):
+        """Files under `root`, skipping what nobody meant to search."""
+        for parent, directories, files in os.walk(root):
+            directories[:] = [d for d in directories if d not in SKIPPED_DIRS]
+            for filename in sorted(files):
+                if name and not fnmatch.fnmatch(filename.lower(), name.lower()):
+                    continue
+                file = Path(parent) / filename
+                try:
+                    if file.stat().st_size > MAX_SEARCH_BYTES:
+                        continue
+                except OSError:
+                    continue
+                # Judged one by one rather than only at the root: a blacklisted
+                # folder inside the search path must not be searched, and the
+                # root check cannot see it.
+                if self.access.refusal(file, write=False):
+                    continue
+                yield file
+
+    @staticmethod
+    def _lines(file: Path):
+        """Numbered lines of a text file. Binary files yield nothing.
+
+        A null byte in the first block is the same test `grep` uses, and it is
+        what keeps an image out of a search for a word.
+        """
+        try:
+            raw = file.read_bytes()
+        except OSError:
+            return
+        if b"\x00" in raw[:4096]:
+            return
+        text, _ = _decode(raw)
+        yield from enumerate(text.splitlines(), start=1)
 
     def delete(self, relative: str) -> dict[str, Any]:
         target = self.resolve(relative, write=True)
@@ -330,6 +484,11 @@ def register_workspace_tools(registry, workspace: Workspace) -> None:
     def file_list(path: str = ".") -> dict[str, Any]:
         return {"entries": workspace.list_dir(path)}
 
+    def file_search(
+        query: str = "", name: str = "", path: str = ".", limit: int = 20
+    ) -> dict[str, Any]:
+        return workspace.search(query, name, path, limit)
+
     def file_read(path: str) -> dict[str, Any]:
         # A file can carry instructions aimed at whoever reads it next.
         return wrap_external(f"file:{path}", workspace.read(path)["text"]).model_dump()
@@ -363,8 +522,34 @@ def register_workspace_tools(registry, workspace: Workspace) -> None:
 
     for spec in (
         ToolSpec(
-            name="file_list", description="List files in the workspace",
-            arguments={}, optional={"path": str}, sensitive=False, handler=file_list,
+            name="file_search",
+            description="Find files by name, or find which lines contain something",
+            arguments={},
+            optional={"query": str, "name": str, "path": str, "limit": int},
+            sensitive=False,
+            handler=file_search,
+            describes={
+                "query": "Text or a regular expression to find inside files. "
+                "Case-insensitive. Leave out to search by filename alone.",
+                "name": "Filename pattern, such as `*.py` or `README*`. Leave "
+                "out to search every file.",
+                "path": "Folder to search under. Defaults to the whole "
+                "workspace. Narrow it when a search returns too much.",
+                "limit": "How many matches to return. Default 20.",
+            },
+        ),
+        ToolSpec(
+            name="file_list",
+            description="List one folder. Prefer file_search when looking for something",
+            arguments={},
+            optional={"path": str},
+            sensitive=False,
+            handler=file_list,
+            describes={
+                "path": "The folder to list. A listing is only the folder you "
+                "name; to find something anywhere in the workspace use "
+                "file_search.",
+            },
         ),
         ToolSpec(
             name="file_read", description="Read a file from the workspace",

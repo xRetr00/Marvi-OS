@@ -7197,3 +7197,79 @@ body .settings-scroll .control-row {
   font-family: inherit;
   font-size: 12px;
 }
+
+/* The typed answer. Always offered, never listed as a choice: "Other" as a
+   fifth button costs a click to reach a box that could just be here. */
+.voice-question-other {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.voice-question-other input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--ui-stroke-primary);
+  border-radius: 8px;
+  background: var(--ui-bg-tertiary);
+  color: var(--ui-text-primary);
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.voice-question-other input:disabled {
+  opacity: 0.5;
+}
+
+/* ===== A credential Marvi asked for ===== */
+
+/* Deliberately looks like the question card: it is the same idea, answered on
+   screen rather than out loud. The difference is that this answer never enters
+   the conversation. */
+.voice-secret {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: min(56ch, 100%);
+  margin: 10px auto 0;
+  padding: 12px 16px;
+  border: 1px solid var(--ui-stroke-primary);
+  border-left: 2px solid var(--ui-accent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--ui-bg) 94%, transparent);
+  pointer-events: auto;
+}
+
+.voice-secret-why {
+  margin: 0;
+  color: var(--ui-text-emphasis);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.voice-secret-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.voice-secret-row label {
+  color: var(--ui-text-tertiary);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.voice-secret-row input {
+  flex: 1;
+  min-width: 12ch;
+  padding: 6px 10px;
+  border: 1px solid var(--ui-stroke-primary);
+  border-radius: 8px;
+  background: var(--ui-bg-tertiary);
+  color: var(--ui-text-primary);
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+}

@@ -196,11 +196,16 @@ function normaliseWorkspace(body: unknown): WorkspacePolicy | null {
     rootExists: body.root_exists === true,
     readScope: scope(body.read_scope),
     writeScope: scope(body.write_scope),
+    secretAccess:
+      body.secret_access === 'masked' || body.secret_access === 'full'
+        ? body.secret_access
+        : 'off',
     blacklist: strings(body.blacklist),
     builtin: (Array.isArray(body.builtin) ? body.builtin : []).filter(isRecord).map((rule) => ({
       pattern: String(rule.pattern ?? ''),
       why: String(rule.why ?? ''),
-      reading: rule.reading === true
+      reading: rule.reading === true,
+      secret: rule.secret === true
     })),
     tools: { read: strings(tools.read), write: strings(tools.write) }
   }
@@ -2086,6 +2091,27 @@ function startApp(): void {
             answer: String(update.answer ?? '')
           }),
           signal: AbortSignal.timeout(5_000)
+        })
+        return response.ok
+      } catch {
+        return false
+      }
+    })
+    ipcMain.handle('marvi:save-secret', async (_event, update) => {
+      // The only path a credential takes: renderer -> here -> Gateway ->
+      // settings store. It is never returned, never logged, and never sent
+      // into the room the way a clarify answer is.
+      if (!isRecord(update)) return false
+      try {
+        const response = await fetch(`${gateway()}/voice/secret`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            id: String(update.id ?? ''),
+            name: String(update.name ?? ''),
+            value: String(update.value ?? '')
+          }),
+          signal: AbortSignal.timeout(8_000)
         })
         return response.ok
       } catch {

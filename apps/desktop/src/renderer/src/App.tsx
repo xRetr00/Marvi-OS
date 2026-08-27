@@ -15,6 +15,7 @@ import {
   Gauge,
   History,
   House,
+  KeyRound,
   Link2,
   Lightbulb,
   Info,
@@ -2607,6 +2608,7 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
         <VoiceOrb active={speaking || listening} level={voice.level} phase={voice.phase} />
         <Subtitles />
         <AskedQuestion />
+        <SecretField />
       </div>
 
       {/* Top-left: what Marvi is doing, and what is stopping it. */}
@@ -3110,35 +3112,46 @@ function Subtitles(): React.JSX.Element | null {
 }
 
 /**
- * A question Marvi asked, as options rather than as prose.
+ * A question Marvi asked, answered here rather than out loud.
  *
- * Nothing is waiting on this. Marvi says the question out loud and carries on;
- * the card is a shortcut for saying the answer back, and pressing an option
- * sends exactly those words into the room as the user's own turn -- which is
- * what would have happened had they spoken it.
+ * This is the point of the card, not a convenience on top of it. A spoken
+ * answer goes through the recogniser, and the recogniser is where the meaning
+ * is lost — "the second one" arrives as "the seconde one", a filename comes
+ * back misspelled, a number comes back as a word. Asking a clarifying question
+ * and then mis-hearing the answer is worse than not asking, because both sides
+ * now believe the ambiguity is settled.
  *
- * So there is no decline button and no token. A question can be answered by
- * saying something else entirely, and that is a complete answer.
+ * Pressing or typing sends exactly those characters into the conversation as
+ * the user's own turn. Nothing is waiting on it, so there is no decline button
+ * and no token: a question can be answered by saying something else entirely,
+ * and that is a complete answer.
  */
 function AskedQuestion(): React.JSX.Element | null {
   const runtime = useStore($runtimeState)
   const link = useStore($voiceLink)
   const question = runtime.assistant.question
-  const [sending, setSending] = useState('')
+  const [sending, setSending] = useState(false)
+  const [typed, setTyped] = useState('')
+
+  useEffect(() => setTyped(''), [question?.id])
 
   if (!question) return null
 
-  const answer = (choice: string): void => {
-    setSending(choice)
+  const answer = (text: string): void => {
+    const words = text.trim()
+    if (!words || sending) return
+    setSending(true)
     void (async () => {
       // Into the room first: that is the answer. Clearing the card is
       // bookkeeping, and doing it first would take the question off screen
       // even when there is no call to send it into.
-      const said = await sayAsUser(choice)
-      if (said) await window.marvi?.answerQuestion(question.id, choice)
-      setSending('')
+      const said = await sayAsUser(words)
+      if (said) await window.marvi?.answerQuestion(question.id, words)
+      setSending(false)
     })()
   }
+
+  const live = link === 'live'
 
   return (
     <div className="voice-question" role="group" aria-label="Marvi asked">
@@ -3148,7 +3161,7 @@ function AskedQuestion(): React.JSX.Element | null {
           {question.choices.map((choice) => (
             <button
               className="ghost-button"
-              disabled={link !== 'live' || sending !== ''}
+              disabled={!live || sending}
               key={choice}
               onClick={() => answer(choice)}
               type="button"
@@ -3158,8 +3171,114 @@ function AskedQuestion(): React.JSX.Element | null {
           ))}
         </div>
       ) : null}
+      {/* Always offered, never listed as a choice. "Other" as a fifth button
+          costs a click to reach a box that could just be here. */}
+      <form
+        className="voice-question-other"
+        onSubmit={(event) => {
+          event.preventDefault()
+          answer(typed)
+        }}
+      >
+        <input
+          aria-label="Type your answer"
+          disabled={!live || sending}
+          onChange={(event) => setTyped(event.target.value)}
+          placeholder={question.choices.length ? 'Or type an answer…' : 'Type your answer…'}
+          value={typed}
+        />
+        <button className="ghost-button" disabled={!live || sending || !typed.trim()} type="submit">
+          Send
+        </button>
+      </form>
       <p className="voice-question-note">
-        {link === 'live' ? 'Or just say it.' : 'Join to answer, or say it when you do.'}
+        {live
+          ? 'Answers typed here reach Marvi exactly as written.'
+          : 'Join to answer — typing avoids the recogniser mishearing it.'}
+      </p>
+    </div>
+  )
+}
+
+/**
+ * A credential Marvi asked for, typed here and nowhere else.
+ *
+ * The value goes renderer → main → Gateway → settings store, and stops. It is
+ * never sent into the room the way a `clarify` answer is, never returned to
+ * the model, and never logged. Marvi learns the name and that it was saved.
+ *
+ * That is not caution for its own sake: a key spoken aloud goes through a
+ * speech recogniser, into a transcript, and into a model provider's logs. This
+ * is the difference between a key on your machine and a key in somebody else's.
+ */
+function SecretField(): React.JSX.Element | null {
+  const runtime = useStore($runtimeState)
+  const request = runtime.assistant.secret
+  const [value, setValue] = useState('')
+  const [shown, setShown] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    setValue('')
+    setShown(false)
+  }, [request?.id])
+
+  if (!request) return null
+
+  const settle = (secret: string): void => {
+    if (saving) return
+    setSaving(true)
+    void (async () => {
+      await window.marvi?.saveSecret({ id: request.id, name: request.name, value: secret })
+      // Cleared here as well as on the next render: the state that held it is
+      // this component's, and leaving it set keeps the value in the window.
+      setValue('')
+      setSaving(false)
+    })()
+  }
+
+  return (
+    <div className="voice-secret" role="group" aria-label={`Marvi asked for ${request.name}`}>
+      <p className="voice-secret-why">
+        {request.why || `Marvi needs ${request.name} to continue.`}
+      </p>
+      <form
+        className="voice-secret-row"
+        onSubmit={(event) => {
+          event.preventDefault()
+          settle(value)
+        }}
+      >
+        <label htmlFor="marvi-secret">{request.name}</label>
+        <input
+          autoComplete="off"
+          disabled={saving}
+          id="marvi-secret"
+          onChange={(event) => setValue(event.target.value)}
+          spellCheck={false}
+          // Masked by default. Shown only while the button is held on, because
+          // the reason to reveal it is to check a paste, not to read it out.
+          type={shown ? 'text' : 'password'}
+          value={value}
+        />
+        <button
+          aria-label={shown ? 'Hide' : 'Show'}
+          aria-pressed={shown}
+          className="ghost-button"
+          onClick={() => setShown((was) => !was)}
+          type="button"
+        >
+          {shown ? 'Hide' : 'Show'}
+        </button>
+        <button className="ghost-button" disabled={saving || !value} type="submit">
+          Save
+        </button>
+        <button className="ghost-button" disabled={saving} onClick={() => settle('')} type="button">
+          Not now
+        </button>
+      </form>
+      <p className="voice-question-note">
+        Saved as a setting on this machine. Marvi is told the name, never the value.
       </p>
     </div>
   )
@@ -4365,7 +4484,45 @@ function WorkspacePanel(): React.JSX.Element {
       </ControlSection>
 
       <ControlSection
-        description="These hold whatever the settings say. Reading a credential is the same disclosure as writing one, so most of them cover both."
+        description="Environment files, key stores, and Marvi's own settings. Writing to them is always refused — ask her for a key instead and the value never passes through the model."
+        icon={KeyRound}
+        title="Files with secrets in them"
+      >
+        <ControlRow
+          action={
+            <Picker
+              options={[
+                {
+                  value: 'off',
+                  label: 'Refuse',
+                  detail: 'She cannot open them at all'
+                },
+                {
+                  value: 'masked',
+                  label: 'Names only',
+                  detail: 'Which settings exist, never their values'
+                },
+                {
+                  value: 'full',
+                  label: 'Values too',
+                  detail: 'Keys reach the model that answers you'
+                }
+              ]}
+              value={policy?.secretAccess ?? 'off'}
+              onChange={(next) => void apply({ secret_access: next })}
+              placeholder="Refuse"
+            />
+          }
+          description={
+            "“Is my key set?” and “what is my key?” look like the same question. " +
+            'Names only answers the first without answering the second.'
+          }
+          title="Reading them"
+        />
+      </ControlSection>
+
+      <ControlSection
+        description="These hold whatever the settings say. Reading a credential is governed by the setting above; the rest cannot be lifted at all."
         icon={ShieldAlert}
         title="Always refused"
       >
@@ -4375,7 +4532,7 @@ function WorkspacePanel(): React.JSX.Element {
               <code>{rule.pattern}</code>
               <span>
                 {rule.why}
-                {rule.reading ? '' : ' — writing only'}
+                {rule.secret ? ' — reading is a setting' : rule.reading ? '' : ' — writing only'}
               </span>
             </div>
           ))}

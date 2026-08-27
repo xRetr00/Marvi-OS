@@ -211,6 +211,24 @@ export interface AssistantState {
   roomEvent: RoomEvent | null
   /** A question Marvi asked, with the options she offered. */
   question: PendingQuestion | null
+  /** A credential Marvi asked for, as a masked field. */
+  secret: PendingSecret | null
+}
+
+/**
+ * A credential Marvi asked for.
+ *
+ * Its own channel rather than a kind of question, for one reason that matters:
+ * a question's answer goes into the conversation, and this one must never.
+ * What the user types goes desktop → Gateway → settings store and stops there;
+ * Marvi is told the name and that it was saved.
+ */
+export interface PendingSecret {
+  id: string
+  /** The setting it will be saved as, e.g. `OPENROUTER_API_KEY`. */
+  name: string
+  /** Why she is asking. Somebody about to type a credential is owed a reason. */
+  why: string
 }
 
 /**
@@ -650,7 +668,8 @@ export const DEFAULT_ASSISTANT_STATE: AssistantState = {
   spoken: '',
   confirmation: null,
   roomEvent: null,
-  question: null
+  question: null,
+  secret: null
 }
 
 export const OFFLINE_RUNTIME: RuntimeStatus = {
@@ -837,10 +856,12 @@ export interface WorkspacePolicy {
   rootExists: boolean
   readScope: 'strict' | 'general'
   writeScope: 'strict' | 'general'
+  /** What Marvi may do with a file that holds credentials. */
+  secretAccess: 'off' | 'masked' | 'full'
   /** What the user added. The built-in rules are separate and always apply. */
   blacklist: string[]
   /** Refusals that hold whatever the settings say, and cannot be removed. */
-  builtin: { pattern: string; why: string; reading: boolean }[]
+  builtin: { pattern: string; why: string; reading: boolean; secret: boolean }[]
   tools: { read: string[]; write: string[] }
 }
 
@@ -849,6 +870,7 @@ export interface WorkspaceUpdate {
   read_scope?: string
   write_scope?: string
   blacklist?: string[]
+  secret_access?: string
 }
 
 /**

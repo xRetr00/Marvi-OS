@@ -121,6 +121,17 @@ export function normalizeRuntimeStatus(value: unknown): RuntimeStatus | null {
     }
   }
 
+  // Same rule as the question: a shape this window does not understand draws
+  // no field, and never rejects the whole runtime.
+  let secret: AssistantState['secret'] = null
+  if (isRecord(assistant.secret) && typeof assistant.secret.name === 'string') {
+    secret = {
+      id: typeof assistant.secret.id === 'string' ? assistant.secret.id : '',
+      name: assistant.secret.name,
+      why: typeof assistant.secret.why === 'string' ? assistant.secret.why : ''
+    }
+  }
+
   return {
     product: 'Marvi OS',
     version: value.version,
@@ -136,7 +147,8 @@ export function normalizeRuntimeStatus(value: unknown): RuntimeStatus | null {
       spoken: typeof assistant.spoken === 'string' ? assistant.spoken : '',
       confirmation,
       roomEvent,
-      question
+      question,
+      secret
     },
     model: {
       llm: typeof model.llm === 'string' ? model.llm : '',
@@ -175,7 +187,8 @@ export function reconcileRuntimeStatus(
       // renderer's own voice state has no idea a question was asked, and
       // keeping the local copy would leave a card on screen after it was
       // answered, or hide one that just appeared.
-      question: gateway.assistant.question
+      question: gateway.assistant.question,
+      secret: gateway.assistant.secret
     }
   }
 }

@@ -12,6 +12,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from .clarify import Question
+from .credentials import SecretRequest
 
 AssistantPhase = Literal[
     "ready",
@@ -105,6 +106,12 @@ class AssistantState(BaseModel):
     #: about a tool that is waiting. This is neither: nothing is held open, the
     #: answer is the user's next turn, and the card is a shortcut to saying it.
     question: Question | None = None
+    #: A credential Marvi asked for, as a masked field.
+    #:
+    #: Separate from `question` for one reason that matters: a question's answer
+    #: goes into the conversation, and this one must never. Sharing the channel
+    #: would make that a matter of remembering rather than of shape.
+    secret: SecretRequest | None = None
 
 
 class ModelSummary(BaseModel):
@@ -404,6 +411,28 @@ class RuntimeStore:
         if question_id and current.id != question_id:
             return
         self.assistant = self.assistant.model_copy(update={"question": None})
+
+    def ask_secret(self, name: str, why: str = "") -> SecretRequest:
+        """Put a masked field on screen. The value never comes back here."""
+        request = SecretRequest(
+            id=token_urlsafe(8), name=name, why=why, asked_at=time.time()
+        )
+        self.assistant = self.assistant.model_copy(update={"secret": request})
+        return request
+
+    def secret_settled(self, request_id: str = "") -> None:
+        """Take the field off screen, saved or dismissed."""
+        current = self.assistant.secret
+        if current is None:
+            return
+        if request_id and current.id != request_id:
+            return
+        self.assistant = self.assistant.model_copy(update={"secret": None})
+
+    def expire_secrets(self, now: float | None = None) -> None:
+        current = self.assistant.secret
+        if current is not None and current.stale(now):
+            self.assistant = self.assistant.model_copy(update={"secret": None})
 
     def expire_questions(self, now: float | None = None) -> None:
         """Drop one nobody answered. Not a cancellation: the user may still say
