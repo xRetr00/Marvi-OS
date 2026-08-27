@@ -57,7 +57,6 @@ import { NativePetHost, petActionPage, petTaskCount, resolvePetHostPaths } from 
 import {
   launchMessagingSetup,
   messagingEnvironment,
-  messagingLaunch,
   messagingSourceRoot,
   messagingStatus,
   shouldStartMessaging,
@@ -541,15 +540,17 @@ function startVoiceStack(): void {
     cwd: repoRoot,
     env: childEnv
   })
-  const messagingSource = messagingSourceRoot(repoRoot, process.resourcesPath)
-  const messagingRuntime = messagingLaunch(messagingSource)
+  const messagingSource = messagingSourceRoot(repoRoot)
   supervisor.add({
     name: 'messaging',
     match: /hermes(?:\.exe)?\s+gateway\s+run|gateway[\\/]run\.py/i,
     installRoot: messagingSource,
-    command: messagingRuntime?.command ?? join(messagingSource, '.runtime-not-installed'),
+    command: uv,
     args: [
-      ...(messagingRuntime?.args ?? []),
+      'run',
+      '--project',
+      messagingSource,
+      'hermes',
       'gateway',
       'run',
       '--replace',
@@ -558,16 +559,13 @@ function startVoiceStack(): void {
     cwd: messagingSource,
     env: () => ({
       ...childEnv,
-      ...messagingEnvironment(
-        messagingStatus(repoRoot, process.resourcesPath).home,
-        process.pid
-      )
+      ...messagingEnvironment(messagingStatus(repoRoot).home, process.pid)
     }),
     // Messaging is deliberately opt-in. The complete upstream engine is
     // shipped, but no network connection is made until setup has produced a
     // config and the user enables it.
     when: () => {
-      const status = messagingStatus(repoRoot, process.resourcesPath)
+      const status = messagingStatus(repoRoot)
       return shouldStartMessaging(status)
     }
   })
@@ -1914,14 +1912,12 @@ function startApp(): void {
       if (typeof name !== 'string' || !supervisor) return false
       return supervisor.retry(name)
     })
-    ipcMain.handle('marvi:get-messaging', () =>
-      messagingStatus(repoRoot, process.resourcesPath)
-    )
+    ipcMain.handle('marvi:get-messaging', () => messagingStatus(repoRoot))
     ipcMain.handle('marvi:set-messaging', (event, update) => {
       if (!isMarviPage(event.senderFrame?.url ?? '') || typeof update !== 'object' || !update) {
-        return messagingStatus(repoRoot, process.resourcesPath)
+        return messagingStatus(repoRoot)
       }
-      const current = messagingStatus(repoRoot, process.resourcesPath)
+      const current = messagingStatus(repoRoot)
       const record = update as { enabled?: unknown; home?: unknown }
       const requestedHome = typeof record.home === 'string' ? record.home : current.home
       const next = writeMessagingPreferences({
@@ -1933,15 +1929,16 @@ function startApp(): void {
       })
       if (next.enabled) supervisor?.start('messaging')
       else supervisor?.stop('messaging')
-      return messagingStatus(repoRoot, process.resourcesPath)
+      return messagingStatus(repoRoot)
     })
     ipcMain.handle('marvi:setup-messaging', (event) => {
       if (!isMarviPage(event.senderFrame?.url ?? '')) return false
-      return launchMessagingSetup(repoRoot, process.resourcesPath, process.pid)
+      const uv = findUv()
+      return uv ? launchMessagingSetup(uv, repoRoot, process.pid) : false
     })
     ipcMain.handle('marvi:open-messaging-home', async (event) => {
       if (!isMarviPage(event.senderFrame?.url ?? '')) return false
-      const home = messagingStatus(repoRoot, process.resourcesPath).home
+      const home = messagingStatus(repoRoot).home
       mkdirSync(home, { recursive: true })
       return (await shell.openPath(home)) === ''
     })

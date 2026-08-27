@@ -433,8 +433,8 @@ Settings include:
 - voice models and residency profile;
 - OpenCode Go key/model selection;
 - Composio connections;
-- a Messaging page that shows the exact bundled source commit and discovered
-  platform adapters, launches the bundled interactive setup in a terminal,
+- a Messaging page that shows the exact pinned source commit and discovered
+  platform adapters, launches the upstream interactive setup in a terminal,
   selects the private profile directory, and enables/disables Electron-owned
   supervision only after configuration exists;
 - Smart Room endpoint;

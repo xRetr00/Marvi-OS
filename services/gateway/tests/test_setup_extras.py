@@ -419,38 +419,3 @@ def test_a_component_sync_does_not_delete_plugin_dependencies(monkeypatch, tmp_p
     assert "--inexact" in seen["argv"], (
         "a plain uv sync deletes every plugin dependency in the shared environment"
     )
-
-
-def test_component_sync_installs_declared_locked_extras(monkeypatch, tmp_path) -> None:
-    from marvi_gateway.setup import installer
-    from marvi_gateway.setup.catalog import Component
-
-    seen: dict[str, list[str]] = {}
-
-    class Finished:
-        returncode = 0
-        stdout = ""
-        stderr = ""
-
-    def record(argv, **_kwargs):
-        seen["argv"] = list(argv)
-        return Finished()
-
-    monkeypatch.setattr(installer.subprocess, "run", record)
-    monkeypatch.setattr("marvi_gateway.doctor.find_uv", lambda: "uv")
-    component = Component(
-        name="messaging-python",
-        kind="python",
-        title="Messaging",
-        why="offline runtime",
-        project="vendor/marvi-agent",
-        extra={"extras": ["messaging", "teams"]},
-    )
-
-    outcome = installer._sync_project(component, tmp_path)
-
-    assert outcome.ok, outcome.detail
-    assert seen["argv"] == [
-        "uv", "sync", "--inexact", "--project", "vendor/marvi-agent",
-        "--extra", "messaging", "--extra", "teams",
-    ]

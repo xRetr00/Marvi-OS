@@ -3,10 +3,9 @@ productName: Marvi OS
 directories:
   buildResources: build
 files:
-  - '!resources/messaging-runtime{,/**}'
   - '!**/.vscode/*'
   - '!src/*'
-  - '!{electron.vite.config,vitest.config}.{js,ts,mjs,cjs}'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
@@ -17,14 +16,6 @@ extraResources:
     to: pet-host/marvi-pet-host.exe
   - from: src/renderer/src/assets/pet/marvi/spritesheet.webp
     to: pet-host/spritesheet.webp
-  - from: resources/messaging-runtime
-    to: messaging
-    filter:
-      - '**/*'
-      - '**/.*'
-  # electron-builder omits dotfiles from directory FileSets on Windows.
-  - from: resources/messaging-runtime/source/contributors/emails/.gitkeep
-    to: messaging/source/contributors/emails/.gitkeep
 win:
   executableName: Marvi-OS
   icon: icon.ico

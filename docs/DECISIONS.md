@@ -1,27 +1,6 @@
 # Architectural Decisions
 
-## ADR-027 — Messaging ships as a self-contained application resource
-
-**Decision:** supersede ADR-026's gitlink mechanism. The same pinned upstream
-tree is tracked as ordinary files under `vendor/marvi-agent`. Release builds
-copy exactly those files and bundle standalone CPython plus locked messaging
-dependencies. Electron invokes the module directly; runtime Git and `uv` are
-not in the messaging launch path, and download mechanisms are disabled.
-
-**Reason:** a gitlink and `uv run` made a fresh installation depend on a
-separate checkout and could resolve packages on first launch. The packaged
-resource must remain runnable when the upstream host and package index are
-unavailable.
-
-**Boundary:** source URLs and the pinned commit remain provenance only. Marvi's
-own source updater may clone/fetch Marvi OS, but it does not obtain messaging
-as another repository. Platform network traffic and user-triggered optional
-integrations are distinct from obtaining the shipped runtime.
-
 ## ADR-026 — Messaging is a pinned companion, not a gateway rewrite
-
-**Superseded in packaging mechanism by ADR-027.** Its product/runtime ownership
-boundary remains in force.
 
 **Decision:** ship the complete Marvi Agent repository at commit
 `61977bb4d6b97ab2aece57d2405fa2f0b19e3ae0` as the `vendor/marvi-agent` Git

@@ -201,12 +201,3 @@ Full plan in `phases/11-setup.md`.
    failures visible in Settings → Messaging.
 
 Full acceptance boundary in `phases/14-messaging-companion.md`.
-
-## Phase 15 — standalone messaging package
-
-1. Replace the messaging gitlink with ordinary vendored files.
-2. Package the exact source tree, standalone Python, and locked platform dependencies.
-3. Start the module directly with downloads disabled and prove the unpacked app offline.
-4. Remove messaging submodule handling from build and update paths.
-
-Full acceptance boundary in `phases/15-standalone-messaging-runtime.md`.

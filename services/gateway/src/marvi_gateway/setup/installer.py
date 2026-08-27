@@ -291,9 +291,6 @@ def _sync_project(
         )
 
     try:
-        argv = [uv, "sync", "--inexact", "--project", component.project]
-        for extra in component.extra.get("extras", ()):
-            argv.extend(["--extra", str(extra)])
         finished = subprocess.run(
             # `--inexact` because this environment is deliberately shared. A
             # plugin's dependencies are installed into it by design -- the
@@ -303,7 +300,7 @@ def _sync_project(
             # exactly match the lock, which quietly deleted every one of them:
             # the room's camera stopped working with "No module named 'cv2'"
             # after each update, having worked when the plugin was installed.
-            argv,
+            [uv, "sync", "--inexact", "--project", component.project],
             cwd=repo_root,
             capture_output=True,
             text=True,

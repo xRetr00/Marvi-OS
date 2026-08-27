@@ -1,1 +1,0 @@
-"""Smart room runtime package."""

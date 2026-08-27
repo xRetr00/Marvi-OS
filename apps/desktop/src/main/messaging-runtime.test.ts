@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -48,26 +49,6 @@ describe('messaging runtime', () => {
     expect(runtime.messagingPlatforms(source)).toEqual(['discord', 'telegram'])
   })
 
-  it('prefers the packaged source and launches its bundled Python directly', async () => {
-    const runtime = await import('./messaging-runtime')
-    const checkout = join(root, 'checkout')
-    const resources = join(root, 'resources')
-    const source = join(resources, 'messaging', 'source')
-    const python = join(resources, 'messaging', 'python', 'python.exe')
-    mkdirSync(join(checkout, 'vendor', 'marvi-agent'), { recursive: true })
-    mkdirSync(join(source, 'gateway'), { recursive: true })
-    mkdirSync(join(resources, 'messaging', 'python'), { recursive: true })
-    writeFileSync(join(source, 'gateway', 'run.py'), '')
-    writeFileSync(python, '')
-
-    expect(runtime.messagingSourceRoot(checkout, resources)).toBe(source)
-    expect(runtime.messagingLaunch(source)).toEqual({
-      command: python,
-      args: ['-m', 'hermes_cli.main'],
-      cwd: source
-    })
-  })
-
   it('uses a separate upstream home and declares Electron as supervisor', async () => {
     const runtime = await import('./messaging-runtime')
     expect(runtime.messagingEnvironment('C:\\private', 42)).toMatchObject({
@@ -103,13 +84,16 @@ describe('messaging runtime', () => {
     ).toBe(true)
   })
 
-  it('tracks the engine as ordinary Marvi files with no nested repository', async () => {
+  it('pins the materialized engine and discovers its complete platform catalogue', async () => {
     const runtime = await import('./messaging-runtime')
     const source = join(process.cwd(), '..', '..', 'vendor', 'marvi-agent')
     if (!existsSync(join(source, 'gateway', 'run.py'))) return
 
-    expect(existsSync(join(source, '.git'))).toBe(false)
-    expect(existsSync(join(source, '..', '..', '.gitmodules'))).toBe(false)
+    const head = execFileSync('git', ['-C', source, 'rev-parse', 'HEAD'], {
+      encoding: 'utf8',
+      windowsHide: true
+    }).trim()
+    expect(head).toBe(runtime.MESSAGING_SOURCE_COMMIT)
     expect(runtime.messagingPlatforms(source).length).toBeGreaterThanOrEqual(20)
   })
 })

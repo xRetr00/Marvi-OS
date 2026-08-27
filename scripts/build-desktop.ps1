@@ -22,6 +22,12 @@ $env:MARVI_BUILD_COMMIT = (git rev-parse --short HEAD)
 $env:MARVI_BUILD_TIME = (Get-Date).ToUniversalTime().ToString('o')
 Write-Host "commit=$env:MARVI_BUILD_COMMIT buildTime=$env:MARVI_BUILD_TIME version=$(Get-Content VERSION)"
 
+if (-not (Test-Path vendor\marvi-agent\gateway\run.py)) {
+  Step "Pinned upstream dependencies"
+  git submodule update --init --recursive
+  if ($LASTEXITCODE -ne 0) { throw 'git submodule update failed' }
+}
+
 if (-not (Test-Path node_modules)) {
   Step "npm install (first run)"
   npm install
