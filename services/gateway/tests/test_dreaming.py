@@ -446,3 +446,26 @@ def test_a_weak_match_says_so_instead_of_reading_as_an_answer(tmp_path) -> None:
     # The memory is still there to reason with.
     assert "deepseek-v4-flash" in block
     assert memory_module.CONFIDENT_ENOUGH > memory_module.SIMILAR_ENOUGH
+
+
+def test_the_recall_block_is_bounded_as_a_whole(tmp_path) -> None:
+    """`budget` counted memory lines and nothing else.
+
+    Headings, the uncertainty paragraph, the graph relations and the trailer
+    were appended unmeasured -- one real block reached 1,691 characters of
+    which 1,352 were overhead. Over a real session, of 19 turns whose block
+    was under 1,600 characters none leaked prompt text into speech; of 7 over
+    it, 3 did.
+    """
+    from marvi_gateway import memory as memory_module
+    from marvi_gateway.memory import MemoryStore
+
+    store = MemoryStore(tmp_path / "m.db")
+    for index in range(30):
+        store.remember(f"Thing {index}", "A sentence worth about sixty characters, give or take a few.")
+
+    block = store.recall_block("thing")
+
+    assert len(block) <= memory_module.BLOCK_CHARS + 400, len(block)
+    # Still a usable block, not a stub.
+    assert "- Thing" in block

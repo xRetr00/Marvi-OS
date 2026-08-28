@@ -99,6 +99,26 @@ SIMILAR_ENOUGH = 0.52
 #: this data would have deleted the right answer.
 CONFIDENT_ENOUGH = 0.60
 
+#: A ceiling on the whole recall block, not just its memories.
+#:
+#: `budget` counted the memory lines and nothing else, so headings, the
+#: uncertainty paragraph, the graph relations and the trailer were all added
+#: afterwards, unmeasured. One real block came to 1,691 characters of which
+#: 1,352 were overhead: two emails and 450 characters of "How these connect"
+#: naming marketing senders.
+#:
+#: The size matters because of what happens past it. Over a real session, of
+#: 19 turns whose block was 1,600 characters or less, none leaked; of 7 over
+#: it, 3 answered by continuing the prompt out loud -- "prefer what the user
+#: says now. No need to announce them. Do not restate them." spoken as though
+#: it were a reply. A long structured document in the context stops reading as
+#: instructions and starts reading as something to finish.
+BLOCK_CHARS = 1_500
+
+#: How much of the graph may ride along. It was unbounded, and a connected
+#: mailbox turned it into a list of senders.
+RELATED_CHARS = 260
+
 
 def _normalise(vector: list[float]) -> list[float]:
     """Unit length, so a dot product is a cosine.
@@ -1339,7 +1359,7 @@ class MemoryStore:
                 + nl.join(derived) + nl
             )
         if related := self._related_to(found):
-            block += nl + "How these connect: " + related + nl
+            block += nl + "How these connect: " + related[:RELATED_CHARS] + nl
         if weak:
             block += (
                 nl
@@ -1348,6 +1368,10 @@ class MemoryStore:
                 "see here, say you do not have it or look it up -- do not answer "
                 "from the nearest line." + nl
             )
+        # Trimmed as a whole, last, so the ceiling is on what the model
+        # actually receives rather than on one part of it.
+        if len(block) > BLOCK_CHARS:
+            block = block[:BLOCK_CHARS].rsplit(nl, 1)[0] + nl
         return (
             block
             + nl

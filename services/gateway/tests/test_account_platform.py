@@ -422,3 +422,33 @@ def test_default_registry_has_the_requested_rollout_order() -> None:
     assert [row["toolkit"] for row in default_registry().list()] == [
         "gmail", "googlecalendar", "slack", "notion", "github", "googledrive"
     ]
+
+
+def test_marketing_mail_never_becomes_a_memory() -> None:
+    """Hours after Gmail was connected, Marvi's long-term memory held "GLM-5.3
+    Flash is 50% off for two weeks" and "Intuit Developer News: August 2026",
+    stored verbatim with their JSON bodies and tracking whitespace, and the
+    graph had grown entities for A101 Ekstra and Ziraat Bankasi. An inbox was
+    being remembered as though it were a life."""
+    from marvi_gateway.ingest import _normalise_email
+
+    for sender, body in (
+        ("LinkedIn <notifications-noreply@linkedin.com>", "You appeared in searches"),
+        ("A101 Ekstra <a101ekstra@duyuru.a101.com.tr>", "Vade Farksiz 12 Taksit"),
+        ('"Z.ai Team" <notifications@account.z.ai>', "50% off. Unsubscribe here."),
+        ("OKX <updates@okx.com>", "Your weekly crypto snapshot"),
+    ):
+        assert _normalise_email({"id": "x", "sender": sender, "subject": "s", "body": body}) is None
+
+
+def test_a_real_person_writing_to_you_is_still_remembered() -> None:
+    """The filter that eats a message from a human is worse than the
+    newsletter it was meant to stop."""
+    from marvi_gateway.ingest import _normalise_email
+
+    for sender, body in (
+        ("Ahmet Yilmaz <ahmet@duzce.edu.tr>", "Shereef, about your exam on Tuesday"),
+        ("Mum <mum@gmail.com>", "call me when you can"),
+    ):
+        item = _normalise_email({"id": "x", "sender": sender, "subject": "s", "body": body})
+        assert item is not None, sender
