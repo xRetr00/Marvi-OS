@@ -395,6 +395,24 @@ class MarviVoiceAgent(Agent):
                 # being the only thing trying.
                 + reply_instruction()
                 + " "
+                # Measured. Asked "uh about the memory", she answered with a
+                # list of six memories in the third person -- "Marvi OS build:
+                # she works fully locally, uses model Llama 3.2 3B Instruct Q4
+                # from Ollama", "she uses circuitpython script reading a ..."
+                # -- and spoke for sixty-eight seconds. Two memories had been
+                # recalled for that turn, neither of them those, and none of
+                # what she said exists anywhere in the store: not the model,
+                # not Ollama, not the script. She had composed a plausible
+                # memory list for a generic local assistant.
+                #
+                # The failure is specific enough to name: when the question is
+                # about what she knows, the answer is a lookup, and a lookup
+                # she did not do cannot be filled in from what such a list
+                # usually looks like.
+                + "What you remember is only what recall gave you for this "
+                "turn or what memory_search returns. If you are asked what you "
+                "know and neither has it, look it up or say you do not have it "
+                "-- never compose a list of things that sound like memories. "
                 + (architecture() + " " if architecture() else "")
                 # Measured, not guessed. With thirteen tools in the request and
                 # no rule against it, this model narrates before calling one --

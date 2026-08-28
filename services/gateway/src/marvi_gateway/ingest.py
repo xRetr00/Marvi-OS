@@ -198,16 +198,75 @@ class AccountSyncStore:
         ).fetchone()
         if row is not None and row["fingerprint"] == digest:
             return False
+        self.mark_seen(toolkit, connection_id, item.provider_id, digest)
+        return True
+
+    def mark_seen(
+        self, toolkit: str, connection_id: str, provider_id: str, fingerprint: str = ""
+    ) -> None:
+        """Record that a source was ingested, without requiring a `MemoryItem`.
+
+        `changed()` is the usual caller, for a fetched-and-normalized record.
+        Realtime triggers ingest one event at a time and never build a
+        `MemoryItem`, but their memory write uses the same `provider_id` as
+        its `source` — so recording it here, through the same call, is what
+        makes a trigger-sourced memory retractable by connection at disconnect
+        (see `AccountIngest.retract_connection`), the same as a polled one.
+        """
         with self._lock:
             self._db.execute(
                 "INSERT INTO account_sync_seen"
                 " (toolkit, connection_id, provider_id, fingerprint, seen_at) VALUES (?, ?, ?, ?, ?)"
                 " ON CONFLICT(toolkit, connection_id, provider_id) DO UPDATE SET"
                 " fingerprint=excluded.fingerprint, seen_at=excluded.seen_at",
-                (toolkit, connection_id, item.provider_id, digest, datetime.now(UTC).isoformat()),
+                (toolkit, connection_id, provider_id, fingerprint, datetime.now(UTC).isoformat()),
             )
             self._db.commit()
-        return True
+
+    def provider_ids(self, toolkit: str, connection_id: str) -> list[str]:
+        """Every memory `source` this connection has ever written.
+
+        This is the retraction ledger: each value here is exactly the
+        `source` a memory was written with, so deleting a memory for each one
+        undoes what the connection put into the graph.
+        """
+        rows = self._db.execute(
+            "SELECT provider_id FROM account_sync_seen WHERE toolkit=? AND connection_id=?",
+            (toolkit, connection_id),
+        ).fetchall()
+        return [str(row["provider_id"]) for row in rows]
+
+    def count_seen(self, toolkit: str, connection_id: str = "") -> int:
+        """How many items this connection (or, with no id, this toolkit) has
+        ingested — the number a disconnect confirmation shows before it acts."""
+        if connection_id:
+            row = self._db.execute(
+                "SELECT COUNT(*) AS n FROM account_sync_seen WHERE toolkit=? AND connection_id=?",
+                (toolkit, connection_id),
+            ).fetchone()
+        else:
+            row = self._db.execute(
+                "SELECT COUNT(*) AS n FROM account_sync_seen WHERE toolkit=?", (toolkit,)
+            ).fetchone()
+        return int(row["n"])
+
+    def clear(self, toolkit: str, connection_id: str) -> None:
+        """Drop the cursor and seen-ledger for one connection, after retraction.
+
+        So a reconnect starts over rather than resuming from a cursor whose
+        memories no longer exist — resuming would silently skip everything
+        already "seen" instead of re-ingesting it.
+        """
+        with self._lock:
+            self._db.execute(
+                "DELETE FROM account_sync_seen WHERE toolkit=? AND connection_id=?",
+                (toolkit, connection_id),
+            )
+            self._db.execute(
+                "DELETE FROM account_sync_state WHERE toolkit=? AND connection_id=?",
+                (toolkit, connection_id),
+            )
+            self._db.commit()
 
     def finish(
         self,
@@ -508,6 +567,45 @@ class AccountIngest:
 
     def health(self) -> dict[str, Any]:
         return {"providers": self.registry.list(), "connections": self.store.health()}
+
+    def retract_preview(self, toolkit: str, connection_id: str = "") -> int:
+        """How many ingested items a disconnect would retract.
+
+        Read before `retract_connection` acts, so a disconnect confirmation
+        can say how much is about to go rather than deleting silently.
+        """
+        return self.store.count_seen(toolkit, connection_id)
+
+    def retract_connection(self, toolkit: str, connection_id: str) -> dict[str, Any]:
+        """Undo what one connection put into the graph.
+
+        `ComposioAccounts.delete` only ever revoked the OAuth grant and
+        invalidated the connection cache — nothing touched memory, so
+        disconnecting Gmail left every ingested email sitting in the graph,
+        still recalled and spoken, with no live connection left to correct
+        it. The seen-row ledger already keys every ingested item by
+        `(toolkit, connection_id, provider_id)`, and a memory's `source` is
+        exactly that `provider_id`, so retracting is a lookup and a delete
+        rather than a new subsystem.
+        """
+        sources = self.store.provider_ids(toolkit, connection_id)
+        removed = sum(self.memory.forget_by_source(source) for source in sources)
+        self.store.clear(toolkit, connection_id)
+        log.info(
+            "account memory retracted",
+            extra={
+                "marvi_toolkit": toolkit,
+                "marvi_connection_id": connection_id,
+                "marvi_sources": len(sources),
+                "marvi_removed": removed,
+            },
+        )
+        return {
+            "toolkit": toolkit,
+            "connection_id": connection_id,
+            "sources": len(sources),
+            "removed": removed,
+        }
 
     def sync_connection(self, toolkit: str, connection_id: str = "") -> dict[str, Any]:
         started = time.perf_counter()

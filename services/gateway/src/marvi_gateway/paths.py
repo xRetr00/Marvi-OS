@@ -75,6 +75,19 @@ def accounts_db() -> Path:
     return _from_env("MARVI_ACCOUNTS_DB", "accounts.sqlite3")
 
 
+def composio_entity_file() -> Path:
+    """The per-installation Composio identity, generated once and kept.
+
+    Composio's own authentication guidance says not to use the literal
+    `"default"` in production: connections are stored under this identifier,
+    so two installations that both used it would address the same Composio
+    identity. This file holds a random id generated the first time one is
+    needed, so every installation gets its own address without asking anyone
+    to configure anything. `COMPOSIO_ENTITY_ID` overrides it explicitly.
+    """
+    return _from_env("MARVI_COMPOSIO_ENTITY_FILE", "composio-entity-id")
+
+
 def chat_db() -> Path:
     return _from_env("MARVI_CHAT_DB", "chat.sqlite3")
 
@@ -165,6 +178,7 @@ def describe() -> dict[str, str]:
         "journal": str(journal_db()),
         "memory": str(memory_db()),
         "accounts": str(accounts_db()),
+        "composio_entity": str(composio_entity_file()),
         "chat": str(chat_db()),
         "providers": str(provider_config()),
         "usage": str(usage_ledger()),

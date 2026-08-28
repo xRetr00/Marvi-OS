@@ -11,6 +11,7 @@ from __future__ import annotations
 import os
 import sqlite3
 import time
+import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -19,7 +20,6 @@ from typing import Any, Literal
 
 from .untrusted import wrap_external
 
-DEFAULT_USER_ID = "default"
 CONNECTIONS_CACHE_SECONDS = 30.0
 TOOLS_CACHE_SECONDS = 10 * 60.0
 DEAD_STATUSES = {"expired", "revoked", "failed", "disabled", "inactive"}
@@ -30,6 +30,81 @@ SCOPE_RANK = {name: index for index, name in enumerate(ACCOUNT_SCOPES)}
 GMAIL_FETCH = "GMAIL_FETCH_EMAILS"
 GMAIL_SEND = "GMAIL_SEND_EMAIL"
 CALENDAR_EVENTS = "GOOGLECALENDAR_EVENTS_LIST"
+
+#: Toolkits Marvi ships first-class support for: a native memory provider
+#: (`ingest.py`), and — for most of them — a curated action-effect catalog
+#: below. Shown as "preview" cards in Connectors before the user connects
+#: them. A toolkit outside this tuple can still be connected and used through
+#: the generic `account_tool_search`/`account_tool_execute` broker; it is
+#: just not advertised until connected, and its actions fall back to the word
+#: heuristic in `classify_action`.
+NATIVE_MEMORY_TOOLKITS = (
+    "gmail", "googlecalendar", "slack", "notion", "github", "googledrive",
+)
+
+TOOLKIT_LABELS = {
+    "gmail": "Gmail",
+    "googlecalendar": "Google Calendar",
+    "slack": "Slack",
+    "notion": "Notion",
+    "github": "GitHub",
+    "googledrive": "Google Drive",
+}
+
+#: The reviewed effect overlay: toolkit -> {slug: effect}, for the toolkits
+#: Marvi actually uses. A toolkit that appears here is one Marvi's own team
+#: has checked action by action; see `classify_action` for why an uncurated
+#: slug on a toolkit that IS in this dict is refused rather than guessed. Not
+#: exhaustive — it grows as more actions are reviewed against the live
+#: catalog (RFC-NATIVE-CONNECTORS Gate 4), not as a one-time exercise.
+ACTION_CATALOG: dict[str, dict[str, Literal["read", "write", "admin"]]] = {
+    "gmail": {
+        "GMAIL_FETCH_EMAILS": "read",
+        "GMAIL_FETCH_MESSAGE_BY_MESSAGE_ID": "read",
+        "GMAIL_FETCH_MESSAGE_BY_THREAD_ID": "read",
+        "GMAIL_LIST_THREADS": "read",
+        "GMAIL_LIST_LABELS": "read",
+        "GMAIL_SEND_EMAIL": "write",
+        "GMAIL_CREATE_EMAIL_DRAFT": "write",
+        "GMAIL_REPLY_TO_THREAD": "write",
+        "GMAIL_MOVE_TO_TRASH": "admin",
+        "GMAIL_DELETE_MESSAGE": "admin",
+    },
+    "googlecalendar": {
+        "GOOGLECALENDAR_EVENTS_LIST": "read",
+        "GOOGLECALENDAR_FIND_EVENT": "read",
+        "GOOGLECALENDAR_CREATE_EVENT": "write",
+        "GOOGLECALENDAR_UPDATE_EVENT": "write",
+        "GOOGLECALENDAR_QUICK_ADD": "write",
+        "GOOGLECALENDAR_DELETE_EVENT": "admin",
+    },
+    "github": {
+        "GITHUB_GET_THE_AUTHENTICATED_USER": "read",
+        "GITHUB_SEARCH_ISSUES_AND_PULL_REQUESTS": "read",
+        "GITHUB_LIST_REPOSITORIES": "read",
+        "GITHUB_GET_A_REPOSITORY": "read",
+        "GITHUB_CREATE_AN_ISSUE": "write",
+        "GITHUB_CREATE_A_PULL_REQUEST": "write",
+        "GITHUB_ADD_A_COMMENT_TO_AN_ISSUE": "write",
+        "GITHUB_MERGE_A_PULL_REQUEST": "admin",
+        "GITHUB_DELETE_A_REPOSITORY": "admin",
+    },
+    "notion": {
+        "NOTION_FETCH_DATA": "read",
+        "NOTION_CREATE_PAGE": "write",
+        "NOTION_UPDATE_PAGE": "write",
+        "NOTION_APPEND_BLOCK_CHILDREN": "write",
+        "NOTION_DELETE_BLOCK": "admin",
+    },
+    "slack": {
+        "SLACK_LIST_CONVERSATIONS": "read",
+        "SLACK_FETCH_CONVERSATION_HISTORY": "read",
+        "SLACK_LIST_ALL_USERS": "read",
+        "SLACK_SEND_MESSAGE": "write",
+        "SLACK_UPDATE_A_SLACK_MESSAGE": "write",
+        "SLACK_DELETE_A_SLACK_MESSAGE": "admin",
+    },
+}
 
 _ADMIN_WORDS = {
     "DELETE", "TRASH", "REMOVE", "REVOKE", "DISABLE", "ENABLE", "DESTROY",
@@ -69,6 +144,43 @@ class AccountTransientError(Exception):
 
 def api_key() -> str | None:
     return (os.environ.get("COMPOSIO_API_KEY") or "").strip() or None
+
+
+def default_user_id() -> str:
+    """A stable identity for this Marvi installation, generated once.
+
+    Composio's own docs warn against `"default"` in production because
+    connections are stored under this identifier — reusing the literal across
+    installations means they address the same Composio identity. openhuman
+    threads an equivalent `entity_id` through every authorize/execute call;
+    `COMPOSIO_ENTITY_ID` is Marvi's version for anyone who wants to pin one
+    explicitly. Absent that, an id is generated the first time it is needed
+    and persisted beside the rest of Marvi's local state, so every
+    installation gets its own address without asking anyone to configure
+    anything.
+    """
+    override = (os.environ.get("COMPOSIO_ENTITY_ID") or "").strip()
+    if override:
+        return override
+    from .paths import composio_entity_file
+
+    path = composio_entity_file()
+    try:
+        existing = path.read_text(encoding="utf-8").strip()
+    except OSError:
+        existing = ""
+    if existing:
+        return existing
+    generated = f"marvi-{uuid.uuid4().hex}"
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(generated + "\n", encoding="utf-8")
+    except OSError:
+        # A locked or unwritable path is not worth failing startup over — the
+        # generated id still works for this process, it just will not
+        # survive a restart.
+        pass
+    return generated
 
 
 def _status_of(exc: Exception) -> int | None:
@@ -137,9 +249,29 @@ def toolkit_from_action(action: str) -> str:
     return upper.partition("_")[0].lower()
 
 
-def classify_action(action: str) -> Literal["read", "write", "admin"]:
-    """Classify a remote action conservatively from its canonical slug."""
-    words = set(action.upper().split("_"))
+def classify_action(action: str, toolkit: str | None = None) -> Literal["read", "write", "admin"]:
+    """Classify a remote action's effect.
+
+    A toolkit with a curated catalog above is authoritative for every slug in
+    it, and refuses — rather than guesses — for one that is not. openhuman's
+    review (PR #4702) found that the word heuristic below calls an uncurated
+    *write* action "read" whenever its slug happens to contain GET, LIST,
+    CHECK or STATUS, because Composio names actions for what they retrieve,
+    not always for everything else they do. A toolkit with no catalog has
+    nothing more authoritative to check a slug against yet, so it keeps the
+    heuristic, which already fails closed on a genuinely unfamiliar verb.
+    """
+    slug = action.strip().upper()
+    resolved_toolkit = (toolkit or toolkit_from_action(slug)).strip().lower()
+    catalog = ACTION_CATALOG.get(resolved_toolkit)
+    if catalog is not None:
+        # Not `.get(slug, "admin")` by accident: an action this toolkit's
+        # catalog does not mention is exactly the case the word heuristic
+        # gets wrong, so it is refused the same way an unfamiliar verb is
+        # below, never handed to that heuristic as a fallback.
+        return catalog.get(slug, "admin")
+
+    words = set(slug.split("_"))
     if words & _ADMIN_WORDS:
         return "admin"
     if words & _WRITE_WORDS:
@@ -244,12 +376,15 @@ class ComposioAccounts:
         self,
         key: str | None = None,
         client: Any = None,
-        user_id: str = DEFAULT_USER_ID,
+        user_id: str | None = None,
         state: AccountStateStore | None = None,
     ) -> None:
         self._key = key if key is not None else api_key()
         self._client = client
-        self.user_id = user_id
+        # `None` rather than a literal default: resolving lazily here, instead
+        # of at import time, means a test or a caller with its own identity
+        # scheme is never surprised by a file this module decided to write.
+        self.user_id = user_id if user_id is not None else default_user_id()
         self.state = state or AccountStateStore()
         self._cached: tuple[float, list[dict[str, Any]]] | None = None
         self._tool_cache: dict[str, tuple[float, list[DiscoveredTool]]] = {}
@@ -310,9 +445,7 @@ class ComposioAccounts:
                     "name": str(_get(item, "name", slug)),
                     "description": str(_get(item, "description", ""))[:240],
                     "logo": str(_get(item, "logo", "") or ""),
-                    "native_memory": slug in {
-                        "gmail", "googlecalendar", "slack", "notion", "github", "googledrive"
-                    },
+                    "native_memory": slug in NATIVE_MEMORY_TOOLKITS,
                 }
             )
         return rows
@@ -442,7 +575,7 @@ class ComposioAccounts:
             name=str(_get(raw, "name", slug)),
             description=str(_get(raw, "human_description", "") or _get(raw, "description", ""))[:500],
             toolkit=toolkit,
-            access=classify_action(slug),
+            access=classify_action(slug, toolkit),
             input_schema=schema if isinstance(schema, dict) else {},
             version=str(_get(raw, "version", "latest")),
         )

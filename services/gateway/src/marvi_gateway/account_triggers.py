@@ -102,6 +102,12 @@ class AccountTriggerIngest:
                 json.dumps(payload, ensure_ascii=False, default=str)[:8_000],
                 source=source,
             )
+            if connection_id:
+                # Same ledger AccountIngest's polled fetch writes to, so a
+                # trigger-sourced memory is retractable by connection at
+                # disconnect exactly like a polled one — see
+                # AccountIngest.retract_connection.
+                self.sync.store.mark_seen(toolkit, connection_id, source)
         else:
             log.info(
                 "account trigger deduplicated",

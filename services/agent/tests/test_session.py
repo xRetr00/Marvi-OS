@@ -182,3 +182,19 @@ def test_a_deleted_voice_falls_back_rather_than_failing(monkeypatch) -> None:
     monkeypatch.setattr("httpx.get", lambda *a, **k: Gone())
 
     assert session_module.configured_voice() == "en-Fallback_man"
+
+
+def test_the_persona_forbids_composing_a_memory_list() -> None:
+    """The worst turn in the logs, as a rule she carries.
+
+    Asked "uh about the memory", Marvi listed six memories in the third
+    person -- "she works fully locally, uses model Llama 3.2 3B Instruct Q4
+    from Ollama" -- and spoke for sixty-eight seconds. Two memories had been
+    recalled for that turn, neither of them those, and nothing she said exists
+    in the store. She had written a plausible memory list rather than reading
+    one.
+    """
+    instructions = MarviVoiceAgent().instructions
+
+    assert "only what recall gave you" in instructions
+    assert "never compose a list of things that sound like memories" in instructions

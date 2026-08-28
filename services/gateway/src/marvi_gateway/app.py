@@ -27,6 +27,7 @@ from . import (
     delegate,
     distil,
     latency,
+    mcp_store,
     parent,
     paths,
     remembering,
@@ -40,7 +41,12 @@ from . import room as room_module
 from . import schedule as schedule_module
 from . import setup as setup_module
 from .account_triggers import AccountTriggerIngest
-from .accounts import ComposioAccounts, register_account_tools
+from .accounts import (
+    NATIVE_MEMORY_TOOLKITS,
+    TOOLKIT_LABELS,
+    ComposioAccounts,
+    register_account_tools,
+)
 from .activity import ActivityWatch, register_activity_tools
 from .announce import Announcer, announce_enabled, output_devices
 from .browser import BrowserSession, browser_enabled, register_browser_tools
@@ -723,6 +729,77 @@ class AccountSyncRequest(BaseModel):
     connection_id: str | None = None
 
 
+class ConnectorPlaces(BaseModel):
+    """Which of the four places (RFC-NATIVE-CONNECTORS) this connector reaches.
+
+    `profile` is always `False` today: there is no automatic
+    personalization surface a connected account feeds. `identity.py`'s
+    USER.md is user-authored, and `note_about_user` is a tool the model
+    calls deliberately, not something ingest or triggers write to. Reported
+    honestly rather than claimed.
+    """
+
+    tool: bool
+    memory: bool
+    profile: bool
+    triggers: bool
+
+
+class ConnectorRow(BaseModel):
+    slug: str
+    name: str
+    status: Literal["connected", "expired", "disconnected", "preview"]
+    connection_id: str = ""
+    scope: Literal["read", "write", "admin"] = "read"
+    connections: int = 0
+    error: str = ""
+    #: How many memories this connector has produced -- shown before a
+    #: disconnect so the confirmation can say how much is about to be
+    #: retracted, rather than deleting silently.
+    memory_items: int = 0
+    places: ConnectorPlaces
+
+
+class ConnectorPage(BaseModel):
+    available: bool
+    connectors: list[ConnectorRow]
+
+
+class ConnectorScopeUpdate(BaseModel):
+    scope: Literal["read", "write", "admin"]
+
+
+class McpServerRow(BaseModel):
+    id: str
+    name: str
+    status: str
+    tools: int
+    source: Literal["installed"] = "installed"
+
+
+class McpServersPage(BaseModel):
+    servers: list[McpServerRow]
+
+
+class RegistryServerRow(BaseModel):
+    qualified_name: str
+    name: str
+    description: str
+    author: str = ""
+    source: Literal["registry"] = "registry"
+
+
+class McpRegistryPage(BaseModel):
+    servers: list[RegistryServerRow]
+    total_pages: int
+    stale: bool = False
+
+
+class McpInstall(BaseModel):
+    qualified_name: str = Field(min_length=1, max_length=200)
+    env: dict[str, str] = Field(default_factory=dict)
+
+
 def livekit_is_ready(host: str = "127.0.0.1", port: int = 7880) -> bool:
     try:
         with socket.create_connection((host, port), timeout=0.05):
@@ -816,6 +893,7 @@ def create_app(
     journal: EventJournal | None = None
     initiative: Initiative | None = None
     account_triggers: AccountTriggerIngest | None = None
+    mcp: McpBridge | None = None
     loaded_plugins: list[plugins_module.LoadedPlugin] = []
     #: Highest room event id already journaled. None until the first poll sets a
     #: baseline, so a restart does not replay the log into the mind.
@@ -3172,16 +3250,57 @@ def create_app(
         runtime_store.audit("account-enabled", connection_id, {"enabled": body.enabled})
         return result
 
-    @app.delete("/accounts/{connection_id}")
-    async def account_delete(connection_id: str) -> dict[str, Any]:
+    async def _delete_connection_and_retract(connection_id: str) -> dict[str, Any]:
+        """Disconnect at Composio, then retract what that connection ingested.
+
+        `ComposioAccounts.delete` only ever revoked the OAuth grant and
+        invalidated the connection cache; nothing touched memory, so
+        disconnecting Gmail left every email it had ever ingested sitting in
+        the graph, still recalled and spoken, with no live connection left
+        to correct it. The toolkit has to be resolved *before* deleting --
+        once the connection is gone, `connection_rows()` no longer has it.
+        """
         if accounts is None:
             raise HTTPException(status_code=503, detail="Composio is not configured")
+        toolkit = ""
+        if ingest is not None:
+            try:
+                rows = await anyio.to_thread.run_sync(accounts.connection_rows)
+                toolkit = next((r["toolkit"] for r in rows if r["id"] == connection_id), "")
+            except Exception:
+                toolkit = ""
         try:
             result = await anyio.to_thread.run_sync(lambda: accounts.delete(connection_id))
         except Exception as exc:
             raise HTTPException(status_code=502, detail=str(exc)[:240]) from exc
-        runtime_store.audit("account-delete", connection_id, {})
-        return result
+        retracted: dict[str, Any] = {"toolkit": toolkit, "sources": 0, "removed": 0}
+        if ingest is not None and toolkit:
+            try:
+                retracted = await anyio.to_thread.run_sync(
+                    lambda: ingest.retract_connection(toolkit, connection_id)
+                )
+            except Exception as exc:
+                # A disconnect that already succeeded at Composio must not
+                # come back as an error because the memory cleanup that rides
+                # along with it failed; the connection is genuinely gone
+                # either way, and the failure is worth knowing, not hiding.
+                get_logger("memory").warning(
+                    "memory retraction after disconnect failed",
+                    extra={
+                        "marvi_toolkit": toolkit,
+                        "marvi_connection_id": connection_id,
+                        "marvi_error": str(exc)[:200],
+                    },
+                )
+        runtime_store.audit(
+            "account-delete", connection_id,
+            {"toolkit": toolkit, "retracted": retracted.get("removed", 0)},
+        )
+        return {**result, "retracted": retracted}
+
+    @app.delete("/accounts/{connection_id}")
+    async def account_delete(connection_id: str) -> dict[str, Any]:
+        return await _delete_connection_and_retract(connection_id)
 
     @app.put("/accounts/policy/{toolkit}")
     async def account_policy(toolkit: str, body: AccountPolicyUpdate) -> dict[str, Any]:
@@ -3225,6 +3344,177 @@ def create_app(
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         except Exception as exc:
             raise HTTPException(status_code=401, detail="invalid Composio webhook") from exc
+
+    # -- connectors: /accounts presented as Marvi Connectors ------------------
+    #
+    # `/accounts` keeps working unchanged above. These routes are the same
+    # ComposioAccounts/AccountIngest/AccountTriggerIngest underneath, shaped
+    # for the Connectors surface: one row per toolkit rather than a raw
+    # connection list, a cheap per-connector poll target, and — the point of
+    # `places` — which of the four places (tool, memory, profile, triggers)
+    # each connector actually reaches, so the UI never has to guess.
+
+    def _connector_places(slug: str, row: dict[str, Any] | None) -> dict[str, bool]:
+        connected = bool(row and row.get("connected"))
+        return {
+            "tool": connected and accounts is not None and accounts.available(),
+            "memory": (
+                connected
+                and ingest is not None
+                and ingest.registry.get(slug) is not None
+                and bool(row.get("sync_enabled", True))
+            ),
+            # No automatic personalization surface exists to report on; see
+            # ConnectorPlaces' docstring.
+            "profile": False,
+            "triggers": connected and account_triggers is not None and account_triggers.connected,
+        }
+
+    def _connector_row(slug: str, row: dict[str, Any] | None) -> ConnectorRow:
+        label = TOOLKIT_LABELS.get(slug, slug.replace("_", " ").title())
+        connection_id = str(row.get("id", "")) if row else ""
+        memory_items = ingest.store.count_seen(slug, connection_id) if ingest is not None else 0
+        if row is None:
+            return ConnectorRow(
+                slug=slug, name=label, status="preview", connections=0,
+                memory_items=memory_items, places=ConnectorPlaces(**_connector_places(slug, None)),
+            )
+        status: Literal["connected", "expired", "disconnected", "preview"]
+        if row.get("connected"):
+            status = "connected"
+        elif str(row.get("status", "")).lower() in {"disabled", "inactive"}:
+            status = "disconnected"
+        else:
+            status = "expired"
+        return ConnectorRow(
+            slug=slug,
+            name=label,
+            status=status,
+            connection_id=str(row.get("id", "")),
+            scope=row.get("scope", "read"),
+            connections=1,
+            error="" if row.get("connected") else str(row.get("status", "")),
+            memory_items=memory_items,
+            places=ConnectorPlaces(**_connector_places(slug, row)),
+        )
+
+    @app.get("/connectors", response_model=ConnectorPage)
+    async def connectors_list() -> ConnectorPage:
+        if accounts is None or not accounts.available():
+            return ConnectorPage(available=False, connectors=[])
+        try:
+            rows = accounts.cached_connections()
+        except Exception:
+            rows = []
+        by_toolkit: dict[str, list[dict[str, Any]]] = {}
+        for row in rows:
+            by_toolkit.setdefault(row["toolkit"], []).append(row)
+        slugs = sorted(set(NATIVE_MEMORY_TOOLKITS) | set(by_toolkit))
+        connectors = []
+        for slug in slugs:
+            toolkit_rows = by_toolkit.get(slug, [])
+            best = next((r for r in toolkit_rows if r["connected"]), toolkit_rows[0] if toolkit_rows else None)
+            connector = _connector_row(slug, best)
+            connector.connections = len(toolkit_rows)
+            connectors.append(connector)
+        return ConnectorPage(available=True, connectors=connectors)
+
+    @app.get("/connectors/{slug}", response_model=ConnectorRow)
+    async def connector_detail(slug: str) -> ConnectorRow:
+        """One connector's live status.
+
+        A poll target hit every 1.5-4s while the UI waits for a connect flow
+        to finish, so it must stay cheap: served entirely from
+        `cached_connections()`'s existing 30s cache, never a fresh Composio
+        call.
+        """
+        key = slug.strip().lower()
+        if accounts is None or not accounts.available():
+            return _connector_row(key, None)
+        try:
+            rows = [r for r in accounts.cached_connections() if r["toolkit"] == key]
+        except Exception:
+            rows = []
+        best = next((r for r in rows if r["connected"]), rows[0] if rows else None)
+        connector = _connector_row(key, best)
+        connector.connections = len(rows)
+        return connector
+
+    @app.post("/connectors/{slug}/connect")
+    async def connector_connect(slug: str) -> dict[str, Any]:
+        if accounts is None or not accounts.available():
+            raise HTTPException(status_code=503, detail="Composio is not configured")
+        try:
+            result = await anyio.to_thread.run_sync(lambda: accounts.authorize(slug))
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=str(exc)[:240]) from exc
+        runtime_store.audit("connector-connect", slug.lower(), {})
+        return {"connect_url": result.get("redirect_url", ""), "connection_id": result.get("id", "")}
+
+    @app.post("/connectors/{slug}/scope")
+    async def connector_scope(slug: str, body: ConnectorScopeUpdate) -> dict[str, Any]:
+        if accounts is None:
+            raise HTTPException(status_code=503, detail="Composio is not configured")
+        try:
+            policy = accounts.state.update(slug, scope=body.scope)
+            accounts.invalidate()
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        runtime_store.audit("connector-scope", slug.lower(), policy)
+        return {"slug": slug.lower(), **policy}
+
+    @app.delete("/connectors/connections/{connection_id}")
+    async def connector_disconnect(connection_id: str) -> dict[str, Any]:
+        return await _delete_connection_and_retract(connection_id)
+
+    # -- MCP store: installed servers, and the public registry to add from ---
+
+    @app.get("/mcp/servers", response_model=McpServersPage)
+    async def mcp_servers_list() -> McpServersPage:
+        if mcp is None:
+            return McpServersPage(servers=[])
+        rows = await anyio.to_thread.run_sync(lambda: mcp_store.installed_servers(mcp))
+        return McpServersPage(servers=[McpServerRow(**row) for row in rows])
+
+    @app.get("/mcp/registry", response_model=McpRegistryPage)
+    async def mcp_registry_search(q: str = "", page: int = 1) -> McpRegistryPage:
+        result = await anyio.to_thread.run_sync(
+            lambda: mcp_store.registry_search(q, max(1, page))
+        )
+        return McpRegistryPage(**result)
+
+    @app.post("/mcp/install")
+    async def mcp_install(body: McpInstall) -> dict[str, Any]:
+        try:
+            spec = await anyio.to_thread.run_sync(
+                lambda: mcp_store.install(body.qualified_name, body.env)
+            )
+        except mcp_store.McpStoreError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=str(exc)[:240]) from exc
+        if mcp is not None:
+            # Pick up the newly written config and register its tools now,
+            # rather than leaving them unreachable until the next restart.
+            await anyio.to_thread.run_sync(mcp.reload)
+            register_mcp_tools(tool_registry, mcp)
+        runtime_store.audit("mcp-install", spec["name"], {"qualified_name": body.qualified_name})
+        return {"installed": True, "name": spec["name"]}
+
+    @app.delete("/mcp/servers/{server_id}")
+    async def mcp_uninstall(server_id: str) -> dict[str, Any]:
+        from .setup import mcp as mcp_setup
+
+        result = await anyio.to_thread.run_sync(lambda: mcp_setup.remove(server_id))
+        if not result.get("ok"):
+            raise HTTPException(status_code=404, detail=result.get("detail", "not found"))
+        for spec in list(tool_registry):
+            if spec.name.startswith(f"mcp__{server_id}__"):
+                tool_registry.unregister(spec.name)
+        if mcp is not None:
+            await anyio.to_thread.run_sync(mcp.reload)
+        runtime_store.audit("mcp-uninstall", server_id, {})
+        return result
 
     @app.get("/room/events", response_model=RoomEventPage)
     async def room_events(limit: int = 50, notable_only: bool = True) -> RoomEventPage:
