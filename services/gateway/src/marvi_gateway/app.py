@@ -2169,9 +2169,7 @@ def create_app(
         # request: it belongs to the same moment and a separate round trip in
         # front of a spoken reply is latency for one sentence.
         if notes := _worker_notes():
-            block = f"{block}
-
-{notes}" if block else notes
+            block = block + chr(10) * 2 + notes if block else notes
         return {"block": block}
 
     @app.post("/memory/observe", status_code=202)
