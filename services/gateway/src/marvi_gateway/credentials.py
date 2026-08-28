@@ -152,6 +152,12 @@ SECRETS = re.compile(
     r"[A-Za-z0-9@#$%^&*!-]{6,}\b|\s*[:=]\s*\S{4,})"
     # Identity numbers, keys with a known prefix, and long digit runs.
     r"|\b(?:TC|SSN|NIN)\b\s*:?\s*\d{6,}"
+    # An identity number named as one. Three of these arrived from an
+    # import -- a university student number, written out in full beside
+    # the person it belongs to -- and slipped the digit-run rule below by
+    # being nine digits rather than eleven. Matching on the *word* is what
+    # catches those without refusing every long number in a memory.
+    r"|\b(?:student|national|identity|id|passport|licence|license|tax)[ _-]?(?:number|no|id)?\b[^.\n]{0,20}\d{6,}"
     r"|\b(?:iban|sort code|account number|card number)\b"
     r"|\b(?:sk|pk|ghp|gho|xox[bp])[-_][A-Za-z0-9]{16,}"
     r"|\b\d{11,19}\b",

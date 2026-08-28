@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import threading
 import time
 from collections.abc import Callable
 from datetime import datetime
@@ -133,6 +134,103 @@ def configured_voice() -> str:
         if chosen and not body.get("missing"):
             return chosen
     return os.environ.get("MARVI_TTS_VOICE", KOKORO_DEFAULT_VOICE)
+
+
+class _Prefetch:
+    """The memory for the turn being spoken, fetched before it is needed.
+
+    Recall has to finish before the model starts, because it changes what the
+    model sees. Doing it when the user stops speaking puts its whole cost in
+    front of the reply -- measured here at 179ms of the 950ms to first token.
+
+    So it is done during the speaking instead. LiveKit emits interim
+    transcripts as the recogniser works; each one is a nearly complete version
+    of the sentence, and the memories that match "what computer am I runni" are
+    the memories that match "what computer am I running you on". By the time
+    the final transcript arrives the answer is usually already here.
+
+    This is the shape VoiceAgentRAG describes as a slow thinker and a fast
+    talker: retrieval runs ahead on speculation, the turn reads a cache.
+
+    ## Why a prefix test rather than an embedding
+
+    A cached result is used when the final transcript *starts with* what was
+    prefetched. That is exactly the case an interim transcript produces --
+    words are appended, not rewritten -- and it is free. Comparing embeddings
+    to decide whether to reuse an embedding search would cost the thing it is
+    trying to save.
+
+    A miss costs nothing beyond the wasted background call: the turn fetches
+    live, exactly as before.
+    """
+
+    #: Below this an interim transcript is too short to be worth a search, and
+    #: too likely to be the beginning of something else entirely.
+    MINIMUM = 12
+    #: How long a prefetched answer may be used. A turn is seconds; anything
+    #: older belongs to a sentence that has already been answered.
+    FRESH = 20.0
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._query = ""
+        self._block = ""
+        self._at = 0.0
+        self._running = ""
+        self.hits = 0
+        self.misses = 0
+
+    def begin(self, text: str) -> None:
+        """An interim transcript arrived. Look it up, if that is worth doing.
+
+        Once per sentence, not once per interim. A recogniser emits many a
+        second and each is a superset of the last, so after the first usable
+        one there is nothing to gain: the prefix test below accepts an earlier
+        query for a longer sentence, which is the whole reason this works.
+
+        Skipped when a lookup for a prefix of this text is already done or
+        already running -- "one at a time" was not enough, because a fast
+        lookup finishes between two interims and the next one starts another.
+        """
+        text = text.strip()
+        if len(text) < self.MINIMUM:
+            return
+        with self._lock:
+            covered = self._running or self._query
+            if covered and text.lower().startswith(covered.lower()):
+                return
+            self._running = text
+
+        def work() -> None:
+            block = _recall(text)
+            with self._lock:
+                self._query, self._block, self._at = text, block, time.monotonic()
+                self._running = ""
+
+        threading.Thread(target=work, daemon=True, name="marvi-recall-prefetch").start()
+
+    def take(self, text: str) -> str | None:
+        """The prefetched block for this turn, or None to fetch it live."""
+        text = text.strip()
+        with self._lock:
+            fresh = time.monotonic() - self._at <= self.FRESH
+            usable = bool(self._query) and fresh and text.lower().startswith(self._query.lower())
+            block = self._block
+            if usable:
+                # Cleared on use: the next turn is a different sentence, and a
+                # block left behind would be applied to it.
+                self._query, self._block = "", ""
+        if usable:
+            self.hits += 1
+            return block
+        self.misses += 1
+        return None
+
+
+#: One per worker process, which is one per session: LiveKit runs a job in its
+#: own process, so a module-level instance is exactly one conversation's worth
+#: of speculation and needs no plumbing between the event hook and the agent.
+prefetch = _Prefetch()
 
 
 def _recall(text: str) -> str:
@@ -312,9 +410,17 @@ class MarviVoiceAgent(Agent):
         # Into the turn's context rather than the instructions: this is true of
         # this turn, and baking it into the persona would carry one message's
         # recall through the whole session.
-        if block := _recall(text):
+        # Prefetched while the sentence was still being spoken, when there was
+        # something to hide the cost behind. A miss fetches it here, as before.
+        cached = prefetch.take(text)
+        block = cached if cached is not None else _recall(text)
+        if block:
             turn_ctx.add_message(role="system", content=block)
-            log.info("recall: %d characters of memory added to the turn", len(block))
+            log.info(
+                "recall: %d characters of memory added to the turn (%s)",
+                len(block),
+                "prefetched" if cached is not None else "fetched now",
+            )
 
 
 def prewarm(proc: JobProcess) -> None:
@@ -548,7 +654,13 @@ async def marvi_session(ctx: JobContext) -> None:
     def _heard_live(event: Any) -> None:
         # Interim as well as final: the point is to show words appearing while
         # they are still being recognised, not a sentence arriving at once.
-        _report_transcript(heard=getattr(event, "transcript", "") or "")
+        text = getattr(event, "transcript", "") or ""
+        _report_transcript(heard=text)
+        # And, on the same event, start looking the memory up. See `_Prefetch`:
+        # doing it when the user stops speaking puts its whole cost in front of
+        # the reply, and by then there is nothing left to hide it behind.
+        if not getattr(event, "is_final", False):
+            prefetch.begin(text)
 
     # The last thing the user said, so a finished exchange can be handed over
     # whole. What is worth remembering is often in neither half alone: "yes,
