@@ -233,6 +233,7 @@ Marvi OS adopts upstream projects before writing custom infrastructure. See
 - [`docs/PROVIDERS.md`](docs/PROVIDERS.md) — model providers, API shapes, caching, and budget.
 - [`docs/UPSTREAM.md`](docs/UPSTREAM.md) — adopted repositories, licenses, and update policy.
 - [`docs/DECISIONS.md`](docs/DECISIONS.md) — durable architectural decisions.
+- [`docs/RFC-NATIVE-CONNECTORS.md`](docs/RFC-NATIVE-CONNECTORS.md) — draft research and open questions for a Claude-like Marvi Connectors and Plugins layer.
 
 ## Version
 
