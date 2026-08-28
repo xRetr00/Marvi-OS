@@ -38,7 +38,7 @@ import {
   Wrench
 } from 'lucide-react'
 
-import appIcon from './assets/app-icon.ico'
+import appIcon from './assets/app-icon.png'
 import { BootFailureOverlay } from './components/BootFailureOverlay'
 import { ConversationBar } from './components/conversation-bar'
 import { ModelsPanel } from './components/models-panel'
@@ -70,6 +70,7 @@ import {
   ControlSection
 } from './components/control-surface'
 import { ConnectorsPanel } from './components/connectors/ConnectorsPanel'
+import { ServiceLogo } from './lib/serviceLogos'
 import { McpPanel } from './components/mcp/McpPanel'
 import { CapabilityPluginsPanel } from './components/capabilities/CapabilityPluginsPanel'
 
@@ -892,9 +893,7 @@ function RoomPanel({
       const answer = await window.marvi?.roomCommand('smart_room_vision_identity', {
         action,
         sighting_id: id,
-        ...(action === 'approve'
-          ? { name: nameFor(id), owner: visitorOwners[id] ?? false }
-          : {})
+        ...(action === 'approve' ? { name: nameFor(id), owner: visitorOwners[id] ?? false } : {})
       })
       setPressed(
         answer?.status === 'executed'
@@ -1457,7 +1456,9 @@ function RoomPanel({
                         recalling one. */}
                     <div>
                       <strong>
-                        {sighting.nearest?.name ? `Looks like ${sighting.nearest.name}` : 'Unknown face'}
+                        {sighting.nearest?.name
+                          ? `Looks like ${sighting.nearest.name}`
+                          : 'Unknown face'}
                       </strong>
                       <span>
                         {sighting.nearest?.name && typeof sighting.nearest.score === 'number'
@@ -2533,7 +2534,10 @@ function ProviderCard({
 
   return (
     <div className="service-row provider-row">
-      <span className="service-name">{provider.label}</span>
+      <span className="service-name service-name-with-logo">
+        <ServiceLogo className="service-brand-logo" height={18} name={provider.name} width={18} />
+        <span>{provider.label}</span>
+      </span>
       <span className={`service-state state-${ready ? 'ready' : 'pending'}`}>
         {provider.cooldown
           ? `COOLING DOWN ${Math.round(provider.cooldown.seconds_remaining)}S`
