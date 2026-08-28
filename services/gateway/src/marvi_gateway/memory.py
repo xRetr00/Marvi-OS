@@ -579,6 +579,25 @@ class MemoryStore:
         self._db.commit()
         return True
 
+    def warm(self) -> bool:
+        """Load the embedding model now, so no turn ever pays for it.
+
+        `sentence-transformers` loads lazily on the first `encode`, and that
+        first encode is inside a live voice turn. Measured on this machine from
+        the logs of a real conversation: the Gateway started, the user said
+        "hey Marvi, how are you doing", and the model finished loading
+        **twelve seconds later** -- by which time she had already answered
+        without any memory at all, and the recall arrived in time for the
+        next turn instead.
+
+        Every recall after that took two milliseconds. It is entirely a
+        cold-start cost, which makes it entirely avoidable.
+        """
+        embedder = self._embedder()
+        if not embedder.ready:
+            return False
+        return bool(embedder.embed(["warm"], query=True))
+
     def index_missing(self, limit: int = 200) -> int:
         """Give vectors to memories that have none, or whose model has changed.
 

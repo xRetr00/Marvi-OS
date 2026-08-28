@@ -289,3 +289,18 @@ def test_keyword_still_runs_when_there_are_no_embeddings(tmp_path) -> None:
 
     # The embedder is off by default in tests, so this is the real path.
     assert [row["subject"] for row in store.search("what computer do I have")] == ["hardware"]
+
+
+def test_the_embedding_model_can_be_loaded_before_a_turn_needs_it(tmp_path) -> None:
+    """From the logs of a real conversation: the Gateway started, the user said
+    hello, and the model finished loading twelve seconds later -- by which time
+    she had already answered without any memory, and the recall landed in time
+    for the next turn instead. Every recall after that took two milliseconds,
+    so it is entirely a cold-start cost.
+
+    With embeddings off there is nothing to warm, and saying so is the answer
+    rather than an error.
+    """
+    store = MemoryStore(tmp_path / "m.db")
+
+    assert store.warm() is False

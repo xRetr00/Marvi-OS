@@ -980,6 +980,20 @@ def create_app(
             scheduler.journal = journal
             scheduler.initiative = initiative
             scheduler.start()
+        if memory is not None:
+            # Off the request path and off the event loop. Nothing waits for
+            # it: a recall that arrives before this finishes still works, it
+            # just pays the load itself, which is what happened on every first
+            # turn until now.
+            async def warm_memory() -> None:
+                import contextlib
+
+                with contextlib.suppress(Exception):
+                    if await anyio.to_thread.run_sync(memory.warm):
+                        get_logger("gateway").info("memory embeddings warmed")
+
+            asyncio.get_running_loop().create_task(warm_memory())
+
         # A plugin's backend is a child process it starts itself, on a worker
         # thread because starting one is blocking work and the event loop is
         # serving the health endpoint the shell polls every two seconds.

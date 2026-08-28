@@ -15,10 +15,10 @@ use std::time::{Duration, Instant};
 use crate::builder::BuildRunner;
 use crate::channels::Channel;
 use crate::git::{self, SignatureStatus};
+use crate::install::install_root_of;
 use crate::marker;
 use crate::result::UpdateResult;
 use crate::tags;
-use crate::install::install_root_of;
 use crate::util;
 use crate::util::no_window;
 
@@ -199,9 +199,9 @@ pub fn run_update(cfg: &mut UpdateConfig, progress: &mut dyn FnMut(&str)) -> Upd
     // Re-checked on every update, not just on install.
     let state = cfg.state_dir.clone();
     let toolchain_state = cfg.provision_toolchain.then_some(state.as_path());
-    if let Err(e) = crate::install::build_with_toolchain(
-        &root, toolchain_state, &mut *cfg.builder, progress,
-    ) {
+    if let Err(e) =
+        crate::install::build_with_toolchain(&root, toolchain_state, &mut *cfg.builder, progress)
+    {
         let _ = rollback(&root, &previous, &backups);
         let out = UpdateOutcome::new("failed", format!("{e} The previous version was restored."))
             .with_range(&previous, &previous);
@@ -209,6 +209,7 @@ pub fn run_update(cfg: &mut UpdateConfig, progress: &mut dyn FnMut(&str)) -> Upd
         return out;
     }
 
+    progress("activating installation");
     discard_backups(&backups);
 
     // The updater updates itself, last, and only on a release tag -- that is
@@ -227,7 +228,9 @@ pub fn run_update(cfg: &mut UpdateConfig, progress: &mut dyn FnMut(&str)) -> Upd
         // update that worked and could not fetch it is still an update that
         // worked, and voice is no worse off than before.
         if let Err(error) = crate::selfupdate::fetch_voice_runtime(&root, tag, progress) {
-            progress(&format!("warning: could not fetch the voice runtime: {error}"));
+            progress(&format!(
+                "warning: could not fetch the voice runtime: {error}"
+            ));
         }
 
         match crate::selfupdate::refresh(&cfg.state_dir, &root, tag, progress) {
@@ -249,7 +252,9 @@ pub fn run_update(cfg: &mut UpdateConfig, progress: &mut dyn FnMut(&str)) -> Upd
             ));
         }
         if let Err(e) = crate::handoff::install_cli_shim(&root, &state, progress) {
-            progress(&format!("warning: the marvi command was not installed ({e})"));
+            progress(&format!(
+                "warning: the marvi command was not installed ({e})"
+            ));
         }
         if let Err(e) = crate::handoff::create_shortcuts(&root, progress) {
             progress(&format!("warning: no shortcut was created ({e})"));
@@ -266,7 +271,10 @@ pub fn run_update(cfg: &mut UpdateConfig, progress: &mut dyn FnMut(&str)) -> Upd
 /// Write the result, clear the marker, and (when the desktop exited) relaunch.
 fn finish(cfg: &UpdateConfig, out: &UpdateOutcome, do_relaunch: bool) {
     let result = UpdateResult::new(&out.status, &out.message)
-        .with_range(out.from.as_deref().unwrap_or(""), out.to.as_deref().unwrap_or(""))
+        .with_range(
+            out.from.as_deref().unwrap_or(""),
+            out.to.as_deref().unwrap_or(""),
+        )
         .with_channel(cfg.channel)
         .with_branch(out.target_ref.as_deref());
     let _ = crate::result::write_result(&cfg.state_dir, &result);
@@ -319,8 +327,12 @@ fn resolve_target(
                 }
                 _ => {}
             }
-            let target = git::resolve_commit(root, &tag)
-                .map_err(|e| ("failed", format!("Could not resolve release tag {tag}: {e}")))?;
+            let target = git::resolve_commit(root, &tag).map_err(|e| {
+                (
+                    "failed",
+                    format!("Could not resolve release tag {tag}: {e}"),
+                )
+            })?;
             Ok((target, Some(tag)))
         }
     }
@@ -478,7 +490,10 @@ mod snapshot_tests {
         // The real condition: a file inside `dist` held open, which is what a
         // running Marvi does to its own executable. Windows refuses to rename
         // a directory out from under an open handle.
-        let held = root.join(DIST_DIR).join("win-unpacked").join("Marvi-OS.exe");
+        let held = root
+            .join(DIST_DIR)
+            .join("win-unpacked")
+            .join("Marvi-OS.exe");
         std::fs::create_dir_all(held.parent().unwrap()).unwrap();
         std::fs::write(&held, b"pretend executable").unwrap();
         let handle = std::fs::File::open(&held).unwrap();

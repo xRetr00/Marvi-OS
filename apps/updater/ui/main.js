@@ -34,10 +34,16 @@ let terminalStatus = null;
 let lines = 0;
 
 if (!tauri || typeof tauri.event !== 'object') {
-  stageText.textContent = 'Installer runtime unavailable';
+  if (location.protocol === 'file:' && new URLSearchParams(location.search).has('preview')) {
+    renderPreview();
+  } else {
+    stageText.textContent = 'Installer runtime unavailable';
+  }
 } else {
   void bind(tauri);
 }
+
+detailsToggle.onclick = () => setDetails(logPane.hidden);
 
 function setProgress(percent) {
   const safe = Math.max(0, Math.min(100, Number(percent) || 0));
@@ -103,6 +109,38 @@ function setDetails(open) {
   detailsToggle.classList.toggle('open', open);
   detailsLabel.textContent = open ? 'HIDE DETAILS' : 'SHOW DETAILS';
   if (open) logEl.scrollTop = logEl.scrollHeight;
+}
+
+// Browser-only visual QA. Tauri never uses file://, so this cannot replace or
+// fake a production update; it only makes every UI state inspectable without
+// touching a checkout or launching the Rust worker.
+function renderPreview() {
+  title.textContent = 'UPDATING';
+  channelEl.textContent = 'RELEASE CHANNEL';
+  channelEl.hidden = false;
+  stages = [
+    ['handoff', 'Closing Marvi OS'],
+    ['source', 'Downloading latest changes'],
+    ['toolchain', 'Checking system tools'],
+    ['dependencies', 'Installing dependencies'],
+    ['build', 'Building desktop app'],
+    ['activate', 'Activating installation']
+  ].map(([id, stageTitle]) => ({ id, title: stageTitle }));
+  currentStageId = 'dependencies';
+  stageText.textContent = 'Installing dependencies';
+  setProgress(32);
+  renderStages();
+  [
+    'waiting for Marvi OS to exit',
+    'stopped pid 26612 (marvi-wake-host.exe)',
+    'current commit 5aeadaffc',
+    'updating to 1e28306e',
+    'checking uv and Node',
+    'uv v0.12.5 (installed by Marvi)',
+    'node v22.23.2 (installed by Marvi)',
+    'installing dependencies (npm ci)',
+    'npm warn deprecated inflight@1.0.6'
+  ].forEach(appendLog);
 }
 
 async function bind(runtime) {
@@ -176,7 +214,6 @@ async function bind(runtime) {
   await runtime.event.emit('ui-ready', {});
 
   document.getElementById('close').onclick = () => runtime.event.emit('close-window', {});
-  detailsToggle.onclick = () => setDetails(logPane.hidden);
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && !closeRow.hidden) runtime.event.emit('close-window', {});
   });

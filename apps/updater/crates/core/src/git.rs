@@ -126,7 +126,10 @@ fn parse_ls_remote_tags(out: &str) -> Result<Vec<String>, GitError> {
 
 /// Resolve the remote tip of `refs/heads/<branch>` without mutating local refs.
 pub fn ls_remote_branch(dir: &Path, branch: &str) -> Result<Option<String>, GitError> {
-    let out = run(dir, &["ls-remote", "origin", &format!("refs/heads/{branch}")])?;
+    let out = run(
+        dir,
+        &["ls-remote", "origin", &format!("refs/heads/{branch}")],
+    )?;
     Ok(out
         .lines()
         .next()
@@ -173,7 +176,10 @@ pub fn verify_tag(dir: &Path, tag: &str) -> Result<SignatureStatus, GitError> {
     let signers = dir.join(".github").join("allowed_signers");
     let mut command = Command::new("git");
     if signers.is_file() {
-        command.args(["-c", &format!("gpg.ssh.allowedSignersFile={}", signers.display())]);
+        command.args([
+            "-c",
+            &format!("gpg.ssh.allowedSignersFile={}", signers.display()),
+        ]);
     }
     let output = no_window(&mut command)
         .args(["verify-tag", tag])
@@ -189,9 +195,14 @@ pub fn verify_tag(dir: &Path, tag: &str) -> Result<SignatureStatus, GitError> {
         return Ok(SignatureStatus::Valid);
     }
     let lower = combined.to_ascii_lowercase();
-    let unsigned = ["no signature", "not a signed tag", "non-tag object", "not a tag"]
-        .iter()
-        .any(|m| lower.contains(m));
+    let unsigned = [
+        "no signature",
+        "not a signed tag",
+        "non-tag object",
+        "not a tag",
+    ]
+    .iter()
+    .any(|m| lower.contains(m));
     if unsigned {
         return Ok(SignatureStatus::Unsigned);
     }
@@ -286,7 +297,13 @@ pub fn reset_hard(dir: &Path, commit: &str) -> Result<(), GitError> {
 pub fn clone(url: &str, refname: &str, dest: &Path) -> Result<(), GitError> {
     run(
         dest.parent().unwrap_or(dest),
-        &["clone", "--branch", refname, url, dest.to_str().unwrap_or_default()],
+        &[
+            "clone",
+            "--branch",
+            refname,
+            url,
+            dest.to_str().unwrap_or_default(),
+        ],
     )
     .map(|_| ())
 }
@@ -337,7 +354,11 @@ mod tests {
         let base = current_commit(&repo).unwrap();
         fs::write(repo.join("f.txt"), "2").unwrap();
         run(&repo, &["add", "f.txt"]).unwrap();
-        run(&repo, &["commit", "-m", "feat(updater): show commit details"]).unwrap();
+        run(
+            &repo,
+            &["commit", "-m", "feat(updater): show commit details"],
+        )
+        .unwrap();
 
         let commits = commits_between(&repo, &base, "HEAD", 12).unwrap();
 
@@ -347,7 +368,6 @@ mod tests {
         assert_eq!(commits[0].sha.len(), 40);
         assert!(commits[0].at > 0);
     }
-
 }
 
 #[cfg(test)]
@@ -385,7 +405,11 @@ mod signature_tests {
             .output()
             .unwrap();
         git(&["config", "gpg.format", "ssh"]);
-        git(&["config", "user.signingkey", &format!("{}.pub", key.display())]);
+        git(&[
+            "config",
+            "user.signingkey",
+            &format!("{}.pub", key.display()),
+        ]);
         let tagged = git(&["tag", "-s", "v1.0.0", "-m", "v1.0.0"]);
         assert!(tagged.status.success(), "could not create a signed tag");
 
@@ -425,7 +449,11 @@ mod signature_tests {
             .output()
             .unwrap();
         git(&["config", "gpg.format", "ssh"]);
-        git(&["config", "user.signingkey", &format!("{}.pub", key.display())]);
+        git(&[
+            "config",
+            "user.signingkey",
+            &format!("{}.pub", key.display()),
+        ]);
         git(&["tag", "-s", "v1.0.0", "-m", "v1.0.0"]);
 
         let public = std::fs::read_to_string(format!("{}.pub", key.display())).unwrap();

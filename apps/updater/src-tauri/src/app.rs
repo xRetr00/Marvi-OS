@@ -55,20 +55,73 @@ struct Milestone {
 /// Matched by prefix against the same strings the core emits. `stages_match_
 /// what_the_core_emits` below is the guard against those drifting apart.
 const MILESTONES: &[Milestone] = &[
-    Milestone { prefix: "waiting for Marvi OS to exit", stage_id: "handoff", title: "Closing Marvi OS", percent: 4 },
-    Milestone { prefix: "checking uv and Node", stage_id: "toolchain", title: "Checking system tools", percent: 8 },
-    Milestone { prefix: "installing uv", stage_id: "toolchain", title: "Preparing system tools", percent: 10 },
-    Milestone { prefix: "installing Node", stage_id: "toolchain", title: "Preparing system tools", percent: 14 },
-    Milestone { prefix: "cloning", stage_id: "source", title: "Downloading Marvi OS", percent: 18 },
-    Milestone { prefix: "current commit", stage_id: "source", title: "Checking installed version", percent: 18 },
-    Milestone { prefix: "updating to", stage_id: "source", title: "Downloading latest changes", percent: 24 },
-    Milestone { prefix: "installing dependencies (npm ci)", stage_id: "dependencies", title: "Installing dependencies", percent: 32 },
-    Milestone { prefix: "building (npm run build:unpack)", stage_id: "build", title: "Building desktop app", percent: 62 },
-    Milestone { prefix: "activating installation", stage_id: "activate", title: "Activating installation", percent: 96 },
+    Milestone {
+        prefix: "waiting for Marvi OS to exit",
+        stage_id: "handoff",
+        title: "Closing Marvi OS",
+        percent: 4,
+    },
+    Milestone {
+        prefix: "cloning",
+        stage_id: "source",
+        title: "Downloading Marvi OS",
+        percent: 10,
+    },
+    Milestone {
+        prefix: "current commit",
+        stage_id: "source",
+        title: "Checking installed version",
+        percent: 10,
+    },
+    Milestone {
+        prefix: "updating to",
+        stage_id: "source",
+        title: "Downloading latest changes",
+        percent: 18,
+    },
+    Milestone {
+        prefix: "checking uv and Node",
+        stage_id: "toolchain",
+        title: "Checking system tools",
+        percent: 22,
+    },
+    Milestone {
+        prefix: "installing uv",
+        stage_id: "toolchain",
+        title: "Preparing system tools",
+        percent: 25,
+    },
+    Milestone {
+        prefix: "installing Node",
+        stage_id: "toolchain",
+        title: "Preparing system tools",
+        percent: 28,
+    },
+    Milestone {
+        prefix: "installing dependencies (npm ci)",
+        stage_id: "dependencies",
+        title: "Installing dependencies",
+        percent: 32,
+    },
+    Milestone {
+        prefix: "building (npm run build:unpack)",
+        stage_id: "build",
+        title: "Building desktop app",
+        percent: 62,
+    },
+    Milestone {
+        prefix: "activating installation",
+        stage_id: "activate",
+        title: "Activating installation",
+        percent: 96,
+    },
 ];
 
 fn milestone_for(line: &str) -> Option<Milestone> {
-    MILESTONES.iter().find(|item| line.starts_with(item.prefix)).copied()
+    MILESTONES
+        .iter()
+        .find(|item| line.starts_with(item.prefix))
+        .copied()
 }
 
 #[derive(Clone, Serialize)]
@@ -81,14 +134,42 @@ struct MetaPayload {
 fn stages_for(mode: Mode) -> Vec<StageInfo> {
     let mut stages = Vec::new();
     if mode == Mode::Update {
-        stages.push(StageInfo { id: "handoff", title: "Closing Marvi OS", percent: 4 });
+        stages.push(StageInfo {
+            id: "handoff",
+            title: "Closing Marvi OS",
+            percent: 4,
+        });
     }
     stages.extend([
-        StageInfo { id: "toolchain", title: "Checking system tools", percent: 14 },
-        StageInfo { id: "source", title: if mode == Mode::Install { "Downloading Marvi OS" } else { "Downloading latest changes" }, percent: 24 },
-        StageInfo { id: "dependencies", title: "Installing dependencies", percent: 32 },
-        StageInfo { id: "build", title: "Building desktop app", percent: 62 },
-        StageInfo { id: "activate", title: "Activating installation", percent: 96 },
+        StageInfo {
+            id: "source",
+            title: if mode == Mode::Install {
+                "Downloading Marvi OS"
+            } else {
+                "Downloading latest changes"
+            },
+            percent: 18,
+        },
+        StageInfo {
+            id: "toolchain",
+            title: "Checking system tools",
+            percent: 28,
+        },
+        StageInfo {
+            id: "dependencies",
+            title: "Installing dependencies",
+            percent: 32,
+        },
+        StageInfo {
+            id: "build",
+            title: "Building desktop app",
+            percent: 62,
+        },
+        StageInfo {
+            id: "activate",
+            title: "Activating installation",
+            percent: 96,
+        },
     ]);
     stages
 }
@@ -226,7 +307,12 @@ fn operate(handle: &AppHandle, args: Cli) {
     let mut percent = 0u8;
     let mut progress = |line: &str| {
         log.line(line);
-        let _ = handle.emit("log", LogPayload { line: line.to_string() });
+        let _ = handle.emit(
+            "log",
+            LogPayload {
+                line: line.to_string(),
+            },
+        );
         if let Some(milestone) = milestone_for(line) {
             percent = percent.max(milestone.percent);
             let _ = handle.emit(
@@ -352,7 +438,7 @@ mod tests {
         ] {
             percent = percent.max(milestone_for(stage).map(|item| item.percent).unwrap_or(0));
         }
-        assert_eq!(percent, 95);
+        assert_eq!(percent, 96);
     }
 
     #[test]
@@ -370,7 +456,9 @@ mod tests {
     #[test]
     fn update_manifest_has_handoff_and_install_does_not() {
         assert_eq!(stages_for(Mode::Update).first().unwrap().id, "handoff");
-        assert!(stages_for(Mode::Install).iter().all(|stage| stage.id != "handoff"));
+        assert!(stages_for(Mode::Install)
+            .iter()
+            .all(|stage| stage.id != "handoff"));
     }
 
     #[test]

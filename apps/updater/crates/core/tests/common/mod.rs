@@ -72,7 +72,10 @@ impl TestRepos {
 
     pub fn tag(&self, name: &str) {
         // Annotated tag, matching `scripts/release.ps1` (`git tag -a`).
-        git(&self.remote, &["tag", "-a", name, "-m", &format!("release {name}")]);
+        git(
+            &self.remote,
+            &["tag", "-a", name, "-m", &format!("release {name}")],
+        );
     }
 
     pub fn head(&self, dir: &Path) -> String {
@@ -89,10 +92,16 @@ pub struct FakeBuilder {
 
 impl FakeBuilder {
     pub fn ok() -> Self {
-        FakeBuilder { fail: false, calls: 0 }
+        FakeBuilder {
+            fail: false,
+            calls: 0,
+        }
     }
     pub fn failing() -> Self {
-        FakeBuilder { fail: true, calls: 0 }
+        FakeBuilder {
+            fail: true,
+            calls: 0,
+        }
     }
 }
 
