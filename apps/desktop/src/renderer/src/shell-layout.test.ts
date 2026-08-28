@@ -225,10 +225,7 @@ describe('what the shell claims about the devices', () => {
 })
 
 describe('capabilities', () => {
-  const panel = readFileSync(
-    join(__dirname, 'components/connectors/ConnectorsPanel.tsx'),
-    'utf8'
-  )
+  const panel = readFileSync(join(__dirname, 'components/connectors/ConnectorsPanel.tsx'), 'utf8')
   const catalog = readFileSync(join(__dirname, 'lib/connectors/connectorCatalog.ts'), 'utf8')
 
   it('offers somewhere to put the Composio key, not just the diagnosis', () => {
@@ -236,7 +233,7 @@ describe('capabilities', () => {
     // it, so the page reported "not configured" and gave nowhere to fix it.
     expect(panel).toContain('aria-label="Composio API key"')
     expect(panel).toContain('configureAccounts')
-    expect(panel).toContain("type=\"password\"")
+    expect(panel).toContain('type="password"')
   })
 
   it('gives every connector its own colour behind the monogram', () => {
@@ -291,5 +288,38 @@ describe('connector logos', () => {
     // apply; an <img src> pointing at a logo CDN would simply not render.
     expect(card).not.toContain('src=')
     expect(card).toContain('<Logo ')
+  })
+})
+
+describe('service logos', () => {
+  const logos = readFileSync(join(__dirname, 'lib/serviceLogos.tsx'), 'utf8')
+  const app = readFileSync(join(__dirname, 'App.tsx'), 'utf8')
+  const usage = readFileSync(join(__dirname, 'components/usage-panel.tsx'), 'utf8')
+
+  it('uses tree-shakeable TheSVG imports for external service identities', () => {
+    expect(logos).not.toMatch(/from '@thesvg\/react'/)
+    expect(logos.match(/from '@thesvg\/react\/[a-z0-9-]+'/g)?.length).toBe(11)
+    for (const provider of [
+      'anthropic',
+      'claude-code',
+      'codex',
+      'deepinfra',
+      'deepseek',
+      'llamacpp',
+      'lmstudio',
+      'ollama',
+      'openai',
+      'openai-responses',
+      'opencode-go',
+      'opencode-zen',
+      'openrouter'
+    ]) {
+      expect(logos).toContain(`${provider.includes('-') ? `'${provider}'` : provider}:`)
+    }
+  })
+
+  it('shows the same service marks on provider setup and usage', () => {
+    expect(app).toContain('<ServiceLogo className="service-brand-logo"')
+    expect(usage).toContain('<ServiceLogo')
   })
 })

@@ -362,6 +362,18 @@ nav {
   font-size: 11px;
   letter-spacing: 0.08em;
 }
+.service-name-with-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+.service-brand-logo {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  object-fit: contain;
+}
 .service-state {
   padding: 2px 5px;
   border: 1px solid var(--ui-stroke-primary);
@@ -3251,7 +3263,9 @@ body {
 }
 
 @keyframes update-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .ui-button:hover:not(:disabled),
@@ -3487,10 +3501,18 @@ body {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .about-update-facts > div:nth-child(3n) { border-right: 1px solid var(--ui-stroke-tertiary); }
-  .about-update-facts > div:nth-child(2n) { border-right: 0; }
-  .update-actions.confirm { grid-template-columns: 1fr 1fr; }
-  .update-actions.confirm > span { grid-column: 1 / -1; }
+  .about-update-facts > div:nth-child(3n) {
+    border-right: 1px solid var(--ui-stroke-tertiary);
+  }
+  .about-update-facts > div:nth-child(2n) {
+    border-right: 0;
+  }
+  .update-actions.confirm {
+    grid-template-columns: 1fr 1fr;
+  }
+  .update-actions.confirm > span {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (max-width: 1100px) {
@@ -5550,6 +5572,16 @@ body {
   border-bottom: 0;
 }
 .usage-provider > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+.usage-provider > .usage-provider-identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.usage-provider-identity > div {
   display: grid;
   gap: 5px;
   min-width: 0;
@@ -8327,13 +8359,23 @@ body .settings-scroll .control-row {
 }
 
 @keyframes update-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes update-center-in {
-  from { opacity: 0; transform: translate(-50%, calc(-50% + 10px)); }
-  to { opacity: 1; transform: translate(-50%, -50%); }
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 10px));
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
 }
 
 @media (max-width: 620px) {

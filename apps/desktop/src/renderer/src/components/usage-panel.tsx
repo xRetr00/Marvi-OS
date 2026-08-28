@@ -5,6 +5,7 @@ import type { UsageCounters, UsageDay, UsagePage } from '../../../shared/runtime
 import { ControlButton, ControlPage, ControlSection } from './control-surface'
 import { ProcessingCard } from './ui/processing-card'
 import { UiTooltip } from './ui/tooltip'
+import { ServiceLogo } from '../lib/serviceLogos'
 
 const DAYS = 365
 
@@ -149,7 +150,6 @@ export function UsagePanel(): React.JSX.Element {
       description="Provider-reported and locally recorded model usage. Message content is never stored here."
       title="Usage"
     >
-
       {loading ? (
         <ProcessingCard
           detail="Reading the local ledger and the official account endpoints you configured."
@@ -175,29 +175,45 @@ export function UsagePanel(): React.JSX.Element {
             icon={Activity}
             title="Totals"
           >
-          <div className="usage-metrics">
-            <UsageMetric
-              label="Billable"
-              value={count(totals.billable)}
-              note="fresh input + output"
-            />
-            <UsageMetric label="Input" value={count(totals.input)} note="all prompt tokens" />
-            <UsageMetric label="Output" value={count(totals.output)} note="generated tokens" />
-            <UsageMetric label="Cache" value={count(totals.cachedInput)} note="reused input" />
-          </div>
+            <div className="usage-metrics">
+              <UsageMetric
+                label="Billable"
+                value={count(totals.billable)}
+                note="fresh input + output"
+              />
+              <UsageMetric label="Input" value={count(totals.input)} note="all prompt tokens" />
+              <UsageMetric label="Output" value={count(totals.output)} note="generated tokens" />
+              <UsageMetric label="Cache" value={count(totals.cachedInput)} note="reused input" />
+            </div>
           </ControlSection>
-          <ControlSection description="Each square is one UTC day." icon={CalendarDays} title="Activity · 365 days">
+          <ControlSection
+            description="Each square is one UTC day."
+            icon={CalendarDays}
+            title="Activity · 365 days"
+          >
             <UsageCalendar days={page.daily} />
           </ControlSection>
-          <ControlSection description="Account totals never replace local counters." icon={Server} title="Provider sources">
+          <ControlSection
+            description="Account totals never replace local counters."
+            icon={Server}
+            title="Provider sources"
+          >
             <div className="usage-provider-list">
               {page.providers
                 .filter((provider) => provider.configured || provider.usage.billable > 0)
                 .map((provider) => (
                   <article className="usage-provider" key={provider.name}>
-                    <div>
-                      <span>{provider.label}</span>
-                      <small>{provider.accountCollection}</small>
+                    <div className="usage-provider-identity">
+                      <ServiceLogo
+                        className="service-brand-logo"
+                        height={18}
+                        name={provider.name}
+                        width={18}
+                      />
+                      <div>
+                        <span>{provider.label}</span>
+                        <small>{provider.accountCollection}</small>
+                      </div>
                     </div>
                     <div>
                       <AccountValue page={provider} />
