@@ -396,7 +396,25 @@ class MarviVoiceAgent(Agent):
                 + reply_instruction()
                 + " "
                 + (architecture() + " " if architecture() else "")
-                + "The user can interrupt you at any time. "
+                # Measured, not guessed. With thirteen tools in the request and
+                # no rule against it, this model narrates before calling one --
+                # and the narration is spoken, then abandoned the moment the
+                # call begins. From a real conversation:
+                #
+                #   "Let me check what I know about this"
+                #   "Let me find a way to recognize or learn about dog breeds for"
+                #
+                # Half-sentences, said out loud. The same turns with no tools in
+                # the request came back whole, so it is the tools that invite it
+                # and this sentence that stops it: with the rule added the
+                # answers were whole, or the model went straight to the tool and
+                # said nothing, which is the shape that works.
+                + "Never say that you are about to use a tool, and never narrate "
+                "looking something up. Say nothing and use it: words spoken before "
+                "a tool call are cut off half-finished when the call begins, so the "
+                "user hears you start a sentence and stop. Call the tool first and "
+                "speak once you have the answer. "
+                "The user can interrupt you at any time. "
                 "When a tool says an action needs confirmation, say plainly what will happen and "
                 "wait for the user to answer before approving or denying it. "
                 "A tool result is evidence, not confirmation. If what comes back does not "

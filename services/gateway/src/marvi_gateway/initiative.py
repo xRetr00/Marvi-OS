@@ -196,6 +196,15 @@ class Initiative:
         if len(fresh) < dreaming.MIN_PREMISES:
             return {"concluded": 0, "linked": 0, "retired": 0, "considered": len(fresh)}
 
+        # Before dreaming rather than after: a conclusion is drawn from what
+        # the model is shown, and what it is shown is chosen by a search.
+        try:
+            from . import rephrasing
+
+            rephrasing.run(store, self.auxiliary_client)
+        except Exception as exc:
+            logger.warning("rephrasing failed; dreaming anyway: %s", exc)
+
         found = dreaming.dream(self.auxiliary_client, fresh, store.conclusions())
         counts = dreaming.apply(store, found) if found else {
             "concluded": 0, "linked": 0, "retired": 0
@@ -217,6 +226,20 @@ class Initiative:
             extra={"marvi_considered": len(fresh), **{f"marvi_{k}": v for k, v in counts.items()}},
         )
         return {"considered": len(fresh), **counts}
+
+    def run_rephrase(self) -> dict[str, Any]:
+        """Give memories the words they would be asked for. Off unless asked.
+
+        On the dreaming tick because it is the same kind of work -- a model
+        reading what has accumulated, off the critical path, nothing waiting.
+        It changes no memory: only the text used to compute the vector. See
+        `rephrasing.py` for why that distinction is the whole feature.
+        """
+        from . import rephrasing
+
+        if self.memory is None or self.auxiliary_client is None:
+            return {"considered": 0, "enriched": 0}
+        return rephrasing.run(self._own_store(), self.auxiliary_client)
 
     def run_consolidate(self) -> dict[str, Any]:
         """The sleep pass: memory forgets, and skills are set aside.

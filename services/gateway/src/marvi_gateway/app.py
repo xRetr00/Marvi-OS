@@ -180,6 +180,9 @@ class MemorySettings(BaseModel):
     provider_key: str | None = None
     user_id: str | None = None
     workspace: str | None = None
+    #: Whether to give memories the words they would be asked for. A model call
+    #: per memory, so it is a choice rather than a default.
+    rephrase: bool | None = None
 
 
 class ObservedTurn(BaseModel):
@@ -2016,11 +2019,15 @@ def create_app(
         the answer to "why did she not remember that" is usually "no model is
         configured for it" and that is worth saying where memory is configured.
         """
-        from . import embedding, memory_providers
+        from . import embedding, memory_providers, rephrasing
 
         return {
             **memory_providers.describe(),
             "embedding": embedding.describe(),
+            # Off by default: it is a model call per memory, and after an
+            # import that is several hundred. See `rephrasing.py`.
+            "rephrase": rephrasing.enabled(),
+            "rephrase_setting": rephrasing.SETTING,
             # Which model decides what to keep. Already a role; surfaced here so
             # the two settings that make memory work are in one place.
             "role": "memory",
@@ -2033,6 +2040,10 @@ def create_app(
         from . import embedding, memory_providers
 
         values: dict[str, str] = {}
+        if update.rephrase is not None:
+            from . import rephrasing
+
+            values[rephrasing.SETTING] = "true" if update.rephrase else ""
         if update.source is not None:
             if update.source not in embedding.SOURCES:
                 raise HTTPException(status_code=400, detail=f"unknown source {update.source!r}")
@@ -2967,6 +2978,19 @@ def create_app(
             if initiative is not None:
                 result["dreamt"] = await anyio.to_thread.run_sync(initiative.run_dream)
         return result
+
+    @app.post("/memory/rephrase")
+    async def run_rephrase() -> dict[str, Any]:
+        """Give memories the words they would be asked for, now.
+
+        Beside dream and consolidate: a background job nobody can trigger is a
+        background job nobody can tell is working.
+        """
+        import anyio
+
+        if initiative is None:
+            return {"considered": 0, "enriched": 0}
+        return await anyio.to_thread.run_sync(initiative.run_rephrase)
 
     @app.post("/memory/dream")
     async def run_dream() -> dict[str, Any]:

@@ -185,6 +185,22 @@ CREATE TABLE IF NOT EXISTS dreams (
     linked     INTEGER NOT NULL DEFAULT 0,
     retired    INTEGER NOT NULL DEFAULT 0
 );
+-- The words a memory would be asked for, used only to compute its vector.
+--
+-- Its own table rather than a column on `memories` for the reason the whole
+-- feature turns on: this must never reach the model. `recall_block` reads
+-- subject and body, `memory_search` returns subject and body, and the only
+-- thing that joins this in is `index`. A column would eventually be selected
+-- by a `SELECT *` that already exists, and then Marvi would be reading her own
+-- search keywords out loud.
+--
+-- See `rephrasing.py`: "night shifts" is a schedule and never says so, which
+-- is why "what is my schedule like" returned four memories about cron jobs.
+CREATE TABLE IF NOT EXISTS retrieval (
+    memory_id INTEGER PRIMARY KEY REFERENCES memories(id) ON DELETE CASCADE,
+    words     TEXT NOT NULL,
+    at        TEXT NOT NULL
+);
 CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts
     USING fts5(subject, body, content='memories', content_rowid='id');
 CREATE TRIGGER IF NOT EXISTS memories_ai AFTER INSERT ON memories BEGIN
@@ -338,7 +354,7 @@ class MemoryStore:
         # Indexed on the way in, so a memory is searchable by meaning from the
         # moment it exists. Costs 10ms on the CPU and happens on the worker
         # thread, off the turn.
-        self.index(memory_id, f"{subject}: {body}")
+        self.index(memory_id, self._indexable(subject, body))
         log.info(
             "memory stored",
             extra={
@@ -598,6 +614,55 @@ class MemoryStore:
             return False
         return bool(embedder.embed(["warm"], query=True))
 
+    def set_retrieval(self, memory_id: int, words: str) -> bool:
+        """Store the words this memory would be asked for, and re-embed it.
+
+        Re-embedded immediately, because a retrieval line that is not in the
+        vector is a row in a table doing nothing -- which is the shape of every
+        feature that looks finished and is not.
+        """
+        cleaned = " ".join(str(words).split())[:400]
+        if not cleaned:
+            return False
+        row = self._db.execute(
+            "SELECT subject, body FROM memories WHERE id = ?", (int(memory_id),)
+        ).fetchone()
+        if row is None:
+            return False
+        self._db.execute(
+            "INSERT OR REPLACE INTO retrieval (memory_id, words, at) VALUES (?, ?, ?)",
+            (int(memory_id), cleaned, datetime.now(UTC).isoformat()),
+        )
+        self._db.commit()
+        self.index(int(memory_id), self._indexable(row["subject"], row["body"], cleaned))
+        return True
+
+    def retrieval_line(self, memory_id: int) -> str:
+        row = self._db.execute(
+            "SELECT words FROM retrieval WHERE memory_id = ?", (int(memory_id),)
+        ).fetchone()
+        return str(row["words"]) if row else ""
+
+    def without_retrieval(self, limit: int = 40) -> list[dict[str, Any]]:
+        """Memories that have not been given their question words yet."""
+        rows = self._db.execute(
+            "SELECT m.* FROM memories m LEFT JOIN retrieval r ON r.memory_id = m.id"
+            " WHERE r.memory_id IS NULL ORDER BY m.id DESC LIMIT ?",
+            (max(1, min(limit, 200)),),
+        ).fetchall()
+        return [self._row(row) for row in rows]
+
+    @staticmethod
+    def _indexable(subject: str, body: str, words: str = "") -> str:
+        """What actually goes to the embedder.
+
+        The memory, plus the words it would be asked for when it has them. This
+        is the only place the two are joined, and nothing else reads the
+        result: what Marvi says is still the body alone.
+        """
+        text = f"{subject}: {body}"
+        return f"{text}\n{words}" if words else text
+
     def index_missing(self, limit: int = 200) -> int:
         """Give vectors to memories that have none, or whose model has changed.
 
@@ -611,14 +676,16 @@ class MemoryStore:
 
         current = model_name()
         rows = self._db.execute(
-            "SELECT m.id, m.subject, m.body FROM memories m"
+            "SELECT m.id, m.subject, m.body, r.words FROM memories m"
             " LEFT JOIN vectors v ON v.memory_id = m.id"
+            " LEFT JOIN retrieval r ON r.memory_id = m.id"
             " WHERE v.memory_id IS NULL OR v.model != ? LIMIT ?",
             (current, max(1, min(limit, 1000))),
         ).fetchall()
         done = 0
         for row in rows:
-            if self.index(int(row["id"]), f"{row['subject']}: {row['body']}"):
+            text = self._indexable(row["subject"], row["body"], row["words"] or "")
+            if self.index(int(row["id"]), text):
                 done += 1
         if done:
             log.info(
@@ -833,7 +900,12 @@ class MemoryStore:
             (wanted_subject, wanted_body, int(memory_id)),
         )
         self._db.commit()
-        self.index(int(memory_id), f"{wanted_subject}: {wanted_body}")
+        # The retrieval line is kept: it describes what the memory is about,
+        # and a typo fix does not change that.
+        self.index(
+            int(memory_id),
+            self._indexable(wanted_subject, wanted_body, self.retrieval_line(memory_id)),
+        )
         log.info("memory revised", extra={"marvi_memory_id": memory_id})
         return {"revised": True, "id": int(memory_id), "subject": wanted_subject}
 

@@ -86,6 +86,13 @@ SYSTEM_PROMPT = (
     "standing preferences live in their identity file, not here.\n"
     "- A memory is one durable sentence stating what is true, not a summary of "
     "what was said.\n"
+    "- Name the subject in words somebody would use to ask about it. A memory "
+    "is written once as a statement and found later by a question, and the "
+    "search only has the words in it: \"typically night shifts\" cannot be "
+    "found by \"what is my schedule like\", because it contains no word "
+    "anyone would search with. \"The user's working schedule is night shifts "
+    "at a bakery\" can. Say the category out loud -- schedule, diet, health, "
+    "budget, hardware -- as well as the particular.\n"
     "- `kind` is `semantic` for what is true and `episodic` for what happened. "
     "Prefer semantic; episodic entries expire."
 )
