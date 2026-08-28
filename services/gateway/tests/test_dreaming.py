@@ -398,3 +398,51 @@ def test_recall_says_that_a_memory_naming_marvi_is_about_herself(tmp_path) -> No
 
     assert "it is describing you" in block
     assert "as yourself" in block
+
+
+def test_a_close_match_is_stated_plainly(tmp_path) -> None:
+    from marvi_gateway.memory import MemoryStore
+
+    store = MemoryStore(tmp_path / "m.db")
+    store.remember("Computer hardware", "The desktop has an MSI RTX 3060 with 12 GB.")
+
+    block = store.recall_block("what computer do I have")
+
+    assert block.startswith("# What you remember\n")
+    assert "none of it matches" not in block
+
+
+def test_a_weak_match_says_so_instead_of_reading_as_an_answer(tmp_path) -> None:
+    """Measured on the real store: a question memory can answer tops out around
+    0.64-0.66, one it cannot tops out at 0.562 -- and every one of those noise
+    rows still cleared `SIMILAR_ENOUGH`. Asked about a schedule, Marvi was
+    handed cron jobs and Markdown preferences and answered from them.
+
+    The heading changes; the memories stay. The right answer is sometimes
+    fourth, so dropping lines would drop answers.
+    """
+    from marvi_gateway import memory as memory_module
+    from marvi_gateway.memory import MemoryStore
+
+    store = MemoryStore(tmp_path / "m.db")
+
+    # Scored the way the real store scores a question it cannot answer: the
+    # rows come back, and every one of them is noise that cleared the floor.
+    store.search = lambda query, limit=5: [
+        {
+            "id": 1,
+            "subject": "Cron",
+            "body": "The user runs scheduled jobs with deepseek-v4-flash.",
+            "source": "marvi",
+            "trusted": True,
+            "at": "2026-08-29",
+            "score": 0.55,
+        }
+    ]
+    block = store.recall_block("what is my schedule like")
+
+    assert "none of it matches this question closely" in block
+    assert "do not answer from the nearest line" in block
+    # The memory is still there to reason with.
+    assert "deepseek-v4-flash" in block
+    assert memory_module.CONFIDENT_ENOUGH > memory_module.SIMILAR_ENOUGH

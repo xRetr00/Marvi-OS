@@ -1965,8 +1965,17 @@ def create_app(
         return {"recorded": True}
 
     @app.get("/latency")
-    async def read_latency(surface: str | None = None) -> dict[str, Any]:
-        return latency.summarise(surface=surface)
+    async def read_latency(
+        surface: str | None = None, path: str | None = None
+    ) -> dict[str, Any]:
+        """What the pipeline has been costing, by surface and by leg.
+
+        `path` is new, and it is what makes the answer usable: the voice
+        worker now records the whole turn under `path="turn"` beside the LLM
+        leg it already recorded, and without a filter the two average together
+        into a number describing neither.
+        """
+        return latency.summarise(surface=surface, path=path)
 
     @app.get("/latency/compare")
     async def compare_latency(

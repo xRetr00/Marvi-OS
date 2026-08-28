@@ -198,3 +198,70 @@ def test_the_persona_forbids_composing_a_memory_list() -> None:
 
     assert "only what recall gave you" in instructions
     assert "never compose a list of things that sound like memories" in instructions
+
+
+def test_an_acknowledgement_costs_no_memory_search() -> None:
+    """Recall ran on every turn: an embedding search plus ~325 tokens of
+    memory, on top of a system prompt already near 2,200. For "yeah" the
+    search returns whatever sits nearest to that word and presents it as
+    bearing on the turn."""
+    from marvi_agent.session import needs_memory
+
+    for said in ("yeah", "okay go on", "thanks", "no", "hmm", "sure, sounds good"):
+        assert not needs_memory(said), said
+
+
+def test_anything_with_content_in_it_still_searches() -> None:
+    """The failure that matters is the other direction. A turn wrongly sent
+    down the cheap path is a turn that lost its memory, so the test is whether
+    *every* word is an acknowledgement -- one word of content is enough."""
+    from marvi_agent.session import needs_memory
+
+    for said in (
+        "what is my schedule like",
+        "no, the other one",
+        "yeah but what about the bakery",
+        "ok what time is it",
+        "remember I use DeepSeek",
+    ):
+        assert needs_memory(said), said
+
+
+async def _drain(parts):
+    from marvi_agent.session import _without_markup
+
+    async def feed():
+        for part in parts:
+            yield part
+
+    return "".join([chunk async for chunk in _without_markup(feed())])
+
+
+@pytest.mark.asyncio
+async def test_tool_call_markup_is_never_spoken() -> None:
+    """Once, on 2026-08-25, the model wrote its own call syntax as prose
+    instead of calling the tool -- "Right, this is Windows. Let me use the
+    right command. <|DSML|tool_calls> <|DSML|invoke name="terminal_run">" --
+    and all of it was on its way to the speaker."""
+    spoken = await _drain(
+        ["Right, this is Windows. ", '<｜DSML｜tool_calls> ', "done."]
+    )
+
+    assert "DSML" not in spoken
+    assert "Right, this is Windows." in spoken and "done." in spoken
+
+
+@pytest.mark.asyncio
+async def test_markup_split_across_chunks_is_still_caught() -> None:
+    """The reason a carry exists: a marker arrives in pieces on a stream."""
+    spoken = await _drain(["Sure. <｜DSML", '｜invoke name="x"> ', "carry on."])
+
+    assert "DSML" not in spoken and "invoke" not in spoken
+    assert "Sure." in spoken and "carry on." in spoken
+
+
+@pytest.mark.asyncio
+async def test_ordinary_speech_passes_through_untouched() -> None:
+    """A guard that eats real words is worse than the thing it guards against."""
+    assert await _drain(["A < B and 3<4 stays."]) == "A < B and 3<4 stays."
+    assert await _drain(["Nothing to strip."]) == "Nothing to strip."

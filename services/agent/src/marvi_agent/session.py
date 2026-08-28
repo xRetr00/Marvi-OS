@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 import threading
 import time
 from collections.abc import Callable
@@ -136,6 +137,44 @@ def configured_voice() -> str:
     return os.environ.get("MARVI_TTS_VOICE", KOKORO_DEFAULT_VOICE)
 
 
+#: Turns that carry nothing to look up.
+#:
+#: Every turn used to pay the same price: an embedding search, and roughly 325
+#: tokens of recall in front of a system prompt already costing ~2,200. In a
+#: spoken conversation most turns are not questions -- they are "yeah", "okay
+#: go on", "thanks" -- and for those the search returns whatever is nearest to
+#: a word like "okay" and puts it in front of the model as though it mattered.
+#:
+#: An allowlist, not a length test. "no" is three characters and means
+#: something; "what did I tell you about the bakery" is long and needs every
+#: memory it can get. The test is whether the whole turn is made of these
+#: words, so anything with content in it takes the expensive path -- a turn
+#: wrongly sent down the cheap path is a turn that lost its memory, and that
+#: is much worse than one that paid for a search it did not need.
+ACKNOWLEDGEMENTS = frozenset(
+    {
+    "yeah", "yes", "yep", "yup", "ok", "okay", "sure", "right", "fine", "good", "great",
+    "nice", "cool", "no", "nope", "nah", "not", "really", "thanks", "thank", "you", "cheers",
+    "please", "hmm", "huh", "oh", "ah", "ha", "uh", "um", "mhm", "mm", "go", "ahead", "carry",
+    "on", "continue", "keep", "going", "got", "it", "i", "see", "makes", "sense", "sounds",
+    "exactly", "correct", "true", "and", "so", "then", "well", "but", "just", "now",
+    "still", "also", "very"
+    }
+)
+
+
+def needs_memory(text: str) -> bool:
+    """Whether this turn is worth a memory search.
+
+    False only when every word is an acknowledgement. See `ACKNOWLEDGEMENTS`
+    for why the test is that strict.
+    """
+    words = re.findall(r"[\w']+", text.lower())
+    if not words:
+        return False
+    return not all(word in ACKNOWLEDGEMENTS for word in words)
+
+
 class _Prefetch:
     """The memory for the turn being spoken, fetched before it is needed.
 
@@ -193,7 +232,7 @@ class _Prefetch:
         lookup finishes between two interims and the next one starts another.
         """
         text = text.strip()
-        if len(text) < self.MINIMUM:
+        if len(text) < self.MINIMUM or not needs_memory(text):
             return
         with self._lock:
             covered = self._running or self._query
@@ -362,6 +401,36 @@ def situation() -> str:
     )
 
 
+#: The opening of a provider's tool-call syntax, as *text*.
+#:
+#: Only ever seen from DeepSeek (`<|DSML|tool_calls>`), but written to the
+#: shape rather than the vendor: every provider's markup starts with an angle
+#: bracket and a delimiter that does not otherwise appear in speech.
+_MARKUP = re.compile(r"<\s*[|｜][^>]{0,120}>")  # noqa: RUF001 - the fullwidth bar is the marker
+
+#: How much of a chunk's tail may be held back waiting to see if it is the
+#: start of a marker. Longer than any opening this matches, short enough that
+#: holding it is inaudible.
+_CARRY = 8
+
+
+async def _without_markup(chunks: Any) -> Any:
+    """Tool-call syntax removed from a stream of spoken text."""
+    carry = ""
+    async for chunk in chunks:
+        text = _MARKUP.sub("", carry + str(chunk))
+        # Hold back only a tail that could still become a marker.
+        cut = text.rfind("<")
+        if cut >= 0 and len(text) - cut <= _CARRY:
+            carry, text = text[cut:], text[:cut]
+        else:
+            carry = ""
+        if text:
+            yield text
+    if carry:
+        yield _MARKUP.sub("", carry)
+
+
 class MarviVoiceAgent(Agent):
     """Marvi's voice persona.
 
@@ -453,6 +522,27 @@ class MarviVoiceAgent(Agent):
             tools=(tools or GatewayTools()).as_list(),
         )
 
+    def tts_node(self, text, model_settings):  # type: ignore[override]
+        """Speak the reply, minus any tool-call syntax the model wrote as prose.
+
+        Once, on 2026-08-25, DeepSeek answered with its own call markup as
+        content instead of calling the tool:
+
+            Right, this is Windows. Let me use the right command.
+            <|DSML|tool_calls> <|DSML|invoke name="terminal_run"> ...
+
+        Narration, then markup, and both were on their way to the speaker. It
+        has not recurred -- once in the whole log, and the no-narration rule
+        landed afterwards -- so this is a guard rather than a fix for a live
+        bug, and it is written to cost nothing if it never fires again.
+
+        The carry is what makes it safe on a streaming path: markup can be
+        split across chunks, so the tail of each chunk is held only while it
+        could still be the start of a marker, and released the moment it
+        cannot. Nothing is buffered otherwise, and no chunk waits on the next.
+        """
+        return Agent.default.tts_node(self, _without_markup(text), model_settings)
+
     async def on_user_turn_completed(
         self, turn_ctx: llm.ChatContext, new_message: llm.ChatMessage
     ) -> None:
@@ -481,6 +571,14 @@ class MarviVoiceAgent(Agent):
         # recall through the whole session.
         # Prefetched while the sentence was still being spoken, when there was
         # something to hide the cost behind. A miss fetches it here, as before.
+        # A turn made only of acknowledgements gets no memory block. The
+        # search would return whatever sits nearest to "okay" and present it
+        # as bearing on the turn, and it costs ~325 tokens on top of a system
+        # prompt already near 2,200 -- paid on the turns that least need it.
+        if not needs_memory(text):
+            log.info("recall: skipped, nothing in this turn to look up")
+            return
+
         cached = prefetch.take(text)
         block = cached if cached is not None else _recall(text)
         if block:

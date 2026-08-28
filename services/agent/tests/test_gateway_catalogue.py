@@ -8,8 +8,11 @@ worked. Every tool added since, and every MCP server, reached one surface only.
 
 from __future__ import annotations
 
+import contextlib
+
 import httpx
 
+from marvi_agent import tools as tools_module
 from marvi_agent.tools import GatewayTools
 
 CATALOGUE = {
@@ -253,3 +256,43 @@ async def test_searching_twice_does_not_add_the_same_tool_twice() -> None:
     await tools._call("tool_search", {"query": "email"})
 
     assert [tool.info.name for tool in agent.tools] == ["send_email"]
+
+
+async def test_a_slow_tool_call_is_covered_by_a_spoken_filler() -> None:
+    """The other half of the no-narration rule.
+
+    The persona forbids announcing a tool call, because the announcement was
+    truncated the moment the call began -- "Let me check what I know about
+    this", then silence. That fixed the truncation and left the gap. LiveKit's
+    own latency guidance names the missing half: a thinking sound, played by
+    the framework so a tool call cannot cut it off.
+    """
+    opened: list = []
+
+    class FakeContext:
+        @contextlib.asynccontextmanager
+        async def with_filler(self, source, *, delay=0, interval=None, max_steps=None):
+            opened.append({"source": source, "delay": delay, "max_steps": max_steps})
+            yield
+
+    tools = GatewayTools(client=gateway(seen=[]))
+    built = await tools.from_gateway()
+
+    await built[0](raw_arguments={"query": "who won"}, context=FakeContext())
+
+    assert opened == [{"source": tools_module.THINKING, "delay": tools_module.FILLER_DELAY,
+                       "max_steps": 1}]
+    # Only after the session has been idle that long, so a fast call is silent.
+    assert tools_module.FILLER_DELAY > 0.5
+
+
+async def test_a_tool_called_without_a_context_still_runs() -> None:
+    """Injection is conditional. A required context would fail the bind
+    instead of running the tool."""
+    seen: list = []
+    tools = GatewayTools(client=gateway(seen=seen))
+    built = await tools.from_gateway()
+
+    await built[0](raw_arguments={"query": "who won"})
+
+    assert [str(r.url.path) for r in seen][-1] == "/tools/web_search"

@@ -38,6 +38,20 @@ AWAIT_TIMEOUT = 1800.0
 FILLER_AFTER = 25.0
 FILLER_EVERY = 90.0
 
+#: How long a tool call may run in silence before Marvi says she is on it.
+#:
+#: Measured against the pipeline it sits in: `llm ttft` is 578ms at the median,
+#: so a filler firing earlier than that would talk over ordinary turns. At 0.9s
+#: it stays out of the way of every fast call and covers the ones a listener
+#: would otherwise read as a dropped line.
+FILLER_DELAY = 0.9
+
+#: Said, rather than generated. A fixed line cannot be truncated by the tool
+#: call the way the model's own narration was, and it is deliberately vague
+#: about what is being done: it fires before the result exists, so anything
+#: more specific would be a guess spoken aloud.
+THINKING = "One sec."
+
 
 def gateway_base_url() -> str:
     return os.environ.get("MARVI_GATEWAY_URL", DEFAULT_GATEWAY_URL).rstrip("/")
@@ -195,7 +209,35 @@ class GatewayTools:
             if self._client is None:
                 await client.aclose()
 
-    async def _call(self, tool: str, arguments: dict[str, Any]) -> str:
+    async def _call(
+        self, tool: str, arguments: dict[str, Any], context: RunContext | None = None
+    ) -> str:
+        """Run a Gateway tool, saying something if it takes long enough to notice.
+
+        The persona forbids narrating a tool call, and that rule was measured:
+        with thirteen tools in the request the model announced what it was
+        about to do, and the announcement was cut off the moment the call
+        began -- "Let me check what I know about this", then silence.
+
+        The rule fixed the truncation and left the gap. LiveKit's own latency
+        guidance names the missing half: use a thinking sound so nobody waits
+        in silence. The difference from what the model was doing is that this
+        is played by the framework, not generated, so a tool call cannot
+        truncate it.
+
+        `with_filler` fires only after the session has been *continuously
+        idle* for `delay`, so a fast tool stays silent and only a call slow
+        enough to sound like a dropped line ever says anything. Once per call:
+        `interval` is left unset, because a tool this path runs is seconds at
+        most -- the one that takes minutes is `await_delegated`, which sets
+        its own.
+        """
+        if context is None:
+            return await self._run(tool, arguments)
+        async with context.with_filler(THINKING, delay=FILLER_DELAY, max_steps=1):
+            return await self._run(tool, arguments)
+
+    async def _run(self, tool: str, arguments: dict[str, Any]) -> str:
         status, body = await self._post(f"/tools/{tool}", {"arguments": arguments})
         if status == 404:
             raise ToolError(f"{tool} is not available.")
@@ -242,7 +284,7 @@ class GatewayTools:
     @function_tool
     async def room_state(self, context: RunContext) -> str:
         """Read the current smart room state: light, mode, and presence."""
-        return await self._call("room_state", {})
+        return await self._call("room_state", {}, context)
 
     @function_tool
     async def room_light(
@@ -259,12 +301,12 @@ class GatewayTools:
             arguments["brightness"] = brightness
         if color_temp is not None:
             arguments["color_temp"] = color_temp
-        return await self._call("room_set_light", arguments)
+        return await self._call("room_set_light", arguments, context)
 
     @function_tool
     async def room_mode(self, context: RunContext, mode: str) -> str:
         """Change the room mode. One of normal, reading, focus, relax, night, sleep, alarm, off."""
-        return await self._call("room_set_mode", {"mode": mode})
+        return await self._call("room_set_mode", {"mode": mode}, context)
 
     # -- world context ------------------------------------------------------
 
@@ -282,7 +324,7 @@ class GatewayTools:
     @function_tool
     async def remember(self, context: RunContext, subject: str, body: str) -> str:
         """Remember a durable fact the user has told you."""
-        return await self._call("memory_remember", {"subject": subject, "body": body})
+        return await self._call("memory_remember", {"subject": subject, "body": body}, context)
 
     # -- spoken approval ----------------------------------------------------
 
@@ -460,8 +502,21 @@ class GatewayTools:
             }
         )
 
-        def caller(raw_arguments: dict[str, Any], _name: str = name) -> Any:
-            return self._call(_name, raw_arguments)
+        # `context` is annotated so LiveKit injects it: it resolves RunContext
+        # parameters by type hint for raw-schema tools exactly as it does for
+        # decorated ones (`llm/utils.py`, "inject RunContext (or subclasses)
+        # if needed"). Without it every Gateway tool -- which is most of them
+        # -- would run in silence while only the hand-written few could speak.
+        # Defaulted, because injection is conditional: LiveKit skips it when
+        # there is no call context, and a required parameter then fails the
+        # bind rather than running the tool. The annotation is what selects it
+        # for injection; the default is what survives its absence.
+        def caller(
+            raw_arguments: dict[str, Any],
+            context: RunContext = None,  # type: ignore[assignment]
+            _name: str = name,
+        ) -> Any:
+            return self._call(_name, raw_arguments, context)
 
         return function_tool(
             caller,

@@ -650,3 +650,32 @@ def test_a_pending_face_with_nobody_to_compare_against_says_so_quietly() -> None
     library = faces(FakeVision(visitors=[{"id": 8, "score": 0.0}]))
 
     assert library["pending"][0]["nearest"] == {}
+
+
+@pytest.mark.asyncio
+async def test_latency_can_be_read_back_not_only_written(tmp_path, monkeypatch) -> None:
+    """Every timing number was recorded and none was ever read.
+
+    Finding out that spoken replies had a p90 of 5.5 seconds against a 1.8
+    second median took a regex over `agent.log`. The instrument existed; there
+    was no way to ask it a question.
+    """
+    monkeypatch.setenv("MARVI_HOME", str(tmp_path))
+    app = create_app(
+        version="0.1.0-test", runtime=RuntimeStore(tmp_path / "r.db"), tools=ToolRegistry()
+    )
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://m.local") as c:
+        for value in (900.0, 1000.0, 5500.0):
+            posted = await c.post(
+                "/latency",
+                json={"surface": "voice", "path": "turn", "first_token_ms": value},
+            )
+            assert posted.status_code == 200
+        summary = await c.get("/latency", params={"surface": "voice"})
+
+    assert summary.status_code == 200
+    body = summary.json()
+    assert body["samples"] == 3
+    group = next(g for g in body["groups"] if g["path"] == "turn")
+    assert group["first_token_median_ms"] == 1000.0

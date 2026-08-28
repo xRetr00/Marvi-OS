@@ -83,6 +83,22 @@ _COMMON = frozenset(
 #: nothing.
 SIMILAR_ENOUGH = 0.52
 
+#: Above this, the closest memory is worth stating as something Marvi knows.
+#:
+#: Measured over the real store. A question the memory can answer scores 0.64
+#: ("what do I do for work") to 0.66 ("what computer do I have") at the top.
+#: One it cannot tops out at 0.562 -- "what is my schedule like" returns cron
+#: models, Markdown preferences and number formatting, all of them noise, and
+#: every one of them cleared `SIMILAR_ENOUGH`.
+#:
+#: So the *top* score separates "found something" from "returned five things
+#: anyway", and nothing else does: the scores within one result set sit inside
+#: a 0.1 band, and for "what do I do for work" the correct answer (the bakery)
+#: is fourth at 0.550, below three wrong ones. That is why this only changes
+#: how the block is introduced and drops nothing -- a relative gate sized to
+#: this data would have deleted the right answer.
+CONFIDENT_ENOUGH = 0.60
+
 
 def _normalise(vector: list[float]) -> list[float]:
     """Unit length, so a dot product is a cosine.
@@ -741,7 +757,17 @@ class MemoryStore:
             if score >= SIMILAR_ENOUGH:
                 scored.append((score, row))
         scored.sort(key=lambda pair: -pair[0])
-        return [self._row(row) for _, row in scored[: max(1, limit)]]
+        # The score travels with the row. It was computed, compared against
+        # `SIMILAR_ENOUGH`, and thrown away -- so everything downstream saw
+        # five memories with no way to tell the one that answers the question
+        # from the one that merely cleared the floor, and `recall_block`
+        # presented them identically.
+        found = []
+        for score, row in scored[: max(1, limit)]:
+            entry = self._row(row)
+            entry["score"] = round(float(score), 4)
+            found.append(entry)
+        return found
 
     def search(self, query: str, limit: int = DEFAULT_SEARCH_LIMIT) -> list[dict[str, Any]]:
         """Keywords and meaning together, whichever finds it.
@@ -1282,7 +1308,26 @@ class MemoryStore:
             return ""
 
         nl = chr(10)
-        block = "# What you remember" + nl
+        # How sure the search is that any of this bears on the question.
+        #
+        # Nothing downstream could tell a memory that answers the question from
+        # one that merely cleared the floor: five lines went in front of the
+        # model under one heading, and Marvi read the nearest of them as
+        # settled fact. Asked about a schedule she was handed cron jobs and
+        # Markdown preferences at 0.56 and answered from them.
+        #
+        # A weaker heading rather than fewer memories. The right answer is
+        # sometimes fourth (see `CONFIDENT_ENOUGH`), so removing lines removes
+        # answers; saying how firm the match is costs one sentence and lets
+        # her hedge or look again instead of asserting.
+        best = max((float(entry.get("score") or 0.0) for entry in found), default=0.0)
+        weak = best > 0.0 and best < CONFIDENT_ENOUGH
+        heading = (
+            "# What you remember, though none of it matches this question closely"
+            if weak
+            else "# What you remember"
+        )
+        block = heading + nl
         if told:
             block += nl + nl.join(told) + nl
         if derived:
@@ -1295,6 +1340,14 @@ class MemoryStore:
             )
         if related := self._related_to(found):
             block += nl + "How these connect: " + related + nl
+        if weak:
+            block += (
+                nl
+                + "Nothing here scored as a close match, so treat it as background "
+                "rather than as an answer. If the question needs a fact you cannot "
+                "see here, say you do not have it or look it up -- do not answer "
+                "from the nearest line." + nl
+            )
         return (
             block
             + nl

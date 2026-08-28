@@ -256,3 +256,40 @@ def _log_turn_metrics(role: str, report: Any) -> None:
     tps = report.get("llm_node_tps")
     if tps:
         log.debug("reply: %.1f tokens/second", tps)
+    _record_turn(report)
+
+
+def _record_turn(report: dict[str, Any]) -> None:
+    """Send the turn's end-to-end timing where it can be aggregated.
+
+    These numbers already existed, and only in the log. The Gateway records
+    the LLM leg and can report a median and a p95 for it; the number a person
+    actually feels -- them finishing to hearing a word back -- was written to
+    a line of text and never counted. Answering "is Marvi fast right now"
+    meant a regex over `agent.log`, which is how the p90 went unnoticed at
+    5.5 seconds while the median sat at 1.8.
+
+    Posted under its own path so it aggregates beside the LLM leg rather than
+    mixing with it. Never raises: this is diagnostics, and the conversation
+    does not stop for it.
+    """
+    e2e = report.get("e2e_latency")
+    if not e2e:
+        return
+    with contextlib.suppress(Exception):
+        import httpx
+
+        base = os.environ.get("MARVI_GATEWAY_URL", "http://127.0.0.1:8765").rstrip("/")
+        httpx.post(
+            f"{base}/latency",
+            json={
+                "surface": "voice",
+                "path": "turn",
+                # `first_token_ms` is the summary's "how long until something
+                # happened" slot, and for a spoken turn that is the first word
+                # heard, not the first token generated.
+                "first_token_ms": float(e2e) * 1000.0,
+                "total_ms": float(report.get("llm_node_ttft") or 0.0) * 1000.0,
+            },
+            timeout=2.0,
+        )

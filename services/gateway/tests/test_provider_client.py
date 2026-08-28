@@ -12,6 +12,10 @@ import logging
 
 import httpx
 import pytest
+from httpx import ASGITransport, AsyncClient
+from marvi_gateway.app import create_app
+from marvi_gateway.runtime import RuntimeStore
+from marvi_gateway.tools import ToolRegistry
 
 from marvi_gateway.identity import IdentityFiles, plan_warning
 from marvi_gateway.providers import (
@@ -438,3 +442,34 @@ def test_a_setting_naming_a_provider_that_does_not_exist_is_ignored(monkeypatch)
     order = [p.name for p in ProviderClient().candidates()]
 
     assert "openrouter" in order
+
+
+@pytest.mark.asyncio
+async def test_soul_and_user_both_reach_the_voice_worker(tmp_path, monkeypatch) -> None:
+    """`/context` is the only way SOUL.md gets to the spoken surface.
+
+    The Agent builds its own instructions in a separate process, so anything
+    the Gateway holds reaches it through this route or not at all -- and the
+    first time that was true of USER.md, Marvi did not know her own name and
+    wrote it into memory five times instead, once per mishearing.
+
+    Both files are checked here because the failure is silent in exactly the
+    same way: the voice path keeps working, and answers as though the person
+    in front of it were a stranger.
+    """
+    monkeypatch.setenv("MARVI_HOME", str(tmp_path))
+    files = IdentityFiles(tmp_path)
+    files.write_soul("# Marvi\n\nYou stay running. Short. One thought per turn.")
+    files.write_user("Shereef, who builds Marvi.")
+
+    app = create_app(
+        version="0.1.0-test", runtime=RuntimeStore(tmp_path / "r.db"), tools=ToolRegistry()
+    )
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://m.local") as c:
+        blocks = (await c.get("/context")).json()["blocks"]
+
+    joined = "\n".join(blocks)
+    assert "One thought per turn" in joined, "SOUL.md never reached the prompt"
+    assert "Shereef, who builds Marvi." in joined, "USER.md never reached the prompt"
+    # Labelled, so a block of prose about a person is not read as a note.
+    assert "true on every turn" in joined
