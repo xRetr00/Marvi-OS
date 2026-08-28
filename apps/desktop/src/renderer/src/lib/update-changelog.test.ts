@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
+import type { UpdateCommit } from '../../../shared/runtime'
 import { buildUpdateChangelog } from './update-changelog'
 
-const commit = (sha: string, summary: string) => ({ sha, summary, author: 'Marvi', at: 1 })
+const commit = (sha: string, summary: string): UpdateCommit => ({
+  sha,
+  summary,
+  author: 'Marvi',
+  at: 1
+})
 
 describe('update changelog', () => {
   it('groups conventional commits and keeps their sha', () => {
@@ -13,7 +19,10 @@ describe('update changelog', () => {
     ])
 
     expect(groups.map((group) => group.label)).toEqual(["What's new", 'Fixed', 'Other changes'])
-    expect(groups[0].commits[0]).toMatchObject({ display: 'Show available commits', sha: 'aaa1111' })
+    expect(groups[0].commits[0]).toMatchObject({
+      display: 'Show available commits',
+      sha: 'aaa1111'
+    })
   })
 
   it('bounds the visible changelog', () => {

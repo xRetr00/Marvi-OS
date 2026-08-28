@@ -27,7 +27,13 @@ function relativeCheckTime(checkedAt: number | null): string {
   return `Checked ${Math.round(elapsed / 86_400_000)}d ago`
 }
 
-function CommitChanges({ check, compact = false }: { check: UpdateCheck; compact?: boolean }): React.JSX.Element | null {
+function CommitChanges({
+  check,
+  compact = false
+}: {
+  check: UpdateCheck
+  compact?: boolean
+}): React.JSX.Element | null {
   if (!check.available || check.commits.length === 0) return null
   const limit = compact ? 4 : 10
   const groups = buildUpdateChangelog(check.commits, limit)
@@ -48,31 +54,41 @@ function CommitChanges({ check, compact = false }: { check: UpdateCheck; compact
           </ul>
         </section>
       ))}
-      {check.behindBy > limit ? <p className="update-more">+{check.behindBy - limit} more changes</p> : null}
+      {check.behindBy > limit ? (
+        <p className="update-more">+{check.behindBy - limit} more changes</p>
+      ) : null}
     </div>
   )
 }
 
 function UpdateActions({ compact = false }: { compact?: boolean }): React.JSX.Element {
   const view = useStore($updateView)
-  const [confirming, setConfirming] = useState(false)
+  const [confirmingTarget, setConfirmingTarget] = useState<string | null>(null)
   const available = Boolean(view.check?.available && !view.check.error)
   const busy = view.loading || view.handoff === 'starting' || Boolean(view.status?.inProgress)
-
-  useEffect(() => {
-    if (!available) setConfirming(false)
-  }, [available])
+  const targetKey = view.check?.target ?? view.check?.targetRef ?? 'available'
+  const confirming = available && confirmingTarget === targetKey
 
   if (confirming) {
     return (
       <div className="update-confirmation" role="alert">
         <p>Marvi will close, apply the update in the bootstrap window, then reopen.</p>
         <div className="update-actions">
-          <button className="ui-button primary" disabled={busy} onClick={() => void beginUpdate()} type="button">
+          <button
+            className="ui-button primary"
+            disabled={busy}
+            onClick={() => void beginUpdate()}
+            type="button"
+          >
             <Download aria-hidden="true" />
             {view.handoff === 'starting' ? 'STARTING…' : 'QUIT + UPDATE'}
           </button>
-          <button className="ui-button" disabled={busy} onClick={() => setConfirming(false)} type="button">
+          <button
+            className="ui-button"
+            disabled={busy}
+            onClick={() => setConfirmingTarget(null)}
+            type="button"
+          >
             CANCEL
           </button>
         </div>
@@ -98,7 +114,7 @@ function UpdateActions({ compact = false }: { compact?: boolean }): React.JSX.El
         <button
           className="ui-button primary"
           disabled={!view.status?.supported || busy}
-          onClick={() => setConfirming(true)}
+          onClick={() => setConfirmingTarget(targetKey)}
           type="button"
         >
           UPDATE NOW
@@ -108,16 +124,23 @@ function UpdateActions({ compact = false }: { compact?: boolean }): React.JSX.El
   )
 }
 
-function UpdateStatus({ version, compact = false }: { version: string; compact?: boolean }): React.JSX.Element {
+function UpdateStatus({
+  version,
+  compact = false
+}: {
+  version: string
+  compact?: boolean
+}): React.JSX.Element {
   const view = useStore($updateView)
   const presentation = useMemo(
-    () => resolveVersionPresentation({
-      version,
-      check: view.check,
-      loading: view.loading,
-      inProgress: Boolean(view.status?.inProgress),
-      handoff: view.handoff
-    }),
+    () =>
+      resolveVersionPresentation({
+        version,
+        check: view.check,
+        loading: view.loading,
+        inProgress: Boolean(view.status?.inProgress),
+        handoff: view.handoff
+      }),
     [version, view.check, view.loading, view.status?.inProgress, view.handoff]
   )
 
@@ -125,7 +148,13 @@ function UpdateStatus({ version, compact = false }: { version: string; compact?:
     <>
       <div className={`update-state-line ${presentation.tone}`}>
         <span className="update-state-glyph" aria-hidden="true">
-          {presentation.tone === 'busy' ? <RefreshCw className="spin" /> : presentation.tone === 'available' ? <Download /> : <Check />}
+          {presentation.tone === 'busy' ? (
+            <RefreshCw className="spin" />
+          ) : presentation.tone === 'available' ? (
+            <Download />
+          ) : (
+            <Check />
+          )}
         </span>
         <div>
           <span>{presentation.tone === 'available' ? 'UPDATE AVAILABLE' : 'UPDATE STATUS'}</span>
@@ -134,19 +163,29 @@ function UpdateStatus({ version, compact = false }: { version: string; compact?:
         </div>
       </div>
       {view.handoff === 'failed' ? (
-        <p className="update-error">The installed updater could not be started. Marvi stayed open; check again or retry.</p>
+        <p className="update-error">
+          The installed updater could not be started. Marvi stayed open; check again or retry.
+        </p>
       ) : view.check?.error ? (
         <p className="update-error">{view.check.error}</p>
       ) : null}
       {view.check?.available && view.check.commits.length === 0 ? (
-        <p className="update-empty-notes">An update is ready, but detailed change notes are unavailable.</p>
+        <p className="update-empty-notes">
+          An update is ready, but detailed change notes are unavailable.
+        </p>
       ) : null}
       {view.check ? <CommitChanges check={view.check} compact={compact} /> : null}
     </>
   )
 }
 
-export function VersionPopover({ version, onOpenAbout }: { version: string; onOpenAbout: () => void }): React.JSX.Element {
+export function VersionPopover({
+  version,
+  onOpenAbout
+}: {
+  version: string
+  onOpenAbout: () => void
+}): React.JSX.Element {
   const view = useStore($updateView)
   const [open, setOpen] = useState(false)
   const presentation = resolveVersionPresentation({
@@ -162,7 +201,8 @@ export function VersionPopover({ version, onOpenAbout }: { version: string; onOp
     if (!next) return
     void loadUpdateState().then(() => {
       const current = $updateView.get()
-      if (!current.check || !current.checkedAt || Date.now() - current.checkedAt > 5 * 60 * 1000) void checkForUpdate()
+      if (!current.check || !current.checkedAt || Date.now() - current.checkedAt > 5 * 60 * 1000)
+        void checkForUpdate()
     })
   }
 
@@ -175,7 +215,11 @@ export function VersionPopover({ version, onOpenAbout }: { version: string; onOp
             className={`status-item status-version update-${presentation.tone}`}
             type="button"
           >
-            {presentation.tone === 'busy' ? <RefreshCw aria-hidden="true" className="spin" /> : <Hash aria-hidden="true" />}
+            {presentation.tone === 'busy' ? (
+              <RefreshCw aria-hidden="true" className="spin" />
+            ) : (
+              <Hash aria-hidden="true" />
+            )}
             <span>{presentation.label}</span>
           </button>
         </Dialog.Trigger>
@@ -187,7 +231,9 @@ export function VersionPopover({ version, onOpenAbout }: { version: string; onOp
             <div>
               <span>MARVI DESKTOP</span>
               <Dialog.Title>Version {version}</Dialog.Title>
-              <Dialog.Description id="update-center-description">Installed build and available changes</Dialog.Description>
+              <Dialog.Description id="update-center-description">
+                Installed build and available changes
+              </Dialog.Description>
             </div>
             <Dialog.Close aria-label="Close update details" className="update-center-close">
               <X aria-hidden="true" />
@@ -195,9 +241,18 @@ export function VersionPopover({ version, onOpenAbout }: { version: string; onOp
           </header>
           <UpdateStatus compact version={version} />
           <dl className="update-build-line">
-            <div><dt>INSTALLED</dt><dd>{shortSha(view.check?.current)}</dd></div>
-            <div><dt>TARGET</dt><dd>{shortSha(view.check?.target)}</dd></div>
-            <div><dt>CHANNEL</dt><dd>{view.status?.channel?.toUpperCase() ?? 'RELEASE'}</dd></div>
+            <div>
+              <dt>INSTALLED</dt>
+              <dd>{shortSha(view.check?.current)}</dd>
+            </div>
+            <div>
+              <dt>TARGET</dt>
+              <dd>{shortSha(view.check?.target)}</dd>
+            </div>
+            <div>
+              <dt>CHANNEL</dt>
+              <dd>{view.status?.channel?.toUpperCase() ?? 'RELEASE'}</dd>
+            </div>
           </dl>
           <UpdateActions compact />
           <button
@@ -230,12 +285,42 @@ export function AboutUpdates({ version }: { version: string }): React.JSX.Elemen
     <section className="about-updates" aria-label="Updates">
       <UpdateStatus version={version} />
       <dl className="about-update-facts">
-        <div><dt>VERSION</dt><dd>{version}</dd></div>
-        <div><dt>RUNNING</dt><dd><code>{shortSha(view.check?.current)}</code></dd></div>
-        <div><dt>TARGET</dt><dd><code>{shortSha(view.check?.target)}</code></dd></div>
-        <div><dt>CHANNEL</dt><dd>{channel.toUpperCase()}</dd></div>
-        <div><dt>INTEGRITY</dt><dd>{view.check?.signed === true ? <><ShieldCheck aria-hidden="true" /> SIGNED</> : 'CHANNEL POLICY'}</dd></div>
-        <div><dt>UPDATER</dt><dd>{view.status?.supported ? 'READY' : 'UNAVAILABLE'}</dd></div>
+        <div>
+          <dt>VERSION</dt>
+          <dd>{version}</dd>
+        </div>
+        <div>
+          <dt>RUNNING</dt>
+          <dd>
+            <code>{shortSha(view.check?.current)}</code>
+          </dd>
+        </div>
+        <div>
+          <dt>TARGET</dt>
+          <dd>
+            <code>{shortSha(view.check?.target)}</code>
+          </dd>
+        </div>
+        <div>
+          <dt>CHANNEL</dt>
+          <dd>{channel.toUpperCase()}</dd>
+        </div>
+        <div>
+          <dt>INTEGRITY</dt>
+          <dd>
+            {view.check?.signed === true ? (
+              <>
+                <ShieldCheck aria-hidden="true" /> SIGNED
+              </>
+            ) : (
+              'CHANNEL POLICY'
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt>UPDATER</dt>
+          <dd>{view.status?.supported ? 'READY' : 'UNAVAILABLE'}</dd>
+        </div>
       </dl>
       <div className="update-settings-row">
         <div>

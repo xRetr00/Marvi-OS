@@ -114,7 +114,7 @@ export function startUpdatePolling(): () => void {
   if (stopPolling) return stopPolling
 
   void loadUpdateState().then(() => checkForUpdate())
-  const onFocus = () => {
+  const onFocus = (): void => {
     const checkedAt = $updateView.get().checkedAt ?? 0
     if (Date.now() - checkedAt >= FOCUS_CHECK_MIN_AGE_MS) void checkForUpdate()
   }
