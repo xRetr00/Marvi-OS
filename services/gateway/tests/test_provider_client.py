@@ -13,10 +13,8 @@ import logging
 import httpx
 import pytest
 from httpx import ASGITransport, AsyncClient
-from marvi_gateway.app import create_app
-from marvi_gateway.runtime import RuntimeStore
-from marvi_gateway.tools import ToolRegistry
 
+from marvi_gateway.app import create_app
 from marvi_gateway.identity import IdentityFiles, plan_warning
 from marvi_gateway.providers import (
     AllProvidersExhaustedError,
@@ -25,6 +23,8 @@ from marvi_gateway.providers import (
     Usage,
     get,
 )
+from marvi_gateway.runtime import RuntimeStore
+from marvi_gateway.tools import ToolRegistry
 
 MESSAGES = [{"role": "system", "content": "You are Marvi."}, {"role": "user", "content": "hi"}]
 

@@ -280,9 +280,9 @@ class Initiative:
             return {}
 
     def _mark_ran(self, job: str) -> None:
-        from .paths import root
-
         import json
+
+        from .paths import root
 
         path = root() / "state" / "initiative.json"
         seen = self._ran_at()

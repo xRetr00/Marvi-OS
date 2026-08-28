@@ -57,8 +57,9 @@ import os
 import statistics
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 import httpx
 
@@ -365,7 +366,7 @@ def run(models: list[str], runs: int) -> list[Result]:
             for _ in range(runs):
                 try:
                     text, calls, elapsed, usage = ask(key, model, case)
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 - any provider error is 'unanswered'
                     # A 429 or a 403 is not a behaviour failure, and counting
                     # it as one made two good models look broken on the first
                     # pass: qwen scored 2/3 on brevity and ling 0/3 on tool

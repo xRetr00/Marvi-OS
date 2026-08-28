@@ -244,7 +244,7 @@ async def test_tool_call_markup_is_never_spoken() -> None:
     right command. <|DSML|tool_calls> <|DSML|invoke name="terminal_run">" --
     and all of it was on its way to the speaker."""
     spoken = await _drain(
-        ["Right, this is Windows. ", '<｜DSML｜tool_calls> ', "done."]
+        ["Right, this is Windows. ", '<｜DSML｜tool_calls> ', "done."]  # noqa: RUF001
     )
 
     assert "DSML" not in spoken
@@ -254,7 +254,7 @@ async def test_tool_call_markup_is_never_spoken() -> None:
 @pytest.mark.asyncio
 async def test_markup_split_across_chunks_is_still_caught() -> None:
     """The reason a carry exists: a marker arrives in pieces on a stream."""
-    spoken = await _drain(["Sure. <｜DSML", '｜invoke name="x"> ', "carry on."])
+    spoken = await _drain(["Sure. <｜DSML", '｜invoke name="x"> ', "carry on."])  # noqa: RUF001
 
     assert "DSML" not in spoken and "invoke" not in spoken
     assert "Sure." in spoken and "carry on." in spoken
