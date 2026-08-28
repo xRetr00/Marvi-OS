@@ -351,6 +351,11 @@ const marvi = {
   chooseFolder: (): Promise<string> => ipcRenderer.invoke('marvi:choose-folder'),
   /** Memory files to import. Empty when the user cancelled. */
   chooseMemoryFiles: (): Promise<string[]> => ipcRenderer.invoke('marvi:choose-memory-files'),
+  reviseMemory: (id: number, subject: string, body: string): Promise<unknown> =>
+    ipcRenderer.invoke('marvi:revise-memory', id, subject, body),
+  deleteMemory: (id: number): Promise<unknown> => ipcRenderer.invoke('marvi:delete-memory', id),
+  editEntity: (name: string, renameTo: string, remove: boolean): Promise<unknown> =>
+    ipcRenderer.invoke('marvi:edit-entity', name, renameTo, remove),
   getImportSources: (): Promise<MemoryImportSources | null> =>
     ipcRenderer.invoke('marvi:get-import-sources'),
   getHonchoWorkspaces: (): Promise<{ workspaces: string[]; detail: string } | null> =>

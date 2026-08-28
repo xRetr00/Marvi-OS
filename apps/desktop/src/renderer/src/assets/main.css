@@ -7094,7 +7094,149 @@ body {
   box-shadow: inset 0 -1px var(--ui-accent);
 }
 
+/* The graph, Obsidian-shaped: a search and force controls in the header, a
+   panel for whatever you clicked. */
+.arc-graph-search {
+  flex: 1 1 160px;
+  min-width: 90px;
+  max-width: 260px;
+  padding: 4px 8px;
+  border: 1px solid var(--ui-border, #23262c);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ui-text-primary, #d6d9de);
+  font-family: var(--ui-font-mono, ui-monospace, monospace);
+  font-size: 10px;
+}
+.arc-graph-settings {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 6px 14px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--ui-border, #23262c);
+  background: rgba(255, 255, 255, 0.015);
+}
+.arc-graph-force {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--ui-text-secondary, #8b919b);
+  font-family: var(--ui-font-mono, ui-monospace, monospace);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.arc-graph-force input[type='range'] {
+  flex: 1 1 60px;
+  min-width: 54px;
+  accent-color: #4ba6df;
+}
+.arc-graph-toggle input {
+  accent-color: #4ba6df;
+}
+.arc-graph-settings > button {
+  align-self: center;
+  padding: 3px 10px;
+  border: 1px solid var(--ui-border, #23262c);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ui-text-secondary, #8b919b);
+  font-family: var(--ui-font-mono, ui-monospace, monospace);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+/* Over the canvas rather than beside it: the graph is the thing being looked
+   at, and shrinking it to make room moves every node the moment you click one. */
+.graph-node-panel {
+  position: absolute;
+  top: 52px;
+  right: 12px;
+  bottom: 44px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(320px, 46%);
+  overflow-y: auto;
+  padding: 12px 14px;
+  border: 1px solid var(--ui-border, #23262c);
+  border-radius: 6px;
+  background: rgba(10, 11, 13, 0.96);
+  backdrop-filter: blur(6px);
+}
+.graph-node-panel header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.graph-node-panel header strong {
+  color: var(--ui-text-primary, #d6d9de);
+  font-size: 12px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+.graph-node-panel header button {
+  flex: 0 0 auto;
+  padding: 2px;
+  border: 0;
+  background: transparent;
+  color: var(--ui-text-secondary, #8b919b);
+  cursor: pointer;
+}
+.graph-node-panel header button svg {
+  width: 13px;
+  height: 13px;
+}
+.graph-node-panel dl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0;
+}
+.graph-node-panel dt {
+  color: var(--ui-text-secondary, #8b919b);
+  font-family: var(--ui-font-mono, ui-monospace, monospace);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.graph-node-panel dd {
+  margin: 0;
+  color: var(--ui-text-primary, #d6d9de);
+  font-size: 10.5px;
+}
+.graph-node-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.graph-node-field span {
+  color: var(--ui-text-secondary, #8b919b);
+  font-family: var(--ui-font-mono, ui-monospace, monospace);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.graph-node-field input,
+.graph-node-field textarea {
+  padding: 6px 8px;
+  border: 1px solid var(--ui-border, #23262c);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--ui-text-primary, #d6d9de);
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1.5;
+  resize: vertical;
+}
 .arc-graph-frame {
+  /* Positioned, because the node panel sits over the canvas rather than
+     beside it: making room for it would move every node the moment you
+     clicked one. */
+  position: relative;
   overflow: hidden;
   border: 1px solid var(--ui-stroke-secondary);
   background: var(--ui-bg-raised);

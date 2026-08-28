@@ -232,6 +232,9 @@ export interface MarviDesktopApi {
   setWorkspace: (update: WorkspaceUpdate) => Promise<WorkspacePolicy | null>
   chooseFolder: () => Promise<string>
   chooseMemoryFiles: () => Promise<string[]>
+  reviseMemory: (id: number, subject: string, body: string) => Promise<unknown>
+  deleteMemory: (id: number) => Promise<unknown>
+  editEntity: (name: string, renameTo: string, remove: boolean) => Promise<unknown>
   getImportSources: () => Promise<MemoryImportSources | null>
   getHonchoWorkspaces: () => Promise<{ workspaces: string[]; detail: string } | null>
   previewMemoryImport: (request: MemoryImportRequest) => Promise<MemoryImportPreview | null>

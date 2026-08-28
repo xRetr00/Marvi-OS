@@ -2364,6 +2364,27 @@ function startApp(): void {
       })
       return chosen.canceled ? [] : chosen.filePaths
     })
+    ipcMain.handle('marvi:revise-memory', (_event, id, subject, body) =>
+      gatewayJson(`/memory/${Number(id)}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ subject: String(subject ?? ''), body: String(body ?? '') })
+      })
+    )
+    ipcMain.handle('marvi:delete-memory', (_event, id) =>
+      gatewayJson(`/memory/${Number(id)}`, { method: 'DELETE' })
+    )
+    ipcMain.handle('marvi:edit-entity', (_event, name, renameTo, remove) =>
+      gatewayJson('/arc/memory/graph/entity', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          name: String(name ?? ''),
+          rename_to: String(renameTo ?? ''),
+          remove: remove === true
+        })
+      })
+    )
     ipcMain.handle('marvi:get-import-sources', async () => {
       const body = await gatewayJson('/memory/import/sources')
       if (!isRecord(body)) return null

@@ -810,6 +810,66 @@ class MemoryStore:
         )
         return {"forgotten": len(subjects), "subjects": subjects}
 
+    def revise(self, memory_id: int, subject: str = "", body: str = "") -> dict[str, Any]:
+        """Correct one memory in place, keeping its id and its links.
+
+        Through here rather than forget-and-remember: the id is what the
+        premises table points at, so a conclusion drawn from this memory keeps
+        its evidence instead of losing it to a typo fix. The FTS index and the
+        vector both follow -- the update trigger handles the first and the
+        reindex below the second, because a memory that has been edited but
+        still matches its old text is the duplicate problem one layer down.
+        """
+        row = self._db.execute(
+            "SELECT subject, body FROM memories WHERE id = ?", (int(memory_id),)
+        ).fetchone()
+        if row is None:
+            return {"revised": False, "detail": "no memory with that id"}
+        wanted_subject = (subject or str(row["subject"])).strip()[:200]
+        wanted_body = (body or str(row["body"])).strip()[:MAX_BODY_CHARS]
+        self._refuse_secrets(wanted_subject, wanted_body)
+        self._db.execute(
+            "UPDATE memories SET subject = ?, body = ? WHERE id = ?",
+            (wanted_subject, wanted_body, int(memory_id)),
+        )
+        self._db.commit()
+        self.index(int(memory_id), f"{wanted_subject}: {wanted_body}")
+        log.info("memory revised", extra={"marvi_memory_id": memory_id})
+        return {"revised": True, "id": int(memory_id), "subject": wanted_subject}
+
+    def rename_entity(self, old: str, new: str) -> dict[str, Any]:
+        """One thing under two names is two things in the graph.
+
+        The dreamer names entities from whatever the memories called them, so
+        `Shreef` and `Shereef` become separate hubs with half the edges each.
+        Renaming merges rather than clashing: the unique constraint on `name`
+        would otherwise make this fail exactly when it is most wanted.
+        """
+        old, new = old.strip(), new.strip()
+        if not old or not new:
+            return {"renamed": False, "detail": "both names are needed"}
+        rows = self._db.execute(
+            "SELECT id, name FROM entities WHERE name IN (?, ?) COLLATE NOCASE", (old, new)
+        ).fetchall()
+        source_id = next((int(r["id"]) for r in rows if r["name"].lower() == old.lower()), 0)
+        if not source_id:
+            return {"renamed": False, "detail": f"nothing named {old!r}"}
+        target_id = next((int(r["id"]) for r in rows if r["name"].lower() == new.lower()), 0)
+        if not target_id:
+            self._db.execute("UPDATE entities SET name = ? WHERE id = ?", (new, source_id))
+        else:
+            # Merging. `INSERT OR IGNORE` on the relations unique constraint
+            # collapses the edges that both already had.
+            for column in ("subject_id", "object_id"):
+                self._db.execute(
+                    f"UPDATE OR IGNORE relations SET {column} = ? WHERE {column} = ?",
+                    (target_id, source_id),
+                )
+            self._db.execute("DELETE FROM entities WHERE id = ?", (source_id,))
+        self._db.commit()
+        log.info("entity renamed", extra={"marvi_from": old, "marvi_to": new})
+        return {"renamed": True, "name": new}
+
     def unlink(self, subject: str, predicate: str = "", obj: str = "") -> dict[str, Any]:
         """Remove a relation from the graph. Returns what went.
 

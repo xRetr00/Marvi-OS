@@ -59,6 +59,7 @@ import { ShellContextMenu } from './components/ui/shell-context-menu'
 import { Chat } from './chat'
 import { AbstractIcon, type AbstractIconName } from './components/abstract-icon'
 import { MessageTiming } from './components/message-timing'
+import { GraphNodePanel } from './components/graph-node-panel'
 import { ArcMemoryGraph } from './components/arc-memory-graph'
 import { AboutUpdates, VersionPopover } from './components/update-controls'
 import { startUpdatePolling } from './store/update-state'
@@ -121,6 +122,7 @@ import type {
   MemoryImportResult,
   MemoryImportSources,
   MemoryGraphMode,
+  MemoryGraphNode,
   MemoryGraphPage,
   MindDecision,
   ModelPage,
@@ -1823,6 +1825,8 @@ function MemoryPanel(): React.JSX.Element {
   const [graphLoading, setGraphLoading] = useState(true)
   const [confirmClear, setConfirmClear] = useState(false)
   const [reload, setReload] = useState(0)
+  /** The node whose panel is open. Null is the resting state. */
+  const [picked, setPicked] = useState<MemoryGraphNode | null>(null)
 
   useEffect(() => {
     let disposed = false
@@ -1887,7 +1891,16 @@ function MemoryPanel(): React.JSX.Element {
             </button>
           </div>
         </div>
-        <ArcMemoryGraph graph={graph} loading={graphLoading} />
+        <ArcMemoryGraph graph={graph} loading={graphLoading} onSelect={setPicked} />
+        {picked ? (
+          <GraphNodePanel
+            entries={page.entries}
+            key={picked.id}
+            node={picked}
+            onChanged={() => setReload((n) => n + 1)}
+            onClose={() => setPicked(null)}
+          />
+        ) : null}
       </div>
 
       <ControlSection

@@ -59,7 +59,7 @@ from .logs import available as available_logs
 from .logs import configure as configure_logging
 from .logs import get_logger, install_asyncio_handler, logs_dir, redactor, tail
 from .mcp_bridge import McpBridge, register_mcp_tools
-from .memory import MemoryStore, register_memory_tools
+from .memory import MemoryStore, SecretInMemoryError, register_memory_tools
 from .memory_providers import MemoryRuntime
 from .mind import Mind
 from .policy import InitiativeSettings
@@ -636,6 +636,18 @@ class SkillConfirm(BaseModel):
 
 class SkillPin(BaseModel):
     pinned: bool
+
+
+class MemoryRevision(BaseModel):
+    subject: str = ""
+    body: str = ""
+
+
+class EntityEdit(BaseModel):
+    name: str
+    rename_to: str = ""
+    #: True takes it out of the graph entirely, with every edge it had.
+    remove: bool = False
 
 
 class MemoryImport(BaseModel):
@@ -2729,6 +2741,48 @@ def create_app(
             entries=memory.recent(limit=max(1, min(limit, 200))),
             summary=memory.world_summary(),
         )
+
+    @app.patch("/memory/{memory_id}")
+    async def revise_memory(memory_id: int, update: MemoryRevision) -> dict[str, Any]:
+        """Correct one memory from the graph, keeping its id.
+
+        Kept rather than replaced because the id is what the premises table
+        points at: a conclusion drawn from this memory should survive a typo
+        being fixed in it.
+        """
+        if memory is None:
+            return {"revised": False, "detail": "memory is not configured"}
+        try:
+            return memory.revise(memory_id, update.subject, update.body)
+        except SecretInMemoryError as exc:
+            return {"revised": False, "detail": str(exc)}
+
+    @app.delete("/memory/{memory_id}")
+    async def delete_memory(memory_id: int) -> dict[str, Any]:
+        if memory is None:
+            return {"forgotten": False}
+        gone = memory.forget(memory_id)
+        if gone:
+            runtime_store.audit("memory", "deleted", {"id": memory_id})
+        return {"forgotten": gone, "id": memory_id}
+
+    @app.post("/arc/memory/graph/entity")
+    async def edit_entity(update: EntityEdit) -> dict[str, Any]:
+        """Rename a thing, or take it out of the graph.
+
+        Both are corrections a person makes by looking: the dreamer names
+        entities from whatever the memories called them, so one person can
+        arrive twice under two spellings, and a wrong relation is obvious on a
+        canvas long before it is obvious anywhere else.
+        """
+        if memory is None:
+            return {"ok": False, "detail": "memory is not configured"}
+        if update.remove:
+            result = memory.unlink(update.name)
+            runtime_store.audit("memory", "entity-removed", {"name": update.name})
+            return {"ok": bool(result["removed"]), **result}
+        result = memory.rename_entity(update.name, update.rename_to)
+        return {"ok": bool(result.get("renamed")), **result}
 
     @app.get("/arc/memory/graph", response_model=MemoryGraphPage)
     async def memory_graph(
