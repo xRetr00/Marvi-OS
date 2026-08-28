@@ -19,17 +19,22 @@ shipped surface depends on the bridge.
 
 ## Implemented — the update handoff
 
-- `scripts/desktop-update/windows.ps1`, adapted from the tested predecessor handoff
-  with provenance in `docs/UPSTREAM.md`. It lives in the checkout on purpose: a
-  frozen installer cannot fix its own updater, so update bugs would outlive
-  their fixes. Each successful update also refreshes the updater.
-- `apps/desktop/src/main/updater.ts` builds the handoff and quits. The
-  `cmd /d /s /c start "" /min powershell` wrapper is load-bearing — a bare
-  detached, hidden PowerShell is killed before `-File` is read — so its exact
-  shape is asserted in tests rather than left to runtime.
-- An Updates page showing version, channel, whether this install can self-update
-  at all, and the result of the last attempt, consumed once so it is not
-  re-announced on every launch.
+- The small Tauri `marvi-bootstrap.exe` in `apps/updater` replaced the retired
+  PowerShell handoff. It is both installer and updater, streams progress from a
+  headless Rust core, maintains rollback snapshots, and refreshes itself only
+  after a successful tagged update.
+- `apps/desktop/src/main/updater.ts` starts the bootstrap outside packaged build
+  output, passes the checkout/channel/PID/relaunch contract, and quits only
+  after handoff succeeds. The bootstrap waits for the desktop and clears Marvi
+  child processes before touching the checkout.
+- The bootstrap UI renders a fixed manifest of real stages. Raw command output
+  is a separate bounded/selectable stream behind Show details, so log lines can
+  never impersonate stages or move the weighted progress bar. Failure opens the
+  log and stays visible; verified success closes automatically.
+- The status-bar version popover and About share quiet startup/focus/periodic
+  checks, channel selection, current/target SHAs, release integrity, exact
+  commit count, bounded grouped commit details, last result, and guarded update
+  actions. A result is consumed once rather than re-announced on every launch.
 
 ## Evidence
 
@@ -49,7 +54,10 @@ a BOM, and `JSON.parse` rejects it. The handoff spawns `powershell` (5.1, not
 would have seen nothing after an update. The script now writes plain UTF-8, the
 Electron side strips a BOM defensively, and a regression test covers it.
 
-11 updater tests plus the live matrix above.
+The current updater workspace suite, focused desktop handoff/changelog tests,
+and the live matrix above cover this boundary. The 720×520 browser-only safe
+preview is checked in both stage-only and split live-output states; it performs
+no install or checkout mutation.
 
 ## Acceptance evidence required
 

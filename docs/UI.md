@@ -39,10 +39,15 @@ scanlines, blur, chromatic aberration, or noise that reduces legibility.
 
 The installer/updater uses the same monochrome tokens, compact uppercase labels,
 monospaced data, crisp borders, and restrained status color as the desktop. Its
-long-running log remains selectable. Terminal failures show recovery guidance
-and a clear keyboard-accessible Close updater action; they never disappear on a
-timer. Only a verified successful result closes the window automatically after
-a brief completion state.
+progress surface is driven by a fixed manifest of real operational stages. Raw
+git, npm, uv, and process output travels on a separate log event and can never
+replace the current stage or advance the progress bar. The stage list is the
+default view; selectable live output is disclosed on demand in a split pane and
+opens automatically on failure. Terminal failures show recovery guidance and a
+clear keyboard-accessible Close updater action; they never disappear on a timer.
+Only a verified successful result closes the window automatically after a brief
+completion state. The channel badge renders only after authoritative metadata
+arrives; an empty outlined placeholder is not a valid state.
 
 ## Window model
 
@@ -243,6 +248,13 @@ Health items open the relevant view. The version item is the sole exception:
 it opens a compact popover with version, channel, commit, build time, last
 update result, and check/update actions. Full update controls live in About;
 there is no separate Updates settings destination.
+
+Update checks run quietly at renderer startup, every thirty minutes, and after
+focus returns when the last check is at least five minutes old. They never open
+a window or steal focus. An available update shows its current and target SHAs,
+integrity state, exact commit count, and a bounded grouped changelog retaining
+short SHA provenance. When commit details cannot be resolved, the UI says so
+instead of inventing release notes.
 
 Chat and Voice show the same session timing strip. Usage is the sole source of
 truth for durable provider and session counters; Providers only configures

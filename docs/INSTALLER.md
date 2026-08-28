@@ -141,6 +141,13 @@ The bootstrap window closes itself only after an `ok` result has been written.
 Failed, skipped, and aborted runs stay open with recovery guidance, a selectable
 technical log, and an explicit Close updater action.
 
+The window receives three distinct event classes: one metadata/stage manifest,
+named milestone transitions, and raw log lines. Only milestone transitions can
+change the active stage or percentage. The renderer sends `ui-ready` after all
+listeners are registered, so startup metadata such as the channel cannot be
+lost during WebView initialization. Logs are bounded and hidden behind Show
+details during normal operation; a failed run opens them automatically.
+
 ## Releases
 
 **There is no per-release installer.** The updater clones the tag and builds it

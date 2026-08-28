@@ -790,6 +790,24 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   completion state. Failed, skipped, and aborted outcomes remain open until the
   user dismisses them.
 
+## 2026-08-28 — stage-authoritative updater UI and desktop changelog
+
+- Split bootstrap events into authoritative metadata/stages and raw log lines;
+  npm, uv, git, and process output can no longer replace the current stage or
+  move the progress bar. A renderer-ready handshake prevents startup metadata
+  loss and removes the empty channel outline.
+- Adapted the pinned Hermes installer interaction model into Marvi's static
+  Tauri shell: real stage-count progress, flat stage states, optional split-pane
+  live output, bounded/selectable warning and error lines, and automatic detail
+  disclosure on failure. The implementation retains Marvi's monochrome tokens
+  and contains no Hermes branding or component code.
+- Added quiet startup/focus/30-minute desktop checks. Update results now include
+  a bounded git changelog with SHA, subject, author, and timestamp; the version
+  popover and About surface show current/target commits, integrity, check time,
+  grouped changes, honest missing-notes copy, and the existing guarded handoff.
+- Visual QA exercised the browser-only safe preview at the shipping 720×520
+  bootstrap viewport in collapsed and live-output split states.
+
 ## 2026-08-23 — Smart Room becomes the sole vision owner
 
 - Reviewed the real sidecar-to-desktop route before changing presentation. The

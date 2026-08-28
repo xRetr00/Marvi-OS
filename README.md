@@ -127,8 +127,10 @@ Current implemented desktop surfaces:
   `Release` workflow gates them. There is no per-release installer — the
   bootstrap (`apps/updater`) clones the tag and builds it on the machine, so
   the tag is the payload. Its Windows handoff avoids pinning build output,
-  preserves failed-update diagnostics on screen, and closes automatically only
-  after verified success. See `docs/INSTALLER.md`.
+  presents real stages separately from optional live output, preserves failed-
+  update diagnostics on screen, and closes automatically only after verified
+  success. The desktop checks quietly and shows the exact available commits
+  before handoff. See `docs/INSTALLER.md`.
 
 ## Developer start
 

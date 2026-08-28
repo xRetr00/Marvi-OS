@@ -34,7 +34,8 @@ let terminalStatus = null;
 let lines = 0;
 
 if (!tauri || typeof tauri.event !== 'object') {
-  if (location.protocol === 'file:' && new URLSearchParams(location.search).has('preview')) {
+  const localPreview = location.protocol === 'file:' || ['127.0.0.1', 'localhost'].includes(location.hostname);
+  if (localPreview && new URLSearchParams(location.search).has('preview')) {
     renderPreview();
   } else {
     stageText.textContent = 'Installer runtime unavailable';
