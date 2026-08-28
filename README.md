@@ -35,8 +35,9 @@ Current implemented desktop surfaces:
   additional Chromium renderer. Full evidence is recorded in
   [`docs/phases/12-pet-companion.md`](docs/phases/12-pet-companion.md) pending a
   keep/draft decision;
-- icon-led sidebar, window-wide compact status bar with Marvi's live blue
-  voice meter, overview, and About build/update information;
+- Lucide SDK-backed icon-led sidebar and controls, window-wide compact status
+  bar with Marvi's live blue voice meter, overview, and About build/update
+  information; no handwritten generic SVG icon paths remain;
 - Collapse wordmark + readable JetBrains Mono monochrome design system;
 - shared Provider, Chat, and Voice session telemetry for authoritative token
   deltas, turns, latency, and elapsed time;

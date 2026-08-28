@@ -40,8 +40,9 @@ surface and its native-window behavior can be proven without the voice engine.
   Island placement, with accessible switch/pressed semantics.
 - Real Gateway/component, microphone, camera, phase, mode, and version data in
   the persistent status bar.
-- Icon-led sidebar navigation with a Marvi-specific abstract line language and
-  Collapse restricted to branding so application text remains readable.
+- Icon-led sidebar navigation with a complete Lucide-backed abstract line
+  language and Collapse restricted to branding so application text remains
+  readable. Marvi semantic names isolate callers from SDK component names.
 - Version status button with compact build/update details; About owns the full
   updater controls and the redundant Updates destination is removed.
 - Shared session telemetry on Provider, Chat, and Voice: authoritative token

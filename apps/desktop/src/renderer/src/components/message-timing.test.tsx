@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 
-import { AbstractIcon } from './abstract-icon'
+import { ABSTRACT_ICONS, AbstractIcon } from './abstract-icon'
 import { MessageTiming } from './message-timing'
 
 describe('MessageTiming', () => {
@@ -34,5 +34,15 @@ describe('AbstractIcon', () => {
     const html = renderToStaticMarkup(<AbstractIcon name="voice" />)
     expect(html).toContain('aria-hidden="true"')
     expect(html).toContain('stroke="currentColor"')
+    expect(html).toContain('lucide-audio-lines')
+  })
+
+  it('maps every Marvi semantic icon to the Lucide SDK', () => {
+    expect(Object.keys(ABSTRACT_ICONS)).toHaveLength(43)
+    for (const name of Object.keys(ABSTRACT_ICONS) as Array<keyof typeof ABSTRACT_ICONS>) {
+      const html = renderToStaticMarkup(<AbstractIcon name={name} />)
+      expect(html).toContain('class="lucide ')
+      expect(html).toContain('stroke-width="1.6"')
+    }
   })
 })

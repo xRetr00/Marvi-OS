@@ -39,8 +39,10 @@ scanlines, blur, chromatic aberration, or noise that reduces legibility.
   consistent safe area, the tray uses a tighter 16–32 px treatment, and the
   renderer uses its own 256 px PNG.
 - External services use local inline marks from `@thesvg/react` wherever a
-  service identity is shown. TheSVG is a brand library, so generic navigation,
-  status, and action glyphs remain Marvi abstract icons or Lucide controls.
+  service identity is shown. TheSVG is a brand library, so every generic
+  navigation, status, window, and action glyph comes from the pinned Lucide SDK
+  through Marvi's semantic `AbstractIcon` adapter; no handwritten SVG paths
+  remain in that icon set.
 
 ## Bootstrap window
 
@@ -234,7 +236,7 @@ The main window uses a fixed shell:
 ```
 
 The sidebar is navigation, not a second dashboard. Every destination uses a
-purpose-built abstract line icon, a plain label, and a short code. The expanded
+semantically selected Lucide line icon, a plain label, and a short code. The expanded
 rail includes a compact brand descriptor; the collapsed rail keeps the icons
 and active indicator legible, and keeps the canonical Marvi mark in its brand
 cell so the compact rail never becomes anonymous. Collapse uses a narrow panel

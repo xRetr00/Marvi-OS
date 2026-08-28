@@ -1293,3 +1293,19 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   updater-core tests, desktop ESLint with zero errors (existing CRLF warnings
   remain), visual inspection of the 512 px package, 256 px bootstrap/renderer,
   and enlarged 32 px tray outputs, and `git diff --check`.
+
+## 2026-08-29 — replace handwritten abstract icons
+
+- Replaced all 43 handwritten `AbstractIcon` drawings with semantic mappings to
+  the already-pinned Lucide React SDK. Sidebar, settings, window, Chat, timing,
+  attachment, connector-dialog, and processing controls now render maintained
+  SDK components with one consistent 1.6 px non-scaling stroke.
+- Kept TheSVG for external brand identities only. Its GCP and vendor collections
+  are product marks rather than a complete interface-glyph system, so using
+  them for actions such as close, archive, microphone, or restore would be
+  misleading and visually inconsistent.
+- Preserved the stable Marvi icon names at call sites through a thin adapter,
+  making Lucide upgrades and semantic review auditable in one mapping.
+- Verified all 306 desktop tests, both desktop TypeScript targets, focused
+  ESLint with zero errors, the production Electron/Vite build, and
+  `git diff --check`.
