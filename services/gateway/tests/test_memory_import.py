@@ -190,7 +190,7 @@ def test_what_is_imported_is_marked_as_coming_from_outside(tmp_path) -> None:
     assert result["imported"] == 1
     stored = store.recent()[0]
     assert stored["trusted"] is False
-    assert stored["source"] == "MEMORY.md"
+    assert stored["source"] == "import:MEMORY.md"
 
 
 def test_a_batch_that_fails_does_not_lose_the_import(tmp_path) -> None:

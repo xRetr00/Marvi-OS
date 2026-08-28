@@ -49,6 +49,7 @@ about a world that may have moved on. Three things happen to it here:
 from __future__ import annotations
 
 import json
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -79,6 +80,39 @@ MAX_OUTPUT_TOKENS = 3_000
 #: Keys that hold the actual text in the exports people have. Ordered: an entry
 #: with both `memory` and `content` means the first.
 TEXT_KEYS = ("memory", "content", "text", "fact", "observation", "summary", "body", "value")
+
+#: Credential shapes that must never enter memory.
+#:
+#: Not a nicety. The first real import run against a live Honcho account found
+#: a university login password and a national ID number repeated across eight
+#: peers, and a database role password in a ninth -- because an assistant that
+#: is *told* a password writes it down like anything else. Importing that would
+#: copy it into this store and then into the prompt on every matching recall.
+#:
+#: The user's own memory-pack format says the same thing in its
+#: `never_import` policy: passwords, API keys, tokens, security answers,
+#: bank and account identifiers. This enforces it for every source, including
+#: the ones that have no policy of their own.
+#:
+#: Refuses the whole line rather than masking part of it. A line that exists to
+#: carry a credential says nothing else worth keeping, and a half-redacted
+#: memory is a memory that still says where to look.
+SECRETS = re.compile(
+    # The word, and then something that looks like a value. Requiring the
+    # value is what tells `password Misho2013` from `strong credential and
+    # system blacklists`, which is a sentence about policy and was refused
+    # by the first version of this. The gap is generous because the value is
+    # often a clause away: 'the password for the university portal is X'.
+    r"\b(?:password|passwd|passphrase|api[_ -]?key|secret[_ -]?key|access[_ -]?token|bearer|credentials?)\b"
+    r"(?:[^.\n]{0,45}?\b(?=[A-Za-z0-9@#$%^&*!-]*[A-Za-z])(?=[A-Za-z0-9@#$%^&*!-]*\d)"
+    r"[A-Za-z0-9@#$%^&*!-]{6,}\b|\s*[:=]\s*\S{4,})"
+    # Identity numbers, keys with a known prefix, and long digit runs.
+    r"|\b(?:TC|SSN|NIN)\b\s*:?\s*\d{6,}"
+    r"|\b(?:iban|sort code|account number|card number)\b"
+    r"|\b(?:sk|pk|ghp|gho|xox[bp])[-_][A-Za-z0-9]{16,}"
+    r"|\b\d{11,19}\b",
+    re.I,
+)
 
 #: Lines that are structure rather than content.
 NOISE = re.compile(r"^\s*(#{1,6}\s*)?([-*_=]{3,}|\d{4}-\d{2}-\d{2}|notes?:?|memory:?)\s*$", re.I)
@@ -172,6 +206,9 @@ def _from_json(data: Any, depth: int = 0) -> list[str]:
 def unsafe(line: str) -> str:
     """Why this line must not be imported, or empty.
 
+    Two gates. A credential is refused outright -- see `SECRETS`, and the eight
+    peers in a real account that each held the same university password.
+
     The same scanner that reads a skill before it is installed, for the same
     reason: what goes in here is recalled into the prompt for years, and a
     memory file from another assistant is a file of sentences nobody has read
@@ -179,10 +216,76 @@ def unsafe(line: str) -> str:
     shell command is a memory, and treating it as an attack would make the
     import useless.
     """
+    if SECRETS.search(line):
+        return "credential"
     for finding in skill_guard.scan(line):
         if finding.severity == "danger":
             return finding.rule
     return ""
+
+
+#: Our own format, so this one gets a real parser rather than the liberal walk.
+#:
+#: The point of defining a format at all: a chat assistant cannot export, but it
+#: can be *asked* to write a file. `PACK_PROMPT` below is what the user pastes
+#: into ChatGPT, Claude, Gemini or Grok; the reply is this, and it is the only
+#: shape here that carries confidence, sensitivity and a policy of its own.
+PACK_FORMAT = "marvi-memory-pack/v1"
+
+PACK_PROMPT = """Write out everything you know about me as a single JSON file I can import into
+another assistant. Reply with ONLY the JSON, no commentary, in this format:
+
+{
+  "format": "marvi-memory-pack/v1",
+  "subject": {"display_name": "...", "preferred_name": "...", "aliases": ["..."]},
+  "entries": [
+    {
+      "kind": "fact | preference | goal | instruction",
+      "category": "identity | work | health | projects | ... (your choice)",
+      "text": "One complete sentence, third person, about me.",
+      "stable": true,
+      "sensitivity": "normal | personal | sensitive"
+    }
+  ]
+}
+
+Rules:
+- One fact per entry. Write each as a full sentence that makes sense on its own.
+- Include preferences about how I like to be talked to, my work, my projects,
+  my hardware, and anything standing you have been told to do or avoid.
+- NEVER include passwords, API keys, tokens, security answers, card or bank
+  numbers, or national ID numbers. Leave them out entirely.
+- Mark anything medical, financial or legal as "sensitive".
+- Do not invent anything. If you are unsure, leave it out."""
+
+
+def _from_pack(data: dict[str, Any]) -> list[str]:
+    """Our own format, read properly because we defined it.
+
+    Honours the pack's `never_import` policy in addition to the credential gate
+    every source goes through, because a file that states its own rules should
+    have them followed rather than merely be treated liberally.
+    """
+    banned = {
+        str(word).strip().lower()
+        for word in (data.get("import_policy") or {}).get("never_import", [])
+        if str(word).strip()
+    }
+    found: list[str] = []
+    for entry in data.get("entries") or []:
+        if not isinstance(entry, dict):
+            continue
+        text = _clean(entry.get("text", ""))
+        if not _usable(text):
+            continue
+        if any(word in text.lower() for word in banned):
+            log.info("skipping an entry the pack's own policy excludes")
+            continue
+        # The category is carried in, the way a markdown heading is: "health"
+        # over "smokes daily" is where that entry's meaning lives.
+        category = _clean(entry.get("category", "")).replace("_", " ")
+        found.append(f"{category}: {text}" if category else text)
+    return found
 
 
 def read(path: Path) -> list[str]:
@@ -195,12 +298,161 @@ def read(path: Path) -> list[str]:
     stripped = text.lstrip()
     if stripped.startswith(("{", "[")):
         try:
-            return _from_json(json.loads(text))[:MAX_ITEMS]
+            data = json.loads(text)
+            if isinstance(data, dict) and str(data.get("format", "")).startswith(
+                "marvi-memory-pack/"
+            ):
+                return _from_pack(data)[:MAX_ITEMS]
+            return _from_json(data)[:MAX_ITEMS]
         except ValueError:
             # A .json that is not JSON is more likely a JSONL export than a
             # mistake, and reading it as text finds the lines anyway.
             log.info("%s is not valid JSON; reading it as text", path.name)
     return _from_markdown(text)[:MAX_ITEMS]
+
+
+# -- providers with an API -----------------------------------------------------
+#
+# A file is the common case because most assistants cannot export. Honcho and
+# Mem0 can, so for those the "file" is a network call and everything after it is
+# the same pipeline.
+
+
+#: Where an import looks for a key, in order.
+#:
+#: The memory *provider* setting holds one key for whichever provider is
+#: selected, and importing from Honcho is not the same as switching to it: you
+#: might pull your history out of Honcho precisely because you are leaving.
+#: So the provider's key is used when it fits, and the provider's own
+#: environment variable otherwise -- which is where it already is for anybody
+#: who has used that assistant before.
+def provider_key(provider: str) -> str:
+    from . import memory_providers
+
+    selected = memory_providers.describe().get("provider") == provider
+    if selected and (key := os.environ.get(memory_providers.KEY_SETTING, "").strip()):
+        return key
+    return os.environ.get(f"{provider.upper()}_API_KEY", "").strip()
+
+
+def provider_url(provider: str) -> str:
+    from . import memory_providers
+
+    configured = memory_providers.describe()
+    if configured.get("provider") == provider:
+        return str(configured.get("url") or "")
+    return os.environ.get(f"{provider.upper()}_URL", "").strip()
+
+
+def honcho_workspaces(api_key: str, url: str = "") -> list[str]:
+    """Which workspaces this key can see.
+
+    Asked rather than assumed: the default workspace on a real account was
+    empty and everything was in one called `hermes`, so an importer that
+    hardcoded `default` would have reported "nothing found" over a full
+    account.
+    """
+    from honcho import Honcho
+
+    client = Honcho(api_key=api_key or None, **({"base_url": url} if url else {}))
+    return [str(getattr(row, "id", row)) for row in client.workspaces()]
+
+
+def _peer_lines(peer: Any) -> list[str]:
+    """One peer's card and representation, as sentences.
+
+    Both, because they hold different things. The **card** is the derived,
+    current summary -- `IDENTITY: Name: ...`, `ATTRIBUTE: Location: ...` -- and
+    is the closest thing Honcho has to a durable profile. The
+    **representation** is timestamped observations, which is where anything
+    that happened lives.
+
+    The peer's own id is stripped from the front of each observation. Honcho
+    writes them as "<peer id> prefers X", and on a real account the peer ids
+    were conversation titles -- so importing them verbatim produces memories
+    that begin "user-default-Checking-Room-Light-Status prefers...".
+    """
+    pid = str(getattr(peer, "id", "") or "")
+    found: list[str] = []
+
+    try:
+        card = peer.get_card() or []
+    except Exception as exc:
+        log.info("no card for %s: %s", pid, exc)
+        card = []
+    for entry in card:
+        cleaned = _clean(str(entry))
+        # `IDENTITY: Name: Shereef` reads better as `Name: Shereef`.
+        cleaned = re.sub(r"^(IDENTITY|ATTRIBUTE|PREFERENCE|GOAL)\s*:\s*", "", cleaned, flags=re.I)
+        if _usable(cleaned):
+            found.append(cleaned)
+
+    try:
+        representation = peer.representation
+        text = str(representation() if callable(representation) else representation or "")
+    except Exception as exc:
+        log.info("no representation for %s: %s", pid, exc)
+        text = ""
+    for raw in text.splitlines():
+        line = _clean(raw)
+        # `[2026-06-13 05:38:44] ` in front of every observation.
+        line = re.sub(r"^\[\d{4}-\d{2}-\d{2}[^]]*\]\s*", "", line)
+        if pid and line.lower().startswith(pid.lower()):
+            line = line[len(pid) :].lstrip("'s ").strip()
+            line = f"The user {line}" if line else ""
+        if _usable(line):
+            found.append(line)
+    return found
+
+
+def from_honcho(api_key: str, workspace: str, url: str = "") -> list[str]:
+    """Every peer's card and observations in one workspace.
+
+    Never raises: an import that cannot reach the network is an import that
+    found nothing, which the caller already knows how to report.
+    """
+    try:
+        from honcho import Honcho
+
+        client = Honcho(
+            api_key=api_key or None,
+            workspace_id=workspace,
+            **({"base_url": url} if url else {}),
+        )
+        found: list[str] = []
+        for peer in client.peers():
+            found.extend(_peer_lines(peer))
+        # One assistant talking to itself writes the same observation into
+        # several peers; a real account had eight peers each holding the same
+        # sentence. Order is kept because the first occurrence is the oldest.
+        return list(dict.fromkeys(found))[:MAX_ITEMS]
+    except Exception as exc:
+        log.warning("could not read Honcho: %s", exc)
+        return []
+
+
+def from_mem0(api_key: str, user_id: str, url: str = "") -> list[str]:
+    """Everything Mem0 holds for this user.
+
+    Through the REST API rather than the SDK: the SDK's shape has moved between
+    versions and this needs one endpoint. `v1/memories?user_id=` is the listing
+    both the managed platform and the self-hosted OSS server serve.
+    """
+    import httpx
+
+    base = (url or "https://api.mem0.ai").rstrip("/")
+    try:
+        response = httpx.get(
+            f"{base}/v1/memories/",
+            params={"user_id": user_id},
+            headers={"Authorization": f"Token {api_key}"} if api_key else {},
+            timeout=30.0,
+        )
+        response.raise_for_status()
+        return _from_json(response.json())[:MAX_ITEMS]
+    except Exception as exc:
+        log.warning("could not read Mem0: %s", exc)
+        return []
 
 
 def _parse(text: str) -> list[dict[str, Any]]:
@@ -256,20 +508,39 @@ def organise(client: Any, lines: list[str], known: list[str]) -> list[dict[str, 
     return organised
 
 
-def preview(paths: list[Path]) -> dict[str, Any]:
-    """What is in these files, before anything is written."""
-    per_file = {path.name: read(path) for path in paths}
+def preview(
+    paths: list[Path], *, lines: list[str] | None = None, name: str = ""
+) -> dict[str, Any]:
+    """What is there, before anything is written.
+
+    Reports what the credential gate would refuse as well as what it would
+    keep. Somebody importing years of an assistant's notes should be told that
+    thirteen of them were passwords before it happens, not after.
+    """
+    if lines is not None:
+        per_file = {name or "provider": list(lines)}
+    else:
+        per_file = {path.name: read(path) for path in paths}
     lines = [line for found in per_file.values() for line in found]
+    refused = [{"reason": why, "quote": line[:160]} for line in lines if (why := unsafe(line))]
     return {
-        "files": [{"name": name, "found": len(found)} for name, found in per_file.items()],
+        "files": [{"name": file, "found": len(found)} for file, found in per_file.items()],
         "found": len(lines),
+        "refused": refused,
         # A handful, so somebody can tell a memory file from a config file they
         # picked by mistake before it is imported.
-        "sample": lines[:8],
+        "sample": [line for line in lines if not unsafe(line)][:8],
     }
 
 
-def run(store: Any, client: Any, paths: list[Path]) -> dict[str, Any]:
+def run(
+    store: Any,
+    client: Any,
+    paths: list[Path],
+    *,
+    lines: list[str] | None = None,
+    source: str = "",
+) -> dict[str, Any]:
     """Read, organise, store, and dream over what arrived.
 
     The dream at the end is not decoration: an imported set is a pile of
@@ -278,7 +549,12 @@ def run(store: Any, client: Any, paths: list[Path]) -> dict[str, Any]:
     moment somebody imports two years of notes rather than waiting for two
     years of conversation.
     """
-    candidates = [line for path in paths for line in read(path)][:MAX_ITEMS]
+    # `lines` is what a provider read over the network. Files and APIs differ
+    # only in where the sentences came from; everything after this point is one
+    # pipeline, which is the whole reason it is shaped this way.
+    candidates = (
+        list(lines) if lines is not None else [line for path in paths for line in read(path)]
+    )[:MAX_ITEMS]
     lines, refused = [], []
     for line in candidates:
         reason = unsafe(line)
@@ -310,7 +586,10 @@ def run(store: Any, client: Any, paths: list[Path]) -> dict[str, Any]:
             "assistant's notes unchanged would put its formatting into this one",
         }
 
-    source = ", ".join(path.name for path in paths)[:120]
+    # Marked as an import, not inferred later from what the source looks like.
+    # See `MemoryStore.IMPORTED`.
+    named = (source or ", ".join(path.name for path in paths))[:100]
+    source = f"{store.IMPORTED}{named}"
     stored = 0
     for row in organised:
         try:
@@ -333,5 +612,5 @@ def run(store: Any, client: Any, paths: list[Path]) -> dict[str, Any]:
         "imported": stored,
         "refused": refused,
         "detail": "",
-        "source": source,
+        "source": named,
     }

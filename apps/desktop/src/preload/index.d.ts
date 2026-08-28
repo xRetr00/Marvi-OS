@@ -18,6 +18,8 @@ import type {
   MemoryGraphMode,
   MemoryGraphPage,
   MemoryImportPreview,
+  MemoryImportRequest,
+  MemoryImportSources,
   MemoryImportResult,
   MemoryPage,
   MindDecision,
@@ -230,8 +232,10 @@ export interface MarviDesktopApi {
   setWorkspace: (update: WorkspaceUpdate) => Promise<WorkspacePolicy | null>
   chooseFolder: () => Promise<string>
   chooseMemoryFiles: () => Promise<string[]>
-  previewMemoryImport: (paths: string[]) => Promise<MemoryImportPreview | null>
-  importMemories: (paths: string[]) => Promise<MemoryImportResult | null>
+  getImportSources: () => Promise<MemoryImportSources | null>
+  getHonchoWorkspaces: () => Promise<{ workspaces: string[]; detail: string } | null>
+  previewMemoryImport: (request: MemoryImportRequest) => Promise<MemoryImportPreview | null>
+  importMemories: (request: MemoryImportRequest) => Promise<MemoryImportResult | null>
   answerQuestion: (id: string, answer: string) => Promise<boolean>
   saveSecret: (update: { id: string; name: string; value: string }) => Promise<boolean>
   startOauth: (name: string) => Promise<{ ok: boolean; detail: string }>

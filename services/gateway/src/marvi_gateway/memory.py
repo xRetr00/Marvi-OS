@@ -406,7 +406,8 @@ class MemoryStore:
                 # than the original text -- so the full external-data envelope
                 # is both unnecessary and unaffordable here: six of them fill
                 # the whole recall budget, and an import is rarely six.
-                entry["body"] = f"(from {entry['source']}) {entry['body']}"
+                shown = entry["source"].removeprefix(self.IMPORTED)
+                entry["body"] = f"(from {shown}) {entry['body']}"
             elif behind:
                 # Marvi's own inference, not something that arrived from
                 # outside. The external-data envelope is injection defence --
@@ -427,8 +428,16 @@ class MemoryStore:
                 entry["body"] = wrap_external(entry["source"], entry["body"]).text
         return entry
 
+    #: What `memory_import` marks its own writes with. A prefix rather than a
+    #: guess at the file extension: the first version matched `%.md` and
+    #: friends, so a memory imported from Honcho -- whose source is
+    #: `honcho/hermes`, not a filename -- fell through to the full
+    #: external-data envelope and 154 of them would have filled the recall
+    #: budget many times over.
+    IMPORTED = "import:"
+
     def _imported_sources(self) -> set[str]:
-        """Sources that came from an import rather than from the network.
+        """Sources written by an import rather than fetched from the network.
 
         Cached for the life of the connection: it changes only when somebody
         imports, and a query per recalled row would put a table scan in front
@@ -436,8 +445,8 @@ class MemoryStore:
         """
         if self._imported is None:
             rows = self._db.execute(
-                "SELECT DISTINCT source FROM memories WHERE source LIKE '%.md'"
-                " OR source LIKE '%.json' OR source LIKE '%.jsonl' OR source LIKE '%.txt'"
+                "SELECT DISTINCT source FROM memories WHERE source LIKE ?",
+                (f"{self.IMPORTED}%",),
             ).fetchall()
             self._imported = {str(row["source"]) for row in rows}
         return self._imported

@@ -2350,20 +2350,41 @@ function startApp(): void {
       })
       return chosen.canceled ? [] : chosen.filePaths
     })
-    ipcMain.handle('marvi:preview-memory-import', (_event, paths) =>
-      gatewayJson('/memory/import/preview', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ paths: Array.isArray(paths) ? paths : [] })
-      })
+    ipcMain.handle('marvi:get-import-sources', async () => {
+      const body = await gatewayJson('/memory/import/sources')
+      if (!isRecord(body)) return null
+      return {
+        packPrompt: String(body.pack_prompt ?? ''),
+        packFormat: String(body.pack_format ?? ''),
+        provider: String(body.provider ?? 'local'),
+        honcho: body.honcho === true,
+        mem0: body.mem0 === true
+      }
+    })
+    ipcMain.handle('marvi:get-honcho-workspaces', () =>
+      // Reaching the Honcho API and listing an account's workspaces; slower
+      // than a local read and not slow enough to need a spinner of its own.
+      gatewayJson('/memory/import/honcho/workspaces', undefined, 30_000)
     )
-    ipcMain.handle('marvi:import-memories', (_event, paths) =>
+    ipcMain.handle('marvi:preview-memory-import', (_event, request) =>
+      gatewayJson(
+        '/memory/import/preview',
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(isRecord(request) ? request : { paths: [] })
+        },
+        // A provider preview reads every peer in a workspace.
+        120_000
+      )
+    )
+    ipcMain.handle('marvi:import-memories', (_event, request) =>
       gatewayJson(
         '/memory/import',
         {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ paths: Array.isArray(paths) ? paths : [] })
+          body: JSON.stringify(isRecord(request) ? request : { paths: [] })
         },
         // A model call per twenty-five memories, then a dream over the result.
         // Five minutes is a large import, not a hung one.

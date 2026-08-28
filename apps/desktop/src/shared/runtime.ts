@@ -108,12 +108,37 @@ export interface MemoryPage {
 export interface MemoryImportPreview {
   files: Array<{ name: string; found: number }>
   found: number
+  /** Lines the credential gate will not import, with what matched. Shown
+   * before the import rather than after: somebody bringing in years of another
+   * assistant's notes should be told that thirteen of them were passwords
+   * while they can still change their mind. */
+  refused: Array<{ reason: string; quote: string }>
   sample: string[]
+}
+
+/** Files, or a provider to read over the network. */
+export interface MemoryImportRequest {
+  paths?: string[]
+  provider?: 'honcho' | 'mem0'
+  /** The Honcho workspace, or the Mem0 user. */
+  scope?: string
+}
+
+export interface MemoryImportSources {
+  /** What to paste into ChatGPT, Claude, Gemini or Grok. Served by the Gateway
+   * so the format it asks for and the parser that reads it stay together. */
+  packPrompt: string
+  packFormat: string
+  provider: string
+  /** Whether a key for each API source can be found at all. */
+  honcho: boolean
+  mem0: boolean
 }
 
 export interface MemoryImportResult {
   found: number
   imported: number
+  refused?: Array<{ reason: string; quote: string }>
   detail: string
   source?: string
   /** The dream run over what arrived, when anything did. */

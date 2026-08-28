@@ -642,6 +642,11 @@ class MemoryImport(BaseModel):
     #: Files the user chose in the native picker. Absolute paths; the renderer
     #: never reads them itself.
     paths: list[str] = []
+    #: `honcho` or `mem0` to read over the network instead. Everything after
+    #: the read is the same pipeline either way.
+    provider: str = ""
+    #: Which Honcho workspace, or which Mem0 user.
+    scope: str = ""
 
 
 class LogPage(BaseModel):
@@ -2541,13 +2546,20 @@ def create_app(
         return result
 
     @app.get("/skills/store")
-    async def browse_skills() -> dict[str, Any]:
-        """Everything the configured sources offer. Reads only."""
+    async def browse_skills(refresh: bool = False) -> dict[str, Any]:
+        """Everything the configured sources offer. Reads only.
+
+        Cached: building it is one request per repository plus one per skill,
+        which was 488 requests and 114 seconds against a caller that gives up
+        at sixty. `refresh=true` is the button that pays for it deliberately.
+        """
         import anyio
 
         from .setup import store
 
-        rows = await anyio.to_thread.run_sync(lambda: store.catalogue(REPO_ROOT))
+        rows = await anyio.to_thread.run_sync(
+            lambda: store.catalogue(REPO_ROOT, refresh=refresh)
+        )
         return {"skills": rows, "sources": [s.repo for s in store.sources(REPO_ROOT)]}
 
     @app.post("/skills/review")
@@ -2727,17 +2739,81 @@ def create_app(
             return ReflectResult(considered=0, promoted=[])
         return ReflectResult(**memory.reflect(summarise=memory_summarise))
 
+    @app.get("/memory/import/sources")
+    async def import_sources() -> dict[str, Any]:
+        """Where memories can come from, and what each one needs from the user.
+
+        The prompt for a chat assistant is served rather than hardcoded in the
+        renderer, so the format it asks for and the parser that reads it stay
+        in one place.
+        """
+        from . import memory_import, memory_providers
+
+        return {
+            "pack_prompt": memory_import.PACK_PROMPT,
+            "pack_format": memory_import.PACK_FORMAT,
+            "provider": memory_providers.describe().get("provider", "local"),
+            # Whether each API source can be reached at all, so the page can
+            # say "no key configured" rather than offering a button that
+            # returns nothing.
+            "honcho": bool(memory_import.provider_key("honcho")),
+            "mem0": bool(memory_import.provider_key("mem0")),
+        }
+
+    @app.get("/memory/import/honcho/workspaces")
+    async def honcho_workspaces() -> dict[str, Any]:
+        """Which workspaces the configured key can see.
+
+        Asked rather than assumed. On a real account the default workspace was
+        empty and everything lived in one named after the assistant that wrote
+        it, so an importer that guessed would have reported "nothing found"
+        over a full account.
+        """
+        import anyio
+
+        from . import memory_import
+
+        key = memory_import.provider_key("honcho")
+        if not key:
+            return {"workspaces": [], "detail": "no Honcho API key is configured"}
+        found = await anyio.to_thread.run_sync(
+            lambda: memory_import.honcho_workspaces(key, memory_import.provider_url("honcho"))
+        )
+        return {"workspaces": found, "detail": "" if found else "that key saw no workspaces"}
+
     @app.post("/memory/import/preview")
     async def preview_import(request: MemoryImport) -> dict[str, Any]:
-        """What is in these files, before anything is written.
+        """What is there, before anything is written.
 
         Shown first because the failure mode of picking the wrong file is
         silence rather than an error -- a config file reads as empty and the
         import reports success.
         """
+        import anyio
+
         from . import memory_import
 
+        if request.provider:
+            lines = await anyio.to_thread.run_sync(
+                lambda: _provider_lines(request.provider, request.scope)
+            )
+            return memory_import.preview([], lines=lines, name=f"{request.provider}/{request.scope}")
         return memory_import.preview([Path(p) for p in request.paths])
+
+    def _provider_lines(provider: str, scope: str) -> list[str]:
+        from . import memory_import, memory_providers
+
+        if provider == "honcho":
+            return memory_import.from_honcho(
+                memory_import.provider_key("honcho"), scope, memory_import.provider_url("honcho")
+            )
+        if provider == "mem0":
+            return memory_import.from_mem0(
+                memory_import.provider_key("mem0"),
+                scope or memory_providers.describe().get("user_id", "marvi"),
+                memory_import.provider_url("mem0"),
+            )
+        return []
 
     @app.post("/memory/import")
     async def run_import(request: MemoryImport) -> dict[str, Any]:
@@ -2754,9 +2830,23 @@ def create_app(
 
         if memory is None:
             return {"found": 0, "imported": 0, "detail": "memory is not configured"}
-        result = await anyio.to_thread.run_sync(
-            lambda: memory_import.run(memory, cognition, [Path(p) for p in request.paths])
-        )
+        if request.provider:
+            lines = await anyio.to_thread.run_sync(
+                lambda: _provider_lines(request.provider, request.scope)
+            )
+            result = await anyio.to_thread.run_sync(
+                lambda: memory_import.run(
+                    memory,
+                    cognition,
+                    [],
+                    lines=lines,
+                    source=f"{request.provider}/{request.scope}",
+                )
+            )
+        else:
+            result = await anyio.to_thread.run_sync(
+                lambda: memory_import.run(memory, cognition, [Path(p) for p in request.paths])
+            )
         if result.get("imported"):
             runtime_store.audit("memory", "imported", result)
             if initiative is not None:

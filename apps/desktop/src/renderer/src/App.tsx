@@ -4187,27 +4187,39 @@ function SkillsPanel(): React.JSX.Element {
   const [installed, setInstalled] = useState<SkillsPage | null>(null)
   const [busy, setBusy] = useState('')
   const [loaded, setLoaded] = useState(false)
+  const [storeFailed, setStoreFailed] = useState(false)
 
   const load = useCallback(async (): Promise<void> => {
     const page = await window.marvi?.getSkillStore()
-    if (page) {
-      setStore(page.skills)
-      setSources(page.sources)
-      setLoaded(true)
-    }
+    // `loaded` regardless. A store fetch that failed and one that has not
+    // arrived yet look identical to the code that draws the spinner, and the
+    // page spun forever: nine repositories and 488 frontmatter requests took
+    // 114 seconds against an IPC call that gives up at sixty, so it could
+    // never succeed and never stopped saying "Loading".
+    setStore(page?.skills ?? [])
+    setSources(page?.sources ?? [])
+    setStoreFailed(!page)
+    setLoaded(true)
     setInstalled((await window.marvi?.getInstalledSkills()) ?? null)
   }, [])
 
   useEffect(() => {
     let disposed = false
+    // Two loads, not one. What is installed is on this disk and answers
+    // immediately; the store reaches nine GitHub repositories. Waiting for the
+    // second before showing the first meant the page showed nothing at all for
+    // as long as the network took.
     void (async () => {
-      const page = await window.marvi?.getSkillStore()
-      if (disposed || !page) return
-      setStore(page.skills)
-      setSources(page.sources)
-      setLoaded(true)
       const mine = await window.marvi?.getInstalledSkills()
       if (!disposed) setInstalled(mine ?? null)
+    })()
+    void (async () => {
+      const page = await window.marvi?.getSkillStore()
+      if (disposed) return
+      setStore(page?.skills ?? [])
+      setSources(page?.sources ?? [])
+      setStoreFailed(!page)
+      setLoaded(true)
     })()
     return () => {
       disposed = true
@@ -4501,8 +4513,24 @@ function SkillsPanel(): React.JSX.Element {
         {!loaded ? (
           <ProcessingCard
             compact
-            detail="Reading configured skill sources and installed packages."
+            detail="Reading the configured sources. The first time takes a few seconds; after that it is cached."
             title="Loading skill store"
+          />
+        ) : storeFailed ? (
+          <ControlRow
+            action={
+              <ControlButton
+                onClick={() => {
+                  setLoaded(false)
+                  void load()
+                }}
+              >
+                Try again
+              </ControlButton>
+            }
+            description="The configured sources could not be reached. Everything already installed is above and still works."
+            icon={ShieldAlert}
+            title="Could not reach the skill store"
           />
         ) : store.length === 0 ? (
           <ControlEmpty

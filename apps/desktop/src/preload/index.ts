@@ -19,6 +19,8 @@ import type {
   MemoryGraphMode,
   MemoryGraphPage,
   MemoryImportPreview,
+  MemoryImportRequest,
+  MemoryImportSources,
   MemoryImportResult,
   MemoryPage,
   MindDecision,
@@ -349,10 +351,14 @@ const marvi = {
   chooseFolder: (): Promise<string> => ipcRenderer.invoke('marvi:choose-folder'),
   /** Memory files to import. Empty when the user cancelled. */
   chooseMemoryFiles: (): Promise<string[]> => ipcRenderer.invoke('marvi:choose-memory-files'),
-  previewMemoryImport: (paths: string[]): Promise<MemoryImportPreview | null> =>
-    ipcRenderer.invoke('marvi:preview-memory-import', paths),
-  importMemories: (paths: string[]): Promise<MemoryImportResult | null> =>
-    ipcRenderer.invoke('marvi:import-memories', paths),
+  getImportSources: (): Promise<MemoryImportSources | null> =>
+    ipcRenderer.invoke('marvi:get-import-sources'),
+  getHonchoWorkspaces: (): Promise<{ workspaces: string[]; detail: string } | null> =>
+    ipcRenderer.invoke('marvi:get-honcho-workspaces'),
+  previewMemoryImport: (request: MemoryImportRequest): Promise<MemoryImportPreview | null> =>
+    ipcRenderer.invoke('marvi:preview-memory-import', request),
+  importMemories: (request: MemoryImportRequest): Promise<MemoryImportResult | null> =>
+    ipcRenderer.invoke('marvi:import-memories', request),
   answerQuestion: (id: string, answer: string): Promise<boolean> =>
     ipcRenderer.invoke('marvi:answer-question', { id, answer }),
   /** A credential the user typed. Goes to the settings store and stops there. */

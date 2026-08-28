@@ -17,6 +17,20 @@ is editable. **Marvi never installs from a source it discovered itself** — not
 from a link in a web page, not from a suggestion in a model's output. The list
 is the list.
 
+## The catalogue is cached
+
+Nine repositories, 488 skills, one HTTP request each for its frontmatter, in
+order: **114 seconds**. The IPC call in front of it gives up at sixty, so the
+Skills page could never finish loading -- and a fetch that never returned was
+rendered as "still loading", forever, because absence of a result and a result
+that has not arrived yet look identical to the code that draws the spinner.
+
+Two changes. The frontmatter requests run concurrently, because they are
+independent and waiting for 488 round trips one at a time is the whole cost.
+And the result is written to disk with a timestamp, the way hermes keeps its
+index cache: a skill catalogue changes on the timescale of days, so the second
+visit should not pay for the first.
+
 ## Browsing is not installing
 
 `browse` and `fetch` only read. Installing goes through `skills.install_from`
@@ -30,6 +44,7 @@ from __future__ import annotations
 import json
 import shutil
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -42,6 +57,13 @@ log = get_logger("setup")
 API = "https://api.github.com"
 RAW = "https://raw.githubusercontent.com"
 TIMEOUT = 30.0
+#: How long a cached catalogue is served without asking GitHub again. Days,
+#: because that is how often a skill repository actually changes, and a stale
+#: entry costs an install that fails rather than anything worse.
+CACHE_HOURS = 12.0
+#: Frontmatter requests in flight at once. GitHub's raw host is fine with this
+#: and the alternative is 488 round trips end to end.
+FETCHERS = 12
 #: A skill is a handful of small text files. Anything larger is not a skill.
 MAX_FILE_BYTES = 2 * 1024 * 1024
 MAX_FILES = 40
@@ -115,6 +137,14 @@ def browse(source: Source, http: Any = None) -> list[Listing]:
 
     client = http or httpx.Client(timeout=TIMEOUT, follow_redirects=True)
     try:
+        return _browse(source, client)
+    finally:
+        if http is None:
+            client.close()
+
+
+def _browse(source: Source, client: Any) -> list[Listing]:
+    try:
         response = client.get(source.tree_url())
         if response.status_code != 200:
             log.warning("%s returned HTTP %s", source.repo, response.status_code)
@@ -126,45 +156,110 @@ def browse(source: Source, http: Any = None) -> list[Listing]:
             if isinstance(node, dict) and str(node.get("path", "")).endswith("SKILL.md")
         ]
 
-        listings: list[Listing] = []
-        for directory in directories:
+        def one(directory: str) -> Listing | None:
             skill_file = client.get(source.raw_url(f"{directory}/SKILL.md"))
             if skill_file.status_code != 200:
-                continue
+                return None
             try:
                 skill = skills_module.parse(skill_file.text, source=source.repo)
             except skills_module.SkillError as exc:
                 # A repo may hold drafts. Skip them rather than showing a broken
                 # entry with an Install button.
                 log.debug("skipping %s in %s: %s", directory, source.repo, exc)
-                continue
-            listings.append(
-                Listing(
-                    name=skill.name,
-                    description=skill.description,
-                    source=source.name,
-                    repo=source.repo,
-                    path=directory,
-                )
-            )
+                return None
+            return _listing(source, directory, skill)
+
+        # Concurrent because they are independent and there are hundreds of
+        # them. Serial, nine repositories took nearly two minutes, which is
+        # longer than anything in front of this is willing to wait.
+        with ThreadPoolExecutor(max_workers=FETCHERS) as pool:
+            listings = [row for row in pool.map(one, directories) if row is not None]
         return listings
     except Exception as exc:
         log.warning("could not browse %s: %s", source.repo, exc)
         return []
-    finally:
-        if http is None:
-            client.close()
 
 
-def catalogue(repo_root: Path, http: Any = None) -> list[dict[str, Any]]:
-    """Every skill from every configured source, marked with what is installed."""
+def _listing(source: Source, directory: str, skill: Any) -> Listing:
+    return Listing(
+        name=skill.name,
+        description=skill.description,
+        source=source.name,
+        repo=source.repo,
+        path=directory,
+    )
+
+
+def cache_path() -> Path:
+    from ..paths import root
+
+    return root() / "state" / "skill-catalogue.json"
+
+
+def _cached(sources_named: list[str]) -> list[dict[str, Any]] | None:
+    """The last catalogue, if it is recent and for the same sources.
+
+    Keyed on the source list as well as the time: adding a repository and being
+    shown yesterday's catalogue without it is a Skills page that appears to
+    ignore the setting you just changed.
+    """
+    import time
+
+    try:
+        saved = json.loads(cache_path().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(saved, dict) or saved.get("sources") != sources_named:
+        return None
+    age = time.time() - float(saved.get("at") or 0)
+    if age > CACHE_HOURS * 3600:
+        return None
+    rows = saved.get("rows")
+    return rows if isinstance(rows, list) else None
+
+
+def _save(sources_named: list[str], rows: list[dict[str, Any]]) -> None:
+    import time
+
+    target = cache_path()
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(
+            json.dumps({"at": time.time(), "sources": sources_named, "rows": rows}),
+            encoding="utf-8",
+        )
+    except OSError as exc:  # pragma: no cover - depends on the filesystem
+        log.warning("could not cache the skill catalogue: %s", exc)
+
+
+def catalogue(
+    repo_root: Path, http: Any = None, *, refresh: bool = False
+) -> list[dict[str, Any]]:
+    """Every skill from every configured source, marked with what is installed.
+
+    Served from the cache when there is a recent one. Building it means one
+    tree request per repository and one frontmatter request per skill --
+    hundreds of round trips, and nothing in front of this waits two minutes.
+    """
+    configured = sources(repo_root)
+    named = [source.repo for source in configured]
     have = {skill.name for skill in skills_module.installed()}
-    rows: list[dict[str, Any]] = []
-    for source in sources(repo_root):
-        for listing in browse(source, http):
-            listing.installed = listing.name in have
-            rows.append(listing.as_dict())
-    return sorted(rows, key=lambda row: row["name"])
+
+    rows = None if refresh else _cached(named)
+    if rows is None:
+        rows = []
+        for source in configured:
+            rows.extend(listing.as_dict() for listing in browse(source, http))
+        rows.sort(key=lambda row: row["name"])
+        if rows:
+            _save(named, rows)
+
+    # Never cached: what is installed changes without the catalogue changing,
+    # and a store that still says "Install" after you installed something is
+    # a store nobody believes.
+    for row in rows:
+        row["installed"] = row["name"] in have
+    return rows
 
 
 def fetch(source: Source, path: str, http: Any = None) -> Path:
