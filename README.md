@@ -157,28 +157,28 @@ sizes from `assets/app-icon-source.png`; generated icon files are committed.
 
 ## Build and release
 
-Local Windows build (gates + installer, never publishes):
+Local Windows packaging check (never publishes):
 
 ```powershell
 .\scripts\build-desktop.ps1            # full: typecheck + tests + installer
 .\scripts\build-desktop.ps1 -SkipTests # faster iteration
 ```
 
-Artifacts land in `apps/desktop/dist/` (NSIS setup exe + `latest.yml`).
+Diagnostic package artifacts land in `apps/desktop/dist/`. They are not release
+payloads; published releases contain the bootstrap and its checksum.
 
 Releases are tag-driven. From a clean `main`:
 
 ```powershell
-.\scripts
-elease.ps1                 # 0.1.0-dev.0 -> 0.1.0, then patch bumps
-.\scripts
-elease.ps1 -Bump minor     # or minor/major
-.\scripts
-elease.ps1 -Version 1.2.3  # explicit
+.\scripts\release.ps1                 # prerelease -> stable, then patch bumps
+.\scripts\release.ps1 -Bump minor     # or minor/major
+.\scripts\release.ps1 -Version 1.2.3  # explicit
 ```
 
 The script bumps `VERSION` (the single version source) plus both
-`package.json` mirrors, commits, tags `v<version>`, and pushes.
+`package.json` mirrors and the bootstrap crate, commits, creates an SSH-signed
+annotated `v<version>` tag, verifies it against `.github/allowed_signers`, and
+pushes main plus the tag.
 
 The `Release` workflow then runs every gate — desktop, gateway, agent and
 bootstrap tests — and finally `npm run build:unpack`, which is the exact build

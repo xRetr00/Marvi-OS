@@ -369,20 +369,19 @@ that needs the network violates the always-on promise and the UI contract.
 
 ## ADR-016 — Tag-driven releases with a repository-owned build script
 
-**Decision:** Releases are cut only by `scripts/release.ps1` (bump VERSION +
-both package.json versions, commit, tag `v<semver>`, push) and built only by
-the `Release` GitHub workflow on tag push. The workflow gates (typecheck,
-tests), builds the Windows installer with `--publish never`, and publishes the
-installer plus `latest.yml` to a GitHub Release. Local builds use
-`scripts/build-desktop.ps1`, which never publishes. The electron-builder
-`publish` config stays disabled (`https://invalid.local/...`) so no stray
-build can publish.
+**Decision:** Releases are cut only by `scripts/release.ps1`: bump `VERSION`,
+both package mirrors, and the bootstrap crate; commit; create and locally
+verify an SSH-signed annotated `v<semver>` tag; then push main and the tag. The
+`Release` workflow gates the exact checkout build used by the updater and
+publishes only `marvi-bootstrap.exe` plus `SHA256SUMS.txt`. Local packaging via
+`scripts/build-desktop.ps1` never publishes, and electron-builder publishing
+stays disabled so no unrelated build can create a release.
 
-**Reason:** The update mechanism (Phase 7) will read `latest.yml` from the
-GitHub Release; keeping publish tag-driven makes every installer traceable to
-a signed-for tag and keeps failed builds from producing partial releases.
-`workflow_dispatch` builds are dry runs: artifacts upload, no release is
-created.
+**Reason:** The Release channel selects the latest signed tag and builds that
+checkout locally. The tag is therefore the product payload; signing and the
+CI build gates prevent an untrusted or unbuildable checkout from becoming an
+update. `workflow_dispatch` builds are dry runs: artifacts upload, no GitHub
+Release is created.
 
 ## ADR-017 — Tauri bootstrap replaces the PowerShell updater
 
@@ -402,11 +401,9 @@ tag integrity verification. The binary is named `marvi-bootstrap` (not
 `marvi-updater`/`installer`) so Windows installer-detection heuristics never
 auto-elevate it.
 
-**Consequence:** The bootstrap binary is published as a GitHub Release asset
-alongside the installer. A fresh install clones the checkout, builds, and
-atomically swaps it into place; updates are in-place with rollback. The updater
-can be refreshed by shipping a new bootstrap asset and having the app fetch it
-before handing off.
+**Consequence:** The bootstrap binary and checksum are the only repository-built
+GitHub Release assets. A fresh install clones the signed tag, builds, and
+atomically swaps it into place; updates follow the same tag with rollback.
 
 ## ADR-024 — Account authority stays in Gateway; credentials stay in Composio
 

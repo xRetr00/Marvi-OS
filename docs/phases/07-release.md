@@ -70,12 +70,14 @@ no install or checkout mutation.
   build launched with six processes, responding, at 542.6 MB aggregate working
   set, exiting cleanly with no strays.
 
-## Still required
+## Release operation
 
-- A human pass over the packaged app: confirm the tray menu and that About
-  reports version, commit, build time, and channel. Launch and process
-  lifetime are verified; the visual check is not something to claim remotely.
-- Cut the first tagged release with `scripts/release.ps1`, which is the
-  remaining step and is deliberately left to you — publishing is your call.
-- Signing uses whatever certificate signtool finds; a real publisher
-  certificate is not configured.
+- Tagged releases are cut with `scripts/release.ps1` from a clean, synchronized
+  `main` checkout. The script updates every version mirror, commits, creates an
+  SSH-signed annotated tag, verifies the signer against
+  `.github/allowed_signers`, and pushes main plus the tag.
+- The tag push runs the full Release workflow before publishing the bootstrap
+  and checksum. Existing installs clone the signed tag and build it locally.
+- Windows Authenticode publisher signing is a separate future distribution
+  concern; release authenticity currently comes from the verified Git tag and
+  published checksum.
