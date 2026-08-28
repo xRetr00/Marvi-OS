@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 
 import type { ChatAttachment } from '../../../../shared/runtime'
 import { AbstractIcon } from '../../components/abstract-icon'
-import { formatBytes } from './PendingAttachment'
+import { formatBytes } from '../attachment-format'
 
 export function AttachmentPreview({
   attachment

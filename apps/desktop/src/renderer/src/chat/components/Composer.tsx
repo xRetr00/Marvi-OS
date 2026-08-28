@@ -5,7 +5,8 @@ import { AbstractIcon } from '../../components/abstract-icon'
 import { TooltipProvider, UiTooltip } from '../../components/ui/tooltip'
 import { Picker, type PickerOption } from '../../components/ui/picker'
 import { useDictation } from '../useDictation'
-import { ContextBreakdown, ContextRing, contextPercent } from './ContextBreakdown'
+import { contextPercent } from '../context-breakdown'
+import { ContextBreakdown, ContextRing } from './ContextBreakdown'
 import { PendingAttachment } from './PendingAttachment'
 
 /**
