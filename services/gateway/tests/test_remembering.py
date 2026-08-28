@@ -91,7 +91,7 @@ def test_an_empty_answer_stores_nothing(store) -> None:
     every exchange is a transcript."""
     done = remembering.extract(store, Model("[]"), "hello", "Hi there.")
 
-    assert done == {"add": 0, "update": 0, "delete": 0, "ignored": 0}
+    assert done == {"add": 0, "update": 0, "delete": 0, "ignored": 0, "noted": []}
     assert store.recent(limit=5) == []
 
 
@@ -226,3 +226,54 @@ def _usable(client: object) -> bool:
     return isinstance(client, CognitionHarness) or callable(
         getattr(client, "call_with_fallback", None)
     )
+
+
+def test_marvi_is_told_what_the_worker_wrote_down(tmp_path, monkeypatch) -> None:
+    """The worker runs off the turn, which is right -- a memory decision must
+    not sit in front of a spoken reply. But it left her unaware anything had
+    been written: she could not say she had noted something, and could not be
+    corrected about it while the user still remembered saying it.
+    """
+    from fastapi.testclient import TestClient
+
+    from marvi_gateway.app import create_app
+
+    monkeypatch.setenv("MARVI_HOME", str(tmp_path))
+    with TestClient(create_app()) as client:
+        worker = client.app.state.rememberer
+        worker.noted = ["the bakery night shift"]
+
+        block = client.get("/memory/recall", params={"text": "hello"}).json()["block"]
+
+    assert "you wrote down: the bakery night shift" in block
+
+
+def test_it_is_said_once(tmp_path, monkeypatch) -> None:
+    """On the turn after it was written and on no turn after that. Repeating
+    would have her announcing the same memory until something replaced it."""
+    from fastapi.testclient import TestClient
+
+    from marvi_gateway.app import create_app
+
+    monkeypatch.setenv("MARVI_HOME", str(tmp_path))
+    with TestClient(create_app()) as client:
+        client.app.state.rememberer.noted = ["the bakery night shift"]
+        first = client.get("/memory/recall", params={"text": "hello"}).json()["block"]
+        second = client.get("/memory/recall", params={"text": "hello"}).json()["block"]
+
+    assert "you wrote down" in first
+    assert "you wrote down" not in second
+
+
+def test_what_was_written_is_named_not_counted(tmp_path) -> None:
+    """"I noted 2 things" is not something a person can correct."""
+    from marvi_gateway import remembering
+    from marvi_gateway.memory import MemoryStore
+
+    store = MemoryStore(tmp_path / "m.db")
+    done = remembering.apply(
+        store,
+        [{"op": "add", "subject": "bakery", "body": "The user works nights.", "kind": "semantic"}],
+    )
+
+    assert done["noted"] == ["bakery"]
