@@ -1512,7 +1512,14 @@
   font-weight: 400;
 }
 
+.chat-context-card > p {
+  margin: 4px 0 0;
+  color: var(--ui-text-secondary);
+  font-size: 8px;
+}
+
 .chat-context-bar {
+  display: flex;
   height: 5px;
   margin: 12px 0 9px;
   overflow: hidden;
@@ -1520,11 +1527,77 @@
   background: color-mix(in srgb, var(--ui-text-primary) 7%, transparent);
 }
 
-.chat-context-bar span {
+.chat-context-bar > span {
   display: block;
   height: 100%;
-  border-radius: inherit;
+  min-width: 1px;
+}
+
+.chat-context-bar > span:first-child {
+  border-radius: inherit 0 0 inherit;
+}
+
+.chat-context-bar > span:last-child {
+  border-radius: 0 inherit inherit 0;
+}
+
+.chat-context-bar .is-prompt,
+.chat-context-segments i.is-prompt {
   background: var(--ui-accent);
+}
+
+.chat-context-bar .is-cached,
+.chat-context-segments i.is-cached {
+  background: color-mix(in srgb, var(--ui-accent) 38%, var(--ui-stroke-primary));
+}
+
+.chat-context-bar .is-reserve,
+.chat-context-segments i.is-reserve {
+  background: var(--ui-text-tertiary);
+}
+
+.chat-context-bar .is-available,
+.chat-context-segments i.is-available {
+  background: color-mix(in srgb, var(--ui-text-primary) 7%, transparent);
+}
+
+.chat-context-segments {
+  display: grid;
+  gap: 5px;
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+}
+
+.chat-context-segments li,
+.chat-context-segments li > span {
+  display: flex;
+  align-items: center;
+}
+
+.chat-context-segments li {
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--ui-text-secondary);
+  font-size: 8px;
+}
+
+.chat-context-segments li > span {
+  gap: 7px;
+}
+
+.chat-context-segments i {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 2px;
+}
+
+.chat-context-segments strong {
+  color: var(--ui-text-primary);
+  font-size: 8px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
 }
 
 .chat-context-card dl {
@@ -1556,6 +1629,147 @@
   font-weight: 400;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Attachment tiles use one compact two-line grammar in the composer and a
+   larger preview only after the message is sent. */
+.chat-attachments {
+  padding: 1px 1px 4px;
+}
+
+.chat-attachment {
+  position: relative;
+  width: min(210px, 100%);
+  min-height: 42px;
+  padding: 4px 25px 4px 4px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ui-text-primary) 4%, transparent);
+}
+
+.chat-attachment-thumb {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--ui-stroke-tertiary);
+  border-radius: 6px;
+  color: var(--ui-text-tertiary);
+  background: var(--ui-bg);
+}
+
+.chat-attachment-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.chat-attachment-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.chat-attachment-copy strong,
+.chat-attachment-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-attachment-copy strong {
+  color: var(--ui-text-primary);
+  font-size: 8.5px;
+  font-weight: 500;
+}
+
+.chat-attachment-copy small {
+  color: var(--ui-text-tertiary);
+  font-size: 6.5px;
+  letter-spacing: 0.05em;
+}
+
+.chat-attachment > button {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  border-radius: 5px;
+  opacity: 0;
+}
+
+.chat-attachment:hover > button,
+.chat-attachment:focus-within > button {
+  opacity: 1;
+}
+
+.chat-image-attachment > button {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+}
+
+.chat-image-attachment > button:disabled {
+  cursor: default;
+}
+
+.chat-image-attachment figcaption {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.chat-image-attachment figcaption span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-image-attachment figcaption small {
+  flex: none;
+  color: var(--ui-text-tertiary);
+  font-size: inherit;
+}
+
+.chat-image-lightbox {
+  position: fixed;
+  z-index: 30;
+  inset: 0;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  place-items: center;
+  padding: 46px;
+  background: rgb(0 0 0 / 82%);
+}
+
+.chat-image-lightbox > img {
+  max-width: min(92vw, 1100px);
+  max-height: calc(100vh - 110px);
+  object-fit: contain;
+}
+
+.chat-image-lightbox > button {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid var(--ui-stroke-primary);
+  border-radius: 7px;
+  background: var(--ui-bg-raised);
+  color: var(--ui-text-primary);
+  cursor: pointer;
+}
+
+.chat-image-lightbox > span {
+  margin-top: 12px;
+  color: var(--ui-text-secondary);
+  font-size: 9px;
 }
 
 /* Chat workspace ---------------------------------------------------------

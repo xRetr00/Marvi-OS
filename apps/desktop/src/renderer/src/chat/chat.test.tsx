@@ -5,6 +5,7 @@ import { Markdown } from './MarkdownView'
 import type { ChatMessage } from './types'
 import { AgentMessage } from './components/AgentMessage'
 import { Composer } from './components/Composer'
+import { contextSegments } from './components/ContextBreakdown'
 import { MessageList } from './components/MessageList'
 import { Sessions } from './components/Sessions'
 import { ToolMessage } from './components/ToolMessage'
@@ -171,6 +172,7 @@ describe('Composer', () => {
     )
     expect(html).toContain('aria-label="Stop"')
     expect(html).toContain('is-stop')
+    expect(html).not.toContain('textarea disabled')
   })
 
   it('shows provider-reported context instead of draft-length guesses', () => {
@@ -195,9 +197,36 @@ describe('Composer', () => {
       />
     )
     expect(html).toContain('25')
-    expect(html).toContain('2,000 tok')
-    expect(html).toContain('8,000 tok')
+    expect(html).toContain('2k / 8k')
+    expect(html).toContain('Prompt')
+    expect(html).toContain('Cached')
+    expect(html).toContain('Reply reserve')
+    expect(html).toContain('Available')
     expect(html).not.toContain('chars')
+  })
+})
+
+describe('contextSegments', () => {
+  it('splits only provider-reported token facts and preserves the whole window', () => {
+    const segments = contextSegments({
+      input_tokens: 2000,
+      cached_tokens: 800,
+      context_window: 8000,
+      reply_reserve: 1024,
+      messages: 6,
+      files: 1,
+      sources: 3,
+      provider: 'openai',
+      model: 'gpt-test'
+    })
+
+    expect(segments).toEqual([
+      { id: 'prompt', label: 'Prompt', tokens: 1200 },
+      { id: 'cached', label: 'Cached', tokens: 800 },
+      { id: 'reserve', label: 'Reply reserve', tokens: 1024 },
+      { id: 'available', label: 'Available', tokens: 4976 }
+    ])
+    expect(segments.reduce((sum, segment) => sum + segment.tokens, 0)).toBe(8000)
   })
 })
 

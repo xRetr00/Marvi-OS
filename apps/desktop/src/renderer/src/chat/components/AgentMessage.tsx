@@ -22,7 +22,11 @@ export function AgentMessage({
   const [showReasoning, setShowReasoning] = useState(false)
 
   return (
-    <article className="chat-turn chat-assistant" aria-label="Marvi response">
+    <article
+      aria-busy={streaming ? 'true' : undefined}
+      aria-label="Marvi response"
+      className="chat-turn chat-assistant"
+    >
       <span className="sr-only">MARVI</span>
       {reasoning ? (
         <div className="chat-reasoning">

@@ -5,6 +5,8 @@ import { AbstractIcon } from '../../components/abstract-icon'
 import { TooltipProvider, UiTooltip } from '../../components/ui/tooltip'
 import { Picker, type PickerOption } from '../../components/ui/picker'
 import { useDictation } from '../useDictation'
+import { ContextBreakdown, ContextRing, contextPercent } from './ContextBreakdown'
+import { PendingAttachment } from './PendingAttachment'
 
 /**
  * One field with its send control inside it.
@@ -77,20 +79,11 @@ export function Composer({
           {attachments.length ? (
             <div className="chat-attachments" aria-label="Pending attachments">
               {attachments.map((attachment) => (
-                <span className="chat-attachment" key={attachment.id}>
-                  <AbstractIcon
-                    name={attachment.kind === 'image' ? 'vision' : 'paperclip'}
-                    size={13}
-                  />
-                  <span>{attachment.name}</span>
-                  <button
-                    aria-label={`Remove ${attachment.name}`}
-                    onClick={() => onRemoveAttachment?.(attachment.id)}
-                    type="button"
-                  >
-                    <AbstractIcon name="close" size={11} />
-                  </button>
-                </span>
+                <PendingAttachment
+                  attachment={attachment}
+                  key={attachment.id}
+                  onRemove={() => onRemoveAttachment?.(attachment.id)}
+                />
               ))}
             </div>
           ) : null}
@@ -104,7 +97,7 @@ export function Composer({
             rows={1}
             value={draft}
             placeholder={available ? 'Send a message…' : 'Connect a provider to chat'}
-            disabled={busy || !available}
+            disabled={!available}
             aria-label="Message Marvi"
             enterKeyHint="send"
             onBlur={() => setFocused(false)}
@@ -160,65 +153,21 @@ export function Composer({
                 <SessionModel value={override ?? {}} onChange={onOverrideChange} />
               ) : null}
               <details className="chat-context-breakdown">
-                <summary aria-label="Show context breakdown">
+                <summary
+                  aria-label={
+                    contextPercentLabel(context) === 'unknown'
+                      ? 'Show context breakdown, usage unknown'
+                      : `Show context breakdown, ${contextPercentLabel(context)} percent used`
+                  }
+                >
                   <ContextRing context={context} />
                   <span>CONTEXT</span>
                 </summary>
-                <div className="chat-context-card">
-                  <header>
-                    <span>Context window</span>
-                    <strong>
-                      {contextPercent(context) === null
-                        ? 'Usage unknown'
-                        : `${contextPercent(context)}% used`}
-                    </strong>
-                  </header>
-                  <div className="chat-context-bar" aria-hidden="true">
-                    <span style={{ width: `${contextPercent(context) ?? 0}%` }} />
-                  </div>
-                  <dl>
-                    <div>
-                      <dt>INPUT</dt>
-                      <dd>
-                        {context?.input_tokens
-                          ? `${context.input_tokens.toLocaleString()} tok`
-                          : '—'}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>WINDOW</dt>
-                      <dd>
-                        {context?.context_window
-                          ? `${context.context_window.toLocaleString()} tok`
-                          : 'unknown'}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>CACHED</dt>
-                      <dd>{context?.cached_tokens?.toLocaleString() ?? '0'} tok</dd>
-                    </div>
-                    <div>
-                      <dt>RESERVE</dt>
-                      <dd>{context?.reply_reserve?.toLocaleString() ?? '—'} tok</dd>
-                    </div>
-                    <div>
-                      <dt>MESSAGES</dt>
-                      <dd>{context?.messages ?? 0}</dd>
-                    </div>
-                    <div>
-                      <dt>FILES</dt>
-                      <dd>{(context?.files ?? 0) + attachments.length}</dd>
-                    </div>
-                    <div>
-                      <dt>SOURCES</dt>
-                      <dd>{context?.sources ?? 0}</dd>
-                    </div>
-                    <div>
-                      <dt>ROUTE</dt>
-                      <dd>{override?.model || context?.model || 'default'}</dd>
-                    </div>
-                  </dl>
-                </div>
+                <ContextBreakdown
+                  context={context}
+                  pendingFiles={attachments.length}
+                  route={override?.model}
+                />
               </details>
             </div>
             <div className="chat-compose-submit">
@@ -252,21 +201,8 @@ export function Composer({
   )
 }
 
-function ContextRing({ context }: { context?: ChatContext | null }): React.JSX.Element {
-  const percent = contextPercent(context)
-  return (
-    <span
-      className="chat-context-ring"
-      style={{ '--context-fill': `${(percent ?? 0) * 3.6}deg` } as React.CSSProperties}
-    >
-      {percent ?? '—'}
-    </span>
-  )
-}
-
-function contextPercent(context?: ChatContext | null): number | null {
-  if (!context?.context_window || !context.input_tokens) return null
-  return Math.min(100, Math.round((context.input_tokens / context.context_window) * 100))
+function contextPercentLabel(context?: ChatContext | null): number | 'unknown' {
+  return contextPercent(context) ?? 'unknown'
 }
 
 /**
