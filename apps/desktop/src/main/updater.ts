@@ -178,6 +178,7 @@ export function checkForUpdate(
         available: false,
         upToDate: false,
         behindBy: 0,
+        commits: [],
         error: 'could not run the update check'
       })
       return
@@ -191,19 +192,21 @@ export function checkForUpdate(
         available: false,
         upToDate: false,
         behindBy: 0,
+        commits: [],
         error: 'could not run the update check'
       })
     })
     child.on('close', () => {
       try {
         const parsed = JSON.parse(stdout) as UpdateCheck
-        resolve({ ...parsed, channel })
+        resolve({ ...parsed, channel, commits: parsed.commits ?? [] })
       } catch {
         resolve({
           channel,
           available: false,
           upToDate: false,
           behindBy: 0,
+          commits: [],
           error: 'could not parse the update check'
         })
       }

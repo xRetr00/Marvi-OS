@@ -5,9 +5,7 @@
 mod common;
 
 use common::{FakeBuilder, init_repos};
-use marvi_bootstrap_core::{
-    Channel, UpdateConfig, run_update,
-};
+use marvi_bootstrap_core::{check, run_update, Channel, UpdateConfig};
 
 fn config(local: &std::path::Path, state: &std::path::Path, builder: FakeBuilder) -> UpdateConfig {
     UpdateConfig {
@@ -51,6 +49,19 @@ fn dev_update_fast_forwards_and_builds() {
     assert_eq!(out.to.as_deref(), Some(new.as_str()));
     assert_eq!(repos.head(&repos.local), new);
     assert!(repos.local.join("apps/desktop/out/main/index.js").is_file());
+}
+
+#[test]
+fn dev_check_returns_the_commits_that_will_be_installed() {
+    let repos = init_repos();
+    repos.commit("feature.txt", "ready", "feat(updater): show available changes");
+
+    let out = check(&repos.local, Channel::Dev);
+
+    assert!(out.available);
+    assert_eq!(out.behind_by, 1);
+    assert_eq!(out.commits.len(), 1);
+    assert_eq!(out.commits[0].summary, "feat(updater): show available changes");
 }
 
 #[test]

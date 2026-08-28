@@ -219,6 +219,56 @@ pub fn commit_count_behind(dir: &Path, base: &str, target: &str) -> Result<u64, 
     })
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommitSummary {
+    pub sha: String,
+    pub summary: String,
+    pub author: String,
+    pub at: u64,
+}
+
+/// A bounded newest-first changelog for `base..target`.
+///
+/// Record/field separators are ASCII controls that cannot occur in a commit
+/// summary or author name, avoiding locale-dependent parsing and extra git
+/// invocations per row.
+pub fn commits_between(
+    dir: &Path,
+    base: &str,
+    target: &str,
+    limit: usize,
+) -> Result<Vec<CommitSummary>, GitError> {
+    let range = format!("{base}..{target}");
+    let max_count = format!("--max-count={}", limit.min(50));
+    let out = run(
+        dir,
+        &[
+            "log",
+            "--no-decorate",
+            "--format=%H%x1f%s%x1f%an%x1f%ct%x1e",
+            &max_count,
+            &range,
+        ],
+    )?;
+
+    Ok(out
+        .split('\u{1e}')
+        .filter_map(|record| {
+            let mut fields = record.trim().split('\u{1f}');
+            let sha = fields.next()?.trim();
+            let summary = fields.next()?.trim();
+            let author = fields.next()?.trim();
+            let at = fields.next()?.trim().parse::<u64>().ok()?;
+            (!sha.is_empty() && !summary.is_empty()).then(|| CommitSummary {
+                sha: sha.to_string(),
+                summary: summary.to_string(),
+                author: author.to_string(),
+                at,
+            })
+        })
+        .collect())
+}
+
 pub fn merge_ff_only(dir: &Path, target: &str) -> Result<(), GitError> {
     run(dir, &["merge", "--ff-only", target]).map(|_| ())
 }
@@ -279,6 +329,23 @@ mod tests {
         let sha = current_commit(&repo).unwrap();
         assert_eq!(sha.len(), 40);
         assert!(sha.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn commit_changelog_is_bounded_and_structured() {
+        let (repo, _dir) = init_repo();
+        let base = current_commit(&repo).unwrap();
+        fs::write(repo.join("f.txt"), "2").unwrap();
+        run(&repo, &["add", "f.txt"]).unwrap();
+        run(&repo, &["commit", "-m", "feat(updater): show commit details"]).unwrap();
+
+        let commits = commits_between(&repo, &base, "HEAD", 12).unwrap();
+
+        assert_eq!(commits.len(), 1);
+        assert_eq!(commits[0].summary, "feat(updater): show commit details");
+        assert_eq!(commits[0].author, "Test");
+        assert_eq!(commits[0].sha.len(), 40);
+        assert!(commits[0].at > 0);
     }
 
 }

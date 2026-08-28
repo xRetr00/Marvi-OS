@@ -213,7 +213,16 @@ export interface UpdateCheck {
   targetRef?: string
   behindBy: number
   signed?: boolean | null
+  commits: UpdateCommit[]
   error?: string | null
+}
+
+export interface UpdateCommit {
+  sha: string
+  summary: string
+  author: string
+  /** Unix timestamp in seconds, supplied by git. */
+  at: number
 }
 
 export interface UpdateResult {

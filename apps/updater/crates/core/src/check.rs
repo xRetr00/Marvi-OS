@@ -10,6 +10,30 @@ use crate::channels::Channel;
 use crate::git;
 use crate::tags;
 
+const CHANGELOG_LIMIT: usize = 12;
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CheckCommit {
+    pub sha: String,
+    pub summary: String,
+    pub author: String,
+    pub at: u64,
+}
+
+fn changelog(root: &Path, current: &str, target: &str) -> Vec<CheckCommit> {
+    git::commits_between(root, current, target, CHANGELOG_LIMIT)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|commit| CheckCommit {
+            sha: commit.sha,
+            summary: commit.summary,
+            author: commit.author,
+            at: commit.at,
+        })
+        .collect()
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CheckOutcome {
@@ -21,6 +45,7 @@ pub struct CheckOutcome {
     pub target_ref: Option<String>,
     pub behind_by: u64,
     pub signed: Option<bool>,
+    pub commits: Vec<CheckCommit>,
     pub error: Option<String>,
 }
 
@@ -38,6 +63,7 @@ pub fn check(root: &Path, channel: Channel) -> CheckOutcome {
         target_ref: None,
         behind_by: 0,
         signed: None,
+        commits: Vec::new(),
         error: None,
     };
 
@@ -81,6 +107,8 @@ pub fn check(root: &Path, channel: Channel) -> CheckOutcome {
                 };
             };
             let up_to_date = current == target;
+            let behind_by = git::commit_count_behind(root, &current, &target).unwrap_or(0);
+            let commits = changelog(root, &current, &target);
             let signed = git::verify_tag(root, &tag)
                 .ok()
                 .map(|s| matches!(s, git::SignatureStatus::Valid));
@@ -90,8 +118,9 @@ pub fn check(root: &Path, channel: Channel) -> CheckOutcome {
                 current: Some(current),
                 target: Some(target),
                 target_ref: Some(tag),
-                behind_by: if up_to_date { 0 } else { 1 },
+                behind_by,
                 signed,
+                commits,
                 ..base()
             }
         }
@@ -114,6 +143,7 @@ pub fn check(root: &Path, channel: Channel) -> CheckOutcome {
                 };
             }
             let behind_by = git::commit_count_behind(root, &current, &target).unwrap_or(0);
+            let commits = changelog(root, &current, &target);
             let up_to_date = current == target;
             CheckOutcome {
                 available: !up_to_date,
@@ -123,6 +153,7 @@ pub fn check(root: &Path, channel: Channel) -> CheckOutcome {
                 target_ref: Some("origin/main".to_string()),
                 behind_by,
                 signed: None,
+                commits,
                 ..base()
             }
         }

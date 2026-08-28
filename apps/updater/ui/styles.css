@@ -1,12 +1,15 @@
 :root {
   --bg: #050505;
   --surface: #0a0a0b;
+  --surface-raised: #0f1011;
   --fg: #e7e7e3;
   --bright: #fafaf8;
-  --muted: #8b9098;
+  --muted: #858a91;
+  --quiet: #555a61;
   --border: #242629;
   --accent: #147ec1;
   --ok: #75b798;
+  --warn: #c6a15b;
   --err: #d85b5b;
 }
 
@@ -23,20 +26,24 @@
 html,
 body {
   height: 100%;
+  overflow: hidden;
   background: var(--bg);
   color: var(--fg);
   font-family: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
   font-size: 14px;
-  overflow: hidden;
-  user-select: none;
   cursor: default;
+  user-select: none;
+}
+
+button {
+  font: inherit;
 }
 
 .panel {
-  height: 100vh;
-  padding: 24px 26px 20px;
   display: flex;
   flex-direction: column;
+  height: 100vh;
+  padding: 24px 26px 0;
   border: 1px solid var(--border);
 }
 
@@ -48,158 +55,262 @@ body {
 }
 
 .panel-label {
+  margin-bottom: 9px;
   color: var(--muted);
-  letter-spacing: 0.08em;
-  font-size: 12px;
-  margin-bottom: 10px;
+  font-size: 11px;
+  letter-spacing: 0.11em;
 }
 
 h1 {
+  margin-bottom: 24px;
+  color: var(--bright);
   font-size: 24px;
-  font-weight: 600;
+  font-weight: 650;
   line-height: 1;
   letter-spacing: 0.025em;
-  margin-bottom: 26px;
 }
 
 .channel {
-  min-width: 72px;
-  padding: 5px 8px;
-  color: var(--accent);
+  padding: 6px 9px;
   border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border));
+  color: var(--accent);
   font-size: 10px;
   line-height: 1;
-  letter-spacing: 0.12em;
-  text-align: center;
+  letter-spacing: 0.1em;
+}
+
+.progress-summary {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 7px;
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.07em;
+}
+
+.progress-percent {
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.bar {
+  height: 7px;
+  margin-bottom: 18px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.bar-fill {
+  width: 0;
+  height: 100%;
+  background: var(--accent);
+  transition: width 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.bar-fill.failed {
+  background: var(--err);
+}
+
+.workspace {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  margin: 0 -1px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.execution-pane {
+  flex: 1;
+  min-width: 0;
+  padding: 18px 18px 14px;
+  overflow-y: auto;
 }
 
 .stage {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 14px;
-  color: var(--fg);
-  min-height: 24px;
+  gap: 12px;
+  min-height: 38px;
+  margin-bottom: 13px;
+}
+
+.stage > div {
+  display: grid;
+  gap: 3px;
+}
+
+.stage-kicker {
+  color: var(--quiet);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+}
+
+.stage strong {
+  color: var(--bright);
+  font-size: 13px;
+  font-weight: 550;
 }
 
 .spinner {
-  width: 12px;
-  height: 12px;
+  width: 15px;
+  height: 15px;
+  flex: none;
   border: 2px solid var(--border);
   border-top-color: var(--accent);
   border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  flex: none;
+  animation: spin 800ms linear infinite;
 }
 
 .spinner.done {
-  border: 2px solid var(--ok);
+  border-color: var(--ok);
   animation: none;
 }
 
 @keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+  to { transform: rotate(360deg); }
 }
 
-.status {
+.stage-list {
+  list-style: none;
+}
+
+.stage-list li {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 14px;
-  margin-top: 14px;
-  padding: 14px 16px;
-  border: 1px solid var(--border);
-  font-size: 13px;
-  line-height: 1.55;
-  color: var(--fg);
+  grid-template-columns: 28px minmax(0, 1fr) 22px;
+  align-items: center;
+  min-height: 35px;
+  border-top: 1px solid var(--border);
+  color: var(--quiet);
+  font-size: 12px;
 }
 
-.status.ok {
-  border-color: color-mix(in srgb, var(--ok) 58%, var(--border));
+.stage-list li:last-child {
+  border-bottom: 1px solid var(--border);
 }
 
-.status.failed,
-.status.aborted,
-.status.skipped {
-  border-color: color-mix(in srgb, var(--err) 72%, var(--border));
+.stage-list li.running {
+  color: var(--bright);
 }
 
-.status-mark {
+.stage-list li.done {
   color: var(--muted);
-  font-weight: 700;
 }
 
-.status.ok .status-mark {
-  color: var(--ok);
-}
-
-.status.failed .status-mark,
-.status.aborted .status-mark,
-.status.skipped .status-mark {
+.stage-list li.failed {
   color: var(--err);
 }
 
-.status strong {
-  display: block;
-  margin-bottom: 4px;
-  color: var(--bright);
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+.stage-number {
+  color: var(--quiet);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
 }
 
-.status p {
-  user-select: text;
+.stage-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.status-help {
-  margin-top: 5px;
-  color: var(--muted);
-  font-size: 12px;
+.stage-state {
+  justify-self: end;
+  color: inherit;
+  font-weight: 700;
+  letter-spacing: -0.12em;
 }
 
-footer {
-  margin-top: auto;
+.log-pane {
+  display: flex;
+  flex: 0 0 46%;
+  min-width: 0;
+  flex-direction: column;
+  border-left: 1px solid var(--border);
+  background: #080809;
+}
+
+.log-pane > header {
   display: flex;
   justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
   color: var(--muted);
-  font-size: 12px;
-  letter-spacing: 0.06em;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
+  font-size: 9px;
+  letter-spacing: 0.09em;
 }
 
-/* The install log. Selectable, because the first thing anyone does with a
-   failure is copy it. */
 .log {
   flex: 1;
-  margin-top: 16px;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--muted);
-  font: inherit;
-  font-size: 12px;
-  line-height: 1.5;
-  overflow: auto;
-  white-space: pre-wrap;
-  word-break: break-word;
-  user-select: text;
-  cursor: text;
   min-height: 0;
+  padding: 10px 12px 18px;
+  overflow: auto;
+  color: #a5abb3;
+  font-size: 10.5px;
+  line-height: 1.55;
+  cursor: text;
+  user-select: text;
+}
+
+.log-line {
+  min-height: 1.55em;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.log-line.warning { color: var(--warn); }
+.log-line.error { color: #e38181; }
+.log-line.boundary {
+  margin-top: 5px;
+  color: var(--fg);
 }
 
 .ask {
   margin-top: 14px;
   padding: 12px;
   border: 1px solid var(--accent);
+  background: var(--surface-raised);
 }
 
 .ask p {
   margin-bottom: 10px;
+  color: var(--fg);
+  font-size: 12px;
   line-height: 1.5;
 }
+
+.status {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 13px;
+  margin-top: 14px;
+  padding: 13px 14px;
+  border: 1px solid var(--border);
+  color: var(--fg);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.status.ok { border-color: color-mix(in srgb, var(--ok) 58%, var(--border)); }
+.status.failed,
+.status.aborted,
+.status.skipped { border-color: color-mix(in srgb, var(--err) 70%, var(--border)); }
+.status-mark { color: var(--muted); font-weight: 700; }
+.status.ok .status-mark { color: var(--ok); }
+.status.failed .status-mark,
+.status.aborted .status-mark,
+.status.skipped .status-mark { color: var(--err); }
+.status strong {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--bright);
+  font-size: 11px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.status p { user-select: text; }
+.status-help { margin-top: 4px; color: var(--muted); font-size: 11px; }
 
 .ask-buttons {
   display: flex;
@@ -207,92 +318,85 @@ footer {
 }
 
 .ask-buttons button {
-  font: inherit;
-  font-size: 13px;
-  min-height: 38px;
-  padding: 8px 14px;
-  color: var(--fg);
-  background: var(--surface);
+  min-height: 34px;
+  padding: 7px 12px;
   border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--fg);
+  font-size: 11px;
   cursor: pointer;
-  transition: border-color 160ms ease-out, color 160ms ease-out, background 160ms ease-out;
+  transition: border-color 150ms ease-out, color 150ms ease-out, background 150ms ease-out;
 }
 
-.ask-buttons button:hover {
-  border-color: var(--accent);
-  color: var(--bright);
+.ask-buttons button:hover { border-color: var(--accent); color: var(--bright); }
+.ask-buttons button:focus-visible,
+.details-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ask-buttons button:active { background: var(--border); }
+.ask-buttons button.primary { border-color: var(--accent); color: var(--accent); }
+
+footer {
+  display: flex;
+  min-height: 51px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.06em;
 }
 
-.ask-buttons button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+.details-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
 }
 
-.ask-buttons button:active {
-  background: var(--border);
+.details-toggle:hover { color: var(--bright); }
+.document-glyph { font-size: 15px; line-height: 1; }
+.disclosure {
+  font-size: 16px;
+  transition: transform 160ms ease-out;
 }
+.details-toggle.open .disclosure { transform: rotate(90deg); }
 
-.ask-buttons button.primary {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-/* Progress. Real numbers, so no indeterminate shimmer -- the bar is either
-   somewhere or it is at zero, and pretending otherwise is what the spinner
-   is for. */
-.bar {
-  height: 6px;
-  border: 1px solid var(--line, #2a2a2a);
-  background: rgba(255, 255, 255, 0.03);
-  overflow: hidden;
-  margin: 0 0 14px;
-}
-
-.bar-fill {
-  height: 100%;
-  width: 0;
-  background: var(--accent);
-  transition: width 400ms ease;
-}
-
-.bar-fill.failed {
-  background: var(--err);
-}
-
-#close-row {
-  justify-content: flex-end;
-  margin-top: 12px;
+.footer-meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 
 .close-button {
   display: inline-flex;
+  min-width: 172px;
   align-items: center;
   justify-content: space-between;
-  gap: 28px;
-  min-width: 190px;
-  border-color: color-mix(in srgb, var(--err) 68%, var(--border)) !important;
+  gap: 24px;
+  border-color: color-mix(in srgb, var(--err) 65%, var(--border)) !important;
 }
 
 .close-button:hover {
-  color: var(--bright) !important;
   border-color: var(--err) !important;
-  background: color-mix(in srgb, var(--err) 10%, var(--surface));
+  background: color-mix(in srgb, var(--err) 10%, var(--surface)) !important;
 }
 
-.key-hint {
-  color: var(--muted);
-  font-size: 10px;
-  letter-spacing: 0.08em;
+.key-hint { color: var(--quiet); font-size: 9px; letter-spacing: 0.08em; }
+
+@media (max-width: 620px) {
+  .log-pane { flex-basis: 50%; }
+  .panel { padding-inline: 18px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .spinner {
-    animation: none;
-    border-top-color: var(--accent);
-  }
-
+  .spinner { animation: none; }
   .bar-fill,
-  .ask-buttons button {
-    transition: none;
-  }
+  .ask-buttons button,
+  .disclosure { transition: none; }
 }

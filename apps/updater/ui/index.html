@@ -13,52 +13,71 @@
           <div class="panel-label">// MARVI BOOTSTRAP</div>
           <h1 id="title">PREPARING</h1>
         </div>
-        <div class="channel" id="channel"></div>
+        <div class="channel" id="channel" hidden></div>
       </header>
-      <div class="stage" id="stage">
-        <span class="spinner" id="spinner"></span>
-        <span id="stage-text">starting&hellip;</span>
-      </div>
 
-      <!-- Real, not decorative: each step of the bar is a step that actually
-           ran. See MILESTONES in app.rs. -->
+      <div class="progress-summary">
+        <span id="step-count">WAITING FOR INSTALLER</span>
+        <span class="progress-percent" id="progress-percent">0%</span>
+      </div>
       <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="bar">
         <div class="bar-fill" id="bar-fill"></div>
       </div>
 
-      <!-- The install takes fifteen minutes. Without this the window shows one
-           line the whole time, which is indistinguishable from a hang. -->
-      <pre class="log" id="log" aria-live="polite"></pre>
+      <div class="workspace">
+        <section class="execution-pane">
+          <div class="stage" id="stage" role="status" aria-live="polite">
+            <span class="spinner" id="spinner"></span>
+            <div>
+              <span class="stage-kicker">CURRENT STAGE</span>
+              <strong id="stage-text">Starting installer&hellip;</strong>
+            </div>
+          </div>
 
-      <!-- Shown only when there is a real choice to make. Getting it wrong
-           means a multi-gigabyte reinstall, so it is asked, not guessed. -->
-      <div class="ask" id="gpu-ask" hidden>
-        <p id="gpu-prompt"></p>
-        <div class="ask-buttons">
-          <button type="button" id="gpu-yes" class="primary">Use the GPU</button>
-          <button type="button" id="gpu-no">CPU only</button>
-        </div>
+          <ol class="stage-list" id="stage-list" aria-label="Installation stages"></ol>
+
+          <div class="ask" id="gpu-ask" hidden>
+            <p id="gpu-prompt"></p>
+            <div class="ask-buttons">
+              <button type="button" id="gpu-yes" class="primary">Use the GPU</button>
+              <button type="button" id="gpu-no">CPU only</button>
+            </div>
+          </div>
+
+          <section class="status" id="status" role="status" aria-live="assertive" hidden>
+            <span class="status-mark" id="status-mark" aria-hidden="true"></span>
+            <div>
+              <strong id="status-heading"></strong>
+              <p id="status-message"></p>
+              <p class="status-help" id="status-help"></p>
+            </div>
+          </section>
+        </section>
+
+        <aside class="log-pane" id="log-pane" aria-label="Live installer output" hidden>
+          <header>
+            <span>LIVE OUTPUT</span>
+            <span id="log-count">0 LINES</span>
+          </header>
+          <div class="log" id="log" aria-live="polite" aria-relevant="additions text"></div>
+        </aside>
       </div>
 
-      <section class="status" id="status" role="status" aria-live="assertive" hidden>
-        <span class="status-mark" id="status-mark" aria-hidden="true"></span>
-        <div>
-          <strong id="status-heading"></strong>
-          <p id="status-message"></p>
-          <p class="status-help" id="status-help"></p>
-        </div>
-      </section>
-
-      <!-- Failure states stay open. Verified success closes automatically. -->
-      <div class="ask-buttons" id="close-row" hidden>
-        <button type="button" id="close" class="close-button">
-          <span>Close updater</span>
-          <span class="key-hint" aria-hidden="true">ESC</span>
-        </button>
-      </div>
       <footer>
-        <span>installer / updater</span>
-        <span id="footer-state">LOCAL / ATOMIC</span>
+        <button type="button" class="details-toggle" id="details-toggle" aria-expanded="false">
+          <span class="document-glyph" aria-hidden="true">≡</span>
+          <span id="details-label">SHOW DETAILS</span>
+          <span class="disclosure" aria-hidden="true">›</span>
+        </button>
+        <div class="footer-meta">
+          <span id="footer-state">LOCAL / ATOMIC</span>
+          <div class="ask-buttons" id="close-row" hidden>
+            <button type="button" id="close" class="close-button">
+              <span>Close updater</span>
+              <span class="key-hint" aria-hidden="true">ESC</span>
+            </button>
+          </div>
+        </div>
       </footer>
     </main>
     <script src="main.js"></script>

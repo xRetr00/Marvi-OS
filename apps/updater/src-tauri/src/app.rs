@@ -16,8 +16,30 @@ use crate::cli::{Cli, Mode};
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ProgressPayload {
-    stage: String,
+    stage_id: String,
+    title: String,
     /// How far along, 0-100.
+    percent: u8,
+}
+
+#[derive(Clone, Serialize)]
+struct LogPayload {
+    line: String,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StageInfo {
+    id: &'static str,
+    title: &'static str,
+    percent: u8,
+}
+
+#[derive(Clone, Copy)]
+struct Milestone {
+    prefix: &'static str,
+    stage_id: &'static str,
+    title: &'static str,
     percent: u8,
 }
 
@@ -32,30 +54,43 @@ struct ProgressPayload {
 ///
 /// Matched by prefix against the same strings the core emits. `stages_match_
 /// what_the_core_emits` below is the guard against those drifting apart.
-const MILESTONES: &[(&str, u8)] = &[
-    ("waiting for Marvi OS to exit", 2),
-    ("checking uv and Node", 4),
-    ("installing uv", 6),
-    ("installing Node", 10),
-    ("cloning", 14),
-    ("current commit", 14),
-    ("updating to", 18),
-    ("installing dependencies (npm ci)", 25),
-    ("building (npm run build:unpack)", 55),
-    ("activating installation", 95),
+const MILESTONES: &[Milestone] = &[
+    Milestone { prefix: "waiting for Marvi OS to exit", stage_id: "handoff", title: "Closing Marvi OS", percent: 4 },
+    Milestone { prefix: "checking uv and Node", stage_id: "toolchain", title: "Checking system tools", percent: 8 },
+    Milestone { prefix: "installing uv", stage_id: "toolchain", title: "Preparing system tools", percent: 10 },
+    Milestone { prefix: "installing Node", stage_id: "toolchain", title: "Preparing system tools", percent: 14 },
+    Milestone { prefix: "cloning", stage_id: "source", title: "Downloading Marvi OS", percent: 18 },
+    Milestone { prefix: "current commit", stage_id: "source", title: "Checking installed version", percent: 18 },
+    Milestone { prefix: "updating to", stage_id: "source", title: "Downloading latest changes", percent: 24 },
+    Milestone { prefix: "installing dependencies (npm ci)", stage_id: "dependencies", title: "Installing dependencies", percent: 32 },
+    Milestone { prefix: "building (npm run build:unpack)", stage_id: "build", title: "Building desktop app", percent: 62 },
+    Milestone { prefix: "activating installation", stage_id: "activate", title: "Activating installation", percent: 96 },
 ];
 
-fn percent_for(stage: &str) -> Option<u8> {
-    MILESTONES
-        .iter()
-        .find(|(prefix, _)| stage.starts_with(prefix))
-        .map(|(_, percent)| *percent)
+fn milestone_for(line: &str) -> Option<Milestone> {
+    MILESTONES.iter().find(|item| line.starts_with(item.prefix)).copied()
 }
 
 #[derive(Clone, Serialize)]
 struct MetaPayload {
     mode: String,
     channel: String,
+    stages: Vec<StageInfo>,
+}
+
+fn stages_for(mode: Mode) -> Vec<StageInfo> {
+    let mut stages = Vec::new();
+    if mode == Mode::Update {
+        stages.push(StageInfo { id: "handoff", title: "Closing Marvi OS", percent: 4 });
+    }
+    stages.extend([
+        StageInfo { id: "toolchain", title: "Checking system tools", percent: 14 },
+        StageInfo { id: "source", title: if mode == Mode::Install { "Downloading Marvi OS" } else { "Downloading latest changes" }, percent: 24 },
+        StageInfo { id: "dependencies", title: "Installing dependencies", percent: 32 },
+        StageInfo { id: "build", title: "Building desktop app", percent: 62 },
+        StageInfo { id: "activate", title: "Activating installation", percent: 96 },
+    ]);
+    stages
 }
 
 #[derive(Clone, Serialize)]
@@ -159,11 +194,22 @@ fn operate(handle: &AppHandle, args: Cli) {
     // including if it happens immediately during preflight.
     handle.listen("close-window", |_| std::process::exit(0));
 
+    // The renderer subscribes asynchronously. Waiting for its ready signal
+    // prevents the meta event (and the channel label with it) from being lost
+    // during WebView startup.
+    let (ready_tx, ready_rx) = mpsc::channel::<()>();
+    let ready_id = handle.listen("ui-ready", move |_| {
+        let _ = ready_tx.send(());
+    });
+    let _ = ready_rx.recv_timeout(Duration::from_secs(3));
+    handle.unlisten(ready_id);
+
     let _ = handle.emit(
         "meta",
         MetaPayload {
             mode: format!("{:?}", args.mode).to_ascii_lowercase(),
             channel: args.channel.as_str().to_string(),
+            stages: stages_for(args.mode),
         },
     );
 
@@ -178,16 +224,20 @@ fn operate(handle: &AppHandle, args: Cli) {
     // closure, and a line of npm output that happens to start with an earlier
     // milestone would otherwise rewind the bar.
     let mut percent = 0u8;
-    let mut progress = |stage: &str| {
-        log.line(stage);
-        percent = percent.max(percent_for(stage).unwrap_or(0));
-        let _ = handle.emit(
-            "progress",
-            ProgressPayload {
-                stage: stage.to_string(),
-                percent,
-            },
-        );
+    let mut progress = |line: &str| {
+        log.line(line);
+        let _ = handle.emit("log", LogPayload { line: line.to_string() });
+        if let Some(milestone) = milestone_for(line) {
+            percent = percent.max(milestone.percent);
+            let _ = handle.emit(
+                "progress",
+                ProgressPayload {
+                    stage_id: milestone.stage_id.to_string(),
+                    title: milestone.title.to_string(),
+                    percent,
+                },
+            );
+        }
     };
 
     let (status, message, from, to) = match args.mode {
@@ -279,10 +329,11 @@ mod tests {
             })
             .collect();
 
-        for (prefix, _) in MILESTONES {
+        for milestone in MILESTONES {
             assert!(
-                sources.contains(prefix),
-                "no core stage starts with {prefix:?}; the progress bar will stall"
+                sources.contains(milestone.prefix),
+                "no core stage starts with {:?}; the progress bar will stall",
+                milestone.prefix
             );
         }
     }
@@ -299,14 +350,27 @@ mod tests {
             "cloning something the build mentioned",
             "activating installation",
         ] {
-            percent = percent.max(percent_for(stage).unwrap_or(0));
+            percent = percent.max(milestone_for(stage).map(|item| item.percent).unwrap_or(0));
         }
         assert_eq!(percent, 95);
     }
 
     #[test]
     fn unknown_lines_do_not_move_the_bar() {
-        assert_eq!(percent_for("added 412 packages in 38s"), None);
+        assert!(milestone_for("added 412 packages in 38s").is_none());
+    }
+
+    #[test]
+    fn logs_cannot_become_stages() {
+        let line = "npm warn deprecated inflight@1.0.6";
+        assert!(milestone_for(line).is_none());
+        assert!(milestone_for("installing dependencies (npm ci)").is_some());
+    }
+
+    #[test]
+    fn update_manifest_has_handoff_and_install_does_not() {
+        assert_eq!(stages_for(Mode::Update).first().unwrap().id, "handoff");
+        assert!(stages_for(Mode::Install).iter().all(|stage| stage.id != "handoff"));
     }
 
     #[test]

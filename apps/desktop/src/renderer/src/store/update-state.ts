@@ -12,13 +12,15 @@ export interface UpdateViewState {
   result: UpdateResult | null
   check: UpdateCheck | null
   loading: boolean
+  checkedAt: number | null
 }
 
 export const $updateView = atom<UpdateViewState>({
   status: null,
   result: null,
   check: null,
-  loading: false
+  loading: false,
+  checkedAt: null
 })
 
 let loading: Promise<void> | null = null
@@ -30,17 +32,39 @@ export function loadUpdateState(): Promise<void> {
       window.marvi?.getUpdateStatus(),
       window.marvi?.consumeUpdateResult()
     ])
-    $updateView.set({ ...$updateView.get(), status: status ?? null, result: result ?? null })
+    const current = $updateView.get()
+    $updateView.set({
+      ...current,
+      status: status ?? null,
+      result: result ?? current.result
+    })
   })().finally(() => {
     loading = null
   })
   return loading
 }
 
-export async function checkForUpdate(): Promise<void> {
+let checking: Promise<void> | null = null
+
+export function checkForUpdate(): Promise<void> {
+  if (checking) return checking
   $updateView.set({ ...$updateView.get(), loading: true })
-  const check = await window.marvi?.checkForUpdate()
-  $updateView.set({ ...$updateView.get(), check: check ?? null, loading: false })
+  checking = (async () => {
+    try {
+      const check = await window.marvi?.checkForUpdate()
+      $updateView.set({
+        ...$updateView.get(),
+        check: check ?? null,
+        loading: false,
+        checkedAt: Date.now()
+      })
+    } catch {
+      $updateView.set({ ...$updateView.get(), loading: false, checkedAt: Date.now() })
+    }
+  })().finally(() => {
+    checking = null
+  })
+  return checking
 }
 
 export async function setUpdateChannel(channel: UpdateChannel): Promise<void> {
@@ -52,4 +76,30 @@ export async function setUpdateChannel(channel: UpdateChannel): Promise<void> {
     status: current.status ? { ...current.status, channel } : current.status
   })
   await checkForUpdate()
+}
+
+const CHECK_INTERVAL_MS = 30 * 60 * 1000
+const FOCUS_CHECK_MIN_AGE_MS = 5 * 60 * 1000
+let stopPolling: (() => void) | null = null
+
+/** Start the quiet desktop update lifecycle used by the status bar/About.
+ * Checks once at startup, every 30 minutes, and after returning to a window
+ * whose last result is at least five minutes old. Never opens a surface or
+ * steals focus. */
+export function startUpdatePolling(): () => void {
+  if (stopPolling) return stopPolling
+
+  void loadUpdateState().then(() => checkForUpdate())
+  const onFocus = () => {
+    const checkedAt = $updateView.get().checkedAt ?? 0
+    if (Date.now() - checkedAt >= FOCUS_CHECK_MIN_AGE_MS) void checkForUpdate()
+  }
+  const timer = window.setInterval(() => void checkForUpdate(), CHECK_INTERVAL_MS)
+  window.addEventListener('focus', onFocus)
+  stopPolling = () => {
+    window.clearInterval(timer)
+    window.removeEventListener('focus', onFocus)
+    stopPolling = null
+  }
+  return stopPolling
 }

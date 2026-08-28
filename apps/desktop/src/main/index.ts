@@ -1328,6 +1328,7 @@ function startApp(): void {
           available: false,
           upToDate: false,
           behindBy: 0,
+          commits: [],
           error: 'This installation cannot self-update.'
         }
       }

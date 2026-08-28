@@ -61,6 +61,7 @@ import { AbstractIcon, type AbstractIconName } from './components/abstract-icon'
 import { MessageTiming } from './components/message-timing'
 import { ArcMemoryGraph } from './components/arc-memory-graph'
 import { AboutUpdates, VersionPopover } from './components/update-controls'
+import { startUpdatePolling } from './store/update-state'
 import { TooltipProvider, UiTooltip } from './components/ui/tooltip'
 import {
   ControlButton,
@@ -264,7 +265,12 @@ function MainSurface(): React.JSX.Element {
   useEffect(() => {
     void window.marvi?.getVersion().then(setVersion)
     void window.marvi?.getRuntime().then(applyRuntimeState)
-    return window.marvi?.onRuntime(applyRuntimeState)
+    const stopRuntime = window.marvi?.onRuntime(applyRuntimeState)
+    const stopUpdates = startUpdatePolling()
+    return () => {
+      stopRuntime?.()
+      stopUpdates()
+    }
   }, [])
 
   useEffect(
