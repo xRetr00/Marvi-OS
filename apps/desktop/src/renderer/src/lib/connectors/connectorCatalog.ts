@@ -228,6 +228,14 @@ export const CONNECTOR_CATALOG: readonly ConnectorMeta[] = Object.freeze([
     tint: '#0A66C2'
   },
   {
+    slug: 'youtube',
+    name: 'YouTube',
+    category: 'social',
+    description: 'Search videos, read channel and playlist details.',
+    permissionLabel: 'Read your videos and playlists',
+    tint: '#FF0000'
+  },
+  {
     slug: 'instagram',
     name: 'Instagram',
     category: 'social',
@@ -268,7 +276,7 @@ export const CONNECTOR_CATALOG: readonly ConnectorMeta[] = Object.freeze([
     tint: '#FF7A59'
   },
   {
-    slug: 'onedrive',
+    slug: 'one_drive',
     name: 'OneDrive',
     category: 'platform',
     description: 'Find and read files stored in OneDrive.',

@@ -450,12 +450,62 @@ class ComposioAccounts:
             )
         return rows
 
+    def _auth_config_id(self, slug: str) -> str:
+        """The auth config to connect `slug` through, creating one if needed.
+
+        Composio holds the provider OAuth application per toolkit as an "auth
+        config", and the link endpoint addresses it by id rather than by
+        toolkit name. A `default` config is Composio's own managed OAuth app,
+        which is what a one-click connect uses; a `custom` one carries
+        credentials somebody entered here, so it is preferred when present --
+        picking Composio's app over the user's own would connect the account
+        to the wrong client.
+        """
+        sdk = self._sdk()
+        # `_get` off the listing itself, not off `_as_dict` of it: a listing
+        # with no `model_dump` falls through that helper to `str(...)`, and
+        # reading `items` off a string yields the default -- so every toolkit
+        # looked like it had no auth config and got a second one created.
+        existing = list(_get(sdk.auth_configs.list(toolkit_slug=slug), "items", []) or [])
+        chosen = next(
+            (row for row in existing if str(_get(_as_dict(row), "type", "")) == "custom"),
+            next(iter(existing), None),
+        )
+        if chosen is not None:
+            return str(_get(_as_dict(chosen), "id", ""))
+        made = sdk.auth_configs.create(
+            toolkit={"slug": slug},
+            auth_config={"type": "use_composio_managed_auth"},
+        )
+        return str(_get(_get(_as_dict(made), "auth_config", {}), "id", ""))
+
     def authorize(self, toolkit: str) -> dict[str, Any]:
+        """Begin a hosted OAuth handoff and return where to send the browser.
+
+        Through `link.create`, not `toolkits.authorize`. The convenience
+        wrapper was retired upstream and every connect attempt came back:
+
+            Creating connections on this endpoint for Composio-managed OAuth
+            auth configs is no longer supported. Use POST
+            /api/v3/connected_accounts/link instead.
+
+        Marvi surfaced that as "Invalid authorization URL", because the route
+        502'd, no `connect_url` came back, and the renderer reported the empty
+        string rather than the reason. `link.create` is the same installed SDK
+        -- no upgrade -- and this is the drift the RFC's version-pinning
+        finding is about: an upstream contract moving with no local symptom
+        until it is the only thing a user is trying to do.
+        """
         slug = toolkit.strip().lower()
         if not slug:
             raise ValueError("toolkit is required")
         try:
-            result = self._sdk().toolkits.authorize(user_id=self.user_id, toolkit=slug)
+            # `.client` rather than the SDK facade: the wrapper exposes the
+            # convenience helpers, and `link` is on the generated client below
+            # it. Same connection, same credentials, one layer down.
+            result = self._sdk().client.link.create(
+                auth_config_id=self._auth_config_id(slug), user_id=self.user_id
+            )
         except Exception as exc:
             _reraise(exc)
             raise

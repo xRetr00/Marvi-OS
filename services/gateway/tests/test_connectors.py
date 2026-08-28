@@ -31,12 +31,26 @@ class ConnectorSdk:
             list=lambda **_kwargs: Model(items=self.account_items),
             delete=self._delete,
         )
-        self.toolkits = Model(
-            authorize=lambda **kwargs: {
-                "id": "ca_new",
-                "redirect_url": "https://connect.composio.dev/link/test",
-                "toolkit": kwargs["toolkit"],
-            },
+        self.toolkits = Model()
+        # The handoff goes through `client.link.create` against an auth config
+        # id. `toolkits.authorize` was retired upstream mid-development and
+        # answered every connect with "Use POST /api/v3/connected_accounts/link
+        # instead" -- which reached the user as "Invalid authorization URL".
+        # Mirrors the real shape: `auth_configs` on the SDK facade, `link` on
+        # the generated client one layer below it.
+        self.auth_configs = Model(
+            list=lambda toolkit_slug=None, **_kw: Model(
+                items=[{"id": f"ac_{toolkit_slug}", "type": "default"}]
+            ),
+            create=lambda **kw: {"auth_config": {"id": "ac_made"}},
+        )
+        self.client = Model(
+            link=Model(
+                create=lambda auth_config_id, user_id, **_kw: {
+                    "connected_account_id": "ca_new",
+                    "redirect_url": f"https://connect.composio.dev/link/lk_{auth_config_id}",
+                }
+            ),
         )
         self.tools = Model(
             get_raw_composio_tools=lambda **_kwargs: [],
@@ -68,7 +82,7 @@ def build(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_connectors_list_shows_preview_and_connected_cards(tmp_path) -> None:
+async def test_connectors_list_separates_connected_from_never_connected(tmp_path) -> None:
     app, _ = build(tmp_path)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://m.local") as c:
         response = await c.get("/connectors")
@@ -82,7 +96,9 @@ async def test_connectors_list_shows_preview_and_connected_cards(tmp_path) -> No
     assert rows["gmail"]["places"]["memory"] is True
     # No automatic personalization surface exists; reported honestly.
     assert rows["gmail"]["places"]["profile"] is False
-    assert rows["notion"]["status"] == "preview"
+    # Supported, never connected. Not "preview" -- that rendered amber beside
+    # a real expired-auth amber and made six untouched services look special.
+    assert rows["notion"]["status"] == "disconnected"
     assert rows["notion"]["connection_id"] == ""
     assert rows["notion"]["places"] == {
         "tool": False, "memory": False, "profile": False, "triggers": False,
@@ -98,7 +114,7 @@ async def test_connector_detail_is_the_cheap_poll_target(tmp_path) -> None:
 
     assert gmail.json()["status"] == "connected"
     assert gmail.json()["connections"] == 1
-    assert unknown.json()["status"] == "preview"
+    assert unknown.json()["status"] == "disconnected"
 
 
 @pytest.mark.asyncio
@@ -137,6 +153,6 @@ async def test_disconnecting_a_connector_retracts_what_it_ingested(tmp_path) -> 
     assert deleted.json()["retracted"] == {
         "toolkit": "gmail", "connection_id": "ca_gmail", "sources": 1, "removed": 1,
     }
-    assert after.json()["status"] == "preview"  # the fake SDK no longer lists it
+    assert after.json()["status"] == "disconnected"  # the fake SDK no longer lists it
     assert after.json()["memory_items"] == 0
     assert sdk.account_items == []

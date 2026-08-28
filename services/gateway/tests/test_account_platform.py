@@ -46,14 +46,27 @@ class LifecycleSdk:
             },
         )
         self.toolkits = Model(
-            authorize=lambda **kwargs: {
-                "id": "ca_new",
-                "redirect_url": "https://connect.composio.dev/link/test",
-                "toolkit": kwargs["toolkit"],
-            },
             list=lambda **_kwargs: Model(
                 items=[Model(slug="gmail", name="Gmail", description="Mail", logo="")]
             ),
+        )
+        # The handoff resolves an auth config, then asks the generated client
+        # for a link. `toolkits.authorize` was retired upstream and answered
+        # every connect with "Use POST /api/v3/connected_accounts/link
+        # instead", which reached the user as "Invalid authorization URL".
+        self.auth_configs = Model(
+            list=lambda toolkit_slug=None, **_kw: Model(
+                items=[{"id": f"ac_{toolkit_slug}", "type": "default"}]
+            ),
+            create=lambda **_kw: {"auth_config": {"id": "ac_made"}},
+        )
+        self.client = Model(
+            link=Model(
+                create=lambda auth_config_id, user_id, **_kw: {
+                    "connected_account_id": "ca_new",
+                    "redirect_url": f"https://connect.composio.dev/link/lk_{auth_config_id}",
+                }
+            )
         )
         self.raw_tools = [
             Model(

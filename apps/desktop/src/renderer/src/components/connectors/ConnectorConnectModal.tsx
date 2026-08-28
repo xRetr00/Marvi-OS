@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 
 import type { ConnectorMeta } from '../../lib/connectors/connectorCatalog'
 import { connectorMonogram } from '../../lib/connectors/connectorCatalog'
+import { CONNECTOR_LOGOS } from '../../lib/connectors/connectorLogos'
 import { useConnectorConnectFlow } from '../../hooks/useConnectorConnectFlow'
 import { AbstractIcon } from '../abstract-icon'
 import { ScopeToggles } from './ScopeToggles'
@@ -49,6 +50,8 @@ export function ConnectorConnectModal({
   const busy =
     flow.phase === 'authorizing' || flow.phase === 'waiting' || flow.phase === 'disconnecting'
 
+  const Logo = CONNECTOR_LOGOS[meta.slug]
+
   return (
     <div
       className="connector-modal-shell"
@@ -73,8 +76,15 @@ export function ConnectorConnectModal({
         </button>
 
         <header className="connector-modal-head">
-          <span aria-hidden="true" className="connector-card-logo">
-            {connectorMonogram(meta.name)}
+          {/* The same mark the card carries. The modal was left on the
+              monogram, so opening a connector replaced its logo with two grey
+              letters at the exact moment the user was looking hardest at it. */}
+          <span
+            aria-hidden="true"
+            className="connector-card-logo"
+            style={{ '--connector-tint': meta.tint } as React.CSSProperties}
+          >
+            {Logo ? <Logo height={19} width={19} /> : connectorMonogram(meta.name)}
           </span>
           <div>
             <h3>{meta.name}</h3>

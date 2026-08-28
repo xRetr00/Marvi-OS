@@ -3375,8 +3375,13 @@ def create_app(
         connection_id = str(row.get("id", "")) if row else ""
         memory_items = ingest.store.count_seen(slug, connection_id) if ingest is not None else 0
         if row is None:
+            # No connection for a toolkit Marvi supports natively. That is
+            # "not connected", not "preview" -- which the card rendered in
+            # amber beside a real Auth-expired amber, so six services the user
+            # had simply never connected looked like they were in some special
+            # state. `preview` is for a toolkit upstream marks as such.
             return ConnectorRow(
-                slug=slug, name=label, status="preview", connections=0,
+                slug=slug, name=label, status="disconnected", connections=0,
                 memory_items=memory_items, places=ConnectorPlaces(**_connector_places(slug, None)),
             )
         status: Literal["connected", "expired", "disconnected", "preview"]

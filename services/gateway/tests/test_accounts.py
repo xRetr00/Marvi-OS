@@ -66,8 +66,37 @@ class FakeSdk:
         self.calls: list[tuple[str, dict]] = []
         self.connected_accounts = self
         self.tools = self
+        # The generated client under the SDK facade, where `link` lives.
+        self.client = self
+        self.link = self
+        self.auth_configs = self
+        self.auth_configs_for: list[str] = []
+        self.linked: list[dict] = []
+        self.created_configs: list[str] = []
+        self.existing_configs: dict[str, list[dict]] = {
+            "gmail": [{"id": "ac_managed", "type": "default"}]
+        }
 
-    def list(self, user_ids=None, limit=None):
+    # -- auth configs and the link handoff ------------------------------------
+
+    def create(self, *, toolkit=None, auth_config=None, auth_config_id=None, user_id=None, **_kw):
+        if auth_config_id is not None:
+            self.linked.append({"auth_config_id": auth_config_id, "user_id": user_id})
+            return {
+                "connected_account_id": "ca_new",
+                "redirect_url": f"https://connect.composio.dev/link/lk_{auth_config_id}",
+                "expires_at": "2026-08-28T16:40:32.574Z",
+            }
+        slug = str((toolkit or {}).get("slug") or "")
+        if slug:
+            self.created_configs.append(slug)
+            return {"auth_config": {"id": f"ac_new_{slug}"}}
+        raise AssertionError("unexpected create call")
+
+    def list(self, user_ids=None, limit=None, toolkit_slug=None):
+        if toolkit_slug is not None:
+            self.auth_configs_for.append(toolkit_slug)
+            return Listing(self.existing_configs.get(toolkit_slug, []))
         return Listing(self.items)
 
     def execute(self, slug, arguments, user_id=None, dangerously_skip_version_check=None):
@@ -275,3 +304,59 @@ async def test_accounts_status_needs_no_confirmation(tmp_path) -> None:
     assert response.json()["status"] == "executed"
     assert "gmail" in result["connected"]
     assert "slack" in result["needs_reconnect"]
+
+
+# -- the authorization handoff -----------------------------------------------
+
+
+def test_authorize_uses_the_link_endpoint_and_an_existing_auth_config(accounts) -> None:
+    """Every connect attempt failed with "Invalid authorization URL".
+
+    `toolkits.authorize` was retired upstream and answered:
+
+        Creating connections on this endpoint for Composio-managed OAuth auth
+        configs is no longer supported. Use POST
+        /api/v3/connected_accounts/link instead.
+
+    The route 502'd, no `connect_url` came back, and the renderer reported the
+    empty string rather than the reason. Nothing here was version-pinned, so
+    the contract moved with no local symptom until it was the only thing the
+    user was trying to do.
+    """
+    client, sdk = accounts
+
+    handoff = client.authorize("gmail")
+
+    assert sdk.auth_configs_for == ["gmail"]
+    assert sdk.linked == [{"auth_config_id": "ac_managed", "user_id": client.user_id}]
+    assert handoff["redirect_url"].startswith("https://connect.composio.dev/link/")
+    assert handoff["id"] == "ca_new"
+    # An existing config is reused rather than a second one created for it.
+    assert sdk.created_configs == []
+
+
+def test_authorize_creates_an_auth_config_for_a_toolkit_that_has_none(accounts) -> None:
+    """The link endpoint addresses a provider OAuth app by id, so a toolkit
+    nobody has connected yet has nothing to point at until one exists."""
+    client, sdk = accounts
+
+    handoff = client.authorize("youtube")
+
+    assert sdk.created_configs == ["youtube"]
+    assert sdk.linked == [{"auth_config_id": "ac_new_youtube", "user_id": client.user_id}]
+    assert handoff["redirect_url"].startswith("https://connect.composio.dev/link/")
+
+
+def test_a_custom_auth_config_wins_over_composios_managed_one(accounts) -> None:
+    """A custom config carries credentials somebody entered here. Connecting
+    through Composio's own app instead would attach the account to the wrong
+    OAuth client."""
+    client, sdk = accounts
+    sdk.existing_configs["slack"] = [
+        {"id": "ac_managed_slack", "type": "default"},
+        {"id": "ac_mine", "type": "custom"},
+    ]
+
+    client.authorize("slack")
+
+    assert sdk.linked[0]["auth_config_id"] == "ac_mine"

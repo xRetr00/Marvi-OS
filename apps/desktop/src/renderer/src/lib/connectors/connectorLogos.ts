@@ -48,6 +48,7 @@ import Todoist from '@thesvg/react/todoist'
 import Trello from '@thesvg/react/trello'
 import Whatsapp from '@thesvg/react/whatsapp'
 import X from '@thesvg/react/x-formerly-twitter'
+import Youtube from '@thesvg/react/youtube'
 
 export type ConnectorLogo = ComponentType<SVGProps<SVGSVGElement>>
 
@@ -72,7 +73,7 @@ export const CONNECTOR_LOGOS: Readonly<Record<string, ConnectorLogo>> = Object.f
   linear: Linear,
   linkedin: Linkedin,
   notion: Notion,
-  onedrive: OneDrive,
+  one_drive: OneDrive,
   reddit: Reddit,
   salesforce: Salesforce,
   sentry: Sentry,
@@ -83,5 +84,6 @@ export const CONNECTOR_LOGOS: Readonly<Record<string, ConnectorLogo>> = Object.f
   todoist: Todoist,
   trello: Trello,
   whatsapp: Whatsapp,
-  twitter: X
+  twitter: X,
+  youtube: Youtube
 })

@@ -244,7 +244,7 @@ describe('capabilities', () => {
     // and real brand marks need a dependency or vendored path data. Thirty-one
     // identical grey squares read as nothing.
     expect(catalog).toContain('tint: string')
-    expect(catalog.match(/tint: '#/g)?.length).toBe(31)
+    expect(catalog.match(/tint: '#/g)?.length).toBe(32)
   })
 })
 
@@ -256,7 +256,7 @@ describe('connector logos', () => {
   it('imports one icon at a time, never the package index', () => {
     // The barrel is 405 KB of 6,511 icons; `@thesvg/react/gmail` is about 2 KB.
     expect(logos).not.toMatch(/from '@thesvg\/react'/)
-    expect(logos.match(/from '@thesvg\/react\/[a-z0-9-]+'/g)?.length).toBe(31)
+    expect(logos.match(/from '@thesvg\/react\/[a-z0-9-]+'/g)?.length).toBe(32)
   })
 
   it('has a mark for every connector in the catalog', () => {
@@ -264,6 +264,26 @@ describe('connector logos', () => {
     const mapped = new Set([...logos.matchAll(/^ {2}([a-z0-9_]+):/gm)].map((m) => m[1]))
     expect(slugs.length).toBeGreaterThan(0)
     expect(slugs.filter((slug) => !mapped.has(slug))).toEqual([])
+  })
+
+  it('uses the same mark in the modal as on the card', () => {
+    // The modal was left on the monogram, so opening a connector replaced its
+    // logo with two grey letters exactly when the user was looking hardest.
+    const modal = readFileSync(
+      join(__dirname, 'components/connectors/ConnectorConnectModal.tsx'),
+      'utf8'
+    )
+    expect(modal).toContain('CONNECTOR_LOGOS[meta.slug]')
+    expect(modal).toContain('<Logo ')
+  })
+
+  it('spells every slug the way Composio does', () => {
+    // The slug is the join key against `GET /connectors` and Composio itself.
+    // `onedrive` 404s there; the toolkit is `one_drive`. Checked against the
+    // live API on 2026-08-28.
+    expect(catalog).toContain("slug: 'one_drive'")
+    expect(catalog).not.toContain("slug: 'onedrive'")
+    expect(catalog).toContain("slug: 'youtube'")
   })
 
   it('never reaches for a remote image, because the CSP forbids it', () => {
