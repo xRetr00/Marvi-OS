@@ -1,8 +1,8 @@
 # Review — the voice pipeline, the prompt, and tool calls
 
 Measured against Marvi's own logs, read against `livekit-agents` 1.6.10 as
-installed, and compared with hermes-agent's tool loop and LiveKit's published
-guidance.
+installed, and compared with a pinned upstream tool loop and LiveKit's
+published guidance.
 
 ## What the pipeline actually costs
 
@@ -138,9 +138,10 @@ means two sentences. One of the two numbers should move, and it should be a
 product decision rather than a quiet one: either the prompt states a concrete
 length, or the cap comes down to something a listener would recognise as short.
 
-## Tool calls: hermes, LiveKit, and Marvi
+## Tool calls: prior art, LiveKit, and Marvi
 
-**hermes** runs a per-turn guardrail controller (`agent/tool_guardrails.py`,
+The **reference runtime** runs a per-turn guardrail controller
+(`agent/tool_guardrails.py`,
 854 lines) around every call. It tracks identical calls by signature hash,
 counts repeated failures, enforces loop caps, and returns decisions the runtime
 turns into synthetic tool results or guidance appended to the real result. Two
@@ -162,15 +163,16 @@ tools stay effect-capable by default" is the same fail-closed rule as
 
 **LiveKit** already provides part of this for free. `_inject_running_tool_calls`
 inserts a flagged in-progress pair for each running call so the model cannot
-re-issue one that is in flight — hermes's duplicate guard, in the framework.
+re-issue one that is in flight — the reference's duplicate guard, in the
+framework.
 `max_tool_steps` defaults to 3 and Marvi does not set it, which is a reasonable
 default left unstated.
 
 **Marvi** handles tool results well and tool *sequences* not at all:
 `MAX_RESULT_CHARS = 900`, bookkeeping keys like `ok`/`success` stripped so
 "ok True" is never read aloud, and the prompt rule that a tool result is
-evidence rather than confirmation. That last one does in prose what hermes does
-in code.
+evidence rather than confirmation. That last one does in prose what the
+reference does in code.
 
 **I do not recommend building the guardrail.** The whole agent log contains 16
 tool-related lines. There is no loop in the evidence, and a 854-line controller

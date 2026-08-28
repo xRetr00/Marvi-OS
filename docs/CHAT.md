@@ -35,8 +35,9 @@ ephemeral input state.
   links remain a fallback; neither path claims unsupported native citations.
 - The context ring uses the provider-reported input-token count and the pinned
   model catalog's context window. Unknown values display as unknown rather than
-  estimates; the breakdown also exposes cache, reply reserve, message, file,
-  source, and route facts.
+  estimates. The breakdown segments prompt, cached input, reply reserve, and
+  available capacity, then separately exposes message, file, source, and route
+  facts without pretending those counts are tokens.
 
 Dynamic follow-up suggestions are deliberately not part of the product
 contract. The renderer does not invent suggestion chips and the Gateway does
@@ -60,6 +61,12 @@ one slim full-row surface and Marvi replies remain unboxed prose directly below
 them; sender names stay accessible without becoming repeated visual headers.
 Timestamps and message actions live in the quiet hover/focus rail. Every
 ambiguous action has a tooltip and accessible name.
+
+Attachment tiles expose image previews or file identity, filename, size, and a
+remove action before send. Sent images expand into an in-app viewer with
+backdrop, close-button, and Escape dismissal. The draft stays editable during
+streaming so the next thought is not lost; Stop remains the active-turn action
+until the Gateway settles or cancels that turn.
 
 Generative output follows Assistant UI's tool-UI pattern through a Marvi-owned
 adapter. Models may request only `sources`, `metrics`, `comparison`, `table`,

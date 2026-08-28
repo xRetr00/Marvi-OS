@@ -42,8 +42,9 @@ Current implemented desktop surfaces:
   deltas, turns, latency, and elapsed time;
 - Gateway-owned Chat threads and branches with per-thread model routing,
   typed sources/files/images, local document extraction, Parakeet dictation,
-  safe GFM/math rendering, authoritative context facts, validated generative
-  widgets, read aloud through the standalone PocketTTS announcer, and a dedicated
+  safe GFM/math rendering, segmented provider-backed context usage, thumbnail
+  attachment tiles and image previews, validated generative widgets, read aloud
+  through the standalone PocketTTS announcer, and a dedicated
   searchable conversation sidebar, compact human/assistant turn pairs, tool
   disclosures, source rows, and compact shell chrome adapted from an internal desktop;
 - compact divided control surfaces across every non-Voice/non-Chat page, a

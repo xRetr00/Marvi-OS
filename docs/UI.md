@@ -295,6 +295,13 @@ Durable threads and branches back the sidebar, edit, and regenerate actions.
 GitHub-flavored Markdown, math, tables, code blocks, source rows, image/file
 parts, read aloud, local-native dictation, model selection, and context details
 use distinct bounded modules instead of one undifferentiated text column.
+Pending attachments use compact thumbnail/file tiles with name, type, size,
+and an explicit remove action. Sent images open into a bounded preview that
+closes by button, backdrop, or Escape. The context control divides the known
+window into prompt, cached input, reply reserve, and available capacity; it
+never turns message or file counts into invented token estimates. Drafting
+remains available while a response streams, while the primary action becomes
+Stop until the active turn settles.
 Tool activity and sources use transparent faded disclosure
 rows at rest, a small `Sources · count` label, and compact flat result rows only
 after expansion. Structured results use thin dividers instead of nested paper
