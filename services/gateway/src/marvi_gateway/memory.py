@@ -498,8 +498,8 @@ class MemoryStore:
 
     #: What `memory_import` marks its own writes with. A prefix rather than a
     #: guess at the file extension: the first version matched `%.md` and
-    #: friends, so a memory imported from Honcho -- whose source is
-    #: `honcho/hermes`, not a filename -- fell through to the full
+    #: friends, so a memory imported from a provider source rather than a
+    #: filename fell through to the full
     #: external-data envelope and 154 of them would have filled the recall
     #: budget many times over.
     IMPORTED = "import:"
@@ -1309,8 +1309,7 @@ class MemoryStore:
     # and together say something neither says alone.
 
     #: What the dreamer writes as its source. Everything it may later retire is
-    #: marked with it, and nothing else is ever retired -- the same invariant
-    #: hermes's Curator holds for skills, and for the same reason: a background
+    #: marked with it, and nothing else is ever retired. A background
     #: model that can delete what the user told it is a background model that
     #: can quietly erase them.
     DREAMT = "dreaming"

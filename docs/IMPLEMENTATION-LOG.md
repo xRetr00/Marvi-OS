@@ -796,11 +796,11 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   npm, uv, git, and process output can no longer replace the current stage or
   move the progress bar. A renderer-ready handshake prevents startup metadata
   loss and removes the empty channel outline.
-- Adapted the pinned Hermes installer interaction model into Marvi's static
+- Adapted the pinned upstream installer interaction model into Marvi's static
   Tauri shell: real stage-count progress, flat stage states, optional split-pane
   live output, bounded/selectable warning and error lines, and automatic detail
   disclosure on failure. The implementation retains Marvi's monochrome tokens
-  and contains no Hermes branding or component code.
+  and contains no upstream branding or component code.
 - Added quiet startup/focus/30-minute desktop checks. Update results now include
   a bounded git changelog with SHA, subject, author, and timestamp; the version
   popover and About surface show current/target commits, integrity, check time,
@@ -1192,9 +1192,9 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   preview and face-review fixture states, the Settings overlay, offline control
   lockout, and a clean unmodified browser console.
 
-## 2026-08-26 — Hermes-compatible Gateway cron jobs
+## 2026-08-26 — Gateway cron jobs
 
-- Replaced the reminder-only schedule seam with the reusable Hermes cron
+- Replaced the reminder-only schedule seam with a reusable cron
   contract adapted to Marvi Gateway ownership: one-shot, interval, and cron
   schedules; durable executions; repeat limits; per-job provider/model/effort;
   exact tool allowlists; and bounded retained output.
@@ -1210,7 +1210,7 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
 - Expanded the desktop Schedules surface with agent task, model, reasoning,
   tool, delivery, route, and output controls while preserving the control-center
   visual contract.
-- Recorded the exact Hermes commit, MIT provenance, modification boundary, and
+- Recorded the exact upstream commit, MIT provenance, modification boundary, and
   update method in `docs/UPSTREAM.md`.
 - Verified all 934 Gateway tests, all 252 desktop tests, Gateway Ruff, desktop
   ESLint with zero errors (existing line-ending warnings remain), both desktop

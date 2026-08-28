@@ -16,8 +16,8 @@ being supported. Three things it does that this now does too:
 * **They are marked as inference.** Written untrusted and sourced `dreaming`,
   because Marvi working something out and the user saying it are not the same
   kind of fact and must not be recalled as though they were.
-* **Only its own conclusions are ever withdrawn.** The same invariant hermes's
-  Curator holds over skills -- it touches nothing a person authored, and never
+* **Only its own conclusions are ever withdrawn.** The curator touches nothing
+  a person authored, and never
   deletes what it did not write.
 
 ## The graph is the point

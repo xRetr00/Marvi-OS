@@ -1,7 +1,6 @@
 """Turning a finished task into a skill, on the same pass as memory.
 
-Taken from `hermes-agent`'s background review, which is the best idea in that
-codebase: after a turn, fork off and ask *"should any skill be written or
+After a turn, fork off and ask *"should any skill be written or
 patched?"* -- and treat the answer as being about **how to do this class of
 task**, separately from what memory holds.
 
@@ -31,7 +30,7 @@ filling with one-off notes named after today's task:
 
 ## Proposed, not written
 
-One deliberate difference from hermes: nothing here writes to disk on its own.
+Nothing here writes to disk on its own.
 A skill is instructions Marvi will follow later, so a model that can silently
 write them is a model that can silently rewrite its own behaviour -- and the
 Skills page already has a review flow, because that argument was settled when

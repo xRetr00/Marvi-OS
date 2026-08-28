@@ -1,8 +1,8 @@
-"""Gateway-owned cron jobs, adapted from Hermes Agent's cron contracts.
+"""Gateway-owned cron jobs.
 
-Hermes proved the product shape: durable jobs, one-shot/interval/cron schedules,
-per-job inference controls, bounded tool access, a run ledger, and delivery that
-is independent from execution. Marvi keeps that shape but uses its own owners:
+The product shape is durable jobs, one-shot/interval/cron schedules, per-job
+inference controls, bounded tool access, a run ledger, and delivery independent
+from execution. Marvi uses its own owners:
 ProviderClient, ToolRegistry, and a future messaging delivery adapter.
 """
 
@@ -115,7 +115,7 @@ def _validate_cron(expression: str) -> None:
 
 
 def parse_when(value: str, now: datetime | None = None) -> tuple[str, str, str | None]:
-    """Return ``(kind, expression, next_run)`` for Hermes-compatible input."""
+    """Return ``(kind, expression, next_run)`` for supported schedule input."""
     text = (value or "").strip()
     if not text:
         raise ScheduleError("a schedule needs a time")

@@ -1,14 +1,14 @@
 """Which skills are used, and what becomes of the ones that are not.
 
-Taken from hermes's Curator, whose first move is the one everything else needs:
-**count the uses**. Marvi had no idea which of her skills had ever been read.
+The curator's first move is the one everything else needs: **count the uses**.
+Marvi had no idea which of her skills had ever been read.
 "Which of these eleven is worth keeping?" had no answer, so nothing could be
 retired and the catalogue could only grow -- and every skill in it costs a line
 in the prompt on every turn, which on voice is latency you can hear.
 
 ## A sidecar, not frontmatter
 
-hermes's reasoning, and it is right: telemetry in `SKILL.md` would put an
+Telemetry in `SKILL.md` would put an
 operational counter inside a file the user authored and a bundled skill ships,
 so every update would conflict with a number nobody edited. One JSON file
 beside the skills, keyed by name.
@@ -20,7 +20,7 @@ beside the skills, keyed by name.
     archived  unread for ARCHIVE_AFTER days; moved to .archive/
     pinned    opts out of all of it, orthogonal to the rest
 
-Two rules are load-bearing and both are hermes's:
+Two rules are load-bearing:
 
 **Never delete, only archive.** Archive is a directory move and is undone by a
 directory move. A background pass that deletes what a person wrote is a

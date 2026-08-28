@@ -17,7 +17,8 @@ describe('desktop update checks', () => {
   const api = {
     getUpdateStatus: vi.fn(async () => status),
     consumeUpdateResult: vi.fn(async () => null),
-    checkForUpdate: vi.fn(async () => check)
+    checkForUpdate: vi.fn(async () => check),
+    startUpdate: vi.fn(async () => false)
   }
 
   beforeEach(() => {
@@ -64,5 +65,13 @@ describe('desktop update checks', () => {
 
     stop()
     expect(listeners.has('focus')).toBe(false)
+  })
+
+  it('keeps a failed native handoff visible instead of closing the surface', async () => {
+    const { $updateView, beginUpdate } = await import('./update-state')
+
+    await expect(beginUpdate()).resolves.toBe(false)
+
+    expect($updateView.get().handoff).toBe('failed')
   })
 })

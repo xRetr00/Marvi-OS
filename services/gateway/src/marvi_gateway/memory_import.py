@@ -1,7 +1,7 @@
 """Bringing memories in from somewhere else.
 
 Everyone's assistant remembers things and everyone's remembers them
-differently: hermes and OpenClaw keep hand-written `MEMORY.md` and `USER.md`
+different systems keep hand-written `MEMORY.md` and `USER.md`
 cards, Mem0 exports a JSON list of extracted strings, Honcho exports its
 derived observations. Moving between assistants means either retyping years of
 context or losing it.
@@ -316,7 +316,7 @@ def honcho_workspaces(api_key: str, url: str = "") -> list[str]:
     """Which workspaces this key can see.
 
     Asked rather than assumed: the default workspace on a real account was
-    empty and everything was in one called `hermes`, so an importer that
+    empty and everything was in another named workspace, so an importer that
     hardcoded `default` would have reported "nothing found" over a full
     account.
     """

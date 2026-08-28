@@ -13,6 +13,7 @@ export interface UpdateViewState {
   check: UpdateCheck | null
   loading: boolean
   checkedAt: number | null
+  handoff: 'idle' | 'starting' | 'failed'
 }
 
 export const $updateView = atom<UpdateViewState>({
@@ -20,7 +21,8 @@ export const $updateView = atom<UpdateViewState>({
   result: null,
   check: null,
   loading: false,
-  checkedAt: null
+  checkedAt: null,
+  handoff: 'idle'
 })
 
 let loading: Promise<void> | null = null
@@ -76,6 +78,28 @@ export async function setUpdateChannel(channel: UpdateChannel): Promise<void> {
     status: current.status ? { ...current.status, channel } : current.status
   })
   await checkForUpdate()
+}
+
+/** Begin the native update handoff without hiding a failed launch. A successful
+ * handoff exits the desktop a moment later; failure remains visible so the
+ * user can retry or inspect the installed updater. */
+export async function beginUpdate(): Promise<boolean> {
+  if ($updateView.get().handoff === 'starting') return false
+  $updateView.set({ ...$updateView.get(), handoff: 'starting' })
+  try {
+    const started = (await window.marvi?.startUpdate()) === true
+    if (!started) $updateView.set({ ...$updateView.get(), handoff: 'failed' })
+    return started
+  } catch {
+    $updateView.set({ ...$updateView.get(), handoff: 'failed' })
+    return false
+  }
+}
+
+export function clearUpdateHandoffFailure(): void {
+  if ($updateView.get().handoff === 'failed') {
+    $updateView.set({ ...$updateView.get(), handoff: 'idle' })
+  }
 }
 
 const CHECK_INTERVAL_MS = 30 * 60 * 1000

@@ -27,8 +27,8 @@ that has not arrived yet look identical to the code that draws the spinner.
 
 Two changes. The frontmatter requests run concurrently, because they are
 independent and waiting for 488 round trips one at a time is the whole cost.
-And the result is written to disk with a timestamp, the way hermes keeps its
-index cache: a skill catalogue changes on the timescale of days, so the second
+And the result is written to disk with a timestamp: a skill catalogue changes
+on the timescale of days, so the second
 visit should not pay for the first.
 
 ## Browsing is not installing

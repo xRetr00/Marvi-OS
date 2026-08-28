@@ -7,7 +7,7 @@ can do to Marvi in a single click, and the whole control was a wall of Markdown
 shown on screen with an Install button under it. "You were shown it" is not a
 control; nobody reads five hundred lines before clicking.
 
-hermes scans every externally-sourced skill and applies a **trust tier**, and
+Every externally sourced skill is scanned and assigned a **trust tier**, and
 both halves matter. The scan alone would either block first-party skills over
 harmless phrasing or wave through a gist because its wording was careful.
 

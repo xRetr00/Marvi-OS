@@ -24,7 +24,7 @@ import { Picker } from './ui/picker'
  * disabled until a provider was chosen. There was no order of clicks that
  * worked.
  *
- * The shape here is hermes's, and it is the shape that fits: a row shows what
+ * A row shows what
  * is set, **Change** opens a draft, and nothing reaches the Gateway until
  * Apply. Provider, model and effort are decided together because they are one
  * decision.
@@ -32,7 +32,7 @@ import { Picker } from './ui/picker'
 export function AuxiliarySettings(): React.JSX.Element {
   const [page, setPage] = useState<AuxiliaryPage | null>(null)
   const [reload, setReload] = useState(0)
-  /** The role being edited, or empty. One at a time, as hermes does it. */
+  /** The role being edited, or empty. One at a time keeps the draft explicit. */
   const [editing, setEditing] = useState('')
   const [draft, setDraft] = useState({ provider: '', model: '', effort: '' })
   /** Models per provider, fetched once each and kept while the page is open. */

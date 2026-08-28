@@ -32,7 +32,7 @@ class Model:
 
 
 def test_a_hand_written_memory_file_is_read(tmp_path) -> None:
-    """hermes and OpenClaw keep `MEMORY.md` and `USER.md` as headings and
+    """Some assistants keep `MEMORY.md` and `USER.md` as headings and
     bullets, written by hand over a long time."""
     path = tmp_path / "MEMORY.md"
     path.write_text(
@@ -375,7 +375,7 @@ def test_what_will_be_refused_is_shown_before_the_import(tmp_path) -> None:
             "The user is called Shereef.",
             "The user password for the portal is hunter2",
         ],
-        name="honcho/hermes",
+        name="honcho/imported-assistant",
     )
 
     assert found["found"] == 2

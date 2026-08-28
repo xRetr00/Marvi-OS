@@ -4,8 +4,8 @@ Status: complete
 
 ## Outcome
 
-Marvi OS has the reusable cron-job contract from Hermes Agent without adopting
-Hermes' CLI, profile manager, gateway process, or messaging implementations.
+Marvi OS has a reusable cron-job contract without adopting another product's
+CLI, profile manager, gateway process, or messaging implementations.
 Marvi Gateway remains the sole owner of durable jobs, execution, provider
 routing, tool policy, audit, and the future messaging connection.
 
@@ -32,10 +32,8 @@ routing, tool policy, audit, and the future messaging connection.
 
 ## Upstream boundary
 
-Adapted from NousResearch/hermes-agent commit
-`61977bb4d6b97ab2aece57d2405fa2f0b19e3ae0`, principally `cron/jobs.py`,
-`cron/executions.py`, `tools/cronjob_tools.py`, and its dashboard contracts.
-The precise provenance and update method are in `docs/UPSTREAM.md`.
+The precise source, pinned revision, license, modification boundary, and update
+method are recorded only in `docs/UPSTREAM.md`.
 
 ## Acceptance evidence
 

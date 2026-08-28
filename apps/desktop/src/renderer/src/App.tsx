@@ -2029,7 +2029,7 @@ function MemorySettingsPanel(): React.JSX.Element {
  *   back is a file, and the file goes through the same pipeline as everything
  *   else. The prompt is served by the Gateway rather than written here, so the
  *   format it asks for and the parser that reads it cannot drift apart.
- * * **An agent that keeps files** — hermes, OpenClaw — hands over `MEMORY.md`
+ * * **An agent that keeps files** hands over `MEMORY.md`
  *   directly.
  * * **A memory service** — Honcho, Mem0 — is read over its API.
  *
@@ -2043,7 +2043,7 @@ const IMPORT_SOURCES = [
     label: 'A chat assistant',
     detail: 'ChatGPT, Claude, Gemini, Grok — copy a prompt, save the reply'
   },
-  { key: 'file', label: 'A memory file', detail: 'MEMORY.md or USER.md from hermes or OpenClaw' },
+  { key: 'file', label: 'A memory file', detail: 'MEMORY.md or USER.md from another assistant' },
   { key: 'honcho', label: 'Honcho', detail: 'Read from your account' },
   { key: 'mem0', label: 'Mem0', detail: 'Read from your account' }
 ] as const

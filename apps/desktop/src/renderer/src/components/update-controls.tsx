@@ -1,38 +1,36 @@
 import { useStore } from '@nanostores/react'
-import { GitCommit, Hash, RefreshCw, ShieldCheck } from 'lucide-react'
-import { Popover } from 'radix-ui'
-import { useEffect, useState } from 'react'
+import { Check, Download, GitCommit, Hash, RefreshCw, ShieldCheck, X } from 'lucide-react'
+import { Dialog } from 'radix-ui'
+import { useEffect, useMemo, useState } from 'react'
 
 import type { UpdateCheck } from '../../../shared/runtime'
 import { buildUpdateChangelog } from '../lib/update-changelog'
+import { resolveVersionPresentation } from '../lib/update-presentation'
 import {
   $updateView,
+  beginUpdate,
   checkForUpdate,
+  clearUpdateHandoffFailure,
   loadUpdateState,
   setUpdateChannel
 } from '../store/update-state'
-import { AbstractIcon } from './abstract-icon'
 import { UiTooltip } from './ui/tooltip'
 
 const shortSha = (sha: string | undefined): string => sha?.slice(0, 8) ?? '—'
 
-function availableText(check: UpdateCheck | null): string {
-  if (!check) return 'Checking for updates…'
-  if (check.error) return 'Update check failed'
-  if (check.upToDate) return 'You have the latest version'
-  if (check.behindBy > 0) return `${check.behindBy} ${check.behindBy === 1 ? 'commit' : 'commits'} available`
-  return `${check.targetRef ?? 'New version'} available`
-}
-
-function checkedText(checkedAt: number | null): string {
-  if (!checkedAt) return 'Not checked yet'
-  return new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(checkedAt)
+function relativeCheckTime(checkedAt: number | null): string {
+  if (!checkedAt) return 'Never checked'
+  const elapsed = Math.max(0, Date.now() - checkedAt)
+  if (elapsed < 60_000) return 'Checked just now'
+  if (elapsed < 3_600_000) return `Checked ${Math.round(elapsed / 60_000)}m ago`
+  if (elapsed < 86_400_000) return `Checked ${Math.round(elapsed / 3_600_000)}h ago`
+  return `Checked ${Math.round(elapsed / 86_400_000)}d ago`
 }
 
 function CommitChanges({ check, compact = false }: { check: UpdateCheck; compact?: boolean }): React.JSX.Element | null {
   if (!check.available || check.commits.length === 0) return null
-  const groups = buildUpdateChangelog(check.commits, compact ? 3 : 8)
-
+  const limit = compact ? 4 : 10
+  const groups = buildUpdateChangelog(check.commits, limit)
   return (
     <div className={compact ? 'update-changes compact' : 'update-changes'}>
       {groups.map((group) => (
@@ -42,121 +40,185 @@ function CommitChanges({ check, compact = false }: { check: UpdateCheck; compact
             {group.commits.map((commit) => (
               <li key={commit.sha}>
                 <span>{commit.display}</span>
-                <code>{shortSha(commit.sha)}</code>
+                <code title={`${commit.author} · ${new Date(commit.at * 1000).toLocaleString()}`}>
+                  {shortSha(commit.sha)}
+                </code>
               </li>
             ))}
           </ul>
         </section>
       ))}
-      {check.behindBy > (compact ? 3 : 8) ? (
-        <p className="update-more">+{check.behindBy - (compact ? 3 : 8)} more changes</p>
-      ) : null}
+      {check.behindBy > limit ? <p className="update-more">+{check.behindBy - limit} more changes</p> : null}
     </div>
   )
 }
 
-function UpdateButtons(): React.JSX.Element {
+function UpdateActions({ compact = false }: { compact?: boolean }): React.JSX.Element {
   const view = useStore($updateView)
   const [confirming, setConfirming] = useState(false)
-  const available = Boolean(view.check && !view.check.upToDate && !view.check.error)
+  const available = Boolean(view.check?.available && !view.check.error)
+  const busy = view.loading || view.handoff === 'starting' || Boolean(view.status?.inProgress)
+
+  useEffect(() => {
+    if (!available) setConfirming(false)
+  }, [available])
 
   if (confirming) {
     return (
-      <div className="update-actions confirm">
-        <span>Marvi will close while the bootstrap applies this update.</span>
-        <button className="ui-button primary" onClick={() => void window.marvi?.startUpdate()} type="button">
-          QUIT + UPDATE
-        </button>
-        <button className="ui-button" onClick={() => setConfirming(false)} type="button">
-          CANCEL
-        </button>
+      <div className="update-confirmation" role="alert">
+        <p>Marvi will close, apply the update in the bootstrap window, then reopen.</p>
+        <div className="update-actions">
+          <button className="ui-button primary" disabled={busy} onClick={() => void beginUpdate()} type="button">
+            <Download aria-hidden="true" />
+            {view.handoff === 'starting' ? 'STARTING…' : 'QUIT + UPDATE'}
+          </button>
+          <button className="ui-button" disabled={busy} onClick={() => setConfirming(false)} type="button">
+            CANCEL
+          </button>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="update-actions">
-      <button className="ui-button" disabled={view.loading} onClick={() => void checkForUpdate()} type="button">
-        <RefreshCw aria-hidden="true" className={view.loading ? 'spin' : ''} />
-        {view.loading ? 'CHECKING…' : 'CHECK AGAIN'}
-      </button>
+    <div className={compact ? 'update-actions compact' : 'update-actions'}>
       <button
-        className="ui-button primary"
-        disabled={!view.status?.supported || !available || view.status?.inProgress}
-        onClick={() => setConfirming(true)}
+        className="ui-button"
+        disabled={busy}
+        onClick={() => {
+          clearUpdateHandoffFailure()
+          void checkForUpdate()
+        }}
         type="button"
       >
-        UPDATE NOW
+        <RefreshCw aria-hidden="true" className={view.loading ? 'spin' : ''} />
+        {view.loading ? 'CHECKING…' : 'CHECK NOW'}
       </button>
+      {available ? (
+        <button
+          className="ui-button primary"
+          disabled={!view.status?.supported || busy}
+          onClick={() => setConfirming(true)}
+          type="button"
+        >
+          UPDATE NOW
+        </button>
+      ) : null}
     </div>
   )
 }
 
-export function VersionPopover({
-  version,
-  onOpenAbout
-}: {
-  version: string
-  onOpenAbout: () => void
-}): React.JSX.Element {
+function UpdateStatus({ version, compact = false }: { version: string; compact?: boolean }): React.JSX.Element {
   const view = useStore($updateView)
-  const [build, setBuild] = useState<{ commit: string; buildTime: string } | null>(null)
+  const presentation = useMemo(
+    () => resolveVersionPresentation({
+      version,
+      check: view.check,
+      loading: view.loading,
+      inProgress: Boolean(view.status?.inProgress),
+      handoff: view.handoff
+    }),
+    [version, view.check, view.loading, view.status?.inProgress, view.handoff]
+  )
 
   return (
-    <Popover.Root
-      onOpenChange={(open) => {
-        if (!open) return
-        void loadUpdateState().then(() => {
-          if (!$updateView.get().check) void checkForUpdate()
-        })
-        void window.marvi
-          ?.getBuildInfo()
-          .then((info) => setBuild({ commit: info.commit, buildTime: info.buildTime }))
-      }}
-    >
-      <UiTooltip label="Version and update details" side="top">
-        <Popover.Trigger asChild>
-          <button aria-label={`Version ${version}. Open update details`} className="status-item status-version" type="button">
-            <Hash aria-hidden="true" />
-            v{version}
-            {view.check?.available ? <span className="update-dot" aria-label="Update available" /> : null}
+    <>
+      <div className={`update-state-line ${presentation.tone}`}>
+        <span className="update-state-glyph" aria-hidden="true">
+          {presentation.tone === 'busy' ? <RefreshCw className="spin" /> : presentation.tone === 'available' ? <Download /> : <Check />}
+        </span>
+        <div>
+          <span>{presentation.tone === 'available' ? 'UPDATE AVAILABLE' : 'UPDATE STATUS'}</span>
+          <strong>{presentation.status}</strong>
+          <small>{relativeCheckTime(view.checkedAt)}</small>
+        </div>
+      </div>
+      {view.handoff === 'failed' ? (
+        <p className="update-error">The installed updater could not be started. Marvi stayed open; check again or retry.</p>
+      ) : view.check?.error ? (
+        <p className="update-error">{view.check.error}</p>
+      ) : null}
+      {view.check?.available && view.check.commits.length === 0 ? (
+        <p className="update-empty-notes">An update is ready, but detailed change notes are unavailable.</p>
+      ) : null}
+      {view.check ? <CommitChanges check={view.check} compact={compact} /> : null}
+    </>
+  )
+}
+
+export function VersionPopover({ version, onOpenAbout }: { version: string; onOpenAbout: () => void }): React.JSX.Element {
+  const view = useStore($updateView)
+  const [open, setOpen] = useState(false)
+  const presentation = resolveVersionPresentation({
+    version,
+    check: view.check,
+    loading: view.loading,
+    inProgress: Boolean(view.status?.inProgress),
+    handoff: view.handoff
+  })
+
+  const onOpenChange = (next: boolean): void => {
+    setOpen(next)
+    if (!next) return
+    void loadUpdateState().then(() => {
+      const current = $updateView.get()
+      if (!current.check || !current.checkedAt || Date.now() - current.checkedAt > 5 * 60 * 1000) void checkForUpdate()
+    })
+  }
+
+  return (
+    <Dialog.Root onOpenChange={onOpenChange} open={open}>
+      <UiTooltip label={presentation.tooltip} side="top">
+        <Dialog.Trigger asChild>
+          <button
+            aria-label={`${presentation.label}. ${presentation.status}`}
+            className={`status-item status-version update-${presentation.tone}`}
+            type="button"
+          >
+            {presentation.tone === 'busy' ? <RefreshCw aria-hidden="true" className="spin" /> : <Hash aria-hidden="true" />}
+            <span>{presentation.label}</span>
           </button>
-        </Popover.Trigger>
+        </Dialog.Trigger>
       </UiTooltip>
-      <Popover.Portal>
-        <Popover.Content align="end" className="version-popover" side="top" sideOffset={7}>
-          <header className="version-popover-head">
-            <AbstractIcon name="version" size={18} />
+      <Dialog.Portal>
+        <Dialog.Overlay className="update-overlay-scrim" />
+        <Dialog.Content aria-describedby="update-center-description" className="update-center">
+          <header className="update-center-head">
             <div>
-              <strong>MARVI OS {version}</strong>
-              <span>{view.status?.channel?.toUpperCase() ?? 'RELEASE'} CHANNEL</span>
+              <span>MARVI DESKTOP</span>
+              <Dialog.Title>Version {version}</Dialog.Title>
+              <Dialog.Description id="update-center-description">Installed build and available changes</Dialog.Description>
             </div>
+            <Dialog.Close aria-label="Close update details" className="update-center-close">
+              <X aria-hidden="true" />
+            </Dialog.Close>
           </header>
-          <div className={`update-readout${view.check?.error ? ' error' : view.check?.available ? ' available' : ''}`}>
-            <span>{view.loading ? 'CHECKING' : 'UPDATE STATUS'}</span>
-            <strong>{availableText(view.check)}</strong>
-          </div>
-          <dl className="version-popover-facts">
-            <div><dt>INSTALLED</dt><dd>{shortSha(view.check?.current ?? build?.commit)}</dd></div>
+          <UpdateStatus compact version={version} />
+          <dl className="update-build-line">
+            <div><dt>INSTALLED</dt><dd>{shortSha(view.check?.current)}</dd></div>
             <div><dt>TARGET</dt><dd>{shortSha(view.check?.target)}</dd></div>
-            <div><dt>CHECKED</dt><dd>{checkedText(view.checkedAt)}</dd></div>
+            <div><dt>CHANNEL</dt><dd>{view.status?.channel?.toUpperCase() ?? 'RELEASE'}</dd></div>
           </dl>
-          {view.check ? <CommitChanges check={view.check} compact /> : null}
-          <UpdateButtons />
-          <button className="version-about-link" onClick={onOpenAbout} type="button">
-            FULL UPDATE DETAILS →
+          <UpdateActions compact />
+          <button
+            className="version-about-link"
+            onClick={() => {
+              setOpen(false)
+              onOpenAbout()
+            }}
+            type="button"
+          >
+            OPEN ABOUT + UPDATE SETTINGS →
           </button>
-          <Popover.Arrow className="version-popover-arrow" />
-        </Popover.Content>
-      </Popover.Portal>
-    </Popover.Root>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   )
 }
 
 export function AboutUpdates({ version }: { version: string }): React.JSX.Element {
   const view = useStore($updateView)
   const channel = view.status?.channel ?? 'release'
-  const check = view.check
 
   useEffect(() => {
     void loadUpdateState().then(() => {
@@ -166,50 +228,45 @@ export function AboutUpdates({ version }: { version: string }): React.JSX.Elemen
 
   return (
     <section className="about-updates" aria-label="Updates">
-      <div className={`update-readout large${check?.error ? ' error' : check?.available ? ' available' : ''}`}>
-        <div>
-          <span>{view.loading ? 'CHECKING REMOTE' : 'UPDATE STATUS'}</span>
-          <strong>{availableText(check)}</strong>
-          <small>Last checked {checkedText(view.checkedAt)}</small>
-        </div>
-        {check?.signed ? <ShieldCheck aria-label="Signed release" /> : <GitCommit aria-hidden="true" />}
-      </div>
-
+      <UpdateStatus version={version} />
       <dl className="about-update-facts">
-        <div><dt>INSTALLED</dt><dd>{version}</dd></div>
-        <div><dt>CURRENT COMMIT</dt><dd><code>{shortSha(check?.current)}</code></dd></div>
-        <div><dt>TARGET</dt><dd><code>{shortSha(check?.target)}</code></dd></div>
+        <div><dt>VERSION</dt><dd>{version}</dd></div>
+        <div><dt>RUNNING</dt><dd><code>{shortSha(view.check?.current)}</code></dd></div>
+        <div><dt>TARGET</dt><dd><code>{shortSha(view.check?.target)}</code></dd></div>
         <div><dt>CHANNEL</dt><dd>{channel.toUpperCase()}</dd></div>
-        <div><dt>INTEGRITY</dt><dd>{check?.signed === true ? 'SIGNED' : check?.signed === false ? 'UNSIGNED' : 'CHANNEL POLICY'}</dd></div>
+        <div><dt>INTEGRITY</dt><dd>{view.check?.signed === true ? <><ShieldCheck aria-hidden="true" /> SIGNED</> : 'CHANNEL POLICY'}</dd></div>
         <div><dt>UPDATER</dt><dd>{view.status?.supported ? 'READY' : 'UNAVAILABLE'}</dd></div>
       </dl>
-
-      {check?.error ? <p className="update-error">{check.error}. Check the network connection and try again.</p> : null}
-      {check?.available && check.commits.length === 0 ? (
-        <p className="update-empty-notes">An update is available, but commit details are unavailable for this checkout.</p>
-      ) : null}
-      {check ? <CommitChanges check={check} /> : null}
-
-      <div className="update-channel" aria-label="Update channel">
-        {(['release', 'dev'] as const).map((item) => (
-          <button
-            aria-pressed={channel === item}
-            className={channel === item ? 'ui-button active' : 'ui-button'}
-            key={item}
-            onClick={() => void setUpdateChannel(item)}
-            type="button"
-          >
-            {item.toUpperCase()}
-          </button>
-        ))}
+      <div className="update-settings-row">
+        <div>
+          <strong>Automatic checks</strong>
+          <span>At startup, every 30 minutes, and after returning to Marvi.</span>
+        </div>
+        <div className="update-channel" aria-label="Update channel">
+          {(['release', 'dev'] as const).map((item) => (
+            <button
+              aria-pressed={channel === item}
+              className={channel === item ? 'ui-button active' : 'ui-button'}
+              key={item}
+              onClick={() => void setUpdateChannel(item)}
+              type="button"
+            >
+              {item.toUpperCase()}
+            </button>
+          ))}
+        </div>
       </div>
-      <UpdateButtons />
+      <UpdateActions />
       {view.result ? (
         <div className={`update-last-run ${view.result.status}`}>
           <span>LAST UPDATE · {view.result.status.toUpperCase()}</span>
           <p>{view.result.message}</p>
         </div>
       ) : null}
+      <div className="update-provenance">
+        <GitCommit aria-hidden="true" />
+        <span>Change details come from the commits between the running and target builds.</span>
+      </div>
     </section>
   )
 }

@@ -273,7 +273,7 @@ def test_setting_a_schedule_requires_confirmation(store) -> None:
 # -- full cron jobs -----------------------------------------------------------
 
 
-def test_hermes_schedule_forms_are_supported() -> None:
+def test_schedule_forms_are_supported() -> None:
     now = datetime(2026, 8, 26, 12, 0, tzinfo=UTC)
 
     assert parse_when("30m", now)[0] == "once"

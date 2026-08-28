@@ -175,23 +175,23 @@ def test_keyword_and_semantic_are_interleaved_not_concatenated(tmp_path) -> None
 def test_an_import_marks_where_each_memory_came_from(tmp_path) -> None:
     """A prefix rather than a guess at the file extension. The first version
     matched `%.md` and friends, so a memory imported from Honcho -- whose
-    source is `honcho/hermes`, not a filename -- fell through to the full
+    source is a provider path, not a filename -- fell through to the full
     external-data envelope, and 154 of those would have filled the recall
     budget many times over."""
     store = MemoryStore(tmp_path / "m.db")
     store.remember_external(
-        "hardware", "The user has an RTX 3060.", source=f"{store.IMPORTED}honcho/hermes"
+        "hardware", "The user has an RTX 3060.", source=f"{store.IMPORTED}honcho/imported-assistant"
     )
 
     # The row still carries where it came from -- anything reading a memory
     # should see that -- and the block Marvi reads states it once, in a
     # heading, because she said the filename out loud when it was inline.
-    assert store.search("RTX 3060")[0]["body"].startswith("(from honcho/hermes)")
+    assert store.search("RTX 3060")[0]["body"].startswith("(from honcho/imported-assistant)")
 
     block = store.recall_block("RTX 3060")
 
     assert "The user has an RTX 3060." in block
-    assert "honcho/hermes" not in block
+    assert "honcho/imported-assistant" not in block
     assert "EXTERNAL DATA" not in block
 
 # -- secrets never get written down --------------------------------------------

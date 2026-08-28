@@ -103,8 +103,8 @@ class Skill:
     def applies(self) -> bool:
         """Whether this skill is any use on this machine, right now.
 
-        Two conditions, both from hermes, and both about the same cost: a
-        skill's name and description sit in the prompt on every turn. One for a
+        Two conditions govern the same cost: a skill's name and description sit
+        in the prompt on every turn. One for a
         platform you are not on, or for a service with no credential
         configured, is a line spent advertising something that cannot happen.
         """

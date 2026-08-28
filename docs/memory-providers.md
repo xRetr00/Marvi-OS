@@ -36,9 +36,8 @@ with rather than only trusted — and the Dreamer is a genuinely different idea
 from our `reflect()`: it draws conclusions **across** messages rather than
 counting repeats of one subject.
 
-Worth noting: `D:\hermes-agent` does not have its own memory. Its "brain" is an
-FTS5 index over *files*; real memory is a provider it delegates to. So the
-thing to copy from hermes is the provider seam, not the store.
+The durable design boundary is the provider seam rather than any one storage
+implementation. Local memory and delegated providers remain interchangeable.
 
 ## The seam
 

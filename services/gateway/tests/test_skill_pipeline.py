@@ -1,8 +1,8 @@
 """A skill's whole life, not just its arrival.
 
-Marvi's skills were a catalogue: install, list, read, remove. hermes treats
-them as a lifecycle, and every step in theirs corresponds to a way the
-catalogue version fails. These are the four that were failing here.
+Marvi's skills were a catalogue: install, list, read, remove. Treating them as
+a lifecycle exposes the ways the catalogue version fails. These are the four
+that were failing here.
 """
 
 from __future__ import annotations

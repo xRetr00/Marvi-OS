@@ -1,7 +1,6 @@
 """Writing down how to do something, after doing it once.
 
-Taken from `hermes-agent`'s background review, whose best idea is the
-distinction it draws: memory says who the user is and what is going on; a skill
+Memory says who the user is and what is going on; a skill
 says *how to do this class of task for this user*. Corrections about how Marvi
 works had nowhere to go -- memory holds facts about the world and the prompt is
 fixed -- so "stop formatting like that" was forgotten by the next session,
@@ -67,8 +66,7 @@ def test_a_correction_about_how_she_works_becomes_a_patch() -> None:
 
 
 def test_frustration_is_named_in_the_prompt_as_a_signal() -> None:
-    """The line worth copying verbatim from hermes: it is the correction that
-    otherwise disappears."""
+    """Frustration is the correction signal that otherwise disappears."""
     assert "Frustration" in learning.SYSTEM_PROMPT
     assert "stop doing that" in learning.SYSTEM_PROMPT.lower()
 
