@@ -112,6 +112,11 @@ function GraphCanvas({
       /** What is lit. Empty means everything, which is the resting state. */
       let lit: Set<string> | null = null
 
+      // Labels are placed most-connected first, so when two collide it is the
+      // hub that keeps its name. Sorted once: the order does not change as the
+      // layout settles, only the positions do.
+      const ordered = [...nodes].sort((a, b) => b.degree - a.degree)
+
       const paint = (node: ForceGraphNode): void => {
         const glyph = glyphs.get(node.id)
         if (!glyph) return
@@ -207,15 +212,38 @@ function GraphCanvas({
         const zoom = world.scale.x
         const visible = zoom >= now.textFade
         const fade = Math.min(1, Math.max(0, (zoom - now.textFade) / 0.45))
-        for (const node of nodes) {
+        // Screen space, because whether two labels collide depends on the
+        // zoom: the same two names overlap when the graph is small and sit
+        // comfortably apart when it is not.
+        const placed: { x: number; y: number; width: number }[] = []
+        for (const node of ordered) {
           glyphs.get(node.id)?.position.set(node.x, node.y)
           const label = labels.get(node.id)
           if (!label) continue
           const near = lit === null || lit.has(node.id)
-          // A hovered neighbourhood always shows its names, whatever the zoom.
-          label.visible = (visible || lit !== null) && near
+          const x = node.x
+          const y = node.y + memoryNodeRadius(node, now) + 7
+          label.position.set(x, y)
+
+          let clear = true
+          if (now.declutter && lit === null) {
+            const width = label.width
+            for (const other of placed) {
+              if (
+                Math.abs(x - other.x) * zoom < ((width + other.width) * zoom) / 2 + 4 &&
+                Math.abs(y - other.y) * zoom < 13
+              ) {
+                clear = false
+                break
+              }
+            }
+            if (clear) placed.push({ x, y, width })
+          }
+          // A hovered neighbourhood always shows its names, whatever the zoom
+          // and whatever is in the way: that is the moment somebody is asking
+          // what this one connects to.
+          label.visible = (visible || lit !== null) && near && (clear || lit !== null)
           label.alpha = lit !== null ? 1 : fade
-          label.position.set(node.x, node.y + memoryNodeRadius(node, now) + 7)
         }
       }
 
@@ -277,9 +305,18 @@ function GraphCanvas({
 
       let panning = false
       let dragNode: ForceGraphNode | null = null
-      let movedWhileDown = false
+      // How far the pointer travelled since it went down, and whether it went
+      // down on a node. Both are needed: a press that moves is a drag, and a
+      // press that started on a node must not also count as a press on the
+      // background.
+      let travelled = 0
+      let pressedNode = false
       let lastX = 0
       let lastY = 0
+      //: A press is not a drag until it has moved this far. Zero tolerance
+      //: meant one pixel of hand movement between press and release turned
+      //: every click into a pan, so no node could ever be opened.
+      const SLOP = 4
       const toWorld = (event: PointerEvent): { x: number; y: number } => {
         const rect = app.canvas.getBoundingClientRect()
         return {
@@ -289,7 +326,10 @@ function GraphCanvas({
       }
       const pointerMove = (event: PointerEvent): void => {
         if (dragNode) {
-          movedWhileDown = true
+          travelled += Math.abs(event.clientX - lastX) + Math.abs(event.clientY - lastY)
+          lastX = event.clientX
+          lastY = event.clientY
+          if (travelled <= SLOP) return
           const point = toWorld(event)
           dragNode.fx = point.x
           dragNode.fy = point.y
@@ -297,7 +337,7 @@ function GraphCanvas({
           return
         }
         if (!panning) return
-        movedWhileDown = true
+        travelled += Math.abs(event.clientX - lastX) + Math.abs(event.clientY - lastY)
         world.position.x += event.clientX - lastX
         world.position.y += event.clientY - lastY
         lastX = event.clientX
@@ -316,14 +356,19 @@ function GraphCanvas({
       const pointerDown = (event: PointerEvent): void => {
         if (event.button !== 0) return
         panning = true
-        movedWhileDown = false
+        // Not reset here. Pixi's `stopPropagation` does not stop a DOM event,
+        // so a press on a node fires the node's handler *and* this one -- and
+        // resetting the counters here would undo what the node just recorded.
         lastX = event.clientX
         lastY = event.clientY
       }
       // A click on the background clears the selection, the way closing a note
-      // does. Only when it was a click: a drag that ends over nothing is a pan.
+      // does. Not when the press landed on a node: that press already opened
+      // one, and this fired afterwards and closed it again -- which is why a
+      // node could be clicked and nothing ever appeared.
       const canvasClick = (): void => {
-        if (!movedWhileDown) live.current.onSelect(null)
+        if (!pressedNode && travelled <= SLOP) live.current.onSelect(null)
+        pressedNode = false
       }
       const wheel = (event: WheelEvent): void => {
         event.preventDefault()
@@ -347,15 +392,16 @@ function GraphCanvas({
         glyph?.on('pointerdown', (event: FederatedPointerEvent) => {
           event.stopPropagation()
           dragNode = node
-          movedWhileDown = false
+          pressedNode = true
+          travelled = 0
           node.fx = node.x
           node.fy = node.y
         })
         glyph?.on('pointerup', (event: FederatedPointerEvent) => {
           event.stopPropagation()
-          // A drag moved it; a click chose it. Same button, told apart by
-          // whether the pointer travelled.
-          if (!movedWhileDown) live.current.onSelect(node)
+          // A drag moved it; a click chose it. Same button, told apart by how
+          // far the pointer travelled -- not by whether it moved at all.
+          if (travelled <= SLOP) live.current.onSelect(node)
         })
       }
       app.canvas.addEventListener('pointerdown', pointerDown)
@@ -587,6 +633,16 @@ export function ArcMemoryGraph({
             step={0.05}
             onChange={(textFade) => setSettings((now) => ({ ...now, textFade }))}
           />
+          <label className="arc-graph-force arc-graph-toggle">
+            <span>Tidy labels</span>
+            <input
+              type="checkbox"
+              checked={settings.declutter}
+              onChange={(event) =>
+                setSettings((now) => ({ ...now, declutter: event.target.checked }))
+              }
+            />
+          </label>
           <label className="arc-graph-force arc-graph-toggle">
             <span>Arrows</span>
             <input

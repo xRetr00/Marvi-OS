@@ -2154,6 +2154,23 @@ def create_app(
             "or memory_remember."
         )
 
+    @app.get("/voice/vocabulary")
+    async def voice_vocabulary() -> dict[str, Any]:
+        """Proper nouns the recogniser has no way to know.
+
+        Measured on this machine: both Parakeet models got every ordinary
+        English word right and every proper noun wrong -- NeuDocs as "new
+        docs", Marvi as "Marvey", Shereef as "Sheriff". No bigger model fixes
+        that, because the words are in neither vocabulary and `onnx-asr`
+        exposes no way to add them before decoding.
+
+        They *are* in the memory graph, named by the dreamer from what Marvi
+        has been told, which makes this list free.
+        """
+        from . import vocabulary
+
+        return {"terms": vocabulary.terms(memory, identity)}
+
     @app.get("/memory/recall")
     async def recall_memory(text: str = "", limit: int = 5) -> dict[str, Any]:
         """What Marvi already knows that bears on this message.

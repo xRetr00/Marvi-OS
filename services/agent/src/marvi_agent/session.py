@@ -233,6 +233,34 @@ class _Prefetch:
 prefetch = _Prefetch()
 
 
+#: Proper nouns the recogniser cannot spell, fetched once per session. See
+#: `vocabulary.correct`: they are the words a sentence is usually about, and
+#: the ones a general model has no chance with.
+_names: list[str] = []
+
+
+def _load_vocabulary() -> None:
+    """Ask the Gateway for the names worth correcting against. Never raises."""
+    import contextlib
+
+    global _names
+    with contextlib.suppress(Exception):
+        import httpx
+
+        found = httpx.get(f"{gateway_url()}/voice/vocabulary", timeout=REPORT_TIMEOUT)
+        if found.status_code == 200:
+            _names = [str(term) for term in (found.json().get("terms") or [])]
+            if _names:
+                log.info("stt: %d names to correct transcripts against", len(_names))
+
+
+def _heard_correctly(text: str) -> str:
+    """The transcript with known names put back into it."""
+    from .vocabulary import correct
+
+    return correct(text, _names)
+
+
 def _recall(text: str) -> str:
     """What Marvi already knows that bears on this message.
 
@@ -394,7 +422,12 @@ class MarviVoiceAgent(Agent):
     ) -> None:
         # Logged rather than judged. Every turn goes to the model now; this is
         # here so a turn that goes missing leaves a trace of having existed.
-        text = " ".join(str(part) for part in new_message.content).strip()
+        # Corrected before anything reads it: the model, the memory, and the
+        # transcript on screen all see the same sentence, and it is the one
+        # with the names in it.
+        text = _heard_correctly(" ".join(str(part) for part in new_message.content).strip())
+        if text:
+            new_message.content = [text]
         log.info("heard: %s", text[:200] or "(nothing)")
         _report_transcript(heard=text)
 
@@ -436,6 +469,7 @@ def prewarm(proc: JobProcess) -> None:
     """
     started = time.monotonic()
     apply_speech_settings()
+    _load_vocabulary()
     voice = configured_voice()
     engine = KokoroTTS(voice=voice)
     try:
@@ -459,6 +493,11 @@ def prewarm(proc: JobProcess) -> None:
     # Silero is small but not free, and it is loaded on the same critical path.
     proc.userdata["vad"] = silero.VAD.load()
     log.info("speech models ready in %.1fs, before any call", time.monotonic() - started)
+    # And only now is Join worth offering. See `_state`: a worker with a socket
+    # and no warm process answers a job by making the caller wait for exactly
+    # this function.
+    _state["warm"] = True
+    _announce_ready()
 
 
 def build_session(proc: JobProcess | None = None) -> tuple[AgentSession, Callable[[], None]]:
@@ -691,7 +730,7 @@ async def marvi_session(ctx: JobContext) -> None:
     @session.on("user_input_transcribed")
     def _keep_heard(event: Any) -> None:
         if getattr(event, "is_final", False):
-            last_heard["text"] = getattr(event, "transcript", "") or ""
+            last_heard["text"] = _heard_correctly(getattr(event, "transcript", "") or "")
 
     @session.on("conversation_item_added")
     def _spoke(event: Any) -> None:
@@ -809,17 +848,44 @@ async def marvi_session(ctx: JobContext) -> None:
         log.info("prompt: %d context block(s) from the Gateway", len(blocks))
 
 
+#: Ready means two things, and it used to mean one.
+#:
+#: `worker_registered` fires when the worker has a socket open to LiveKit. That
+#: is not the same as being able to answer: LiveKit keeps an idle process warm
+#: and a job lands on it, so a job arriving before that process has loaded its
+#: models waits for them. From a real join:
+#:
+#:     08:17:49  prewarm starts
+#:     08:17:55  stt: parakeet ready in 6.2s on cuda
+#:     08:17:55  joined marvi-os-local in 6.5s, listening
+#:
+#: The UI had said ready six seconds earlier, so Join was pressed six seconds
+#: early, and the six seconds were spent with the button already pushed. The
+#: models were not slow; the promise was.
+_state = {"registered": False, "warm": False}
+
+
+def _announce_ready() -> None:
+    if _state["registered"] and _state["warm"]:
+        _report_ready(True, "a warm process is waiting")
+    else:
+        waiting = "registering with LiveKit" if not _state["registered"] else "loading speech models"
+        _report_ready(False, waiting)
+
+
 @server.on("worker_started")
 def _worker_starting(*_args: Any) -> None:
     # Said out loud before the models load, so the UI can hold Join rather than
-    # offering it and producing an empty session.
-    _report_ready(False, "loading speech models")
+    # offering it and producing a session that spends its first six seconds
+    # loading.
+    _announce_ready()
 
 
 @server.on("worker_registered")
 def _worker_registered(*_args: Any) -> None:
-    log.info("worker registered; voice can take a job")
-    _report_ready(True, "worker registered")
+    log.info("worker registered")
+    _state["registered"] = True
+    _announce_ready()
 
 
 def main() -> None:

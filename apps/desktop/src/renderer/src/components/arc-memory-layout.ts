@@ -30,6 +30,16 @@ export interface GraphSettings {
    * threshold, and it is the setting that makes a large graph readable: every
    * label at once is noise, and no labels at all is a starfield. */
   textFade: number
+  /** Draw a label only where it does not land on one already drawn.
+   *
+   * The threshold alone was not enough. At 148 nodes the whole graph fits on
+   * screen above the fade zoom, so every label rendered, and the picture was
+   * a hundred and forty-eight overlapping names -- less readable than no
+   * labels at all. Above the threshold the labels are placed in order of how
+   * connected a node is, and one that would collide with a label already
+   * placed is skipped: the hubs keep their names, the leaves get theirs back
+   * as you zoom in and the collisions stop. */
+  declutter: boolean
   showArrows: boolean
   /** Nodes with no edges. Worth hiding on a big graph and worth seeing on a
    * small one, which is why it is a switch rather than a decision. */
@@ -44,6 +54,7 @@ export const DEFAULT_GRAPH_SETTINGS: GraphSettings = {
   nodeSize: 1,
   linkThickness: 0.85,
   textFade: 0.75,
+  declutter: true,
   showArrows: false,
   showOrphans: true
 }
