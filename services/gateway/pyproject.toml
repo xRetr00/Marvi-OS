@@ -22,7 +22,7 @@ dependencies = [
     # to ADD-only extraction, which can retain contradictory corrections; the
     # last 1.x release still implements ADD / UPDATE / DELETE / NONE.
     "honcho-ai==2.4.0",
-    "mem0ai==1.0.11",
+    "mem0ai==2.0.0b2",
     # Semantic recall. Declared rather than optional because the setting that
     # switches it on is in the Memory page: without the package here, choosing
     # "local" wrote the setting, logged "embeddings unavailable" once per call
