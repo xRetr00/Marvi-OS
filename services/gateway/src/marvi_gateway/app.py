@@ -2133,6 +2133,27 @@ def create_app(
         )
         return {"written": True, "name": found["name"], "skills": len(skills_module.installed())}
 
+    def _worker_notes() -> str:
+        """One line about what the after-turn worker recorded, or nothing.
+
+        The worker runs off the turn, which is right -- a memory decision must
+        not sit in front of a spoken reply -- but it left Marvi unaware that
+        anything had been written. She could not say she had noted something,
+        and could not be corrected about it while the user still remembered
+        saying it. This closes that loop on the next turn, at the cost of one
+        sentence.
+        """
+        notes = rememberer.take_notes() if rememberer else []
+        if not notes:
+            return ""
+        return (
+            "Since the last thing you said, you wrote down: "
+            + "; ".join(notes)
+            + ". Mention it only if it is relevant or the user asks what you "
+            "remember; if they say it is wrong, correct it with memory_forget "
+            "or memory_remember."
+        )
+
     @app.get("/memory/recall")
     async def recall_memory(text: str = "", limit: int = 5) -> dict[str, Any]:
         """What Marvi already knows that bears on this message.
@@ -2143,7 +2164,15 @@ def create_app(
         about was, in practice, forgotten. Asked her own name, Marvi did not
         look it up; she wrote it down again, five times.
         """
-        return {"block": memory.recall_block(text, limit=max(1, min(limit, 20)))}
+        block = memory.recall_block(text, limit=max(1, min(limit, 20)))
+        # Carried on the recall the turn already asks for, rather than a second
+        # request: it belongs to the same moment and a separate round trip in
+        # front of a spoken reply is latency for one sentence.
+        if notes := _worker_notes():
+            block = f"{block}
+
+{notes}" if block else notes
+        return {"block": block}
 
     @app.post("/memory/observe", status_code=202)
     async def observe_turn(turn: ObservedTurn) -> dict[str, Any]:

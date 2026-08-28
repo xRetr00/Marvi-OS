@@ -129,9 +129,14 @@ def _parse(text: str) -> list[dict[str, Any]]:
     return [item for item in parsed if isinstance(item, dict)] if isinstance(parsed, list) else []
 
 
-def apply(store: Any, operations: list[dict[str, Any]]) -> dict[str, int]:
-    """Carry out what the model decided. Returns what was done, by operation."""
-    done = {"add": 0, "update": 0, "delete": 0, "ignored": 0}
+def apply(store: Any, operations: list[dict[str, Any]]) -> dict[str, Any]:
+    """Carry out what the model decided. Returns what was done, by operation.
+
+    `noted` carries the subjects, not just the counts, because Marvi is told
+    what she recorded on the next turn and "I noted 2 things" is not something
+    a person can correct.
+    """
+    done: dict[str, Any] = {"add": 0, "update": 0, "delete": 0, "ignored": 0, "noted": []}
     for operation in operations:
         name = str(operation.get("op") or "").strip().lower()
         body = str(operation.get("body") or "").strip()
@@ -141,12 +146,14 @@ def apply(store: Any, operations: list[dict[str, Any]]) -> dict[str, int]:
             if name == "add" and body and subject:
                 store.remember(subject, body, kind=kind)
                 done["add"] += 1
+                done["noted"].append(subject)
             elif name == "update" and body and operation.get("id") is not None:
                 # Through `forget` and `remember` rather than a bespoke write,
                 # so the FTS index and the supersede floor both still apply.
                 store.forget(int(operation["id"]))
                 store.remember(subject or body[:60], body, kind=kind)
                 done["update"] += 1
+                done["noted"].append(f"{subject or body[:60]} (corrected)")
             elif name == "delete" and operation.get("id") is not None:
                 store.forget(int(operation["id"]))
                 done["delete"] += 1
@@ -251,6 +258,12 @@ class Rememberer:
     ) -> None:
         self._store = store
         self._client = client
+        #: What the last completed turn was recorded as, until somebody reads
+        #: it. Held rather than logged because the point is that Marvi learns
+        #: of it: the write happens off the turn, so without this she has no
+        #: idea a memory was made and cannot be corrected about it in the
+        #: moment -- the loop closed silently, a turn late.
+        self.noted: list[str] = []
         # External memory providers own extraction. The same ordered worker is
         # retained so provider I/O stays off the reply path and skill proposals
         # still happen once per completed turn.
@@ -307,7 +320,11 @@ class Rememberer:
             self._working.set()
             try:
                 if self._observe_callback is None:
-                    extract(mine, self._client, user, assistant)
+                    result = extract(mine, self._client, user, assistant)
+                    # Kept short. This goes in front of a model on the next
+                    # turn, and three things she has just written down is
+                    # already more than a spoken sentence can carry.
+                    self.noted = list(result.get("noted") or [])[:3]
                 else:
                     self._observe_callback(user, assistant)
                 if self._propose_skills:
@@ -344,6 +361,16 @@ class Rememberer:
                 found["why"],
                 extra={"marvi_skill": found["name"], "marvi_act": found["act"]},
             )
+
+    def take_notes(self) -> list[str]:
+        """What was recorded since this was last asked, then forget it.
+
+        Read once. A line saying "you noted X" belongs on the turn after X was
+        written and on no turn after that -- repeating it would have her
+        announcing the same memory until something else replaced it.
+        """
+        noted, self.noted = self.noted, []
+        return noted
 
     def drain(self, timeout: float = 5.0) -> bool:
         """Wait for what is queued. For tests, and for a clean shutdown.
