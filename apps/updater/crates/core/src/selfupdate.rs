@@ -283,6 +283,17 @@ pub fn refresh(
         return Ok(false);
     };
 
+    // Do not churn the executable (and leave another retired file) when this
+    // machine already has the exact binary published by the selected release.
+    // Version strings are useful diagnostics, but the release hash is the
+    // authoritative identity here.
+    let installed_hash = sha256(&installed_path(state_dir), install_root);
+    if installed_hash.as_deref() == Some(expected.as_str()) {
+        let _ = std::fs::remove_file(&sums);
+        progress("the updater already matches this release");
+        return Ok(false);
+    }
+
     download(&asset_url(&repo, tag, ASSET), &staging, install_root, progress)?;
 
     let actual = sha256(&staging, install_root);

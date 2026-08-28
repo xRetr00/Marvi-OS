@@ -158,6 +158,7 @@ pub fn run_update(cfg: &mut UpdateConfig, progress: &mut dyn FnMut(&str)) -> Upd
     };
 
     if target == previous {
+        refresh_published_assets(cfg, &root, target_ref.as_deref(), progress);
         let out = UpdateOutcome::new("ok", "Already up to date.")
             .with_range(&previous, &target)
             .with_ref(target_ref);
@@ -212,9 +213,11 @@ pub fn run_update(cfg: &mut UpdateConfig, progress: &mut dyn FnMut(&str)) -> Upd
     progress("activating installation");
     discard_backups(&backups);
 
-    // The updater updates itself, last, and only on a release tag -- that is
-    // the only channel with a published binary to fetch. Until now this was
-    // the one component an update could not deliver: it is a compiled binary
+    // The updater updates itself last, from the newest published release.
+    // This is deliberately independent of the app channel: dev follows
+    // origin/main, but there can never be a GitHub Release named origin/main.
+    // This was the one component an update could not deliver: it is a compiled
+    // binary
     // in state/bin, an update only rebuilds the JavaScript, and the running
     // process cannot overwrite the file it is executing. So every fix to the
     // updater sat in the checkout until someone downloaded an installer.
@@ -223,22 +226,7 @@ pub fn run_update(cfg: &mut UpdateConfig, progress: &mut dyn FnMut(&str)) -> Upd
     // still an update that worked, and the alternative -- failing the whole
     // thing over a download -- would make the machine harder to fix, not
     // easier.
-    if let Some(tag) = target_ref.as_deref() {
-        // The STT engine, which no local toolchain can build. Not fatal: an
-        // update that worked and could not fetch it is still an update that
-        // worked, and voice is no worse off than before.
-        if let Err(error) = crate::selfupdate::fetch_voice_runtime(&root, tag, progress) {
-            progress(&format!(
-                "warning: could not fetch the voice runtime: {error}"
-            ));
-        }
-
-        match crate::selfupdate::refresh(&cfg.state_dir, &root, tag, progress) {
-            Ok(true) => progress("the updater will be the new one from the next launch"),
-            Ok(false) => {}
-            Err(error) => progress(&format!("warning: could not refresh the updater: {error}")),
-        }
-    }
+    refresh_published_assets(cfg, &root, target_ref.as_deref(), progress);
 
     // Also on update, not only on install. An existing installation predates
     // the handoff entirely — no `marvi` command, no shortcut, no LiveKit
@@ -266,6 +254,65 @@ pub fn run_update(cfg: &mut UpdateConfig, progress: &mut dyn FnMut(&str)) -> Upd
         .with_ref(target_ref);
     finish(cfg, &out, true);
     out
+}
+
+/// Refresh native release assets without confusing the app's moving dev ref
+/// with a GitHub Release tag. This also runs on the already-current path: the
+/// JavaScript checkout and the separately installed bootstrap can be at
+/// different versions.
+fn refresh_published_assets(
+    cfg: &UpdateConfig,
+    root: &Path,
+    app_target_ref: Option<&str>,
+    progress: &mut dyn FnMut(&str),
+) {
+    let tag = match published_release_tag(root, cfg.channel, app_target_ref) {
+        Ok(Some(tag)) => tag,
+        Ok(None) => return,
+        Err(error) => {
+            progress(&format!(
+                "warning: could not resolve the updater release: {error}"
+            ));
+            return;
+        }
+    };
+
+    progress(&format!("checking updater release {tag}"));
+
+    // The STT engine, which no local toolchain can build. Not fatal: an
+    // update that worked and could not fetch it is still an update that
+    // worked, and voice is no worse off than before.
+    if let Err(error) = crate::selfupdate::fetch_voice_runtime(root, &tag, progress) {
+        progress(&format!(
+            "warning: could not fetch the voice runtime: {error}"
+        ));
+    }
+
+    match crate::selfupdate::refresh(&cfg.state_dir, root, &tag, progress) {
+        Ok(true) => progress("the updater will be the new one from the next launch"),
+        Ok(false) => {}
+        Err(error) => progress(&format!("warning: could not refresh the updater: {error}")),
+    }
+}
+
+/// Select the release carrying native assets. Release-channel app updates
+/// already resolved a concrete tag. Dev updates instead resolve the newest
+/// published tag independently; `origin/main` is a git ref, not a release.
+fn published_release_tag(
+    root: &Path,
+    channel: Channel,
+    app_target_ref: Option<&str>,
+) -> Result<Option<String>, String> {
+    match channel {
+        Channel::Release => Ok(app_target_ref
+            .filter(|name| tags::parse_release_tag(name).is_some())
+            .map(str::to_owned)),
+        Channel::Dev => {
+            let remote_tags = git::ls_remote_tags(root)
+                .map_err(|error| format!("could not list release tags: {error}"))?;
+            Ok(tags::latest(remote_tags).map(|(tag, _)| tag))
+        }
+    }
 }
 
 /// Write the result, clear the marker, and (when the desktop exited) relaunch.
@@ -471,7 +518,7 @@ fn short(sha: &str) -> &str {
 
 #[cfg(test)]
 mod snapshot_tests {
-    use super::{snapshot_build_output, DIST_DIR, OUT_DIR};
+    use super::{DIST_DIR, OUT_DIR, snapshot_build_output};
 
     /// The failure that deleted an installation.
     ///

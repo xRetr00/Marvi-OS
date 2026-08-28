@@ -141,6 +141,13 @@ The bootstrap window closes itself only after an `ok` result has been written.
 Failed, skipped, and aborted runs stay open with recovery guidance, a selectable
 technical log, and an explicit Close updater action.
 
+The installed bootstrap is refreshed from the newest GitHub Release asset on
+both application channels. The `dev` application channel still follows
+`origin/main`, but that moving git ref is never used as a release-download
+name; native assets resolve the newest `v*` release independently. Bootstrap
+refresh also runs when the application checkout is already current, because
+the checkout version and the separately installed executable can drift.
+
 The window receives three distinct event classes: one metadata/stage manifest,
 named milestone transitions, and raw log lines. Only milestone transitions can
 change the active stage or percentage. The renderer sends `ui-ready` after all

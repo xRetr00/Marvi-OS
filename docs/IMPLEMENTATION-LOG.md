@@ -4,6 +4,18 @@ This is the chronological record of work that has actually happened. Planned
 work belongs in `docs/phases/`; architectural decisions belong in
 `docs/DECISIONS.md`.
 
+## 2026-08-28 — Bootstrap release self-refresh repair
+
+- Decoupled the installed bootstrap's release asset from the application
+  channel. Dev application updates continue to follow `origin/main`, while the
+  updater and native release assets resolve the newest `v*` release instead of
+  attempting the invalid `releases/download/origin/main/...` URL.
+- Moved bootstrap refresh onto the already-current path as well as the normal
+  application-update path, so a stale installed updater can recover even when
+  the checkout itself has no commits to apply.
+- Added an end-to-end regression proving an up-to-date dev checkout resolves
+  `v0.6.0` for updater assets and never treats `origin/main` as a release.
+
 ## 2026-08-28 — Desktop update center and version status
 
 - Replaced the status bar's passive version dot with an authoritative label

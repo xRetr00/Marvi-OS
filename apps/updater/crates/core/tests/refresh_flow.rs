@@ -4,8 +4,8 @@
 
 mod common;
 
-use common::{init_repos, FakeBuilder};
-use marvi_bootstrap_core::{check, run_update, Channel, UpdateConfig};
+use common::{FakeBuilder, init_repos};
+use marvi_bootstrap_core::{Channel, UpdateConfig, check, run_update};
 
 fn config(local: &std::path::Path, state: &std::path::Path, builder: FakeBuilder) -> UpdateConfig {
     UpdateConfig {
@@ -32,6 +32,32 @@ fn up_to_date_reports_ok_without_moving() {
     assert_eq!(out.status, "ok");
     assert_eq!(out.message, "Already up to date.");
     assert_eq!(repos.head(&repos.local), before);
+}
+
+#[test]
+fn up_to_date_dev_install_checks_the_latest_release_for_its_updater() {
+    let repos = init_repos();
+    let state = repos._tmp.path().join("state");
+    repos.tag("v0.6.0");
+    let mut lines = Vec::new();
+
+    let mut cfg = config(&repos.local, &state, FakeBuilder::ok());
+    let out = run_update(&mut cfg, &mut |line| lines.push(line.to_string()));
+
+    assert_eq!(out.status, "ok");
+    assert_eq!(out.message, "Already up to date.");
+    assert!(
+        lines
+            .iter()
+            .any(|line| line == "checking updater release v0.6.0"),
+        "progress: {lines:?}"
+    );
+    assert!(
+        lines
+            .iter()
+            .all(|line| !line.contains("release origin/main")),
+        "progress: {lines:?}"
+    );
 }
 
 #[test]
