@@ -3442,9 +3442,53 @@ def create_app(
                     # different problem from one with no models.
                     "reachable": bool(cards),
                     "models": [card.as_row() for card in cards],
+                    **_voice_verdict(profile, cards),
                 }
             )
         return {"providers": out}
+
+    def _voice_verdict(profile: Any, cards: list[Any]) -> dict[str, Any]:
+        """What the chosen model means for the spoken conversation.
+
+        Voice is the surface where a model's thinking is a thing you sit and
+        wait through, and it is chosen on a page that says nothing about that.
+        Two different problems, and they need different answers:
+
+        * The model **reasons and the effort is not off** -- every spoken reply
+          waits for it. A warning; the user may want it.
+        * The model **refuses to have reasoning turned off** -- the request
+          Marvi sends for a background job is rejected outright, and voice pays
+          the full thinking time on every sentence with no way to reduce it.
+          That is the one worth stopping on, and it is only knowable from a
+          refusal, so it is reported once it has happened at least once.
+        """
+        from .providers import mandatory_reasoning
+
+        chosen = profile.model_for("main")
+        card = next((c for c in cards if c.id == chosen), None)
+        effort = os.environ.get(profile.effort_setting(), "").strip().lower()
+        refuses = chosen in mandatory_reasoning()
+        return {
+            "voice": {
+                "model": chosen,
+                "reasons": bool(card and card.reasons),
+                # Observed, not advertised. No catalog states it.
+                "reasoning_locked_on": refuses,
+                "effort": effort,
+                "warning": (
+                    "This model will not turn its reasoning off. Every spoken "
+                    "reply waits for it to think, and there is no setting that "
+                    "shortens that. Choose a model that can be quietened, or "
+                    "continue and expect slower voice."
+                    if refuses
+                    else "This model thinks before answering, and on voice that "
+                    "is time you sit through. Setting the effort to off, or "
+                    "picking a model that does not reason, is what shortens it."
+                    if (card and card.reasons and effort not in ("", "off", "none"))
+                    else ""
+                ),
+            }
+        }
 
     @app.get("/providers/openrouter/upstreams")
     async def openrouter_upstreams(model: str = "") -> dict[str, Any]:
