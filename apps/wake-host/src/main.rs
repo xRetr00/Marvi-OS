@@ -416,16 +416,48 @@ mod tray {
         let autostart_id = autostart_item.id().clone();
         let default_id = default_item.id().clone();
 
+        fn spawn_worker(
+            listen: fn(&dyn Fn() -> bool) -> Result<(), Box<dyn std::error::Error>>,
+        ) -> std::thread::JoinHandle<()> {
+            std::thread::spawn(move || {
+                if let Err(error) = listen(&|| QUIT.load(Ordering::Relaxed)) {
+                    eprintln!("wake word stopped: {error}");
+                }
+            })
+        }
+
         // The listener runs on its own thread; this one pumps messages, which
-        // on Windows is what keeps a tray icon alive at all.
-        let worker = std::thread::spawn(move || {
-            if let Err(error) = listen(&|| QUIT.load(Ordering::Relaxed)) {
-                eprintln!("wake word stopped: {error}");
-            }
-        });
+        // on Windows is what keeps a tray icon alive at all. `worker` is
+        // `None` only once the backoff below has given up on it -- the icon
+        // and Quit still work, but nothing tries to relisten until the next
+        // login or an explicit toggle in Settings.
+        let mut worker = Some(spawn_worker(listen));
+        let mut worker_started = std::time::Instant::now();
+        let mut backoff = marvi_wake_host::restart::Backoff::new();
 
         let receiver = MenuEvent::receiver();
         while !QUIT.load(Ordering::Relaxed) {
+            // `listen` does not normally return early -- see `Reporting` and
+            // the per-hop error handling in `main.rs` -- but this is the net
+            // under that net: whatever still ends the thread (a panic inside
+            // the ONNX runtime's own C++, which no amount of `Result` handling
+            // on this side can catch), the tray notices within a beat instead
+            // of sitting on a dead microphone with a tooltip that still claims
+            // to be listening.
+            if let Some(handle) = &worker {
+                if handle.is_finished() && !QUIT.load(Ordering::Relaxed) {
+                    if backoff.should_restart(worker_started.elapsed()) {
+                        eprintln!("listener thread ended; restarting it");
+                        worker = Some(spawn_worker(listen));
+                        worker_started = std::time::Instant::now();
+                    } else {
+                        eprintln!(
+                            "listener thread keeps ending immediately; giving up on restarting it"
+                        );
+                        worker = None;
+                    }
+                }
+            }
             let mut message: MSG = unsafe { std::mem::zeroed() };
             while unsafe { PeekMessageW(&mut message, std::ptr::null_mut(), 0, 0, PM_REMOVE) } != 0
             {
@@ -471,7 +503,9 @@ mod tray {
             }
             std::thread::sleep(std::time::Duration::from_millis(100));
         }
-        let _ = worker.join();
+        if let Some(handle) = worker {
+            let _ = handle.join();
+        }
         Ok(())
     }
 }
