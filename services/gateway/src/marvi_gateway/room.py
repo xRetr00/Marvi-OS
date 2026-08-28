@@ -735,12 +735,11 @@ def unconfirmed(state: dict[str, Any]) -> str:
             "There is no light set up in the room, so its state here is a default and "
             "not a reading. Do not say whether it is on or off; say it is not set up."
         )
-    if isinstance(bulb, dict):
-        if not bulb.get("online"):
-            return (
-                "The light is unreachable, so its state here is the last thing known and "
-                "may be wrong. Say you cannot reach it rather than reporting on or off."
-            )
+    if isinstance(bulb, dict) and not bulb.get("online"):
+        return (
+            "The light is unreachable, so its state here is the last thing known and "
+            "may be wrong. Say you cannot reach it rather than reporting on or off."
+        )
     if light.get("confirmed") is False:
         return (
             "The light state is unconfirmed -- the sidecar has not had it acknowledged by "
