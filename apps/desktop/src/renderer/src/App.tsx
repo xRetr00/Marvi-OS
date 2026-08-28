@@ -116,7 +116,9 @@ import type {
   MemoryPage,
   MemoryEntry,
   MemoryImportPreview,
+  MemoryImportRequest,
   MemoryImportResult,
+  MemoryImportSources,
   MemoryGraphMode,
   MemoryGraphPage,
   MindDecision,
@@ -1980,69 +1982,212 @@ function MemorySettingsPanel(): React.JSX.Element {
 /**
  * Bringing memories in from another assistant.
  *
- * Two steps on purpose. Picking the wrong file fails silently -- a config file
- * reads as empty and an import would report success -- so what was found is
- * shown before anything is written.
+ * Three shapes, because assistants differ in what they can give you:
+ *
+ * * **A chat assistant** — ChatGPT, Claude, Gemini, Grok — cannot export, but
+ *   it can be asked. The prompt below is copied into that chat; what comes
+ *   back is a file, and the file goes through the same pipeline as everything
+ *   else. The prompt is served by the Gateway rather than written here, so the
+ *   format it asks for and the parser that reads it cannot drift apart.
+ * * **An agent that keeps files** — hermes, OpenClaw — hands over `MEMORY.md`
+ *   directly.
+ * * **A memory service** — Honcho, Mem0 — is read over its API.
+ *
+ * Two steps in every case. Picking the wrong file fails silently — a config
+ * file reads as empty and an import would report success — so what was found
+ * is shown first, along with anything the credential gate will refuse.
  */
+const IMPORT_SOURCES = [
+  {
+    key: 'chat',
+    label: 'A chat assistant',
+    detail: 'ChatGPT, Claude, Gemini, Grok — copy a prompt, save the reply'
+  },
+  { key: 'file', label: 'A memory file', detail: 'MEMORY.md or USER.md from hermes or OpenClaw' },
+  { key: 'honcho', label: 'Honcho', detail: 'Read from your account' },
+  { key: 'mem0', label: 'Mem0', detail: 'Read from your account' }
+] as const
+
 function MemoryImportSection(): React.JSX.Element {
-  const [paths, setPaths] = useState<string[]>([])
+  const [kind, setKind] = useState<(typeof IMPORT_SOURCES)[number]['key']>('chat')
+  const [sources, setSources] = useState<MemoryImportSources | null>(null)
+  const [workspaces, setWorkspaces] = useState<string[]>([])
+  const [scope, setScope] = useState('')
+  const [request, setRequest] = useState<MemoryImportRequest | null>(null)
   const [found, setFound] = useState<MemoryImportPreview | null>(null)
   const [result, setResult] = useState<MemoryImportResult | null>(null)
+  const [copied, setCopied] = useState(false)
   const [busy, setBusy] = useState('')
 
-  const choose = async (): Promise<void> => {
-    const chosen = (await window.marvi?.chooseMemoryFiles()) ?? []
-    if (chosen.length === 0) return
-    setPaths(chosen)
+  useEffect(() => {
+    let gone = false
+    void (async () => {
+      const next = await window.marvi?.getImportSources()
+      if (!gone) setSources(next ?? null)
+    })()
+    return () => {
+      gone = true
+    }
+  }, [])
+
+  // Asked rather than assumed: on a real account the default workspace was
+  // empty and everything was in one named after the assistant that wrote it.
+  useEffect(() => {
+    if (kind !== 'honcho') return
+    let gone = false
+    void (async () => {
+      const next = await window.marvi?.getHonchoWorkspaces()
+      if (gone) return
+      setWorkspaces(next?.workspaces ?? [])
+      setScope((current) => current || next?.workspaces?.[0] || '')
+    })()
+    return () => {
+      gone = true
+    }
+  }, [kind])
+
+  const look = async (next: MemoryImportRequest): Promise<void> => {
+    setRequest(next)
     setResult(null)
     setBusy('reading')
     try {
-      setFound((await window.marvi?.previewMemoryImport(chosen)) ?? null)
+      setFound((await window.marvi?.previewMemoryImport(next)) ?? null)
     } finally {
       setBusy('')
     }
+  }
+
+  const chooseFiles = async (): Promise<void> => {
+    const chosen = (await window.marvi?.chooseMemoryFiles()) ?? []
+    if (chosen.length > 0) await look({ paths: chosen })
   }
 
   const run = async (): Promise<void> => {
+    if (!request) return
     setBusy('importing')
     try {
-      setResult((await window.marvi?.importMemories(paths)) ?? null)
+      setResult((await window.marvi?.importMemories(request)) ?? null)
       setFound(null)
-      setPaths([])
+      setRequest(null)
     } finally {
       setBusy('')
     }
   }
 
+  const reachable = kind === 'honcho' ? sources?.honcho : kind === 'mem0' ? sources?.mem0 : true
+
   return (
-    <ControlSection
-      action={
-        <ControlButton disabled={!!busy} onClick={() => void choose()}>
-          Choose files
-        </ControlButton>
-      }
-      description="A MEMORY.md or USER.md from hermes or OpenClaw, or a JSON export from Mem0 or Honcho. Each memory is rewritten to fit Marvi rather than pasted in, and what she already knows is not repeated."
-      icon={Database}
-      title="Import from another assistant"
-    >
+    <>
+      <ControlSection
+        description="Marvi rewrites each memory to fit rather than pasting it in, leaves out what she already knows, and refuses anything that looks like a credential."
+        icon={Database}
+        title="Import from another assistant"
+      >
+        <Picker
+          options={IMPORT_SOURCES.map((source) => ({
+            value: source.key,
+            label: source.label,
+            detail: source.detail
+          }))}
+          value={kind}
+          onChange={(next) => {
+            setKind(next as typeof kind)
+            setFound(null)
+            setResult(null)
+            setRequest(null)
+          }}
+          placeholder="Where from"
+        />
+
+        {kind === 'chat' && sources ? (
+          <>
+            <ControlRow
+              action={
+                <ControlButton
+                  onClick={() => {
+                    void navigator.clipboard.writeText(sources.packPrompt)
+                    setCopied(true)
+                    window.setTimeout(() => setCopied(false), 2000)
+                  }}
+                >
+                  {copied ? 'Copied' : 'Copy the prompt'}
+                </ControlButton>
+              }
+              description="Paste it into ChatGPT, Claude, Gemini or Grok, save the JSON it replies with, then choose that file below."
+              title="Ask it to write down everything it knows"
+            />
+            <pre className="service-output skill-body">{sources.packPrompt}</pre>
+          </>
+        ) : null}
+
+        {kind === 'honcho' ? (
+          workspaces.length > 0 ? (
+            <Picker
+              options={workspaces.map((name) => ({ value: name, label: name, detail: '' }))}
+              value={scope}
+              onChange={setScope}
+              placeholder="Workspace"
+            />
+          ) : (
+            <p className="notice">
+              {reachable
+                ? 'Looking for your workspaces…'
+                : 'No Honcho key found. Set HONCHO_API_KEY, or choose Honcho as your memory provider and give it a key.'}
+            </p>
+          )
+        ) : null}
+
+        {kind === 'mem0' && !reachable ? (
+          <p className="notice">
+            No Mem0 key found. Set MEM0_API_KEY, or choose Mem0 as your memory provider.
+          </p>
+        ) : null}
+
+        <div className="provider-actions">
+          {kind === 'honcho' || kind === 'mem0' ? (
+            <ControlButton
+              disabled={!!busy || !reachable || (kind === 'honcho' && !scope)}
+              onClick={() => void look({ provider: kind, scope })}
+            >
+              {busy === 'reading' ? 'Reading' : 'Look at what is there'}
+            </ControlButton>
+          ) : (
+            <ControlButton disabled={!!busy} onClick={() => void chooseFiles()}>
+              {busy === 'reading' ? 'Reading' : 'Choose files'}
+            </ControlButton>
+          )}
+        </div>
+      </ControlSection>
+
       {found ? (
-        <>
+        <ControlSection icon={Database} title="Before importing">
           <ControlRow
             action={<span className="control-value">{found.found}</span>}
             description={found.files.map((file) => `${file.name} (${file.found})`).join(' · ')}
             title="Memories found"
           />
+          {found.refused.length > 0 ? (
+            <ControlRow
+              action={<span className="control-value">{found.refused.length}</span>}
+              description={`Left out. An assistant that is told a password writes it down like anything else, and these carry one — ${found.refused
+                .slice(0, 3)
+                .map((row) => row.quote.slice(0, 56))
+                .join(' · ')}`}
+              icon={ShieldAlert}
+              title="Refused as credentials"
+            />
+          ) : null}
           {found.sample.length > 0 ? (
             <pre className="service-output skill-body">{found.sample.join('\n')}</pre>
           ) : null}
           <div className="provider-actions">
             <ControlButton disabled={found.found === 0 || !!busy} onClick={() => void run()}>
-              {busy === 'importing' ? 'Importing' : `Import ${found.found}`}
+              {busy === 'importing' ? 'Importing' : `Import ${found.found - found.refused.length}`}
             </ControlButton>
             <ControlButton
               onClick={() => {
                 setFound(null)
-                setPaths([])
+                setRequest(null)
               }}
             >
               Cancel
@@ -2050,31 +2195,40 @@ function MemoryImportSection(): React.JSX.Element {
           </div>
           {busy === 'importing' ? (
             <p className="notice">
-              A model is rewriting each one to fit Marvi, then dreaming over the result to draw
-              the relations between them. A large file takes a few minutes.
+              A model is rewriting each one to fit Marvi, then dreaming over the result to draw the
+              relations between them. Hundreds of memories take a few minutes.
             </p>
           ) : null}
-        </>
+        </ControlSection>
       ) : null}
-      {busy === 'reading' ? <p className="notice">Reading those files…</p> : null}
+
       {result ? (
-        <ControlRow
-          description={
-            result.imported > 0
-              ? `${result.imported} of ${result.found} kept${
-                  result.dreamt?.linked
-                    ? `, and ${result.dreamt.linked} relationship${
-                        result.dreamt.linked === 1 ? '' : 's'
-                      } drawn between them`
-                    : ''
-                }. The rest were duplicates of what she already knew, or not about you.`
-              : result.detail || 'Nothing in those files looked like a memory.'
-          }
-          icon={result.imported > 0 ? Database : ShieldAlert}
-          title={result.imported > 0 ? 'Imported' : 'Nothing imported'}
-        />
+        <ControlSection icon={result.imported > 0 ? Database : ShieldAlert} title="Imported">
+          <ControlRow
+            description={
+              result.imported > 0
+                ? `${result.imported} of ${result.found} kept${
+                    result.dreamt?.linked
+                      ? `, and ${result.dreamt.linked} relationship${
+                          result.dreamt.linked === 1 ? '' : 's'
+                        } drawn between them`
+                      : ''
+                  }. The rest were duplicates of what she already knew, or not about you.`
+                : result.detail || 'Nothing in that looked like a memory.'
+            }
+            title={result.imported > 0 ? 'Done' : 'Nothing imported'}
+          />
+          {result.refused && result.refused.length > 0 ? (
+            <ControlRow
+              action={<span className="control-value">{result.refused.length}</span>}
+              description="Left out because they carried a password, key or identity number."
+              icon={ShieldAlert}
+              title="Refused"
+            />
+          ) : null}
+        </ControlSection>
       ) : null}
-    </ControlSection>
+    </>
   )
 }
 

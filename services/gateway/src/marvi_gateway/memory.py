@@ -20,6 +20,7 @@ import re
 import sqlite3
 import struct
 from datetime import UTC, datetime, timedelta
+from itertools import zip_longest
 from pathlib import Path
 from typing import Any, Literal
 
@@ -212,9 +213,32 @@ def default_memory_path() -> Path:
     return memory_db()
 
 
+#: Words that carry no signal in an OR query and match nearly everything.
+#:
+#: `who am I` became `"who" OR "am" OR "I"`, which matches every memory
+#: containing the letter I as a word -- and FTS5 ranked one about
+#: "development style" above the four entries naming the user, which semantic
+#: search had found correctly. `how should you talk to me` was worse: six
+#: stopwords, matching most of the store.
+#:
+#: A query made only of these produces no keyword search at all, and semantic
+#: search answers alone. That is the right answer rather than a fallback: a
+#: question with no distinctive words is precisely the question keywords cannot
+#: help with, and the whole reason embeddings were added.
+STOPWORDS = frozenset((
+    "a", "about", "all", "am", "an", "and", "any", "are", "as", "at", "be", "been",
+    "but", "by", "can", "did", "do", "does", "for", "from", "had", "has", "have", "he",
+    "her", "him", "his", "how", "i", "if", "in", "is", "it", "its", "me", "my", "of",
+    "on", "or", "our", "should", "so", "than", "that", "the", "their", "them", "then",
+    "there", "these", "they", "this", "to", "too", "us", "was", "we", "were", "what",
+    "when", "where", "which", "who", "whom", "why", "will", "with", "would", "you",
+    "your",
+))
+
+
 def _fts_query(text: str) -> str:
     """Quote every term so user text can never be FTS5 operator syntax."""
-    terms = [t for t in re.findall(r"[\w']+", text) if t]
+    terms = [t for t in re.findall(r"[\w']+", text) if t and t.lower() not in STOPWORDS]
     return " OR ".join(f'"{t}"' for t in terms)
 
 
@@ -589,8 +613,14 @@ class MemoryStore:
         anybody actually asks memory for. Running one alone means losing the
         other's best case, and the union is short enough not to matter.
 
-        Keyword results lead, because a literal match is more likely to be the
-        thing that was asked for than a close one.
+        **Interleaved, not concatenated.** Keyword results used to lead on the
+        reasoning that a literal match beats a close one. That holds while the
+        store is small and a keyword hit is therefore rare and precise. It
+        stopped holding the moment 147 memories arrived from an import: "what
+        computer do I have" matched "Computer Engineering" literally, and at a
+        limit of two that one weak hit buried the entry naming the actual
+        machine, which semantic search had ranked first. Taking from both in
+        turn is what "both, not either" actually means.
         """
         capped = max(1, min(limit, 100))
         match = _fts_query(query)
@@ -603,10 +633,17 @@ class MemoryStore:
             if match
             else []
         )
-        found = [self._row(row) for row in rows]
-        seen = {entry["id"] for entry in found}
-        for entry in self.search_similar(query, limit=capped):
-            if entry["id"] not in seen and len(found) < capped:
+        by_word = [self._row(row) for row in rows]
+        by_meaning = self.search_similar(query, limit=capped)
+
+        found: list[dict[str, Any]] = []
+        seen: set[int] = set()
+        # Keyword first within each pair, so an exact match still wins a tie --
+        # the part of the old reasoning that was right.
+        for pair in zip_longest(by_word, by_meaning):
+            for entry in pair:
+                if entry is None or entry["id"] in seen or len(found) >= capped:
+                    continue
                 found.append(entry)
                 seen.add(entry["id"])
         if not found:

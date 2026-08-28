@@ -123,3 +123,67 @@ def test_forgetting_a_memory_takes_its_vector_with_it(store) -> None:
     store.forget(memory_id)
 
     assert store._db.execute("SELECT COUNT(*) FROM vectors").fetchone()[0] == 0
+
+# -- what 147 imported memories exposed in recall ------------------------------
+
+
+def test_a_question_made_of_common_words_does_not_match_everything(tmp_path) -> None:
+    """`who am I` became `"who" OR "am" OR "I"`, which matches every memory
+    containing the word I -- and FTS5 ranked one about development style above
+    the four entries naming the user, which semantic search had found.
+
+    A question with no distinctive words is exactly the question keywords
+    cannot help with, so the right keyword answer is none at all.
+    """
+    from marvi_gateway.memory import _fts_query
+
+    assert _fts_query("who am I") == ""
+    assert _fts_query("how should you talk to me") == '"talk"'
+    # A real term still searches; only the words that match everything go.
+    assert _fts_query("what computer do I have") == '"computer"'
+    assert _fts_query("Shereef") == '"Shereef"'
+
+
+def test_operator_syntax_is_still_quoted_away(tmp_path) -> None:
+    """The reason this function exists. Dropping stopwords must not drop the
+    quoting that stops user text becoming FTS5 operators."""
+    from marvi_gateway.memory import _fts_query
+
+    assert _fts_query('NEAR("a" "b") OR x*') == '"NEAR" OR "b" OR "x"'
+
+
+def test_keyword_and_semantic_are_interleaved_not_concatenated(tmp_path) -> None:
+    """Keyword results used to lead, all of them, which holds while the store
+    is small and a literal hit is therefore rare. With 147 memories, "what
+    computer do I have" matched "Computer Engineering" literally and buried the
+    entry naming the actual machine.
+    """
+    store = MemoryStore(tmp_path / "m.db")
+    literal = store.remember("computer science", "The user studies Computer Engineering.")
+    meaning = store.remember("the machine", "The user's desktop has an RTX 3060 and a Ryzen 5.")
+
+    # Semantic search stands in for the embedder, which is off in tests.
+    store.search_similar = lambda query, limit=10: [  # type: ignore[method-assign]
+        entry for entry in store.recent(limit=50) if entry["id"] == meaning
+    ]
+
+    found = [row["id"] for row in store.search("what computer do I have", limit=2)]
+
+    assert found == [literal, meaning]
+
+
+def test_an_import_marks_where_each_memory_came_from(tmp_path) -> None:
+    """A prefix rather than a guess at the file extension. The first version
+    matched `%.md` and friends, so a memory imported from Honcho -- whose
+    source is `honcho/hermes`, not a filename -- fell through to the full
+    external-data envelope, and 154 of those would have filled the recall
+    budget many times over."""
+    store = MemoryStore(tmp_path / "m.db")
+    store.remember_external(
+        "hardware", "The user has an RTX 3060.", source=f"{store.IMPORTED}honcho/hermes"
+    )
+
+    block = store.recall_block("RTX 3060")
+
+    assert "(from honcho/hermes) The user has an RTX 3060." in block
+    assert "EXTERNAL DATA" not in block

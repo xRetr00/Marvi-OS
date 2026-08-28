@@ -274,3 +274,149 @@ def test_an_import_is_bounded(tmp_path) -> None:
     )
 
     assert len(memory_import.read(path)) == memory_import.MAX_ITEMS
+
+# -- our own format, which a chat assistant can be asked to write ---------------
+
+
+def test_a_chat_assistant_can_be_asked_for_a_pack(tmp_path) -> None:
+    """ChatGPT, Claude, Gemini and Grok cannot export. They can be asked, and
+    the prompt has to name a format the parser here actually reads -- so both
+    live in this module and a test holds them together."""
+    assert memory_import.PACK_FORMAT in memory_import.PACK_PROMPT
+    # The rule that matters most, stated to the model as well as enforced here.
+    assert "NEVER include passwords" in memory_import.PACK_PROMPT
+
+
+def test_a_pack_is_read_by_its_own_parser(tmp_path) -> None:
+    """Our format, so it gets a real parser rather than the liberal walk the
+    other shapes get."""
+    path = tmp_path / "pack.json"
+    path.write_text(
+        json.dumps(
+            {
+                "format": "marvi-memory-pack/v1",
+                "entries": [
+                    {"kind": "fact", "category": "identity", "text": "The user is called Shereef."},
+                    {"kind": "preference", "category": "food", "text": "The user avoids sweets."},
+                    {"kind": "fact", "category": "identity", "text": "x"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    found = memory_import.read(path)
+
+    # The category is carried in, the way a markdown heading is.
+    assert found == ["identity: The user is called Shereef.", "food: The user avoids sweets."]
+
+
+def test_a_pack_s_own_never_import_policy_is_honoured(tmp_path) -> None:
+    """A file that states its own rules should have them followed, not merely
+    be treated liberally."""
+    path = tmp_path / "pack.json"
+    path.write_text(
+        json.dumps(
+            {
+                "format": "marvi-memory-pack/v1",
+                "import_policy": {"never_import": ["bank"]},
+                "entries": [
+                    {"text": "The user banks with a place that has a long name."},
+                    {"text": "The user is called Shereef."},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert memory_import.read(path) == ["The user is called Shereef."]
+
+
+# -- credentials, which every source goes through -------------------------------
+
+
+def test_a_password_is_never_imported() -> None:
+    """Found in a real account: a university login password and a national ID
+    repeated across eight peers, because an assistant that is told a password
+    writes it down like anything else."""
+    for line in (
+        "The user has credentials TC 99616424034 and password Misho2013.",
+        "The user password for the university portal is hunter2",
+        "IDENTITY: TC: 99616424034",
+        "my api key is sk-proj-AbCd1234EfGh5678IjKl",
+        "running ALTER ROLE app_user PASSWORD vpsrtIClXtw1ODJS on Supabase",
+    ):
+        assert memory_import.unsafe(line) == "credential", line
+
+
+def test_a_sentence_about_credentials_is_not_a_credential() -> None:
+    """The first version of this refused "strong credential/system blacklists",
+    which is a sentence about policy. Requiring something value-shaped after
+    the word is what tells them apart."""
+    for line in (
+        "File access should have explicit scope and strong credential/system blacklists.",
+        "For secrets, prefer an ask_secret flow that keeps values out of model context.",
+        "Target hardware: Ryzen 5 3600X, RTX 3060 12 GB, 16 GB RAM.",
+        "English STT moved from Nemotron 3.5 to Parakeet TDT 0.6B v3.",
+    ):
+        assert memory_import.unsafe(line) == "", line
+
+
+def test_what_will_be_refused_is_shown_before_the_import(tmp_path) -> None:
+    """Somebody bringing in years of notes should be told that thirteen of them
+    were passwords while they can still change their mind."""
+    found = memory_import.preview(
+        [],
+        lines=[
+            "The user is called Shereef.",
+            "The user password for the portal is hunter2",
+        ],
+        name="honcho/hermes",
+    )
+
+    assert found["found"] == 2
+    assert [row["reason"] for row in found["refused"]] == ["credential"]
+    # And it is not in the sample, which is what somebody reads to decide.
+    assert found["sample"] == ["The user is called Shereef."]
+
+
+# -- reading a provider ---------------------------------------------------------
+
+
+class Peer:
+    def __init__(self, pid: str, card: list[str] | None, representation: str) -> None:
+        self.id = pid
+        self._card = card
+        self.representation = representation
+
+    def get_card(self) -> list[str] | None:
+        return self._card
+
+
+def test_a_peer_s_card_and_observations_both_come_in() -> None:
+    """They hold different things: the card is the derived current profile, the
+    representation is what happened and when."""
+    peer = Peer(
+        "Shereef",
+        ["IDENTITY: Name: Shereef Ibrahim", "ATTRIBUTE: Location: Duzce, Turkey"],
+        "## Explicit Observations\n\n[2026-06-13 05:38:44] Shereef prefers to be called Sharif.",
+    )
+
+    found = memory_import._peer_lines(peer)
+
+    # The IDENTITY:/ATTRIBUTE: prefix and the timestamp are scaffolding.
+    assert "Name: Shereef Ibrahim" in found
+    assert "The user prefers to be called Sharif." in found
+
+
+def test_a_peer_named_after_a_conversation_does_not_become_the_subject() -> None:
+    """Honcho writes "<peer id> prefers X", and on a real account the peer ids
+    were conversation titles -- so importing verbatim produces memories that
+    begin "user-default-Checking-Room-Light-Status prefers"."""
+    peer = Peer(
+        "user-default-Checking-Room-Light-Status",
+        None,
+        "[2026-06-13 05:38:44] user-default-Checking-Room-Light-Status prefers to be called Sharif.",
+    )
+
+    assert memory_import._peer_lines(peer) == ["The user prefers to be called Sharif."]

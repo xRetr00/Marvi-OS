@@ -23,6 +23,16 @@ dependencies = [
     # last 1.x release still implements ADD / UPDATE / DELETE / NONE.
     "honcho-ai==2.4.0",
     "mem0ai==1.0.11",
+    # Semantic recall. Declared rather than optional because the setting that
+    # switches it on is in the Memory page: without the package here, choosing
+    # "local" wrote the setting, logged "embeddings unavailable" once per call
+    # where nobody reads it, and fell back to keyword recall forever. A switch
+    # that appears to work and does nothing is worse than no switch.
+    #
+    # It is the heaviest dependency in this list. It is also the difference
+    # between "who am I" finding your name and finding nothing, which is the
+    # question memory exists to answer.
+    "sentence-transformers>=3,<6",
     # `marvi setup` renders its screen with this. Already present
     # transitively; declared because depending on somebody else's
     # dependency is how a working install breaks on an unrelated bump.
