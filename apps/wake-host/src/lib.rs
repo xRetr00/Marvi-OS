@@ -8,6 +8,7 @@
 pub mod audio;
 pub mod autostart;
 pub mod detector;
+pub mod restart;
 pub mod settings;
 pub mod state;
 pub mod takeover;

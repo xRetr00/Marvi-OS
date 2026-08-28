@@ -381,6 +381,43 @@ def _fetch_github(accounts: ComposioAccounts, connection_id: str, cursor: str):
     return records, _cursor(payload, records, "updated_at") or cursor
 
 
+#: Sender local-parts that mean "this was sent to a list, not to you".
+#:
+#: Kept narrow on purpose. `support@` and `info@` are not here: a real person
+#: answers from those, and a filter that eats a reply from a human is worse
+#: than one that lets a newsletter through.
+BULK_SENDERS = (
+    "noreply", "no-reply", "no_reply", "donotreply", "do-not-reply",
+    "notifications", "notification", "newsletter", "mailer", "mailing",
+    "bounce", "updates@", "news@", "marketing", "campaign", "duyuru", "ileti",
+)
+
+#: Text no human writes and every bulk mailer does.
+BULK_PHRASES = ("unsubscribe", "view on web", "view in browser", "manage preferences")
+
+
+def _is_bulk(sender: str, body: str) -> bool:
+    """Whether this arrived as a broadcast rather than as correspondence.
+
+    Hours after Gmail was connected, Marvi's long-term memory held "GLM-5.3
+    Flash is 50% off for two weeks", "Weekly update: ETF demand and inflation
+    pressure" and "Intuit Developer News: August 2026" -- stored verbatim, JSON
+    body and tracking whitespace included -- and the graph had grown entities
+    for A101 Ekstra, Ziraat Bankasi and Hume Health. An inbox was being
+    remembered as though it were a life.
+
+    That is not only clutter. Recall is assembled from these, and a block past
+    roughly 1,600 characters is where this model stops answering and starts
+    continuing the prompt instead: measured over a real session, 0 of 19 turns
+    under that length leaked instructions into speech and 3 of 7 over it did.
+    Marketing mail is what pushed the blocks over.
+    """
+    where = sender.lower()
+    if any(mark in where for mark in BULK_SENDERS):
+        return True
+    return any(phrase in body.lower() for phrase in BULK_PHRASES)
+
+
 def _normalise_email(row: dict[str, Any]) -> MemoryItem | None:
     identifier = _pick(row, "messageId", "message_id", "id")
     if not identifier:
@@ -388,6 +425,8 @@ def _normalise_email(row: dict[str, Any]) -> MemoryItem | None:
     sender = _text(_pick(row, "sender", "from", "from.email", "payload.headers.From"), 160)
     subject = _text(_pick(row, "subject") or "(no subject)", 160)
     body = _text(_pick(row, "messageText", "body", "snippet", "preview") or "", 3_000)
+    if _is_bulk(sender, body):
+        return None
     return MemoryItem(
         f"composio:gmail:{identifier}", f"Email: {subject}",
         f"From {sender}\n\n{body}" if sender else body,

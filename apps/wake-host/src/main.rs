@@ -126,16 +126,51 @@ fn switch_requested() -> bool {
     SWITCH.swap(false, std::sync::atomic::Ordering::Relaxed)
 }
 
+/// Wraps `State` so `wake.json` cannot be left saying `running: true` after
+/// `listen` has actually stopped -- however it stopped.
+///
+/// Before this existed, the only place that wrote `running: false` was three
+/// lines after the loop below, reached only by a clean `break`. A scoring
+/// error propagated with `?` -- which used to be the only option here --
+/// returned out of `listen` from the middle of the loop and skipped straight
+/// past it, so the file went on claiming a dead listener was alive until the
+/// Gateway's own staleness check caught up fifteen seconds later, or forever
+/// if the process then exited before writing again. A `Drop` impl cannot be
+/// skipped by an early return, and unwinds with it if this thread ever panics
+/// instead -- which is the one exit this program cannot enumerate in advance.
+struct Reporting(State);
+
+impl std::ops::Deref for Reporting {
+    type Target = State;
+    fn deref(&self) -> &State {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for Reporting {
+    fn deref_mut(&mut self) -> &mut State {
+        &mut self.0
+    }
+}
+
+impl Drop for Reporting {
+    fn drop(&mut self) {
+        self.0.running = false;
+        self.0.heartbeat = state::now();
+        self.0.write();
+    }
+}
+
 /// Listen until told to stop. `quit` is set by the tray.
 fn listen(quit: &dyn Fn() -> bool) -> Result<(), Box<dyn std::error::Error>> {
     let started = state::now();
-    let mut report = State {
+    let mut report = Reporting(State {
         pid: std::process::id(),
         started_at: started,
         devices: audio::microphones(),
         default_device: audio::default_microphone(),
         ..Default::default()
-    };
+    });
 
     // From the environment when the desktop started this, from the settings
     // file when Windows did. A login-started listener inherits nothing, and
@@ -147,10 +182,9 @@ fn listen(quit: &dyn Fn() -> bool) -> Result<(), Box<dyn std::error::Error>> {
         Err(error) => {
             // Written down rather than only logged: the settings page shows
             // this, and "no usable microphone" is the one failure a user can
-            // actually fix.
+            // actually fix. The final write with `running: false` happens
+            // when `report` drops on the way out, below.
             report.error = error.clone();
-            report.heartbeat = state::now();
-            report.write();
             return Err(error.into());
         }
     };
@@ -179,7 +213,23 @@ fn listen(quit: &dyn Fn() -> bool) -> Result<(), Box<dyn std::error::Error>> {
                     // two-second window is a detection made of both.
                     microphone = open;
                     pending.clear();
-                    detector = Detector::load(&models_dir())?;
+                    match Detector::load(&models_dir()) {
+                        Ok(fresh) => detector = fresh,
+                        Err(error) => {
+                            // Keep scoring with the detector already running
+                            // rather than losing wake-word detection entirely
+                            // because the models could not be reopened after a
+                            // microphone switch -- the same "imperfect beats
+                            // nothing" rule the fallback to the default
+                            // microphone follows just above. The window it
+                            // was mid-way through judging now mixes half a
+                            // second of the old microphone with the new one,
+                            // which is one bad detection window, not a dead
+                            // listener.
+                            eprintln!("could not reload the detector: {error}");
+                            report.error = error.to_string();
+                        }
+                    }
                 }
                 Err(error) => {
                     // Keep listening on the one that works. A chosen device
@@ -203,15 +253,31 @@ fn listen(quit: &dyn Fn() -> bool) -> Result<(), Box<dyn std::error::Error>> {
         }
         while pending.len() >= HOP_SAMPLES {
             let hop: Vec<i16> = pending.drain(..HOP_SAMPLES).collect();
-            if let Some(score) = detector.push(&hop)? {
-                report.confidence = score;
-                let ready = last_fired.is_none_or(|at| at.elapsed() >= DEBOUNCE);
-                if score >= limit && ready {
-                    last_fired = Some(Instant::now());
-                    report.heard_at = Some(state::now());
-                    report.heartbeat = state::now();
-                    report.write();
-                    join(score);
+            match detector.push(&hop) {
+                Ok(Some(score)) => {
+                    report.confidence = score;
+                    let ready = last_fired.is_none_or(|at| at.elapsed() >= DEBOUNCE);
+                    if score >= limit && ready {
+                        last_fired = Some(Instant::now());
+                        report.heard_at = Some(state::now());
+                        report.heartbeat = state::now();
+                        report.write();
+                        join(score);
+                    }
+                }
+                // Not "heard nothing" -- "cannot say yet". See `Detector::push`.
+                Ok(None) => {}
+                Err(error) => {
+                    // A single bad hop -- transient ONNX Runtime trouble, not
+                    // a structural failure -- must not end wake-word detection
+                    // for the rest of this process's life. This used to be
+                    // `detector.push(&hop)?`, which returned out of `listen`
+                    // on the first inference error and left the tray's
+                    // "listening for her name" tooltip on screen over a
+                    // thread that had quietly ended. Reported instead, and
+                    // the loop moves on to the next hop.
+                    eprintln!("scoring error: {error}");
+                    report.error = error.to_string();
                 }
             }
         }
@@ -222,9 +288,7 @@ fn listen(quit: &dyn Fn() -> bool) -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    report.running = false;
-    report.heartbeat = state::now();
-    report.write();
+    // `report` drops here, which writes `running: false` -- see `Reporting`.
     Ok(())
 }
 
