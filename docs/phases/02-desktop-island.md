@@ -23,8 +23,11 @@ surface and its native-window behavior can be proven without the voice engine.
   always-on-top behavior for passive states.
 - Control-center preview state synchronized to the independent Island renderer.
 - Unit tests for malformed measurements, clamping, and display centering.
-- Canonical icon used in the sidebar and About, with generated 16–256 px ICO
-  entries, 32 px tray PNG, 256 px runtime/renderer PNG, and 512 px package PNG.
+- Canonical rounded icon used in the sidebar, About, desktop, and bootstrapper,
+  with generated 16–256 px ICO entries, a purpose-sized 16–32 px tray set,
+  explicit shortcut icon selection, 256 px runtime/renderer PNGs, and a 512 px
+  package PNG. The generator square-pads the source without distortion and
+  tunes small Windows frames separately.
 - About surface exposes version, commit, build time, target architecture,
   update channel, and current Gateway/LiveKit/voice component status.
 - Gateway-authoritative projection for all passive, voice, action,
@@ -110,6 +113,11 @@ frame.
 - Development Electron upper-bound (main + Island): 536.3 MB aggregate working
   set and 1.562 CPU-seconds over 5 seconds. No dedicated CUDA allocation was
   reported; release idle profiling remains a Phase 7 optimization gate.
+- 2026-08-29 identity refresh: regenerated the desktop, bootstrap, tray,
+  taskbar/shortcut, and renderer assets from one rounded square master; static
+  tests verify PNG geometry/transparency and every ICO frame. Provider and
+  Usage identities now reuse TheSVG's per-brand offline marks alongside the
+  existing complete connector catalog.
 - Native close verification: the Electron root stayed alive and renderer count
   changed from two to one (Island only), with no rejected polling promises.
 - 2026-08-24 resilience repair: focused Gateway tests cover approve, deny,

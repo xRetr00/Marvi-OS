@@ -52,7 +52,9 @@ Current implemented desktop surfaces:
   destinations, a collapsible branded sidebar, consistent control tooltips, and
   audible desktop haptics;
 - passive `76×8` top-edge Island seed that expands for active voice states;
-- canonical app icon rendered in the app, tray, taskbar/package, sidebar, and About.
+- canonical rounded app icon rendered from purpose-sized assets in the desktop,
+  bootstrapper, tray, taskbar/package, shortcuts, sidebar, and About; external
+  connector and provider identities use offline TheSVG brand marks;
 - action, notification, error, and confirmation Island states with automatic
   terminal collapse and stale-control cleanup when the Gateway is unavailable;
 - an idle Island that always recesses to its seed, with global YOLO and sensor
@@ -152,8 +154,10 @@ realtime trigger stream. See
 
 Gateway and agent dependencies are isolated in the root `uv` workspace. These
 commands are development tooling only; the shipped product has no CLI.
-`npm run icons` requires ImageMagick and regenerates all runtime/package icon
-sizes from `assets/app-icon-source.png`; generated icon files are committed.
+`npm run icons` requires ImageMagick and regenerates all rounded desktop,
+bootstrap, renderer, taskbar/shortcut, and tray sizes from
+`assets/app-icon-source.png`. Small Windows frames are sharpened separately and
+generated icon files are committed.
 
 ## Build and release
 

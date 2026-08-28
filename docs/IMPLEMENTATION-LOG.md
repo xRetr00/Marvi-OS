@@ -1271,3 +1271,20 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
 - Verified all 1,185 Gateway tests and 257 desktop tests, Gateway Ruff, desktop
   ESLint with zero errors (existing line-ending warnings remain), both desktop
   TypeScript targets, the production Electron/Vite build, and `git diff --check`.
+
+## 2026-08-29 — unified application and service identity
+
+- Extended the existing per-icon `@thesvg/react` integration from the complete
+  connector catalog to model-provider and usage identities. Generic shell and
+  action icons remain the required abstract/Lucide language because TheSVG is
+  a brand-mark SDK, not a general interface icon set.
+- Rebuilt the icon generator around one square-padded, alpha-rounded canonical
+  master. Desktop and bootstrap ICO files now contain individually rendered
+  16, 24, 32, 48, 64, 128, and 256 px frames; the tray has its own tighter 16,
+  20, 24, and 32 px set; renderer branding uses a dedicated 256 px PNG.
+- Made generated package/taskbar assets use a consistent 90% safe area, kept
+  the tray at 96% occupancy, and added restrained small-frame sharpening so the
+  portrait details survive Windows notification-area and shortcut rendering.
+- Bootstrap assets now share the same transparent rounded corners as Marvi OS,
+  and updater-created shortcuts explicitly select the packaged executable's
+  first icon resource.

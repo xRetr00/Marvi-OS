@@ -27,13 +27,20 @@ scanlines, blur, chromatic aberration, or noise that reduces legibility.
 
 ## Application icon and repository artwork
 
-- `assets/app-icon-source.png` is the source for ICO/PNG packaging outputs.
+- `assets/app-icon-source.png` is the source for every desktop and bootstrap
+  ICO/PNG output. The generator square-pads without distortion, preserves a
+  transparent rounded silhouette, and emits purpose-sized low-resolution
+  frames instead of asking Windows to shrink the large source at runtime.
 - `assets/marvi-os-banner.png` is README/repository artwork only.
 - Never show or package the repository banner in the main window, About, splash,
   onboarding, tray, Dynamic Island, installer, or notifications.
-- The app icon appears in the Windows executable/taskbar, tray, sidebar brand,
-  and About view. Generate purpose-sized assets from the canonical source;
-  never ask Windows to downsample the 1254 px source at runtime.
+- The app icon appears in the Windows executable/taskbar, shortcuts, tray,
+  bootstrapper, sidebar brand, and About view. Package/taskbar assets use a
+  consistent safe area, the tray uses a tighter 16–32 px treatment, and the
+  renderer uses its own 256 px PNG.
+- External services use local inline marks from `@thesvg/react` wherever a
+  service identity is shown. TheSVG is a brand library, so generic navigation,
+  status, and action glyphs remain Marvi abstract icons or Lucide controls.
 
 ## Bootstrap window
 
