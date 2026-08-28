@@ -412,6 +412,23 @@ export interface ModelProvider {
    * saying out loud rather than showing as an empty dropdown. */
   reachable: boolean
   models: ModelCard[]
+  voice?: VoiceVerdict
+}
+
+/**
+ * What the chosen model means for the spoken conversation.
+ *
+ * Voice is where a model's thinking is a thing you sit and wait through, and
+ * it is chosen on a page that said nothing about that.
+ */
+export interface VoiceVerdict {
+  model: string
+  reasons: boolean
+  /** Observed from a refusal, not advertised: no catalog states it. */
+  reasoningLockedOn: boolean
+  effort: string
+  /** Empty when there is nothing to say. */
+  warning: string
 }
 
 export interface ModelPage {

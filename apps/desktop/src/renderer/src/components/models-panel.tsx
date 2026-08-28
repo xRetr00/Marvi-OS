@@ -176,6 +176,28 @@ export function ModelsPanel(): React.JSX.Element {
           />
         </div>
 
+        {/* Said where the model is chosen, because that is where it can be
+            acted on. A model that refuses to stop thinking is a different
+            problem from one that merely does: the first has no setting that
+            helps, and the only place it is knowable is a refusal we have
+            already seen. */}
+        {active?.voice?.warning ? (
+          <div
+            className={
+              active.voice.reasoningLockedOn ? 'notice notice-warn' : 'notice'
+            }
+            role="status"
+          >
+            <strong>
+              {active.voice.reasoningLockedOn
+                ? 'Not a good voice model'
+                : 'Slower on voice'}
+            </strong>
+            <br />
+            {active.voice.warning}
+          </div>
+        ) : null}
+
         <div className="choice-row">
           <span className="choice-label">
             Effort

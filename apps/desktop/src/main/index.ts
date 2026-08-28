@@ -78,6 +78,7 @@ import type {
   VoicePage,
   LanguagePolicy,
   MemoryPolicy,
+  VoiceVerdict,
   SkillProposal,
   WakeStatus,
   WorkspacePolicy
@@ -118,6 +119,17 @@ function isMarviPage(url: string): boolean {
 /** Server-Sent Events separate frames with a blank line. */
 const SSE_FRAME_SEPARATOR = String.fromCharCode(10, 10)
 
+function voiceVerdict(raw: unknown): VoiceVerdict | undefined {
+  if (!isRecord(raw)) return undefined
+  return {
+    model: String(raw.model ?? ''),
+    reasons: raw.reasons === true,
+    reasoningLockedOn: raw.reasoning_locked_on === true,
+    effort: String(raw.effort ?? ''),
+    warning: String(raw.warning ?? '')
+  }
+}
+
 function normaliseModelPage(body: unknown): ModelPage | null {
   const page = body as { providers?: Array<Record<string, never>> }
   if (!page || !Array.isArray(page.providers)) return null
@@ -135,6 +147,7 @@ function normaliseModelPage(body: unknown): ModelPage | null {
         selected: String(row.selected ?? ''),
         routesUpstream: Boolean(row.routes_upstream),
         reachable: Boolean(row.reachable),
+        voice: voiceVerdict(row.voice as unknown),
         models: models.map((entry) => ({
           id: String(entry.id ?? ''),
           name: String(entry.name ?? entry.id ?? ''),
