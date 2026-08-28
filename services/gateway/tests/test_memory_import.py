@@ -249,9 +249,13 @@ def test_an_imported_memory_is_recalled_with_a_short_note(tmp_path) -> None:
     model = Model('{"memories":[{"subject":"marvi","body":"The user builds Marvi."}]}')
     memory_import.run(store, model, [path])
 
+    assert store.search("Marvi")[0]["body"].startswith("(from MEMORY.md)")
+
     block = store.recall_block("Marvi")
 
-    assert "(from MEMORY.md) The user builds Marvi." in block
+    # Not the filename. She read one out loud in a real conversation.
+    assert "The user builds Marvi." in block
+    assert "MEMORY.md" not in block
     assert "EXTERNAL DATA" not in block
 
 

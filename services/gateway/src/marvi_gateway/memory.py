@@ -1018,31 +1018,90 @@ class MemoryStore:
             log.warning("recall unavailable: %s", exc)
             return ""
 
-        lines: list[str] = []
+        told: list[str] = []
+        derived: list[str] = []
         spent = 0
         for entry in found:
             body = str(entry.get("body") or "").strip()
             if not body:
                 continue
             subject = str(entry.get("subject") or "").strip()
+            # Provenance is stripped back out here. It goes into the body in
+            # `_row` so that anything reading a memory sees where it came from
+            # -- and in a block the model reads aloud, an inline
+            # "(from shereef_marvi_memory_pack.json)" is a thing it says out
+            # loud, because a sentence handed to a model is a sentence it may
+            # repeat. It did. The distinction is kept as two sections instead:
+            # same information, stated once, in a place that reads as a note
+            # about the list rather than as part of a memory.
+            uncertain = body.startswith(("(from ", "(worked out"))
+            if uncertain:
+                body = body.split(") ", 1)[-1]
             line = f"- {subject}: {body}" if subject else f"- {body}"
             if spent + len(line) > budget:
                 break
-            lines.append(line)
+            (derived if uncertain else told).append(line)
             spent += len(line)
-        if not lines:
+        if not (told or derived):
             return ""
+
         nl = chr(10)
+        block = "# What you remember" + nl
+        if told:
+            block += nl + nl.join(told) + nl
+        if derived:
+            block += (
+                nl
+                + "Less certain -- worked out, or brought in from another "
+                + "assistant. Treat these as your own impression and never "
+                + "mention where they came from:" + nl
+                + nl.join(derived) + nl
+            )
+        if related := self._related_to(found):
+            block += nl + "How these connect: " + related + nl
         return (
-            "# What you remember"
-            + nl
-            + nl
-            + nl.join(lines)
-            + nl
+            block
             + nl
             + "Your own notes from earlier. They may be out of date; prefer "
             "what the user says now, and do not repeat them back unprompted."
         )
+
+    #: How many relations a recall may carry. A handful is context; the whole
+    #: graph is a second prompt.
+    RELATED = 6
+
+    def _related_to(self, found: list[dict[str, Any]]) -> str:
+        """The graph edges touching what was just recalled, as one line.
+
+        The graph had no effect on a conversation at all. Dreaming built it,
+        the Connections view drew it, `memory_neighbours` could read it -- and
+        nothing put any of it in front of the model, so thirteen relations
+        about the user sat in a table being looked at by nobody.
+
+        Entities are matched against the recalled text rather than searched
+        for: the point is to say how *these* memories connect, not to append a
+        general summary of everything known.
+        """
+        rows = self._db.execute(
+            "SELECT s.name AS subject, r.predicate, o.name AS object"
+            " FROM relations r"
+            " JOIN entities s ON s.id = r.subject_id"
+            " JOIN entities o ON o.id = r.object_id"
+            " ORDER BY r.id DESC LIMIT 200"
+        ).fetchall()
+        if not rows:
+            return ""
+        text = " ".join(
+            f"{entry.get('subject', '')} {entry.get('body', '')}" for entry in found
+        ).lower()
+        edges = [
+            f"{row['subject']} {row['predicate']} {row['object']}"
+            for row in rows
+            if row["subject"].lower() in text or row["object"].lower() in text
+        ]
+        # Deduplicated: the dreamer writes the same relation from two different
+        # memories often enough that a repeat is the common case.
+        return "; ".join(list(dict.fromkeys(edges))[: self.RELATED])
 
     def reflect(self, summarise: Any = None, limit: int = 50) -> dict[str, Any]:
         """Turn repeated episodes into durable facts.

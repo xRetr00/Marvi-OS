@@ -253,8 +253,22 @@ class ProviderProfile:
         return self.effort_env or f"MARVI_{self.name.replace('-', '_').upper()}_EFFORT"
 
     def model_for(self, job: Literal["main", "aux", "vision"] = "main") -> str:
-        if job == "aux" and self.default_aux_model:
-            return self.default_aux_model
+        """Which model answers this job when nothing named one.
+
+        **`aux` falls through to the main model.** It used to return
+        `default_aux_model` -- a value hardcoded per provider -- which meant
+        every background job silently ran on `google/gemini-3.5-flash-lite`
+        while the Models page said, of every role, "Auto — uses your main
+        model", and the user had chosen DeepSeek V4 Flash. The page was not
+        describing the behaviour; it was describing what anyone would assume,
+        and the code did something else.
+
+        `default_aux_model` stays as *data*: it is a sensible cheaper model for
+        this provider, and the settings page offers it as a suggestion. What it
+        may not be is a silent default, because a background job spending on a
+        model you did not pick and cannot see is the thing the whole role
+        system exists to make visible.
+        """
         if job == "vision":
             return self.default_vision_model or self.default_model
         if self.default_model_env:

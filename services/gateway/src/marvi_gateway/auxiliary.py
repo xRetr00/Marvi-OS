@@ -7,8 +7,10 @@ worth mentioning is a one-sentence yes or no, summarising a fetched page needs
 no reasoning at all, and both happen far more often than a hard question.
 
 So each of those jobs is a *role*, and a role may name its own provider and
-model. Unset means `auto`: use the active provider's `default_aux_model` via
-the existing `job="aux"` route.
+model. Unset means `auto`, and auto means **the main model** -- the same one
+the conversation uses. It did not, once: `job="aux"` resolved to a hardcoded
+`default_aux_model` per provider, so every background job ran on a model
+nobody had chosen while the page said each was on auto.
 
 ## Why roles rather than one "auxiliary" switch
 

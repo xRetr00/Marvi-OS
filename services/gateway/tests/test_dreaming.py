@@ -196,7 +196,13 @@ def test_a_conclusion_is_recalled_as_something_she_worked_out(tmp_path) -> None:
 
     block = store.recall_block("hours")
 
-    assert "(worked out, not stated) They keep early hours." in block
+    # Said once, about the list, rather than inside every sentence. It was
+    # inline -- and a sentence handed to a model is a sentence it may repeat,
+    # so she read "(from shereef_marvi_memory_pack.json)" out loud in a real
+    # conversation. The distinction is kept; the place it is stated changed.
+    assert "They keep early hours." in block
+    assert "Less certain" in block
+    assert "(worked out" not in block
 
 
 def test_a_conclusion_does_not_get_the_prompt_injection_envelope(tmp_path) -> None:

@@ -79,7 +79,16 @@ def test_model_calls_log_route_latency_and_usage_without_prompt_content(caplog) 
     assert "You are Marvi" not in rendered
 
 
-def test_auxiliary_jobs_use_the_providers_auxiliary_model() -> None:
+def test_auxiliary_jobs_follow_the_main_model() -> None:
+    """They used to run on a per-provider `default_aux_model`, so every
+    background job went to `google/gemini-3.5-flash-lite` while the Models
+    page said, of every role, "Auto — uses your main model" and the user had
+    chosen DeepSeek. The page was describing what anyone would assume; the
+    code did something else.
+
+    A cheaper model for a background job is a good idea and is what the
+    role pickers are for. What it may not be is silent.
+    """
     requested: dict = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -89,8 +98,9 @@ def test_auxiliary_jobs_use_the_providers_auxiliary_model() -> None:
     client = ProviderClient(http=httpx.Client(transport=httpx.MockTransport(handler)))
     result = client.call(MESSAGES, provider="openai", job="aux")
 
-    assert requested["model"] == "gpt-5.2-mini"
-    assert result.model == "gpt-5.2-mini"
+    # What was asked for is the main model. What came back is whatever the
+    # fixture says the provider answered with, which is not the same claim.
+    assert requested["model"] == "gpt-5.2"
 
 
 def test_the_budget_sees_the_saving_from_caching() -> None:
