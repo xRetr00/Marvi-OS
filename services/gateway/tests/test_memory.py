@@ -92,7 +92,11 @@ def test_forget_matching_removes_a_whole_topic(memory) -> None:
     memory.remember("Party guests", "twelve people")
     memory.remember("Unrelated", "car service")
 
-    assert memory.forget_matching("party") == 2
+    gone = memory.forget_matching("party")
+
+    # The subjects come back so a caller can say what it removed rather than
+    # report a number. A wrong deletion should be visible in the moment.
+    assert gone == {"forgotten": 2, "subjects": ["Party planning", "Party guests"]}
     assert memory.count() == 1
     assert memory.search("party") == []
 
@@ -165,3 +169,55 @@ async def test_memory_tools_route_through_the_gateway(tmp_path) -> None:
         assert store.count() == 1
     finally:
         store.close()
+
+
+def test_forgetting_one_thing_does_not_take_the_neighbours(memory) -> None:
+    """It searched with the hybrid search and took a hundred results. With
+    embeddings on, "forget that I am based on OpenHuman" would have found every
+    memory about the architecture and deleted the lot.
+
+    Literal matching only, and a handful at most: semantic recall is for
+    finding things, and it is the wrong instrument for deciding what to
+    destroy.
+    """
+    memory.remember("morning", "The user makes coffee at six.")
+    memory.remember("beans", "The user buys coffee beans on Fridays.")
+    memory.remember("evening", "The user drinks tea after dinner.")
+
+    gone = memory.forget_matching("coffee")
+
+    assert gone["forgotten"] == 2
+    assert [row["subject"] for row in memory.recent()] == ["evening"]
+
+
+def test_a_forget_with_no_distinctive_words_removes_nothing(memory) -> None:
+    """`forget what I told you` is stopwords. Matching on those would remove
+    whatever happened to contain the word I."""
+    memory.remember("name", "The user is called Shereef.")
+
+    assert memory.forget_matching("forget what I told you") == {"forgotten": 0, "subjects": []}
+    assert memory.count() == 1
+
+
+def test_a_relationship_can_be_taken_back(memory) -> None:
+    """There was `link` and no way back, so the dreamer's conclusion that
+    "Marvi is based on openhuman" -- false, and drawn from another assistant's
+    notes -- could not be removed by anything. `memory_forget` deletes
+    memories, and a relation is not one."""
+    memory.link("Marvi", "is based on", "openhuman")
+    memory.link("Marvi", "uses component", "Kokoro")
+
+    gone = memory.unlink("Marvi", "is based on", "openhuman")
+
+    assert gone == {"removed": 1, "relations": ["Marvi is based on openhuman"]}
+    assert [row["object"] for row in memory.neighbours("Marvi")] == ["Kokoro"]
+
+
+def test_removing_the_last_edge_removes_the_thing(memory) -> None:
+    """An entity with no edges is not something Marvi knows about any more, and
+    leaving it fills the graph view with lone dots."""
+    memory.link("Marvi", "is based on", "openhuman")
+
+    memory.unlink("openhuman")
+
+    assert memory.graph_size() == {"entities": 0, "relations": 0}
