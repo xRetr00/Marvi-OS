@@ -24,6 +24,7 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+STARTUP_GRACE = 90.0
 INGEST_MINUTES = 10
 MIND_MINUTES = 2
 REFLECT_HOURS = 6
@@ -93,6 +94,10 @@ class Initiative:
             try:
                 result = work()
                 self.last_runs[name] = datetime.now(UTC).isoformat()
+                # On disk too: `last_runs` dies with the process, and the slow
+                # passes are scheduled from when they last finished so that a
+                # restart does not put them off by another whole interval.
+                self._mark_ran(name)
                 self.last_errors.pop(name, None)
                 logger.info(
                     "initiative job completed",
@@ -263,6 +268,56 @@ class Initiative:
 
     # -- lifecycle -----------------------------------------------------------
 
+    def _ran_at(self) -> dict[str, float]:
+        """When each slow job last finished, across restarts."""
+        from .paths import root
+
+        try:
+            import json
+
+            return json.loads((root() / "state" / "initiative.json").read_text("utf-8"))
+        except (OSError, ValueError):
+            return {}
+
+    def _mark_ran(self, job: str) -> None:
+        from .paths import root
+
+        import json
+
+        path = root() / "state" / "initiative.json"
+        seen = self._ran_at()
+        seen[job] = time.time()
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(seen), encoding="utf-8")
+        except OSError as exc:  # pragma: no cover - depends on the filesystem
+            logger.warning("could not record when %s ran: %s", job, exc)
+
+    def _first_run(self, job: str, every_seconds: float) -> Any:
+        """When this job should next run, counting from when it last did.
+
+        APScheduler's interval trigger counts from when the *scheduler* starts,
+        so a twelve-hour job needs twelve hours of unbroken uptime. Measured on
+        this installation: the Gateway restarts every twelve minutes at the
+        median and its longest run on record is five hours, so `dream` and
+        `consolidate` had never executed -- not late, not skipped, zero runs
+        since they were written. Every slow pass in the memory architecture was
+        dead code in production while looking scheduled.
+
+        Counting from the last completed run instead means a restart costs
+        nothing, and a job that is overdue runs shortly after boot rather than
+        one whole interval later.
+        """
+        from datetime import UTC, datetime, timedelta
+
+        last = self._ran_at().get(job)
+        if last is None:
+            # Never run. Soon, but not during boot -- these are model calls and
+            # the first minute after start belongs to whoever is waiting.
+            return datetime.now(UTC) + timedelta(seconds=STARTUP_GRACE)
+        due = last + every_seconds
+        return datetime.fromtimestamp(max(due, time.time() + STARTUP_GRACE), UTC)
+
     def start(self) -> bool:
         if self._scheduler is not None:
             return False
@@ -280,14 +335,17 @@ class Initiative:
         scheduler.add_job(
             self._guard("reflect", self.run_reflect), "interval",
             hours=REFLECT_HOURS, id="reflect", max_instances=1, coalesce=True,
+            next_run_time=self._first_run("reflect", REFLECT_HOURS * 3600),
         )
         scheduler.add_job(
             self._guard("dream", self.run_dream), "interval",
             hours=DREAM_HOURS, id="dream", max_instances=1, coalesce=True,
+            next_run_time=self._first_run("dream", DREAM_HOURS * 3600),
         )
         scheduler.add_job(
             self._guard("consolidate", self.run_consolidate), "interval",
             hours=CONSOLIDATE_HOURS, id="consolidate", max_instances=1, coalesce=True,
+            next_run_time=self._first_run("consolidate", CONSOLIDATE_HOURS * 3600),
         )
         scheduler.start()
         self._scheduler = scheduler

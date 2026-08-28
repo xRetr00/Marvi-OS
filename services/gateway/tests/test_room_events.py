@@ -6,7 +6,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from marvi_gateway.app import create_app
-from marvi_gateway.room import NOTABLE_EVENTS, RoomSidecar, summarize_event
+from marvi_gateway.room import NOTABLE_EVENTS, RoomSidecar, is_notable, summarize_event
 from marvi_gateway.runtime import ROOM_EVENT_TTL_SECONDS, RuntimeStore
 from marvi_gateway.tools import ToolRegistry
 
@@ -248,3 +248,15 @@ async def test_room_events_endpoint_serves_the_notable_tail(tmp_path) -> None:
     # must answer empty rather than fail.
     assert response.status_code == 200
     assert response.json()["events"] == []
+
+
+def test_an_unrecognised_face_reaches_marvi() -> None:
+    """The camera has been seeing strangers and telling nobody.
+
+    The engine raises `vision_visitor_seen`; this allowlist only knew
+    `visitor_report`. Checked against the journal, not a single unrecognised
+    face had ever reached Marvi. The allowlist was built from the engine's own
+    `_emit_event` calls and a real event log, and this name slipped both
+    because it looks so much like the one that was there.
+    """
+    assert is_notable({"type": "vision_visitor_seen", "sighting_id": 7})

@@ -96,6 +96,13 @@ NOTABLE_EVENTS = frozenset(
         "room_entry",
         "room_welcome",
         "visitor_report",
+        # What the engine actually emits when the camera sees somebody it does
+        # not know: `vision.py` raises `vision_visitor_seen`, and this list
+        # only ever knew `visitor_report`. Checked against the journal -- an
+        # unrecognised face has never once reached Marvi. The allowlist was
+        # built from the engine's own `_emit_event` calls and a real log, and
+        # this one slipped both because the two names look like each other.
+        "vision_visitor_seen",
         # A device dropping off the network is the room quietly losing a limb.
         "device_offline",
         "device_online",
@@ -190,7 +197,7 @@ def summarize_event(event: dict[str, Any]) -> str:
 
     if kind == "room_presence_unverified":
         return f"Unverified entry: {event.get('identity_reason', 'unknown reason')}"
-    if kind in {"room_welcome", "visitor_report", "alarm_requested"}:
+    if kind in {"room_welcome", "visitor_report", "vision_visitor_seen", "alarm_requested"}:
         return str(event.get("message") or event.get("summary") or kind.replace("_", " "))
     if kind == GESTURE_EVENT:
         return f"Gesture {event.get('gesture', 'unknown')} requested {event.get('command')}"

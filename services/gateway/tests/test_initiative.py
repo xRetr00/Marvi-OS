@@ -8,6 +8,8 @@ events exactly once.
 
 from __future__ import annotations
 
+import time
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 
@@ -243,3 +245,42 @@ def test_pausing_still_works_on_its_own(tmp_path, monkeypatch) -> None:
 
     with TestClient(create_app()) as client:
         assert client.put("/initiative", json={"paused": True}).json()["paused"] is True
+
+
+def test_a_slow_pass_is_scheduled_from_when_it_last_ran(parts, tmp_path, monkeypatch) -> None:
+    """Dreaming and consolidation had never executed. Not once.
+
+    APScheduler's interval trigger counts from when the *scheduler* starts, so
+    a twelve-hour job needs twelve unbroken hours. Measured on the real
+    installation: the Gateway restarts every twelve minutes at the median, and
+    its longest recorded run is five hours. Both jobs looked scheduled and were
+    dead code.
+    """
+    monkeypatch.setenv("MARVI_HOME", str(tmp_path))
+    journal, memory, mind = parts
+    worker = Initiative(mind, journal, memory=memory)
+
+    # Never run: soon after boot, not one interval away.
+    first = worker._first_run("dream", 12 * 3600)
+    assert 0 < (first.timestamp() - time.time()) <= 120
+
+    # Ran an hour ago: due eleven hours from then, not twelve from now.
+    worker._mark_ran("dream")
+    monkeypatch.setattr(
+        worker, "_ran_at", lambda: {"dream": time.time() - 3600}
+    )
+    later = worker._first_run("dream", 12 * 3600)
+    assert 10.5 * 3600 < (later.timestamp() - time.time()) < 11.5 * 3600
+
+
+def test_an_overdue_pass_runs_shortly_after_boot(parts, tmp_path, monkeypatch) -> None:
+    """A job whose interval elapsed while the process was down should not wait
+    for a fresh one."""
+    monkeypatch.setenv("MARVI_HOME", str(tmp_path))
+    journal, memory, mind = parts
+    worker = Initiative(mind, journal, memory=memory)
+    monkeypatch.setattr(worker, "_ran_at", lambda: {"dream": time.time() - 40 * 3600})
+
+    when = worker._first_run("dream", 12 * 3600)
+
+    assert 0 < (when.timestamp() - time.time()) <= 120
