@@ -435,24 +435,60 @@ async def test_a_stale_event_is_not_re_journaled_on_every_poll(tmp_path, monkeyp
 # -- not reporting a default as a reading -------------------------------------
 
 
-def test_an_unconfigured_light_is_not_reported_as_off() -> None:
+#: One bulb exactly as the sidecar reports it.
+#:
+#: Every fixture below used to carry a `configured` key, which the sidecar has
+#: never emitted -- the tests were written from the check rather than from a
+#: payload, so they agreed with the bug instead of catching it. Copied from a
+#: live `POST /tools/room_state` on 2026-08-28, when the room said the light
+#: was not set up while it was on and had answered a poll five seconds before.
+LIVE_BULB = {
+    "online": True,
+    "ip": "192.168.1.104",
+    "last_seen": None,
+    "last_poll": "2026-08-28T07:35:15.310431+00:00",
+    "consecutive_failures": 0,
+    "last_success": "2026-08-28T07:35:15.310431+00:00",
+    "last_command": "get_status",
+    "queue_depth": 0,
+    "circuit_open": False,
+}
+
+
+def test_a_working_bulb_is_not_called_unconfigured() -> None:
+    """The regression this file exists for now.
+
+    The sidecar reported the bulb online, polled, and the light on and
+    confirmed. `unconfirmed` read a `configured` flag off the device entry,
+    got None because no such field is sent, and returned "say it is not set
+    up" -- so Marvi told the user the light was not configured while they were
+    sitting under it.
+    """
+    assert (
+        unconfirmed(
+            {
+                "light": {"on": True, "brightness": 100, "scene": "custom", "confirmed": True},
+                "devices": {"tuya_bulb": LIVE_BULB},
+            }
+        )
+        == ""
+    )
+
+
+def test_a_light_with_no_bulb_at_all_is_not_reported_as_off() -> None:
     """The wrong answer that is worst: confident, specific, and about something
     the user is looking at.
 
-    With no MQTT broker and no Tuya key, the sidecar returns
-    `{"on": false, "brightness": 0, "scene": "off", "confirmed": false}` -- a
-    default, not a reading. Marvi passed it on as "the light is off" while it
-    was on. The sidecar was already saying `confirmed: false` and nothing read
-    it.
+    With no MQTT broker and no Tuya key the sidecar lists no bulb and `light`
+    comes back as `{"on": false, "brightness": 0, "scene": "off",
+    "confirmed": false}` -- a default, not a reading. Marvi passed it on as
+    "the light is off" while it was on.
     """
     caveat = unconfirmed(
-        {
-            "light": {"on": False, "confirmed": False},
-            "devices": {"tuya_bulb": {"online": False, "configured": False}},
-        }
+        {"light": {"on": False, "confirmed": False}, "devices": {"esp32": {"online": True}}}
     )
 
-    assert "not configured" in caveat
+    assert "no light set up" in caveat
     assert "on or off" in caveat
 
 
@@ -460,7 +496,7 @@ def test_an_unreachable_light_says_so_rather_than_guessing() -> None:
     caveat = unconfirmed(
         {
             "light": {"on": True, "confirmed": True},
-            "devices": {"tuya_bulb": {"online": False, "configured": True}},
+            "devices": {"tuya_bulb": {**LIVE_BULB, "online": False}},
         }
     )
 
@@ -471,24 +507,11 @@ def test_an_unconfirmed_reading_from_a_reachable_bulb_is_still_flagged() -> None
     caveat = unconfirmed(
         {
             "light": {"on": True, "confirmed": False},
-            "devices": {"tuya_bulb": {"online": True, "configured": True}},
+            "devices": {"tuya_bulb": LIVE_BULB},
         }
     )
 
     assert "unconfirmed" in caveat
-
-
-def test_a_confirmed_reading_carries_no_caveat() -> None:
-    """A caveat on every answer is a caveat nobody reads."""
-    assert (
-        unconfirmed(
-            {
-                "light": {"on": True, "confirmed": True},
-                "devices": {"tuya_bulb": {"online": True, "configured": True}},
-            }
-        )
-        == ""
-    )
 
 
 @pytest.mark.asyncio
@@ -602,3 +625,28 @@ def test_an_unreachable_room_says_so_rather_than_looking_empty() -> None:
 
     assert library["ok"] is False
     assert "not answering" in library["detail"]
+
+
+def test_a_pending_face_reaches_the_page_with_who_it_looks_like() -> None:
+    """"34% nearest match" -- of whom?
+
+    The review card could only show a score, so the one action it invited was
+    typing a name the library already held. The sidecar knows who each pending
+    face is closest to; this is the passthrough that lets the card say it.
+    """
+    library = faces(
+        FakeVision(
+            visitors=[
+                {"id": 7, "score": 0.34, "nearest": {"name": "Shereef", "score": 0.3387}}
+            ]
+        )
+    )
+
+    assert library["pending"][0]["nearest"] == {"name": "Shereef", "score": 0.3387}
+
+
+def test_a_pending_face_with_nobody_to_compare_against_says_so_quietly() -> None:
+    """An empty library is not an error, and not a name either."""
+    library = faces(FakeVision(visitors=[{"id": 8, "score": 0.0}]))
+
+    assert library["pending"][0]["nearest"] == {}

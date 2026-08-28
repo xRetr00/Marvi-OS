@@ -674,6 +674,11 @@ def faces(sidecar: RoomSidecar) -> dict[str, Any]:
                     "at": sighting.get("at"),
                     "score": sighting.get("score"),
                     "image": _inline(sighting.get("thumbnail")),
+                    # Who the face is closest to, whatever the score. Without
+                    # it the card could only offer "34% nearest match" and an
+                    # empty name box, so the one action it invited was typing
+                    # a name the library already held.
+                    "nearest": sighting.get("nearest") or {},
                 }
             )
     except (RoomUnavailableError, RoomRejectedError):
@@ -717,12 +722,20 @@ def unconfirmed(state: dict[str, Any]) -> str:
         return ""
     devices = state.get("devices")
     bulb = devices.get("tuya_bulb") if isinstance(devices, dict) else None
+    if bulb is None:
+        # The sidecar lists a device only once it has one to talk to, so an
+        # absent entry is the "no bulb set up" case. It used to be read off a
+        # `configured` flag on the entry instead -- a field the sidecar has
+        # never emitted, so `.get` returned None on every healthy room and
+        # every reply about the light became "say it is not set up". The bulb
+        # was on, confirmed, and had answered a poll five seconds earlier.
+        # The tests missed it because their fixtures supplied the invented
+        # field; they now carry a real payload.
+        return (
+            "There is no light set up in the room, so its state here is a default and "
+            "not a reading. Do not say whether it is on or off; say it is not set up."
+        )
     if isinstance(bulb, dict):
-        if not bulb.get("configured"):
-            return (
-                "The light is not configured, so its state here is a default and not a "
-                "reading. Do not say whether it is on or off; say it is not set up."
-            )
         if not bulb.get("online"):
             return (
                 "The light is unreachable, so its state here is the last thing known and "
