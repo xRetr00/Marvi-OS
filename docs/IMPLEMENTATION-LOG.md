@@ -1288,3 +1288,8 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
 - Bootstrap assets now share the same transparent rounded corners as Marvi OS,
   and updater-created shortcuts explicitly select the packaged executable's
   first icon resource.
+- Verified 304 desktop tests (including 38 focused icon/identity checks), both
+  desktop TypeScript targets, the production Electron/Vite build, all 73
+  updater-core tests, desktop ESLint with zero errors (existing CRLF warnings
+  remain), visual inspection of the 512 px package, 256 px bootstrap/renderer,
+  and enlarged 32 px tray outputs, and `git diff --check`.
