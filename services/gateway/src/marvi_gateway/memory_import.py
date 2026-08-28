@@ -54,7 +54,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from . import distil
+from . import credentials, distil
 from .logs import get_logger
 from .setup import skill_guard
 
@@ -80,39 +80,6 @@ MAX_OUTPUT_TOKENS = 3_000
 #: Keys that hold the actual text in the exports people have. Ordered: an entry
 #: with both `memory` and `content` means the first.
 TEXT_KEYS = ("memory", "content", "text", "fact", "observation", "summary", "body", "value")
-
-#: Credential shapes that must never enter memory.
-#:
-#: Not a nicety. The first real import run against a live Honcho account found
-#: a university login password and a national ID number repeated across eight
-#: peers, and a database role password in a ninth -- because an assistant that
-#: is *told* a password writes it down like anything else. Importing that would
-#: copy it into this store and then into the prompt on every matching recall.
-#:
-#: The user's own memory-pack format says the same thing in its
-#: `never_import` policy: passwords, API keys, tokens, security answers,
-#: bank and account identifiers. This enforces it for every source, including
-#: the ones that have no policy of their own.
-#:
-#: Refuses the whole line rather than masking part of it. A line that exists to
-#: carry a credential says nothing else worth keeping, and a half-redacted
-#: memory is a memory that still says where to look.
-SECRETS = re.compile(
-    # The word, and then something that looks like a value. Requiring the
-    # value is what tells `password Misho2013` from `strong credential and
-    # system blacklists`, which is a sentence about policy and was refused
-    # by the first version of this. The gap is generous because the value is
-    # often a clause away: 'the password for the university portal is X'.
-    r"\b(?:password|passwd|passphrase|api[_ -]?key|secret[_ -]?key|access[_ -]?token|bearer|credentials?)\b"
-    r"(?:[^.\n]{0,45}?\b(?=[A-Za-z0-9@#$%^&*!-]*[A-Za-z])(?=[A-Za-z0-9@#$%^&*!-]*\d)"
-    r"[A-Za-z0-9@#$%^&*!-]{6,}\b|\s*[:=]\s*\S{4,})"
-    # Identity numbers, keys with a known prefix, and long digit runs.
-    r"|\b(?:TC|SSN|NIN)\b\s*:?\s*\d{6,}"
-    r"|\b(?:iban|sort code|account number|card number)\b"
-    r"|\b(?:sk|pk|ghp|gho|xox[bp])[-_][A-Za-z0-9]{16,}"
-    r"|\b\d{11,19}\b",
-    re.I,
-)
 
 #: Lines that are structure rather than content.
 NOISE = re.compile(r"^\s*(#{1,6}\s*)?([-*_=]{3,}|\d{4}-\d{2}-\d{2}|notes?:?|memory:?)\s*$", re.I)
@@ -206,8 +173,9 @@ def _from_json(data: Any, depth: int = 0) -> list[str]:
 def unsafe(line: str) -> str:
     """Why this line must not be imported, or empty.
 
-    Two gates. A credential is refused outright -- see `SECRETS`, and the eight
-    peers in a real account that each held the same university password.
+    Two gates. A credential is refused outright -- see
+    `credentials.carries_a_secret`, and the eight peers in a real account that
+    each held the same university password.
 
     The same scanner that reads a skill before it is installed, for the same
     reason: what goes in here is recalled into the prompt for years, and a
@@ -216,7 +184,7 @@ def unsafe(line: str) -> str:
     shell command is a memory, and treating it as an attack would make the
     import useless.
     """
-    if SECRETS.search(line):
+    if credentials.carries_a_secret(line):
         return "credential"
     for finding in skill_guard.scan(line):
         if finding.severity == "danger":

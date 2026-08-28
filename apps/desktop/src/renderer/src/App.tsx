@@ -1576,7 +1576,11 @@ function MindPanel(): React.JSX.Element {
  * one of them being unset. The role decides what is kept from a turn; the
  * embedding decides whether recall can match meaning rather than words.
  */
-function MemorySettingsSection(): React.JSX.Element {
+function MemorySettingsSection({
+  which = 'recall'
+}: {
+  which?: 'storage' | 'recall'
+}): React.JSX.Element {
   const [policy, setPolicy] = useState<MemoryPolicy | null>(null)
   const [url, setUrl] = useState('')
   const [key, setKey] = useState('')
@@ -1619,11 +1623,16 @@ function MemorySettingsSection(): React.JSX.Element {
   const source = policy?.source ?? 'off'
   const provider = policy?.provider ?? 'local'
 
-  return (
+  // Two sections, not one. Where memory lives and how it is searched are
+  // different decisions -- the first is chosen once, the second when recall is
+  // not finding things -- and one panel holding a provider picker, two
+  // connection forms, an embedding source and a model form was a wall nobody
+  // could find anything in.
+  const whereItLives = (
     <ControlSection
-      description="What gets kept from a conversation, and how it is found again."
-      icon={Brain}
-      title="How memory works"
+      description="Which store holds what Marvi remembers. Only one is ever active."
+      icon={Database}
+      title="Where memory lives"
     >
       <ControlRow
         action={
@@ -1697,6 +1706,15 @@ function MemorySettingsSection(): React.JSX.Element {
           </form>
         </ControlRow>
       ) : null}
+    </ControlSection>
+  )
+
+  const howRecallWorks = (
+    <ControlSection
+      description="What gets kept from a conversation, and how it is found again."
+      icon={Brain}
+      title="How recall works"
+    >
       <ControlRow
         description={
           provider !== 'local'
@@ -1788,6 +1806,8 @@ function MemorySettingsSection(): React.JSX.Element {
       ) : null}
     </ControlSection>
   )
+
+  return which === 'storage' ? whereItLives : howRecallWorks
 }
 
 function MemoryPanel(): React.JSX.Element {
@@ -1917,10 +1937,10 @@ function MemoryPanel(): React.JSX.Element {
  * Tabs rather than sections stacked down the page: there are three unrelated
  * subjects here and only one of them is ever the reason somebody came.
  */
-const MEMORY_TABS = ['How it works', 'What is remembered', 'Import'] as const
+const MEMORY_TABS = ['Storage', 'Recall', 'Remembered', 'Import'] as const
 
 function MemorySettingsPanel(): React.JSX.Element {
-  const [tab, setTab] = useState<(typeof MEMORY_TABS)[number]>('How it works')
+  const [tab, setTab] = useState<(typeof MEMORY_TABS)[number]>('Storage')
   const [page, setPage] = useState<MemoryPage>({ total: 0, entries: [], summary: {} })
 
   useEffect(() => {
@@ -1953,8 +1973,9 @@ function MemorySettingsPanel(): React.JSX.Element {
         ))}
       </div>
 
-      {tab === 'How it works' ? <MemorySettingsSection /> : null}
-      {tab === 'What is remembered' ? (
+      {tab === 'Storage' ? <MemorySettingsSection which="storage" /> : null}
+      {tab === 'Recall' ? <MemorySettingsSection which="recall" /> : null}
+      {tab === 'Remembered' ? (
         <>
           <ControlSection icon={Database} title="Local store">
             <ControlRow
@@ -2232,18 +2253,74 @@ function MemoryImportSection(): React.JSX.Element {
   )
 }
 
-/** What is remembered, newest first. Shared by the graph page and Settings. */
+/**
+ * What is remembered, newest first, filtered.
+ *
+ * A flat list was fine at four memories and unusable at 147: an import brings
+ * years of another assistant's notes in one go, and scrolling is not a way to
+ * find out whether Marvi knows something. Search and a source filter, both
+ * client-side because the whole list is already here.
+ */
 function MemoryList({ entries }: { entries: MemoryEntry[] }): React.JSX.Element {
+  const [query, setQuery] = useState('')
+  const [source, setSource] = useState('')
+
+  // Named by where it came from rather than by kind: "which of these did the
+  // import bring in" is the question people actually have after one.
+  const sources = Array.from(new Set(entries.map((entry) => entry.source))).sort()
+  const shown = entries.filter(
+    (entry) =>
+      (!source || entry.source === source) &&
+      (!query ||
+        entry.subject.toLowerCase().includes(query.toLowerCase()) ||
+        entry.body.toLowerCase().includes(query.toLowerCase()))
+  )
+
   return (
-    <ControlSection icon={History} title="Stored memories">
+    <ControlSection
+      action={
+        sources.length > 1 ? (
+          <Picker
+            options={[
+              { value: '', label: `All ${entries.length}`, detail: '' },
+              ...sources.map((name) => ({
+                value: name,
+                label: name.replace('import:', ''),
+                detail: `${entries.filter((entry) => entry.source === name).length}`
+              }))
+            ]}
+            value={source}
+            onChange={setSource}
+            placeholder={`All ${entries.length}`}
+          />
+        ) : null
+      }
+      icon={History}
+      title="Stored memories"
+    >
+      {entries.length > 8 ? (
+        <input
+          className="skill-search"
+          type="text"
+          placeholder="Search what Marvi remembers"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+      ) : null}
       {entries.length === 0 ? (
         <ControlEmpty
           description="Useful preferences and facts will appear after Marvi has something worth retaining."
           icon={Database}
           title="Nothing remembered yet"
         />
+      ) : shown.length === 0 ? (
+        <ControlEmpty
+          description="Nothing here matches that."
+          icon={Database}
+          title="No match"
+        />
       ) : (
-        entries.map((entry) => (
+        shown.slice(0, 200).map((entry) => (
           <ControlRow
             action={
               <ControlPill

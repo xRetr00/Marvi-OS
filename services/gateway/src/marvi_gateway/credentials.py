@@ -128,6 +128,49 @@ class SecretRequest(BaseModel):
         return (now or time.time()) - self.asked_at > REQUEST_TTL_SECONDS
 
 
+#: Text that carries a credential, wherever it is about to be written down.
+#:
+#: This lives here rather than beside any one caller because every path that
+#: persists text needs the same answer: memory, the after-turn worker, and an
+#: import from another assistant.
+#:
+#: It is not hypothetical. A live Honcho account belonging to this project's
+#: author held a university login password and a national ID number repeated
+#: across **eight peers**, and a database role password in a ninth -- because an
+#: assistant that is *told* a password writes it down like anything else, and
+#: nothing had ever told it not to.
+#:
+#: The shape is: the word, and then something that looks like a value.
+#: Requiring the value is what tells `password Misho2013` from `strong
+#: credential and system blacklists`, which is a sentence about policy and was
+#: refused by the first version of this. The gap is generous because the value
+#: is often a clause away -- "the password for the university portal is X".
+SECRETS = re.compile(
+    r"\b(?:password|passwd|passphrase|api[_ -]?key|secret[_ -]?key|access[_ -]?token"
+    r"|bearer|credentials?)\b"
+    r"(?:[^.\n]{0,45}?\b(?=[A-Za-z0-9@#$%^&*!-]*[A-Za-z])(?=[A-Za-z0-9@#$%^&*!-]*\d)"
+    r"[A-Za-z0-9@#$%^&*!-]{6,}\b|\s*[:=]\s*\S{4,})"
+    # Identity numbers, keys with a known prefix, and long digit runs.
+    r"|\b(?:TC|SSN|NIN)\b\s*:?\s*\d{6,}"
+    r"|\b(?:iban|sort code|account number|card number)\b"
+    r"|\b(?:sk|pk|ghp|gho|xox[bp])[-_][A-Za-z0-9]{16,}"
+    r"|\b\d{11,19}\b",
+    re.I,
+)
+
+
+def carries_a_secret(text: str) -> bool:
+    """Whether this text must not be written down as it stands.
+
+    The answer to a secret is never "store it more carefully" -- it is
+    `ask_secret`, which puts the value in the settings store without it ever
+    passing through the model. Anything that gets `True` here should refuse and
+    say so, not mask and continue: a half-redacted memory still says where to
+    look.
+    """
+    return bool(SECRETS.search(text or ""))
+
+
 #: A setting name has to be one, or this becomes a way to write anywhere in the
 #: settings store from a sentence.
 VALID_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_]{1,64}$")

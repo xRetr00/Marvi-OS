@@ -236,10 +236,26 @@ STOPWORDS = frozenset((
 ))
 
 
+def _reads_as_a_question(text: str) -> bool:
+    """Whether this is somebody asking, rather than looking a term up.
+
+    Any stopword at all. `who am I`, `what computer do I have` and `where do I
+    live` are all questions; `NeuDocs`, `RTX 3060` and `Düzce` are all
+    lookups, and none of them contains one. It is a blunt test and the right
+    blunt test -- English questions are built out of exactly these words.
+    """
+    words = [word.lower() for word in re.findall(r"[\w']+", text)]
+    return any(word in STOPWORDS for word in words)
+
+
 def _fts_query(text: str) -> str:
     """Quote every term so user text can never be FTS5 operator syntax."""
     terms = [t for t in re.findall(r"[\w']+", text) if t and t.lower() not in STOPWORDS]
     return " OR ".join(f'"{t}"' for t in terms)
+
+
+class SecretInMemoryError(ValueError):
+    """Something with a credential in it was about to be written down."""
 
 
 class MemoryStore:
@@ -276,6 +292,8 @@ class MemoryStore:
     ) -> int:
         """Store a fact, replacing one it corrects rather than sitting beside it.
 
+        Refuses anything carrying a credential. See `_refuse_secrets`.
+
         `INSERT` was the whole implementation, and a store that only inserts
         cannot be corrected -- only added to. What that looked like in practice,
         over two minutes of one conversation:
@@ -300,6 +318,7 @@ class MemoryStore:
         """
         if not subject.strip():
             raise ValueError("a memory needs a subject")
+        self._refuse_secrets(subject, body)
         if kind == "semantic" and (previous := self._supersedes(body, source, trusted)):
             return self._replace(previous, subject, body, kind, source, trusted)
         cursor = self._db.execute(
@@ -404,6 +423,31 @@ class MemoryStore:
             },
         )
         return memory_id
+
+    def _refuse_secrets(self, subject: str, body: str) -> None:
+        """Nothing with a credential in it is ever written down.
+
+        The last gate rather than the only one -- the after-turn worker is told
+        not to extract them and the import refuses them before they arrive --
+        but the last one is the one that has to hold. Every earlier gate is a
+        model being asked nicely.
+
+        Raises rather than masking. A half-redacted memory still says where to
+        look, and the right answer to a secret is `ask_secret`: it puts the
+        value in the settings store without it ever passing through the model,
+        and the tool error below says so, because the caller is usually a model
+        that can act on being told.
+        """
+        from . import credentials
+
+        if credentials.carries_a_secret(f"{subject} {body}"):
+            log.warning("refused to remember something carrying a credential")
+            raise SecretInMemoryError(
+                "That has a password, key or identity number in it, so it is not "
+                "going into memory. Use `ask_secret` with the setting name it "
+                "should be saved as -- the value goes straight into settings and "
+                "you are told the name, never the value."
+            )
 
     def remember_external(self, subject: str, body: str, source: str, **kwargs: Any) -> int:
         """Anything originating outside this machine is never stored as trusted."""
@@ -613,17 +657,30 @@ class MemoryStore:
         anybody actually asks memory for. Running one alone means losing the
         other's best case, and the union is short enough not to matter.
 
-        **Interleaved, not concatenated.** Keyword results used to lead on the
-        reasoning that a literal match beats a close one. That holds while the
-        store is small and a keyword hit is therefore rare and precise. It
-        stopped holding the moment 147 memories arrived from an import: "what
-        computer do I have" matched "Computer Engineering" literally, and at a
-        limit of two that one weak hit buried the entry naming the actual
-        machine, which semantic search had ranked first. Taking from both in
-        turn is what "both, not either" actually means.
+        **Keyword runs on lookups, not on questions.** Measured against 147
+        real memories over sixteen queries: keyword found 17 entries the
+        embedding missed, and on questions almost all of them were wrong --
+        "what music do I like" returned *development workflows*, "where do I
+        live" returned *NeuDocs tech stack*, "what computer do I have" returned
+        *computer engineering*. It matches a word, and in a question the words
+        are not the subject.
+
+        On an exact term it wins cleanly and the embedding cannot replace it:
+        `NeuDocs` found a memory about project directory paths, `Düzce` one
+        about university automation. Those mention the term without being
+        *about* the query, which is precisely what a literal index is for.
+
+        So the test is whether the query reads as a question. Stopwords are the
+        signal already to hand -- a question is made of them and a lookup is
+        not -- and `_fts_query` has to strip them anyway.
         """
         capped = max(1, min(limit, 100))
         match = _fts_query(query)
+        # No embeddings configured means keyword is all there is, and half a
+        # search beats none.
+        semantic = self._embedder().ready
+        if semantic and _reads_as_a_question(query):
+            match = ""
         rows = (
             self._db.execute(
                 "SELECT m.* FROM memories_fts f JOIN memories m ON m.id = f.rowid"
@@ -1164,7 +1221,15 @@ def register_memory_tools(registry, memory: MemoryStore, summarise: Any = None) 
     from .tools import ToolSpec
 
     def memory_remember(subject: str, body: str) -> dict[str, Any]:
-        return {"id": memory.remember(subject, body, kind="semantic")}
+        try:
+            return {"id": memory.remember(subject, body, kind="semantic")}
+        except SecretInMemoryError as exc:
+            # An error the model can act on rather than an exception it sees as
+            # a broken tool. It is holding a credential and about to write it
+            # down; being told the alternative in the same breath is the
+            # difference between it using `ask_secret` and it trying again with
+            # the same value in a different sentence.
+            return {"stored": False, "error": str(exc)}
 
     def memory_search(query: str) -> dict[str, Any]:
         return {"results": memory.search(query)}

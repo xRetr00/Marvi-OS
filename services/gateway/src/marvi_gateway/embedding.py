@@ -81,6 +81,29 @@ def prefixes() -> tuple[str, str]:
     return "", ""
 
 
+#: Where `marvi setup` puts the default model. Relative to the install root,
+#: the same as the speech models.
+INSTALLED_AT = "models/embedding/bge-small-en-v1.5"
+
+
+def installed() -> str:
+    """The path to the model the setup flow downloaded, or empty.
+
+    Preferred over the HuggingFace name so the first recall does not stall a
+    voice turn fetching 130MB -- and so it works at all on a machine that is
+    offline, which is the premise of running memory locally in the first place.
+
+    Only for the default model. Somebody who types another name has asked for
+    that one, and `sentence-transformers` will fetch it.
+    """
+    if model_name() != DEFAULT_LOCAL_MODEL:
+        return ""
+    from .setup.catalog import install_root
+
+    local = install_root() / INSTALLED_AT
+    return str(local) if (local / "config.json").is_file() else ""
+
+
 def source() -> str:
     value = os.environ.get(SOURCE_SETTING, "").strip().lower()
     return value if value in SOURCES else OFF
@@ -143,7 +166,7 @@ class Embedder:
             # CPU explicitly. The card is busy speaking, and an embedding model
             # that competes with Kokoro for it would trade a fast recall for a
             # stuttering voice.
-            self._local = SentenceTransformer(model_name(), device="cpu")
+            self._local = SentenceTransformer(installed() or model_name(), device="cpu")
             log.info("embeddings: %s loaded on the CPU", model_name())
         return [vector.tolist() for vector in self._local.encode(texts)]
 

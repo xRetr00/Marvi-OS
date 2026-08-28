@@ -45,6 +45,7 @@ from typing import Any
 
 from . import distil
 from .logs import get_logger
+from .memory import SecretInMemoryError
 
 log = get_logger("memory")
 
@@ -151,6 +152,12 @@ def apply(store: Any, operations: list[dict[str, Any]]) -> dict[str, int]:
                 done["delete"] += 1
             else:
                 done["ignored"] += 1
+        except SecretInMemoryError:
+            # The prompt above tells the model not to extract these. This is
+            # what happens when it does anyway, which is why the store refuses
+            # rather than trusting the instruction.
+            log.warning("a proposed memory carried a credential and was dropped")
+            done["ignored"] += 1
         except Exception as exc:  # pragma: no cover - depends on the store
             log.warning("memory operation failed: %s", exc, extra={"marvi_op": name})
             done["ignored"] += 1

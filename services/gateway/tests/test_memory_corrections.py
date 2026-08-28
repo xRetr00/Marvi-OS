@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import pytest
 
-from marvi_gateway.memory import MemoryStore
+from marvi_gateway.memory import MemoryStore, SecretInMemoryError
 
 NAME = "The user's name is {}, and they are the developer of Marvi."
 
@@ -187,3 +187,105 @@ def test_an_import_marks_where_each_memory_came_from(tmp_path) -> None:
 
     assert "(from honcho/hermes) The user has an RTX 3060." in block
     assert "EXTERNAL DATA" not in block
+
+# -- secrets never get written down --------------------------------------------
+
+
+def test_a_credential_is_refused_at_the_point_of_writing(tmp_path) -> None:
+    """The last gate rather than the only one. The extractor is told not to
+    pull these out and the import refuses them before they arrive, but every
+    earlier gate is a model being asked nicely.
+
+    Found in a live account: a university password and a national ID repeated
+    across eight peers, because an assistant that is told a password writes it
+    down like anything else and nothing had told it not to.
+    """
+    store = MemoryStore(tmp_path / "m.db")
+
+    for subject, body in (
+        ("obs login", "The password for the university portal is hunter2"),
+        ("identity", "TC: 99616424034"),
+        ("openrouter", "the api key is sk-or-v1-AbCd1234EfGh5678IjKlMn"),
+    ):
+        with pytest.raises(SecretInMemoryError):
+            store.remember(subject, body)
+
+    assert store.count() == 0
+
+
+def test_the_refusal_names_the_thing_to_do_instead(tmp_path) -> None:
+    """The caller is usually a model holding a credential. Being told the
+    alternative in the same breath is the difference between it using
+    `ask_secret` and it trying again with the same value in a new sentence."""
+    store = MemoryStore(tmp_path / "m.db")
+
+    with pytest.raises(SecretInMemoryError, match="ask_secret"):
+        store.remember("key", "the api key is sk-or-v1-AbCd1234EfGh5678IjKlMn")
+
+
+def test_a_memory_about_having_an_account_is_still_a_memory(tmp_path) -> None:
+    """That the user has an account somewhere is worth remembering. What they
+    log in with is not, and the two must not be confused -- refusing both would
+    make the gate something to work around."""
+    store = MemoryStore(tmp_path / "m.db")
+
+    store.remember("university", "The user has an account on the Duzce University OBS portal.")
+    store.remember("policy", "File access should have strong credential and system blacklists.")
+
+    assert store.count() == 2
+
+
+def test_the_tool_answers_rather_than_raising(tmp_path, monkeypatch) -> None:
+    """A raised exception reads to a model as a broken tool. An error it can
+    act on reads as an instruction."""
+    monkeypatch.setenv("MARVI_HOME", str(tmp_path))
+    from marvi_gateway.memory import register_memory_tools
+    from marvi_gateway.tools import ToolRegistry
+
+    registry = ToolRegistry()
+    store = MemoryStore(tmp_path / "m.db")
+    register_memory_tools(registry, store)
+
+    answer = registry.execute(
+        registry.get("memory_remember"),
+        {"subject": "login", "body": "the password is hunter2 for the portal"},
+    )
+
+    assert answer["stored"] is False
+    assert "ask_secret" in answer["error"]
+
+
+# -- keyword search, where it earns its place ----------------------------------
+
+
+def test_a_question_is_answered_by_meaning_alone(tmp_path) -> None:
+    """Measured over sixteen queries against 147 real memories: keyword found
+    17 entries the embedding missed, and on questions almost all were wrong --
+    "what music do I like" returned development workflows, "where do I live"
+    returned a tech stack. It matches a word, and in a question the words are
+    not the subject.
+    """
+    from marvi_gateway.memory import _reads_as_a_question
+
+    for question in ("who am I", "what computer do I have", "where do I live"):
+        assert _reads_as_a_question(question) is True
+
+
+def test_looking_a_term_up_still_uses_the_index(tmp_path) -> None:
+    """The case the embedding cannot replace: `NeuDocs` found a memory about
+    project directory paths, which mentions the term without being about the
+    query."""
+    from marvi_gateway.memory import _reads_as_a_question
+
+    for lookup in ("NeuDocs", "RTX 3060", "Kokoro", "Düzce"):
+        assert _reads_as_a_question(lookup) is False
+
+
+def test_keyword_still_runs_when_there_are_no_embeddings(tmp_path) -> None:
+    """Half a search beats none. With embeddings off, gating keyword away from
+    questions would leave nothing to answer them."""
+    store = MemoryStore(tmp_path / "m.db")
+    store.remember("hardware", "The user has a computer with an RTX 3060.")
+
+    # The embedder is off by default in tests, so this is the real path.
+    assert [row["subject"] for row in store.search("what computer do I have")] == ["hardware"]

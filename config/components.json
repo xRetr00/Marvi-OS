@@ -152,6 +152,66 @@
         ],
         "windows_skip": true
       }
+    },
+    {
+      "name": "memory-embedding",
+      "kind": "model",
+      "title": "Memory embeddings",
+      "why": "Lets memory match meaning rather than words. Without it, asking \"who am I\" finds nothing, because it shares no word with \"the user's name is ...\".",
+      "needed_for": [
+        "memory"
+      ],
+      "source": {
+        "type": "huggingface",
+        "id": "BAAI/bge-small-en-v1.5",
+        "revision": "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a"
+      },
+      "install_to": "models/embedding/bge-small-en-v1.5",
+      "files": {
+        "1_Pooling/config.json": [
+          190,
+          "D1CAF60C96F5FBA2157C0C26B76D80818FAD6CF0B8EB5E73EC372FF9818EBA5C"
+        ],
+        "config.json": [
+          743,
+          "094F8E891B932F2000C92CFC663BAC4C62069F5D8AF5B5278C4306AEF3084750"
+        ],
+        "config_sentence_transformers.json": [
+          124,
+          "940D5F50DB195FA6E5E6A4F122C095F77880DE259D74B14A65779ED48BDD7C56"
+        ],
+        "modules.json": [
+          349,
+          "84E40C8E006C9B1D6C122E02CBA9B02458120B5FB0C87B746C41E0207CF642CF"
+        ],
+        "sentence_bert_config.json": [
+          52,
+          "84E39FDA68CCBFF05BFA723AE9C0E70E23E2EC373B76E0F8C6E71AF72A693CBF"
+        ],
+        "special_tokens_map.json": [
+          125,
+          "B6D346BE366A7D1D48332DBC9FDF3BF8960B5D879522B7799DDBA59E76237EE3"
+        ],
+        "tokenizer.json": [
+          711396,
+          "D241A60D5E8F04CC1B2B3E9EF7A4921B27BF526D9F6050AB90F9267A1F9E5C66"
+        ],
+        "tokenizer_config.json": [
+          366,
+          "9261E7D79B44C8195C1CADA2B453E55B00AEB81E907A6664974B4D7776172AB3"
+        ],
+        "vocab.txt": [
+          231508,
+          "07ECED375CEC144D27C900241F3E339478DEC958F92FDDBC551F295C992038A3"
+        ],
+        "model.safetensors": [
+          133466304,
+          "3C9F31665447C8911517620762200D2245A2518D6E7208ACC78CD9DB317E21AD"
+        ]
+      },
+      "extra": {
+        "note": "130MB, downloaded here rather than on first recall -- otherwise the first question anybody asks stalls a voice turn while it fetches, or fails outright with no network."
+      }
     }
   ]
 }
