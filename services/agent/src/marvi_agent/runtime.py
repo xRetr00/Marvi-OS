@@ -84,26 +84,39 @@ class AgentConfig:
 #:
 #: It is also just wrong for voice. Three hundred tokens is around a minute of
 #: speech, and a spoken answer longer than that is one nobody asked for.
-VOICE_REPLY_TOKENS = 300
+#: The backstop on a spoken reply. Roughly 190 words, or about a minute --
+#: long enough for a genuine explanation and short enough that a model that has
+#: started drifting is cut off rather than narrated. The prompt asks for one or
+#: two sentences; this is what happens when it is not obeyed.
+VOICE_REPLY_TOKENS = 250
 
 
 def reply_tokens(context: int) -> int:
-    """How long a spoken reply may be, given what the model can hold.
+    """How long a spoken reply may be.
 
     Never the whole context. Leaving the cap unset asked for exactly that --
     the plugin sends the model's maximum -- so OpenRouter reserved credit
     against 65,536 tokens and refused every voice turn with a 402.
 
-    The context window now comes from the provider's own model list rather
-    than being assumed, and the reply is a small fraction of it: a spoken
-    answer is a minute of speech, not a document. A model that reports no
-    context simply gets the default.
+    **It does not scale with the context window any more.** It used to be a
+    twentieth of it, capped at 1024, which on a 128k model meant 1024 tokens --
+    roughly 770 words, or **five minutes** of continuous speech. A real
+    conversation produced a single reply of 48 seconds. The comment above that
+    line said "capped where a spoken answer stops being one", and 1024 tokens
+    is nowhere near it.
+
+    The mistake was the shape rather than the number: how long somebody wants
+    to be spoken at has nothing to do with how much the model can hold. A
+    spoken answer is a few sentences, and this is the backstop for when the
+    prompt asking for a few sentences does not land.
+
+    `context` still matters in one direction: a model too small to hold both
+    the conversation and the reply should not be asked to reserve the whole
+    window for the reply. It never raises the cap, only lowers it.
     """
-    if context <= 0:
-        return VOICE_REPLY_TOKENS
-    # A twentieth, floored at something worth saying and capped where a spoken
-    # answer stops being one.
-    return max(VOICE_REPLY_TOKENS, min(context // 20, 1024))
+    if 0 < context < VOICE_REPLY_TOKENS * 8:
+        return max(64, context // 8)
+    return VOICE_REPLY_TOKENS
 
 
 def voice_body(config: AgentConfig) -> dict:

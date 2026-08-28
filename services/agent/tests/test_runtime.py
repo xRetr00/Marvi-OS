@@ -155,3 +155,46 @@ def test_another_provider_is_sent_none_of_it() -> None:
     assert voice_body(
         AgentConfig(api_key="k", model="m", base_url="http://127.0.0.1:1234/v1")
     ) == {}
+
+
+def test_a_spoken_reply_is_capped_by_speech_not_by_the_context_window() -> None:
+    """It was a twentieth of the context, capped at 1024 -- so on a 128k model,
+    1024 tokens: roughly 770 words, or five minutes of continuous speech. A
+    real conversation produced a single reply of 48 seconds of audio.
+
+    How long somebody wants to be spoken at has nothing to do with how much the
+    model can hold. The mistake was the shape, not the number.
+    """
+    from marvi_agent.runtime import VOICE_REPLY_TOKENS, reply_tokens
+
+    assert reply_tokens(128_000) == VOICE_REPLY_TOKENS
+    assert reply_tokens(1_000_000) == VOICE_REPLY_TOKENS
+    assert reply_tokens(0) == VOICE_REPLY_TOKENS
+    # About a minute of speech. Long enough for a real explanation, short
+    # enough that a model which has started drifting is cut off.
+    assert 150 <= VOICE_REPLY_TOKENS <= 400
+
+
+def test_a_tiny_context_lowers_the_cap_but_nothing_raises_it() -> None:
+    """A model too small to hold the conversation and the reply should not be
+    asked to reserve the whole window for the reply."""
+    from marvi_agent.runtime import VOICE_REPLY_TOKENS, reply_tokens
+
+    assert reply_tokens(800) < VOICE_REPLY_TOKENS
+    assert reply_tokens(800) >= 64
+
+
+def test_turn_taking_is_not_faster_than_a_person_pauses() -> None:
+    """One sentence became two turns two seconds apart, because a quarter
+    second of silence ended the turn and people pause longer than that in the
+    middle of a thought. These are LiveKit's own defaults."""
+    import inspect
+
+    from marvi_agent import session
+
+    source = inspect.getsource(session.build_session)
+
+    assert '"min_delay": 0.5' in source
+    # And the other half: a quarter second of the user's voice cut her off
+    # mid-reply, and the resumed fragments were stitched into one turn.
+    assert '"min_duration": 0.5' in source

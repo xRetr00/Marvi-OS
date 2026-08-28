@@ -510,7 +510,21 @@ def build_session(proc: JobProcess | None = None) -> tuple[AgentSession, Callabl
         tts=local_tts,
         turn_handling=TurnHandlingOptions(
             turn_detection=build_local_turn_detector(),
-            endpointing={"mode": "dynamic", "min_delay": 0.25, "max_delay": 2.0},
+            # LiveKit's own defaults for the delay, after a conversation where
+            # one sentence became two turns:
+            #
+            #   user said  No, it's something wrong by the speech to text.
+            #              I want you to tell me uh
+            #   user said  uh something you remember about me right now.
+            #
+            # Two seconds apart, one thought. `min_delay` was 0.25 -- half
+            # LiveKit's 0.5 and below even its streaming default -- so a
+            # quarter second of silence ended the turn, and a person saying
+            # "tell me... uh... something" pauses longer than that in the
+            # middle of a sentence. She answered half a question, twice.
+            #
+            # It costs 250ms before she starts. A split turn costs the answer.
+            endpointing={"mode": "dynamic", "min_delay": 0.5, "max_delay": 2.5},
             # Off, and it has to be off while `on_user_turn_completed` adds
             # memory to the turn.
             #
@@ -545,7 +559,14 @@ def build_session(proc: JobProcess | None = None) -> tuple[AgentSession, Callabl
                 # and left the real behaviour unstated. VAD interruption is what
                 # this pipeline can actually do, so it is what it now asks for.
                 "mode": "vad",
-                "min_duration": 0.25,
+                # Also half the default, and the other half of the same
+                # problem: a quarter second of the user's voice cut Marvi off
+                # mid-reply, `resume_false_interruption` stitched what was left
+                # onto what came next, and the result was an assistant turn
+                # made of fragments -- ":   -- Working filter, messages, hello.
+                # When you recall, you sont" -- which is what a stitched reply
+                # looks like rather than what any model said.
+                "min_duration": 0.5,
                 "false_interruption_timeout": 1.2,
                 "resume_false_interruption": True,
             },
