@@ -454,3 +454,42 @@ ADD-only 2.x algorithm requires passing the correction acceptance case first.
 authority marker. Honcho and Mem0 already own extraction/retrieval, while
 Marvi's product-specific responsibility is provider choice, untrusted-content
 containment, UI configuration, audit, and foreground-safe degradation.
+
+## ADR-027 — Connectors are direct-only, and Capabilities is their home
+
+Refines ADR-024, which left the credential model open.
+
+**Decision:** Marvi talks to Composio directly with the user's own project
+key. No Marvi-hosted broker, no BYO-versus-hosted mode switch, and no
+provider-neutral backend seam with a second implementation behind it. Skills,
+Connectors, MCP and third-party plugins move to a Capabilities section in the
+main sidebar; Settings keeps Marvi's own plugins.
+
+Three supporting rules:
+
+- **Identity is per installation.** A generated entity id, not the literal
+  `"default"`, which addresses one Composio identity from every install.
+- **Effects come from a catalog, not from words.** A curated per-toolkit
+  catalog is authoritative, and an uncurated action on a catalogued toolkit is
+  refused rather than guessed. The word heuristic survives only where no
+  catalog exists, and an unknown verb still fails closed to `admin`.
+- **Disconnecting retracts what was ingested.** Revoking a connection removes
+  the memories it produced, counted before the deletion rather than after.
+
+**Reason:** The broker question was the one thing blocking a design that was
+otherwise agreed. It is only a question for a product with more than one user;
+Marvi has one, who holds his own key. Answering it "never" removes an entire
+axis of design — custody, billing, multi-tenancy, a seam with two
+implementations — at no cost to anything shipping.
+
+The three supporting rules are not new caution. Each is a defect found in
+Marvi's own code while reviewing this: a shared identity literal, a classifier
+that read `GET` in a slug as proof an action was read-only, and a disconnect
+that revoked upstream while leaving the ingested content recallable. openhuman
+reached the same conclusions with the same seam and, on the classifier, in the
+same way — by a review catching it rather than a test.
+
+**Not decided here:** remote MCP transports. Marvi's bridge is stdio-only, so
+the registry listing drops hosted-only entries rather than offering something
+that cannot launch. Supporting streamable-http would change that and is its
+own decision.

@@ -1,5 +1,6 @@
 import type { ConnectorMeta } from '../../lib/connectors/connectorCatalog'
 import { connectorMonogram } from '../../lib/connectors/connectorCatalog'
+import { CONNECTOR_LOGOS } from '../../lib/connectors/connectorLogos'
 import type { ConnectorStatus } from '../../../../shared/runtime'
 
 const STATUS_WORD: Record<ConnectorStatus, string> = {
@@ -29,6 +30,7 @@ export function ConnectorCard({
   connections: number
   onSelect: () => void
 }): React.JSX.Element {
+  const Logo = CONNECTOR_LOGOS[meta.slug]
   return (
     <button
       aria-label={`${meta.name} · ${STATUS_WORD[status]}`}
@@ -37,8 +39,15 @@ export function ConnectorCard({
       type="button"
     >
       {connections > 1 ? <span className="connector-card-badge">{connections}</span> : null}
-      <span aria-hidden="true" className="connector-card-logo">
-        {connectorMonogram(meta.name)}
+      {/* The real mark where there is one, the tinted monogram where there is
+          not. Both are inline SVG or text, never an <img>: the renderer's CSP
+          is `img-src 'self' data:`, so nothing here can be fetched. */}
+      <span
+        aria-hidden="true"
+        className="connector-card-logo"
+        style={{ '--connector-tint': meta.tint } as React.CSSProperties}
+      >
+        {Logo ? <Logo height={19} width={19} /> : connectorMonogram(meta.name)}
       </span>
       <span className="connector-card-name">{meta.name}</span>
       <span className="connector-card-status">{STATUS_WORD[status]}</span>

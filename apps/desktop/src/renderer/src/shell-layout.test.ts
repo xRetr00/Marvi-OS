@@ -223,3 +223,53 @@ describe('what the shell claims about the devices', () => {
     expect(OFFLINE_RUNTIME.assistant.level).toBe(0)
   })
 })
+
+describe('capabilities', () => {
+  const panel = readFileSync(
+    join(__dirname, 'components/connectors/ConnectorsPanel.tsx'),
+    'utf8'
+  )
+  const catalog = readFileSync(join(__dirname, 'lib/connectors/connectorCatalog.ts'), 'utf8')
+
+  it('offers somewhere to put the Composio key, not just the diagnosis', () => {
+    // Deleting the old Accounts panel took the only field for the key with
+    // it, so the page reported "not configured" and gave nowhere to fix it.
+    expect(panel).toContain('aria-label="Composio API key"')
+    expect(panel).toContain('configureAccounts')
+    expect(panel).toContain("type=\"password\"")
+  })
+
+  it('gives every connector its own colour behind the monogram', () => {
+    // No logos: the CSP is `img-src 'self' data:`, so a logo CDN is blocked
+    // and real brand marks need a dependency or vendored path data. Thirty-one
+    // identical grey squares read as nothing.
+    expect(catalog).toContain('tint: string')
+    expect(catalog.match(/tint: '#/g)?.length).toBe(31)
+  })
+})
+
+describe('connector logos', () => {
+  const logos = readFileSync(join(__dirname, 'lib/connectors/connectorLogos.ts'), 'utf8')
+  const catalog = readFileSync(join(__dirname, 'lib/connectors/connectorCatalog.ts'), 'utf8')
+  const card = readFileSync(join(__dirname, 'components/connectors/ConnectorCard.tsx'), 'utf8')
+
+  it('imports one icon at a time, never the package index', () => {
+    // The barrel is 405 KB of 6,511 icons; `@thesvg/react/gmail` is about 2 KB.
+    expect(logos).not.toMatch(/from '@thesvg\/react'/)
+    expect(logos.match(/from '@thesvg\/react\/[a-z0-9-]+'/g)?.length).toBe(31)
+  })
+
+  it('has a mark for every connector in the catalog', () => {
+    const slugs = [...catalog.matchAll(/slug: '([a-z0-9_]+)'/g)].map((m) => m[1])
+    const mapped = new Set([...logos.matchAll(/^ {2}([a-z0-9_]+):/gm)].map((m) => m[1]))
+    expect(slugs.length).toBeGreaterThan(0)
+    expect(slugs.filter((slug) => !mapped.has(slug))).toEqual([])
+  })
+
+  it('never reaches for a remote image, because the CSP forbids it', () => {
+    // `img-src 'self' data:`. Inline SVG is markup, so the policy does not
+    // apply; an <img src> pointing at a logo CDN would simply not render.
+    expect(card).not.toContain('src=')
+    expect(card).toContain('<Logo ')
+  })
+})

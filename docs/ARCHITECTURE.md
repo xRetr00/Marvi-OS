@@ -73,7 +73,7 @@ Marvi Gateway is the only backend address known to the renderer. It owns:
 - structured tool and audit events;
 - durable user cron jobs, isolated run history, and their provider/model/tool policy;
 - Smart Room event subscription;
-- Composio connection status;
+- connector connection status;
 - memory access;
 - update/status information.
 
@@ -230,16 +230,41 @@ Marvi OS consumes:
 The existing bridge/event bus is audited before any new protocol is introduced.
 Room failures must degrade the room panel without disabling voice.
 
-## Accounts and world context
+## Capabilities: connectors and world context
 
-Composio supplies hosted OAuth connections and actions. Electron asks Gateway
-for a Connect Link and opens only an HTTPS `*.composio.dev` URL in the system
-browser. Gateway owns reconnect, enable/disable, revoke, sync, and audit; Marvi
-stores connection identifiers and local policy/sync projections, never provider
-tokens. The Composio project key can be entered in Accounts, is validated before
-being written to the existing local provider-settings store, is never returned
-to the renderer, and activates the broker and trigger listener without a
-Gateway restart.
+Skills, Connectors, MCP and third-party plugins are one sidebar section.
+Settings keeps Marvi's own plugins — Smart Room and what follows it — because
+what Marvi *can reach* and what Marvi *is* are different questions.
+
+Composio supplies hosted OAuth connections and actions, and Marvi talks to it
+directly with the user's own project key. There is no Marvi-hosted broker and
+no plan for one: Marvi is a single-user desktop product, so the questions a
+broker exists to answer — multi-tenancy, billing, credential custody for
+someone else — do not arise. See ADR-027.
+
+Electron asks Gateway for a Connect Link and opens only an HTTPS
+`*.composio.dev` URL in the system browser. Gateway owns reconnect,
+enable/disable, revoke, sync, and audit; Marvi stores connection identifiers
+and local policy/sync projections, never provider tokens. Each installation
+addresses Composio under its own generated entity id rather than the literal
+`"default"`, which would make two installations share one identity. The
+project key is entered on Capabilities › Connectors, validated before being
+written to the existing local provider-settings store, never returned to the
+renderer, and activates the broker and trigger listener without a Gateway
+restart.
+
+Disconnecting retracts what the connection put into memory. Ingest and
+triggers write external content into the memory graph continuously, so a
+revoked connection whose emails stayed recallable would leave Marvi asserting
+things she can no longer check; the ingest ledger keys on
+`(toolkit, connection_id, provider_id)` and the count is shown before the
+disconnect, not after.
+
+A connected service surfaces in three places, not four: as an agent tool, as a
+memory source on the ingest schedule, and as a trigger source. There is no
+personalization surface for it to feed — `USER.md` is user-authored and
+`note_about_user` is model-invoked — so `/connectors` reports that place as
+absent rather than implying one exists.
 
 The stable `account_tool_search` and `account_tool_execute` broker tools expose
 the live Composio catalog without loading hundreds of schemas into every LLM

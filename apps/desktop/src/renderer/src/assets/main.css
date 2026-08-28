@@ -5020,6 +5020,32 @@ body {
 /* The owner tick sits under the name box: enrolling somebody through this card
    could not mark them the owner, so the one person the room exists for was
    stored as an ordinary visitor. */
+/* The Composio key field on the Connectors page. Deleting the old Accounts
+   panel took the only field for it with it, so the page could say connectors
+   were unconfigured and offer nowhere to configure them. */
+.connector-setup {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.connector-setup-form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.connector-setup-form .control-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.connector-setup-error {
+  margin: 0;
+  color: var(--ui-danger, #d86868);
+  font-size: 9px;
+}
+
 .face-review-owner {
   display: flex;
   align-items: center;
@@ -6461,15 +6487,19 @@ body {
   text-align: center;
 }
 
+/* The service's colour as a quiet ground under its mark. The mark itself is
+   inline SVG from `connectorLogos.ts` -- the CSP is `img-src 'self' data:`, so
+   nothing here is fetched -- and the tint still carries a connector whose mark
+   is missing, where the monogram shows instead. */
 .connector-card-logo {
   display: grid;
   width: 34px;
   height: 34px;
   place-items: center;
-  border: 1px solid var(--ui-stroke-tertiary);
+  border: 1px solid color-mix(in srgb, var(--connector-tint, #6b7280) 45%, transparent);
   border-radius: 7px;
-  background: var(--ui-bg-tertiary);
-  color: var(--ui-text-secondary);
+  background: color-mix(in srgb, var(--connector-tint, #6b7280) 18%, var(--ui-bg-tertiary));
+  color: color-mix(in srgb, var(--connector-tint, #6b7280) 70%, var(--ui-text-primary));
   font-size: 11px;
   font-weight: 650;
   letter-spacing: 0.02em;

@@ -35,6 +35,9 @@ export function ConnectorsPanel(): React.JSX.Element {
   const [chip, setChip] = useState<Chip>('all')
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState<ConnectorMeta | null>(null)
+  const [key, setKey] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [keyError, setKeyError] = useState('')
 
   const load = useCallback(async (): Promise<void> => {
     const next = await window.marvi?.getConnectors()
@@ -43,6 +46,25 @@ export function ConnectorsPanel(): React.JSX.Element {
     setAvailable(next.available)
     setRows(next.connectors)
   }, [])
+
+  // The Gateway validates the key against Composio before storing it, so a
+  // typo comes back as a refusal here rather than as every card silently
+  // staying "Not connected".
+  const saveKey = useCallback(async (): Promise<void> => {
+    setSaving(true)
+    setKeyError('')
+    try {
+      const answer = await window.marvi?.configureAccounts(key.trim())
+      if (answer?.ok) {
+        setKey('')
+        await load()
+      } else {
+        setKeyError(answer?.detail || 'That key was refused.')
+      }
+    } finally {
+      setSaving(false)
+    }
+  }, [key, load])
 
   useEffect(() => {
     let disposed = false
@@ -109,12 +131,42 @@ export function ConnectorsPanel(): React.JSX.Element {
           </div>
         </div>
 
+        {/* The key field, not just the diagnosis. "Not configured" told the
+            user what was wrong and gave them nowhere to fix it: connectors are
+            unusable without a Composio key and there was no field for one
+            anywhere in the app. The value goes straight to the Gateway, which
+            stores it beside the model provider keys and never returns it. */}
         {!available && loaded ? (
-          <ControlEmpty
-            description="The connector service is not configured on the Gateway yet. The catalog below still shows what's supported."
-            icon={Link2}
-            title="Connector service unavailable"
-          />
+          <div className="connector-setup">
+            <ControlEmpty
+              description="Connectors need a Composio API key. Paste one below to turn the catalog on; it is stored locally beside your model provider keys and never sent to a model."
+              icon={Link2}
+              title="Connector service unavailable"
+            />
+            <form
+              className="connector-setup-form"
+              onSubmit={(event) => {
+                event.preventDefault()
+                void saveKey()
+              }}
+            >
+              <input
+                aria-label="Composio API key"
+                autoComplete="off"
+                className="control-input"
+                disabled={saving}
+                onChange={(event) => setKey(event.target.value)}
+                placeholder="Composio API key"
+                spellCheck={false}
+                type="password"
+                value={key}
+              />
+              <button className="control-button is-primary" disabled={saving || !key.trim()}>
+                {saving ? 'Checking…' : 'Save key'}
+              </button>
+            </form>
+            {keyError ? <p className="connector-setup-error">{keyError}</p> : null}
+          </div>
         ) : null}
 
         {visible.length === 0 ? (
