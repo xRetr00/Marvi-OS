@@ -5017,6 +5017,23 @@ body {
   text-align: right;
 }
 
+/* The owner tick sits under the name box: enrolling somebody through this card
+   could not mark them the owner, so the one person the room exists for was
+   stored as an ordinary visitor. */
+.face-review-owner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ui-text-tertiary);
+  font-size: 8px;
+  cursor: pointer;
+}
+
+.face-review-owner input {
+  margin: 0;
+  accent-color: var(--ui-accent);
+}
+
 .face-review-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -6316,6 +6333,346 @@ body {
   background: var(--ui-bg-primary);
   color: var(--ui-text-secondary);
   font-size: 9px;
+}
+
+/* ===== Capabilities: shared search + filter-chip row ===== *
+ * Connectors and MCP both open on a header card, a search box, and a row of
+ * filter chips before the grid/list — the openhuman information architecture
+ * the review asked for, kept to Marvi's own tokens and square-cornered chips
+ * instead of pills. */
+.capability-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.capability-search {
+  flex: 1 1 220px;
+  min-height: 30px;
+  padding: 5px 10px;
+  border: 1px solid var(--ui-stroke-tertiary);
+  border-radius: 4px;
+  outline: 0;
+  background: var(--ui-bg-secondary);
+  color: var(--ui-text-primary);
+  font: inherit;
+  font-size: 11px;
+}
+
+.capability-search:focus {
+  border-color: color-mix(in srgb, var(--ui-accent) 55%, var(--ui-stroke-secondary));
+}
+
+.capability-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.capability-chip {
+  min-height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--ui-stroke-tertiary);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ui-text-secondary);
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.capability-chip:hover {
+  border-color: var(--ui-stroke-primary);
+  color: var(--ui-text-primary);
+}
+
+.capability-chip[aria-pressed='true'] {
+  border-color: color-mix(in srgb, var(--ui-accent) 55%, var(--ui-stroke-secondary));
+  background: color-mix(in srgb, var(--ui-accent) 13%, transparent);
+  color: color-mix(in srgb, var(--ui-accent) 76%, var(--ui-text-primary));
+}
+
+/* ===== Connectors grid ===== */
+.connector-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
+  gap: 10px;
+}
+
+.connector-card {
+  position: relative;
+  display: flex;
+  aspect-ratio: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--ui-stroke-tertiary);
+  border-radius: 8px;
+  background: var(--ui-bg-secondary);
+  color: var(--ui-text-primary);
+  text-align: center;
+  cursor: pointer;
+}
+
+.connector-card:hover,
+.connector-card:focus-visible {
+  outline: 0;
+  border-color: var(--ui-stroke-primary);
+}
+
+/* Status lives on the border and a faint tint rather than a second icon — the
+   card itself is the status indicator. Connected reuses the same restrained
+   blue the rest of the app uses for "ready" (see .control-pill.is-ready);
+   amber and red are the same two exceptions the app already allows for
+   warning/danger, kept out of the monochrome-plus-blue palette everywhere
+   else. */
+.connector-card.is-connected {
+  border-color: color-mix(in srgb, var(--ui-accent) 45%, var(--ui-stroke-secondary));
+  background: color-mix(in srgb, var(--ui-accent) 9%, var(--ui-bg-secondary));
+}
+
+.connector-card.is-expired {
+  border-color: color-mix(in srgb, var(--ui-danger) 50%, var(--ui-stroke-secondary));
+  background: color-mix(in srgb, var(--ui-danger) 9%, var(--ui-bg-secondary));
+}
+
+.connector-card.is-preview {
+  border-color: color-mix(in srgb, #c79b58 50%, var(--ui-stroke-secondary));
+  background: color-mix(in srgb, #c79b58 9%, var(--ui-bg-secondary));
+}
+
+.connector-card-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  min-width: 15px;
+  padding: 1px 4px;
+  border-radius: 999px;
+  background: var(--ui-accent);
+  color: var(--ui-bg);
+  font-size: 9px;
+  font-weight: 650;
+  line-height: 13px;
+  text-align: center;
+}
+
+.connector-card-logo {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid var(--ui-stroke-tertiary);
+  border-radius: 7px;
+  background: var(--ui-bg-tertiary);
+  color: var(--ui-text-secondary);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
+.connector-card-name {
+  overflow: hidden;
+  max-width: 100%;
+  color: var(--ui-text-primary);
+  font-size: 11px;
+  font-weight: 550;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.connector-card-status {
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.connector-card.is-connected .connector-card-status {
+  color: color-mix(in srgb, var(--ui-accent) 76%, var(--ui-text-primary));
+}
+
+.connector-card.is-expired .connector-card-status {
+  color: var(--ui-danger);
+}
+
+.connector-card.is-preview .connector-card-status {
+  color: #c79b58;
+}
+
+/* ===== Connect modal ===== */
+.connector-modal-shell {
+  position: fixed;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  inset: 0;
+  padding: 24px;
+  background: rgb(0 0 0 / 40%);
+  backdrop-filter: blur(2px);
+}
+
+.connector-modal {
+  position: relative;
+  width: min(380px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  padding: 20px;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 10px;
+  background: var(--ui-bg);
+  box-shadow: 0 18px 54px rgb(0 0 0 / 48%);
+}
+
+.connector-modal-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ui-text-tertiary);
+  cursor: pointer;
+}
+
+.connector-modal-close:hover,
+.connector-modal-close:focus-visible {
+  background: var(--ui-bg-tertiary);
+  color: var(--ui-text-primary);
+}
+
+.connector-modal-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.connector-modal-head h3 {
+  margin: 0;
+  color: var(--ui-text-primary);
+  font-size: 13px;
+}
+
+.connector-modal-head p {
+  margin: 2px 0 0;
+  color: var(--ui-text-tertiary);
+  font-size: 10px;
+}
+
+.connector-modal-phase {
+  margin: 0 0 12px;
+  color: var(--ui-text-secondary);
+  font-size: 11px;
+}
+
+.connector-required-field {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.connector-required-field label {
+  color: var(--ui-text-secondary);
+  font-size: 10px;
+}
+
+.connector-required-field-input {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.connector-required-field input {
+  flex: 1;
+  min-height: 30px;
+  padding: 5px 9px;
+  border: 1px solid var(--ui-stroke-tertiary);
+  border-radius: 4px;
+  outline: 0;
+  background: var(--ui-bg-secondary);
+  color: var(--ui-text-primary);
+  font: inherit;
+  font-size: 11px;
+}
+
+.connector-required-field-suffix {
+  color: var(--ui-text-tertiary);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.connector-required-field-hint {
+  margin: 0;
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+}
+
+.connector-required-field-error {
+  margin: 0;
+  color: var(--ui-danger);
+  font-size: 9px;
+}
+
+.connector-scope {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid var(--ui-stroke-tertiary);
+  border-radius: 5px;
+}
+
+.connector-scope button {
+  min-height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-right: 1px solid var(--ui-stroke-tertiary);
+  background: transparent;
+  color: var(--ui-text-secondary);
+  font: inherit;
+  font-size: 10px;
+  text-transform: capitalize;
+  cursor: pointer;
+}
+
+.connector-scope button:last-child {
+  border-right: 0;
+}
+
+.connector-scope button[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--ui-accent) 15%, transparent);
+  color: color-mix(in srgb, var(--ui-accent) 76%, var(--ui-text-primary));
+}
+
+.connector-scope button:hover:not(:disabled),
+.connector-scope button:focus-visible {
+  color: var(--ui-text-primary);
+}
+
+/* ===== MCP page ===== */
+.mcp-status-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 999px;
+  background: var(--ui-text-tertiary);
+}
+
+.mcp-status-dot.is-connected {
+  background: var(--ui-accent);
+}
+
+.mcp-status-dot.is-error {
+  background: var(--ui-danger);
 }
 
 .control-actions {

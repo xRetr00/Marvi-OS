@@ -15,6 +15,8 @@ export type AbstractIconName =
   | 'accounts'
   | 'skills'
   | 'plugins'
+  | 'connectors'
+  | 'mcp'
   | 'preferences'
   | 'schedules'
   | 'maintenance'
@@ -66,6 +68,10 @@ const paths: Record<AbstractIconName, React.ReactNode> = {
   accounts: <path d="M8 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM2 20c0-4 2-6 6-6s6 2 6 6M16 8h6M19 5v6" />,
   skills: <path d="M8 5H4v14h4M16 5h4v14h-4M10 16l4-8" />,
   plugins: <path d="M9 3v5H4v8h5v5h6v-5h5V8h-5V3z" />,
+  connectors: (
+    <path d="M9 15 15 9M8 16a4 4 0 0 1 0-6l2-2a4 4 0 0 1 6 6M16 8a4 4 0 0 1 0 6l-2 2a4 4 0 0 1-6-6" />
+  ),
+  mcp: <path d="M4 4h11v6H4zM7 10v3M14 10v3M4 17h11v-3.5M17 6.5h3v3h-3zM17 14.5h3v3h-3z" />,
   preferences: <path d="M3 6h9M16 6h5M12 3v6M3 12h3M10 12h11M6 9v6M3 18h12M19 18h2M15 15v6" />,
   schedules: <path d="M12 7v5l3 2M5 3v4M19 3v4M4 6h16v15H4z" />,
   maintenance: <path d="M14 5a5 5 0 0 0-6 6L3 16l5 5 5-5a5 5 0 0 0 6-6l-4 2-3-3z" />,

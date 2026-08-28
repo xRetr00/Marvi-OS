@@ -10,11 +10,15 @@ import type {
   ChatThread,
   AccountPage,
   AccountToolkit,
+  ConnectorRow,
+  ConnectorsPage,
   DoctorReport,
   HardwareAnswer,
   IdentityStatus,
   InitiativeStatus,
+  McpRegistryPage,
   McpServerRow,
+  McpServersPage,
   MemoryGraphMode,
   MemoryGraphPage,
   MemoryImportPreview,
@@ -119,6 +123,20 @@ export interface MarviDesktopApi {
     update: { scope?: 'read' | 'write' | 'admin'; sync_enabled?: boolean }
   ) => Promise<boolean>
   syncAccount: (toolkit?: string, connectionId?: string) => Promise<boolean>
+  getConnectors: () => Promise<ConnectorsPage>
+  connectConnector: (
+    slug: string
+  ) => Promise<{ ok: boolean; detail: string; connectionId?: string }>
+  getConnectorStatus: (slug: string) => Promise<ConnectorRow | null>
+  setConnectorScope: (slug: string, scope: 'read' | 'write' | 'admin') => Promise<boolean>
+  disconnectConnector: (connectionId: string) => Promise<boolean>
+  getMcpServers: () => Promise<McpServersPage | null>
+  getMcpRegistry: (query: string, page: number) => Promise<McpRegistryPage | null>
+  installMcpServer: (
+    qualifiedName: string,
+    env: Record<string, string>
+  ) => Promise<{ ok: boolean; detail: string }>
+  deleteMcpServer: (id: string) => Promise<boolean>
   getChat: (threadId?: string) => Promise<ChatPage>
   getChatThreads: (archived?: boolean) => Promise<ChatThread[]>
   createChatThread: (title?: string) => Promise<ChatThread | null>

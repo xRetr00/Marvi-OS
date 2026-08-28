@@ -66,9 +66,18 @@ import {
   updateStateDir
 } from './updater'
 import { isComposioConnectUrl, normaliseAccountPage } from './account-runtime'
+import {
+  isSafeConnectUrl,
+  normaliseConnectorRow,
+  normaliseConnectorsPage
+} from './connector-runtime'
 import type {
   AccountToolkit,
   AssistantState,
+  ConnectorRow,
+  ConnectorsPage,
+  McpRegistryPage,
+  McpServersPage,
   ModelPage,
   ProviderPage,
   ProviderRow,
@@ -1550,6 +1559,128 @@ function startApp(): void {
         )) !== null
       )
     })
+    // Capabilities > Connectors. Deliberately separate from the `/accounts`
+    // block above: that route stays alive for compatibility, but the
+    // renderer's Connectors grid speaks the newer, simpler `/connectors`
+    // contract (status + connection count per slug, no sync/trigger state).
+    ipcMain.handle('marvi:get-connectors', async (): Promise<ConnectorsPage> => {
+      const body = await gatewayJson('/connectors', undefined, 8_000)
+      return normaliseConnectorsPage(body ?? { available: false, connectors: [] })
+    })
+    ipcMain.handle('marvi:connect-connector', async (_event, slug) => {
+      if (typeof slug !== 'string' || !slug) return { ok: false, detail: 'Choose a connector' }
+      const body = (await gatewayJson(`/connectors/${encodeURIComponent(slug)}/connect`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' }
+      })) as { connect_url?: string; connection_id?: string } | null
+      const url = String(body?.connect_url ?? '')
+      if (!isSafeConnectUrl(url)) return { ok: false, detail: 'Invalid authorization URL' }
+      await shell.openExternal(url)
+      return {
+        ok: true,
+        detail: 'Finish authorization in your browser',
+        connectionId: body?.connection_id ?? ''
+      }
+    })
+    ipcMain.handle(
+      'marvi:get-connector-status',
+      async (_event, slug): Promise<ConnectorRow | null> => {
+        if (typeof slug !== 'string' || !slug) return null
+        const body = await gatewayJson(`/connectors/${encodeURIComponent(slug)}`, undefined, 8_000)
+        return body ? normaliseConnectorRow(body) : null
+      }
+    )
+    ipcMain.handle('marvi:set-connector-scope', async (_event, slug, scope) => {
+      if (typeof slug !== 'string' || !slug) return false
+      if (scope !== 'read' && scope !== 'write' && scope !== 'admin') return false
+      return (
+        (await gatewayJson(`/connectors/${encodeURIComponent(slug)}/scope`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ scope })
+        })) !== null
+      )
+    })
+    ipcMain.handle('marvi:disconnect-connector', async (_event, connectionId) => {
+      if (typeof connectionId !== 'string' || !connectionId) return false
+      return (
+        (await gatewayJson(`/connectors/connections/${encodeURIComponent(connectionId)}`, {
+          method: 'DELETE'
+        })) !== null
+      )
+    })
+
+    // Capabilities > MCP. `marvi:get-mcp` above hits the older, unshaped
+    // `/mcp` route and is kept only because nothing has migrated off it yet;
+    // these speak the servers/registry/install contract the MCP page renders.
+    ipcMain.handle('marvi:get-mcp-servers', async (): Promise<McpServersPage | null> => {
+      const body = (await gatewayJson('/mcp/servers', undefined, 8_000)) as {
+        servers?: Array<Record<string, unknown>>
+      } | null
+      if (!body) return null
+      return {
+        servers: (body.servers ?? []).map((row) => ({
+          id: String(row.id ?? ''),
+          name: String(row.name ?? row.id ?? ''),
+          status: String(row.status ?? 'unknown'),
+          tools: Number(row.tools ?? 0),
+          source: 'installed' as const
+        }))
+      }
+    })
+    ipcMain.handle(
+      'marvi:get-mcp-registry',
+      async (_event, query, page): Promise<McpRegistryPage | null> => {
+        const q = typeof query === 'string' ? query : ''
+        const p = typeof page === 'number' && page > 0 ? page : 1
+        const body = (await gatewayJson(
+          `/mcp/registry?q=${encodeURIComponent(q)}&page=${p}`,
+          undefined,
+          15_000
+        )) as { servers?: Array<Record<string, unknown>>; total_pages?: number } | null
+        if (!body) return null
+        return {
+          servers: (body.servers ?? []).map((row) => ({
+            qualifiedName: String(row.qualified_name ?? ''),
+            name: String(row.name ?? row.qualified_name ?? ''),
+            description: String(row.description ?? ''),
+            author: String(row.author ?? ''),
+            source: 'registry' as const
+          })),
+          totalPages: Number(body.total_pages ?? 1)
+        }
+      }
+    )
+    ipcMain.handle('marvi:install-mcp-server', async (_event, qualifiedName, env) => {
+      if (typeof qualifiedName !== 'string' || !qualifiedName) {
+        return { ok: false, detail: 'Choose a server to install' }
+      }
+      const safeEnv: Record<string, string> = {}
+      if (env && typeof env === 'object') {
+        for (const [key, value] of Object.entries(env as Record<string, unknown>)) {
+          if (typeof value === 'string') safeEnv[key] = value
+        }
+      }
+      const body = await gatewayJson(
+        '/mcp/install',
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ qualified_name: qualifiedName, env: safeEnv })
+        },
+        20_000
+      )
+      return body
+        ? { ok: true, detail: 'Installed' }
+        : { ok: false, detail: 'The MCP registry could not install that server.' }
+    })
+    ipcMain.handle('marvi:delete-mcp-server', async (_event, id) => {
+      if (typeof id !== 'string' || !id) return false
+      return (
+        (await gatewayJson(`/mcp/servers/${encodeURIComponent(id)}`, { method: 'DELETE' })) !== null
+      )
+    })
+
     ipcMain.handle('marvi:get-schedules', () => gatewayJson('/schedules'))
     ipcMain.handle('marvi:add-schedule', (_event, body) =>
       gatewayJson('/schedules', {
@@ -1639,9 +1770,7 @@ function startApp(): void {
           }
         }),
         archived: Array.isArray(body.archived) ? body.archived.map(String) : [],
-        trustedSources: Array.isArray(body.trusted_sources)
-          ? body.trusted_sources.map(String)
-          : [],
+        trustedSources: Array.isArray(body.trusted_sources) ? body.trusted_sources.map(String) : [],
         trustedSetting: String(body.trusted_setting ?? '')
       }
     })

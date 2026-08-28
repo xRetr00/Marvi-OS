@@ -11,11 +11,15 @@ import type {
   ChatThread,
   AccountPage,
   AccountToolkit,
+  ConnectorRow,
+  ConnectorsPage,
   DoctorReport,
   HardwareAnswer,
   IdentityStatus,
   InitiativeStatus,
+  McpRegistryPage,
   McpServerRow,
+  McpServersPage,
   MemoryGraphMode,
   MemoryGraphPage,
   MemoryImportPreview,
@@ -183,6 +187,27 @@ const marvi = {
   ): Promise<boolean> => ipcRenderer.invoke('marvi:set-account-policy', toolkit, update),
   syncAccount: (toolkit?: string, connectionId?: string): Promise<boolean> =>
     ipcRenderer.invoke('marvi:sync-account', toolkit ?? '', connectionId ?? ''),
+  getConnectors: (): Promise<ConnectorsPage> => ipcRenderer.invoke('marvi:get-connectors'),
+  connectConnector: (
+    slug: string
+  ): Promise<{ ok: boolean; detail: string; connectionId?: string }> =>
+    ipcRenderer.invoke('marvi:connect-connector', slug),
+  getConnectorStatus: (slug: string): Promise<ConnectorRow | null> =>
+    ipcRenderer.invoke('marvi:get-connector-status', slug),
+  setConnectorScope: (slug: string, scope: 'read' | 'write' | 'admin'): Promise<boolean> =>
+    ipcRenderer.invoke('marvi:set-connector-scope', slug, scope),
+  disconnectConnector: (connectionId: string): Promise<boolean> =>
+    ipcRenderer.invoke('marvi:disconnect-connector', connectionId),
+  getMcpServers: (): Promise<McpServersPage | null> => ipcRenderer.invoke('marvi:get-mcp-servers'),
+  getMcpRegistry: (query: string, page: number): Promise<McpRegistryPage | null> =>
+    ipcRenderer.invoke('marvi:get-mcp-registry', query, page),
+  installMcpServer: (
+    qualifiedName: string,
+    env: Record<string, string>
+  ): Promise<{ ok: boolean; detail: string }> =>
+    ipcRenderer.invoke('marvi:install-mcp-server', qualifiedName, env),
+  deleteMcpServer: (id: string): Promise<boolean> =>
+    ipcRenderer.invoke('marvi:delete-mcp-server', id),
   getChat: (threadId?: string): Promise<ChatPage> => ipcRenderer.invoke('marvi:get-chat', threadId),
   getChatThreads: (archived = false): Promise<ChatThread[]> =>
     ipcRenderer.invoke('marvi:get-chat-threads', archived),
@@ -290,8 +315,7 @@ const marvi = {
   pinSkill: (name: string, pinned: boolean): Promise<unknown> =>
     ipcRenderer.invoke('marvi:pin-skill', name, pinned),
   archiveSkill: (name: string): Promise<unknown> => ipcRenderer.invoke('marvi:archive-skill', name),
-  restoreSkill: (name: string): Promise<unknown> =>
-    ipcRenderer.invoke('marvi:restore-skill', name),
+  restoreSkill: (name: string): Promise<unknown> => ipcRenderer.invoke('marvi:restore-skill', name),
   getSkillStore: (): Promise<{ skills: StoreSkill[]; sources: string[] } | null> =>
     ipcRenderer.invoke('marvi:get-skill-store'),
   reviewSkill: (repo: string, path: string): Promise<SkillReview | null> =>

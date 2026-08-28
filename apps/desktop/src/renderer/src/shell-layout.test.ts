@@ -159,6 +159,27 @@ describe('shell layout', () => {
     expect(css).toContain('@container room-page (max-width: 720px)')
   })
 
+  it('offers the review queue the answer it already has', () => {
+    // The card showed "34% nearest match" against an empty name box -- 34% of
+    // whom? The only action it invited was typing a name the library already
+    // held. Measured on the live queue: forty faces, every one of them below
+    // the match threshold, and nothing on screen said who they were near.
+    expect(app).toContain('`Looks like ${sighting.nearest.name}`')
+    expect(app).toContain('value={visitorNames[sighting.id] ?? sighting.nearest?.name')
+    expect(app).toContain('Matches nobody Marvi knows')
+  })
+
+  it('can mark a reviewed face as the owner, and empty the queue at once', () => {
+    // Accepting through this card always stored an ordinary visitor, so the
+    // one person the room exists for was never the owner: `owner_visible`
+    // stayed false and the owner threshold never fired.
+    expect(app).toContain('This is me — the owner')
+    expect(app).toContain('owner: visitorOwners[id] ?? false')
+    // Forty crops that should never have been queued is not forty decisions.
+    expect(app).toContain('Reject all')
+    expect(app).toContain("action: 'reject_all'")
+  })
+
   it('keeps one window-wide status bar below both sidebars and page content', () => {
     expect(lastBlock('.app-shell')).toContain('34px minmax(0, 1fr) 20px')
     expect(app).toMatch(/<\/div>\s*\{statusbar}\s*\{settings \? \(/)

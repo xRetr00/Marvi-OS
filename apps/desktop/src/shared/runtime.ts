@@ -77,6 +77,57 @@ export interface AccountPage {
   }
 }
 
+/**
+ * The Capabilities > Connectors surface, backed by the Gateway's `/connectors`
+ * contract. Deliberately smaller than `AccountPage`/`ConnectedAccount`: this is
+ * the openhuman-style card grid, not the older row-based Accounts settings
+ * page, and it never grew the sync/triggers machinery because that stays on
+ * Composio's side of the Gateway now.
+ */
+export type ConnectorStatus = 'connected' | 'expired' | 'disconnected' | 'preview'
+
+export interface ConnectorRow {
+  slug: string
+  name: string
+  status: ConnectorStatus
+  connectionId: string
+  scope: 'read' | 'write' | 'admin'
+  connections: number
+  error: string
+}
+
+export interface ConnectorsPage {
+  available: boolean
+  connectors: ConnectorRow[]
+}
+
+/** An installed MCP server, from `GET /mcp/servers`. */
+export interface McpInstalledServer {
+  id: string
+  name: string
+  status: string
+  tools: number
+  source: 'installed'
+}
+
+/** One registry search hit, from `GET /mcp/registry`. Not yet installed. */
+export interface McpRegistryServer {
+  qualifiedName: string
+  name: string
+  description: string
+  author: string
+  source: 'registry'
+}
+
+export interface McpServersPage {
+  servers: McpInstalledServer[]
+}
+
+export interface McpRegistryPage {
+  servers: McpRegistryServer[]
+  totalPages: number
+}
+
 export interface MemoryEntry {
   id: number
   kind: string
@@ -1090,7 +1141,14 @@ export interface FaceLibrary {
   detail?: string
   owner: string
   people: { name: string; owner: boolean; samples: number; at?: string }[]
-  pending: { id: number; at?: string; score?: number; image: string }[]
+  pending: {
+    id: number
+    at?: string
+    score?: number
+    image: string
+    /** Who the face is closest to, whatever the score. */
+    nearest?: { name?: string; score?: number }
+  }[]
 }
 
 /** A bounded, compressed frame produced by the Smart Room sidecar on demand. */

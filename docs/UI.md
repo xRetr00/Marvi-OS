@@ -407,25 +407,40 @@ tool, the lifecycle event, the time, the active mode, and the exact arguments.
 YOLO executions appear identically to confirmed ones — the mode is a column, not
 a reason to hide a record. Nothing on this view is sent anywhere.
 
-## Accounts and Memory views
+## Capabilities views
 
-Accounts owns the visible Composio lifecycle. It lists every connection rather
-than collapsing multiple accounts, opens Composio's hosted Connect Link in the
-system browser, and provides reconnect, enable/disable, two-step revoke, and
-manual sync actions. Marvi never renders the provider login or receives its
-credential.
+The sidebar's fourth group, Capabilities, holds the things Marvi can be
+extended to do: Skills, Connectors, MCP, and Plugins. It replaces the old
+Accounts settings tab — Skills moved here from Settings, and the connection
+lifecycle that used to live at Settings > Accounts is now Capabilities >
+Connectors under a new name and a new Gateway contract (`/connectors`, not
+`/accounts`).
 
-On first use, Accounts accepts the Composio project API key in a masked field.
-Gateway validates it before saving it through the existing local secret-setting
-path; the key is never echoed back to the renderer. A successful save activates
-the catalog and realtime listener immediately.
+Connectors renders as a catalog grid, not a list. Card metadata — name,
+category, description — ships with the renderer so the grid paints on first
+frame; a card's live status (connected, expired, preview, or not connected)
+only ever arrives afterward as an overlay from `GET /connectors`, and a
+Gateway that has not configured the connector service yet degrades to every
+card reading "Not connected" rather than a blocked spinner. Status is carried
+by the card's border and tint — connected reuses the app's blue accent, expired
+reads in the danger red, preview in amber — with the status word underneath as
+the non-color fallback. A badge in the card's corner appears only above one
+active connection per service. Clicking a card opens the connect modal, which
+opens the provider's hosted authorization page in the system browser and then
+polls for the result — connectors have no deep-link callback into the desktop
+app — starting at 1.5s and backing off toward a 4s cap over a 5-minute window,
+with an immediate re-poll on window focus (the user returning from the browser
+is the clearest signal the handoff finished). Marvi never renders the provider
+login or receives its credential. A connected card exposes the same
+read/write/admin capability ceiling the old Accounts page did, plus disconnect.
 
-Every account starts with a read-only capability ceiling. A compact three-state
-strip lets the user choose read, write, or admin; this limits agent discovery
-and execution but never bypasses Confirm/YOLO. Native Gmail, Calendar, Slack,
-Notion, GitHub, and Drive rows also expose memory auto-fetch and per-connection
-last-success/error health. The page identifies whether realtime triggers are
-connected or periodic polling is carrying observation.
+MCP lists installed local MCP servers and the registry catalog behind the same
+"All / Installed / Registry" filter, and installs a registry server through a
+short dialog. Capabilities > Plugins is for third-party/extension plugins and
+is presently an empty shell — Settings > Plugins remains the page for Marvi's
+own bundled services (Smart Room and others).
+
+## Memory view
 
 Memory shows what is stored, how much, and where each entry came from. An entry
 that originated outside the machine is labelled untrusted rather than shown as
@@ -455,7 +470,8 @@ Settings include:
 - microphone, camera, wake word, presence, and gesture controls;
 - voice models and residency profile;
 - OpenCode Go key/model selection;
-- Composio connections;
+- Marvi's own bundled plugins (e.g. Smart Room) — third-party plugins live at
+  Capabilities > Plugins instead;
 - Smart Room endpoint;
 - memory policy;
 - Confirm/YOLO mode;
