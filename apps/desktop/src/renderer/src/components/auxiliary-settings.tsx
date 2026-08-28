@@ -3,6 +3,7 @@ import { ShieldAlert } from 'lucide-react'
 
 import type { AuxiliaryPage, AuxiliaryRole, ModelCard } from '../../../shared/runtime'
 import { ControlButton, ControlEmpty, ControlRow } from './control-surface'
+import { modelContext, modelPrice } from './model-labels'
 import { Picker } from './ui/picker'
 
 /**
@@ -171,11 +172,22 @@ export function AuxiliarySettings(): React.JSX.Element {
                   placeholder="Provider"
                 />
                 <Picker
+                  // The same options the main model gets, built the same way:
+                  // the id under the name because the id is what a provider
+                  // error quotes back and the name is what you recognise, and
+                  // the context and price beside it because choosing a model
+                  // for a background job is mostly a cost decision.
                   options={models.map((model) => ({
                     value: model.id,
                     label: model.name || model.id,
-                    detail: model.reasons ? 'Reasons' : ''
+                    detail: model.id === model.name ? undefined : model.id,
+                    hint: [modelContext(model.context), modelPrice(model)]
+                      .filter(Boolean)
+                      .join('  ')
                   }))}
+                  searchPlaceholder="Search models…"
+                  empty="This provider listed no models."
+                  disabled={!draft.provider || fetching === draft.provider}
                   value={draft.model}
                   onChange={(next) =>
                     setDraft((current) => ({ ...current, model: next, effort: '' }))
@@ -184,10 +196,10 @@ export function AuxiliarySettings(): React.JSX.Element {
                     !draft.provider
                       ? 'Choose a provider first'
                       : fetching === draft.provider
-                        ? 'Fetching models'
+                        ? 'Asking the provider…'
                         : models.length === 0
-                          ? 'This provider listed nothing'
-                          : 'Model'
+                          ? 'This provider listed none'
+                          : `${models.length} available`
                   }
                 />
                 {/* Only where it means something. `efforts` is per model rather
