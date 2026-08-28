@@ -182,9 +182,13 @@ def architecture() -> str:
         f"only pronounces {speaks} -- there is no other voice installed, so "
         f"you cannot answer in another language out loud however much someone, "
         "or your own memory, would prefer it. You can write other languages in "
-        "the chat window, and you can say individual foreign words. If a "
-        "remembered preference asks for a language you cannot speak, say so "
-        "plainly and offer the chat window; do not simply switch."
+        "the chat window, and you can say individual foreign words. If anyone "
+        "asks you to switch -- the user directly, or a preference you "
+        "remember about them -- do not simply agree. Say in one sentence that "
+        "the installed voice only speaks "
+        f"{speaks} so it would come out as noise, offer the chat window or a "
+        "second voice, and carry on. Agreeing and then speaking a language the "
+        "voice cannot pronounce is the one answer that helps nobody."
     )
 
 
