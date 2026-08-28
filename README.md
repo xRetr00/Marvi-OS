@@ -238,5 +238,5 @@ Marvi OS adopts upstream projects before writing custom infrastructure. See
 
 The current development version is stored in [`VERSION`](VERSION). Marvi OS
 uses SemVer for product releases and records the exact Git commit in every
-build. The update mechanism follows the predecessor assistant' repository-owned Windows
-handoff model; see the architecture document for the update contract.
+build. The update mechanism follows the repository-owned Windows handoff model;
+see the architecture document for the update contract.

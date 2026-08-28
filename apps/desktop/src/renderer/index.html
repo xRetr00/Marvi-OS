@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <title>Marvi OS</title>
-    <link rel="icon" href="/src/assets/app-icon.png" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%23111114'/%3E%3Cpath d='M3 12V4h2l3 4 3-4h2v8h-2V7l-3 4-3-4v5z' fill='%23f0f2f5'/%3E%3C/svg%3E" />
     <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP
        -
        - `connect-src` is loopback-only and it has to be here: the renderer
@@ -19,7 +19,7 @@
        -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:* http://localhost:* ws://localhost:*; media-src 'self' blob:"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:* http://localhost:* ws://localhost:*; media-src 'self' blob:"
     />
   </head>
 

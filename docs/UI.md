@@ -245,16 +245,20 @@ bottom status bar is always present and shows compact authoritative health:
 - version/update indicator
 
 Health items open the relevant view. The version item is the sole exception:
-it opens a compact popover with version, channel, commit, build time, last
-update result, and check/update actions. Full update controls live in About;
-there is no separate Updates settings destination.
+its label itself reports `checking`, `(+N)`, `update`, or a failed handoff. It
+opens a focused update dialog with running/target builds, channel, grouped
+change notes, and check/update actions. Full channel and last-result controls
+live in About; there is no separate Updates settings destination.
 
 Update checks run quietly at renderer startup, every thirty minutes, and after
 focus returns when the last check is at least five minutes old. They never open
 a window or steal focus. An available update shows its current and target SHAs,
 integrity state, exact commit count, and a bounded grouped changelog retaining
 short SHA provenance. When commit details cannot be resolved, the UI says so
-instead of inventing release notes.
+explicitly instead of inventing release notes. Starting an update changes the
+status-bar and dialog state before the desktop exits. A failed handoff leaves
+both surfaces open with a retry path;
+only a successful native handoff closes the desktop.
 
 Chat and Voice show the same session timing strip. Usage is the sole source of
 truth for durable provider and session counters; Providers only configures

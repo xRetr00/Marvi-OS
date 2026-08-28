@@ -4,6 +4,22 @@ This is the chronological record of work that has actually happened. Planned
 work belongs in `docs/phases/`; architectural decisions belong in
 `docs/DECISIONS.md`.
 
+## 2026-08-28 — Desktop update center and version status
+
+- Replaced the status bar's passive version dot with an authoritative label
+  that exposes checking, available change count, active handoff, and handoff
+  failure without opening another surface.
+- Added a keyboard-accessible update dialog from the status bar and aligned the
+  About page to the same state, grouped commit notes, channel controls, native
+  handoff confirmation, last result, and recovery copy.
+- Kept failed native handoffs visible and retryable while successful handoffs
+  continue through the bootstrap and close the desktop intentionally.
+- Restricted external design provenance to `docs/UPSTREAM.md`; product code,
+  comments, tests, and general documentation now use Marvi-owned terminology.
+- Verified 264 desktop tests, both TypeScript targets, a production renderer
+  build, 92 focused Gateway tests, and browser screenshots of the status-bar
+  dialog and About update section.
+
 ## 2026-08-16 — repository foundation
 
 - Created the independent `D:\Marvi-OS` Git repository as `marvi-os`.
