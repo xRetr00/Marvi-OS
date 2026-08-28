@@ -221,6 +221,7 @@ pub fn create_shortcuts(
            $link = $shell.CreateShortcut($path); \
            $link.TargetPath = '{target}'; \
            $link.WorkingDirectory = '{workdir}'; \
+           $link.IconLocation = '{target},0'; \
            $link.Description = 'Marvi OS'; \
            $link.Save(); \
            if (-not (Test-Path $path)) {{ throw \"could not write $path\" }} \
