@@ -120,6 +120,9 @@ class LocalMemoryProvider:
     def forget_all(self) -> int:
         return self.store.forget_all()
 
+    def forget_by_source(self, source: str) -> int:
+        return self.store.forget_by_source(source)
+
 
 class Mem0Provider:
     """Mem0 adapter for managed, self-hosted, or pinned in-process OSS use."""
@@ -501,6 +504,25 @@ class MemoryRuntime:
 
     def forget_all(self) -> int:
         return self._provider().forget_all()
+
+    def forget_by_source(self, source: str) -> int:
+        """Retract everything one connection wrote, for disconnect.
+
+        Only the local provider can do this exactly: it stores `source` as a
+        column. Honcho and Mem0 own extraction themselves and never surfaced
+        a source-addressable delete, so under an external provider this is a
+        reported gap rather than a silent no-op that pretends to have
+        cleaned up — see RFC-NATIVE-CONNECTORS-REVIEW.md, "disconnect does
+        not retract what was ingested".
+        """
+        if self.provider_name != LOCAL:
+            log.warning(
+                "cannot retract by source under %s; disconnecting will not"
+                " remove memories already written to it",
+                self.provider_name,
+            )
+            return 0
+        return self.local.store.forget_by_source(source)
 
     def count(self) -> int:
         if self.provider_name == LOCAL:

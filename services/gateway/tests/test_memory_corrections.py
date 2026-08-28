@@ -186,7 +186,10 @@ def test_an_import_marks_where_each_memory_came_from(tmp_path) -> None:
     # The row still carries where it came from -- anything reading a memory
     # should see that -- and the block Marvi reads states it once, in a
     # heading, because she said the filename out loud when it was inline.
-    assert store.search("RTX 3060")[0]["body"].startswith("(from honcho/imported-assistant)")
+    found = store.search("RTX 3060")[0]
+    assert found["uncertain"] == "imported"
+    assert found["origin"] == "honcho/imported-assistant"
+    assert "honcho" not in found["body"]
 
     block = store.recall_block("RTX 3060")
 

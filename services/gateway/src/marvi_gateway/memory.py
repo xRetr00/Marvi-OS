@@ -490,8 +490,17 @@ class MemoryStore:
                 # than the original text -- so the full external-data envelope
                 # is both unnecessary and unaffordable here: six of them fill
                 # the whole recall budget, and an import is rarely six.
-                shown = entry["source"].removeprefix(self.IMPORTED)
-                entry["body"] = f"(from {shown}) {entry['body']}"
+                #
+                # A field rather than a prefix on the body. It used to be glued
+                # to the front of the sentence and unglued again in
+                # `recall_block`, which worked exactly as far as that one
+                # caller: `memory_search` returns these rows straight to the
+                # model, so the tool path handed her
+                # "(from shereef_marvi_memory_pack.json) ..." and she read the
+                # filename out loud. A sentence handed to a model is a sentence
+                # it may repeat, so provenance must not live inside one.
+                entry["uncertain"] = "imported"
+                entry["origin"] = entry["source"].removeprefix(self.IMPORTED)
             elif behind:
                 # Marvi's own inference, not something that arrived from
                 # outside. The external-data envelope is injection defence --
@@ -501,7 +510,7 @@ class MemoryStore:
                 # she drew and a fact she was told are different things and
                 # stating the first as the second is how she ends up insisting
                 # on something nobody said.
-                entry["body"] = f"(worked out, not stated) {entry['body']}"
+                entry["uncertain"] = "inferred"
                 # What it was drawn from, so "why do you think that?" has an
                 # answer through the recall tool that already exists rather
                 # than through a tool of its own. Costs nothing in the prompt:
@@ -829,6 +838,28 @@ class MemoryStore:
             "memory deleted by id",
             extra={"marvi_memory_id": memory_id, "marvi_removed": removed},
         )
+        return removed
+
+    def forget_by_source(self, source: str) -> int:
+        """Remove every memory one exact source wrote.
+
+        For disconnecting a connected account: `source` is a stable provider
+        identifier such as `composio:gmail:<id>`, not something a user typed,
+        so an exact match is correct here where `forget_matching`'s FTS
+        search would be the wrong instrument — retraction should remove
+        precisely what one connection produced, nothing it merely resembles.
+        """
+        if not source:
+            return 0
+        cursor = self._db.execute("DELETE FROM memories WHERE source = ?", (source,))
+        self._db.commit()
+        removed = cursor.rowcount
+        if removed:
+            self._imported = None
+            log.info(
+                "memory retracted by source",
+                extra={"marvi_source": source, "marvi_removed": removed},
+            )
         return removed
 
     #: How many memories one "forget that" may remove. A person correcting one
@@ -1237,17 +1268,11 @@ class MemoryStore:
             if not body:
                 continue
             subject = str(entry.get("subject") or "").strip()
-            # Provenance is stripped back out here. It goes into the body in
-            # `_row` so that anything reading a memory sees where it came from
-            # -- and in a block the model reads aloud, an inline
-            # "(from shereef_marvi_memory_pack.json)" is a thing it says out
-            # loud, because a sentence handed to a model is a sentence it may
-            # repeat. It did. The distinction is kept as two sections instead:
-            # same information, stated once, in a place that reads as a note
-            # about the list rather than as part of a memory.
-            uncertain = body.startswith(("(from ", "(worked out"))
-            if uncertain:
-                body = body.split(") ", 1)[-1]
+            # Where a memory came from is a field on the row, never a phrase
+            # inside the sentence -- see `_row`. The two sections below say it
+            # once, as a note about the list rather than as part of a memory,
+            # so there is nothing in the text for her to read out.
+            uncertain = bool(entry.get("uncertain"))
             line = f"- {subject}: {body}" if subject else f"- {body}"
             if spent + len(line) > budget:
                 break
@@ -1274,7 +1299,16 @@ class MemoryStore:
             block
             + nl
             + "Your own notes from earlier. They may be out of date; prefer "
-            "what the user says now, and do not repeat them back unprompted."
+            "what the user says now, and do not repeat them back unprompted. "
+            # Most of these arrived from an import, where a different assistant
+            # was writing *about* a project called Marvi -- so they say "Marvi
+            # uses", "Marvi plans", and she is then asked to treat them as her
+            # own. Handed sentences in the third person she answers in the
+            # third person: "she works fully locally, she uses...". Cheaper to
+            # say who the subject is than to rewrite eight bodies with a model
+            # and risk changing what they mean.
+            + "Where one of these names Marvi, it is describing you -- answer "
+            "as yourself, not about her."
         )
 
     #: How many relations a recall may carry. A handful is context; the whole

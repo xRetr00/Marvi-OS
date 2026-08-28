@@ -377,3 +377,24 @@ class _Journal:
 
     def append(self, *args, **kwargs) -> None:
         self.entries.append((args, kwargs))
+
+
+def test_recall_says_that_a_memory_naming_marvi_is_about_herself(tmp_path) -> None:
+    """The third-person voice the user heard, traced to its cause.
+
+    Asked about her memory, Marvi answered "she works fully locally, she uses
+    ..." -- about herself, in the third person. The memories she had been
+    handed were written by another assistant *about* a project called Marvi
+    ("Marvi plans to implement...", "Marvi's memory architecture uses..."), and
+    the block then asks her to treat them as her own. Sentences in the third
+    person come back in the third person.
+    """
+    from marvi_gateway.memory import MemoryStore
+
+    store = MemoryStore(tmp_path / "m.db")
+    store.remember("Project Marvi", "Marvi uses progressive tool loading.")
+
+    block = store.recall_block("Marvi progressive tool loading")
+
+    assert "it is describing you" in block
+    assert "as yourself" in block

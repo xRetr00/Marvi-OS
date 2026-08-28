@@ -249,7 +249,12 @@ def test_an_imported_memory_is_recalled_with_a_short_note(tmp_path) -> None:
     model = Model('{"memories":[{"subject":"marvi","body":"The user builds Marvi."}]}')
     memory_import.run(store, model, [path])
 
-    assert store.search("Marvi")[0]["body"].startswith("(from MEMORY.md)")
+    found = store.search("Marvi")[0]
+    assert found["uncertain"] == "imported"
+    assert found["origin"] == "MEMORY.md"
+    # Provenance is a field, never a phrase inside the sentence: the body goes
+    # to the model through `memory_search` and she read the filename out loud.
+    assert "MEMORY.md" not in found["body"]
 
     block = store.recall_block("Marvi")
 
