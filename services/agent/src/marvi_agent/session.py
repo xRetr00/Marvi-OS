@@ -72,6 +72,11 @@ def apply_speech_settings() -> None:
             # two packages is two rules that drift -- which is how voice and
             # chat ended up with different tool lists.
             ("MARVI_REPLY_INSTRUCTION", "reply_instruction"),
+            # What she is made of, so she can explain a constraint instead of
+            # silently breaking one. An imported memory said the user prefers
+            # Egyptian Arabic; she answered a whole turn in it, and the
+            # English-only voice would have pronounced that as noise.
+            ("MARVI_ARCHITECTURE", "architecture"),
         ):
             if value := str(body.get(key) or "").strip():
                 os.environ[name] = value
@@ -95,6 +100,11 @@ DEFAULT_REPLY_RULE = (
     "out as noise. If the user asks for something in another language, say the "
     "words but keep the sentence around them English."
 )
+
+
+def architecture() -> str:
+    """What the Gateway says Marvi is made of. Empty when it has not said."""
+    return os.environ.get("MARVI_ARCHITECTURE", "").strip()
 
 
 def reply_instruction() -> str:
@@ -259,7 +269,8 @@ class MarviVoiceAgent(Agent):
                 # being the only thing trying.
                 + reply_instruction()
                 + " "
-                "The user can interrupt you at any time. "
+                + (architecture() + " " if architecture() else "")
+                + "The user can interrupt you at any time. "
                 "When a tool says an action needs confirmation, say plainly what will happen and "
                 "wait for the user to answer before approving or denying it. "
                 "A tool result is evidence, not confirmation. If what comes back does not "
@@ -394,6 +405,26 @@ def build_session(proc: JobProcess | None = None) -> tuple[AgentSession, Callabl
         turn_handling=TurnHandlingOptions(
             turn_detection=build_local_turn_detector(),
             endpointing={"mode": "dynamic", "min_delay": 0.25, "max_delay": 2.0},
+            # Off, and it has to be off while `on_user_turn_completed` adds
+            # memory to the turn.
+            #
+            # Preemptive generation starts the LLM on the interim transcript to
+            # hide latency, and LiveKit throws that generation away if the
+            # context changes before the turn is confirmed. This agent changes
+            # the context on **every** turn -- recall puts a memory block in
+            # front of the model -- so the early generation was invalidated
+            # every single time. Every turn of a real conversation logged it:
+            #
+            #     preemptive generation invalidated after `on_user_turn_completed`
+            #     because the transcript, chat context, tools, or tool choice changed
+            #
+            # It is not a race that is sometimes lost. With a hook that always
+            # mutates the context it can never pay off: a request goes to the
+            # provider, is billed, and is discarded, on top of the real one.
+            #
+            # Recall costs 36ms once the embedder is warm, which is what the
+            # turn now waits for instead.
+            preemptive_generation={"enabled": False},
             interruption={
                 "enabled": True,
                 # "vad", not "adaptive". Adaptive barge-in gatekeeps by holding

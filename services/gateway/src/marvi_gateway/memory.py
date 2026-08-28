@@ -764,17 +764,96 @@ class MemoryStore:
         )
         return removed
 
-    def forget_matching(self, query: str) -> int:
-        ids = [entry["id"] for entry in self.search(query, limit=100)]
-        if not ids:
-            return 0
-        self._db.executemany("DELETE FROM memories WHERE id = ?", [(i,) for i in ids])
+    #: How many memories one "forget that" may remove. A person correcting one
+    #: wrong fact means one fact.
+    FORGET_LIMIT = 5
+
+    def forget_matching(self, query: str) -> dict[str, Any]:
+        """Remove the memories that literally match. Returns what went.
+
+        Two things were wrong with this, and they compounded. It searched with
+        the **hybrid** search, so a semantic near-match counted -- and it took
+        **a hundred** of them. "Forget that I am based on OpenHuman" would have
+        found every memory about Marvi's architecture and deleted the lot.
+
+        Literal matching only, and a handful at most. A destructive operation
+        driven by an embedding is one that removes things nobody named, and the
+        user asking to drop one wrong fact does not expect forty to go with it.
+        Semantic recall is for *finding* things; it is the wrong instrument for
+        deciding what to destroy.
+
+        The subjects come back so the caller can say what it removed rather
+        than report a number, which is what makes a wrong deletion visible in
+        the moment it happens.
+        """
+        match = _fts_query(query)
+        rows = (
+            self._db.execute(
+                "SELECT m.id, m.subject FROM memories_fts f JOIN memories m ON m.id = f.rowid"
+                " WHERE memories_fts MATCH ? ORDER BY rank LIMIT ?",
+                (match, self.FORGET_LIMIT),
+            ).fetchall()
+            if match
+            else []
+        )
+        if not rows:
+            return {"forgotten": 0, "subjects": []}
+        subjects = [str(row["subject"]) for row in rows]
+        self._db.executemany(
+            "DELETE FROM memories WHERE id = ?", [(int(row["id"]),) for row in rows]
+        )
         self._db.commit()
+        self._imported = None
         log.info(
             "memory deleted by query",
-            extra={"marvi_query_chars": len(query), "marvi_removed": len(ids)},
+            extra={"marvi_query_chars": len(query), "marvi_removed": len(subjects)},
         )
-        return len(ids)
+        return {"forgotten": len(subjects), "subjects": subjects}
+
+    def unlink(self, subject: str, predicate: str = "", obj: str = "") -> dict[str, Any]:
+        """Remove a relation from the graph. Returns what went.
+
+        There was `link` and no way back. The dreamer draws relations from what
+        it reads, and it reads other assistants' notes -- so it concluded
+        "Marvi is based on openhuman", which is false and which nothing could
+        remove: `memory_forget` deletes memories, and a relation is not one.
+        A graph that can only be added to accumulates wrong edges for ever.
+
+        Predicate and object are optional, so "that has nothing to do with
+        openhuman" removes every edge between the two, and naming all three
+        removes exactly one.
+        """
+        clauses = ["(s.name = ? COLLATE NOCASE OR o.name = ? COLLATE NOCASE)"]
+        values: list[Any] = [subject.strip(), subject.strip()]
+        if obj.strip():
+            clauses.append("(s.name = ? COLLATE NOCASE OR o.name = ? COLLATE NOCASE)")
+            values += [obj.strip(), obj.strip()]
+        if predicate.strip():
+            clauses.append("r.predicate = ? COLLATE NOCASE")
+            values.append(predicate.strip())
+
+        rows = self._db.execute(
+            "SELECT r.id, s.name AS subject, r.predicate, o.name AS object FROM relations r"
+            " JOIN entities s ON s.id = r.subject_id"
+            " JOIN entities o ON o.id = r.object_id"
+            f" WHERE {' AND '.join(clauses)}",
+            values,
+        ).fetchall()
+        if not rows:
+            return {"removed": 0, "relations": []}
+        gone = [f"{row['subject']} {row['predicate']} {row['object']}" for row in rows]
+        self._db.executemany(
+            "DELETE FROM relations WHERE id = ?", [(int(row["id"]),) for row in rows]
+        )
+        # An entity with no edges left is not a thing Marvi knows about any
+        # more, and leaving it makes the graph view fill with lone dots.
+        self._db.execute(
+            "DELETE FROM entities WHERE id NOT IN"
+            " (SELECT subject_id FROM relations UNION SELECT object_id FROM relations)"
+        )
+        self._db.commit()
+        log.info("graph relations removed", extra={"marvi_removed": len(gone)})
+        return {"removed": len(gone), "relations": gone}
 
     def forget_all(self) -> int:
         removed = self.count()
@@ -1322,10 +1401,13 @@ def register_memory_tools(registry, memory: MemoryStore, summarise: Any = None) 
         return {"query": query, "results": results}
 
     def memory_forget(query: str) -> dict[str, Any]:
-        return {"forgotten": memory.forget_matching(query)}
+        return memory.forget_matching(query)
 
     def memory_link(subject: str, predicate: str, target: str) -> dict[str, Any]:
         return {"id": memory.link(subject, predicate, target)}
+
+    def memory_unlink(subject: str, predicate: str = "", target: str = "") -> dict[str, Any]:
+        return memory.unlink(subject, predicate, target)
 
     def memory_neighbours(name: str) -> dict[str, Any]:
         return {"relations": memory.neighbours(name)}
@@ -1398,6 +1480,23 @@ def register_memory_tools(registry, memory: MemoryStore, summarise: Any = None) 
             },
             sensitive=False,
             handler=memory_link,
+        )
+    )
+    registry.register(
+        ToolSpec(
+            name="memory_unlink",
+            description="Remove a relationship you got wrong",
+            arguments={"subject": str},
+            optional={"predicate": str, "target": str},
+            describes={
+                "subject": "One of the two things the relationship is between.",
+                "predicate": "The relationship, if you want to remove only that one.",
+                "target": "The other thing, if you want to remove only the edge "
+                "between these two. Leave both out to remove every "
+                "relationship involving the subject.",
+            },
+            sensitive=False,
+            handler=memory_unlink,
         )
     )
     registry.register(

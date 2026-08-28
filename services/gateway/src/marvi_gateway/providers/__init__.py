@@ -61,3 +61,24 @@ __all__ = [
     "register",
     "select",
 ]
+
+
+#: Models observed to refuse `reasoning: {enabled: false}`.
+#:
+#: In memory for the process, because it is a property of the model rather than
+#: of this machine and it is re-learned from the first refusal after a restart
+#: -- one 400 that is already retried. Persisting it would mean a stale entry
+#: outliving a model that changed.
+_MANDATORY_REASONING: set[str] = set()
+
+
+def mandatory_reasoning() -> set[str]:
+    """Which models will not have their reasoning turned off.
+
+    No catalog states this. OpenRouter lists `reasoning` in
+    `supported_parameters` for a model that *requires* it exactly as for one
+    that merely offers it, so the only place the difference appears is the
+    refusal itself -- which is how `google/gemini-3.5-flash-lite` came to be
+    running every background job while nothing said it could not be quietened.
+    """
+    return _MANDATORY_REASONING

@@ -159,6 +159,35 @@ def enforceable() -> bool:
     return understand() in ("en", ANY)
 
 
+def architecture() -> str:
+    """What Marvi is made of, in the words she needs to answer a question.
+
+    Added because a memory imported from another assistant said the user
+    "prefers replies in Egyptian Arabic even when asking in English", and she
+    duly answered a whole turn in Arabic -- which the English-only voice would
+    have pronounced as noise. She had no way to know that. The reply
+    instruction told her *what* to do and nothing told her *why*, so a strong
+    memory simply outvoted it.
+
+    A model that knows its own constraints can explain them, which is the
+    difference between "I can't do that" and silently doing the wrong thing.
+    Kept short: this sits in the persona on every turn.
+    """
+    speaks = NAMES.get(speak(), "English")
+    hears = understand()
+    heard = "any language it recognises" if hears == "auto" else NAMES.get(hears, hears)
+    return (
+        "About yourself, if it comes up: you hear through a local speech "
+        f"recogniser set to {heard}, and you speak through a local voice that "
+        f"only pronounces {speaks} -- there is no other voice installed, so "
+        f"you cannot answer in another language out loud however much someone, "
+        "or your own memory, would prefer it. You can write other languages in "
+        "the chat window, and you can say individual foreign words. If a "
+        "remembered preference asks for a language you cannot speak, say so "
+        "plainly and offer the chat window; do not simply switch."
+    )
+
+
 def reply_instruction() -> str:
     """The sentence that replaces the hardcoded English rule.
 

@@ -339,6 +339,14 @@ class ProviderClient:
                 raise ProviderCallError(f"{profile.name} rejected the credential")
             if 400 <= response.status_code < 500 and response.status_code != 408:
                 if self._reasoning_is_mandatory(response) and "reasoning" in body:
+                    # Written down, not just worked around. Nothing in a model
+                    # catalog says "reasoning cannot be disabled" -- OpenRouter
+                    # lists the parameter either way -- so the only place this
+                    # is knowable is the refusal, and a fact learned once
+                    # should not have to be learned again on every turn.
+                    from . import mandatory_reasoning
+
+                    mandatory_reasoning().add(str(body.get("model") or ""))
                     # Asking for reasoning off is an optimisation for jobs that
                     # do not deliberate. Some models refuse to have it turned
                     # off at all, and the request then fails outright -- which

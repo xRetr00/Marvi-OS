@@ -1991,6 +1991,9 @@ def create_app(
             # that drift, which is how voice and chat ended up with different
             # tool lists in the first place.
             "reply_instruction": language.reply_instruction(),
+            # What she is made of. A memory that asks for a language the voice
+            # cannot pronounce needs an answer, not a silent switch.
+            "architecture": language.architecture(),
         }
 
     @app.get("/memory/settings")
