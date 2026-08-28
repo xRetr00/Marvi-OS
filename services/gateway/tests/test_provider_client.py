@@ -96,7 +96,7 @@ def test_auxiliary_jobs_follow_the_main_model() -> None:
         return httpx.Response(200, json=openai_payload())
 
     client = ProviderClient(http=httpx.Client(transport=httpx.MockTransport(handler)))
-    result = client.call(MESSAGES, provider="openai", job="aux")
+    client.call(MESSAGES, provider="openai", job="aux")
 
     # What was asked for is the main model. What came back is whatever the
     # fixture says the provider answered with, which is not the same claim.
