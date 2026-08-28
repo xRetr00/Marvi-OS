@@ -30,16 +30,21 @@ log = get_logger("setup")
 
 REGISTRY_API = "https://registry.modelcontextprotocol.io"
 REQUEST_TIMEOUT = 5.0
+#: The catalogue walk is several sequential requests, not one, and its result
+#: is cached for twelve hours -- so it gets a budget suited to the job rather
+#: than the single-request timeout, which it exceeded and then served a stale
+#: page from.
+WALK_TIMEOUT = 20.0
 #: Same reasoning as setup/store.py's CACHE_HOURS: a registry of published MCP
 #: servers changes on the timescale of days, and the second search for the
 #: same query should not pay for a network round trip.
 CACHE_HOURS = 12.0
 PAGE_SIZE = 20
-#: Registry pagination is cursor-based, not page-numbered — there is no
-#: single request for "page 4". Walking from page 1 is fine for the shallow
-#: browsing a local desktop store does; this caps the walk so a stray
-#: page=9000 cannot turn into hundreds of sequential requests.
-MAX_WALK_PAGES = 20
+#: How much of the registry to pull in one request while walking it.
+FETCH_SIZE = 100
+#: A ceiling on the walk, so a registry that grows or a cursor that loops
+#: cannot turn one search into an unbounded number of requests.
+MAX_WALK = 12
 
 
 class McpStoreError(Exception):
@@ -107,21 +112,42 @@ def _save(query: str, page: int, entry: dict[str, Any]) -> None:
         log.warning("could not cache the MCP registry page: %s", exc)
 
 
-def _fetch_page(query: str, page: int, http: Any = None) -> tuple[list[dict[str, Any]], bool]:
-    """One page of the live registry, walking cursors from page 1.
+def _fetch_all(query: str, http: Any = None) -> list[dict[str, Any]]:
+    """Registry entries for a query, or a slice of the catalogue to browse.
 
-    The API is cursor-paginated rather than page-numbered, and there is no
-    cheaper way to reach page N than to have already walked pages 1..N-1.
+    Two behaviours, because the registry has two shapes of answer and one
+    walk cannot serve both.
+
+    **Searching** is one request with `search=`. The parameter works, but only
+    on the first request -- follow the cursor and the rest of the catalogue
+    comes back regardless, which is how a walked search for "github" returned
+    a page of servers beginning with "ac.". So a search does not walk. One
+    request at `FETCH_SIZE` is enough: measured live, `search=github` returned
+    30 distinct servers, 17 of them installable.
+
+    **Browsing** walks, bounded. The catalogue is far larger than it looks --
+    1,200 rows in and the names had not left the `ai.` prefix -- so this is
+    honestly a slice, not the whole thing. That is what the search box is for.
+
+    Both deduplicate by name, because the registry publishes every *version*
+    as its own row: 1,200 rows carried 298 distinct servers, and one name
+    accounted for 302 of them. Undeduplicated, a page of twenty was twenty
+    copies of one server, each with its own Install button.
+
+    Remote-only entries are dropped. Marvi's bridge speaks stdio -- it
+    launches a command -- and a hosted URL is not something it can launch;
+    listing one offers something that cannot work. Roughly a quarter of
+    distinct entries survive this, which is the cost of the bridge being
+    stdio-only and the reason this filter is one line and named.
     """
     import httpx
 
-    client = http or httpx.Client(timeout=REQUEST_TIMEOUT)
+    client = http or httpx.Client(timeout=WALK_TIMEOUT)
     try:
         cursor = None
-        rows: list[dict[str, Any]] = []
-        has_more = False
-        for _ in range(min(max(1, page), MAX_WALK_PAGES)):
-            params: dict[str, Any] = {"limit": PAGE_SIZE}
+        found: dict[str, dict[str, Any]] = {}
+        for _ in range(1 if query else MAX_WALK):
+            params: dict[str, Any] = {"limit": FETCH_SIZE}
             if query:
                 params["search"] = query
             if cursor:
@@ -129,17 +155,40 @@ def _fetch_page(query: str, page: int, http: Any = None) -> tuple[list[dict[str,
             response = client.get(f"{REGISTRY_API}/v0/servers", params=params)
             response.raise_for_status()
             body = response.json()
-            rows = [row for row in (body.get("servers") or []) if isinstance(row, dict)]
+            for raw in body.get("servers") or []:
+                if not isinstance(raw, dict):
+                    continue
+                row = _row(raw)
+                # Later rows win: the registry returns a name's versions
+                # oldest-first, so the last one seen is its newest release.
+                if row["qualified_name"] and row["installable"]:
+                    found[row["qualified_name"]] = row
             cursor = (body.get("metadata") or {}).get("nextCursor")
-            has_more = bool(cursor)
-        return rows, has_more
+            if not cursor:
+                break
+        return sorted(found.values(), key=lambda row: row["name"].lower())
     finally:
         if http is None:
             client.close()
 
 
+def _server(entry: dict[str, Any]) -> dict[str, Any]:
+    """The server object inside a registry row.
+
+    Every entry arrives wrapped -- `{"server": {...}, "_meta": {...}}` -- and
+    reading the wrapper instead of its contents is why the store rendered a
+    page of blank rows with an Install button on each: every field resolved to
+    "" and the list still had the right length, so it looked populated and
+    said nothing. Older shapes put the fields at the top level, so fall back
+    there rather than assuming the envelope.
+    """
+    inner = entry.get("server")
+    return inner if isinstance(inner, dict) else entry
+
+
 def _row(entry: dict[str, Any]) -> dict[str, Any]:
-    qualified = str(_pick(entry, "name") or "")
+    server = _server(entry)
+    qualified = str(_pick(server, "name") or "")
     meta = entry.get("_meta")
     publisher = (
         meta.get("io.modelcontextprotocol.registry/publisher-provided")
@@ -151,12 +200,17 @@ def _row(entry: dict[str, Any]) -> dict[str, Any]:
         author = str(publisher.get("author") or publisher.get("name") or "")
     if not author and "/" in qualified:
         author = qualified.split("/", 1)[0]
+    packages = server.get("packages")
     return {
         "qualified_name": qualified,
-        "name": str(_pick(entry, "title") or qualified),
-        "description": str(_pick(entry, "description") or "")[:300],
+        "name": str(_pick(server, "title") or qualified),
+        "description": str(_pick(server, "description") or "")[:300],
         "author": author,
         "source": "registry",
+        # A registry entry can be a hosted endpoint with nothing to install.
+        # Saying so on the row lets the page grey the button out, rather than
+        # offering Install and answering "no installable package listed".
+        "installable": bool(isinstance(packages, list) and packages),
     }
 
 
@@ -180,14 +234,16 @@ def registry_search(
     if not refresh and on_disk is not None and now - float(on_disk.get("at") or 0) <= CACHE_HOURS * 3600:
         return {"servers": on_disk["rows"], "total_pages": on_disk["total_pages"], "stale": False}
     try:
-        rows, has_more = _fetch_page(query, page, http)
+        every = _fetch_all(query, http)
+        start = (page - 1) * PAGE_SIZE
         entry = {
             "at": now,
-            "rows": [_row(row) for row in rows],
-            # The registry never returns a total count. "At least this many
-            # pages, one more if the cursor says so" is the honest thing to
-            # report rather than inventing a total the API does not give.
-            "total_pages": page + (1 if has_more else 0),
+            "rows": every[start : start + PAGE_SIZE],
+            # A real total, because the whole deduplicated list is in hand.
+            # It used to be "this page, plus one if the cursor says so",
+            # which was the honest answer while pages were fetched one at a
+            # time and is simply worse now that they are not.
+            "total_pages": max(1, -(-len(every) // PAGE_SIZE)),
         }
         _save(query, page, entry)
         return {"servers": entry["rows"], "total_pages": entry["total_pages"], "stale": False}
@@ -267,7 +323,11 @@ def install(qualified_name: str, env: dict[str, str], http: Any = None) -> dict[
             client.close()
 
     entry = next(
-        (row for row in (body.get("servers") or []) if _pick(row, "name") == qualified_name),
+        (
+            _server(row)
+            for row in (body.get("servers") or [])
+            if _pick(_server(row), "name") == qualified_name
+        ),
         None,
     )
     if entry is None:
