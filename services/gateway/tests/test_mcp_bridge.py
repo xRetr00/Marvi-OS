@@ -90,6 +90,41 @@ def test_servers_without_a_name_are_ignored(monkeypatch) -> None:
     assert load_server_config() == []
 
 
+def test_a_server_added_through_setup_mcp_is_visible_to_the_bridge(monkeypatch, tmp_path) -> None:
+    """Regression: the bridge used to have no fallback to setup/mcp.py's
+    config file, so a server added through Settings (`/mcp/prepare` +
+    `/mcp/add`) sat in `mcp.json` looking installed while `register_mcp_tools`
+    never saw it -- its tools were simply never callable until someone also
+    set MARVI_MCP_CONFIG to point at the same file, in the bridge's own
+    incompatible `{"servers": [...]}` shape.
+    """
+    from marvi_gateway.setup import mcp as mcp_setup
+
+    monkeypatch.setenv("MARVI_HOME", str(tmp_path))
+    monkeypatch.delenv("MARVI_MCP_SERVERS", raising=False)
+    monkeypatch.delenv("MARVI_MCP_CONFIG", raising=False)
+
+    prepared = mcp_setup.prepare("docs", "npx", ["some-mcp-server"])
+    mcp_setup.add(prepared["token"])
+
+    assert load_server_config() == [
+        {"name": "docs", "command": "npx", "args": ["-y", "some-mcp-server"], "env": {}}
+    ]
+
+
+def test_a_disabled_setup_mcp_server_is_not_offered_to_the_bridge(monkeypatch, tmp_path) -> None:
+    from marvi_gateway.setup import mcp as mcp_setup
+
+    monkeypatch.setenv("MARVI_HOME", str(tmp_path))
+    monkeypatch.delenv("MARVI_MCP_SERVERS", raising=False)
+    monkeypatch.delenv("MARVI_MCP_CONFIG", raising=False)
+
+    mcp_setup.add(mcp_setup.prepare("docs", "npx", ["some-mcp-server"])["token"])
+    mcp_setup.set_enabled("docs", False)
+
+    assert load_server_config() == []
+
+
 # -- schema mapping ---------------------------------------------------------
 
 

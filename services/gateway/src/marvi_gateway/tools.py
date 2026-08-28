@@ -122,6 +122,16 @@ class ToolRegistry:
     def register(self, spec: ToolSpec) -> None:
         self._tools[spec.name] = spec
 
+    def unregister(self, name: str) -> bool:
+        """Remove one tool, e.g. after an MCP server is uninstalled.
+
+        `register` never needed a counterpart: nothing removed tools until
+        the MCP store could add and remove servers at runtime, and a removed
+        server's tools staying callable after its config entry was deleted
+        would be a tool nobody can configure or account for any more.
+        """
+        return self._tools.pop(name, None) is not None
+
     def __iter__(self) -> Iterator[ToolSpec]:
         return iter(self._tools.values())
 
