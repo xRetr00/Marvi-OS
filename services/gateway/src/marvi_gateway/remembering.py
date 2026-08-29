@@ -43,7 +43,7 @@ import threading
 import time
 from typing import Any
 
-from . import distil
+from . import distil, observations
 from .logs import get_logger
 from .memory import SecretInMemoryError
 
@@ -279,6 +279,14 @@ def extract(store: Any, client: Any, user: str, assistant: str) -> dict[str, int
             done["delete"],
             extra={"marvi_route": "auxiliary/memory", "marvi_considered": str(len(known))},
         )
+    observations.record(
+        "store",
+        said=user,
+        add=done.get("add", 0),
+        update=done.get("update", 0),
+        delete=done.get("delete", 0),
+        neighbours=len(known),
+    )
     return done
 
 

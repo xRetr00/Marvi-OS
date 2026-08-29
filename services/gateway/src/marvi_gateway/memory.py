@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from .logs import get_logger
+from . import observations
 from .untrusted import wrap_external
 
 log = get_logger("memory")
@@ -1360,6 +1361,14 @@ class MemoryStore:
             )
         if related := self._related_to(found):
             block += nl + "How these connect: " + related[:RELATED_CHARS] + nl
+        observations.record(
+            "recall",
+            question=text,
+            found=len(found),
+            best=round(best, 3),
+            weak=weak,
+            chars=len(block),
+        )
         if weak:
             block += (
                 nl

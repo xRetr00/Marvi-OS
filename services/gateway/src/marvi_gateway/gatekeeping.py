@@ -44,7 +44,7 @@ import json
 import re
 from typing import Any
 
-from . import distil
+from . import distil, observations
 from .logs import get_logger
 
 log = get_logger("memory")
@@ -156,6 +156,13 @@ def worth_keeping(client: Any, items: list[Any]) -> list[Any]:
                 len(batch),
                 extra={"marvi_kept": len(chosen)},
             )
+        observations.record(
+            "gate",
+            door="ingest",
+            offered=len(batch),
+            kept=len(chosen),
+            example=_summarise(batch[0]) if batch else "",
+        )
         kept.extend(batch[index] for index in sorted(chosen))
     return kept
 
@@ -203,6 +210,6 @@ def worth_remembering(client: Any, subject: str, body: str) -> bool:
         log.info("gatekeeper unavailable (%s); keeping the proposed memory", exc)
         return True
     verdict = (said or "").strip().upper()
-    if not verdict:
-        return True
-    return not verdict.startswith("DROP")
+    keep = not verdict.startswith("DROP") if verdict else True
+    observations.record("gate", door="tool", kept=keep, subject=subject, body=body)
+    return keep
