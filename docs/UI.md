@@ -304,6 +304,12 @@ Durable threads and branches back the sidebar, edit, and regenerate actions.
 GitHub-flavored Markdown, math, tables, code blocks, source rows, image/file
 parts, read aloud, local-native dictation, model selection, and context details
 use distinct bounded modules instead of one undifferentiated text column.
+Models, Chat, and Voice use the same compact model-catalog picker. Its trigger
+shows the selected model and provider; the open panel searches model names,
+provider names, slugs, and model identifiers while preserving Gateway order.
+Results remain grouped by provider, show context and input/output price facts
+when reported, and keep the active row visibly checked. Chat adds a first-row
+default choice while Models and Voice commit an explicit provider/model pair.
 Pending attachments use compact thumbnail/file tiles with name, type, size,
 and an explicit remove action. Sent images open into a bounded preview that
 closes by button, backdrop, or Escape. Context occupancy lives in the persistent

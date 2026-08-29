@@ -30,6 +30,28 @@ interface ModelRow {
   provider: ModelProvider
 }
 
+export interface ModelPickerGroup {
+  models: ModelCard[]
+  provider: ModelProvider
+}
+
+export function filterModelGroups(
+  providers: ModelProvider[],
+  query: string
+): ModelPickerGroup[] {
+  const needle = query.trim().toLowerCase()
+  return providers
+    .map((provider) => ({
+      provider,
+      models: provider.models.filter((model) =>
+        `${provider.label} ${provider.provider} ${model.name} ${model.id}`
+          .toLowerCase()
+          .includes(needle)
+      )
+    }))
+    .filter((group) => group.models.length > 0)
+}
+
 /** One model catalog everywhere: compact trigger, provider groups, preserved
  * Gateway order, search across provider/name/id, and a visible current row. */
 export function ModelPicker({
@@ -55,19 +77,7 @@ export function ModelPicker({
         ?.models.find((model) => model.id === value.model)
     : undefined
 
-  const groups = useMemo(() => {
-    const needle = query.trim().toLowerCase()
-    return providers
-      .map((provider) => ({
-        provider,
-        models: provider.models.filter((model) =>
-          `${provider.label} ${provider.provider} ${model.name} ${model.id}`
-            .toLowerCase()
-            .includes(needle)
-        )
-      }))
-      .filter((group) => group.models.length > 0)
-  }, [providers, query])
+  const groups = useMemo(() => filterModelGroups(providers, query), [providers, query])
 
   const rows = useMemo<ModelRow[]>(
     () =>
