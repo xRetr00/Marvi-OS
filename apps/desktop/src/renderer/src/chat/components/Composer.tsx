@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import type { ChatAttachment, ChatContext, ModelPage } from '../../../../shared/runtime'
+import type { ChatAttachment, ModelPage } from '../../../../shared/runtime'
 import { AbstractIcon } from '../../components/abstract-icon'
 import { TooltipProvider, UiTooltip } from '../../components/ui/tooltip'
 import { Picker, type PickerOption } from '../../components/ui/picker'
 import { useDictation } from '../useDictation'
-import { contextPercent } from '../context-breakdown'
-import { ContextBreakdown, ContextRing } from './ContextBreakdown'
 import { PendingAttachment } from './PendingAttachment'
 
 /**
@@ -29,8 +27,7 @@ export function Composer({
   onFiles,
   onRemoveAttachment,
   override,
-  onOverrideChange,
-  context
+  onOverrideChange
 }: {
   draft: string
   busy: boolean
@@ -43,7 +40,6 @@ export function Composer({
   onRemoveAttachment?: (id: string) => void
   override?: { provider?: string; model?: string; effort?: string }
   onOverrideChange?: (next: { provider?: string; model?: string; effort?: string }) => void
-  context?: ChatContext | null
 }): React.JSX.Element {
   const field = useRef<HTMLTextAreaElement | null>(null)
   const fileInput = useRef<HTMLInputElement | null>(null)
@@ -155,22 +151,6 @@ export function Composer({
                   <AbstractIcon name={dictation.active ? 'stop' : 'microphone'} size={15} />
                 </button>
               </UiTooltip>
-              <details className="chat-context-breakdown">
-                <summary
-                  aria-label={
-                    contextPercentLabel(context) === 'unknown'
-                      ? 'Show context breakdown, usage unknown'
-                      : `Show context breakdown, ${contextPercentLabel(context)} percent used`
-                  }
-                >
-                  <ContextRing context={context} />
-                </summary>
-                <ContextBreakdown
-                  context={context}
-                  pendingFiles={attachments.length}
-                  route={override?.model}
-                />
-              </details>
               {busy && onCancel ? (
                 // While a reply is streaming the same control stops it. A turn
                 // nobody wants any more is still being generated and still billed.
@@ -199,10 +179,6 @@ export function Composer({
       </div>
     </TooltipProvider>
   )
-}
-
-function contextPercentLabel(context?: ChatContext | null): number | 'unknown' {
-  return contextPercent(context) ?? 'unknown'
 }
 
 /**

@@ -6,6 +6,7 @@ import { contextSegments } from './context-breakdown'
 import type { ChatMessage } from './types'
 import { AgentMessage } from './components/AgentMessage'
 import { Composer } from './components/Composer'
+import { ContextStatus } from './components/ContextStatus'
 import { MessageList } from './components/MessageList'
 import { Sessions } from './components/Sessions'
 import { ToolMessage } from './components/ToolMessage'
@@ -178,14 +179,13 @@ describe('Composer', () => {
     expect(html).not.toContain('textarea disabled')
   })
 
-  it('shows provider-reported context instead of draft-length guesses', () => {
+  it('keeps context out of the composer and presents it in status chrome', () => {
+    const composer = renderToStaticMarkup(
+      <Composer draft="hello" busy={false} available onDraftChange={noop} onSend={noop} />
+    )
     const html = renderToStaticMarkup(
-      <Composer
-        draft="hello"
-        busy={false}
-        available
-        onDraftChange={noop}
-        onSend={noop}
+      <ContextStatus
+        pendingFiles={0}
         context={{
           input_tokens: 2000,
           cached_tokens: 800,
@@ -199,6 +199,8 @@ describe('Composer', () => {
         }}
       />
     )
+    expect(composer).not.toContain('Show context breakdown')
+    expect(html).toContain('Context')
     expect(html).toContain('25')
     expect(html).toContain('2k / 8k')
     expect(html).toContain('Prompt')

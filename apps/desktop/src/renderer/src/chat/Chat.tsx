@@ -1,4 +1,5 @@
 import { useStore } from '@nanostores/react'
+import { useEffect } from 'react'
 
 import { useChat } from './useChat'
 import { useReadAloud } from './useReadAloud'
@@ -10,6 +11,7 @@ import './chat.css'
 import { downloadTranscript } from './transcript'
 import { MessageTiming } from '../components/message-timing'
 import { $sessionMetrics, sessionTimingStats } from '../store/session-metrics'
+import { setChatContextStatus } from '../store/chat-context'
 
 /**
  * The typed conversation surface. Same Marvi as the voice session — same
@@ -50,6 +52,15 @@ export function Chat({ onExit }: { onExit: () => void }): React.JSX.Element {
     setOverride
   } = useChat()
   const readAloud = useReadAloud(activeThreadId)
+
+  useEffect(() => {
+    setChatContextStatus({
+      context,
+      pendingFiles: attachments.length,
+      route: override.model
+    })
+    return () => setChatContextStatus({ context: null, pendingFiles: 0 })
+  }, [attachments.length, context, override.model])
 
   return (
     <>
@@ -114,7 +125,6 @@ export function Chat({ onExit }: { onExit: () => void }): React.JSX.Element {
                 onRemoveAttachment={(id) => void removeAttachment(id)}
                 override={override}
                 onOverrideChange={setOverride}
-                context={context}
               />
             </div>
           </div>
