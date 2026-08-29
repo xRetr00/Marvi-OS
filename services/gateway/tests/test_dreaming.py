@@ -11,9 +11,9 @@ it was left to a model choosing a tool mid-conversation while it had an answer
 to give instead.
 """
 
-import pytest
-
 from __future__ import annotations
+
+import pytest
 
 from typing import Any
 
