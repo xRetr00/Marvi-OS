@@ -972,11 +972,19 @@ def create_app(
         # names the settings page while it does it.
         register_workspace_tools(tool_registry, workspace)
         cognition = CognitionHarness(provider_client, identity=identity, tools=tool_registry)
+        # Given to ingest after the fact because the harness is built later in
+        # this function than the ingest is. Without it `gatekeeping` keeps
+        # everything, which is the safe direction but not the useful one.
+        ingest.cognition = cognition
 
         def memory_summarise(groups: list[dict[str, Any]]) -> list[tuple[str, str]]:
             return distil.summarise_memories(cognition, groups)
 
-        register_memory_tools(tool_registry, memory, summarise=memory_summarise)
+        # `cognition` is the gate on the last unguarded door into the store:
+        # the tool a model calls mid-sentence. See `gatekeeping`.
+        register_memory_tools(
+            tool_registry, memory, summarise=memory_summarise, cognition=cognition
+        )
         # Decides what to keep from a finished turn, on a worker thread. The
         # model used to do this by hand, mid-conversation, and could only add --
         # which is how five spellings of one name ended up as five memories.

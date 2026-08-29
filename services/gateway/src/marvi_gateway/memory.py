@@ -1616,10 +1616,35 @@ class MemoryStore:
         }
 
 
-def register_memory_tools(registry, memory: MemoryStore, summarise: Any = None) -> None:
+def register_memory_tools(
+    registry, memory: MemoryStore, summarise: Any = None, cognition: Any = None
+) -> None:
+    from . import gatekeeping
     from .tools import ToolSpec
 
     def memory_remember(subject: str, body: str) -> dict[str, Any]:
+        """A conversation asks memory to keep something; memory decides.
+
+        This was the last door into the store that nothing guarded. A turn is
+        judged by `remembering`, an account by `gatekeeping`, and this -- the
+        one a model reaches for mid-sentence, in the middle of holding a
+        conversation, when it is least able to weigh whether something is worth
+        keeping forever. It is how "the user said hello" got written down.
+
+        Refused rather than silently dropped: the caller is told, so it can say
+        so or try again with something that is actually a fact. A gate that
+        discards without a word teaches nothing and looks like it worked.
+        """
+        if cognition is not None and not gatekeeping.worth_remembering(
+            cognition, subject, body
+        ):
+            return {
+                "stored": False,
+                "error": (
+                    "That is not something to keep. Memory holds durable facts about "
+                    "the user, not the conversation itself."
+                ),
+            }
         try:
             return {"id": memory.remember(subject, body, kind="semantic")}
         except SecretInMemoryError as exc:

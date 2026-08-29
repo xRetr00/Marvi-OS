@@ -74,6 +74,29 @@ SYSTEM_PROMPT = (
     "exchange contains something durably true about the user, their world, or "
     "their standing preferences.\n"
     "\n"
+    # Measured, and the reason this is examples rather than another adjective.
+    # The prompt said "durably true", and the model read a possession and a
+    # visit as not durable enough: "I switched my editor to Zed" and "I am
+    # allergic to penicillin" stored 5 times in 5, "I got a Keychron K2" zero
+    # times in 5. Over five exchanges that should be kept and three that should
+    # not, the shipped wording kept 17 of 25 and these examples keep 25 of 25 --
+    # with the second column unchanged at 0 of 15 wrongly stored, which is the
+    # column that matters. A variant that kept everything by also keeping
+    # pleasantries would be worse than the one it replaced.
+    "What counts. All of these are worth storing:\n"
+    '  "I got a Keychron K2" -> the user owns a Keychron K2 keyboard\n'
+    '  "my sister Nour is visiting" -> the user has a sister named Nour\n'
+    '  "I switched my editor to Zed" -> the user uses Zed as their editor\n'
+    '  "I start at 4am on Fridays" -> the user starts work at 4am Fridays\n'
+    "\n"
+    "A possession, a person in their life, a plan with a date, a tool they "
+    "use, a health fact: all durable. The test is whether you would look "
+    "foolish not knowing it next week, not whether it stays true forever.\n"
+    "\n"
+    "These are not memories:\n"
+    '  "how are we doing?" -> nothing\n'
+    '  "what do you know about X?" -> nothing, they are asking not telling\n'
+    "\n"
     "Rules that matter:\n"
     "- `update` when the exchange corrects or refines an existing memory. Use "
     "it rather than `add`: a correction that is added sits beside the thing it "
@@ -103,17 +126,44 @@ def _turn_text(user: str, assistant: str) -> str:
     return f"User: {user}\n\nAssistant: {assistant}"
 
 
-def _existing(store: Any) -> list[dict[str, Any]]:
+def _existing(store: Any, about: str = "") -> list[dict[str, Any]]:
     """The memories a new fact is most likely to be about.
 
-    Recent rather than searched, because the search is keyword-only and the
-    fact being corrected is routinely worded differently -- which is the whole
-    reason the string floor was not enough.
+    Searched, then topped up with recent ones. It used to be recent only, on
+    the grounds that the search was keyword-only and a correction is routinely
+    worded differently -- true when it was written, and no longer: the search
+    has been hybrid since embeddings landed, so it now finds the memory this
+    exchange is about even when the words differ.
+
+    The change was not an improvement, it was a repair. `recent` is whatever
+    was written last, and once a mailbox was connected that was nine marketing
+    emails -- 3,927 characters of JSON bodies and tracking whitespace shown to
+    the extractor before every exchange. Measured against the live store: the
+    same two exchanges that produced an `add` each against an empty list both
+    produced `[]` against that one. Marvi could not remember anything at all
+    while a connector was writing, and nothing said so; the worker ran, cost a
+    model call per turn, and stored nothing.
+
+    Searching first means an ingest burst can no longer crowd out the
+    conversation, because what is listed is chosen by the exchange rather than
+    by whatever arrived most recently.
     """
-    try:
-        return store.recent(limit=NEIGHBOURS)
-    except Exception:  # pragma: no cover - depends on the store
-        return []
+    found: list[dict[str, Any]] = []
+    seen: set[Any] = set()
+    for source in (
+        (lambda: store.search(about, limit=NEIGHBOURS)) if about.strip() else (lambda: []),
+        lambda: store.recent(limit=NEIGHBOURS),
+    ):
+        try:
+            rows = source()
+        except Exception:  # pragma: no cover - depends on the store
+            continue
+        for row in rows:
+            if row.get("id") in seen:
+                continue
+            seen.add(row.get("id"))
+            found.append(row)
+    return found[:NEIGHBOURS]
 
 
 def _parse(text: str) -> list[dict[str, Any]]:
@@ -187,7 +237,7 @@ def extract(store: Any, client: Any, user: str, assistant: str) -> dict[str, int
     if client is None or not (user.strip() or assistant.strip()):
         return {"add": 0, "update": 0, "delete": 0, "ignored": 0}
 
-    known = _existing(store)
+    known = _existing(store, _turn_text(user, assistant))
     listed = (
         "\n".join(
             f"[{row['id']}] ({row['kind']}) {row['subject']}: {row['body']}" for row in known

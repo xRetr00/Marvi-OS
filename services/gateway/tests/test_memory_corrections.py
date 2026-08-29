@@ -313,3 +313,48 @@ def test_the_embedding_model_can_be_loaded_before_a_turn_needs_it(tmp_path) -> N
     store = MemoryStore(tmp_path / "m.db")
 
     assert store.warm() is False
+
+
+def test_an_ingest_burst_cannot_crowd_out_the_conversation(tmp_path) -> None:
+    """Marvi stopped being able to remember anything, and nothing said so.
+
+    `_existing` listed the most *recent* memories for the extractor to compare
+    against, on the grounds that the search was keyword-only when it was
+    written. Once a mailbox was connected, "recent" was nine marketing emails
+    -- 3,927 characters of JSON bodies and tracking whitespace shown before
+    every exchange. Measured live: the same two exchanges that each produced an
+    `add` against an empty list both produced `[]` against that one, and
+    removing the nine emails restored both. The worker ran, cost a model call
+    per turn, and stored nothing.
+    """
+    from marvi_gateway.memory import MemoryStore
+    from marvi_gateway.remembering import _existing
+
+    store = MemoryStore(tmp_path / "m.db")
+    store.remember("Keyboards", "The user types on a Keychron K2 keyboard.")
+    # A burst of ingest, all of it written after the thing the exchange is about.
+    for index in range(12):
+        store.remember(f"Email: newsletter {index}", "Unsubscribe. View on web.")
+
+    chosen = _existing(store, "User: my Keychron keyboard. Assistant: nice.")
+
+    assert "Keyboards" in [row["subject"] for row in chosen]
+
+
+def test_the_extractor_is_told_what_counts_with_examples() -> None:
+    """It was told "durably true" and kept 17 of 25 facts it should have.
+
+    The misses were specific: "I switched my editor to Zed" and "I am allergic
+    to penicillin" stored 5 times in 5, while "I got a Keychron K2" stored zero
+    times in 5 -- the model read a possession as not durable enough. Worked
+    examples took it to 25 of 25 with the wrongly-stored column unchanged at 0
+    of 15, which is the column that decides whether a change is an improvement
+    or just a looser filter.
+    """
+    from marvi_gateway.remembering import SYSTEM_PROMPT
+
+    assert "Keychron K2" in SYSTEM_PROMPT
+    assert "they are asking not telling" in SYSTEM_PROMPT
+    # The counter-examples matter as much: a prompt that only shows what to
+    # keep is a prompt that keeps everything.
+    assert "These are not memories" in SYSTEM_PROMPT
