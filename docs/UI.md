@@ -292,7 +292,11 @@ clear return to the control center. Chat has no secondary page header. A compact
 human/assistant pair: one slim full-width prompt surface followed by unboxed
 Marvi prose. Sender labels remain available to assistive technology instead of
 repeating as visible headers, while timestamps and actions appear on hover or
-keyboard focus. The composer uses the same 560px register with 24px controls.
+keyboard focus. The transcript keeps its compact 560px reading register, while
+the composer is a near-full-width dock with a one-rem pane gutter. Its default
+state is one inline row: add control, elastic input, compact model/voice/context
+controls, and one neutral circular send/stop action. Narrow layouts stack the
+input above the same complete control row instead of hiding functionality.
 Durable threads and branches back the sidebar, edit, and regenerate actions.
 GitHub-flavored Markdown, math, tables, code blocks, source rows, image/file
 parts, read aloud, local-native dictation, model selection, and context details

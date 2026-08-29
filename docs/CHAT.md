@@ -56,9 +56,12 @@ prompts only fill the composer and never pretend to be model output.
 
 The composer keeps Marvi's provider/model/effort controls, attachment queue,
 context breakdown, microphone action, and stop/send state inside a rounded,
-quiet paper surface sized to the compact 560px transcript. Human prompts use
-one slim full-row surface and Marvi replies remain unboxed prose directly below
-them; sender names stay accessible without becoming repeated visual headers.
+quiet dock spanning the conversation pane with a one-rem gutter. Its desktop
+state is one row—add, elastic input, compact selectors/actions, and a neutral
+circular send/stop control—while the transcript retains its compact 560px
+reading measure. Human prompts use one slim full-row surface and Marvi replies
+remain unboxed prose directly below them; sender names stay accessible without
+becoming repeated visual headers.
 Timestamps and message actions live in the quiet hover/focus rail. Every
 ambiguous action has a tooltip and accessible name.
 

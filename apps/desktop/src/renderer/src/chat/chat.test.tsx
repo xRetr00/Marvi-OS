@@ -155,6 +155,9 @@ describe('Composer', () => {
       <Composer draft="hello" busy={false} available onDraftChange={noop} onSend={noop} />
     )
     expect(html).toContain('chat-compose-field')
+    expect(html).toContain('chat-compose-row')
+    expect(html).toContain('chat-compose-leading')
+    expect(html).toContain('chat-compose-controls')
     expect(html).toContain('data-active="true"')
     expect(html).not.toContain('// MESSAGE')
   })
