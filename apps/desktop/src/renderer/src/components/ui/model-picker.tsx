@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ModelCard, ModelProvider } from '../../../../shared/runtime'
 import { haptic } from '../../lib/haptics'
 import { modelContext, modelPrice } from '../model-labels'
+import { ModelBrandLogo } from './model-brand-logo'
 import { filterModelGroups, modelEffortChoices, modelEffortLabel } from './model-picker-utils'
 
 export interface ModelSelection {
@@ -14,7 +15,7 @@ export interface ModelSelection {
 
 interface ModelPickerProps {
   className?: string
-  defaultOption?: { detail?: string; label: string }
+  defaultOption?: { detail?: string; label: string; selection?: ModelSelection }
   disabled?: boolean
   empty?: string
   effort?: string
@@ -54,11 +55,16 @@ export function ModelPicker({
   const [activeIndex, setActiveIndex] = useState(-1)
   const listRef = useRef<HTMLDivElement>(null)
 
-  const selected = value
-    ? providers
-        .find((provider) => provider.provider === value.provider)
-        ?.models.find((model) => model.id === value.model)
+  const selectedProvider = value
+    ? providers.find((provider) => provider.provider === value.provider)
     : undefined
+  const selected = selectedProvider?.models.find((model) => model.id === value?.model)
+  const defaultProvider = defaultOption?.selection
+    ? providers.find((provider) => provider.provider === defaultOption.selection?.provider)
+    : undefined
+  const defaultModel = defaultProvider?.models.find(
+    (model) => model.id === defaultOption?.selection?.model
+  )
 
   const groups = useMemo(() => filterModelGroups(providers, query), [providers, query])
 
@@ -145,13 +151,29 @@ export function ModelPicker({
           disabled={disabled}
           type="button"
         >
+          {selected || defaultOption?.selection ? (
+            <ModelBrandLogo
+              className="model-picker-trigger-brand"
+              label={selected?.name ?? defaultOption?.detail ?? defaultOption?.label ?? placeholder}
+              modelId={selected?.id ?? defaultOption?.selection?.model ?? ''}
+              provider={selectedProvider?.provider ?? defaultOption?.selection?.provider ?? ''}
+            />
+          ) : null}
           <span className="model-picker-trigger-copy">
             <span className="model-picker-trigger-label">
-              {selected?.name ?? (value ? value.model : defaultOption?.label) ?? placeholder}
+              {selected?.name ??
+                defaultModel?.name ??
+                defaultOption?.selection?.model ??
+                (value ? value.model : defaultOption?.label) ??
+                placeholder}
             </span>
-            {selected ? (
+            {selected || defaultOption?.detail ? (
               <span className="model-picker-trigger-provider">
-                {providers.find((provider) => provider.provider === value?.provider)?.label}
+                {selected
+                  ? selectedProvider?.label
+                  : defaultProvider
+                    ? `Default · ${defaultProvider.label}`
+                    : defaultOption?.detail}
               </span>
             ) : null}
           </span>
@@ -221,6 +243,13 @@ export function ModelPicker({
                 role="option"
                 type="button"
               >
+                {defaultOption.selection ? (
+                  <ModelBrandLogo
+                    label={defaultModel?.name ?? defaultOption.detail ?? defaultOption.label}
+                    modelId={defaultOption.selection.model}
+                    provider={defaultOption.selection.provider}
+                  />
+                ) : null}
                 <span className="model-picker-row-copy">
                   <strong>{defaultOption.label}</strong>
                   {defaultOption.detail ? <small>{defaultOption.detail}</small> : null}
@@ -259,6 +288,7 @@ export function ModelPicker({
                         if (row) chooseEffort(row, nextEffort)
                       }}
                       onHover={() => setActiveIndex(index)}
+                      provider={provider.provider}
                       selected={isSelected}
                     />
                   )
@@ -286,6 +316,7 @@ interface ModelOptionProps {
   onChoose: () => void
   onChooseEffort: (effort: string) => void
   onHover: () => void
+  provider: string
   selected: boolean
 }
 
@@ -299,6 +330,7 @@ function ModelOption({
   onChoose,
   onChooseEffort,
   onHover,
+  provider,
   selected
 }: ModelOptionProps): React.JSX.Element {
   const [optionsOpen, setOptionsOpen] = useState(false)
@@ -332,6 +364,7 @@ function ModelOption({
         role="option"
         type="button"
       >
+        <ModelBrandLogo label={model.name} modelId={model.id} provider={provider} />
         <span className="model-picker-row-copy">
           <strong>{model.name}</strong>
           {model.id !== model.name ? <small>{model.id}</small> : null}

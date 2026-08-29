@@ -1,5 +1,37 @@
 import type { ModelCard, ModelProvider } from '../../../../shared/runtime'
 
+const MODEL_BRAND_ALIASES: Readonly<Record<string, string>> = Object.freeze({
+  'aion-labs': 'aionlabs',
+  'arcee-ai': 'arcee',
+  'bytedance-seed': 'bytedance',
+  'ibm-granite': 'ibm',
+  'inception-labs': 'inception',
+  'meta-llama': 'meta',
+  mistralai: 'mistral',
+  moonshotai: 'moonshot',
+  'x-ai': 'xai',
+  'z-ai': 'zhipu'
+})
+
+export function modelBrandKey(modelId: string, provider: string): string {
+  const owner = (modelId.includes('/') ? modelId.split('/', 1)[0] : provider)
+    .replace(/^~/, '')
+    .trim()
+    .toLowerCase()
+  return MODEL_BRAND_ALIASES[owner] ?? owner
+}
+
+export function modelBrandMonogram(value: string): string {
+  const words = value.split(/[^a-z0-9]+/i).filter(Boolean)
+  if (words.length > 1)
+    return words
+      .slice(0, 2)
+      .map((word) => word[0])
+      .join('')
+      .toUpperCase()
+  return (words[0] ?? '?').slice(0, 2).toUpperCase()
+}
+
 export interface ModelPickerGroup {
   models: ModelCard[]
   provider: ModelProvider

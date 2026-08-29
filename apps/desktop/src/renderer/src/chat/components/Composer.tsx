@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import type { ChatAttachment, ModelPage } from '../../../../shared/runtime'
+import type { ChatAttachment, ModelPage, ProviderPage } from '../../../../shared/runtime'
 import { AbstractIcon } from '../../components/abstract-icon'
 import { TooltipProvider, UiTooltip } from '../../components/ui/tooltip'
 import { ModelPicker } from '../../components/ui/model-picker'
@@ -197,12 +197,19 @@ function SessionModel({
   onChange: (next: { provider?: string; model?: string; effort?: string }) => void
 }): React.JSX.Element | null {
   const [page, setPage] = useState<ModelPage | null>(null)
+  const [settings, setSettings] = useState<ProviderPage | null>(null)
 
   useEffect(() => {
     let gone = false
     void (async () => {
-      const next = await window.marvi?.getModels({})
-      if (!gone) setPage(next ?? null)
+      const [next, providers] = await Promise.all([
+        window.marvi?.getModels({}),
+        window.marvi?.getProviders()
+      ])
+      if (!gone) {
+        setPage(next ?? null)
+        setSettings(providers ?? null)
+      }
     })()
     return () => {
       gone = true
@@ -211,12 +218,27 @@ function SessionModel({
 
   const providers = page?.providers ?? []
   if (providers.length === 0) return null
+  const defaultProvider = providers.find((provider) => provider.provider === settings?.selected)
+  const defaultModel = defaultProvider?.models.find(
+    (model) => model.id === defaultProvider.selected
+  )
+  const defaultSelection =
+    defaultProvider?.provider && defaultProvider.selected
+      ? { provider: defaultProvider.provider, model: defaultProvider.selected }
+      : undefined
+  const defaultDetail = defaultProvider
+    ? `${defaultModel?.name ?? defaultProvider.selected} · ${defaultProvider.label}`
+    : 'Uses the Models setting'
 
   return (
     <div className="chat-session-model">
       <ModelPicker
         className="chat-model-picker"
-        defaultOption={{ label: 'Default model', detail: 'Whatever Models is set to' }}
+        defaultOption={{
+          label: 'Default model',
+          detail: defaultDetail,
+          selection: defaultSelection
+        }}
         effort={value.effort ?? ''}
         effortDefaultLabel="Default effort"
         providers={providers}

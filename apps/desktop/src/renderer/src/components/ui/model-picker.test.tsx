@@ -2,8 +2,14 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 
 import type { ModelCard, ModelProvider } from '../../../../shared/runtime'
+import { ModelBrandLogo } from './model-brand-logo'
 import { ModelPicker } from './model-picker'
-import { filterModelGroups, modelEffortChoices } from './model-picker-utils'
+import {
+  filterModelGroups,
+  modelBrandKey,
+  modelBrandMonogram,
+  modelEffortChoices
+} from './model-picker-utils'
 
 function model(id: string, name = id): ModelCard {
   return {
@@ -63,6 +69,40 @@ describe('ModelPicker', () => {
     expect(html).toContain('Fast')
     expect(html).toContain('Alpha Cloud')
     expect(html).toContain('aria-haspopup="listbox"')
+  })
+
+  it('shows the actual configured model instead of masking it behind the default label', () => {
+    const html = renderToStaticMarkup(
+      <ModelPicker
+        defaultOption={{
+          label: 'Default model',
+          detail: 'Fast · Alpha Cloud',
+          selection: { provider: 'alpha', model: 'alpha/fast' }
+        }}
+        onChange={() => {}}
+        providers={providers}
+        value={null}
+      />
+    )
+    expect(html).toContain('Fast')
+    expect(html).toContain('Default · Alpha Cloud')
+  })
+
+  it('uses the model owner for aggregated catalogs and falls back to a compact monogram', () => {
+    expect(modelBrandKey('anthropic/claude-sonnet', 'openrouter')).toBe('anthropic')
+    expect(modelBrandKey('meta-llama/llama-4', 'openrouter')).toBe('meta')
+    expect(modelBrandKey('gpt-5', 'openai')).toBe('openai')
+    expect(modelBrandMonogram('unknown-labs')).toBe('UL')
+
+    const html = renderToStaticMarkup(
+      <ModelBrandLogo
+        label="Claude Sonnet"
+        modelId="anthropic/claude-sonnet"
+        provider="openrouter"
+      />
+    )
+    expect(html).toContain('<svg')
+    expect(html).toContain('title="anthropic"')
   })
 
   it('keeps the provider default ahead of each reasoning model effort', () => {

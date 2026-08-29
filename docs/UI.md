@@ -312,7 +312,11 @@ when reported, and keep the active row visibly checked. Reasoning-capable rows
 show their current effort and expose the provider-supported effort levels in a
 side options menu; choosing a level commits the model and effort together. Chat
 adds a first-row default choice while Models and Voice commit an explicit
-provider/model pair.
+provider/model pair. Every model row carries a compact offline brand mark
+resolved from the model owner's identifier rather than the outer catalog group,
+with a two-letter fallback for owners absent from the pinned brand SDK. The Chat
+trigger and default row always name the configured model and provider instead of
+hiding them behind a generic default label.
 Pending attachments use compact thumbnail/file tiles with name, type, size,
 and an explicit remove action. Sent images open into a bounded preview that
 closes by button, backdrop, or Escape. Context occupancy lives in the persistent
