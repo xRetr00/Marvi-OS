@@ -79,7 +79,8 @@ import { McpPanel } from './components/mcp/McpPanel'
 import { CapabilityPluginsPanel } from './components/capabilities/CapabilityPluginsPanel'
 import {
   filterInstalledSkills,
-  filterStoreSkills
+  filterStoreSkills,
+  skillStoreSources
 } from './components/capabilities/capability-library'
 import { ContextStatus } from './chat/components/ContextStatus'
 import { $chatContextStatus } from './store/chat-context'
@@ -4271,6 +4272,7 @@ function SkillsPanel(): React.JSX.Element {
   const [store, setStore] = useState<StoreSkill[]>([])
   const [sources, setSources] = useState<string[]>([])
   const [filter, setFilter] = useState('')
+  const [skillStoreTab, setSkillStoreTab] = useState('installed')
   const [review, setReview] = useState<SkillReview | null>(null)
   const [proposal, setProposal] = useState<SkillProposal | null>(null)
   const [installed, setInstalled] = useState<SkillsPage | null>(null)
@@ -4374,7 +4376,11 @@ function SkillsPanel(): React.JSX.Element {
     }
   }
 
-  const shown = filterStoreSkills(store, filter)
+  const storeSources = skillStoreSources(store, sources)
+  const shown = filterStoreSkills(
+    skillStoreTab === 'installed' ? [] : store.filter((skill) => skill.repo === skillStoreTab),
+    filter
+  )
   const shownInstalled = filterInstalledSkills(installed?.skills ?? [], filter)
   const activeSkills = installed?.skills.filter((skill) => skill.applies).length ?? 0
   const pinnedSkills = installed?.skills.filter((skill) => skill.usage.pinned).length ?? 0
@@ -4403,17 +4409,61 @@ function SkillsPanel(): React.JSX.Element {
           <strong>{store.length}</strong>
         </div>
       </div>
+      <div className="capability-store-tabs" role="tablist" aria-label="Skill stores">
+        <button
+          aria-selected={skillStoreTab === 'installed'}
+          className="capability-store-tab"
+          onClick={() => {
+            setSkillStoreTab('installed')
+            setReview(null)
+          }}
+          role="tab"
+          type="button"
+        >
+          <BookOpen aria-hidden="true" size={14} />
+          <span>
+            <strong>Installed</strong>
+            <small>{installed?.skills.length ?? 0} local</small>
+          </span>
+        </button>
+        {storeSources.map((source, index) => (
+          <button
+            aria-selected={skillStoreTab === source}
+            className="capability-store-tab"
+            key={source}
+            onClick={() => {
+              setSkillStoreTab(source)
+              setReview(null)
+            }}
+            role="tab"
+            type="button"
+          >
+            <PackageCheck aria-hidden="true" size={14} />
+            <span>
+              <strong>{source.split('/').at(-1) || source}</strong>
+              <small>
+                {source.split('/').slice(0, -1).join('/') ||
+                  `Store ${String(index + 1).padStart(2, '0')}`}
+              </small>
+            </span>
+          </button>
+        ))}
+      </div>
       <div className="capability-toolbar capability-toolbar-wide">
         <input
           aria-label="Search skills"
           className="capability-search"
           type="search"
-          placeholder="Search installed skills and catalog…"
+          placeholder={
+            skillStoreTab === 'installed'
+              ? 'Search installed skills…'
+              : `Search ${skillStoreTab.split('/').at(-1) || 'store'}…`
+          }
           value={filter}
           onChange={(event) => setFilter(event.target.value)}
         />
         <span className="capability-source-count">
-          {sources.length} source{sources.length === 1 ? '' : 's'}
+          {skillStoreTab === 'installed' ? 'LOCAL LIBRARY' : skillStoreTab}
         </span>
       </div>
       {proposal ? (
@@ -4449,7 +4499,7 @@ function SkillsPanel(): React.JSX.Element {
           </div>
         </ControlSection>
       ) : null}
-      {installed && installed.skills.length > 0 ? (
+      {skillStoreTab === 'installed' && installed && installed.skills.length > 0 ? (
         <ControlSection
           action={<ControlPill tone="ready">{shownInstalled.length} shown</ControlPill>}
           description="Installed instructions and whether they can run in this environment."
@@ -4561,140 +4611,158 @@ function SkillsPanel(): React.JSX.Element {
           ) : null}
         </ControlSection>
       ) : null}
-      <ControlSection
-        action={<ControlPill>{shown.length} available</ControlPill>}
-        description={sources.join(' · ') || 'No sources configured'}
-        icon={PackageCheck}
-        title="Skill catalog"
-      >
-        {/* The review sheet: instructions in full, warnings, then the button. */}
-        {review ? (
-          <div className="skill-review">
-            <div className="panel-label">{review.skill.name}</div>
-            <p>{review.skill.description}</p>
-            {review.warnings.map((warning) => (
-              <small className="provider-cooldown" key={warning}>
-                {warning}
-              </small>
-            ))}
-            {review.tools?.still_sensitive?.length ? (
-              <small className="provider-cooldown">
-                It names sensitive tools ({review.tools.still_sensitive.join(', ')}). Those still
-                ask you every time.
-              </small>
-            ) : null}
-            {/* Read before Marvi reads it. The body used to be shown with an
+      {skillStoreTab !== 'installed' ? (
+        <ControlSection
+          action={<ControlPill>{shown.length} available</ControlPill>}
+          className="capability-store-section"
+          description={`Configured source · ${skillStoreTab}`}
+          icon={PackageCheck}
+          title={skillStoreTab.split('/').at(-1) || 'Skill store'}
+        >
+          <div className="capability-store-banner">
+            <div>
+              <span>SKILL STORE</span>
+              <strong>{skillStoreTab}</strong>
+              <p>Review complete instructions and requested tools before adding a skill.</p>
+            </div>
+            <span className="capability-store-number">
+              {String(storeSources.indexOf(skillStoreTab) + 1).padStart(2, '0')}
+            </span>
+          </div>
+          {/* The review sheet: instructions in full, warnings, then the button. */}
+          {review ? (
+            <div className="skill-review">
+              <div className="panel-label">{review.skill.name}</div>
+              <p>{review.skill.description}</p>
+              {review.warnings.map((warning) => (
+                <small className="provider-cooldown" key={warning}>
+                  {warning}
+                </small>
+              ))}
+              {review.tools?.still_sensitive?.length ? (
+                <small className="provider-cooldown">
+                  It names sensitive tools ({review.tools.still_sensitive.join(', ')}). Those still
+                  ask you every time.
+                </small>
+              ) : null}
+              {/* Read before Marvi reads it. The body used to be shown with an
                 Install button under it, and "you were shown it" is not a
                 control — nobody reads five hundred lines before clicking. */}
-            {review.scan && review.scan.findings.length > 0 ? (
-              <div className="skill-scan">
-                <div className="panel-label">
-                  {review.scan.blocked ? 'Not recommended' : 'Worth knowing'} — {review.scan.reason}
+              {review.scan && review.scan.findings.length > 0 ? (
+                <div className="skill-scan">
+                  <div className="panel-label">
+                    {review.scan.blocked ? 'Not recommended' : 'Worth knowing'} —{' '}
+                    {review.scan.reason}
+                  </div>
+                  {review.scan.findings.map((finding) => (
+                    <small
+                      className={finding.severity === 'danger' ? 'provider-cooldown' : ''}
+                      key={finding.rule}
+                    >
+                      <strong>{finding.rule.replace(/-/g, ' ')}</strong> · {finding.why}
+                      <br />
+                      <code>{finding.quote}</code>
+                    </small>
+                  ))}
                 </div>
-                {review.scan.findings.map((finding) => (
-                  <small
-                    className={finding.severity === 'danger' ? 'provider-cooldown' : ''}
-                    key={finding.rule}
-                  >
-                    <strong>{finding.rule.replace(/-/g, ' ')}</strong> · {finding.why}
-                    <br />
-                    <code>{finding.quote}</code>
-                  </small>
-                ))}
+              ) : null}
+              <pre className="service-output skill-body">{review.instructions}</pre>
+              <div className="provider-actions">
+                <button
+                  className={review.scan?.blocked ? 'phase danger' : 'phase active'}
+                  type="button"
+                  disabled={busy === 'installing'}
+                  onClick={() => void confirm()}
+                >
+                  {busy === 'installing'
+                    ? 'Installing'
+                    : review.scan?.blocked
+                      ? 'Install anyway'
+                      : 'Install'}
+                </button>
+                <button className="phase" type="button" onClick={() => setReview(null)}>
+                  Cancel
+                </button>
               </div>
-            ) : null}
-            <pre className="service-output skill-body">{review.instructions}</pre>
-            <div className="provider-actions">
-              <button
-                className={review.scan?.blocked ? 'phase danger' : 'phase active'}
-                type="button"
-                disabled={busy === 'installing'}
-                onClick={() => void confirm()}
-              >
-                {busy === 'installing'
-                  ? 'Installing'
-                  : review.scan?.blocked
-                    ? 'Install anyway'
-                    : 'Install'}
-              </button>
-              <button className="phase" type="button" onClick={() => setReview(null)}>
-                Cancel
-              </button>
             </div>
-          </div>
-        ) : null}
+          ) : null}
 
-        {!loaded ? (
-          <ProcessingCard
-            compact
-            detail="Reading the configured sources. The first time takes a few seconds; after that it is cached."
-            title="Loading skill store"
-          />
-        ) : storeFailed ? (
-          <ControlRow
-            action={
-              <ControlButton
-                onClick={() => {
-                  setLoaded(false)
-                  void load()
-                }}
-              >
-                Try again
-              </ControlButton>
-            }
-            description="The configured sources could not be reached. Everything already installed is above and still works."
-            icon={ShieldAlert}
-            title="Could not reach the skill store"
-          />
-        ) : store.length === 0 ? (
-          <ControlEmpty
-            description="Add a skill source to populate this catalog."
-            title="No skills available"
-          />
-        ) : (
-          <div className="capability-card-grid">
-            {shown.map((skill) => (
-              <article className="capability-card catalog-card" key={`${skill.repo}/${skill.name}`}>
-                <header className="capability-card-head">
-                  <span className="capability-card-mark" aria-hidden="true">
-                    <PackageCheck size={15} />
-                  </span>
-                  <div>
-                    <strong>{skill.name}</strong>
+          {!loaded ? (
+            <ProcessingCard
+              compact
+              detail="Reading the configured sources. The first time takes a few seconds; after that it is cached."
+              title="Loading skill store"
+            />
+          ) : storeFailed ? (
+            <ControlRow
+              action={
+                <ControlButton
+                  onClick={() => {
+                    setLoaded(false)
+                    void load()
+                  }}
+                >
+                  Try again
+                </ControlButton>
+              }
+              description="The configured sources could not be reached. Everything already installed is above and still works."
+              icon={ShieldAlert}
+              title="Could not reach the skill store"
+            />
+          ) : store.length === 0 ? (
+            <ControlEmpty
+              description="Add a skill source to populate this catalog."
+              title="No skills available"
+            />
+          ) : (
+            <div className="capability-card-grid capability-store-grid">
+              {shown.map((skill, index) => (
+                <article
+                  className={`capability-card catalog-card capability-store-card${index === 0 ? ' is-featured' : ''}`}
+                  key={`${skill.repo}/${skill.name}`}
+                >
+                  <header className="capability-card-head">
+                    <span className="capability-card-mark" aria-hidden="true">
+                      <span>{String(index + 1).padStart(2, '0')}</span>
+                    </span>
+                    <div>
+                      <strong>{skill.name}</strong>
+                      <span>{skill.source}</span>
+                    </div>
+                    {skill.installed ? <ControlPill tone="ready">Installed</ControlPill> : null}
+                  </header>
+                  <p>{skill.description}</p>
+                  <div className="capability-card-meta">
+                    <span>{skill.path}</span>
                     <span>{skill.source}</span>
                   </div>
-                  {skill.installed ? <ControlPill tone="ready">Installed</ControlPill> : null}
-                </header>
-                <p>{skill.description}</p>
-                <div className="capability-card-meta">
-                  <span>{skill.repo}</span>
-                </div>
-                <footer className="capability-card-actions">
-                  {skill.installed ? (
-                    <button
-                      className="phase danger"
-                      type="button"
-                      disabled={!!busy}
-                      onClick={() => void remove(skill.name)}
-                    >
-                      Remove
-                    </button>
-                  ) : (
-                    <button
-                      className="phase"
-                      type="button"
-                      disabled={!!busy}
-                      onClick={() => void open(skill)}
-                    >
-                      {busy === skill.name ? 'Fetching' : 'Review and install'}
-                    </button>
-                  )}
-                </footer>
-              </article>
-            ))}
-          </div>
-        )}
-      </ControlSection>
+                  <footer className="capability-card-actions">
+                    {skill.installed ? (
+                      <button
+                        className="phase danger"
+                        type="button"
+                        disabled={!!busy}
+                        onClick={() => void remove(skill.name)}
+                      >
+                        Remove
+                      </button>
+                    ) : (
+                      <button
+                        className="phase"
+                        type="button"
+                        disabled={!!busy}
+                        onClick={() => void open(skill)}
+                      >
+                        {busy === skill.name ? 'Fetching' : 'Review and install'}
+                      </button>
+                    )}
+                  </footer>
+                </article>
+              ))}
+            </div>
+          )}
+        </ControlSection>
+      ) : null}
     </ControlPage>
   )
 }

@@ -22,6 +22,14 @@ export function filterStoreSkills(skills: StoreSkill[], query: string): StoreSki
   )
 }
 
+export function skillStoreSources(skills: StoreSkill[], configuredSources: string[]): string[] {
+  const sources = new Set(configuredSources.filter(Boolean))
+  for (const skill of skills) {
+    if (skill.repo) sources.add(skill.repo)
+  }
+  return [...sources]
+}
+
 export function filterInstalledServers(
   servers: McpInstalledServer[],
   query: string

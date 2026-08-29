@@ -1,30 +1,23 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Boxes, PackagePlus, Server, Trash2, Wrench } from 'lucide-react'
+import { Boxes, PackagePlus, Server, Trash2 } from 'lucide-react'
 
 import { ControlEmpty, ControlPage, ControlPill, ControlSection } from '../control-surface'
 import { McpInstallDialog } from './McpInstallDialog'
 import { filterInstalledServers, filterRegistryServers } from '../capabilities/capability-library'
 import type { McpInstalledServer, McpRegistryServer } from '../../../../shared/runtime'
 
-type Chip = 'all' | 'installed' | 'registry'
+type McpStoreTab = 'installed' | 'registry'
 
-const CHIPS: Array<{ key: Chip; label: string }> = [
-  { key: 'all', label: 'All' },
-  { key: 'installed', label: 'Installed' },
-  { key: 'registry', label: 'Registry' }
+const STORE_TABS: Array<{ key: McpStoreTab; label: string; detail: string }> = [
+  { key: 'installed', label: 'Installed', detail: 'Local servers' },
+  { key: 'registry', label: 'Registry', detail: 'Server store' }
 ]
 
-/**
- * Capabilities > MCP. Unified list over installed servers and the registry
- * catalog, filtered by the same "All / Installed / Registry" chips
- * openhuman's `McpServersTab` uses — Marvi renders it as a row list via the
- * shared `ControlRow` primitive instead of a dedicated table component.
- */
 export function McpPanel(): React.JSX.Element {
   const [installed, setInstalled] = useState<McpInstalledServer[]>([])
   const [registry, setRegistry] = useState<McpRegistryServer[]>([])
   const [loaded, setLoaded] = useState(false)
-  const [chip, setChip] = useState<Chip>('all')
+  const [storeTab, setStoreTab] = useState<McpStoreTab>('installed')
   const [query, setQuery] = useState('')
   const [busy, setBusy] = useState('')
   const [installTarget, setInstallTarget] = useState<McpRegistryServer | null>(null)
@@ -51,7 +44,7 @@ export function McpPanel(): React.JSX.Element {
   }, [loadInstalled])
 
   useEffect(() => {
-    if (chip === 'installed') return
+    if (storeTab === 'installed') return
     let disposed = false
     const timer = setTimeout(() => {
       void (async () => {
@@ -62,7 +55,7 @@ export function McpPanel(): React.JSX.Element {
       disposed = true
       clearTimeout(timer)
     }
-  }, [chip, query, loadRegistry])
+  }, [storeTab, query, loadRegistry])
 
   const remove = async (id: string): Promise<void> => {
     setBusy(id)
@@ -75,11 +68,11 @@ export function McpPanel(): React.JSX.Element {
   }
 
   const installedFiltered = filterInstalledServers(installed, query)
-  const showInstalled = chip !== 'registry'
-  const showRegistry = chip !== 'installed'
   const registryFiltered = filterRegistryServers(registry, installed, query)
 
-  const empty = loaded && installedFiltered.length === 0 && registryFiltered.length === 0
+  const empty =
+    loaded &&
+    (storeTab === 'installed' ? installedFiltered.length === 0 : registryFiltered.length === 0)
   const connected = installed.filter((row) => row.status === 'connected').length
   const tools = installed.reduce((total, row) => total + row.tools, 0)
 
@@ -107,49 +100,95 @@ export function McpPanel(): React.JSX.Element {
           <strong>{registry.length}</strong>
         </div>
       </div>
+      <div className="capability-store-tabs" role="tablist" aria-label="MCP stores">
+        {STORE_TABS.map((tab) => (
+          <button
+            aria-selected={storeTab === tab.key}
+            className="capability-store-tab"
+            key={tab.key}
+            onClick={() => setStoreTab(tab.key)}
+            role="tab"
+            type="button"
+          >
+            {tab.key === 'installed' ? (
+              <Server aria-hidden="true" size={14} />
+            ) : (
+              <PackagePlus aria-hidden="true" size={14} />
+            )}
+            <span>
+              <strong>{tab.label}</strong>
+              <small>{tab.detail}</small>
+            </span>
+          </button>
+        ))}
+      </div>
       <ControlSection
         action={
-          <ControlPill tone={installed.length > 0 ? 'ready' : 'neutral'}>
-            {installed.length} installed
+          <ControlPill
+            tone={
+              storeTab === 'installed' && installed.length > 0
+                ? 'ready'
+                : storeTab === 'registry'
+                  ? 'accent'
+                  : 'neutral'
+            }
+          >
+            {storeTab === 'installed'
+              ? `${installed.length} installed`
+              : `${registryFiltered.length} results`}
           </ControlPill>
         }
-        description="Connected servers stay separate from installable registry entries."
+        description={
+          storeTab === 'installed'
+            ? 'Servers currently configured on this device.'
+            : 'Discover public servers and review their configuration before installation.'
+        }
         icon={Boxes}
-        title="Server library"
+        title={storeTab === 'installed' ? 'Installed servers' : 'MCP registry'}
       >
+        <div className="capability-store-banner">
+          <div>
+            <span>{storeTab === 'installed' ? 'LOCAL LIBRARY' : 'SERVER STORE'}</span>
+            <strong>{storeTab === 'installed' ? 'Configured MCP servers' : 'MCP registry'}</strong>
+            <p>
+              {storeTab === 'installed'
+                ? 'Inspect connection state, available tools, and remove servers you no longer use.'
+                : 'Browse public server metadata, then review environment variables before installing.'}
+            </p>
+          </div>
+          <span className="capability-store-number">
+            {String(storeTab === 'installed' ? installed.length : registry.length).padStart(2, '0')}
+          </span>
+        </div>
         <div className="capability-toolbar">
           <input
             aria-label="Search MCP servers"
             className="capability-search"
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search servers…"
+            placeholder={
+              storeTab === 'installed' ? 'Search installed servers…' : 'Search the registry…'
+            }
             type="search"
             value={query}
           />
-          <div className="capability-chips" role="group" aria-label="Filter">
-            {CHIPS.map((option) => (
-              <button
-                aria-pressed={chip === option.key}
-                className="capability-chip"
-                key={option.key}
-                onClick={() => setChip(option.key)}
-                type="button"
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
+          <span className="capability-source-count">
+            {storeTab === 'installed' ? 'ON THIS DEVICE' : 'PUBLIC CATALOG'}
+          </span>
         </div>
 
         {!loaded ? null : empty ? (
           <ControlEmpty
-            description="Install one from the registry, or check the Gateway connection."
+            description={
+              storeTab === 'installed'
+                ? 'Open the Registry tab to add a server, or check the Gateway connection.'
+                : 'Try another search or check the registry connection.'
+            }
             icon={Server}
-            title="No MCP servers found"
+            title={storeTab === 'installed' ? 'No installed servers' : 'No registry matches'}
           />
         ) : (
           <>
-            {showInstalled && installedFiltered.length > 0 ? (
+            {storeTab === 'installed' && installedFiltered.length > 0 ? (
               <section className="capability-library-section">
                 <header>
                   <div>
@@ -198,7 +237,7 @@ export function McpPanel(): React.JSX.Element {
                 </div>
               </section>
             ) : null}
-            {showRegistry && registryFiltered.length > 0 ? (
+            {storeTab === 'registry' && registryFiltered.length > 0 ? (
               <section className="capability-library-section">
                 <header>
                   <div>
@@ -207,15 +246,15 @@ export function McpPanel(): React.JSX.Element {
                   </div>
                   <span>{registryFiltered.length}</span>
                 </header>
-                <div className="capability-card-grid">
-                  {registryFiltered.map((row) => (
+                <div className="capability-card-grid capability-store-grid">
+                  {registryFiltered.map((row, index) => (
                     <article
-                      className="capability-card catalog-card mcp-card"
+                      className={`capability-card catalog-card mcp-card capability-store-card${index === 0 ? ' is-featured' : ''}`}
                       key={`registry-${row.qualifiedName}`}
                     >
                       <header className="capability-card-head">
                         <span className="capability-card-mark" aria-hidden="true">
-                          <Wrench size={15} />
+                          <span>{String(index + 1).padStart(2, '0')}</span>
                         </span>
                         <div>
                           <strong>{row.name}</strong>

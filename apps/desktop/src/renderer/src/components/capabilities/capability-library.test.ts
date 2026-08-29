@@ -11,7 +11,8 @@ import {
   filterInstalledSkills,
   filterRegistryServers,
   filterStoreSkills,
-  matchesCapability
+  matchesCapability,
+  skillStoreSources
 } from './capability-library'
 
 const usage = { uses: 0, lastUsed: '', mine: false, pinned: false, state: 'active' as const }
@@ -48,6 +49,10 @@ describe('capability library filters', () => {
 
     expect(filterInstalledSkills(installed, 'source')).toHaveLength(1)
     expect(filterStoreSkills(store, 'openai')).toHaveLength(1)
+    expect(skillStoreSources(store, ['curated/skills', 'openai/skills'])).toEqual([
+      'curated/skills',
+      'openai/skills'
+    ])
   })
 
   it('keeps operational servers separate from registry discoveries', () => {
