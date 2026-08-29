@@ -332,6 +332,43 @@ def _recall(text: str, *, read: bool = False) -> str:
     return ""
 
 
+#: How many exchanges the session-end summary is built from. The last few are
+#: what a conversation was *about*; the whole thing is a transcript, and
+#: summarising a transcript costs more and says the same.
+EXCHANGES_KEPT = 12
+
+#: This session's exchanges, for the note left behind when it ends. Module
+#: level because a LiveKit job is one process is one conversation.
+_said: list[tuple[str, str]] = []
+
+
+def _remember_the_session() -> None:
+    """Leave one line about what this conversation was about.
+
+    Voice sessions have no history: LiveKit starts each one with an empty chat
+    context, so hanging up and calling back made Marvi a stranger to what she
+    had been discussing a minute earlier. Memory does not cover it and should
+    not -- it holds facts, and is told never to store that a conversation
+    happened, which is why the store stayed clean.
+
+    Fire and forget, on the way out. Nothing waits for this and a failure costs
+    the next session a sentence.
+    """
+    if not _said:
+        return
+    import contextlib
+
+    with contextlib.suppress(Exception):
+        import httpx
+
+        httpx.post(
+            f"{gateway_url()}/session/ended",
+            json={"exchanges": [{"user": user, "assistant": said} for user, said in _said]},
+            timeout=REPORT_TIMEOUT,
+        )
+    _said.clear()
+
+
 def _observe_turn(user: str, assistant: str) -> None:
     """Hand a finished exchange to the Gateway's memory worker.
 
@@ -888,6 +925,12 @@ async def marvi_session(ctx: JobContext) -> None:
         # on the latency path and could only ever add. The Gateway takes the
         # turn, returns immediately, and works it out on a thread.
         _observe_turn(last_heard["text"], spoken)
+        # And kept here, so the end of the session has something to summarise.
+        # A LiveKit session starts with an empty chat context and this process
+        # dies with the call, so by the time the close handler runs there is no
+        # conversation left to look at unless it was collected on the way.
+        _said.append((last_heard["text"], spoken))
+        del _said[:-EXCHANGES_KEPT]
 
     connecting = time.monotonic()
     await session.start(agent=MarviVoiceAgent(), room=ctx.room)
@@ -954,6 +997,7 @@ async def marvi_session(ctx: JobContext) -> None:
         # exactly what stopped jobs being dispatched before.
         reason = getattr(getattr(event, "reason", None), "value", "session closed")
         log.info("session closed (%s); ending the job", reason)
+        _remember_the_session()
         ctx.shutdown(reason=str(reason))
 
     # `update_tools` is on the Agent, not the session -- checked against the

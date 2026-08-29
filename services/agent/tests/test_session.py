@@ -279,3 +279,19 @@ def test_only_the_speculative_fetch_pays_for_a_reading() -> None:
     assert "_recall(text, read=True)" in source, "the prefetch should ask for a reading"
     # The fallback inside on_user_turn_completed takes the default, read=False.
     assert "else _recall(text)" in source, "the live path must not wait for the reader"
+
+
+def test_a_session_leaves_a_note_about_what_it_was_about() -> None:
+    """Voice sessions have no history. LiveKit starts each one with an empty
+    chat context, so hanging up and calling back made Marvi a stranger to what
+    she had been discussing a minute earlier -- and this process dies with the
+    call, so by the time the close handler runs there is no conversation left
+    to look at unless it was collected on the way."""
+    import inspect
+
+    from marvi_agent import session
+
+    source = inspect.getsource(session)
+    assert "_said.append((last_heard[\"text\"], spoken))" in source
+    assert "_remember_the_session()" in source
+    assert "/session/ended" in source
