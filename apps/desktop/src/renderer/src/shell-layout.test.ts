@@ -209,6 +209,14 @@ describe('shell layout', () => {
     expect(lastBlock('.statusbar')).toContain('overflow: visible')
     expect(lastBlock('.statusbar-side-right')).toContain('overflow: visible')
   })
+
+  it('renders confirmation modes as two distinct colored status icons', () => {
+    expect(app).toContain('<ShieldOff aria-hidden="true" className="status-mode-icon is-yolo" />')
+    expect(app).toContain('<CheckCircle2 aria-hidden="true" className="status-mode-icon is-confirm" />')
+    expect(app).toContain('aria-label={`${voice.yolo ? \'YOLO\' : \'Confirm\'} mode`}')
+    expect(lastBlock('.status-mode-icon.is-confirm')).toContain('color: #4daa72')
+    expect(lastBlock('.status-mode-icon.is-yolo')).toContain('color: var(--ui-danger)')
+  })
 })
 
 describe('what the shell claims about the devices', () => {

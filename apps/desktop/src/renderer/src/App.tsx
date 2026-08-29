@@ -402,14 +402,21 @@ function MainSurface(): React.JSX.Element {
       </div>
       <div className="statusbar-side statusbar-side-right">
         {page === 'Chat' ? <ContextStatus {...chatContextStatus} /> : null}
-        <UiTooltip label="Open confirmation mode settings" side="top">
+        <UiTooltip
+          label={`${voice.yolo ? 'YOLO' : 'Confirm'} mode — open confirmation settings`}
+          side="top"
+        >
           <button
-            className={`status-item${voice.yolo ? ' status-yolo' : ''}`}
+            aria-label={`${voice.yolo ? 'YOLO' : 'Confirm'} mode`}
+            className="status-item status-mode"
             onClick={() => setSettings('Preferences')}
             type="button"
           >
-            <CheckCircle2 aria-hidden="true" />
-            <span>{voice.yolo ? 'YOLO' : 'Confirm'}</span>
+            {voice.yolo ? (
+              <ShieldOff aria-hidden="true" className="status-mode-icon is-yolo" />
+            ) : (
+              <CheckCircle2 aria-hidden="true" className="status-mode-icon is-confirm" />
+            )}
           </button>
         </UiTooltip>
         <VersionPopover version={version} onOpenAbout={() => setSettings('About')} />

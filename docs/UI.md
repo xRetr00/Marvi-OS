@@ -253,7 +253,7 @@ instead of widening the bar:
 - STT/TTS readiness
 - Smart Room connection/presence
 - OpenCode Go model
-- Confirm or YOLO mode
+- icon-only confirmation mode: green check for Confirm, red crossed shield for YOLO
 - version/update indicator
 
 Health items open the relevant view. The version item is the sole exception:
