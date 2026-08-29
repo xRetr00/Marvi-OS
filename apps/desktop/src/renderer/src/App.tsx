@@ -3,7 +3,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import {
   Activity,
+  ArchiveRestore,
   Box,
+  BookOpen,
   Brain,
   CalendarDays,
   Camera,
@@ -21,6 +23,7 @@ import {
   Info,
   Mic,
   Pause,
+  PackageCheck,
   Palette,
   Play,
   Power,
@@ -74,6 +77,10 @@ import { ConnectorsPanel } from './components/connectors/ConnectorsPanel'
 import { ServiceLogo } from './lib/serviceLogos'
 import { McpPanel } from './components/mcp/McpPanel'
 import { CapabilityPluginsPanel } from './components/capabilities/CapabilityPluginsPanel'
+import {
+  filterInstalledSkills,
+  filterStoreSkills
+} from './components/capabilities/capability-library'
 import { ContextStatus } from './chat/components/ContextStatus'
 import { $chatContextStatus } from './store/chat-context'
 
@@ -4367,12 +4374,10 @@ function SkillsPanel(): React.JSX.Element {
     }
   }
 
-  const shown = store.filter(
-    (skill) =>
-      !filter ||
-      skill.name.includes(filter.toLowerCase()) ||
-      skill.description.toLowerCase().includes(filter.toLowerCase())
-  )
+  const shown = filterStoreSkills(store, filter)
+  const shownInstalled = filterInstalledSkills(installed?.skills ?? [], filter)
+  const activeSkills = installed?.skills.filter((skill) => skill.applies).length ?? 0
+  const pinnedSkills = installed?.skills.filter((skill) => skill.usage.pinned).length ?? 0
 
   return (
     <ControlPage
@@ -4380,6 +4385,37 @@ function SkillsPanel(): React.JSX.Element {
       description="Instructions that teach Marvi how to complete specific work."
       title="Skills"
     >
+      <div className="capability-overview" aria-label="Skills summary">
+        <div>
+          <span>Installed</span>
+          <strong>{installed?.skills.length ?? 0}</strong>
+        </div>
+        <div>
+          <span>Available here</span>
+          <strong>{activeSkills}</strong>
+        </div>
+        <div>
+          <span>Kept active</span>
+          <strong>{pinnedSkills}</strong>
+        </div>
+        <div>
+          <span>Catalog</span>
+          <strong>{store.length}</strong>
+        </div>
+      </div>
+      <div className="capability-toolbar capability-toolbar-wide">
+        <input
+          aria-label="Search skills"
+          className="capability-search"
+          type="search"
+          placeholder="Search installed skills and catalog…"
+          value={filter}
+          onChange={(event) => setFilter(event.target.value)}
+        />
+        <span className="capability-source-count">
+          {sources.length} source{sources.length === 1 ? '' : 's'}
+        </span>
+      </div>
       {proposal ? (
         <ControlSection icon={Wrench} title="Learned from a conversation">
           <div className="skill-review">
@@ -4414,49 +4450,54 @@ function SkillsPanel(): React.JSX.Element {
         </ControlSection>
       ) : null}
       {installed && installed.skills.length > 0 ? (
-        <ControlSection icon={Wrench} title="Your skills">
-          <div className="service-list">
-            {installed.skills.map((skill) => (
-              <div className="service-row" key={skill.name}>
-                <span className="service-name">{skill.name}</span>
-                <span
-                  className={`service-state state-${
-                    !skill.applies
-                      ? 'pending'
-                      : skill.usage.state === 'active'
-                        ? 'ready'
-                        : 'pending'
-                  }`}
-                >
-                  {!skill.applies
-                    ? 'Not here'
-                    : skill.usage.pinned
-                      ? 'Pinned'
-                      : skill.usage.state === 'active'
-                        ? ''
+        <ControlSection
+          action={<ControlPill tone="ready">{shownInstalled.length} shown</ControlPill>}
+          description="Installed instructions and whether they can run in this environment."
+          icon={BookOpen}
+          title="Installed skills"
+        >
+          <div className="capability-card-grid">
+            {shownInstalled.map((skill) => (
+              <article
+                className={`capability-card skill-card${!skill.applies ? ' is-unavailable' : ''}`}
+                key={skill.name}
+              >
+                <header className="capability-card-head">
+                  <span className="capability-card-mark" aria-hidden="true">
+                    <BookOpen size={15} />
+                  </span>
+                  <div>
+                    <strong>{skill.name}</strong>
+                    <span>{skill.source}</span>
+                  </div>
+                  <ControlPill
+                    tone={!skill.applies ? 'warning' : skill.usage.pinned ? 'accent' : 'ready'}
+                  >
+                    {!skill.applies
+                      ? 'Unavailable'
+                      : skill.usage.pinned
+                        ? 'Pinned'
                         : skill.usage.state}
-                </span>
-                <small>{skill.description}</small>
-                <small>
-                  {/* The number nothing used to know. Everything else on this
-                      row is a decision that needs it. */}
-                  {skill.usage.uses === 0
-                    ? 'Never used'
-                    : `Used ${skill.usage.uses} time${skill.usage.uses === 1 ? '' : 's'}${
-                        skill.usage.lastUsed ? `, last on ${skill.usage.lastUsed.slice(0, 10)}` : ''
-                      }`}
-                  {skill.usage.mine ? ' · written by Marvi' : ''}
-                  {!skill.applies && skill.platforms.length > 0
-                    ? ` · for ${skill.platforms.join(', ')}`
-                    : ''}
-                  {!skill.applies && skill.requires.length > 0
-                    ? ` · needs ${skill.requires.join(', ')}`
-                    : ''}
-                </small>
-                {/* Only Marvi's own can be swept, so only they need pinning.
-                    A skill you wrote is yours and is never touched. */}
+                  </ControlPill>
+                </header>
+                <p>{skill.description}</p>
+                <div className="capability-card-meta">
+                  <span>
+                    {skill.usage.uses === 0
+                      ? 'Never used'
+                      : `${skill.usage.uses} use${skill.usage.uses === 1 ? '' : 's'}`}
+                  </span>
+                  {skill.usage.lastUsed ? <span>{skill.usage.lastUsed.slice(0, 10)}</span> : null}
+                  {skill.usage.mine ? <span>Local</span> : null}
+                  {!skill.applies && skill.platforms.length > 0 ? (
+                    <span>{skill.platforms.join(', ')}</span>
+                  ) : null}
+                  {!skill.applies && skill.requires.length > 0 ? (
+                    <span>Needs {skill.requires.join(', ')}</span>
+                  ) : null}
+                </div>
                 {skill.usage.mine ? (
-                  <div className="provider-actions">
+                  <footer className="capability-card-actions">
                     <button
                       className="phase"
                       type="button"
@@ -4469,7 +4510,7 @@ function SkillsPanel(): React.JSX.Element {
                           .finally(() => setBusy(''))
                       }}
                     >
-                      {skill.usage.pinned ? 'Unpin' : 'Keep always'}
+                      {skill.usage.pinned ? 'Unpin' : 'Keep active'}
                     </button>
                     <button
                       className="phase"
@@ -4485,55 +4526,47 @@ function SkillsPanel(): React.JSX.Element {
                     >
                       Archive
                     </button>
-                  </div>
+                  </footer>
                 ) : null}
-              </div>
+              </article>
             ))}
           </div>
           {installed.archived.length > 0 ? (
-            <ControlRow
-              action={
-                <div className="provider-actions">
-                  {installed.archived.slice(0, 4).map((name) => (
-                    <button
-                      className="phase"
-                      key={name}
-                      type="button"
-                      disabled={!!busy}
-                      onClick={() => {
-                        setBusy(name)
-                        void window.marvi
-                          ?.restoreSkill(name)
-                          .then(() => load())
-                          .finally(() => setBusy(''))
-                      }}
-                    >
-                      {name}
-                    </button>
-                  ))}
-                </div>
-              }
-              description="Set aside because nothing had used them in a long time. Nothing was deleted; press one to bring it back."
-              icon={Database}
-              title="Archived"
-            />
+            <div className="capability-archive-row">
+              <ArchiveRestore aria-hidden="true" size={15} />
+              <div>
+                <strong>Archived</strong>
+                <span>Stored safely and excluded from active context.</span>
+              </div>
+              <div className="provider-actions">
+                {installed.archived.slice(0, 4).map((name) => (
+                  <button
+                    className="phase"
+                    key={name}
+                    type="button"
+                    disabled={!!busy}
+                    onClick={() => {
+                      setBusy(name)
+                      void window.marvi
+                        ?.restoreSkill(name)
+                        .then(() => load())
+                        .finally(() => setBusy(''))
+                    }}
+                  >
+                    {name}
+                  </button>
+                ))}
+              </div>
+            </div>
           ) : null}
         </ControlSection>
       ) : null}
-      <ControlSection icon={Database} title="Catalog">
-        <div className="context-line">
-          <span>Sources</span>
-          <strong>{sources.join(', ') || 'None configured'}</strong>
-        </div>
-
-        <input
-          className="skill-search"
-          type="text"
-          placeholder="Search skills"
-          value={filter}
-          onChange={(event) => setFilter(event.target.value)}
-        />
-
+      <ControlSection
+        action={<ControlPill>{shown.length} available</ControlPill>}
+        description={sources.join(' · ') || 'No sources configured'}
+        icon={PackageCheck}
+        title="Skill catalog"
+      >
         {/* The review sheet: instructions in full, warnings, then the button. */}
         {review ? (
           <div className="skill-review">
@@ -4619,16 +4652,24 @@ function SkillsPanel(): React.JSX.Element {
             title="No skills available"
           />
         ) : (
-          <div className="service-list">
+          <div className="capability-card-grid">
             {shown.map((skill) => (
-              <div className="service-row" key={`${skill.repo}/${skill.name}`}>
-                <span className="service-name">{skill.name}</span>
-                <span className={`service-state state-${skill.installed ? 'ready' : 'pending'}`}>
-                  {skill.installed ? 'Installed' : ''}
-                </span>
-                <small>{skill.description}</small>
-                <small>{skill.repo}</small>
-                <div className="provider-actions">
+              <article className="capability-card catalog-card" key={`${skill.repo}/${skill.name}`}>
+                <header className="capability-card-head">
+                  <span className="capability-card-mark" aria-hidden="true">
+                    <PackageCheck size={15} />
+                  </span>
+                  <div>
+                    <strong>{skill.name}</strong>
+                    <span>{skill.source}</span>
+                  </div>
+                  {skill.installed ? <ControlPill tone="ready">Installed</ControlPill> : null}
+                </header>
+                <p>{skill.description}</p>
+                <div className="capability-card-meta">
+                  <span>{skill.repo}</span>
+                </div>
+                <footer className="capability-card-actions">
                   {skill.installed ? (
                     <button
                       className="phase danger"
@@ -4648,8 +4689,8 @@ function SkillsPanel(): React.JSX.Element {
                       {busy === skill.name ? 'Fetching' : 'Review and install'}
                     </button>
                   )}
-                </div>
-              </div>
+                </footer>
+              </article>
             ))}
           </div>
         )}

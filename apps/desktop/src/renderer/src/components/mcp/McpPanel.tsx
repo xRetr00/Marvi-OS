@@ -1,14 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Server, Trash2 } from 'lucide-react'
+import { Boxes, PackagePlus, Server, Trash2, Wrench } from 'lucide-react'
 
-import {
-  ControlEmpty,
-  ControlPage,
-  ControlPill,
-  ControlRow,
-  ControlSection
-} from '../control-surface'
+import { ControlEmpty, ControlPage, ControlPill, ControlSection } from '../control-surface'
 import { McpInstallDialog } from './McpInstallDialog'
+import { filterInstalledServers, filterRegistryServers } from '../capabilities/capability-library'
 import type { McpInstalledServer, McpRegistryServer } from '../../../../shared/runtime'
 
 type Chip = 'all' | 'installed' | 'registry'
@@ -79,16 +74,14 @@ export function McpPanel(): React.JSX.Element {
     }
   }
 
-  const needle = query.trim().toLowerCase()
-  const installedFiltered = installed.filter(
-    (row) => !needle || row.name.toLowerCase().includes(needle)
-  )
+  const installedFiltered = filterInstalledServers(installed, query)
   const showInstalled = chip !== 'registry'
   const showRegistry = chip !== 'installed'
-  const installedSlugs = new Set(installed.map((row) => row.name.toLowerCase()))
-  const registryFiltered = registry.filter((row) => !installedSlugs.has(row.name.toLowerCase()))
+  const registryFiltered = filterRegistryServers(registry, installed, query)
 
   const empty = loaded && installedFiltered.length === 0 && registryFiltered.length === 0
+  const connected = installed.filter((row) => row.status === 'connected').length
+  const tools = installed.reduce((total, row) => total + row.tools, 0)
 
   return (
     <ControlPage
@@ -96,14 +89,33 @@ export function McpPanel(): React.JSX.Element {
       description="Local MCP servers Marvi can call as tools, installed or from the registry."
       title="MCP"
     >
+      <div className="capability-overview" aria-label="MCP summary">
+        <div>
+          <span>Installed</span>
+          <strong>{installed.length}</strong>
+        </div>
+        <div>
+          <span>Connected</span>
+          <strong>{connected}</strong>
+        </div>
+        <div>
+          <span>Available tools</span>
+          <strong>{tools}</strong>
+        </div>
+        <div>
+          <span>Registry results</span>
+          <strong>{registry.length}</strong>
+        </div>
+      </div>
       <ControlSection
         action={
           <ControlPill tone={installed.length > 0 ? 'ready' : 'neutral'}>
             {installed.length} installed
           </ControlPill>
         }
-        icon={Server}
-        title="MCP servers"
+        description="Connected servers stay separate from installable registry entries."
+        icon={Boxes}
+        title="Server library"
       >
         <div className="capability-toolbar">
           <input
@@ -137,45 +149,98 @@ export function McpPanel(): React.JSX.Element {
           />
         ) : (
           <>
-            {showInstalled &&
-              installedFiltered.map((row) => (
-                <ControlRow
-                  action={
-                    <button
-                      className="phase danger"
-                      disabled={busy === row.id}
-                      onClick={() => void remove(row.id)}
-                      type="button"
+            {showInstalled && installedFiltered.length > 0 ? (
+              <section className="capability-library-section">
+                <header>
+                  <div>
+                    <Server aria-hidden="true" size={15} />
+                    <strong>Installed servers</strong>
+                  </div>
+                  <span>{installedFiltered.length}</span>
+                </header>
+                <div className="capability-card-grid">
+                  {installedFiltered.map((row) => (
+                    <article className="capability-card mcp-card" key={`installed-${row.id}`}>
+                      <header className="capability-card-head">
+                        <span className="capability-card-mark" aria-hidden="true">
+                          <Server size={15} />
+                          <i
+                            className={`mcp-status-dot${row.status === 'connected' ? ' is-connected' : row.status === 'error' ? ' is-error' : ''}`}
+                          />
+                        </span>
+                        <div>
+                          <strong>{row.name}</strong>
+                          <span>{row.id}</span>
+                        </div>
+                        <ControlPill tone={row.status === 'connected' ? 'ready' : 'danger'}>
+                          {row.status}
+                        </ControlPill>
+                      </header>
+                      <p>Tools exposed to Marvi through this local server.</p>
+                      <div className="capability-card-meta">
+                        <span>
+                          {row.tools} tool{row.tools === 1 ? '' : 's'}
+                        </span>
+                        <span>Installed</span>
+                      </div>
+                      <footer className="capability-card-actions">
+                        <button
+                          className="phase danger"
+                          disabled={busy === row.id}
+                          onClick={() => void remove(row.id)}
+                          type="button"
+                        >
+                          <Trash2 aria-hidden="true" size={13} /> Remove
+                        </button>
+                      </footer>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+            {showRegistry && registryFiltered.length > 0 ? (
+              <section className="capability-library-section">
+                <header>
+                  <div>
+                    <PackagePlus aria-hidden="true" size={15} />
+                    <strong>Registry catalog</strong>
+                  </div>
+                  <span>{registryFiltered.length}</span>
+                </header>
+                <div className="capability-card-grid">
+                  {registryFiltered.map((row) => (
+                    <article
+                      className="capability-card catalog-card mcp-card"
+                      key={`registry-${row.qualifiedName}`}
                     >
-                      <Trash2 aria-hidden="true" size={13} /> Remove
-                    </button>
-                  }
-                  description={`${row.tools} tool${row.tools === 1 ? '' : 's'}`}
-                  key={`installed-${row.id}`}
-                  title={
-                    <span>
-                      <span
-                        aria-hidden="true"
-                        className={`mcp-status-dot${row.status === 'connected' ? ' is-connected' : row.status === 'error' ? ' is-error' : ''}`}
-                      />
-                      {row.name}
-                    </span>
-                  }
-                />
-              ))}
-            {showRegistry &&
-              registryFiltered.map((row) => (
-                <ControlRow
-                  action={
-                    <button className="phase" onClick={() => setInstallTarget(row)} type="button">
-                      Install
-                    </button>
-                  }
-                  description={`${row.description || row.qualifiedName}${row.author ? ` · ${row.author}` : ''}`}
-                  key={`registry-${row.qualifiedName}`}
-                  title={row.name}
-                />
-              ))}
+                      <header className="capability-card-head">
+                        <span className="capability-card-mark" aria-hidden="true">
+                          <Wrench size={15} />
+                        </span>
+                        <div>
+                          <strong>{row.name}</strong>
+                          <span>{row.author || 'Registry publisher'}</span>
+                        </div>
+                        <ControlPill>Registry</ControlPill>
+                      </header>
+                      <p>{row.description || 'No description supplied by the publisher.'}</p>
+                      <div className="capability-card-meta">
+                        <span>{row.qualifiedName}</span>
+                      </div>
+                      <footer className="capability-card-actions">
+                        <button
+                          className="phase"
+                          onClick={() => setInstallTarget(row)}
+                          type="button"
+                        >
+                          Review and install
+                        </button>
+                      </footer>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            ) : null}
           </>
         )}
       </ControlSection>

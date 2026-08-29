@@ -477,11 +477,29 @@ is the clearest signal the handoff finished). Marvi never renders the provider
 login or receives its credential. A connected card exposes the same
 read/write/admin capability ceiling the old Accounts page did, plus disconnect.
 
-MCP lists installed local MCP servers and the registry catalog behind the same
-"All / Installed / Registry" filter, and installs a registry server through a
-short dialog. Capabilities > Plugins is for third-party/extension plugins and
-is presently an empty shell — Settings > Plugins remains the page for Marvi's
-own bundled services (Smart Room and others).
+Skills and MCP use the same capability-library grammar. A compact four-cell
+summary gives the page's scale and health first; search and filters come next;
+installed capabilities and discoverable catalog entries remain visibly
+separate. The cards are dense operational surfaces rather than promotional
+tiles: identity and source at the top, state in text and color, a short purpose,
+small metadata tags, and actions in a fixed footer. The grid uses two columns
+at control-center widths and one column below 820 px.
+
+Skills separates installed instructions from the skill catalog. Installed
+cards expose applicability, usage, source, pinned state, and local archive
+controls. Catalog cards expose publisher/source and always require review
+before installation. Archived skills are a compact recoverable shelf, not a
+second catalog. One search covers installed and catalog metadata.
+
+MCP separates the live server fleet from registry discoveries even when the
+"All" filter is active. Installed cards expose connection state and tool count;
+registry cards expose the qualified server name, publisher, and description,
+then open the environment-variable review dialog before installation. This
+matches the protocol distinction between a running server and registry
+metadata rather than presenting them as equivalent rows. Capabilities >
+Plugins is for third-party/extension plugins and is presently an empty shell —
+Settings > Plugins remains the page for Marvi's own bundled services (Smart
+Room and others).
 
 ## Memory view
 
