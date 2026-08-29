@@ -54,6 +54,63 @@ html[data-appearance='claude-code-dark'] {
   --shadow-nous: 0 1px 0 rgb(255 255 255 / 3%), 0 12px 32px rgb(0 0 0 / 44%);
 }
 
+html[data-appearance='midnight'] {
+  --ui-bg: #080d16;
+  --ui-bg-raised: #0d1420;
+  --ui-bg-primary: #080d16;
+  --ui-bg-secondary: #101927;
+  --ui-bg-tertiary: #172235;
+  --ui-text-primary: #e5edf8;
+  --ui-text-emphasis: #f4f8fd;
+  --ui-text-secondary: #9eacc0;
+  --ui-text-tertiary: #697991;
+  --ui-stroke-primary: #3c506d;
+  --ui-stroke-secondary: #27384f;
+  --ui-stroke-tertiary: #19283b;
+  --ui-accent: #4c8dff;
+  --ui-accent-soft: rgb(76 141 255 / 14%);
+  --ui-danger: #e66f7d;
+  --shadow-nous: 0 1px 1px rgb(0 0 0 / 44%), 0 16px 44px rgb(0 0 0 / 40%);
+}
+
+html[data-appearance='forest'] {
+  --ui-bg: #0b100d;
+  --ui-bg-raised: #101712;
+  --ui-bg-primary: #0b100d;
+  --ui-bg-secondary: #131c16;
+  --ui-bg-tertiary: #1a261e;
+  --ui-text-primary: #e4ece5;
+  --ui-text-emphasis: #f2f6f1;
+  --ui-text-secondary: #a5b3a7;
+  --ui-text-tertiary: #748278;
+  --ui-stroke-primary: #405447;
+  --ui-stroke-secondary: #2c3b31;
+  --ui-stroke-tertiary: #1d2b22;
+  --ui-accent: #77a784;
+  --ui-accent-soft: rgb(119 167 132 / 14%);
+  --ui-danger: #df7373;
+  --shadow-nous: 0 1px 1px rgb(0 0 0 / 42%), 0 16px 42px rgb(0 0 0 / 36%);
+}
+
+html[data-appearance='graphite'] {
+  --ui-bg: #101112;
+  --ui-bg-raised: #161719;
+  --ui-bg-primary: #101112;
+  --ui-bg-secondary: #1b1d1f;
+  --ui-bg-tertiary: #222529;
+  --ui-text-primary: #e8e9e7;
+  --ui-text-emphasis: #f6f7f4;
+  --ui-text-secondary: #adb1b4;
+  --ui-text-tertiary: #7c8287;
+  --ui-stroke-primary: #4a5055;
+  --ui-stroke-secondary: #34383c;
+  --ui-stroke-tertiary: #26292d;
+  --ui-accent: #8ca6b8;
+  --ui-accent-soft: rgb(140 166 184 / 14%);
+  --ui-danger: #dc7474;
+  --shadow-nous: 0 1px 1px rgb(0 0 0 / 44%), 0 14px 38px rgb(0 0 0 / 38%);
+}
+
 body {
   overflow: hidden;
   user-select: none;
@@ -8569,6 +8626,18 @@ body .settings-scroll .control-row {
 
 .appearance-choice-anthropic-serif .appearance-choice-preview > span {
   font-family: 'Anthropic Serif', serif;
+}
+
+.appearance-choice-instrument-sans .appearance-choice-preview > span {
+  font-family: 'Instrument Sans Variable', sans-serif;
+}
+
+.appearance-choice-newsreader .appearance-choice-preview > span {
+  font-family: 'Newsreader Variable', serif;
+}
+
+.appearance-choice-geist-mono .appearance-choice-preview > span {
+  font-family: 'Geist Mono Variable', monospace;
 }
 
 .appearance-choice-marvi-mono .appearance-choice-preview > span {

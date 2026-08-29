@@ -84,6 +84,22 @@ html[data-font='anthropic-serif'] {
   --ui-font-display: 'Anthropic Serif', Georgia, serif;
 }
 
+html[data-font='instrument-sans'] {
+  --ui-font-body: 'Instrument Sans Variable', 'Segoe UI', sans-serif;
+  --ui-font-display: 'Instrument Sans Variable', 'Segoe UI', sans-serif;
+}
+
+html[data-font='newsreader'] {
+  --ui-font-body: 'Newsreader Variable', Georgia, serif;
+  --ui-font-display: 'Newsreader Variable', Georgia, serif;
+}
+
+html[data-font='geist-mono'] {
+  --ui-font-body: 'Geist Mono Variable', 'Cascadia Mono', monospace;
+  --ui-font-display: 'Geist Mono Variable', 'Cascadia Mono', monospace;
+  --ui-font-mono: 'Geist Mono Variable', 'Cascadia Mono', monospace;
+}
+
 * {
   box-sizing: border-box;
 }

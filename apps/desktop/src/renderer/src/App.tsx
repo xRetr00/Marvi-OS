@@ -194,6 +194,13 @@ const NAV_GROUPS = [
 
 /** Behind the gear: the things you set up. */
 const SETTINGS_VOICE_PAGES = ['Speech recognition', 'Wake word', 'Voice synthesis'] as const
+const SETTINGS_APPEARANCE_PAGES = [
+  'Themes',
+  'Fonts',
+  'Window',
+  'Dynamic Island',
+  'Desktop companion'
+] as const
 
 const SETTINGS_GROUPS = [
   {
@@ -208,8 +215,9 @@ const SETTINGS_GROUPS = [
 
 type Page = (typeof NAV_GROUPS)[number]['items'][number]
 type SettingsPage =
-  | Exclude<(typeof SETTINGS_GROUPS)[number]['items'][number], 'Voice'>
+  | Exclude<(typeof SETTINGS_GROUPS)[number]['items'][number], 'Voice' | 'Appearance'>
   | (typeof SETTINGS_VOICE_PAGES)[number]
+  | (typeof SETTINGS_APPEARANCE_PAGES)[number]
 
 const NAV_CODES: Record<Page, string> = {
   Overview: 'OV',
@@ -243,7 +251,7 @@ const NAV_ICONS: Record<Page, AbstractIconName> = {
   Plugins: 'plugins'
 }
 
-const SETTINGS_ICONS: Record<SettingsPage | 'Voice', AbstractIconName> = {
+const SETTINGS_ICONS: Record<SettingsPage | 'Voice' | 'Appearance', AbstractIconName> = {
   Providers: 'providers',
   Models: 'models',
   Usage: 'activity',
@@ -255,6 +263,11 @@ const SETTINGS_ICONS: Record<SettingsPage | 'Voice', AbstractIconName> = {
   'Wake word': 'voice',
   Workspace: 'archive',
   Appearance: 'preferences',
+  Themes: 'preferences',
+  Fonts: 'preferences',
+  Window: 'preferences',
+  'Dynamic Island': 'preferences',
+  'Desktop companion': 'preferences',
   Preferences: 'preferences',
   Schedules: 'schedules',
   Maintenance: 'maintenance',
@@ -4751,6 +4764,7 @@ function SettingsShell({
   onClose: () => void
 }): React.JSX.Element {
   const voiceOpen = (SETTINGS_VOICE_PAGES as readonly string[]).includes(page)
+  const appearanceOpen = (SETTINGS_APPEARANCE_PAGES as readonly string[]).includes(page)
 
   useEffect(() => {
     const escape = (event: KeyboardEvent): void => {
@@ -4821,6 +4835,41 @@ function SettingsShell({
                       </div>
                     ) : null}
                   </div>
+                ) : item === 'Appearance' ? (
+                  <div className="settings-nav-family" key={item}>
+                    <button
+                      aria-expanded={appearanceOpen}
+                      className={appearanceOpen ? 'settings-link active' : 'settings-link'}
+                      onClick={() => onNavigate(appearanceOpen ? page : 'Themes')}
+                      type="button"
+                    >
+                      <AbstractIcon name={SETTINGS_ICONS[item]} size={16} />
+                      <span>Appearance</span>
+                      <span aria-hidden="true" className="settings-nav-chevron">
+                        {appearanceOpen ? '−' : '+'}
+                      </span>
+                    </button>
+                    {appearanceOpen ? (
+                      <div className="settings-subnav">
+                        {SETTINGS_APPEARANCE_PAGES.map((appearancePage) => (
+                          <button
+                            aria-current={page === appearancePage ? 'page' : undefined}
+                            className={
+                              page === appearancePage
+                                ? 'settings-link settings-sublink active'
+                                : 'settings-link settings-sublink'
+                            }
+                            key={appearancePage}
+                            onClick={() => onNavigate(appearancePage)}
+                            type="button"
+                          >
+                            <AbstractIcon name={SETTINGS_ICONS[appearancePage]} size={16} />
+                            <span>{appearancePage}</span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
                 ) : (
                   <button
                     aria-current={page === item ? 'page' : undefined}
@@ -4858,8 +4907,16 @@ function SettingsShell({
               <MemorySettingsPanel />
             ) : page === 'Workspace' ? (
               <WorkspacePanel />
-            ) : page === 'Appearance' ? (
-              <AppearancePanel />
+            ) : page === 'Themes' ? (
+              <AppearancePanel section="themes" />
+            ) : page === 'Fonts' ? (
+              <AppearancePanel section="fonts" />
+            ) : page === 'Window' ? (
+              <AppearancePanel section="window" />
+            ) : page === 'Dynamic Island' ? (
+              <AppearancePanel section="island" />
+            ) : page === 'Desktop companion' ? (
+              <AppearancePanel section="companion" />
             ) : page === 'Preferences' ? (
               <PreferencesPanel runtime={runtime} />
             ) : page === 'Schedules' ? (
@@ -5333,7 +5390,11 @@ function SpeakRow(): React.JSX.Element {
   )
 }
 
-function AppearancePanel(): React.JSX.Element {
+function AppearancePanel({
+  section
+}: {
+  section: 'themes' | 'fonts' | 'window' | 'island' | 'companion'
+}): React.JSX.Element {
   const translucency = useStore($translucency)
   const backgroundMode = useStore($backgroundMode)
   const backgroundOpacity = useStore($backgroundOpacity)
@@ -5366,13 +5427,37 @@ function AppearancePanel(): React.JSX.Element {
     void window.marvi?.setPetPreferences(next).then(setPetPreferences)
   }
 
+  const pageCopy = {
+    themes: {
+      title: 'Themes',
+      description: 'Choose the dark surface, contrast, geometry, and accent language.'
+    },
+    fonts: {
+      title: 'Fonts',
+      description: 'Choose the typeface used across navigation, settings, chat, and controls.'
+    },
+    window: {
+      title: 'Window',
+      description: 'Control desktop translucency and the local animated backdrop.'
+    },
+    island: {
+      title: 'Dynamic Island',
+      description: 'Place the compact voice surface on the display where it belongs.'
+    },
+    companion: {
+      title: 'Desktop companion',
+      description: 'Choose where the optional companion appears and how large it feels.'
+    }
+  }[section]
+
   return (
     <ControlPage
       className="settings-page"
-      description="Shape the control center, Dynamic Island, and desktop companion."
-      title="Appearance"
+      description={pageCopy.description}
+      title={pageCopy.title}
     >
-      <ControlSection icon={Palette} title="Interface">
+      {section === 'themes' ? (
+      <ControlSection icon={Palette} title="Dark themes">
         <ControlRow
           action={
             <AppearanceChoices
@@ -5394,6 +5479,24 @@ function AppearancePanel(): React.JSX.Element {
                   title: 'Claude Code',
                   detail: 'Compact terminal dark',
                   swatches: ['#151515', '#252522', '#e08a68']
+                },
+                {
+                  value: 'midnight',
+                  title: 'Midnight',
+                  detail: 'Deep navy · cobalt signal',
+                  swatches: ['#080d16', '#141d2b', '#4c8dff']
+                },
+                {
+                  value: 'forest',
+                  title: 'Forest',
+                  detail: 'Pine black · sage signal',
+                  swatches: ['#0b100d', '#18211b', '#77a784']
+                },
+                {
+                  value: 'graphite',
+                  title: 'Graphite',
+                  detail: 'Neutral carbon · silver blue',
+                  swatches: ['#101112', '#222427', '#8ca6b8']
                 }
               ]}
               label="Interface style"
@@ -5404,6 +5507,11 @@ function AppearancePanel(): React.JSX.Element {
           description="Changes surfaces, contrast, spacing, and accent treatment. All options stay dark."
           title="Style"
         />
+      </ControlSection>
+      ) : null}
+
+      {section === 'fonts' ? (
+      <ControlSection icon={Languages} title="Interface type">
         <ControlRow
           action={
             <AppearanceChoices
@@ -5425,6 +5533,24 @@ function AppearancePanel(): React.JSX.Element {
                   title: 'Anthropic Serif',
                   detail: 'Editorial and readable',
                   sample: 'Ag 01'
+                },
+                {
+                  value: 'instrument-sans',
+                  title: 'Instrument Sans',
+                  detail: 'Humanist and precise',
+                  sample: 'Ag 01'
+                },
+                {
+                  value: 'newsreader',
+                  title: 'Newsreader',
+                  detail: 'Calm long-form serif',
+                  sample: 'Ag 01'
+                },
+                {
+                  value: 'geist-mono',
+                  title: 'Geist Mono',
+                  detail: 'Modern technical mono',
+                  sample: 'Ag 01'
                 }
               ]}
               label="Interface font"
@@ -5436,7 +5562,9 @@ function AppearancePanel(): React.JSX.Element {
           title="Font"
         />
       </ControlSection>
+      ) : null}
 
+      {section === 'window' ? (
       <ControlSection icon={Sparkles} title="Window and backdrop">
         <ControlRow
           action={
@@ -5488,7 +5616,9 @@ function AppearancePanel(): React.JSX.Element {
           title="Backdrop opacity"
         />
       </ControlSection>
+      ) : null}
 
+      {section === 'island' ? (
       <ControlSection icon={Info} title="Dynamic Island placement">
         <ControlRow
           action={
@@ -5534,7 +5664,9 @@ function AppearancePanel(): React.JSX.Element {
           title="Alignment"
         />
       </ControlSection>
+      ) : null}
 
+      {section === 'companion' ? (
       <ControlSection icon={Sparkles} title="Desktop companion">
         <ControlRow
           action={
@@ -5613,6 +5745,7 @@ function AppearancePanel(): React.JSX.Element {
           title="Size"
         />
       </ControlSection>
+      ) : null}
     </ControlPage>
   )
 }

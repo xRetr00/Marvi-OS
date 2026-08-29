@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import {
+  APPEARANCE_STYLES,
+  FONT_FAMILIES,
   $appearanceStyle,
   $fontFamily,
   applyAppearancePreferences,
@@ -34,5 +36,24 @@ describe('appearance preferences', () => {
 
     expect($appearanceStyle.get()).toBe('claude-code-dark')
     expect($fontFamily.get()).toBe('anthropic-sans')
+  })
+
+  it('offers the complete local theme and font catalog', () => {
+    expect(APPEARANCE_STYLES).toEqual([
+      'marvi',
+      'anthropic-dark',
+      'claude-code-dark',
+      'midnight',
+      'forest',
+      'graphite'
+    ])
+    expect(FONT_FAMILIES).toEqual([
+      'marvi-mono',
+      'anthropic-sans',
+      'anthropic-serif',
+      'instrument-sans',
+      'newsreader',
+      'geist-mono'
+    ])
   })
 })

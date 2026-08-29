@@ -1,3 +1,6 @@
+import '@fontsource-variable/geist-mono'
+import '@fontsource-variable/instrument-sans'
+import '@fontsource-variable/newsreader'
 import './assets/main.css'
 
 import { StrictMode } from 'react'

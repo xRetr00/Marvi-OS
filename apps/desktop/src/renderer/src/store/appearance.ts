@@ -2,8 +2,22 @@ import { atom } from 'nanostores'
 
 import { persistString, storedString } from '../lib/storage'
 
-export const APPEARANCE_STYLES = ['marvi', 'anthropic-dark', 'claude-code-dark'] as const
-export const FONT_FAMILIES = ['marvi-mono', 'anthropic-sans', 'anthropic-serif'] as const
+export const APPEARANCE_STYLES = [
+  'marvi',
+  'anthropic-dark',
+  'claude-code-dark',
+  'midnight',
+  'forest',
+  'graphite'
+] as const
+export const FONT_FAMILIES = [
+  'marvi-mono',
+  'anthropic-sans',
+  'anthropic-serif',
+  'instrument-sans',
+  'newsreader',
+  'geist-mono'
+] as const
 
 export type AppearanceStyle = (typeof APPEARANCE_STYLES)[number]
 export type FontFamily = (typeof FONT_FAMILIES)[number]
