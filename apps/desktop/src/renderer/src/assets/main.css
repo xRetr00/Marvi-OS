@@ -7355,6 +7355,22 @@ body {
   font-size: 9px;
 }
 
+.capability-load-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--ui-stroke-tertiary);
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+}
+
+.capability-load-row .phase {
+  min-width: 112px;
+}
+
 .capability-archive-row {
   display: grid;
   grid-template-columns: 18px minmax(0, 1fr) auto;

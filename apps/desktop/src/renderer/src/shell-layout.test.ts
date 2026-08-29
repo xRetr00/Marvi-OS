@@ -192,17 +192,24 @@ describe('shell layout', () => {
     expect(chat).not.toContain('{statusbar}')
   })
 
-  it('retains the blue live voice meter inside the compact chrome', () => {
-    expect(lastBlock('.voice-level-meter')).toContain('color: var(--ui-accent)')
-    expect(app).toContain("value > 0.02 ? ' is-live' : ''")
+  it('keeps compact status meters neutral instead of tinting their cells', () => {
+    expect(lastBlock('.voice-level-meter')).toContain('color: var(--ui-text-tertiary)')
+    expect(lastBlock('.status-context-meter')).toContain('color: var(--ui-text-tertiary)')
+    expect(app).toContain('className="voice-level-meter"')
   })
 
   it('uses health dots and keeps camera and microphone controls out of the status bar', () => {
-    const statusbar = app.slice(app.indexOf('const statusbar = ('), app.indexOf('return (', app.indexOf('const statusbar = (')))
+    const statusbar = app.slice(
+      app.indexOf('const statusbar = ('),
+      app.indexOf('return (', app.indexOf('const statusbar = ('))
+    )
     expect(statusbar).toContain('<StatusHealthItem')
     expect(statusbar).toContain('label="Gateway"')
     expect(statusbar).toContain('label="RTC"')
     expect(statusbar).toContain('label="Voice"')
+    expect(statusbar).toContain('icon={Server}')
+    expect(statusbar).toContain('icon={Radio}')
+    expect(statusbar).toContain('icon={Waves}')
     expect(statusbar).not.toContain('Open microphone and camera settings')
     expect(statusbar).not.toContain('<Camera')
     expect(statusbar).not.toContain('<Mic')
@@ -210,10 +217,20 @@ describe('shell layout', () => {
     expect(lastBlock('.statusbar-side-right')).toContain('overflow: visible')
   })
 
+  it('moves maintenance commands into compact sidebar terminal actions', () => {
+    expect(app).not.toContain('function MaintenancePanel')
+    expect(app).not.toContain('LOCAL / READY')
+    expect(app).toContain('className="sidebar-tools"')
+    expect(app).toContain('openMaintenanceTerminal(action)')
+    expect(lastBlock('.sidebar-tools')).toContain('grid-template-columns: repeat(4, 24px)')
+  })
+
   it('renders confirmation modes as two distinct colored status icons', () => {
     expect(app).toContain('<ShieldOff aria-hidden="true" className="status-mode-icon is-yolo" />')
-    expect(app).toContain('<CheckCircle2 aria-hidden="true" className="status-mode-icon is-confirm" />')
-    expect(app).toContain('aria-label={`${voice.yolo ? \'YOLO\' : \'Confirm\'} mode`}')
+    expect(app).toContain(
+      '<CheckCircle2 aria-hidden="true" className="status-mode-icon is-confirm" />'
+    )
+    expect(app).toContain("aria-label={`${voice.yolo ? 'YOLO' : 'Confirm'} mode`}")
     expect(lastBlock('.status-mode-icon.is-confirm')).toContain('color: #4daa72')
     expect(lastBlock('.status-mode-icon.is-yolo')).toContain('color: var(--ui-danger)')
   })
@@ -356,7 +373,7 @@ describe('memory reader', () => {
     // search results raw. `reader !== false` in the normaliser means an older
     // Gateway that does not report it still shows as on, which is what it is.
     expect(app).toContain('title="Reading the memories"')
-    expect(app).toContain('apply({ reader: next === \'on\' })')
+    expect(app).toContain("apply({ reader: next === 'on' })")
     expect(app).toContain("policy?.reader === false ? 'off' : 'on'")
   })
 })

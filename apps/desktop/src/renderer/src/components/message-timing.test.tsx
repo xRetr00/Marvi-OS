@@ -38,7 +38,7 @@ describe('AbstractIcon', () => {
   })
 
   it('maps every Marvi semantic icon to the Lucide SDK', () => {
-    expect(Object.keys(ABSTRACT_ICONS)).toHaveLength(43)
+    expect(Object.keys(ABSTRACT_ICONS)).toHaveLength(42)
     for (const name of Object.keys(ABSTRACT_ICONS) as Array<keyof typeof ABSTRACT_ICONS>) {
       const html = renderToStaticMarkup(<AbstractIcon name={name} />)
       expect(html).toContain('class="lucide ')

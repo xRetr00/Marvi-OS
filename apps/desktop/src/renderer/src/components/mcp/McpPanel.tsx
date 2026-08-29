@@ -1,9 +1,13 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Boxes, PackagePlus, Server, Trash2 } from 'lucide-react'
 
 import { ControlEmpty, ControlPage, ControlPill, ControlSection } from '../control-surface'
 import { McpInstallDialog } from './McpInstallDialog'
-import { filterInstalledServers, filterRegistryServers } from '../capabilities/capability-library'
+import {
+  filterInstalledServers,
+  filterRegistryServers,
+  mergeRegistryServers
+} from '../capabilities/capability-library'
 import type { McpInstalledServer, McpRegistryServer } from '../../../../shared/runtime'
 
 type McpStoreTab = 'installed' | 'registry'
@@ -16,11 +20,15 @@ const STORE_TABS: Array<{ key: McpStoreTab; label: string; detail: string }> = [
 export function McpPanel(): React.JSX.Element {
   const [installed, setInstalled] = useState<McpInstalledServer[]>([])
   const [registry, setRegistry] = useState<McpRegistryServer[]>([])
+  const [registryPage, setRegistryPage] = useState(0)
+  const [registryTotalPages, setRegistryTotalPages] = useState(1)
+  const [loadingRegistry, setLoadingRegistry] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [storeTab, setStoreTab] = useState<McpStoreTab>('installed')
   const [query, setQuery] = useState('')
   const [busy, setBusy] = useState('')
   const [installTarget, setInstallTarget] = useState<McpRegistryServer | null>(null)
+  const registryRequest = useRef(0)
 
   const loadInstalled = useCallback(async (): Promise<void> => {
     const page = await window.marvi?.getMcpServers()
@@ -28,10 +36,22 @@ export function McpPanel(): React.JSX.Element {
     if (page) setInstalled(page.servers)
   }, [])
 
-  const loadRegistry = useCallback(async (search: string): Promise<void> => {
-    const page = await window.marvi?.getMcpRegistry(search, 1)
-    if (page) setRegistry(page.servers)
-  }, [])
+  const loadRegistry = useCallback(
+    async (search: string, pageNumber = 1, append = false): Promise<void> => {
+      const requestId = ++registryRequest.current
+      setLoadingRegistry(true)
+      try {
+        const page = await window.marvi?.getMcpRegistry(search, pageNumber)
+        if (!page || requestId !== registryRequest.current) return
+        setRegistry((current) => mergeRegistryServers(current, page.servers, append))
+        setRegistryPage(pageNumber)
+        setRegistryTotalPages(page.totalPages)
+      } finally {
+        if (requestId === registryRequest.current) setLoadingRegistry(false)
+      }
+    },
+    []
+  )
 
   useEffect(() => {
     let disposed = false
@@ -48,11 +68,12 @@ export function McpPanel(): React.JSX.Element {
     let disposed = false
     const timer = setTimeout(() => {
       void (async () => {
-        if (!disposed) await loadRegistry(query)
+        if (!disposed) await loadRegistry(query, 1, false)
       })()
     }, 250)
     return () => {
       disposed = true
+      registryRequest.current += 1
       clearTimeout(timer)
     }
   }, [storeTab, query, loadRegistry])
@@ -72,6 +93,8 @@ export function McpPanel(): React.JSX.Element {
 
   const empty =
     loaded &&
+    (storeTab === 'installed' || registryPage > 0) &&
+    !loadingRegistry &&
     (storeTab === 'installed' ? installedFiltered.length === 0 : registryFiltered.length === 0)
   const connected = installed.filter((row) => row.status === 'connected').length
   const tools = installed.reduce((total, row) => total + row.tools, 0)
@@ -106,7 +129,14 @@ export function McpPanel(): React.JSX.Element {
             aria-selected={storeTab === tab.key}
             className="capability-store-tab"
             key={tab.key}
-            onClick={() => setStoreTab(tab.key)}
+            onClick={() => {
+              setStoreTab(tab.key)
+              if (tab.key === 'registry') {
+                setRegistry([])
+                setRegistryPage(0)
+                setRegistryTotalPages(1)
+              }
+            }}
             role="tab"
             type="button"
           >
@@ -164,7 +194,14 @@ export function McpPanel(): React.JSX.Element {
           <input
             aria-label="Search MCP servers"
             className="capability-search"
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => {
+              setQuery(event.target.value)
+              if (storeTab === 'registry') {
+                setRegistry([])
+                setRegistryPage(0)
+                setRegistryTotalPages(1)
+              }
+            }}
             placeholder={
               storeTab === 'installed' ? 'Search installed servers…' : 'Search the registry…'
             }
@@ -176,7 +213,7 @@ export function McpPanel(): React.JSX.Element {
           </span>
         </div>
 
-        {!loaded ? null : empty ? (
+        {!loaded || (storeTab === 'registry' && registryPage === 0) ? null : empty ? (
           <ControlEmpty
             description={
               storeTab === 'installed'
@@ -277,6 +314,23 @@ export function McpPanel(): React.JSX.Element {
                       </footer>
                     </article>
                   ))}
+                </div>
+                <div className="capability-load-row">
+                  <span>
+                    {registryFiltered.length} available from {registry.length} loaded entries
+                  </span>
+                  {registryPage < registryTotalPages ? (
+                    <button
+                      className="phase"
+                      disabled={loadingRegistry}
+                      onClick={() => void loadRegistry(query, registryPage + 1, true)}
+                      type="button"
+                    >
+                      {loadingRegistry ? 'Loading…' : 'Load more servers'}
+                    </button>
+                  ) : (
+                    <span>End of registry</span>
+                  )}
                 </div>
               </section>
             ) : null}

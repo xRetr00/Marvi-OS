@@ -139,10 +139,18 @@ The shell uses compact desktop chrome: a 34 px hidden titlebar lets Electron
 paint native Windows controls into the right edge. A single 20 px status bar
 occupies the bottom shell track across the full window, including beneath the
 active sidebar, and splits icon-led actions into left and right groups. Status
-actions use compact labels, detail text, hover transitions, and Lucide glyphs.
-The restrained blue eight-cell live voice meter is intentionally retained from
-Marvi's earlier voice design. Its version action opens build/update details
+health uses icon-only controls with a small state dot and a full text tooltip;
+camera and microphone controls do not belong in this strip. The voice and
+context meters use neutral monochrome cells so the blue accent remains reserved
+for selected and active state. The version action opens build/update details
 without navigating away from the current task.
+
+The sidebar footer contains four compact maintenance actions: system check,
+setup, model listing, and diagnostics. Each has an icon and command-specific
+tooltip. Activating one opens a visible PowerShell window with the fixed command
+already running; commands are selected from a main-process allowlist and are
+never assembled from renderer input. The former Maintenance settings page and
+static local/ready label are not part of the shell.
 
 ## ARC memory graph
 
@@ -490,6 +498,8 @@ Installed cards expose applicability, usage, source, pinned state, and local
 archive controls. Each source tab has its own store masthead, scoped search,
 numbered catalog cards, publisher/path metadata, and a review-before-install
 action. Archived skills are a compact recoverable shelf, not a second catalog.
+Source tabs progressively reveal twelve more matching skills at a time from the
+complete Gateway result rather than imposing a fixed store ceiling.
 
 MCP separates the live server fleet and public registry into Installed and
 Registry store tabs. Installed cards expose connection state and tool count;
@@ -497,7 +507,10 @@ the Registry tab uses a dedicated store masthead and numbered cards exposing
 the qualified server name, publisher, and description, then opens the
 environment-variable review dialog before installation. This
 matches the protocol distinction between a running server and registry
-metadata rather than presenting them as equivalent rows. Capabilities >
+metadata rather than presenting them as equivalent rows. MCP > Registry loads
+the public catalog one server page at a time and exposes an
+explicit Load more action until the registry reports its final page. Appended
+pages are de-duplicated by qualified server name. Capabilities >
 Plugins is for third-party/extension plugins and is presently an empty shell —
 Settings > Plugins remains the page for Marvi's own bundled services (Smart
 Room and others).

@@ -170,7 +170,7 @@ import type {
   WorkspacePolicy,
   WorkspaceUpdate
 } from '../../shared/runtime'
-import { deviceLabel, deviceState } from '../../shared/runtime'
+import { deviceState } from '../../shared/runtime'
 import type { IslandAlignment, IslandPlacement } from '../../main/island-window'
 import {
   DEFAULT_PET_PREFERENCES,
@@ -666,10 +666,7 @@ function VoiceLevelMeter({ level }: { level: number }): React.JSX.Element {
   const partialGlyph = partial > 0 ? shades[Math.min(2, Math.floor(partial * 3))] : ''
   const blocks = '█'.repeat(full) + partialGlyph + '░'.repeat(cells - full - (partialGlyph ? 1 : 0))
   return (
-    <span
-      aria-label={`Voice level ${Math.round(value * 100)}%`}
-      className="voice-level-meter"
-    >
+    <span aria-label={`Voice level ${Math.round(value * 100)}%`} className="voice-level-meter">
       {blocks}
     </span>
   )
@@ -4762,42 +4759,42 @@ function SkillsPanel(): React.JSX.Element {
                     className={`capability-card catalog-card capability-store-card${index === 0 ? ' is-featured' : ''}`}
                     key={`${skill.repo}/${skill.name}`}
                   >
-                  <header className="capability-card-head">
-                    <span className="capability-card-mark" aria-hidden="true">
-                      <span>{String(index + 1).padStart(2, '0')}</span>
-                    </span>
-                    <div>
-                      <strong>{skill.name}</strong>
+                    <header className="capability-card-head">
+                      <span className="capability-card-mark" aria-hidden="true">
+                        <span>{String(index + 1).padStart(2, '0')}</span>
+                      </span>
+                      <div>
+                        <strong>{skill.name}</strong>
+                        <span>{skill.source}</span>
+                      </div>
+                      {skill.installed ? <ControlPill tone="ready">Installed</ControlPill> : null}
+                    </header>
+                    <p>{skill.description}</p>
+                    <div className="capability-card-meta">
+                      <span>{skill.path}</span>
                       <span>{skill.source}</span>
                     </div>
-                    {skill.installed ? <ControlPill tone="ready">Installed</ControlPill> : null}
-                  </header>
-                  <p>{skill.description}</p>
-                  <div className="capability-card-meta">
-                    <span>{skill.path}</span>
-                    <span>{skill.source}</span>
-                  </div>
-                  <footer className="capability-card-actions">
-                    {skill.installed ? (
-                      <button
-                        className="phase danger"
-                        type="button"
-                        disabled={!!busy}
-                        onClick={() => void remove(skill.name)}
-                      >
-                        Remove
-                      </button>
-                    ) : (
-                      <button
-                        className="phase"
-                        type="button"
-                        disabled={!!busy}
-                        onClick={() => void open(skill)}
-                      >
-                        {busy === skill.name ? 'Fetching' : 'Review and install'}
-                      </button>
-                    )}
-                  </footer>
+                    <footer className="capability-card-actions">
+                      {skill.installed ? (
+                        <button
+                          className="phase danger"
+                          type="button"
+                          disabled={!!busy}
+                          onClick={() => void remove(skill.name)}
+                        >
+                          Remove
+                        </button>
+                      ) : (
+                        <button
+                          className="phase"
+                          type="button"
+                          disabled={!!busy}
+                          onClick={() => void open(skill)}
+                        >
+                          {busy === skill.name ? 'Fetching' : 'Review and install'}
+                        </button>
+                      )}
+                    </footer>
                   </article>
                 ))}
               </div>
@@ -4811,7 +4808,8 @@ function SkillsPanel(): React.JSX.Element {
                     onClick={() => setSkillStoreLimit((value) => value + SKILL_STORE_BATCH)}
                     type="button"
                   >
-                    Load {Math.min(SKILL_STORE_BATCH, shown.length - visibleStoreSkills.length)} more
+                    Load {Math.min(SKILL_STORE_BATCH, shown.length - visibleStoreSkills.length)}{' '}
+                    more
                   </button>
                 ) : (
                   <span>End of store</span>

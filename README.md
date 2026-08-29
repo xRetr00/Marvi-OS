@@ -36,8 +36,9 @@ Current implemented desktop surfaces:
   [`docs/phases/12-pet-companion.md`](docs/phases/12-pet-companion.md) pending a
   keep/draft decision;
 - Lucide SDK-backed icon-led sidebar and controls, window-wide compact status
-  bar with Marvi's live blue voice meter, overview, and About build/update
-  information; no handwritten generic SVG icon paths remain;
+  bar with neutral voice/context meters, status-dot health icons, compact
+  maintenance terminal actions, overview, and About build/update information;
+  no handwritten generic SVG icon paths remain;
 - Collapse wordmark + readable JetBrains Mono monochrome design system;
 - shared Provider, Chat, and Voice session telemetry for authoritative token
   deltas, turns, latency, and elapsed time;
@@ -127,7 +128,7 @@ Current implemented desktop surfaces:
 - hidden-titlebar control center with renderer-painted page chrome, native
   Windows controls, Electric Gaze local backdrop, translucency lever,
   haptics, shell context menu, connecting and boot-failure overlays, and a
-  voice-level meter in the status bar (see `feat/desktop-shell-ui`).
+  neutral voice-level meter in the status bar (see `feat/desktop-shell-ui`).
 - tag-driven releases: `scripts/release.ps1` cuts `v<semver>` tags and the
   `Release` workflow gates them. There is no per-release installer — the
   bootstrap (`apps/updater`) clones the tag and builds it on the machine, so

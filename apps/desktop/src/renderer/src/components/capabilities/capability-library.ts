@@ -49,3 +49,14 @@ export function filterRegistryServers(
       matchesCapability(query, server.name, server.qualifiedName, server.description, server.author)
   )
 }
+
+export function mergeRegistryServers(
+  current: McpRegistryServer[],
+  incoming: McpRegistryServer[],
+  append: boolean
+): McpRegistryServer[] {
+  const servers = append ? [...current, ...incoming] : incoming
+  const unique = new Map<string, McpRegistryServer>()
+  for (const server of servers) unique.set(server.qualifiedName, server)
+  return [...unique.values()]
+}

@@ -12,6 +12,7 @@ import {
   filterRegistryServers,
   filterStoreSkills,
   matchesCapability,
+  mergeRegistryServers,
   skillStoreSources
 } from './capability-library'
 
@@ -79,5 +80,26 @@ describe('capability library filters', () => {
     expect(filterInstalledServers(installed, 'connected')).toHaveLength(1)
     expect(filterRegistryServers(registry, installed, '')).toEqual([registry[1]])
     expect(filterRegistryServers(registry, installed, 'database')).toEqual([registry[1]])
+  })
+
+  it('appends registry pages without duplicating overlapping entries', () => {
+    const first: McpRegistryServer = {
+      qualifiedName: 'io.tools/files',
+      name: 'Files',
+      description: 'First page metadata',
+      author: 'Tools',
+      source: 'registry'
+    }
+    const updated = { ...first, description: 'Updated metadata' }
+    const next: McpRegistryServer = {
+      qualifiedName: 'io.tools/calendar',
+      name: 'Calendar',
+      description: 'Calendar tools',
+      author: 'Tools',
+      source: 'registry'
+    }
+
+    expect(mergeRegistryServers([first], [updated, next], true)).toEqual([updated, next])
+    expect(mergeRegistryServers([first], [next], false)).toEqual([next])
   })
 })
