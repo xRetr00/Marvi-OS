@@ -6,6 +6,7 @@ import {
   ArchiveRestore,
   Box,
   BookOpen,
+  Bug,
   Brain,
   CalendarDays,
   Camera,
@@ -33,12 +34,13 @@ import {
   ShieldAlert,
   ShieldOff,
   Sparkles,
-  SquareTerminal,
+  Stethoscope,
   Trash2,
   Users,
   Waves,
   Wifi,
-  Wrench
+  Wrench,
+  type LucideIcon
 } from 'lucide-react'
 
 import appIcon from './assets/app-icon.png'
@@ -49,7 +51,6 @@ import { UsagePanel } from './components/usage-panel'
 import { ProcessingCard } from './components/ui/processing-card'
 import { Picker, type PickerOption } from './components/ui/picker'
 import { ModelPicker } from './components/ui/model-picker'
-import { CommandCard } from './components/ui/command-card'
 import { ConnectingOverlay } from './components/ConnectingOverlay'
 import { DynamicIsland } from './components/DynamicIsland'
 import { VoiceOrb } from './orb'
@@ -162,6 +163,7 @@ import type {
   PendingSecret,
   LanguagePolicy,
   LanguageUpdate,
+  MaintenanceAction,
   MemoryPolicy,
   MemorySettingsUpdate,
   WakeStatus,
@@ -220,7 +222,7 @@ const SETTINGS_GROUPS = [
   },
   {
     gapBefore: true,
-    items: ['Voice', 'Workspace', 'Appearance', 'Preferences', 'Schedules', 'Maintenance', 'About']
+    items: ['Voice', 'Workspace', 'Appearance', 'Preferences', 'Schedules', 'About']
   }
 ] as const
 
@@ -281,9 +283,20 @@ const SETTINGS_ICONS: Record<SettingsPage | 'Voice' | 'Appearance', AbstractIcon
   'Desktop companion': 'preferences',
   Preferences: 'preferences',
   Schedules: 'schedules',
-  Maintenance: 'maintenance',
   About: 'about'
 }
+
+const SIDEBAR_TOOLS: ReadonlyArray<{
+  action: MaintenanceAction
+  command: string
+  icon: LucideIcon
+  label: string
+}> = [
+  { action: 'doctor', command: 'marvi doctor', icon: Stethoscope, label: 'Check system' },
+  { action: 'setup', command: 'marvi setup', icon: PackageCheck, label: 'Run setup' },
+  { action: 'models', command: 'marvi models list', icon: Box, label: 'List models' },
+  { action: 'diagnostics', command: 'marvi diagnostics', icon: Bug, label: 'Diagnostics' }
+]
 
 interface BuildInfo {
   version: string
@@ -390,18 +403,21 @@ function MainSurface(): React.JSX.Element {
       <div className="statusbar-side">
         <StatusHealthItem
           detail={runtime.components.gateway?.detail}
+          icon={Server}
           label="Gateway"
           onOpen={() => navigate('Overview')}
           state={runtime.state}
         />
         <StatusHealthItem
           detail={runtime.components.livekit?.detail}
+          icon={Radio}
           label="RTC"
           onOpen={() => navigate('Voice')}
           state={runtime.components.livekit?.state}
         />
         <StatusHealthItem
           detail={runtime.components.voice?.detail}
+          icon={Waves}
           label="Voice"
           onOpen={() => navigate('Voice')}
           state={runtime.components.voice?.state}
@@ -513,18 +529,26 @@ function MainSurface(): React.JSX.Element {
                   ))}
                 </nav>
 
-                <div
-                  aria-label={
-                    runtime.state === 'ready' ? 'Local runtime ready' : `Runtime ${runtime.state}`
-                  }
-                  className="sidebar-foot"
-                >
-                  <span className={runtime.state === 'ready' ? 'pulse-dot' : ''} />{' '}
-                  {runtime.state === 'ready' ? 'LOCAL / READY' : runtime.state.toUpperCase()}
-                  <small>
-                    MIC {deviceLabel(deviceState(runtime, 'microphone'))} + CAM{' '}
-                    {deviceLabel(deviceState(runtime, 'camera'))} / LOCAL
-                  </small>
+                <div className="sidebar-tools" aria-label="Maintenance terminals">
+                  {SIDEBAR_TOOLS.map(({ action, command, icon: Icon, label }) => (
+                    <UiTooltip
+                      key={action}
+                      label={`${label} — open ${command} in PowerShell`}
+                      side="right"
+                    >
+                      <button
+                        aria-label={`${label}: open ${command} in PowerShell`}
+                        className="sidebar-tool"
+                        onClick={() => {
+                          haptic('tap')
+                          void window.marvi?.openMaintenanceTerminal(action)
+                        }}
+                        type="button"
+                      >
+                        <Icon aria-hidden="true" size={14} />
+                      </button>
+                    </UiTooltip>
+                  ))}
                 </div>
               </aside>
 
@@ -598,11 +622,13 @@ function MainSurface(): React.JSX.Element {
 
 function StatusHealthItem({
   detail,
+  icon: Icon,
   label,
   onOpen,
   state
 }: {
   detail?: string
+  icon: LucideIcon
   label: string
   onOpen: () => void
   state?: string
@@ -617,8 +643,8 @@ function StatusHealthItem({
         onClick={onOpen}
         type="button"
       >
+        <Icon aria-hidden="true" />
         <span aria-hidden="true" className={`status-health-dot tone-${tone}`} />
-        <span>{label}</span>
       </button>
     </UiTooltip>
   )
@@ -642,7 +668,7 @@ function VoiceLevelMeter({ level }: { level: number }): React.JSX.Element {
   return (
     <span
       aria-label={`Voice level ${Math.round(value * 100)}%`}
-      className={`voice-level-meter${value > 0.02 ? ' is-live' : ''}`}
+      className="voice-level-meter"
     >
       {blocks}
     </span>
@@ -3278,8 +3304,8 @@ function WakeStatusItem({ onOpen }: { onOpen: () => void }): React.JSX.Element |
         onClick={onOpen}
         type="button"
       >
+        <Sparkles aria-hidden="true" />
         <span aria-hidden="true" className={`status-health-dot tone-${stateTone(state)}`} />
-        <span>Wake</span>
       </button>
     </UiTooltip>
   )
@@ -4268,11 +4294,14 @@ function PluginsPanel(): React.JSX.Element {
   )
 }
 
+const SKILL_STORE_BATCH = 12
+
 function SkillsPanel(): React.JSX.Element {
   const [store, setStore] = useState<StoreSkill[]>([])
   const [sources, setSources] = useState<string[]>([])
   const [filter, setFilter] = useState('')
   const [skillStoreTab, setSkillStoreTab] = useState('installed')
+  const [skillStoreLimit, setSkillStoreLimit] = useState(SKILL_STORE_BATCH)
   const [review, setReview] = useState<SkillReview | null>(null)
   const [proposal, setProposal] = useState<SkillProposal | null>(null)
   const [installed, setInstalled] = useState<SkillsPage | null>(null)
@@ -4382,6 +4411,7 @@ function SkillsPanel(): React.JSX.Element {
     filter
   )
   const shownInstalled = filterInstalledSkills(installed?.skills ?? [], filter)
+  const visibleStoreSkills = shown.slice(0, skillStoreLimit)
   const activeSkills = installed?.skills.filter((skill) => skill.applies).length ?? 0
   const pinnedSkills = installed?.skills.filter((skill) => skill.usage.pinned).length ?? 0
 
@@ -4415,6 +4445,7 @@ function SkillsPanel(): React.JSX.Element {
           className="capability-store-tab"
           onClick={() => {
             setSkillStoreTab('installed')
+            setSkillStoreLimit(SKILL_STORE_BATCH)
             setReview(null)
           }}
           role="tab"
@@ -4433,6 +4464,7 @@ function SkillsPanel(): React.JSX.Element {
             key={source}
             onClick={() => {
               setSkillStoreTab(source)
+              setSkillStoreLimit(SKILL_STORE_BATCH)
               setReview(null)
             }}
             role="tab"
@@ -4460,7 +4492,10 @@ function SkillsPanel(): React.JSX.Element {
               : `Search ${skillStoreTab.split('/').at(-1) || 'store'}…`
           }
           value={filter}
-          onChange={(event) => setFilter(event.target.value)}
+          onChange={(event) => {
+            setFilter(event.target.value)
+            setSkillStoreLimit(SKILL_STORE_BATCH)
+          }}
         />
         <span className="capability-source-count">
           {skillStoreTab === 'installed' ? 'LOCAL LIBRARY' : skillStoreTab}
@@ -4714,13 +4749,19 @@ function SkillsPanel(): React.JSX.Element {
               description="Add a skill source to populate this catalog."
               title="No skills available"
             />
+          ) : shown.length === 0 ? (
+            <ControlEmpty
+              description="Try another search, or choose a different store tab."
+              title="No matching skills"
+            />
           ) : (
-            <div className="capability-card-grid capability-store-grid">
-              {shown.map((skill, index) => (
-                <article
-                  className={`capability-card catalog-card capability-store-card${index === 0 ? ' is-featured' : ''}`}
-                  key={`${skill.repo}/${skill.name}`}
-                >
+            <>
+              <div className="capability-card-grid capability-store-grid">
+                {visibleStoreSkills.map((skill, index) => (
+                  <article
+                    className={`capability-card catalog-card capability-store-card${index === 0 ? ' is-featured' : ''}`}
+                    key={`${skill.repo}/${skill.name}`}
+                  >
                   <header className="capability-card-head">
                     <span className="capability-card-mark" aria-hidden="true">
                       <span>{String(index + 1).padStart(2, '0')}</span>
@@ -4757,9 +4798,26 @@ function SkillsPanel(): React.JSX.Element {
                       </button>
                     )}
                   </footer>
-                </article>
-              ))}
-            </div>
+                  </article>
+                ))}
+              </div>
+              <div className="capability-load-row">
+                <span>
+                  Showing {visibleStoreSkills.length} of {shown.length}
+                </span>
+                {visibleStoreSkills.length < shown.length ? (
+                  <button
+                    className="phase"
+                    onClick={() => setSkillStoreLimit((value) => value + SKILL_STORE_BATCH)}
+                    type="button"
+                  >
+                    Load {Math.min(SKILL_STORE_BATCH, shown.length - visibleStoreSkills.length)} more
+                  </button>
+                ) : (
+                  <span>End of store</span>
+                )}
+              </div>
+            </>
           )}
         </ControlSection>
       ) : null}
@@ -4859,35 +4917,6 @@ function BrandIcon({ className = '' }: { className?: string }): React.JSX.Elemen
  * and the reported problem with the old pages was text sitting directly on a
  * moving image.
  */
-function MaintenancePanel(): React.JSX.Element {
-  return (
-    <ControlPage
-      description="Repair the local runtime or install missing components from a terminal."
-      title="Maintenance"
-    >
-      <ControlSection icon={Wrench} title="Diagnostics and repair">
-        <CommandCard command="marvi doctor" title="Find problems">
-          <p>Check the local stack and name each available fix.</p>
-        </CommandCard>
-        <CommandCard command="marvi setup" title="Install missing components">
-          <p>Install missing models, browsers, and dependencies.</p>
-        </CommandCard>
-        <CommandCard command="marvi models list" title="Review installed models">
-          <p>Show installed components and their verification state.</p>
-        </CommandCard>
-        <CommandCard command="marvi diagnostics" title="Prepare a bug report">
-          <p>Copy a redacted diagnostics summary.</p>
-        </CommandCard>
-      </ControlSection>
-      <ControlRow
-        description="Open a new terminal or rerun the installer if the command is not available."
-        icon={SquareTerminal}
-        title="Command not found?"
-      />
-    </ControlPage>
-  )
-}
-
 function SettingsShell({
   page,
   runtime,
@@ -5059,8 +5088,6 @@ function SettingsShell({
               <PreferencesPanel runtime={runtime} />
             ) : page === 'Schedules' ? (
               <SchedulesPanel />
-            ) : page === 'Maintenance' ? (
-              <MaintenancePanel />
             ) : (
               <AboutPanel fallbackVersion={version} runtime={runtime} />
             )}
@@ -5491,7 +5518,7 @@ function UnderstandRow(): React.JSX.Element {
       }
       description={
         missing
-          ? 'The English-only recogniser is not installed, so this is doing nothing yet. Install “Speech recognition (English only)” on the Maintenance page.'
+          ? 'The English-only recogniser is not installed, so this is doing nothing yet. Use the Setup terminal button in the sidebar.'
           : understand === 'en'
             ? 'A different model with no other language in its vocabulary. It cannot mishear you into one.'
             : understand === 'auto'

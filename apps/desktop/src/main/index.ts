@@ -54,6 +54,7 @@ import {
   type RectangleLike
 } from './pet-window'
 import { NativePetHost, petActionPage, petTaskCount, resolvePetHostPaths } from './pet-host'
+import { maintenancePowerShellArgs } from './maintenance-terminal'
 import {
   canUpdate,
   checkForUpdate,
@@ -1819,6 +1820,22 @@ function startApp(): void {
       if (typeof value !== 'string' || value.length > 1_000_000) return false
       clipboard.writeText(value)
       return true
+    })
+    ipcMain.handle('marvi:open-maintenance-terminal', (_event, action) => {
+      const args = maintenancePowerShellArgs(action)
+      if (!args || process.platform !== 'win32') return false
+      try {
+        const terminal = spawn('powershell.exe', args, {
+          cwd: repoRoot ?? process.cwd(),
+          detached: true,
+          stdio: 'ignore',
+          windowsHide: false
+        })
+        terminal.unref()
+        return true
+      } catch {
+        return false
+      }
     })
     ipcMain.handle('marvi:copy-diagnostics', async () => {
       try {

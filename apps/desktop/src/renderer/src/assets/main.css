@@ -4669,7 +4669,7 @@ body {
 }
 
 .status-context-meter {
-  color: var(--ui-accent);
+  color: var(--ui-text-tertiary);
   font-family: var(--ui-font-mono);
   font-size: 9px;
   font-variant-numeric: tabular-nums;
@@ -4713,12 +4713,19 @@ body {
 }
 
 .status-health {
-  gap: 5px;
+  position: relative;
+  width: 24px;
+  justify-content: center;
+  gap: 0;
+  padding: 0;
 }
 
 .status-health-dot {
-  width: 6px;
-  height: 6px;
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 5px;
+  height: 5px;
   flex: none;
   border-radius: 999px;
   background: var(--ui-text-tertiary);
@@ -4774,7 +4781,7 @@ body {
   position: relative;
   height: 100%;
   padding: 0 6px;
-  color: var(--ui-accent);
+  color: var(--ui-text-tertiary);
   font-size: 9px;
   letter-spacing: 0;
   opacity: 0.76;
@@ -4785,7 +4792,7 @@ body {
 
 .voice-level-meter.is-live {
   opacity: 1;
-  text-shadow: 0 0 8px color-mix(in srgb, var(--ui-accent) 48%, transparent);
+  text-shadow: none;
 }
 
 /* Contextual help is compact, readable, and consistent for every ambiguous
@@ -7977,15 +7984,48 @@ body {
   display: none;
 }
 
-.sidebar-foot {
-  min-height: 35px;
-  padding: 7px 10px;
-  border-top-color: var(--ui-stroke-tertiary);
-  font-size: 9px;
+.sidebar-tools {
+  display: grid;
+  grid-template-columns: repeat(4, 24px);
+  align-items: center;
+  gap: 4px;
+  margin-top: auto;
+  padding: 6px 10px;
+  border-top: 1px solid var(--ui-stroke-tertiary);
+  background: var(--ui-bg-raised);
 }
 
-.sidebar-foot small {
-  display: none;
+.sidebar-tool {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--ui-text-tertiary);
+  cursor: pointer;
+}
+
+.sidebar-tool:hover,
+.sidebar-tool:focus-visible {
+  border-color: var(--ui-stroke-secondary);
+  outline: 0;
+  background: var(--ui-bg-tertiary);
+  color: var(--ui-text-primary);
+}
+
+.sidebar.collapsed .sidebar-tools {
+  grid-template-columns: repeat(2, 20px);
+  gap: 3px;
+  justify-content: center;
+  padding: 5px 3px;
+}
+
+.sidebar.collapsed .sidebar-tool {
+  width: 20px;
+  height: 20px;
 }
 
 /* Settings uses one inset overlay card with a persistent 13rem rail. */

@@ -40,7 +40,6 @@ import {
   TimerReset,
   UserRoundPlus,
   Volume2,
-  Wrench,
   X,
   type LucideIcon,
   type LucideProps
@@ -65,7 +64,6 @@ export type AbstractIconName =
   | 'mcp'
   | 'preferences'
   | 'schedules'
-  | 'maintenance'
   | 'about'
   | 'version'
   | 'timing'
@@ -116,7 +114,6 @@ export const ABSTRACT_ICONS: Readonly<Record<AbstractIconName, LucideIcon>> = Ob
   mcp: ServerCog,
   preferences: SlidersHorizontal,
   schedules: CalendarClock,
-  maintenance: Wrench,
   about: Info,
   version: ArrowDownToLine,
   timing: TimerReset,

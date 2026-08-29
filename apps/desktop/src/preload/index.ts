@@ -48,6 +48,7 @@ import type {
   UpstreamPage,
   VoicePage,
   LanguagePolicy,
+  MaintenanceAction,
   LanguageUpdate,
   MemoryPolicy,
   MemorySettingsUpdate,
@@ -277,6 +278,8 @@ const marvi = {
   cancelChatDictation: (id: string): Promise<boolean> =>
     ipcRenderer.invoke('marvi:cancel-chat-dictation', id),
   copyText: (text: string): Promise<boolean> => ipcRenderer.invoke('marvi:copy-text', text),
+  openMaintenanceTerminal: (action: MaintenanceAction): Promise<boolean> =>
+    ipcRenderer.invoke('marvi:open-maintenance-terminal', action),
   getSchedules: (): Promise<SchedulePage | null> => ipcRenderer.invoke('marvi:get-schedules'),
   addSchedule: (body: {
     name: string

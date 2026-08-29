@@ -47,6 +47,7 @@ import type {
   UpstreamPage,
   VoicePage,
   LanguagePolicy,
+  MaintenanceAction,
   LanguageUpdate,
   MemoryPolicy,
   MemorySettingsUpdate,
@@ -182,6 +183,7 @@ export interface MarviDesktopApi {
   stopChatDictation: (id: string) => Promise<{ kind: string; text: string } | null>
   cancelChatDictation: (id: string) => Promise<boolean>
   copyText: (text: string) => Promise<boolean>
+  openMaintenanceTerminal: (action: MaintenanceAction) => Promise<boolean>
   getSchedules: () => Promise<SchedulePage | null>
   addSchedule: (body: {
     name: string

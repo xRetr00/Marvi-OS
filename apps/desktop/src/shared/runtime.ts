@@ -128,6 +128,8 @@ export interface McpRegistryPage {
   totalPages: number
 }
 
+export type MaintenanceAction = 'doctor' | 'setup' | 'models' | 'diagnostics'
+
 export interface MemoryEntry {
   id: number
   kind: string
