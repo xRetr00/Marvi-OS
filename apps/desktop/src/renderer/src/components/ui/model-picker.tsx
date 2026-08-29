@@ -100,6 +100,10 @@ export function ModelPicker({
   )
   const rowOffset = showDefault ? 1 : 0
   const choiceCount = rows.length + rowOffset
+  const rowIndexes = useMemo(
+    () => new Map(rows.map((row, index) => [row.key, index + rowOffset])),
+    [rowOffset, rows]
+  )
 
   useEffect(() => {
     if (!open) return
@@ -238,9 +242,7 @@ export function ModelPicker({
                   </span>
                 </header>
                 {models.map((model) => {
-                  const index = rows.findIndex(
-                    (row) => row.provider.provider === provider.provider && row.model.id === model.id
-                  ) + rowOffset
+                  const index = rowIndexes.get(`${provider.provider}::${model.id}`) ?? -1
                   const isSelected =
                     value?.provider === provider.provider && value.model === model.id
                   const hint = [modelContext(model.context), modelPrice(model)].filter(Boolean).join(' · ')
