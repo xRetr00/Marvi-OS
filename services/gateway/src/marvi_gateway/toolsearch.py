@@ -165,10 +165,23 @@ def search(catalogue: list[dict[str, Any]], query: str, limit: int = 5) -> list[
 
 def register_tool_search(registry: Any, catalogue: Any) -> None:
     """`catalogue()` returns every tool description, in `/tools` shape."""
+    from . import observations
     from .tools import ToolSpec
 
     def tool_search(query: str, limit: int = 5) -> dict[str, Any]:
         found = search(catalogue(), query, limit)
+        # The one honest signal about which tools Marvi is missing. A search
+        # that finds nothing is the model reaching for a capability and coming
+        # back empty, and until this was recorded it reached nobody: the note
+        # below goes to the model, which then works around it, and the fact
+        # that it had to is gone by the next turn.
+        observations.record(
+            "tool",
+            event="search",
+            query=query,
+            found=len(found),
+            names=",".join(str(row.get("name")) for row in found[:3]),
+        )
         if not found:
             return {
                 "tools": [],

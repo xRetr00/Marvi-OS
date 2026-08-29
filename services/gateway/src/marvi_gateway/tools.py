@@ -8,6 +8,8 @@ behind adapters instead of leaking transport details into the router.
 
 from __future__ import annotations
 
+import time
+
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from typing import Any
@@ -169,4 +171,29 @@ class ToolRegistry:
         return accepted
 
     def execute(self, spec: ToolSpec, arguments: dict[str, Any]) -> Any:
-        return spec.handler(**arguments)
+        """Run a tool, and record that it ran.
+
+        Every tool in every surface comes through here, which makes it the one
+        place that can answer "which tools does Marvi actually use, which fail,
+        and how long do they take". None of that was written down anywhere: the
+        Gateway logged an HTTP line per call and nothing said whether the tool
+        worked or what it cost, so choosing which tool to make asynchronous
+        meant guessing from a sample of one.
+        """
+        from . import observations
+
+        started = time.perf_counter()
+        failed = ""
+        try:
+            return spec.handler(**arguments)
+        except Exception as exc:
+            failed = f"{type(exc).__name__}: {exc}"
+            raise
+        finally:
+            observations.record(
+                "tool",
+                event="call",
+                name=spec.name,
+                ms=round((time.perf_counter() - started) * 1000, 1),
+                failed=failed,
+            )

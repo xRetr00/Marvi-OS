@@ -27,6 +27,7 @@ from . import (
     delegate,
     distil,
     latency,
+    observations,
     mcp_store,
     parent,
     paths,
@@ -1963,6 +1964,18 @@ def create_app(
         The Agent runs in its own process, so it cannot append to the recording
         the Gateway owns. It posts instead, after the turn is over.
         """
+        # A spoken turn, kept where the behaviour suites can score it. The
+        # timing goes to `latency`; what was said goes here, because "was that
+        # reply a prompt leak" and "how fast was it" are different questions
+        # and only one of them is a number.
+        if str(sample.get("path")) == "turn":
+            observations.record(
+                "reply",
+                said=str(sample.get("said") or ""),
+                heard=str(sample.get("heard") or ""),
+                e2e_ms=sample.get("first_token_ms"),
+                ttft_ms=sample.get("total_ms"),
+            )
         latency.record(
             latency.Sample(
                 surface=str(sample.get("surface", "unknown")),
@@ -1975,6 +1988,21 @@ def create_app(
             )
         )
         return {"recorded": True}
+
+    @app.get("/observations")
+    async def read_observations(kind: str = "", limit: int = 200) -> dict[str, Any]:
+        """What Marvi has actually been doing, for the suites in `evals/`.
+
+        Every case in `docs/evals/` was written by reading a log by hand. This
+        is the same evidence, in one shape, so the next case can come from what
+        happened last week rather than from somebody remembering to look.
+        """
+        return {
+            **observations.summarise(),
+            "rows": await anyio.to_thread.run_sync(
+                lambda: observations.read(kind or None, max(1, min(limit, 5_000)))
+            ),
+        }
 
     @app.get("/latency")
     async def read_latency(
