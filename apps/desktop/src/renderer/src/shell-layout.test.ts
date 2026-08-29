@@ -112,6 +112,11 @@ describe('shell layout', () => {
     expect(app).toContain('<TooltipProvider>')
     expect(titleBar).toContain("sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'")
     expect(css).toContain('.ui-tooltip')
+    expect(lastBlock('.brand-block')).toContain('height: 58px')
+    expect(lastBlock('.brand-copy small')).toContain('display: block')
+    expect(lastBlock('.nav-item.active')).toContain('var(--ui-accent) 8%')
+    expect(lastBlock('.nav-code')).toContain('display: block')
+    expect(lastBlock('.sidebar nav')).toContain('overflow-y: auto')
   })
 
   it('gives secondary pages a compact divided hierarchy', () => {

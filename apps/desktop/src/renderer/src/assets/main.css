@@ -8194,50 +8194,83 @@ body {
 
 /* Main navigation follows the same compact rail rhythm as the rest of the
  * desktop shell. */
+.sidebar {
+  border-right-color: var(--ui-stroke-primary);
+  background: color-mix(in srgb, var(--ui-bg-raised) 88%, var(--ui-bg));
+}
+
 .brand-block {
-  height: 50px;
-  gap: 9px;
-  padding: 0 11px;
-  border-bottom: 0;
+  height: 58px;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--ui-stroke-tertiary);
 }
 
 .brand-icon-sidebar {
-  width: 26px;
-  height: 26px;
-  border: 0;
-  border-radius: 5px;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--ui-stroke-tertiary);
+  border-radius: 3px;
+}
+
+.brand-copy {
+  display: grid !important;
+  min-width: 0;
+  gap: 3px;
+  margin: 0 !important;
 }
 
 .brand-copy strong {
   font-size: 12px;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.09em;
 }
 
 .brand-copy small {
-  display: none;
+  display: block;
+  overflow: hidden;
+  color: var(--ui-text-tertiary);
+  font-size: 7px;
+  letter-spacing: 0.1em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sidebar nav {
-  padding: 6px 8px;
+  min-height: 0;
+  padding: 8px 8px 12px;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 
 .nav-group {
-  margin-bottom: 8px;
+  position: relative;
+  margin-bottom: 10px;
+  padding-left: 5px;
+}
+
+.nav-group::before {
+  top: 26px;
+  bottom: 4px;
+  left: 11px;
+  background: var(--ui-stroke-tertiary);
 }
 
 .nav-group-label {
-  padding: 8px 7px 4px;
-  font-size: 9px;
+  padding: 7px 8px 5px;
+  color: color-mix(in srgb, var(--ui-text-tertiary) 82%, transparent);
+  font-size: 8px;
   font-weight: 500;
-  letter-spacing: 0;
-  text-transform: none;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 
 .nav-item {
-  min-height: 28px;
-  gap: 8px;
+  min-height: 31px;
+  gap: 9px;
   padding: 0 8px;
-  border-radius: 6px;
+  border: 1px solid transparent;
+  border-radius: 2px;
   font-size: 11px;
   letter-spacing: 0;
   text-transform: none;
@@ -8246,22 +8279,50 @@ body {
     color 100ms ease;
 }
 
+.nav-item::after {
+  top: 50%;
+  left: 6px;
+  width: 9px;
+  background: var(--ui-stroke-tertiary);
+}
+
 .nav-item.active::before {
-  content: none;
+  top: 6px;
+  bottom: 6px;
+  left: -5px;
+  width: 2px;
+  background: var(--ui-accent);
+  content: '';
 }
 
 .nav-item.active {
-  background: var(--ui-bg-tertiary);
+  border-color: var(--ui-stroke-tertiary);
+  background: color-mix(in srgb, var(--ui-accent) 8%, var(--ui-bg-tertiary));
+  color: var(--ui-text-primary);
 }
 
 .nav-code {
-  display: none;
+  display: block;
+  width: auto;
+  margin-left: auto;
+  color: var(--ui-text-tertiary);
+  font-size: 7px;
+  letter-spacing: 0.08em;
+  opacity: 0.62;
 }
 
 .nav-icon {
   width: 14px;
   height: 14px;
+  padding: 1px;
+  background: var(--ui-bg-raised);
   opacity: 0.8;
+}
+
+.nav-item.active .nav-code,
+.nav-item.active .nav-icon {
+  color: var(--ui-accent);
+  opacity: 1;
 }
 
 .sidebar-collapse,
@@ -8283,18 +8344,46 @@ body {
 }
 
 .sidebar.collapsed .brand-block {
-  height: 50px;
+  height: 58px;
+  justify-content: center;
   padding: 0;
 }
 
 .sidebar.collapsed .brand-icon-sidebar {
   display: block;
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
 }
 
 .sidebar.collapsed .sidebar-collapse {
   display: none;
+}
+
+.sidebar.collapsed nav {
+  padding-inline: 5px;
+}
+
+.sidebar.collapsed .nav-group {
+  padding-left: 0;
+}
+
+.sidebar.collapsed .nav-group::before,
+.sidebar.collapsed .nav-item::after {
+  display: none;
+}
+
+.sidebar.collapsed .nav-item {
+  min-height: 32px;
+  justify-content: center;
+  padding: 0;
+}
+
+.sidebar.collapsed .nav-item.active::before {
+  left: -5px;
+}
+
+.sidebar.collapsed .nav-icon {
+  background: transparent;
 }
 
 .sidebar-tools {
@@ -8303,7 +8392,8 @@ body {
   align-items: center;
   gap: 4px;
   margin-top: auto;
-  padding: 6px 10px;
+  justify-content: space-between;
+  padding: 7px 12px;
   border-top: 1px solid var(--ui-stroke-tertiary);
   background: var(--ui-bg-raised);
 }
@@ -8315,7 +8405,7 @@ body {
   place-items: center;
   padding: 0;
   border: 1px solid transparent;
-  border-radius: 3px;
+  border-radius: 2px;
   background: transparent;
   color: var(--ui-text-tertiary);
   cursor: pointer;

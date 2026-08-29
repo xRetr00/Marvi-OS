@@ -359,6 +359,15 @@ ASCII framing, or a grid of decorative cards. Content is capped at 880 px so
 labels and values remain easy to scan. Narrow windows stack row actions below
 their labels. Voice and Chat retain their purpose-built interaction layouts.
 
+The 212 px navigation rail begins with a bounded brand block and uses a thin
+vertical spine to connect each purpose group. Rows keep a compact 31 px rhythm,
+icons interrupt the spine, quiet two-letter orientation codes sit at the far
+edge, and the selected row receives one restrained blue signal with a crisp
+inset surface. Navigation scrolls independently when window height is limited;
+the four terminal tools remain fixed at the bottom. The 52 px collapsed rail
+removes group furniture and codes while preserving the icon, selected signal,
+tooltips, and app mark.
+
 Settings opens as one inset dialog with a 208 px navigation
 rail and the same content grammar. The flat rail uses sentence-case 28 px rows,
 separates related destinations with whitespace instead of printed group labels,
