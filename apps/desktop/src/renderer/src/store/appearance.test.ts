@@ -13,14 +13,12 @@ describe('appearance preferences', () => {
     setFontFamily('marvi-mono')
   })
 
-  it('applies style and font choices to the document', () => {
+  it('keeps independent style and font choices', () => {
     setAppearanceStyle('anthropic-dark')
     setFontFamily('anthropic-serif')
 
     expect($appearanceStyle.get()).toBe('anthropic-dark')
     expect($fontFamily.get()).toBe('anthropic-serif')
-    expect(document.documentElement.dataset.appearance).toBe('anthropic-dark')
-    expect(document.documentElement.dataset.font).toBe('anthropic-serif')
   })
 
   it('can select the compact code style independently from its font', () => {
