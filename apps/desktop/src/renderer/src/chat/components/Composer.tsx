@@ -3,7 +3,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ChatAttachment, ModelPage } from '../../../../shared/runtime'
 import { AbstractIcon } from '../../components/abstract-icon'
 import { TooltipProvider, UiTooltip } from '../../components/ui/tooltip'
-import { Picker, type PickerOption } from '../../components/ui/picker'
+import { Picker } from '../../components/ui/picker'
+import { ModelPicker } from '../../components/ui/model-picker'
 import { useDictation } from '../useDictation'
 import { PendingAttachment } from './PendingAttachment'
 
@@ -212,37 +213,23 @@ function SessionModel({
   const providers = page?.providers ?? []
   if (providers.length === 0) return null
 
-  // Flat, because the choice is a model and the provider follows from it. Two
-  // dependent dropdowns would be a step longer for the same answer, and this
-  // one lives beside a text field rather than on a settings page.
-  const options: PickerOption[] = [
-    { value: '', label: 'Default model', detail: 'Whatever Models is set to' },
-    ...providers.flatMap((provider) =>
-      provider.models.map((model) => ({
-        value: `${provider.provider}::${model.id}`,
-        label: model.name,
-        detail: `${provider.label} · ${model.id}`
-      }))
-    )
-  ]
-
-  const selected = value.model ? `${value.provider}::${value.model}` : ''
   const chosen = providers
     .find((provider) => provider.provider === value.provider)
     ?.models.find((model) => model.id === value.model)
 
   return (
     <div className="chat-session-model">
-      <Picker
+      <ModelPicker
         className="chat-model-picker"
-        options={options}
-        value={selected}
+        defaultOption={{ label: 'Default model', detail: 'Whatever Models is set to' }}
+        providers={providers}
+        side="top"
+        value={value.model && value.provider ? { provider: value.provider, model: value.model } : null}
         onChange={(next) => {
           if (!next) return onChange({})
-          const [provider, ...rest] = next.split('::')
           // Effort is dropped with the model: a level chosen for one model
           // means nothing on another, and may not even be accepted.
-          onChange({ provider, model: rest.join('::') })
+          onChange(next)
         }}
         placeholder="Default model"
         searchPlaceholder="Search models…"

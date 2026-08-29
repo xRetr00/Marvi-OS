@@ -45,6 +45,7 @@ import { ModelsPanel } from './components/models-panel'
 import { UsagePanel } from './components/usage-panel'
 import { ProcessingCard } from './components/ui/processing-card'
 import { Picker, type PickerOption } from './components/ui/picker'
+import { ModelPicker } from './components/ui/model-picker'
 import { CommandCard } from './components/ui/command-card'
 import { ConnectingOverlay } from './components/ConnectingOverlay'
 import { DynamicIsland } from './components/DynamicIsland'
@@ -3515,14 +3516,6 @@ function VoiceModelPicker({ current }: { current: string }): React.JSX.Element {
   const rows = page?.providers ?? []
   if (rows.length === 0) return <>{current || 'not selected'}</>
 
-  const options = rows.flatMap((row) =>
-    row.models.map((model) => ({
-      value: `${row.provider}::${model.id}`,
-      label: model.name,
-      detail: `${row.label} · ${model.id}`
-    }))
-  )
-
   // `current` is the readout string -- "OpenRouter / vendor/model" -- not a
   // model id, so it can never match an option. The selection comes from what
   // each provider reports as its configured model instead, which is the same
@@ -3535,16 +3528,18 @@ function VoiceModelPicker({ current }: { current: string }): React.JSX.Element {
         ? `${configured.provider}::${configured.selected}`
         : ''
 
+  const [activeProvider, ...activeModel] = active.split('::')
+
   return (
-    <Picker
+    <ModelPicker
       className="voice-model-picker"
-      options={options}
-      value={active}
+      providers={rows}
+      value={active ? { provider: activeProvider, model: activeModel.join('::') } : null}
       onChange={(next) => {
-        setChosen(next)
-        const [provider, ...rest] = next.split('::')
-        const env = providers?.providers.find((row) => row.name === provider)?.env.model
-        if (env) void window.marvi?.setProviderSettings({ [env]: rest.join('::') })
+        if (!next) return
+        setChosen(`${next.provider}::${next.model}`)
+        const env = providers?.providers.find((row) => row.name === next.provider)?.env.model
+        if (env) void window.marvi?.setProviderSettings({ [env]: next.model })
       }}
       placeholder={current || 'not selected'}
       searchPlaceholder="Search models…"

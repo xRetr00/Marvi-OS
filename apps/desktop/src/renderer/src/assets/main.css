@@ -1877,7 +1877,8 @@ small,
 }
 
 .voice-hud button,
-.voice-hud .picker-trigger {
+.voice-hud .picker-trigger,
+.voice-hud .model-picker-trigger {
   pointer-events: auto;
   cursor: pointer;
 }
@@ -2392,6 +2393,234 @@ small,
   flex-shrink: 0;
   width: 12px;
   color: var(--ui-accent);
+}
+
+/* One model catalog grammar across Settings, Chat, and Voice. */
+.model-picker-trigger {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 7px;
+  background: var(--ui-bg-raised);
+  color: var(--ui-text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.model-picker-trigger:hover:not(:disabled),
+.model-picker-trigger[aria-expanded='true'] {
+  border-color: var(--ui-stroke-primary);
+  background: var(--ui-bg-tertiary);
+}
+
+.model-picker-trigger:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+.model-picker-trigger-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.model-picker-trigger-label,
+.model-picker-trigger-provider {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-picker-trigger-provider {
+  flex: none;
+  color: var(--ui-text-tertiary);
+  font-size: 0.82em;
+}
+
+.model-picker-trigger > svg {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  color: var(--ui-text-tertiary);
+  stroke-width: 1.8;
+}
+
+.model-picker-panel {
+  z-index: 80;
+  display: flex;
+  width: max(var(--radix-popover-trigger-width), 420px);
+  max-width: calc(100vw - 24px);
+  max-height: min(430px, var(--radix-popover-content-available-height));
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--ui-stroke-primary);
+  border-radius: 8px;
+  background: var(--ui-bg-raised);
+  box-shadow: var(--shadow-nous);
+}
+
+.model-picker-search-wrap {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  padding: 0 11px;
+  border-bottom: 1px solid var(--ui-stroke-secondary);
+}
+
+.model-picker-search-wrap > svg {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  color: var(--ui-text-tertiary);
+  stroke-width: 1.7;
+}
+
+.model-picker-search {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ui-text-primary);
+  font: inherit;
+  font-size: 12px;
+}
+
+.model-picker-search::placeholder {
+  color: var(--ui-text-tertiary);
+}
+
+.model-picker-list {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.model-picker-group + .model-picker-group {
+  margin-top: 3px;
+  padding-top: 3px;
+  border-top: 1px solid var(--ui-stroke-tertiary);
+}
+
+.model-picker-group-heading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 8px 4px;
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.model-picker-group-heading strong {
+  overflow: hidden;
+  color: var(--ui-text-secondary);
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-picker-group-heading span {
+  overflow: hidden;
+  font-size: 8px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.model-picker-row {
+  display: flex;
+  width: 100%;
+  min-height: 38px;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ui-text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.model-picker-row:hover,
+.model-picker-row.is-active {
+  background: var(--ui-bg-tertiary);
+}
+
+.model-picker-row.is-selected {
+  background: var(--ui-accent-soft);
+  color: var(--ui-text-emphasis);
+}
+
+.model-picker-row-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.model-picker-row-copy strong,
+.model-picker-row-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-picker-row-copy strong {
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.model-picker-row-copy small {
+  color: var(--ui-text-tertiary);
+  font-family: var(--ui-font-mono);
+  font-size: 9px;
+}
+
+.model-picker-row-hint {
+  max-width: 46%;
+  flex: none;
+  overflow: hidden;
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-picker-row > svg {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  color: var(--ui-accent);
+  stroke-width: 2;
+}
+
+.model-picker-empty {
+  margin: 0;
+  padding: 22px 12px;
+  color: var(--ui-text-tertiary);
+  font-size: 11px;
+  text-align: center;
 }
 
 /* The one option you cannot judge by reading. Its own hit target, so hearing a
@@ -5619,7 +5848,8 @@ body {
  * the trigger is pulled back into line rather than inheriting either. The
  * dropdown itself is portalled, so `overflow: hidden` above never reaches it. */
 .voice-hud-rig .voice-choice,
-.voice-hud-rig .picker-trigger {
+.voice-hud-rig .picker-trigger,
+.voice-hud-rig .model-picker-trigger {
   justify-content: flex-end;
   width: auto;
   max-width: 100%;
@@ -5630,7 +5860,8 @@ body {
   text-align: right;
 }
 
-.voice-hud-rig dd:has(.picker-trigger) {
+.voice-hud-rig dd:has(.picker-trigger),
+.voice-hud-rig dd:has(.model-picker-trigger) {
   overflow: visible;
   pointer-events: auto;
 }

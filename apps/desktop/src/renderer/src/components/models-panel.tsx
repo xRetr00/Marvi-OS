@@ -3,9 +3,10 @@ import { useEffect, useState } from 'react'
 import { AuxiliarySettings } from './auxiliary-settings'
 import { Brain, Route } from 'lucide-react'
 
-import type { ModelCard, ModelProvider, ProviderPage, UpstreamPage } from '../../../shared/runtime'
+import type { ModelProvider, ProviderPage, UpstreamPage } from '../../../shared/runtime'
 import { ControlPage, ControlSection } from './control-surface'
-import { Picker, type PickerOption } from './ui/picker'
+import { Picker } from './ui/picker'
+import { ModelPicker } from './ui/model-picker'
 import { ProcessingCard } from './ui/processing-card'
 
 /**
@@ -28,14 +29,6 @@ import { ProcessingCard } from './ui/processing-card'
 function contextLabel(tokens: number): string {
   if (!tokens) return ''
   return tokens >= 1000 ? `${Math.round(tokens / 1000)}K context` : `${tokens} context`
-}
-
-function price(model: ModelCard): string {
-  // Null and zero are different: a free model is real, and a price the
-  // provider never published must not read as free.
-  if (model.promptPerMillion === null) return ''
-  const output = model.completionPerMillion === null ? '' : ` / $${model.completionPerMillion}`
-  return `$${model.promptPerMillion}${output} per M`
 }
 
 export function ModelsPanel(): React.JSX.Element {
@@ -156,18 +149,11 @@ export function ModelsPanel(): React.JSX.Element {
                     : 'This provider listed none'}
             </span>
           </span>
-          <Picker
-            options={(active?.models ?? []).map((entry): PickerOption => ({
-              value: entry.id,
-              // The id under the name, because the id is what a provider
-              // error quotes back and the name is what you recognise.
-              label: entry.name,
-              detail: entry.id === entry.name ? undefined : entry.id,
-              hint: [contextLabel(entry.context), price(entry)].filter(Boolean).join('  ')
-            }))}
-            value={model}
+          <ModelPicker
+            providers={active ? [active] : []}
+            value={provider && model ? { provider, model } : null}
             onChange={(next) => {
-              if (row?.env.model) void save({ [row.env.model]: next })
+              if (row?.env.model && next) void save({ [row.env.model]: next.model })
             }}
             placeholder={model || 'Choose a model'}
             searchPlaceholder="Search models…"
