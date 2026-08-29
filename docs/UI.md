@@ -344,13 +344,14 @@ Settings destinations follow the Models page's one-purpose page structure:
 one quiet page heading, one or more icon-led sections, then flat setting rows.
 Voice expands to three purpose-built child pages: **Speech recognition** (STT),
 **Wake word**, and **Voice synthesis** (TTS), so opening a destination answers
-one question without crowding the top-level rail. Window, backdrop, Island, and
-desktop-companion presentation live under **Appearance**. Appearance also owns
-independent interface-style and font choices. Marvi remains the default style;
-Anthropic and Claude Code are additional dark-only treatments. Marvi Mono,
-Anthropic Sans, and Anthropic Serif are selectable independently so changing a
-palette never silently changes the user's type preference. Runtime, approval
-mode, and device health remain under **Preferences**.
+one question without crowding the top-level rail. Appearance follows the same
+expandable pattern with five child pages: **Themes**, **Fonts**, **Window**,
+**Dynamic Island**, and **Desktop companion**. Marvi remains the default theme;
+Anthropic Dark, Claude Code Dark, Midnight, Forest, and Graphite provide
+additional dark treatments. Marvi Mono, Anthropic Sans, Anthropic Serif,
+Instrument Sans, Newsreader, and Geist Mono are selectable independently so
+changing a palette never silently changes the user's type preference. Runtime,
+approval mode, and device health remain under **Preferences**.
 
 Schedules is the control surface for Gateway cron jobs. Its compact form
 switches between fixed reminder/ARC actions and agent tasks. Agent tasks expose
