@@ -73,6 +73,8 @@ import { ConnectorsPanel } from './components/connectors/ConnectorsPanel'
 import { ServiceLogo } from './lib/serviceLogos'
 import { McpPanel } from './components/mcp/McpPanel'
 import { CapabilityPluginsPanel } from './components/capabilities/CapabilityPluginsPanel'
+import { ContextStatus } from './chat/components/ContextStatus'
+import { $chatContextStatus } from './store/chat-context'
 
 function stateTone(state: string | undefined): 'neutral' | 'ready' | 'warning' | 'danger' {
   if (state === 'ready' || state === 'connected' || state === 'active' || state === 'running') {
@@ -99,6 +101,14 @@ import {
   $backgroundOpacity
 } from './store/background'
 import { $translucency, setTranslucency } from './store/translucency'
+import {
+  $appearanceStyle,
+  $fontFamily,
+  setAppearanceStyle,
+  setFontFamily,
+  type AppearanceStyle,
+  type FontFamily
+} from './store/appearance'
 import {
   $sessionMetrics,
   observeVoicePhase,
@@ -264,6 +274,7 @@ function MainSurface(): React.JSX.Element {
   const voice = useStore($voiceState)
   const runtime = useStore($runtimeState)
   const translucency = useStore($translucency)
+  const chatContextStatus = useStore($chatContextStatus)
   const [page, setPage] = useState<Page>('Overview')
   const [collapsed, setCollapsed] = useState(false)
   const [settings, setSettings] = useState<SettingsPage | null>(null)
@@ -378,6 +389,7 @@ function MainSurface(): React.JSX.Element {
         <VoiceLevelMeter level={voice.level} />
       </div>
       <div className="statusbar-side statusbar-side-right">
+        {page === 'Chat' ? <ContextStatus {...chatContextStatus} /> : null}
         <UiTooltip label="Open microphone and camera settings" side="top">
           <button className="status-item" onClick={() => setSettings('Preferences')} type="button">
             <Mic aria-hidden="true" />
@@ -5293,6 +5305,8 @@ function AppearancePanel(): React.JSX.Element {
   const translucency = useStore($translucency)
   const backgroundMode = useStore($backgroundMode)
   const backgroundOpacity = useStore($backgroundOpacity)
+  const appearanceStyle = useStore($appearanceStyle)
+  const fontFamily = useStore($fontFamily)
   const [displays, setDisplays] = useState<Array<{ id: number; label: string; primary: boolean }>>(
     []
   )
@@ -5326,6 +5340,71 @@ function AppearancePanel(): React.JSX.Element {
       description="Shape the control center, Dynamic Island, and desktop companion."
       title="Appearance"
     >
+      <ControlSection icon={Palette} title="Interface">
+        <ControlRow
+          action={
+            <AppearanceChoices
+              choices={[
+                {
+                  value: 'marvi',
+                  title: 'Marvi',
+                  detail: 'Monochrome · signal blue',
+                  swatches: ['#050505', '#17181a', '#147ec1']
+                },
+                {
+                  value: 'anthropic-dark',
+                  title: 'Anthropic',
+                  detail: 'Warm editorial dark',
+                  swatches: ['#171512', '#29251f', '#d97757']
+                },
+                {
+                  value: 'claude-code-dark',
+                  title: 'Claude Code',
+                  detail: 'Compact terminal dark',
+                  swatches: ['#151515', '#252522', '#e08a68']
+                }
+              ]}
+              label="Interface style"
+              onChange={(value) => setAppearanceStyle(value as AppearanceStyle)}
+              value={appearanceStyle}
+            />
+          }
+          description="Changes surfaces, contrast, spacing, and accent treatment. All options stay dark."
+          title="Style"
+        />
+        <ControlRow
+          action={
+            <AppearanceChoices
+              choices={[
+                {
+                  value: 'marvi-mono',
+                  title: 'Marvi Mono',
+                  detail: 'JetBrains Mono',
+                  sample: 'Ag 01'
+                },
+                {
+                  value: 'anthropic-sans',
+                  title: 'Anthropic Sans',
+                  detail: 'Clean and compact',
+                  sample: 'Ag 01'
+                },
+                {
+                  value: 'anthropic-serif',
+                  title: 'Anthropic Serif',
+                  detail: 'Editorial and readable',
+                  sample: 'Ag 01'
+                }
+              ]}
+              label="Interface font"
+              onChange={(value) => setFontFamily(value as FontFamily)}
+              value={fontFamily}
+            />
+          }
+          description="Applies to navigation, settings, chat, and controls while code remains monospaced."
+          title="Font"
+        />
+      </ControlSection>
+
       <ControlSection icon={Sparkles} title="Window and backdrop">
         <ControlRow
           action={
@@ -5503,6 +5582,51 @@ function AppearancePanel(): React.JSX.Element {
         />
       </ControlSection>
     </ControlPage>
+  )
+}
+
+function AppearanceChoices({
+  choices,
+  label,
+  onChange,
+  value
+}: {
+  choices: Array<{
+    value: string
+    title: string
+    detail: string
+    sample?: string
+    swatches?: string[]
+  }>
+  label: string
+  onChange: (value: string) => void
+  value: string
+}): React.JSX.Element {
+  return (
+    <div aria-label={label} className="appearance-choice-grid" role="radiogroup">
+      {choices.map((choice) => (
+        <button
+          aria-checked={choice.value === value}
+          className={`appearance-choice appearance-choice-${choice.value}`}
+          key={choice.value}
+          onClick={() => onChange(choice.value)}
+          role="radio"
+          type="button"
+        >
+          <span className="appearance-choice-preview" aria-hidden="true">
+            {choice.sample ? (
+              <span>{choice.sample}</span>
+            ) : (
+              choice.swatches?.map((swatch) => (
+                <i key={swatch} style={{ backgroundColor: swatch }} />
+              ))
+            )}
+          </span>
+          <strong>{choice.title}</strong>
+          <small>{choice.detail}</small>
+        </button>
+      ))}
+    </div>
   )
 }
 

@@ -15,6 +15,38 @@
 }
 
 @font-face {
+  font-family: 'Anthropic Sans';
+  font-style: normal;
+  font-weight: 300 800;
+  font-display: swap;
+  src: url('../fonts/AnthropicSans-Roman-Web.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Anthropic Sans';
+  font-style: italic;
+  font-weight: 300 800;
+  font-display: swap;
+  src: url('../fonts/AnthropicSans-Italic-Web.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Anthropic Serif';
+  font-style: normal;
+  font-weight: 300 800;
+  font-display: swap;
+  src: url('../fonts/AnthropicSerif-Roman-Web.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Anthropic Serif';
+  font-style: italic;
+  font-weight: 300 800;
+  font-display: swap;
+  src: url('../fonts/AnthropicSerif-Italic-Web.woff2') format('woff2');
+}
+
+@font-face {
   font-family: 'JetBrains Mono';
   font-style: normal;
   font-weight: 700;
@@ -32,11 +64,24 @@
 
 :root {
   color-scheme: dark;
-  font-family: 'JetBrains Mono', 'Cascadia Mono', Consolas, monospace;
+  --ui-font-body: 'JetBrains Mono', 'Cascadia Mono', Consolas, monospace;
+  --ui-font-display: 'Collapse', 'JetBrains Mono', sans-serif;
+  --ui-font-mono: 'JetBrains Mono', 'Cascadia Mono', Consolas, monospace;
+  font-family: var(--ui-font-body);
   color: #e7e7e3;
   background: transparent;
   font-synthesis: none;
   text-rendering: geometricPrecision;
+}
+
+html[data-font='anthropic-sans'] {
+  --ui-font-body: 'Anthropic Sans', 'Segoe UI', sans-serif;
+  --ui-font-display: 'Anthropic Sans', 'Segoe UI', sans-serif;
+}
+
+html[data-font='anthropic-serif'] {
+  --ui-font-body: 'Anthropic Serif', Georgia, serif;
+  --ui-font-display: 'Anthropic Serif', Georgia, serif;
 }
 
 * {

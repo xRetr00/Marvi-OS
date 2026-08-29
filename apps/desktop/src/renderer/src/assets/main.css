@@ -16,10 +16,63 @@
   --shadow-nous: 0 1px 1px rgb(0 0 0 / 46%), 0 10px 28px rgb(0 0 0 / 36%);
 }
 
+html[data-appearance='anthropic-dark'] {
+  --ui-bg: #171512;
+  --ui-bg-raised: #1e1b17;
+  --ui-bg-primary: #171512;
+  --ui-bg-secondary: #211e19;
+  --ui-bg-tertiary: #2a261f;
+  --ui-text-primary: #eeeade;
+  --ui-text-emphasis: #f7f3e8;
+  --ui-text-secondary: #b9b2a5;
+  --ui-text-tertiary: #8f887d;
+  --ui-stroke-primary: #514a40;
+  --ui-stroke-secondary: #39342d;
+  --ui-stroke-tertiary: #2d2923;
+  --ui-accent: #d97757;
+  --ui-accent-soft: rgb(217 119 87 / 15%);
+  --ui-danger: #e06c75;
+  --shadow-nous: 0 1px 1px rgb(0 0 0 / 38%), 0 18px 48px rgb(0 0 0 / 34%);
+}
+
+html[data-appearance='claude-code-dark'] {
+  --ui-bg: #151515;
+  --ui-bg-raised: #1b1b1a;
+  --ui-bg-primary: #151515;
+  --ui-bg-secondary: #1d1d1b;
+  --ui-bg-tertiary: #252522;
+  --ui-text-primary: #efeee8;
+  --ui-text-emphasis: #faf9f3;
+  --ui-text-secondary: #aaa79f;
+  --ui-text-tertiary: #77756f;
+  --ui-stroke-primary: #4a4944;
+  --ui-stroke-secondary: #34332f;
+  --ui-stroke-tertiary: #292824;
+  --ui-accent: #e08a68;
+  --ui-accent-soft: rgb(224 138 104 / 13%);
+  --ui-danger: #e06c75;
+  --shadow-nous: 0 1px 0 rgb(255 255 255 / 3%), 0 12px 32px rgb(0 0 0 / 44%);
+}
+
 body {
   overflow: hidden;
   user-select: none;
   background: transparent;
+}
+
+.app-shell,
+.app-shell button,
+.app-shell input,
+.app-shell textarea,
+.app-shell select {
+  font-family: var(--ui-font-body);
+}
+
+.app-shell code,
+.app-shell pre,
+.app-shell kbd,
+.app-shell samp {
+  font-family: var(--ui-font-mono);
 }
 
 /* Thin, always visible, and part of the design rather than the OS default.
@@ -4126,6 +4179,50 @@ body {
 
 .statusbar-side-right {
   justify-content: flex-end;
+}
+
+.status-context-breakdown {
+  position: relative;
+  height: 100%;
+}
+
+.status-context-breakdown summary {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  color: var(--ui-text-tertiary);
+  font-size: 11px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.status-context-breakdown summary::-webkit-details-marker {
+  display: none;
+}
+
+.status-context-breakdown summary:hover,
+.status-context-breakdown summary:focus-visible,
+.status-context-breakdown[open] summary {
+  outline: 0;
+  background: var(--ui-bg-tertiary);
+  color: var(--ui-text-primary);
+}
+
+.status-context-meter {
+  color: var(--ui-accent);
+  font-family: var(--ui-font-mono);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.status-context-breakdown > .chat-context-card {
+  right: 0;
+  bottom: calc(100% + 7px);
+  left: auto;
+  border-radius: 9px;
 }
 
 .status-item,
@@ -8400,5 +8497,162 @@ body .settings-scroll .control-row {
   .update-overlay-scrim,
   .update-center {
     animation: none;
+  }
+}
+
+/* Appearance previews are controls, not decorative swatches: each option
+ * presents enough of its surface and type treatment to choose before applying. */
+.appearance-choice-grid {
+  display: grid;
+  width: min(34rem, 100%);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  text-align: left;
+}
+
+.appearance-choice {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  padding: 7px;
+  border: 1px solid var(--ui-stroke-tertiary);
+  border-radius: 7px;
+  outline: 0;
+  background: var(--ui-bg-raised);
+  color: var(--ui-text-secondary);
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.appearance-choice:hover,
+.appearance-choice:focus-visible {
+  border-color: var(--ui-stroke-primary);
+  color: var(--ui-text-primary);
+}
+
+.appearance-choice[aria-checked='true'] {
+  border-color: color-mix(in srgb, var(--ui-accent) 62%, var(--ui-stroke-secondary));
+  background: color-mix(in srgb, var(--ui-accent) 8%, var(--ui-bg-raised));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent) 16%, transparent);
+}
+
+.appearance-choice-preview {
+  display: flex;
+  height: 25px;
+  align-items: center;
+  gap: 3px;
+  margin-bottom: 2px;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 7%);
+  border-radius: 4px;
+  background: #111;
+}
+
+.appearance-choice-preview i {
+  height: 100%;
+  flex: 1;
+}
+
+.appearance-choice-preview > span {
+  padding-inline: 7px;
+  color: #f2eee6;
+  font-size: 14px;
+  letter-spacing: -0.02em;
+}
+
+.appearance-choice-anthropic-sans .appearance-choice-preview > span {
+  font-family: 'Anthropic Sans', sans-serif;
+}
+
+.appearance-choice-anthropic-serif .appearance-choice-preview > span {
+  font-family: 'Anthropic Serif', serif;
+}
+
+.appearance-choice-marvi-mono .appearance-choice-preview > span {
+  font-family: var(--ui-font-mono);
+}
+
+.appearance-choice strong {
+  overflow: hidden;
+  color: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.appearance-choice small {
+  overflow: hidden;
+  color: var(--ui-text-tertiary);
+  font-size: 8px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html[data-appearance='anthropic-dark'] .settings-frame,
+html[data-appearance='anthropic-dark'] .control-card,
+html[data-appearance='anthropic-dark'] .chat-compose-field,
+html[data-appearance='anthropic-dark'] .connector-card,
+html[data-appearance='anthropic-dark'] .picker-content {
+  border-radius: 12px;
+}
+
+html[data-appearance='anthropic-dark'] .control-page-head h2,
+html[data-appearance='anthropic-dark'] .control-section-title h3,
+html[data-appearance='anthropic-dark'] .chat-agent-message {
+  font-family: 'Anthropic Serif', Georgia, serif;
+  letter-spacing: -0.015em;
+}
+
+html[data-appearance='anthropic-dark'] .nav-group-label,
+html[data-appearance='anthropic-dark'] .statusbar,
+html[data-appearance='anthropic-dark'] .control-row strong {
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+html[data-appearance='claude-code-dark'] .settings-frame,
+html[data-appearance='claude-code-dark'] .control-card,
+html[data-appearance='claude-code-dark'] .chat-compose-field,
+html[data-appearance='claude-code-dark'] .connector-card,
+html[data-appearance='claude-code-dark'] .picker-content {
+  border-radius: 4px;
+}
+
+html[data-appearance='claude-code-dark'] .control-page-body,
+html[data-appearance='claude-code-dark'] .settings-scroll .control-page-body {
+  gap: 18px;
+}
+
+html[data-appearance='claude-code-dark'] .settings-link,
+html[data-appearance='claude-code-dark'] .appearance-choice,
+html[data-appearance='claude-code-dark'] .control-button {
+  border-radius: 3px;
+}
+
+html[data-appearance='claude-code-dark'] .control-row {
+  min-height: 46px;
+  padding-block: 7px;
+}
+
+@container settings-content (max-width: 720px) {
+  .appearance-choice-grid {
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .appearance-choice {
+    grid-template-columns: 76px minmax(0, 1fr);
+    align-items: center;
+  }
+
+  .appearance-choice-preview {
+    grid-row: 1 / 3;
+    height: 32px;
   }
 }
