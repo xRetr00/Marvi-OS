@@ -175,7 +175,15 @@ async def converse(script: list[str], pause: float) -> list[dict]:
             # than for a future, because this is the audio path and it has none.
             for _ in range(600):
                 await asyncio.sleep(0.05)
-                if len(agent.chat_ctx.items) > before and not session._activity._current_speech:
+                # An assistant *message*, not merely a new item: breaking on
+                # any item caught the function-call row and returned before the
+                # reply that follows it.
+                spoke = any(
+                    getattr(item, "role", "") == "assistant"
+                    and str(getattr(item, "text_content", "") or "").strip()
+                    for item in agent.chat_ctx.items[before:]
+                )
+                if spoke and not session._activity._current_speech:
                     break
             elapsed = time.monotonic() - started
             # Every event wraps its payload in `.item`; assistant messages

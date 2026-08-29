@@ -658,6 +658,21 @@ class MarviVoiceAgent(Agent):
                 "turn or what memory_search returns. If you are asked what you "
                 "know and neither has it, look it up or say you do not have it "
                 "-- never compose a list of things that sound like memories. "
+                # Measured over 95 real turns: `tool_search` was called zero
+                # times, and Marvi told the user she had no screenshot tool,
+                # could not read a PDF, could not check email or calendar and
+                # had no connected accounts -- `read_screen`, `file_read`,
+                # `email_recent`, `calendar_events` and `accounts_status` all
+                # exist. Twelve tools load at the start of a session and
+                # forty-nine wait behind `tool_search`, and nothing had ever
+                # told her they were there. A capability she denies is worse
+                # than one she lacks: the user stops asking.
+                + "The tools you can see are the common ones, not all of them. "
+                "Many more -- email, calendar, files, the screen, the browser, "
+                "schedules, accounts -- load only when you go looking. Before "
+                "telling anyone you cannot do something, call tool_search with "
+                "one or two plain words for the thing itself and use what it "
+                "returns. Only say you cannot do it if the search finds nothing. "
                 + (architecture() + " " if architecture() else "")
                 # Measured, not guessed. With thirteen tools in the request and
                 # no rule against it, this model narrates before calling one --

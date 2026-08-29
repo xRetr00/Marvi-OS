@@ -295,3 +295,24 @@ def test_a_session_leaves_a_note_about_what_it_was_about() -> None:
     assert "_said.append((last_heard[\"text\"], spoken))" in source
     assert "_remember_the_session()" in source
     assert "/session/ended" in source
+
+
+def test_the_persona_says_the_tool_list_is_partial() -> None:
+    """Measured over 95 real turns: `tool_search` was called zero times.
+
+    Twelve tools load at the start of a session and forty-nine wait behind
+    `tool_search`, and nothing had ever told her they were there -- so instead
+    of looking, she denied capabilities she has: no screenshot tool
+    (`read_screen`), cannot read a PDF (`file_read`), cannot check email
+    (`email_recent`) or calendar (`calendar_events`), no connected accounts
+    (`accounts_status`). A capability she denies is worse than one she lacks,
+    because the user stops asking.
+    """
+    instructions = MarviVoiceAgent().instructions
+
+    assert "not all of them" in instructions
+    assert "call tool_search" in instructions
+    # The order matters: search first, deny only after.
+    assert instructions.index("Before telling anyone you cannot") < instructions.index(
+        "Only say you cannot do it if the search finds nothing"
+    )
