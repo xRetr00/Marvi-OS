@@ -13,9 +13,9 @@ to give instead.
 
 from __future__ import annotations
 
-import pytest
-
 from typing import Any
+
+import pytest
 
 from marvi_gateway import dreaming
 from marvi_gateway.initiative import Initiative
