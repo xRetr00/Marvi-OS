@@ -93,29 +93,8 @@ export function Composer({
               {dictation.error}
             </div>
           ) : null}
-          <textarea
-            ref={field}
-            rows={1}
-            value={draft}
-            placeholder={available ? 'Send a message…' : 'Connect a provider to chat'}
-            disabled={!available}
-            aria-label="Message Marvi"
-            enterKeyHint="send"
-            onBlur={() => setFocused(false)}
-            onChange={(event) => onDraftChange(event.target.value)}
-            onFocus={() => setFocused(true)}
-            onKeyDown={(event) => {
-              // Enter sends, Shift+Enter breaks the line, Ctrl/Cmd+Enter always sends.
-              const wantsSend =
-                event.key === 'Enter' && (!event.shiftKey || event.ctrlKey || event.metaKey)
-              if (wantsSend) {
-                event.preventDefault()
-                onSend()
-              }
-            }}
-          />
-          <div className="chat-compose-actions">
-            <div className="chat-compose-tools">
+          <div className="chat-compose-row">
+            <div className="chat-compose-leading">
               <input
                 ref={fileInput}
                 className="chat-file-input"
@@ -135,9 +114,35 @@ export function Composer({
                   onClick={() => fileInput.current?.click()}
                   type="button"
                 >
-                  <AbstractIcon name="paperclip" size={15} />
+                  <AbstractIcon name="plus" size={15} />
                 </button>
               </UiTooltip>
+            </div>
+            <textarea
+              ref={field}
+              rows={1}
+              value={draft}
+              placeholder={available ? 'Send a message…' : 'Connect a provider to chat'}
+              disabled={!available}
+              aria-label="Message Marvi"
+              enterKeyHint="send"
+              onBlur={() => setFocused(false)}
+              onChange={(event) => onDraftChange(event.target.value)}
+              onFocus={() => setFocused(true)}
+              onKeyDown={(event) => {
+                // Enter sends, Shift+Enter breaks the line, Ctrl/Cmd+Enter always sends.
+                const wantsSend =
+                  event.key === 'Enter' && (!event.shiftKey || event.ctrlKey || event.metaKey)
+                if (wantsSend) {
+                  event.preventDefault()
+                  onSend()
+                }
+              }}
+            />
+            <div className="chat-compose-controls">
+              {onOverrideChange ? (
+                <SessionModel value={override ?? {}} onChange={onOverrideChange} />
+              ) : null}
               <UiTooltip label={dictation.active ? 'Stop dictation' : 'Dictate message'}>
                 <button
                   aria-label={dictation.active ? 'Stop dictation' : 'Dictate message'}
@@ -150,9 +155,6 @@ export function Composer({
                   <AbstractIcon name={dictation.active ? 'stop' : 'microphone'} size={15} />
                 </button>
               </UiTooltip>
-              {onOverrideChange ? (
-                <SessionModel value={override ?? {}} onChange={onOverrideChange} />
-              ) : null}
               <details className="chat-context-breakdown">
                 <summary
                   aria-label={
@@ -162,7 +164,6 @@ export function Composer({
                   }
                 >
                   <ContextRing context={context} />
-                  <span>CONTEXT</span>
                 </summary>
                 <ContextBreakdown
                   context={context}
@@ -170,8 +171,6 @@ export function Composer({
                   route={override?.model}
                 />
               </details>
-            </div>
-            <div className="chat-compose-submit">
               {busy && onCancel ? (
                 // While a reply is streaming the same control stops it. A turn
                 // nobody wants any more is still being generated and still billed.

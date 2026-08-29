@@ -2774,3 +2774,200 @@
     gap: 3px;
   }
 }
+
+/* Dock composer ----------------------------------------------------------
+ * The composer is a single-row desktop dock: leading add control, elastic
+ * input, then the model/voice/context controls and one high-contrast primary
+ * action. It spans the conversation pane with a quiet 1rem gutter; the 560px
+ * measure belongs to reading, not to writing chrome. */
+.chat-compose {
+  width: 100%;
+  padding: 8px 16px 10px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in srgb, var(--ui-bg) 88%, transparent) 56%
+  );
+}
+
+.chat-compose-field {
+  display: grid;
+  width: 100%;
+  gap: 4px;
+  padding: 5px 8px;
+  overflow: visible;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--ui-bg-raised) 72%, transparent);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 14%);
+  backdrop-filter: blur(12px) saturate(1.12);
+  -webkit-backdrop-filter: blur(12px) saturate(1.12);
+}
+
+.chat-compose-field:focus-within,
+.chat-compose-field[data-active='true'] {
+  border-color: var(--ui-stroke-secondary);
+  background: color-mix(in srgb, var(--ui-bg-raised) 82%, transparent);
+}
+
+.chat-compose-row {
+  display: grid;
+  min-width: 0;
+  grid-template-areas: 'menu input controls';
+  grid-template-columns: auto minmax(128px, 1fr) auto;
+  align-items: center;
+  gap: 4px;
+}
+
+.chat-compose-leading,
+.chat-compose-controls,
+.chat-session-model {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+.chat-compose-leading {
+  grid-area: menu;
+}
+
+.chat-compose-controls {
+  grid-area: controls;
+  justify-content: flex-end;
+}
+
+.chat-compose-field textarea {
+  grid-area: input;
+  width: 100%;
+  min-width: 128px;
+  min-height: 26px;
+  max-height: 150px;
+  padding: 4px 5px 3px;
+  font-size: 13px;
+  line-height: 19px;
+}
+
+.chat-compose-tool,
+.chat-context-breakdown summary {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  color: var(--ui-text-tertiary);
+  background: transparent;
+}
+
+.chat-compose-tool:hover,
+.chat-compose-tool:focus-visible,
+.chat-compose-tool.active,
+.chat-context-breakdown summary:hover,
+.chat-context-breakdown summary:focus-visible,
+.chat-context-breakdown[open] summary {
+  border: 0;
+  color: var(--ui-text-primary);
+  background: var(--ui-bg-tertiary);
+  outline: none;
+}
+
+.chat-context-ring {
+  width: 18px;
+  height: 18px;
+  font-size: 5.5px;
+}
+
+.chat-send {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--ui-text-emphasis);
+  color: var(--ui-bg);
+  box-shadow: none;
+}
+
+.chat-send:not(:disabled):hover,
+.chat-send:not(:disabled):active {
+  border: 0;
+  background: var(--ui-text-primary);
+  color: var(--ui-bg);
+  transform: none;
+}
+
+.chat-send.is-stop {
+  border: 0;
+  background: var(--ui-text-emphasis);
+  color: var(--ui-bg);
+}
+
+.chat-send:disabled {
+  border: 0;
+  background: color-mix(in srgb, var(--ui-text-emphasis) 30%, transparent);
+  color: color-mix(in srgb, var(--ui-bg) 82%, transparent);
+  opacity: 1;
+}
+
+.chat-model-picker,
+.chat-effort-picker {
+  width: auto;
+  height: 24px;
+  min-height: 24px;
+  max-width: 160px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ui-text-tertiary);
+  font-size: 10px;
+  font-weight: 400;
+}
+
+.chat-model-picker:hover:not(:disabled),
+.chat-effort-picker:hover:not(:disabled) {
+  border: 0;
+  background: var(--ui-bg-tertiary);
+  color: var(--ui-text-primary);
+}
+
+.chat-attachments {
+  padding: 0 0 2px;
+}
+
+@media (max-width: 760px) {
+  .chat-compose {
+    padding-inline: 12px;
+  }
+
+  .chat-compose-row {
+    grid-template-areas:
+      'input input'
+      'menu controls';
+    grid-template-columns: auto minmax(0, 1fr);
+    row-gap: 4px;
+  }
+
+  .chat-compose-field textarea {
+    min-width: 0;
+    padding-left: 8px;
+  }
+
+  .chat-compose-controls {
+    min-width: 0;
+  }
+
+  .chat-model-picker {
+    max-width: 124px;
+  }
+
+  .chat-effort-picker {
+    display: none;
+  }
+}
