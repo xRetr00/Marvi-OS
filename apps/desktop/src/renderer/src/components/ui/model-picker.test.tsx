@@ -2,7 +2,8 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 
 import type { ModelCard, ModelProvider } from '../../../../shared/runtime'
-import { filterModelGroups, modelEffortChoices, ModelPicker } from './model-picker'
+import { ModelPicker } from './model-picker'
+import { filterModelGroups, modelEffortChoices } from './model-picker-utils'
 
 function model(id: string, name = id): ModelCard {
   return {
@@ -46,9 +47,9 @@ describe('ModelPicker', () => {
     expect(filterModelGroups(providers, 'deep')[0].models.map((entry) => entry.id)).toEqual([
       'alpha/deep'
     ])
-    expect(filterModelGroups(providers, 'Local Runtime')[0].models.map((entry) => entry.id)).toEqual([
-      'local/small'
-    ])
+    expect(
+      filterModelGroups(providers, 'Local Runtime')[0].models.map((entry) => entry.id)
+    ).toEqual(['local/small'])
   })
 
   it('renders the selected model and its provider in the compact trigger', () => {

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ModelCard, ModelProvider } from '../../../../shared/runtime'
 import { haptic } from '../../lib/haptics'
 import { modelContext, modelPrice } from '../model-labels'
+import { filterModelGroups, modelEffortChoices, modelEffortLabel } from './model-picker-utils'
 
 export interface ModelSelection {
   model: string
@@ -30,42 +31,6 @@ interface ModelRow {
   key: string
   model: ModelCard
   provider: ModelProvider
-}
-
-function effortLabel(value: string, fallback: string): string {
-  if (!value) return fallback
-  if (value === 'xhigh') return 'XHigh'
-  return value.charAt(0).toUpperCase() + value.slice(1)
-}
-
-export function modelEffortChoices(
-  model: ModelCard,
-  defaultLabel: string
-): Array<{ label: string; value: string }> {
-  if (!model.reasons) return []
-  return ['', ...model.efforts].map((value) => ({
-    label: effortLabel(value, defaultLabel),
-    value
-  }))
-}
-
-export interface ModelPickerGroup {
-  models: ModelCard[]
-  provider: ModelProvider
-}
-
-export function filterModelGroups(providers: ModelProvider[], query: string): ModelPickerGroup[] {
-  const needle = query.trim().toLowerCase()
-  return providers
-    .map((provider) => ({
-      provider,
-      models: provider.models.filter((model) =>
-        `${provider.label} ${provider.provider} ${model.name} ${model.id}`
-          .toLowerCase()
-          .includes(needle)
-      )
-    }))
-    .filter((group) => group.models.length > 0)
 }
 
 /** One model catalog everywhere: compact trigger, provider groups, preserved
@@ -124,18 +89,6 @@ export function ModelPicker({
   )
 
   useEffect(() => {
-    if (!open) return
-    const selectedIndex = value
-      ? rows.findIndex(
-          (row) => row.provider.provider === value.provider && row.model.id === value.model
-        ) + rowOffset
-      : showDefault
-        ? 0
-        : -1
-    setActiveIndex(selectedIndex >= 0 ? selectedIndex : choiceCount > 0 ? 0 : -1)
-  }, [choiceCount, open, rowOffset, rows, showDefault, value])
-
-  useEffect(() => {
     if (activeIndex < 0) return
     listRef.current
       ?.querySelector<HTMLElement>(`[data-model-index="${activeIndex}"]`)
@@ -171,7 +124,16 @@ export function ModelPicker({
           ? undefined
           : (next) => {
               setOpen(next)
-              if (!next) setQuery('')
+              if (next) {
+                const selectedIndex = value
+                  ? (rowIndexes.get(`${value.provider}::${value.model}`) ?? -1)
+                  : showDefault
+                    ? 0
+                    : -1
+                setActiveIndex(selectedIndex >= 0 ? selectedIndex : choiceCount > 0 ? 0 : -1)
+              } else {
+                setQuery('')
+              }
             }
       }
     >
@@ -213,8 +175,19 @@ export function ModelPicker({
               autoFocus
               className="model-picker-search"
               onChange={(event) => {
-                setQuery(event.target.value)
-                setActiveIndex(choiceCount > 0 ? 0 : -1)
+                const nextQuery = event.target.value
+                const nextHasDefault = Boolean(
+                  defaultOption &&
+                  `${defaultOption.label} ${defaultOption.detail ?? ''}`
+                    .toLowerCase()
+                    .includes(nextQuery.toLowerCase())
+                )
+                const nextCount = filterModelGroups(providers, nextQuery).reduce(
+                  (count, group) => count + group.models.length,
+                  nextHasDefault ? 1 : 0
+                )
+                setQuery(nextQuery)
+                setActiveIndex(nextCount > 0 ? 0 : -1)
               }}
               onKeyDown={(event) => {
                 if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
@@ -365,7 +338,9 @@ function ModelOption({
         </span>
         {hint ? <span className="model-picker-row-hint">{hint}</span> : null}
         {model.reasons ? (
-          <span className="model-picker-row-effort">{effortLabel(effort, effortDefaultLabel)}</span>
+          <span className="model-picker-row-effort">
+            {modelEffortLabel(effort, effortDefaultLabel)}
+          </span>
         ) : null}
         {selected ? <Check aria-hidden="true" /> : null}
       </button>
