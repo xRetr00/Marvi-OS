@@ -1990,6 +1990,18 @@ def create_app(
         )
         return {"recorded": True}
 
+    @app.post("/observations/shape", status_code=202)
+    async def record_shape(body: dict[str, Any]) -> dict[str, Any]:
+        """The role/size sequence of a turn's outgoing request.
+
+        A prompt leak that will not reproduce from a hand-built request is one
+        where the real request differs from what was assumed. This is what
+        would show that, and it holds no content -- only the shape.
+        """
+        parts = [str(part) for part in (body.get("parts") or [])][:40]
+        observations.record("shape", parts=",".join(parts), items=len(parts))
+        return {"recorded": True}
+
     @app.get("/observations")
     async def read_observations(kind: str = "", limit: int = 200) -> dict[str, Any]:
         """What Marvi has actually been doing, for the suites in `evals/`.

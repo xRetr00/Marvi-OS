@@ -475,6 +475,31 @@ def _remember_the_session() -> None:
     _said.clear()
 
 
+def _report_shape(turn_ctx: Any) -> None:
+    """Tell the Gateway what the outgoing request looks like. Never raises.
+
+    Not the content -- the *shape*: the order of roles and how big each part
+    is. A prompt leak that cannot be reproduced from a hand-built request is
+    one where the real request differs from what anybody assumed, and this is
+    the cheapest thing that would show it.
+    """
+    import contextlib
+
+    with contextlib.suppress(Exception):
+        import httpx
+
+        parts = []
+        for item in getattr(turn_ctx, "items", []):
+            role = getattr(item, "role", None)
+            if role:
+                parts.append(f"{role}:{len(str(getattr(item, 'content', '')))}")
+        httpx.post(
+            f"{gateway_url()}/observations/shape",
+            json={"parts": parts},
+            timeout=REPORT_TIMEOUT,
+        )
+
+
 def _observe_turn(user: str, assistant: str) -> None:
     """Hand a finished exchange to the Gateway's memory worker.
 
@@ -734,6 +759,13 @@ class MarviVoiceAgent(Agent):
         # so adding it again here would change the turn context and invalidate
         # the very generation the staging exists to save. Verified against the
         # real `ChatContext`: memory in both places invalidates.
+        # The shape of the request this turn will send, recorded so a leak can
+        # be reproduced instead of guessed at. Five attempts and ~260 requests
+        # failed to reproduce the prompt leak from a hand-built request --
+        # because LiveKit assembles the real one, not us. Roles and sizes are
+        # enough to see a malformed request and cost nothing to keep.
+        _report_shape(turn_ctx)
+
         if prefetch.staged(text):
             log.info("recall: already in context, staged before the turn ended")
             return
