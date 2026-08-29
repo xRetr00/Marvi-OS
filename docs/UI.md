@@ -294,7 +294,7 @@ Marvi prose. Sender labels remain available to assistive technology instead of
 repeating as visible headers, while timestamps and actions appear on hover or
 keyboard focus. The transcript keeps its compact 560px reading register, while
 the composer is a near-full-width dock with a one-rem pane gutter. Its default
-state is one inline row: add control, elastic input, compact model/voice/context
+state is one inline row: add control, elastic input, compact model/voice
 controls, and one neutral circular send/stop action. Narrow layouts stack the
 input above the same complete control row instead of hiding functionality.
 Durable threads and branches back the sidebar, edit, and regenerate actions.
@@ -303,8 +303,9 @@ parts, read aloud, local-native dictation, model selection, and context details
 use distinct bounded modules instead of one undifferentiated text column.
 Pending attachments use compact thumbnail/file tiles with name, type, size,
 and an explicit remove action. Sent images open into a bounded preview that
-closes by button, backdrop, or Escape. The context control divides the known
-window into prompt, cached input, reply reserve, and available capacity; it
+closes by button, backdrop, or Escape. Context occupancy lives in the persistent
+status bar rather than the composer: its compact token label and ASCII gauge
+open a detailed breakdown of prompt, cached input, reply reserve, and available capacity. It
 never turns message or file counts into invented token estimates. Drafting
 remains available while a response streams, while the primary action becomes
 Stop until the active turn settles.
@@ -344,7 +345,11 @@ one quiet page heading, one or more icon-led sections, then flat setting rows.
 Voice expands to three purpose-built child pages: **Speech recognition** (STT),
 **Wake word**, and **Voice synthesis** (TTS), so opening a destination answers
 one question without crowding the top-level rail. Window, backdrop, Island, and
-desktop-companion presentation live under **Appearance**; runtime, approval
+desktop-companion presentation live under **Appearance**. Appearance also owns
+independent interface-style and font choices. Marvi remains the default style;
+Anthropic and Claude Code are additional dark-only treatments. Marvi Mono,
+Anthropic Sans, and Anthropic Serif are selectable independently so changing a
+palette never silently changes the user's type preference. Runtime, approval
 mode, and device health remain under **Preferences**.
 
 Schedules is the control surface for Gateway cron jobs. Its compact form

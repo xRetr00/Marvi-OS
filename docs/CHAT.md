@@ -33,9 +33,9 @@ ephemeral input state.
 - Web-search evidence becomes a structured source widget at the tool boundary,
   so links do not disappear when a model omits them from final prose. Markdown
   links remain a fallback; neither path claims unsupported native citations.
-- The context ring uses the provider-reported input-token count and the pinned
-  model catalog's context window. Unknown values display as unknown rather than
-  estimates. The breakdown segments prompt, cached input, reply reserve, and
+- The status-bar context meter uses the provider-reported input-token count and
+  the pinned model catalog's context window. Unknown values display as unknown
+  rather than estimates. Its breakdown segments prompt, cached input, reply reserve, and
   available capacity, then separately exposes message, file, source, and route
   facts without pretending those counts are tokens.
 
@@ -55,13 +55,16 @@ threads and their actions without a drawer or redundant page header. Empty-state
 prompts only fill the composer and never pretend to be model output.
 
 The composer keeps Marvi's provider/model/effort controls, attachment queue,
-context breakdown, microphone action, and stop/send state inside a rounded,
+microphone action, and stop/send state inside a rounded,
 quiet dock spanning the conversation pane with a one-rem gutter. Its desktop
 state is one row—add, elastic input, compact selectors/actions, and a neutral
 circular send/stop control—while the transcript retains its compact 560px
 reading measure. Human prompts use one slim full-row surface and Marvi replies
 remain unboxed prose directly below them; sender names stay accessible without
 becoming repeated visual headers.
+Context is persistent shell chrome beside the other session facts. The compact
+token label and ASCII occupancy meter open the full provider-backed breakdown
+upward from the status bar without taking space from drafting.
 Timestamps and message actions live in the quiet hover/focus rail. Every
 ambiguous action has a tooltip and accessible name.
 
