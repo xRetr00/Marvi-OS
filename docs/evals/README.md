@@ -43,6 +43,7 @@ prevent, so the tables here keep the three columns apart and sort by the first.
 | [Retrieval quality](retrieval.md) | Embedding model, thresholds, recall shape | see the doc |
 | [Speech](speech.md) | STT model and lookahead, TTS voice | see the doc |
 | [Tools](tools.md) | Whether a tool is callable, safe, and worth its schema | see the doc |
+| [From life](from-life.md) | The same failures, scored against real use | `python evals/from_life.py` |
 
 ## The method, in six steps
 
@@ -111,6 +112,24 @@ Worth stating so nobody mistakes a green suite for a working assistant:
   are recorded live and read back through `GET /latency`, not here.
 - **Cost is per turn at one prompt size.** Real cost depends on how the context
   grows over a session, which these do not simulate.
+
+## The suites that grow by themselves
+
+Everything above is scripted: somebody wrote the case, and it is frozen at the
+moment they wrote it. `evals/from_life.py` is the other half. Marvi records
+what she does as she does it -- recalls, store decisions, gate decisions, tool
+calls and spoken replies -- and that suite scores the same failures against
+real use.
+
+The point is the rule at the top of this file, made automatic. A case earns its
+place by being something Marvi got wrong; the recorder is what makes "something
+Marvi got wrong" findable without a person grepping four log files. When
+`from_life` reports a leak or a missing tool, that is not a prediction -- it
+happened, in a conversation, and the row is there.
+
+Read it after a week of real use, not after an hour. Its most valuable output
+is the one no scripted suite can produce: **which tools Marvi reached for and
+did not have.**
 
 ## Adding a suite
 
