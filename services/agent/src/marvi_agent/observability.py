@@ -290,6 +290,12 @@ def _record_turn(report: dict[str, Any]) -> None:
                 # heard, not the first token generated.
                 "first_token_ms": float(e2e) * 1000.0,
                 "total_ms": float(report.get("llm_node_ttft") or 0.0) * 1000.0,
+                # What was actually said, so the behaviour suites can be run
+                # against real turns instead of scripted ones. Prompt leaks,
+                # monologues and invented memories are all visible here and
+                # were every one of them found by reading logs by hand.
+                "said": str(report.get("said") or "")[:400],
+                "heard": str(report.get("heard") or "")[:400],
             },
             timeout=2.0,
         )
