@@ -24,8 +24,8 @@ from itertools import zip_longest
 from pathlib import Path
 from typing import Any, Literal
 
-from .logs import get_logger
 from . import observations
+from .logs import get_logger
 from .untrusted import wrap_external
 
 log = get_logger("memory")

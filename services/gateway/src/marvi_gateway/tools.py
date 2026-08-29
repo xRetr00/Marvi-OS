@@ -9,7 +9,6 @@ behind adapters instead of leaking transport details into the router.
 from __future__ import annotations
 
 import time
-
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from typing import Any
