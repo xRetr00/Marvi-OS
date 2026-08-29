@@ -136,10 +136,11 @@ never fetched at runtime. Backdrop opacity and translucency are persisted
 per-machine. Reduced-motion users get static text and no exit choreography.
 
 The shell uses compact desktop chrome: a 34 px hidden titlebar lets Electron
-paint native Windows controls into the right edge. A single 20 px status bar
+paint native Windows controls into the right edge. A single 24 px status bar
 occupies the bottom shell track across the full window, including beneath the
-active sidebar, and splits icon-led actions into left and right groups. Status
-health uses icon-only controls with a small state dot and a full text tooltip;
+active sidebar, and splits icon-led actions into left and right groups. Service
+health is one separated icon cluster; each icon carries a small state dot and a
+full text tooltip. The voice meter is a keyboard-focusable neutral instrument;
 camera and microphone controls do not belong in this strip. The voice and
 context meters use neutral monochrome cells so the blue accent remains reserved
 for selected and active state. The version action opens build/update details
@@ -346,9 +347,13 @@ position reveals a return-to-latest control. Dynamic follow-up suggestions are
 not part of the product. See `docs/CHAT.md` for the authority and safety
 boundaries.
 
-Overview and every secondary control-center page share one compact desktop
-grammar: a quiet page heading, small icon-led section headings, flat divided
-rows, restrained status pills, and 28 px actions. Configuration pages may use
+Overview begins with one authoritative runtime brief containing assistant
+state, system readiness, model route, and approval mode. The live voice path
+follows as a status-dotted rail; a two-column systems/context workspace then
+explains the state without repeating it as decorative cards. It collapses to a
+single column at its own content boundary. Every secondary control-center page
+shares the same compact desktop grammar: a quiet page heading, small icon-led
+section headings, flat divided rows, restrained status pills, and 28 px actions. Configuration pages may use
 pickers or editors inside those sections, but never loose status prose, noisy
 ASCII framing, or a grid of decorative cards. Content is capped at 880 px so
 labels and values remain easy to scan. Narrow windows stack row actions below

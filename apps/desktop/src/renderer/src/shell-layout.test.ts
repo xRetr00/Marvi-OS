@@ -88,8 +88,9 @@ describe('shell layout', () => {
     expect(app).not.toContain('about-provenance')
   })
 
-  it('organises Overview as compact divided sections', () => {
-    expect(app).toContain('title="Current state"')
+  it('organises Overview as an authoritative brief with compact divided sections', () => {
+    expect(app).toContain('aria-label="Current state"')
+    expect(app).toContain('className="overview-runtime-facts"')
     expect(app).toContain('title="Voice route"')
     expect(app).toContain('title="Systems"')
     expect(app).toContain('title="Context"')
@@ -186,7 +187,7 @@ describe('shell layout', () => {
   })
 
   it('keeps one window-wide status bar below both sidebars and page content', () => {
-    expect(lastBlock('.app-shell')).toContain('34px minmax(0, 1fr) 20px')
+    expect(lastBlock('.app-shell')).toContain('34px minmax(0, 1fr) 24px')
     expect(app).toMatch(/<\/div>\s*\{statusbar}\s*\{settings \? \(/)
     expect(chat).not.toContain('statusbar: ReactNode')
     expect(chat).not.toContain('{statusbar}')
@@ -215,6 +216,17 @@ describe('shell layout', () => {
     expect(statusbar).not.toContain('<Mic')
     expect(lastBlock('.statusbar')).toContain('overflow: visible')
     expect(lastBlock('.statusbar-side-right')).toContain('overflow: visible')
+    expect(statusbar).toContain('className="status-health-cluster"')
+    expect(app).toContain('role="meter"')
+  })
+
+  it('organizes Overview as a runtime brief, route, and balanced operational workspace', () => {
+    expect(app).toContain('className={`overview-runtime tone-${runtimeTone}`}')
+    expect(app).toContain('className="overview-runtime-facts"')
+    expect(app).toContain('className="overview-workspace"')
+    expect(app).toContain('className="overview-system-list"')
+    expect(app).toContain('className="overview-context-list"')
+    expect(lastBlock('.overview-workspace')).toContain('grid-template-columns: minmax(0, 1.35fr)')
   })
 
   it('moves maintenance commands into compact sidebar terminal actions', () => {

@@ -401,28 +401,30 @@ function MainSurface(): React.JSX.Element {
   const statusbar = (
     <footer className="statusbar">
       <div className="statusbar-side">
-        <StatusHealthItem
-          detail={runtime.components.gateway?.detail}
-          icon={Server}
-          label="Gateway"
-          onOpen={() => navigate('Overview')}
-          state={runtime.state}
-        />
-        <StatusHealthItem
-          detail={runtime.components.livekit?.detail}
-          icon={Radio}
-          label="RTC"
-          onOpen={() => navigate('Voice')}
-          state={runtime.components.livekit?.state}
-        />
-        <StatusHealthItem
-          detail={runtime.components.voice?.detail}
-          icon={Waves}
-          label="Voice"
-          onOpen={() => navigate('Voice')}
-          state={runtime.components.voice?.state}
-        />
-        <WakeStatusItem onOpen={() => navigate('Voice')} />
+        <div className="status-health-cluster" aria-label="Service health">
+          <StatusHealthItem
+            detail={runtime.components.gateway?.detail}
+            icon={Server}
+            label="Gateway"
+            onOpen={() => navigate('Overview')}
+            state={runtime.state}
+          />
+          <StatusHealthItem
+            detail={runtime.components.livekit?.detail}
+            icon={Radio}
+            label="RTC"
+            onOpen={() => navigate('Voice')}
+            state={runtime.components.livekit?.state}
+          />
+          <StatusHealthItem
+            detail={runtime.components.voice?.detail}
+            icon={Waves}
+            label="Voice"
+            onOpen={() => navigate('Voice')}
+            state={runtime.components.voice?.state}
+          />
+          <WakeStatusItem onOpen={() => navigate('Voice')} />
+        </div>
         <VoiceLevelMeter level={voice.level} />
       </div>
       <div className="statusbar-side statusbar-side-right">
@@ -665,10 +667,21 @@ function VoiceLevelMeter({ level }: { level: number }): React.JSX.Element {
   const shades = ['░', '▒', '▓'] as const
   const partialGlyph = partial > 0 ? shades[Math.min(2, Math.floor(partial * 3))] : ''
   const blocks = '█'.repeat(full) + partialGlyph + '░'.repeat(cells - full - (partialGlyph ? 1 : 0))
+  const percentage = Math.round(value * 100)
   return (
-    <span aria-label={`Voice level ${Math.round(value * 100)}%`} className="voice-level-meter">
-      {blocks}
-    </span>
+    <UiTooltip label={`Live voice level · ${percentage}%`} side="top">
+      <span
+        aria-label={`Voice level ${percentage}%`}
+        aria-valuemax={100}
+        aria-valuemin={0}
+        aria-valuenow={percentage}
+        className="voice-level-meter"
+        role="meter"
+        tabIndex={0}
+      >
+        {blocks}
+      </span>
+    </UiTooltip>
   )
 }
 
@@ -680,27 +693,43 @@ function Overview({
   voice: VoiceState
 }): React.JSX.Element {
   const services = [
-    ['MARVI GATEWAY', runtime.components.gateway, 'overview'],
-    ['LIVEKIT', runtime.components.livekit, 'activity'],
-    ['VOICE', runtime.components.voice, 'voice'],
-    ['SMART ROOM', runtime.components.room, 'room'],
-    ['ACCOUNTS', runtime.components.accounts, 'accounts']
+    { label: 'Marvi Gateway', service: runtime.components.gateway, icon: 'overview' },
+    { label: 'LiveKit', service: runtime.components.livekit, icon: 'activity' },
+    { label: 'Voice', service: runtime.components.voice, icon: 'voice' },
+    { label: 'Smart Room', service: runtime.components.room, icon: 'room' },
+    { label: 'Accounts', service: runtime.components.accounts, icon: 'accounts' }
   ] as const
 
   const path = [
-    ['MICROPHONE', 'voice'],
-    ['LIVEKIT', 'activity'],
-    ['MARVI GATEWAY', 'overview'],
-    ['VOICE', 'voice']
+    {
+      label: 'Microphone',
+      icon: 'voice',
+      state: deviceState(runtime, 'microphone') === 'on' ? 'ready' : 'offline'
+    },
+    { label: 'LiveKit', icon: 'activity', state: runtime.components.livekit?.state },
+    { label: 'Gateway', icon: 'overview', state: runtime.components.gateway?.state },
+    { label: 'Voice', icon: 'voice', state: runtime.components.voice?.state }
   ] as const
 
   const context = [
-    ['ROOM', runtime.components.room?.detail.toUpperCase() ?? 'OFFLINE', 'room'],
-    ['VISION', runtime.components.vision?.detail.toUpperCase() ?? 'OFFLINE', 'vision'],
-    ['ACCOUNTS', runtime.components.accounts?.detail.toUpperCase() ?? 'NOT CONNECTED', 'accounts'],
-    ['MICROPHONE', DEVICE_COPY[deviceState(runtime, 'microphone')], 'voice'],
-    ['CAMERA', DEVICE_COPY[deviceState(runtime, 'camera')], 'vision']
+    { label: 'Room', value: runtime.components.room?.detail ?? 'Offline', icon: 'room' },
+    { label: 'Vision', value: runtime.components.vision?.detail ?? 'Offline', icon: 'vision' },
+    {
+      label: 'Accounts',
+      value: runtime.components.accounts?.detail ?? 'Not connected',
+      icon: 'accounts'
+    },
+    {
+      label: 'Microphone',
+      value: DEVICE_COPY[deviceState(runtime, 'microphone')],
+      icon: 'voice'
+    },
+    { label: 'Camera', value: DEVICE_COPY[deviceState(runtime, 'camera')], icon: 'vision' }
   ] as const
+  const readyServices = services.filter(
+    ({ service }) => stateTone(service?.state) === 'ready'
+  ).length
+  const runtimeTone = stateTone(runtime.state)
 
   return (
     <ControlPage
@@ -708,14 +737,37 @@ function Overview({
       description="Local assistant health, active session state, and connected context."
       title="Overview"
     >
-      <ControlSection icon={Gauge} title="Current state">
-        <ControlRow
-          action={<ControlPill tone={stateTone(runtime.state)}>{voice.phase}</ControlPill>}
-          description={voice.detail ?? 'Standing by.'}
-          icon={Sparkles}
-          title={voice.caption}
-        />
-      </ControlSection>
+      <section className={`overview-runtime tone-${runtimeTone}`} aria-label="Current state">
+        <div className="overview-runtime-main">
+          <span className="overview-runtime-kicker">
+            <i aria-hidden="true" />
+            {runtime.state} / {voice.phase}
+          </span>
+          <div className="overview-runtime-title">
+            <Sparkles aria-hidden="true" />
+            <div>
+              <h3>{voice.caption}</h3>
+              <p>{voice.detail ?? 'Standing by for voice, context, or scheduled work.'}</p>
+            </div>
+          </div>
+        </div>
+        <dl className="overview-runtime-facts">
+          <div>
+            <dt>Systems</dt>
+            <dd>
+              {readyServices}/{services.length} ready
+            </dd>
+          </div>
+          <div>
+            <dt>Model route</dt>
+            <dd>{runtime.model.llm || 'Automatic'}</dd>
+          </div>
+          <div>
+            <dt>Approval</dt>
+            <dd>{voice.yolo ? 'YOLO' : 'Confirm'}</dd>
+          </div>
+        </dl>
+      </section>
 
       <ControlSection
         description="The local path used by every spoken turn."
@@ -723,40 +775,62 @@ function Overview({
         title="Voice route"
       >
         <div className="control-route" aria-label="Voice route">
-          {path.map(([label, icon], index) => (
+          {path.map(({ label, icon, state }, index) => (
             <div className="control-route-step" key={label}>
-              <AbstractIcon name={icon} size={16} />
-              <span>{label.toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase())}</span>
-              {index < path.length - 1 ? <span aria-hidden="true">›</span> : null}
+              <span className="overview-route-mark">
+                <AbstractIcon name={icon} size={16} />
+                <i className={`tone-${stateTone(state)}`} aria-hidden="true" />
+              </span>
+              <span>{label}</span>
+              {index < path.length - 1 ? (
+                <span aria-hidden="true" className="control-route-arrow">
+                  ›
+                </span>
+              ) : null}
             </div>
           ))}
         </div>
       </ControlSection>
 
-      <ControlSection icon={Server} title="Systems">
-        {services.map(([name, service]) => (
-          <ControlRow
-            action={
-              <ControlPill tone={stateTone(service?.state)}>
-                {service?.state ?? 'offline'}
-              </ControlPill>
-            }
-            description={service?.detail ?? 'No status received'}
-            key={name}
-            title={name.toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase())}
-          />
-        ))}
-      </ControlSection>
+      <div className="overview-workspace">
+        <ControlSection
+          action={<span className="overview-section-count">{readyServices} ready</span>}
+          className="overview-systems"
+          icon={Server}
+          title="Systems"
+        >
+          <div className="overview-system-list">
+            {services.map(({ label, service, icon }) => {
+              const tone = stateTone(service?.state)
+              return (
+                <div className="overview-system-row" key={label}>
+                  <AbstractIcon name={icon} size={15} />
+                  <div>
+                    <strong>{label}</strong>
+                    <span>{service?.detail ?? 'No status received'}</span>
+                  </div>
+                  <span className={`overview-state tone-${tone}`}>
+                    <i aria-hidden="true" />
+                    {service?.state ?? 'offline'}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </ControlSection>
 
-      <ControlSection icon={Box} title="Context">
-        {context.map(([label, value]) => (
-          <ControlRow
-            action={<span className="control-value">{value}</span>}
-            key={label}
-            title={label.toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase())}
-          />
-        ))}
-      </ControlSection>
+        <ControlSection className="overview-context" icon={Box} title="Context">
+          <div className="overview-context-list">
+            {context.map(({ label, value, icon }) => (
+              <div className="overview-context-row" key={label}>
+                <AbstractIcon name={icon} size={14} />
+                <span>{label}</span>
+                <strong title={value}>{value}</strong>
+              </div>
+            ))}
+          </div>
+        </ControlSection>
+      </div>
     </ControlPage>
   )
 }
