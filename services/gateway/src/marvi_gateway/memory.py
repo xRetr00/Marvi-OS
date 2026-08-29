@@ -98,7 +98,15 @@ SIMILAR_ENOUGH = 0.52
 #: is fourth at 0.550, below three wrong ones. That is why this only changes
 #: how the block is introduced and drops nothing -- a relative gate sized to
 #: this data would have deleted the right answer.
-CONFIDENT_ENOUGH = 0.60
+#:
+#: Set at 0.60 from four sample queries, and that was too high. Measured over
+#: twenty real recalls once they were being recorded: the median best score is
+#: 0.606, so the threshold sat in the middle of the distribution and marked
+#: 40% of recalls weak. One of them was "what games do I play", whose correct
+#: memory scores 0.604 -- hedged into silence by a threshold a thousandth
+#: above it. At 0.55 the rate is 20%, which is what "the search did not really
+#: find this" should mean.
+CONFIDENT_ENOUGH = 0.55
 
 #: A ceiling on the whole recall block, not just its memories.
 #:
@@ -1372,10 +1380,14 @@ class MemoryStore:
         if weak:
             block += (
                 nl
-                + "Nothing here scored as a close match, so treat it as background "
-                "rather than as an answer. If the question needs a fact you cannot "
-                "see here, say you do not have it or look it up -- do not answer "
-                "from the nearest line." + nl
+                # Hedged, not forbidden. The first wording ended "do not answer
+                # from the nearest line", which reads as a refusal: asked what
+                # games he plays, with the right memory sitting in the block,
+                # Marvi said she had no information about it. A weak match
+                # means the search is unsure, not that the answer is absent.
+                + "The search was not confident about these, so read them before "
+                "using them: answer from one only if it genuinely fits the "
+                "question, and say you do not know if none of them does." + nl
             )
         # Trimmed as a whole, last, so the ceiling is on what the model
         # actually receives rather than on one part of it.

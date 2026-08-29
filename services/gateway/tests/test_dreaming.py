@@ -438,13 +438,21 @@ def test_a_weak_match_says_so_instead_of_reading_as_an_answer(tmp_path) -> None:
             "source": "marvi",
             "trusted": True,
             "at": "2026-08-29",
-            "score": 0.55,
+            # Below `CONFIDENT_ENOUGH`, which moved from 0.60 to 0.55 once
+            # twenty real recalls showed the median best score was 0.606.
+            "score": 0.52,
         }
     ]
     block = store.recall_block("what is my schedule like")
 
     assert "none of it matches this question closely" in block
-    assert "do not answer from the nearest line" in block
+    # Hedged, not forbidden. The first wording ended "do not answer from the
+    # nearest line", and Marvi read that as a refusal: asked what games he
+    # plays, with the right memory sitting in the block, she said she had no
+    # information about it. A weak match means the search is unsure, not that
+    # the answer is absent.
+    assert "answer from one only if it genuinely fits" in block
+    assert "do not answer from the nearest line" not in block
     # The memory is still there to reason with.
     assert "deepseek-v4-flash" in block
     assert memory_module.CONFIDENT_ENOUGH > memory_module.SIMILAR_ENOUGH
