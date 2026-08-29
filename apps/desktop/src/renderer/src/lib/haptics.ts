@@ -46,13 +46,36 @@ export const DESKTOP_HAPTICS_OPTIONS: WebHapticsOptions = {
 type TriggerFn = (pattern: HapticInput, options?: TriggerOptions) => Promise<void> | undefined
 
 let trigger: TriggerFn | null = null
+const HAPTICS_MUTED_KEY = 'marvi:haptics-muted'
+let muted = readMutedPreference()
+
+function readMutedPreference(): boolean {
+  try {
+    return typeof window !== 'undefined' && window.localStorage.getItem(HAPTICS_MUTED_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
+export function getHapticsMuted(): boolean {
+  return muted
+}
+
+export function setHapticsMuted(next: boolean): void {
+  muted = next
+  try {
+    if (typeof window !== 'undefined') window.localStorage.setItem(HAPTICS_MUTED_KEY, String(next))
+  } catch {
+    // Preference persistence is optional; the current session still updates.
+  }
+}
 
 export function registerHapticTrigger(next: TriggerFn | null): void {
   trigger = next
 }
 
 export function haptic(intent: HapticIntent): void {
-  if (!trigger) return
+  if (muted || !trigger) return
   const config = PATTERNS[intent]
   try {
     void Promise.resolve(trigger(config.pattern, config.options)).catch(() => undefined)

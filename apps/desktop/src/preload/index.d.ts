@@ -279,6 +279,8 @@ export interface MarviDesktopApi {
   minimizeWindow: () => void
   toggleMaximizeWindow: () => void
   closeWindow: () => void
+  restartAll: () => void
+  shutdownAll: () => void
   getWindowState: () => Promise<{ isMaximized: boolean }>
   onWindowState: (listener: (state: { isMaximized: boolean }) => void) => () => void
   setTranslucency: (intensity: number) => Promise<number>

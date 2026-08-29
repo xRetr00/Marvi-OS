@@ -79,6 +79,8 @@ const marvi = {
   minimizeWindow: (): void => ipcRenderer.send('marvi:window-minimize'),
   toggleMaximizeWindow: (): void => ipcRenderer.send('marvi:window-toggle-maximize'),
   closeWindow: (): void => ipcRenderer.send('marvi:window-close'),
+  restartAll: (): void => ipcRenderer.send('marvi:restart-all'),
+  shutdownAll: (): void => ipcRenderer.send('marvi:shutdown-all'),
   getWindowState: (): Promise<{ isMaximized: boolean }> =>
     ipcRenderer.invoke('marvi:get-window-state'),
   onWindowState: (listener: (state: { isMaximized: boolean }) => void): (() => void) => {
