@@ -26,6 +26,7 @@ from . import (
     conversation,
     delegate,
     distil,
+    continuity,
     latency,
     mcp_store,
     observations,
@@ -2355,6 +2356,32 @@ def create_app(
             block = block + chr(10) * 2 + notes if block else notes
         return {"block": block}
 
+    @app.post("/session/ended", status_code=202)
+    async def session_ended(body: dict[str, Any]) -> dict[str, Any]:
+        """A spoken session finished; keep one line about what it was about.
+
+        202 and nothing else: the caller is a worker shutting down, and the
+        summary is for the *next* session. Nothing waits for it.
+        """
+        exchanges = [
+            (str(row.get("user") or ""), str(row.get("assistant") or ""))
+            for row in (body.get("exchanges") or [])
+            if isinstance(row, dict)
+        ]
+        if not exchanges or not continuity.enabled():
+            return {"kept": False}
+
+        # On a thread, like the memory worker beside it: the summary is a
+        # model call and the caller is a worker on its way out.
+        import threading
+
+        threading.Thread(
+            target=lambda: continuity.remember(continuity.summarise(cognition, exchanges)),
+            daemon=True,
+            name="marvi-session-note",
+        ).start()
+        return {"kept": True}
+
     @app.post("/memory/observe", status_code=202)
     async def observe_turn(turn: ObservedTurn) -> dict[str, Any]:
         """A finished exchange, for the memory worker to think about later.
@@ -2716,6 +2743,13 @@ def create_app(
                 "turn -- do not look it up, and do not write it into memory.\n\n"
                 + who.user
             )
+        # What the last conversation was about. Voice starts every session with
+        # an empty context, so hanging up and calling back made Marvi a
+        # stranger to the thing she had been discussing a minute earlier --
+        # memory holds facts and is told not to store that a conversation
+        # happened, which is right and leaves exactly this hole.
+        if carry := continuity.block():
+            blocks["continuity"] = carry
         try:
             from .setup import skills as skills_module
 
