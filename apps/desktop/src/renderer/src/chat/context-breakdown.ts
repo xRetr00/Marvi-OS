@@ -7,12 +7,12 @@ export interface ContextSegment {
 }
 
 export function contextPercent(context?: ChatContext | null): number | null {
-  if (!context?.context_window || !context.input_tokens) return null
+  if (!context?.context_window) return null
   return Math.min(100, Math.round((context.input_tokens / context.context_window) * 100))
 }
 
 export function contextSegments(context?: ChatContext | null): ContextSegment[] {
-  if (!context?.context_window || !context.input_tokens) return []
+  if (!context?.context_window) return []
 
   const window = context.context_window
   const used = Math.min(window, Math.max(0, context.input_tokens))

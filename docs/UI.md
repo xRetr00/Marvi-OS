@@ -242,12 +242,15 @@ and active indicator legible, and keeps the canonical Marvi mark in its brand
 cell so the compact rail never becomes anonymous. Collapse uses a narrow panel
 glyph rail control, not bracket text. Chromium View Transitions move the sidebar and content as
 compositor snapshots; reduced-motion users get an immediate state change. The
-bottom status bar is always present and shows compact authoritative health:
+bottom status bar is always present and shows compact authoritative health.
+Gateway, realtime transport, voice, and wake-word labels use one adjacent dot:
+green is ready/online, amber is starting or degraded, red is offline or failed,
+and gray is unknown. Full state text stays in the accessible label and tooltip
+instead of widening the bar:
 
 - Marvi Gateway
 - LiveKit transport
 - STT/TTS readiness
-- microphone/camera state
 - Smart Room connection/presence
 - OpenCode Go model
 - Confirm or YOLO mode
@@ -306,7 +309,8 @@ and an explicit remove action. Sent images open into a bounded preview that
 closes by button, backdrop, or Escape. Context occupancy lives in the persistent
 status bar rather than the composer: its compact token label and ASCII gauge
 open a detailed breakdown of prompt, cached input, reply reserve, and available capacity. It
-never turns message or file counts into invented token estimates. Drafting
+shows a real zero-percent meter as soon as a fresh chat has a known provider
+window, and never turns message or file counts into invented token estimates. Drafting
 remains available while a response streams, while the primary action becomes
 Stop until the active turn settles.
 Tool activity and sources use transparent faded disclosure

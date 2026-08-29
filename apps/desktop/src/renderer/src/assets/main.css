@@ -4219,7 +4219,8 @@ body {
   justify-content: space-between;
   gap: 8px;
   padding: 0 4px;
-  border-top: 0;
+  overflow: visible;
+  border-top: 1px solid var(--ui-stroke-tertiary);
   background: var(--ui-bg-raised);
   color: var(--ui-text-tertiary);
   font-size: 11px;
@@ -4236,6 +4237,7 @@ body {
 
 .statusbar-side-right {
   justify-content: flex-end;
+  overflow: visible;
 }
 
 .status-context-breakdown {
@@ -4309,6 +4311,38 @@ body {
 .status-detail {
   color: color-mix(in srgb, currentColor 64%, transparent);
   text-transform: capitalize;
+}
+
+.status-health {
+  gap: 5px;
+}
+
+.status-health-dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 999px;
+  background: var(--ui-text-tertiary);
+  opacity: 0.58;
+}
+
+.status-health-dot.tone-ready {
+  background: #4daa72;
+  opacity: 1;
+}
+
+.status-health-dot.tone-warning {
+  background: #d5a64f;
+  opacity: 1;
+}
+
+.status-health-dot.tone-danger {
+  background: var(--ui-danger);
+  opacity: 1;
+}
+
+.status-health-dot.tone-neutral {
+  box-shadow: inset 0 0 0 1px var(--ui-stroke-primary);
 }
 
 .status-version {

@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 
 import { Markdown } from './MarkdownView'
-import { contextSegments } from './context-breakdown'
+import { contextPercent, contextSegments } from './context-breakdown'
 import type { ChatMessage } from './types'
 import { AgentMessage } from './components/AgentMessage'
 import { Composer } from './components/Composer'
@@ -212,6 +212,28 @@ describe('Composer', () => {
 })
 
 describe('contextSegments', () => {
+  it('shows an empty known context window as zero percent on chat entry', () => {
+    const context = {
+      input_tokens: 0,
+      cached_tokens: 0,
+      context_window: 8000,
+      reply_reserve: 1024,
+      messages: 0,
+      files: 0,
+      sources: 0,
+      provider: 'openai',
+      model: 'gpt-test'
+    }
+
+    expect(contextPercent(context)).toBe(0)
+    expect(contextSegments(context)).toEqual([
+      { id: 'prompt', label: 'Prompt', tokens: 0 },
+      { id: 'cached', label: 'Cached', tokens: 0 },
+      { id: 'reserve', label: 'Reply reserve', tokens: 1024 },
+      { id: 'available', label: 'Available', tokens: 6976 }
+    ])
+  })
+
   it('splits only provider-reported token facts and preserves the whole window', () => {
     const segments = contextSegments({
       input_tokens: 2000,

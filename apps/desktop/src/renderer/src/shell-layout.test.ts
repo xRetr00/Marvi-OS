@@ -196,6 +196,19 @@ describe('shell layout', () => {
     expect(lastBlock('.voice-level-meter')).toContain('color: var(--ui-accent)')
     expect(app).toContain("value > 0.02 ? ' is-live' : ''")
   })
+
+  it('uses health dots and keeps camera and microphone controls out of the status bar', () => {
+    const statusbar = app.slice(app.indexOf('const statusbar = ('), app.indexOf('return (', app.indexOf('const statusbar = (')))
+    expect(statusbar).toContain('<StatusHealthItem')
+    expect(statusbar).toContain('label="Gateway"')
+    expect(statusbar).toContain('label="RTC"')
+    expect(statusbar).toContain('label="Voice"')
+    expect(statusbar).not.toContain('Open microphone and camera settings')
+    expect(statusbar).not.toContain('<Camera')
+    expect(statusbar).not.toContain('<Mic')
+    expect(lastBlock('.statusbar')).toContain('overflow: visible')
+    expect(lastBlock('.statusbar-side-right')).toContain('overflow: visible')
+  })
 })
 
 describe('what the shell claims about the devices', () => {

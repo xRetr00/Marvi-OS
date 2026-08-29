@@ -80,7 +80,9 @@ function stateTone(state: string | undefined): 'neutral' | 'ready' | 'warning' |
   if (state === 'ready' || state === 'connected' || state === 'active' || state === 'running') {
     return 'ready'
   }
-  if (state === 'error' || state === 'failed') return 'danger'
+  if (state === 'error' || state === 'failed' || state === 'offline' || state === 'stopped') {
+    return 'danger'
+  }
   if (state === 'pending' || state === 'starting' || state === 'degraded') return 'warning'
   return 'neutral'
 }
@@ -377,42 +379,29 @@ function MainSurface(): React.JSX.Element {
   const statusbar = (
     <footer className="statusbar">
       <div className="statusbar-side">
-        <UiTooltip label="Open Gateway health" side="top">
-          <button className="status-item" onClick={() => navigate('Overview')} type="button">
-            <Activity aria-hidden="true" />
-            <span>Gateway</span>
-            <span className="status-detail">{runtime.state}</span>
-          </button>
-        </UiTooltip>
-        <UiTooltip label="Open realtime transport" side="top">
-          <button className="status-item" onClick={() => navigate('Voice')} type="button">
-            <Radio aria-hidden="true" />
-            <span>RTC</span>
-            <span className="status-detail">{runtime.components.livekit?.state ?? 'unknown'}</span>
-          </button>
-        </UiTooltip>
-        <UiTooltip label="Open voice session" side="top">
-          <button className="status-item" onClick={() => navigate('Voice')} type="button">
-            <Waves aria-hidden="true" />
-            <span>Voice</span>
-            <span className="status-detail">{voice.phase}</span>
-          </button>
-        </UiTooltip>
+        <StatusHealthItem
+          detail={runtime.components.gateway?.detail}
+          label="Gateway"
+          onOpen={() => navigate('Overview')}
+          state={runtime.state}
+        />
+        <StatusHealthItem
+          detail={runtime.components.livekit?.detail}
+          label="RTC"
+          onOpen={() => navigate('Voice')}
+          state={runtime.components.livekit?.state}
+        />
+        <StatusHealthItem
+          detail={runtime.components.voice?.detail}
+          label="Voice"
+          onOpen={() => navigate('Voice')}
+          state={runtime.components.voice?.state}
+        />
         <WakeStatusItem onOpen={() => navigate('Voice')} />
         <VoiceLevelMeter level={voice.level} />
       </div>
       <div className="statusbar-side statusbar-side-right">
         {page === 'Chat' ? <ContextStatus {...chatContextStatus} /> : null}
-        <UiTooltip label="Open microphone and camera settings" side="top">
-          <button className="status-item" onClick={() => setSettings('Preferences')} type="button">
-            <Mic aria-hidden="true" />
-            <span>Mic</span>
-            <span className="status-detail">{deviceLabel(deviceState(runtime, 'microphone'))}</span>
-            <Camera aria-hidden="true" />
-            <span>Cam</span>
-            <span className="status-detail">{deviceLabel(deviceState(runtime, 'camera'))}</span>
-          </button>
-        </UiTooltip>
         <UiTooltip label="Open confirmation mode settings" side="top">
           <button
             className={`status-item${voice.yolo ? ' status-yolo' : ''}`}
@@ -588,6 +577,34 @@ function MainSurface(): React.JSX.Element {
         <BootFailureOverlay />
       </div>
     </ShellContextMenu>
+  )
+}
+
+function StatusHealthItem({
+  detail,
+  label,
+  onOpen,
+  state
+}: {
+  detail?: string
+  label: string
+  onOpen: () => void
+  state?: string
+}): React.JSX.Element {
+  const tone = stateTone(state)
+  const readableState = state || 'unknown'
+  return (
+    <UiTooltip label={detail || `${label} is ${readableState}`} side="top">
+      <button
+        aria-label={`${label} ${readableState}`}
+        className="status-item status-health"
+        onClick={onOpen}
+        type="button"
+      >
+        <span aria-hidden="true" className={`status-health-dot tone-${tone}`} />
+        <span>{label}</span>
+      </button>
+    </UiTooltip>
   )
 }
 
@@ -3235,17 +3252,18 @@ function WakeStatusItem({ onOpen }: { onOpen: () => void }): React.JSX.Element |
           ? `Registered, but it has not been heard from for ${sinceWhen(wake.listener.silentFor)}`
           : 'Registered to start at login, and coming up'
         : 'Not listening. Turn it on in Voice settings.'
+  const state = heard || running ? 'ready' : autostart && !stopped ? 'starting' : 'offline'
 
   return (
     <UiTooltip label={tooltip} side="top">
       <button
-        className={`status-item${heard ? ' status-yolo' : ''}`}
+        aria-label={`Wake ${label.toLowerCase()}`}
+        className="status-item status-health"
         onClick={onOpen}
         type="button"
       >
-        <Mic aria-hidden="true" />
+        <span aria-hidden="true" className={`status-health-dot tone-${stateTone(state)}`} />
         <span>Wake</span>
-        <span className="status-detail">{label.toLowerCase()}</span>
       </button>
     </UiTooltip>
   )

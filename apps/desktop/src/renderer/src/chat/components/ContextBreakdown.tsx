@@ -43,7 +43,7 @@ export function ContextBreakdown({
         className="chat-context-bar"
         role="img"
       >
-        {segments.map((segment) => (
+        {segments.filter((segment) => segment.tokens > 0).map((segment) => (
           <span
             className={`is-${segment.id}`}
             key={segment.id}
