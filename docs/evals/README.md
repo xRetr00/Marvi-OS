@@ -39,6 +39,7 @@ prevent, so the tables here keep the three columns apart and sort by the first.
 | Suite | What it decides | Run it |
 | --- | --- | --- |
 | [Voice model behaviour](voice-models.md) | Which LLM answers spoken turns | `python evals/voice_behaviour.py` |
+| [Memory reader](memory-reader.md) | Whether memory needs a model to read it | `python evals/memory_answers.py` |
 | [Retrieval quality](retrieval.md) | Embedding model, thresholds, recall shape | see the doc |
 | [Speech](speech.md) | STT model and lookahead, TTS voice | see the doc |
 | [Tools](tools.md) | Whether a tool is callable, safe, and worth its schema | see the doc |

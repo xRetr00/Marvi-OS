@@ -24,14 +24,17 @@ from marvi_agent import session as session_module
 def prefetch(monkeypatch):
     """A prefetcher whose lookups are instant and recorded."""
     asked: list[str] = []
+    readings: list[bool] = []
 
-    def fake_recall(text: str) -> str:
+    def fake_recall(text: str, *, read: bool = False) -> str:
         asked.append(text)
+        readings.append(read)
         return f"block for {text}"
 
     monkeypatch.setattr(session_module, "_recall", fake_recall)
     found = session_module._Prefetch()
     found.asked = asked  # type: ignore[attr-defined]
+    found.readings = readings  # type: ignore[attr-defined]
     return found
 
 
@@ -114,3 +117,14 @@ def test_one_lookup_at_a_time(prefetch) -> None:
     settle(prefetch)
 
     assert len(prefetch.asked) == 1
+
+
+def test_the_prefetch_is_what_pays_for_a_reading(prefetch) -> None:
+    """A model reading the memories costs ~600ms and answers the questions the
+    search ranks wrongly. The prefetch window is 1,789ms at the median over 121
+    real turns, so asking here is free; asking on the live path would put it in
+    front of a turn that is already waiting."""
+    prefetch.begin("what computer am I runni")
+    settle(prefetch)
+
+    assert prefetch.readings == [True]
