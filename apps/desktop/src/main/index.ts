@@ -55,6 +55,7 @@ import {
 } from './pet-window'
 import { NativePetHost, petActionPage, petTaskCount, resolvePetHostPaths } from './pet-host'
 import { maintenancePowerShellArgs } from './maintenance-terminal'
+import { restartApplication, shutdownApplication } from './lifecycle-actions'
 import {
   canUpdate,
   checkForUpdate,
@@ -2769,6 +2770,14 @@ function startApp(): void {
       // Close on the frameless shell means "hide to tray", matching the
       // always-on contract. Quit stays explicit via the tray menu.
       mainWindow.hide()
+    })
+    ipcMain.on('marvi:restart-all', (event) => {
+      if (!mainWindow || event.sender !== mainWindow.webContents) return
+      restartApplication(app)
+    })
+    ipcMain.on('marvi:shutdown-all', (event) => {
+      if (!mainWindow || event.sender !== mainWindow.webContents) return
+      shutdownApplication(app)
     })
     ipcMain.handle('marvi:get-window-state', () => windowStatePayload())
     ipcMain.handle('marvi:set-translucency', (_event, value) => {

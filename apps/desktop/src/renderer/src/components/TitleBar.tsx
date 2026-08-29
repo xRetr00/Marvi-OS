@@ -60,7 +60,11 @@ export function TitleBar({
               }}
               type="button"
             >
-              {sidebarCollapsed ? <PanelLeftOpen aria-hidden="true" /> : <PanelLeftClose aria-hidden="true" />}
+              {sidebarCollapsed ? (
+                <PanelLeftOpen aria-hidden="true" />
+              ) : (
+                <PanelLeftClose aria-hidden="true" />
+              )}
             </button>
           </UiTooltip>
         ) : null}

@@ -15,10 +15,17 @@ afterEach(() => {
 })
 
 describe('TitleBar', () => {
+  const lifecycleProps = {
+    hapticsMuted: false,
+    onRestart: () => {},
+    onShutdown: () => {},
+    onToggleHaptics: () => {}
+  }
+
   it('paints the current page and leaves window controls to Electron', () => {
     const html = renderToStaticMarkup(
       <TooltipProvider>
-        <TitleBar onSettings={() => {}} page="Overview" />
+        <TitleBar {...lifecycleProps} onSettings={() => {}} page="Overview" />
       </TooltipProvider>
     )
 
@@ -31,7 +38,10 @@ describe('TitleBar', () => {
     expect(html).not.toContain('aria-label="Minimize"')
     expect(html).not.toContain('aria-label="Maximize"')
     expect(html).not.toContain('aria-label="Close"')
-    expect(html.match(/<svg/g)).toHaveLength(1)
+    expect(html.match(/<svg/g)).toHaveLength(4)
+    expect(html).toContain('aria-label="Mute haptics"')
+    expect(html).toContain('aria-label="Restart Marvi and all services"')
+    expect(html).toContain('aria-label="Shut down Marvi and all services"')
     expect(html).not.toContain('⚙')
     expect(html).not.toContain('✕')
     expect(html).not.toContain('▢')
@@ -40,7 +50,7 @@ describe('TitleBar', () => {
   it('carries drag region styling hooks for the frameless window', () => {
     const html = renderToStaticMarkup(
       <TooltipProvider>
-        <TitleBar onSettings={() => {}} page="Voice" />
+        <TitleBar {...lifecycleProps} onSettings={() => {}} page="Voice" />
       </TooltipProvider>
     )
 

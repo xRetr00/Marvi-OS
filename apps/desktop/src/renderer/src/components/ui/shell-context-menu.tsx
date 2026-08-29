@@ -8,7 +8,7 @@
  * and components/ui/context-menu.tsx (see docs/UPSTREAM.md).
  */
 import { ContextMenu } from 'radix-ui'
-import { cloneElement, useState, type ReactElement } from 'react'
+import { cloneElement, Fragment, useState, type ReactElement } from 'react'
 import { flushSync } from 'react-dom'
 import type { LucideIcon } from 'lucide-react'
 
@@ -50,8 +50,10 @@ export function ShellContextMenu({ actions, children }: ShellContextMenuProps): 
           {visibleActions.map((action) => {
             const Icon = action.icon
             return (
-              <div key={action.label}>
-                {action.separatorBefore ? <ContextMenu.Separator className="shell-context-separator" /> : null}
+              <Fragment key={action.label}>
+                {action.separatorBefore ? (
+                  <ContextMenu.Separator className="shell-context-separator" />
+                ) : null}
                 <ContextMenu.Item
                   className={`shell-context-item${action.tone === 'danger' ? ' is-danger' : ''}`}
                   disabled={action.disabled}
@@ -63,7 +65,7 @@ export function ShellContextMenu({ actions, children }: ShellContextMenuProps): 
                   {Icon ? <Icon aria-hidden="true" /> : null}
                   <span>{action.label}</span>
                 </ContextMenu.Item>
-              </div>
+              </Fragment>
             )
           })}
         </ContextMenu.Content>

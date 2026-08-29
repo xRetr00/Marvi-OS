@@ -22,6 +22,7 @@ const voiceOrb = readFileSync(join(__dirname, 'orb/VoiceOrb.tsx'), 'utf8')
 const app = readFileSync(join(__dirname, 'App.tsx'), 'utf8')
 const chat = readFileSync(join(__dirname, 'chat/Chat.tsx'), 'utf8')
 const titleBar = readFileSync(join(__dirname, 'components/TitleBar.tsx'), 'utf8')
+const contextMenu = readFileSync(join(__dirname, 'components/ui/shell-context-menu.tsx'), 'utf8')
 const controlSurface = readFileSync(join(__dirname, 'components/control-surface.tsx'), 'utf8')
 
 /** The rule block for a selector, so a moved property still fails the test. */
@@ -250,6 +251,27 @@ describe('shell layout', () => {
     expect(app).toContain("aria-label={`${voice.yolo ? 'YOLO' : 'Confirm'} mode`}")
     expect(lastBlock('.status-mode-icon.is-confirm')).toContain('color: #4daa72')
     expect(lastBlock('.status-mode-icon.is-yolo')).toContain('color: var(--ui-danger)')
+  })
+
+  it('routes right-click actions to the surface that owns them', () => {
+    expect(contextMenu).toContain("'[data-shell-context]'")
+    expect(app).toContain('actions={contextActions}')
+    expect(app).toContain("surface === 'sidebar'")
+    expect(app).toContain("surface === 'statusbar'")
+    expect(app).toContain("surface === 'settings'")
+    expect(app).toContain("surface === 'titlebar'")
+    expect(app).toContain('data-shell-context="page"')
+    expect(app).toContain('data-shell-context="sidebar"')
+    expect(app).toContain('data-shell-context="statusbar"')
+  })
+
+  it('puts guarded whole-product lifecycle controls in the title bar', () => {
+    expect(titleBar).toContain('GuardedLifecycleButton')
+    expect(titleBar).toContain('Restart Marvi and all services')
+    expect(titleBar).toContain('Shut down Marvi and all services')
+    expect(titleBar).toContain('Press again to')
+    expect(app).toContain('onRestart={() => window.marvi?.restartAll()}')
+    expect(app).toContain('onShutdown={() => window.marvi?.shutdownAll()}')
   })
 })
 

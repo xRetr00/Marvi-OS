@@ -26,17 +26,23 @@ import {
   Pause,
   PackageCheck,
   Palette,
+  PanelLeftClose,
+  PanelLeftOpen,
   Play,
   Power,
   Radio,
+  RefreshCw,
   Route,
   Server,
+  Settings,
   ShieldAlert,
   ShieldOff,
   Sparkles,
   Stethoscope,
   Trash2,
   Users,
+  Volume2,
+  VolumeX,
   Waves,
   Wifi,
   Wrench,
@@ -57,7 +63,11 @@ import { VoiceOrb } from './orb'
 import { ElectricGazeBackground } from './components/ElectricGazeBackground'
 import { HapticsProvider } from './components/HapticsProvider'
 import { TitleBar } from './components/TitleBar'
-import { ShellContextMenu } from './components/ui/shell-context-menu'
+import {
+  ShellContextMenu,
+  type ShellMenuAction,
+  type ShellMenuSurface
+} from './components/ui/shell-context-menu'
 import { Chat } from './chat'
 import { AbstractIcon, type AbstractIconName } from './components/abstract-icon'
 import { MessageTiming } from './components/message-timing'
@@ -128,7 +138,7 @@ import {
   tickSession,
   updateSessionUsage
 } from './store/session-metrics'
-import { haptic } from './lib/haptics'
+import { getHapticsMuted, haptic, setHapticsMuted } from './lib/haptics'
 import type {
   FaceLibrary,
   AuditEvent,
@@ -316,6 +326,7 @@ function MainSurface(): React.JSX.Element {
   const [collapsed, setCollapsed] = useState(false)
   const [settings, setSettings] = useState<SettingsPage | null>(null)
   const [version, setVersion] = useState('0.1.0-dev.0')
+  const [hapticsMuted, setHapticsMutedState] = useState(getHapticsMuted)
 
   useEffect(() => {
     void window.marvi?.getVersion().then(setVersion)
@@ -398,8 +409,163 @@ function MainSurface(): React.JSX.Element {
     })
   }
 
+  const toggleHaptics = (): void => {
+    const next = !hapticsMuted
+    setHapticsMuted(next)
+    setHapticsMutedState(next)
+    if (!next) haptic('success')
+  }
+
+  const refreshRuntime = (): void => {
+    void window.marvi?.getRuntime().then(applyRuntimeState)
+  }
+
+  const pageContextActions = (): ShellMenuAction[] => {
+    switch (page) {
+      case 'Overview':
+        return [
+          { icon: RefreshCw, label: 'Refresh system status', onSelect: refreshRuntime },
+          { icon: Waves, label: 'Open Voice', onSelect: () => navigate('Voice') },
+          { icon: Activity, label: 'Open Activity', onSelect: () => navigate('Activity') },
+          {
+            icon: Settings,
+            label: 'Open settings',
+            onSelect: () => setSettings('Preferences'),
+            separatorBefore: true
+          }
+        ]
+      case 'Voice':
+        return [
+          {
+            icon: voice.phase === 'ready' || voice.phase === 'error' ? Play : Pause,
+            label:
+              voice.phase === 'ready' || voice.phase === 'error'
+                ? 'Start voice session'
+                : 'Stop voice session',
+            onSelect: () =>
+              void (voice.phase === 'ready' || voice.phase === 'error' ? startVoice() : stopVoice())
+          },
+          {
+            icon: Mic,
+            label: 'Speech recognition',
+            onSelect: () => setSettings('Speech recognition')
+          },
+          { icon: Waves, label: 'Wake word', onSelect: () => setSettings('Wake word') },
+          {
+            icon: Volume2,
+            label: 'Voice synthesis',
+            onSelect: () => setSettings('Voice synthesis')
+          }
+        ]
+      case 'Chat':
+        return [
+          { icon: Box, label: 'Choose models', onSelect: () => setSettings('Models') },
+          { icon: Gauge, label: 'View usage', onSelect: () => setSettings('Usage') },
+          {
+            icon: House,
+            label: 'Return to Overview',
+            onSelect: () => navigate('Overview'),
+            separatorBefore: true
+          }
+        ]
+      case 'Vision':
+      case 'Room':
+      case 'Activity':
+        return [
+          { icon: Camera, label: 'Open Vision', onSelect: () => navigate('Vision') },
+          { icon: House, label: 'Open Room', onSelect: () => navigate('Room') },
+          { icon: Activity, label: 'Open Activity', onSelect: () => navigate('Activity') },
+          {
+            icon: Settings,
+            label: 'Capability settings',
+            onSelect: () => setSettings('Plugins'),
+            separatorBefore: true
+          }
+        ]
+      case 'Identity':
+      case 'Graph':
+      case 'Mind':
+        return [
+          { icon: Users, label: 'Open Identity', onSelect: () => navigate('Identity') },
+          { icon: Database, label: 'Open Graph', onSelect: () => navigate('Graph') },
+          { icon: Brain, label: 'Open Mind', onSelect: () => navigate('Mind') },
+          {
+            icon: Settings,
+            label: 'Memory settings',
+            onSelect: () => setSettings('Memory'),
+            separatorBefore: true
+          }
+        ]
+      default:
+        return [
+          { icon: Sparkles, label: 'Open Skills', onSelect: () => navigate('Skills') },
+          { icon: Route, label: 'Open Connectors', onSelect: () => navigate('Connectors') },
+          { icon: Server, label: 'Open MCP', onSelect: () => navigate('MCP') },
+          {
+            icon: Settings,
+            label: 'Capability settings',
+            onSelect: () => setSettings('Plugins'),
+            separatorBefore: true
+          }
+        ]
+    }
+  }
+
+  const contextActions = (surface: ShellMenuSurface): ShellMenuAction[] => {
+    if (surface === 'sidebar') {
+      return [
+        {
+          icon: collapsed ? PanelLeftOpen : PanelLeftClose,
+          label: collapsed ? 'Expand navigation' : 'Collapse navigation',
+          onSelect: toggleSidebar,
+          disabled: page === 'Chat'
+        },
+        {
+          icon: House,
+          label: 'Overview',
+          onSelect: () => navigate('Overview'),
+          separatorBefore: true
+        },
+        { icon: Waves, label: 'Voice', onSelect: () => navigate('Voice') },
+        { icon: Settings, label: 'Settings', onSelect: () => setSettings('Preferences') }
+      ]
+    }
+    if (surface === 'statusbar') {
+      return [
+        { icon: RefreshCw, label: 'Refresh service status', onSelect: refreshRuntime },
+        { icon: Waves, label: 'Open Voice status', onSelect: () => navigate('Voice') },
+        {
+          icon: voice.yolo ? CheckCircle2 : ShieldOff,
+          label: voice.yolo ? 'Switch to Confirm mode' : 'Switch to YOLO mode',
+          onSelect: () => void window.marvi?.setYolo(!voice.yolo).then(applyRuntimeState),
+          separatorBefore: true
+        },
+        { icon: Info, label: 'Version and updates', onSelect: () => setSettings('About') }
+      ]
+    }
+    if (surface === 'settings') {
+      return [
+        { icon: PanelLeftClose, label: 'Close settings', onSelect: () => setSettings(null) },
+        { icon: Settings, label: 'Preferences', onSelect: () => setSettings('Preferences') },
+        { icon: Info, label: 'About and updates', onSelect: () => setSettings('About') }
+      ]
+    }
+    if (surface === 'titlebar') {
+      return [
+        {
+          icon: hapticsMuted ? Volume2 : VolumeX,
+          label: hapticsMuted ? 'Unmute haptics' : 'Mute haptics',
+          onSelect: toggleHaptics
+        },
+        { icon: Settings, label: 'Open settings', onSelect: () => setSettings('Preferences') },
+        { icon: Info, label: 'About and updates', onSelect: () => setSettings('About') }
+      ]
+    }
+    return pageContextActions()
+  }
+
   const statusbar = (
-    <footer className="statusbar">
+    <footer className="statusbar" data-shell-context="statusbar">
       <div className="statusbar-side">
         <div className="status-health-cluster" aria-label="Service health">
           <StatusHealthItem
@@ -452,22 +618,15 @@ function MainSurface(): React.JSX.Element {
   )
 
   return (
-    <ShellContextMenu
-      actions={[
-        { label: 'Overview', onSelect: () => navigate('Overview') },
-        { label: 'Settings', onSelect: () => setSettings('Preferences') },
-        { label: 'About', onSelect: () => setSettings('About') },
-        { label: 'Reload Shell', onSelect: () => window.location.reload() },
-        {
-          label: voice.yolo ? 'Switch to Confirm mode' : 'Switch to YOLO mode',
-          onSelect: () => void window.marvi?.setYolo(!voice.yolo).then(applyRuntimeState)
-        }
-      ]}
-    >
+    <ShellContextMenu actions={contextActions}>
       <div className="app-shell">
         <TitleBar
+          hapticsMuted={hapticsMuted}
+          onRestart={() => window.marvi?.restartAll()}
           onSettings={() => setSettings('Preferences')}
+          onShutdown={() => window.marvi?.shutdownAll()}
           onToggleSidebar={page === 'Chat' ? undefined : toggleSidebar}
+          onToggleHaptics={toggleHaptics}
           page={settings ?? page}
           sidebarCollapsed={collapsed}
         />
@@ -493,6 +652,7 @@ function MainSurface(): React.JSX.Element {
               with nothing to override it. */}
               <aside
                 className={collapsed ? 'sidebar collapsed' : 'sidebar'}
+                data-shell-context="sidebar"
                 style={{ overflow: 'hidden' }}
               >
                 <header className="brand-block">
@@ -554,7 +714,10 @@ function MainSurface(): React.JSX.Element {
                 </div>
               </aside>
 
-              <main className={page === 'Voice' ? 'content' : 'content control-content'}>
+              <main
+                className={page === 'Voice' ? 'content' : 'content control-content'}
+                data-shell-context="page"
+              >
                 {page === 'Voice' ? (
                   <header className="topbar">
                     <div>
@@ -5016,6 +5179,7 @@ function SettingsShell({
   return (
     <div
       className="settings-shell"
+      data-shell-context="settings"
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose()
       }}

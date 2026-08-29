@@ -51,7 +51,9 @@ let muted = readMutedPreference()
 
 function readMutedPreference(): boolean {
   try {
-    return typeof window !== 'undefined' && window.localStorage.getItem(HAPTICS_MUTED_KEY) === 'true'
+    return (
+      typeof window !== 'undefined' && window.localStorage.getItem(HAPTICS_MUTED_KEY) === 'true'
+    )
   } catch {
     return false
   }

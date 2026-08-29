@@ -40,7 +40,7 @@ export function Sessions({
 
   return (
     <TooltipProvider>
-      <aside className="chat-sessions" aria-label="Chat sessions">
+      <aside className="chat-sessions" aria-label="Chat sessions" data-shell-context="sidebar">
         <header className="chat-sidebar-head">
           <button className="chat-sidebar-home" type="button" onClick={onExit}>
             <AbstractIcon name="back" size={14} />

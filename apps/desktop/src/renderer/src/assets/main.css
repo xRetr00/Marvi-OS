@@ -1384,6 +1384,7 @@ nav {
 .shell-context-item {
   display: flex;
   align-items: center;
+  gap: 9px;
   padding: 7px 10px;
   border-radius: 4px;
   font-size: 11px;
@@ -1391,6 +1392,28 @@ nav {
   color: var(--ui-text-primary);
   outline: none;
   cursor: pointer;
+}
+
+.shell-context-item svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  stroke-width: 1.7;
+  color: var(--ui-text-tertiary);
+}
+
+.shell-context-item[data-highlighted] svg {
+  color: currentColor;
+}
+
+.shell-context-item.is-danger {
+  color: var(--ui-danger);
+}
+
+.shell-context-separator {
+  height: 1px;
+  margin: 5px 7px;
+  background: var(--ui-stroke-tertiary);
 }
 
 .shell-context-item[data-highlighted] {
@@ -4533,6 +4556,20 @@ body {
   border-color: var(--ui-stroke-secondary);
   background: var(--ui-bg-raised);
   color: var(--ui-text-primary);
+}
+
+.titlebar-control.haptics[aria-pressed='true'] {
+  color: var(--ui-text-secondary);
+}
+
+.titlebar-control.lifecycle.restart.is-armed {
+  background: color-mix(in srgb, #d7a34a 14%, var(--ui-bg));
+  color: #d7a34a;
+}
+
+.titlebar-control.lifecycle.shutdown.is-armed {
+  background: color-mix(in srgb, var(--ui-danger) 16%, var(--ui-bg));
+  color: var(--ui-danger);
 }
 
 .titlebar-control:active {
