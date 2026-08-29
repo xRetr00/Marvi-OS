@@ -175,6 +175,24 @@ def needs_memory(text: str) -> bool:
     return not all(word in ACKNOWLEDGEMENTS for word in words)
 
 
+#: Marks the memory block staged into the agent's own context, so the next
+#: sentence can find and replace it. Invisible to the model beyond being the
+#: heading it already reads.
+STAGED = "# What you remember"
+
+SPECULATE = "MARVI_SPECULATIVE_RECALL"
+
+
+def eager() -> bool:
+    """Whether memory is staged before the turn ends, so preemptive can survive.
+
+    On by default. Off is the previous behaviour exactly: memory added in
+    `on_user_turn_completed`, every speculation discarded, and the turn paying
+    for a generation nobody used.
+    """
+    return os.environ.get(SPECULATE, "on").strip().lower() not in ("0", "false", "no", "off")
+
+
 class _Prefetch:
     """The memory for the turn being spoken, fetched before it is needed.
 
@@ -211,6 +229,13 @@ class _Prefetch:
     FRESH = 20.0
 
     def __init__(self) -> None:
+        #: Set by `attach` once the session exists. Without them the prefetch
+        #: still works and simply does not stage anything, which is the old
+        #: behaviour.
+        self._agent: Any = None
+        self._loop: Any = None
+        #: Whether the block for `_query` reached the agent's context.
+        self._installed = False
         self._lock = threading.Lock()
         self._query = ""
         self._block = ""
@@ -245,8 +270,89 @@ class _Prefetch:
             with self._lock:
                 self._query, self._block, self._at = text, block, time.monotonic()
                 self._running = ""
+            if block and self._agent is not None and eager():
+                self._stage(block)
 
         threading.Thread(target=work, daemon=True, name="marvi-recall-prefetch").start()
+
+    def attach(self, agent: Any, loop: Any) -> None:
+        """The agent whose context to write into, and the loop to do it on."""
+        self._agent, self._loop = agent, loop
+
+    def _stage(self, block: str) -> None:
+        """Put the memory in the agent's own context, before the turn ends.
+
+        This is what lets preemptive generation come back. LiveKit starts a
+        speculative reply on an interim transcript and keeps it only if nothing
+        changed by the time the turn is confirmed:
+
+            on_preemptive_generation: chat_ctx = self._agent.chat_ctx.copy()
+            ...
+            temp_mutable_chat_ctx = self._agent.chat_ctx.copy()
+            await on_user_turn_completed(temp_mutable_chat_ctx, ...)
+            preemptive.chat_ctx.is_equivalent(temp_mutable_chat_ctx)
+
+        Adding memory in `on_user_turn_completed` changes the second and not
+        the first, so every speculation was discarded -- which is why the
+        feature was off, and why the log recorded the invalidation on every
+        turn of a real conversation.
+
+        Writing it here instead means the snapshot already holds it and the
+        turn adds nothing, so the two compare equal. Verified against the real
+        `ChatContext`: today's ordering invalidates, this one survives, adding
+        it in both places invalidates again, and replacing a previous block
+        before the snapshot survives.
+
+        `update_chat_ctx` is a coroutine, so it is scheduled onto the loop the
+        session runs on rather than awaited here -- this runs on the prefetch's
+        own thread, which has none.
+        """
+        loop, agent = self._loop, self._agent
+        if loop is None or agent is None:
+            return
+
+        async def install() -> None:
+            context = agent.chat_ctx.copy()
+            # The previous block goes first. A prefetch runs per sentence, and
+            # two left behind would put a stale question's memories in front of
+            # the next one -- worse than none, because they look current.
+            context.items[:] = [
+                item
+                for item in context.items
+                if not (
+                    getattr(item, "role", None) == "system"
+                    and str(getattr(item, "content", "")).find(STAGED) >= 0
+                )
+            ]
+            context.add_message(role="system", content=STAGED + block)
+            await agent.update_chat_ctx(context)
+            with self._lock:
+                self._installed = True
+
+        try:
+            asyncio.run_coroutine_threadsafe(install(), loop)
+        except Exception as exc:  # pragma: no cover - depends on the loop
+            log.info("could not stage memory for this turn: %s", exc)
+
+    def staged(self, text: str) -> bool:
+        """Whether this turn's memory is already in the agent's context.
+
+        The same freshness and prefix test `take` uses, because it is the same
+        question asked of the same speculation: does the block that was staged
+        belong to the sentence that just finished.
+        """
+        if not eager():
+            return False
+        text = text.strip()
+        with self._lock:
+            if not self._installed:
+                return False
+            fresh = time.monotonic() - self._at <= self.FRESH
+            usable = fresh and text.lower().startswith(self._query.lower())
+            if usable:
+                self._installed = False
+                self._query, self._block = "", ""
+        return usable
 
     def take(self, text: str) -> str | None:
         """The prefetched block for this turn, or None to fetch it live."""
@@ -624,6 +730,14 @@ class MarviVoiceAgent(Agent):
             log.info("recall: skipped, nothing in this turn to look up")
             return
 
+        # Already in the agent's context when the speculation snapshotted it,
+        # so adding it again here would change the turn context and invalidate
+        # the very generation the staging exists to save. Verified against the
+        # real `ChatContext`: memory in both places invalidates.
+        if prefetch.staged(text):
+            log.info("recall: already in context, staged before the turn ended")
+            return
+
         cached = prefetch.take(text)
         block = cached if cached is not None else _recall(text)
         if block:
@@ -762,7 +876,20 @@ def build_session(proc: JobProcess | None = None) -> tuple[AgentSession, Callabl
             #
             # Recall costs 36ms once the embedder is warm, which is what the
             # turn now waits for instead.
-            preemptive_generation={"enabled": False},
+            # Back on, and the reason it was off is fixed rather than
+            # tolerated. LiveKit discards a speculative generation when the
+            # chat context changes before the turn is confirmed, and adding
+            # memory in `on_user_turn_completed` changed it on every single
+            # turn -- the log recorded the invalidation every time.
+            #
+            # The memory is now staged into the agent's own context by the
+            # prefetch, before the speculation snapshots it, so the snapshot
+            # and the turn agree and it survives. Checked against the real
+            # `ChatContext`: today's ordering invalidates, staging survives,
+            # doing both invalidates, replacing a stale block survives.
+            #
+            # `MARVI_SPECULATIVE_RECALL=off` restores the old pairing exactly.
+            preemptive_generation={"enabled": eager()},
             interruption={
                 "enabled": True,
                 # "vad", not "adaptive". Adaptive barge-in gatekeeps by holding
@@ -932,8 +1059,13 @@ async def marvi_session(ctx: JobContext) -> None:
         _said.append((last_heard["text"], spoken))
         del _said[:-EXCHANGES_KEPT]
 
+    voice_agent = MarviVoiceAgent()
+    # The prefetch writes memory into this agent's context before the turn
+    # ends, which is what lets preemptive generation survive. It runs on a
+    # thread, so it needs the loop to schedule the update on.
+    prefetch.attach(voice_agent, asyncio.get_running_loop())
     connecting = time.monotonic()
-    await session.start(agent=MarviVoiceAgent(), room=ctx.room)
+    await session.start(agent=voice_agent, room=ctx.room)
     log.info("joined %s in %.1fs, listening", ctx.room.name, time.monotonic() - connecting)
 
     # How a conversation ends: the model decides, from what was said.

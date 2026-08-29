@@ -106,6 +106,12 @@ def replies(rows: list[dict]) -> None:
     print(f"    narrated a tool    {len(narrated):>4}   ({100 * len(narrated) / len(said):.1f}%)")
     print(f"    over {LONG_WORDS} words       {len(longest):>4}   "
           f"({100 * len(longest) / len(said):.1f}%)")
+    # Measured against the live prompt with the real tool set: 4 of 20 replies
+    # emitted words alongside a tool call, despite the persona forbidding it.
+    # Those words are spoken and then abandoned the moment the call begins, so
+    # the listener hears a sentence start and stop -- and in one real turn the
+    # slot was filled with 8.6 seconds of prompt fragments rather than "let me
+    # check". This counts it in production, where the rate that matters is.
     for row in (leaks + narrated + longest)[:3]:
         print(f"      e.g. {json.dumps(str(row.get('said'))[:110])}")
 

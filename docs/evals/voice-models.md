@@ -87,3 +87,38 @@ behaviour the neighbouring case tests **for** — was scored as a leak. Removed.
 Two scoring bugs in one run, both of which would have driven a wrong decision.
 That is the argument for step 2 of the method: establish the base rate with
 what already ships, and be suspicious when it looks bad.
+
+## The narration rate, measured against the live prompt
+
+Run separately from the table above, against the real 8,762-character system
+prompt and the real ten-tool set, on the four questions that had just produced
+a leak in a live session:
+
+| | as it ships | with a closing boundary added |
+| --- | --- | --- |
+| leaked prompt text | 0/20 | 0/20 |
+| **spoke before a tool call** | **4/20** | **4/20** |
+
+Two things follow.
+
+**The prompt leak does not reproduce in a single turn.** Twenty attempts with
+the exact prompt that produced it, with and without a closing boundary, and
+nothing. So the boundary was not shipped: an unmeasurable fix for an
+unreproducible failure is a change that can only be justified by argument.
+
+**The narration rule is not working, and that is reproducible.** One reply in
+five emits words alongside a tool call -- *"Let me check what's going on in the
+room"*, *"Let me find the email tool"* -- while the persona says, in as many
+words, never to do that. LiveKit forwards content and tool calls from the same
+loop with no option to suppress one, and it cuts the speech off when the call
+begins, so the listener reliably hears a sentence start and stop.
+
+That is almost certainly the same slot the prompt fragments came out of: in the
+live turn the model filled it with 8.6 seconds of the skills block instead of
+with "let me check". The content varies; the slot is the bug.
+
+Suppressing it means holding content until a tool call has either arrived or
+clearly is not coming, which costs latency on every reply that never calls a
+tool -- against a 346 ms median TTS time-to-first-byte, that trade needs its
+own measurement before anything is built. `evals/from_life.py` now counts the
+rate in production, which is where it should be decided.
