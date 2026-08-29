@@ -125,15 +125,30 @@ Lucide glyphs, matching the pinned upstream shell. Interactive children opt out
 of the drag region. Close still hides to tray per the always-on contract; quit
 stays on the tray menu.
 
+Three compact product controls sit immediately before Settings: haptics,
+restart, and shutdown. Haptics mute persists on the machine and suppresses all
+feedback patterns. Restart and shutdown arm on the first press and require a
+second press within three seconds, preventing a stray click from ending an
+active session. Both cross the narrow preload bridge into Electron main.
+Restart schedules an Electron relaunch and then enters the normal quit path;
+shutdown enters that quit path directly. The existing synchronous teardown
+stops the Gateway and every supervised child-process tree before either action
+completes.
+
 The shell adds the the predecessor assistant-derived chrome pieces, adapted to the Marvi OS
 contract: a glyph spinner (`unicode-animations`), a decode-text CONNECTING
 overlay for initial boot, a boot-failure recovery overlay with diagnostics and
-retry, web haptics on taps/selections/confirmations, a shell context menu on
-right-click of chrome, a translucency lever (0–100 → native window opacity,
+retry, web haptics on taps/selections/confirmations, a surface-aware shell
+context menu, a translucency lever (0–100 → native window opacity,
 floor 0.3), and the Electric Gaze animated ASCII backdrop. The backdrop is a
 vendored local asset (`apps/desktop/src/renderer/src/assets/background/`),
 never fetched at runtime. Backdrop opacity and translucency are persisted
 per-machine. Reduced-motion users get static text and no exit choreography.
+Right-click menus are owned by the surface under the pointer: navigation offers
+navigation actions, the status bar offers health and mode actions, Settings
+offers Settings actions, the title bar offers shell preferences, and each page
+offers verbs relevant to that page family. A global generic menu is not reused
+across unrelated surfaces.
 
 The shell uses compact desktop chrome: a 34 px hidden titlebar lets Electron
 paint native Windows controls into the right edge. A single 24 px status bar
@@ -418,7 +433,8 @@ matching abstract SVG language; platform-symbol text glyphs are not used.
 Desktop haptics use `web-haptics` with its documented debug audio-transducer
 path enabled. Electron on Windows does not expose the mobile Vibration API, so
 disabling that path makes otherwise valid triggers silent. Haptic failures are
-non-blocking and never interrupt the action that requested feedback.
+non-blocking and never interrupt the action that requested feedback. The title
+bar mute control disables this path without disabling the actions themselves.
 
 ## Island micro-events
 

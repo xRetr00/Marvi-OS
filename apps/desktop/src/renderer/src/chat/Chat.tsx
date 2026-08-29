@@ -84,7 +84,7 @@ export function Chat({ onExit }: { onExit: () => void }): React.JSX.Element {
           />
         }
       />
-      <main className="content chat-workspace-content">
+      <main className="content chat-workspace-content" data-shell-context="page">
         <section className="chat-page">
           {!available ? (
             <div className="chat-unavailable">
