@@ -32,13 +32,25 @@ export function setFontFamily(font: FontFamily): void {
   if (FONT_FAMILIES.includes(font)) $fontFamily.set(font)
 }
 
+export function applyAppearancePreferences(
+  root: { dataset: Record<string, string | undefined> },
+  style: AppearanceStyle,
+  font: FontFamily
+): void {
+  root.dataset.appearance = style
+  root.dataset.font = font
+}
+
 if (typeof document !== 'undefined') {
+  const syncRoot = (): void => {
+    applyAppearancePreferences(document.documentElement, $appearanceStyle.get(), $fontFamily.get())
+  }
   $appearanceStyle.subscribe((style) => {
-    document.documentElement.dataset.appearance = style
+    syncRoot()
     persistString(STYLE_KEY, style)
   })
   $fontFamily.subscribe((font) => {
-    document.documentElement.dataset.font = font
+    syncRoot()
     persistString(FONT_KEY, font)
   })
 }
