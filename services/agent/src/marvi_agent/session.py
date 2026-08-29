@@ -241,7 +241,7 @@ class _Prefetch:
             self._running = text
 
         def work() -> None:
-            block = _recall(text)
+            block = _recall(text, read=True)
             with self._lock:
                 self._query, self._block, self._at = text, block, time.monotonic()
                 self._running = ""
@@ -300,13 +300,21 @@ def _heard_correctly(text: str) -> str:
     return correct(text, _names)
 
 
-def _recall(text: str) -> str:
+def _recall(text: str, *, read: bool = False) -> str:
     """What Marvi already knows that bears on this message.
 
     The Gateway does the searching, so the two surfaces cannot drift into
     remembering differently -- chat had its own copy of this and voice had
     none at all. Never raises: a recall that fails is a turn without notes,
     not a turn that does not happen.
+
+    `read` asks the Gateway for a model's *answer* from those memories rather
+    than the memories alone. It is passed only by the prefetch, which runs
+    while the user is still speaking: measured over 121 real turns that window
+    is 1,789ms at the median and the reading costs about 600ms, so it is paid
+    in time already being spent. This function is also the live fallback when
+    the prefetch missed, and on that path `read` stays false -- a turn already
+    waiting must not also wait for this.
     """
     import contextlib
 
@@ -317,7 +325,7 @@ def _recall(text: str) -> str:
 
         found = httpx.get(
             f"{gateway_url()}/memory/recall",
-            params={"text": text},
+            params={"text": text, "read": read},
             timeout=REPORT_TIMEOUT,
         )
         return str(found.json().get("block") or "")

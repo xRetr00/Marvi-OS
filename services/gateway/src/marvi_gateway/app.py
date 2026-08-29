@@ -27,6 +27,7 @@ from . import (
     delegate,
     distil,
     latency,
+    reading,
     mcp_store,
     parent,
     paths,
@@ -2270,7 +2271,9 @@ def create_app(
         return {"terms": vocabulary.terms(memory, identity)}
 
     @app.get("/memory/recall")
-    async def recall_memory(text: str = "", limit: int = 5) -> dict[str, Any]:
+    async def recall_memory(
+        text: str = "", limit: int = 5, read: bool = False
+    ) -> dict[str, Any]:
         """What Marvi already knows that bears on this message.
 
         Published so voice can have it. Chat called its own copy on every turn
@@ -2280,6 +2283,22 @@ def create_app(
         look it up; she wrote it down again, five times.
         """
         block = memory.recall_block(text, limit=max(1, min(limit, 20)))
+        # `read` is asked for only by the speculative prefetch, never by the
+        # live fallback on the critical path -- see `reading`. A model reading
+        # the memories answers the questions the search ranks wrongly (top-1
+        # was right 4 times in 8; the top five held every answer) and, unlike a
+        # search, can say it does not know. It costs ~600ms, which fits inside
+        # the prefetch window on 98% of real turns and inside no turn at all if
+        # it were asked for here unconditionally.
+        if read and reading.enabled():
+            found = await anyio.to_thread.run_sync(
+                lambda: memory.search(text, limit=reading.WIDTH)
+            )
+            answered = await anyio.to_thread.run_sync(
+                lambda: reading.block(cognition, text, found)
+            )
+            if answered:
+                block = answered + chr(10) * 2 + block if block else answered
         # Carried on the recall the turn already asks for, rather than a second
         # request: it belongs to the same moment and a separate round trip in
         # front of a spoken reply is latency for one sentence.

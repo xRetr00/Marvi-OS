@@ -265,3 +265,17 @@ async def test_ordinary_speech_passes_through_untouched() -> None:
     """A guard that eats real words is worse than the thing it guards against."""
     assert await _drain(["A < B and 3<4 stays."]) == "A < B and 3<4 stays."
     assert await _drain(["Nothing to strip."]) == "Nothing to strip."
+
+
+def test_only_the_speculative_fetch_pays_for_a_reading() -> None:
+    """The reader costs ~600ms and the prefetch window is 1,789ms at the
+    median, so it is paid in time already being spent. The live fallback runs
+    on a turn that is already waiting and must not also wait for this."""
+    import inspect
+
+    from marvi_agent import session
+
+    source = inspect.getsource(session)
+    assert "_recall(text, read=True)" in source, "the prefetch should ask for a reading"
+    # The fallback inside on_user_turn_completed takes the default, read=False.
+    assert "else _recall(text)" in source, "the live path must not wait for the reader"

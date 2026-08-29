@@ -469,3 +469,84 @@ def test_the_recall_block_is_bounded_as_a_whole(tmp_path) -> None:
     assert len(block) <= memory_module.BLOCK_CHARS + 400, len(block)
     # Still a usable block, not a stub.
     assert "- Thing" in block
+
+
+def test_the_reader_answers_from_memories_the_search_ranked_badly() -> None:
+    """Search finds the answer and ranks it fourth.
+
+    Measured on the real store: top-1 was right 4 times in 8, and the top five
+    held every answer. Asked "what do I do for work", the bakery memory came
+    back fourth at 0.550 below three wrong ones. A reranker would fix the
+    number; the reader makes it irrelevant by reading all of them.
+    """
+    from marvi_gateway import reading
+
+    asked: dict = {}
+
+    class Model:
+        def __init__(self, said):
+            self.said = said
+
+    def fake_ask(client, role, system, user, max_tokens, **kwargs):
+        asked["user"] = user
+        return client.said
+
+    original = reading.distil.ask
+    reading.distil.ask = fake_ask
+    try:
+        block = reading.block(
+            Model("They work as the main dough chef at a bakery in Düzce."),
+            "what do I do for work",
+            [
+                {"subject": "Goals", "body": "The user wants to build a company."},
+                {"subject": "SaaS", "body": "The user keeps a backlog of SaaS ideas."},
+                {"subject": "Work", "body": "The user is the main dough chef at a bakery."},
+            ],
+        )
+    finally:
+        reading.distil.ask = original
+
+    assert "dough chef" in block
+    # Every retrieved memory reaches the reader, not just the best-ranked one.
+    assert "backlog" in asked["user"] and "dough chef" in asked["user"]
+
+
+def test_the_reader_can_say_it_does_not_know() -> None:
+    """The one thing a search cannot do.
+
+    Search returns five rows whatever it is asked, which is the root of every
+    confabulation in the logs: asked about a schedule with nothing in the store
+    about one, Marvi was handed five confident lines about cron jobs and
+    answered from them.
+    """
+    from marvi_gateway import reading
+
+    class Model:
+        pass
+
+    original = reading.distil.ask
+    reading.distil.ask = lambda *a, **k: reading.NOTHING
+    try:
+        block = reading.block(
+            Model(), "what is my sleep schedule", [{"subject": "Cron", "body": "cron jobs"}]
+        )
+    finally:
+        reading.distil.ask = original
+
+    assert "nothing you remember answers this" in block
+    assert "do not assemble an answer" in block
+
+
+def test_a_reader_that_fails_costs_the_turn_nothing() -> None:
+    from marvi_gateway import reading
+
+    original = reading.distil.ask
+
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("provider down")
+
+    reading.distil.ask = boom
+    try:
+        assert reading.block(object(), "anything", [{"subject": "a", "body": "b"}]) == ""
+    finally:
+        reading.distil.ask = original
