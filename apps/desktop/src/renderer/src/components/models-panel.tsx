@@ -78,7 +78,6 @@ export function ModelsPanel(): React.JSX.Element {
   const row = providers?.providers.find((entry) => entry.name === provider)
 
   const model = settings[row?.env.model ?? ''] || active?.selected || ''
-  const chosen = active?.models.find((entry) => entry.id === model)
   const effortEnv = row?.env.effort ?? ''
 
   const save = async (values: Record<string, string>): Promise<void> => {
@@ -92,7 +91,6 @@ export function ModelsPanel(): React.JSX.Element {
       description="Choose the provider, model, and reasoning effort used for new sessions."
       title="Models"
     >
-
       {!providers && !error ? (
         <ProcessingCard
           compact
@@ -111,108 +109,80 @@ export function ModelsPanel(): React.JSX.Element {
       ) : null}
 
       <ControlSection icon={Brain} title="Default model">
-      <div className="choice-flow">
-        <div className="choice-row">
-          <span className="choice-label">Provider</span>
-          <Picker
-            options={connected.map((entry) => ({
-              value: entry.name,
-              label: entry.label,
-              detail: entry.accessPath === 'local' ? 'Runs on this machine' : undefined
-            }))}
-            value={provider}
-            onChange={(next) => {
-              setProvider(next)
-              // The choice has to be written, not just held on the page.
-              // MARVI_PROVIDER is what every caller reads to decide who
-              // answers; without it the picker changed a model name for a
-              // provider nothing was going to call, and turns fell through to
-              // whichever local endpoint sorted first.
-              void save({ MARVI_PROVIDER: next })
-            }}
-            placeholder="Choose a provider"
-            searchPlaceholder="Search providers…"
-            empty="No connected providers."
-          />
-        </div>
+        <div className="choice-flow">
+          <div className="choice-row">
+            <span className="choice-label">Provider</span>
+            <Picker
+              options={connected.map((entry) => ({
+                value: entry.name,
+                label: entry.label,
+                detail: entry.accessPath === 'local' ? 'Runs on this machine' : undefined
+              }))}
+              value={provider}
+              onChange={(next) => {
+                setProvider(next)
+                // The choice has to be written, not just held on the page.
+                // MARVI_PROVIDER is what every caller reads to decide who
+                // answers; without it the picker changed a model name for a
+                // provider nothing was going to call, and turns fell through to
+                // whichever local endpoint sorted first.
+                void save({ MARVI_PROVIDER: next })
+              }}
+              placeholder="Choose a provider"
+              searchPlaceholder="Search providers…"
+              empty="No connected providers."
+            />
+          </div>
 
-        <div className="choice-row">
-          <span className="choice-label">
-            Model
-            <span className="choice-hint">
-              {!provider
-                ? 'Choose a provider first'
-                : loading
-                  ? 'Asking the provider…'
-                  : active?.models.length
-                    ? `${active.models.length} available`
-                    : 'This provider listed none'}
+          <div className="choice-row">
+            <span className="choice-label">
+              Model
+              <span className="choice-hint">
+                {!provider
+                  ? 'Choose a provider first'
+                  : loading
+                    ? 'Asking the provider…'
+                    : active?.models.length
+                      ? `${active.models.length} available`
+                      : 'This provider listed none'}
+              </span>
             </span>
-          </span>
-          <ModelPicker
-            providers={active ? [active] : []}
-            value={provider && model ? { provider, model } : null}
-            onChange={(next) => {
-              if (row?.env.model && next) void save({ [row.env.model]: next.model })
-            }}
-            placeholder={model || 'Choose a model'}
-            searchPlaceholder="Search models…"
-            empty="This provider listed no models."
-            disabled={!provider || loading || !active?.models.length}
-          />
-        </div>
+            <ModelPicker
+              effort={settings[effortEnv] ?? ''}
+              effortDefaultLabel="Provider default"
+              providers={active ? [active] : []}
+              value={provider && model ? { provider, model } : null}
+              onChange={(next, options) => {
+                if (!row?.env.model || !next) return
+                const values: Record<string, string> = { [row.env.model]: next.model }
+                if (options && effortEnv) values[effortEnv] = options.effort
+                void save(values)
+              }}
+              placeholder={model || 'Choose a model'}
+              searchPlaceholder="Search models…"
+              empty="This provider listed no models."
+              disabled={!provider || loading || !active?.models.length}
+            />
+          </div>
 
-        {/* Said where the model is chosen, because that is where it can be
+          {/* Said where the model is chosen, because that is where it can be
             acted on. A model that refuses to stop thinking is a different
             problem from one that merely does: the first has no setting that
             helps, and the only place it is knowable is a refusal we have
             already seen. */}
-        {active?.voice?.warning ? (
-          <div
-            className={
-              active.voice.reasoningLockedOn ? 'notice notice-warn' : 'notice'
-            }
-            role="status"
-          >
-            <strong>
-              {active.voice.reasoningLockedOn
-                ? 'Not a good voice model'
-                : 'Slower on voice'}
-            </strong>
-            <br />
-            {active.voice.warning}
-          </div>
-        ) : null}
-
-        <div className="choice-row">
-          <span className="choice-label">
-            Effort
-            <span className="choice-hint">
-              {!chosen
-                ? 'Choose a model first'
-                : chosen.reasons
-                  ? 'How long it thinks before answering'
-                  : 'This model does not reason'}
-            </span>
-          </span>
-          <Picker
-            options={[
-              { value: '', label: 'Provider default' },
-              ...(chosen?.efforts ?? []).map((level) => ({
-                value: level,
-                label: level.charAt(0).toUpperCase() + level.slice(1)
-              }))
-            ]}
-            value={settings[effortEnv] ?? ''}
-            onChange={(next) => {
-              if (effortEnv) void save({ [effortEnv]: next })
-            }}
-            placeholder="Provider default"
-            disabled={!chosen?.reasons || !effortEnv}
-          />
+          {active?.voice?.warning ? (
+            <div
+              className={active.voice.reasoningLockedOn ? 'notice notice-warn' : 'notice'}
+              role="status"
+            >
+              <strong>
+                {active.voice.reasoningLockedOn ? 'Not a good voice model' : 'Slower on voice'}
+              </strong>
+              <br />
+              {active.voice.warning}
+            </div>
+          ) : null}
         </div>
-
-      </div>
       </ControlSection>
 
       {active?.routesUpstream ? (

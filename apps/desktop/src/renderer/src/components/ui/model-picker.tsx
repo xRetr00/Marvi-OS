@@ -1,5 +1,5 @@
 import { Popover } from 'radix-ui'
-import { Check, ChevronDown, Search } from 'lucide-react'
+import { Check, ChevronDown, ChevronRight, Search } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import type { ModelCard, ModelProvider } from '../../../../shared/runtime'
@@ -16,7 +16,9 @@ interface ModelPickerProps {
   defaultOption?: { detail?: string; label: string }
   disabled?: boolean
   empty?: string
-  onChange: (selection: ModelSelection | null) => void
+  effort?: string
+  effortDefaultLabel?: string
+  onChange: (selection: ModelSelection | null, options?: { effort: string }) => void
   placeholder?: string
   providers: ModelProvider[]
   searchPlaceholder?: string
@@ -30,15 +32,29 @@ interface ModelRow {
   provider: ModelProvider
 }
 
+function effortLabel(value: string, fallback: string): string {
+  if (!value) return fallback
+  if (value === 'xhigh') return 'XHigh'
+  return value.charAt(0).toUpperCase() + value.slice(1)
+}
+
+export function modelEffortChoices(
+  model: ModelCard,
+  defaultLabel: string
+): Array<{ label: string; value: string }> {
+  if (!model.reasons) return []
+  return ['', ...model.efforts].map((value) => ({
+    label: effortLabel(value, defaultLabel),
+    value
+  }))
+}
+
 export interface ModelPickerGroup {
   models: ModelCard[]
   provider: ModelProvider
 }
 
-export function filterModelGroups(
-  providers: ModelProvider[],
-  query: string
-): ModelPickerGroup[] {
+export function filterModelGroups(providers: ModelProvider[], query: string): ModelPickerGroup[] {
   const needle = query.trim().toLowerCase()
   return providers
     .map((provider) => ({
@@ -59,6 +75,8 @@ export function ModelPicker({
   defaultOption,
   disabled = false,
   empty = 'No models available.',
+  effort = '',
+  effortDefaultLabel = 'Default effort',
   onChange,
   placeholder = 'Choose a model',
   providers,
@@ -93,10 +111,10 @@ export function ModelPicker({
 
   const showDefault = Boolean(
     defaultOption &&
-      (!query ||
-        `${defaultOption.label} ${defaultOption.detail ?? ''}`
-          .toLowerCase()
-          .includes(query.toLowerCase()))
+    (!query ||
+      `${defaultOption.label} ${defaultOption.detail ?? ''}`
+        .toLowerCase()
+        .includes(query.toLowerCase()))
   )
   const rowOffset = showDefault ? 1 : 0
   const choiceCount = rows.length + rowOffset
@@ -128,6 +146,11 @@ export function ModelPicker({
     haptic('tap')
     onChange(selection)
     setOpen(false)
+  }
+
+  const chooseEffort = (row: ModelRow, nextEffort: string): void => {
+    haptic('tap')
+    onChange({ provider: row.provider.provider, model: row.model.id }, { effort: nextEffort })
   }
 
   const chooseActive = (): void => {
@@ -245,26 +268,26 @@ export function ModelPicker({
                   const index = rowIndexes.get(`${provider.provider}::${model.id}`) ?? -1
                   const isSelected =
                     value?.provider === provider.provider && value.model === model.id
-                  const hint = [modelContext(model.context), modelPrice(model)].filter(Boolean).join(' · ')
+                  const hint = [modelContext(model.context), modelPrice(model)]
+                    .filter(Boolean)
+                    .join(' · ')
+                  const row = rows[index - rowOffset]
                   return (
-                    <button
-                      aria-selected={isSelected}
-                      className={`model-picker-row${isSelected ? ' is-selected' : ''}${activeIndex === index ? ' is-active' : ''}`}
-                      data-model-index={index}
-                      id={`model-choice-${index}`}
+                    <ModelOption
+                      active={activeIndex === index}
+                      effort={isSelected ? effort : ''}
+                      effortDefaultLabel={effortDefaultLabel}
+                      hint={hint}
+                      index={index}
                       key={model.id}
-                      onClick={() => choose({ provider: provider.provider, model: model.id })}
-                      onMouseEnter={() => setActiveIndex(index)}
-                      role="option"
-                      type="button"
-                    >
-                      <span className="model-picker-row-copy">
-                        <strong>{model.name}</strong>
-                        {model.id !== model.name ? <small>{model.id}</small> : null}
-                      </span>
-                      {hint ? <span className="model-picker-row-hint">{hint}</span> : null}
-                      {isSelected ? <Check aria-hidden="true" /> : null}
-                    </button>
+                      model={model}
+                      onChoose={() => choose({ provider: provider.provider, model: model.id })}
+                      onChooseEffort={(nextEffort) => {
+                        if (row) chooseEffort(row, nextEffort)
+                      }}
+                      onHover={() => setActiveIndex(index)}
+                      selected={isSelected}
+                    />
                   )
                 })}
               </section>
@@ -277,5 +300,122 @@ export function ModelPicker({
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
+  )
+}
+
+interface ModelOptionProps {
+  active: boolean
+  effort: string
+  effortDefaultLabel: string
+  hint: string
+  index: number
+  model: ModelCard
+  onChoose: () => void
+  onChooseEffort: (effort: string) => void
+  onHover: () => void
+  selected: boolean
+}
+
+function ModelOption({
+  active,
+  effort,
+  effortDefaultLabel,
+  hint,
+  index,
+  model,
+  onChoose,
+  onChooseEffort,
+  onHover,
+  selected
+}: ModelOptionProps): React.JSX.Element {
+  const [optionsOpen, setOptionsOpen] = useState(false)
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const keepOpen = (): void => {
+    if (closeTimer.current) clearTimeout(closeTimer.current)
+    setOptionsOpen(true)
+  }
+  const closeSoon = (): void => {
+    if (closeTimer.current) clearTimeout(closeTimer.current)
+    closeTimer.current = setTimeout(() => setOptionsOpen(false), 120)
+  }
+
+  useEffect(
+    () => () => {
+      if (closeTimer.current) clearTimeout(closeTimer.current)
+    },
+    []
+  )
+
+  return (
+    <div className="model-picker-option" onMouseEnter={keepOpen} onMouseLeave={closeSoon}>
+      <button
+        aria-selected={selected}
+        className={`model-picker-row${selected ? ' is-selected' : ''}${active ? ' is-active' : ''}`}
+        data-model-index={index}
+        id={`model-choice-${index}`}
+        onClick={onChoose}
+        onMouseEnter={onHover}
+        role="option"
+        type="button"
+      >
+        <span className="model-picker-row-copy">
+          <strong>{model.name}</strong>
+          {model.id !== model.name ? <small>{model.id}</small> : null}
+        </span>
+        {hint ? <span className="model-picker-row-hint">{hint}</span> : null}
+        {model.reasons ? (
+          <span className="model-picker-row-effort">{effortLabel(effort, effortDefaultLabel)}</span>
+        ) : null}
+        {selected ? <Check aria-hidden="true" /> : null}
+      </button>
+
+      {model.reasons ? (
+        <Popover.Root modal={false} onOpenChange={setOptionsOpen} open={optionsOpen}>
+          <Popover.Trigger asChild>
+            <button
+              aria-label={`Reasoning effort for ${model.name}`}
+              className="model-picker-effort-trigger"
+              onFocus={keepOpen}
+              onMouseEnter={keepOpen}
+              type="button"
+            >
+              <ChevronRight aria-hidden="true" />
+            </button>
+          </Popover.Trigger>
+          <Popover.Portal>
+            <Popover.Content
+              align="start"
+              className="model-picker-effort-panel"
+              collisionPadding={12}
+              onMouseEnter={keepOpen}
+              onMouseLeave={closeSoon}
+              side="right"
+              sideOffset={5}
+            >
+              <header>
+                <small>Model options</small>
+                <strong>{model.name}</strong>
+              </header>
+              <span className="model-picker-effort-heading">Reasoning effort</span>
+              {modelEffortChoices(model, effortDefaultLabel).map((choice) => {
+                const checked = effort === choice.value
+                return (
+                  <button
+                    className={checked ? 'is-selected' : ''}
+                    key={choice.value || 'default'}
+                    onClick={() => onChooseEffort(choice.value)}
+                    type="button"
+                  >
+                    <span>{choice.label}</span>
+                    {checked ? <Check aria-hidden="true" /> : null}
+                  </button>
+                )
+              })}
+            </Popover.Content>
+          </Popover.Portal>
+        </Popover.Root>
+      ) : null}
+    </div>
   )
 }

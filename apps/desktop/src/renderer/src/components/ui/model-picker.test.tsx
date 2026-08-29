@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 
 import type { ModelCard, ModelProvider } from '../../../../shared/runtime'
-import { filterModelGroups, ModelPicker } from './model-picker'
+import { filterModelGroups, modelEffortChoices, ModelPicker } from './model-picker'
 
 function model(id: string, name = id): ModelCard {
   return {
@@ -62,5 +62,16 @@ describe('ModelPicker', () => {
     expect(html).toContain('Fast')
     expect(html).toContain('Alpha Cloud')
     expect(html).toContain('aria-haspopup="listbox"')
+  })
+
+  it('keeps the provider default ahead of each reasoning model effort', () => {
+    expect(modelEffortChoices(providers[0].models[0], 'Provider default')).toEqual([
+      { value: '', label: 'Provider default' },
+      { value: 'low', label: 'Low' },
+      { value: 'high', label: 'High' }
+    ])
+    expect(
+      modelEffortChoices({ ...providers[0].models[0], reasons: false }, 'Provider default')
+    ).toEqual([])
   })
 })

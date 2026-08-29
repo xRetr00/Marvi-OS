@@ -3529,17 +3529,26 @@ function VoiceModelPicker({ current }: { current: string }): React.JSX.Element {
         : ''
 
   const [activeProvider, ...activeModel] = active.split('::')
+  const activeSettings = providers?.providers.find((row) => row.name === activeProvider)
+  const activeEffort = activeSettings?.env.effort
+    ? (providers?.settings[activeSettings.env.effort] ?? '')
+    : ''
 
   return (
     <ModelPicker
       className="voice-model-picker"
+      effort={activeEffort}
+      effortDefaultLabel="Provider default"
       providers={rows}
       value={active ? { provider: activeProvider, model: activeModel.join('::') } : null}
-      onChange={(next) => {
+      onChange={(next, options) => {
         if (!next) return
         setChosen(`${next.provider}::${next.model}`)
-        const env = providers?.providers.find((row) => row.name === next.provider)?.env.model
-        if (env) void window.marvi?.setProviderSettings({ [env]: next.model })
+        const env = providers?.providers.find((row) => row.name === next.provider)?.env
+        if (!env?.model) return
+        const values: Record<string, string> = { [env.model]: next.model }
+        if (options && env.effort) values[env.effort] = options.effort
+        void window.marvi?.setProviderSettings(values)
       }}
       placeholder={current || 'not selected'}
       searchPlaceholder="Search models…"
@@ -5477,294 +5486,294 @@ function AppearancePanel({
       title={pageCopy.title}
     >
       {section === 'themes' ? (
-      <ControlSection icon={Palette} title="Dark themes">
-        <ControlRow
-          action={
-            <AppearanceChoices
-              choices={[
-                {
-                  value: 'marvi',
-                  title: 'Marvi',
-                  detail: 'Monochrome · signal blue',
-                  swatches: ['#050505', '#17181a', '#147ec1']
-                },
-                {
-                  value: 'anthropic-dark',
-                  title: 'Anthropic',
-                  detail: 'Warm editorial dark',
-                  swatches: ['#171512', '#29251f', '#d97757']
-                },
-                {
-                  value: 'claude-code-dark',
-                  title: 'Claude Code',
-                  detail: 'Compact terminal dark',
-                  swatches: ['#151515', '#252522', '#e08a68']
-                },
-                {
-                  value: 'midnight',
-                  title: 'Midnight',
-                  detail: 'Deep navy · cobalt signal',
-                  swatches: ['#080d16', '#141d2b', '#4c8dff']
-                },
-                {
-                  value: 'forest',
-                  title: 'Forest',
-                  detail: 'Pine black · sage signal',
-                  swatches: ['#0b100d', '#18211b', '#77a784']
-                },
-                {
-                  value: 'graphite',
-                  title: 'Graphite',
-                  detail: 'Neutral carbon · silver blue',
-                  swatches: ['#101112', '#222427', '#8ca6b8']
-                }
-              ]}
-              label="Interface style"
-              onChange={(value) => setAppearanceStyle(value as AppearanceStyle)}
-              value={appearanceStyle}
-            />
-          }
-          description="Changes surfaces, contrast, spacing, and accent treatment. All options stay dark."
-          title="Style"
-        />
-      </ControlSection>
+        <ControlSection icon={Palette} title="Dark themes">
+          <ControlRow
+            action={
+              <AppearanceChoices
+                choices={[
+                  {
+                    value: 'marvi',
+                    title: 'Marvi',
+                    detail: 'Monochrome · signal blue',
+                    swatches: ['#050505', '#17181a', '#147ec1']
+                  },
+                  {
+                    value: 'anthropic-dark',
+                    title: 'Anthropic',
+                    detail: 'Warm editorial dark',
+                    swatches: ['#171512', '#29251f', '#d97757']
+                  },
+                  {
+                    value: 'claude-code-dark',
+                    title: 'Claude Code',
+                    detail: 'Compact terminal dark',
+                    swatches: ['#151515', '#252522', '#e08a68']
+                  },
+                  {
+                    value: 'midnight',
+                    title: 'Midnight',
+                    detail: 'Deep navy · cobalt signal',
+                    swatches: ['#080d16', '#141d2b', '#4c8dff']
+                  },
+                  {
+                    value: 'forest',
+                    title: 'Forest',
+                    detail: 'Pine black · sage signal',
+                    swatches: ['#0b100d', '#18211b', '#77a784']
+                  },
+                  {
+                    value: 'graphite',
+                    title: 'Graphite',
+                    detail: 'Neutral carbon · silver blue',
+                    swatches: ['#101112', '#222427', '#8ca6b8']
+                  }
+                ]}
+                label="Interface style"
+                onChange={(value) => setAppearanceStyle(value as AppearanceStyle)}
+                value={appearanceStyle}
+              />
+            }
+            description="Changes surfaces, contrast, spacing, and accent treatment. All options stay dark."
+            title="Style"
+          />
+        </ControlSection>
       ) : null}
 
       {section === 'fonts' ? (
-      <ControlSection icon={Languages} title="Interface type">
-        <ControlRow
-          action={
-            <AppearanceChoices
-              choices={[
-                {
-                  value: 'marvi-mono',
-                  title: 'Marvi Mono',
-                  detail: 'JetBrains Mono',
-                  sample: 'Ag 01'
-                },
-                {
-                  value: 'anthropic-sans',
-                  title: 'Anthropic Sans',
-                  detail: 'Clean and compact',
-                  sample: 'Ag 01'
-                },
-                {
-                  value: 'anthropic-serif',
-                  title: 'Anthropic Serif',
-                  detail: 'Editorial and readable',
-                  sample: 'Ag 01'
-                },
-                {
-                  value: 'instrument-sans',
-                  title: 'Instrument Sans',
-                  detail: 'Humanist and precise',
-                  sample: 'Ag 01'
-                },
-                {
-                  value: 'newsreader',
-                  title: 'Newsreader',
-                  detail: 'Calm long-form serif',
-                  sample: 'Ag 01'
-                },
-                {
-                  value: 'geist-mono',
-                  title: 'Geist Mono',
-                  detail: 'Modern technical mono',
-                  sample: 'Ag 01'
-                }
-              ]}
-              label="Interface font"
-              onChange={(value) => setFontFamily(value as FontFamily)}
-              value={fontFamily}
-            />
-          }
-          description="Applies to navigation, settings, chat, and controls while code remains monospaced."
-          title="Font"
-        />
-      </ControlSection>
+        <ControlSection icon={Languages} title="Interface type">
+          <ControlRow
+            action={
+              <AppearanceChoices
+                choices={[
+                  {
+                    value: 'marvi-mono',
+                    title: 'Marvi Mono',
+                    detail: 'JetBrains Mono',
+                    sample: 'Ag 01'
+                  },
+                  {
+                    value: 'anthropic-sans',
+                    title: 'Anthropic Sans',
+                    detail: 'Clean and compact',
+                    sample: 'Ag 01'
+                  },
+                  {
+                    value: 'anthropic-serif',
+                    title: 'Anthropic Serif',
+                    detail: 'Editorial and readable',
+                    sample: 'Ag 01'
+                  },
+                  {
+                    value: 'instrument-sans',
+                    title: 'Instrument Sans',
+                    detail: 'Humanist and precise',
+                    sample: 'Ag 01'
+                  },
+                  {
+                    value: 'newsreader',
+                    title: 'Newsreader',
+                    detail: 'Calm long-form serif',
+                    sample: 'Ag 01'
+                  },
+                  {
+                    value: 'geist-mono',
+                    title: 'Geist Mono',
+                    detail: 'Modern technical mono',
+                    sample: 'Ag 01'
+                  }
+                ]}
+                label="Interface font"
+                onChange={(value) => setFontFamily(value as FontFamily)}
+                value={fontFamily}
+              />
+            }
+            description="Applies to navigation, settings, chat, and controls while code remains monospaced."
+            title="Font"
+          />
+        </ControlSection>
       ) : null}
 
       {section === 'window' ? (
-      <ControlSection icon={Sparkles} title="Window and backdrop">
-        <ControlRow
-          action={
-            <label className="setting-range">
-              <span>{translucency}%</span>
-              <input
-                aria-label="Window translucency"
-                max={100}
-                min={0}
-                onChange={(event) => setTranslucency(Number(event.target.value))}
-                type="range"
-                value={translucency}
-              />
-            </label>
-          }
-          description="Show the desktop through the control center."
-          title="Window translucency"
-        />
-        <ControlRow
-          action={
-            <select
-              aria-label="Backdrop mode"
-              onChange={(event) => setBackgroundMode(event.target.value as typeof backgroundMode)}
-              value={backgroundMode}
-            >
-              <option value="electricGaze">Electric gaze</option>
-              <option value="none">Off</option>
-            </select>
-          }
-          description="The animated ASCII backdrop is packaged locally."
-          title="Backdrop"
-        />
-        <ControlRow
-          action={
-            <label className="setting-range">
-              <span>{backgroundOpacity}%</span>
-              <input
-                aria-label="Backdrop opacity"
-                disabled={backgroundMode !== 'electricGaze'}
-                max={100}
-                min={0}
-                onChange={(event) => setBackgroundOpacity(Number(event.target.value))}
-                type="range"
-                value={backgroundOpacity}
-              />
-            </label>
-          }
-          description="Adjust how strongly the backdrop appears behind page content."
-          title="Backdrop opacity"
-        />
-      </ControlSection>
+        <ControlSection icon={Sparkles} title="Window and backdrop">
+          <ControlRow
+            action={
+              <label className="setting-range">
+                <span>{translucency}%</span>
+                <input
+                  aria-label="Window translucency"
+                  max={100}
+                  min={0}
+                  onChange={(event) => setTranslucency(Number(event.target.value))}
+                  type="range"
+                  value={translucency}
+                />
+              </label>
+            }
+            description="Show the desktop through the control center."
+            title="Window translucency"
+          />
+          <ControlRow
+            action={
+              <select
+                aria-label="Backdrop mode"
+                onChange={(event) => setBackgroundMode(event.target.value as typeof backgroundMode)}
+                value={backgroundMode}
+              >
+                <option value="electricGaze">Electric gaze</option>
+                <option value="none">Off</option>
+              </select>
+            }
+            description="The animated ASCII backdrop is packaged locally."
+            title="Backdrop"
+          />
+          <ControlRow
+            action={
+              <label className="setting-range">
+                <span>{backgroundOpacity}%</span>
+                <input
+                  aria-label="Backdrop opacity"
+                  disabled={backgroundMode !== 'electricGaze'}
+                  max={100}
+                  min={0}
+                  onChange={(event) => setBackgroundOpacity(Number(event.target.value))}
+                  type="range"
+                  value={backgroundOpacity}
+                />
+              </label>
+            }
+            description="Adjust how strongly the backdrop appears behind page content."
+            title="Backdrop opacity"
+          />
+        </ControlSection>
       ) : null}
 
       {section === 'island' ? (
-      <ControlSection icon={Info} title="Dynamic Island placement">
-        <ControlRow
-          action={
-            <select
-              aria-label="Island display"
-              onChange={(event) =>
-                updatePlacement({
-                  ...placement,
-                  displayId: event.target.value === 'auto' ? null : Number(event.target.value)
-                })
-              }
-              value={placement.displayId ?? 'auto'}
-            >
-              <option value="auto">Auto · current</option>
-              {displays.map((display) => (
-                <option key={display.id} value={display.id}>
-                  {display.label}
-                  {display.primary ? ' · primary' : ''}
-                </option>
-              ))}
-            </select>
-          }
-          description="Auto follows the current Windows display."
-          title="Display"
-        />
-        <ControlRow
-          action={
-            <div className="alignment-buttons" aria-label="Island alignment">
-              {(['left', 'center', 'right'] as IslandAlignment[]).map((alignment) => (
-                <button
-                  aria-pressed={placement.alignment === alignment}
-                  className={placement.alignment === alignment ? 'active' : ''}
-                  key={alignment}
-                  onClick={() => updatePlacement({ ...placement, alignment })}
-                  type="button"
-                >
-                  {alignment}
-                </button>
-              ))}
-            </div>
-          }
-          description="Place the recessed Island line along the selected display's top edge."
-          title="Alignment"
-        />
-      </ControlSection>
+        <ControlSection icon={Info} title="Dynamic Island placement">
+          <ControlRow
+            action={
+              <select
+                aria-label="Island display"
+                onChange={(event) =>
+                  updatePlacement({
+                    ...placement,
+                    displayId: event.target.value === 'auto' ? null : Number(event.target.value)
+                  })
+                }
+                value={placement.displayId ?? 'auto'}
+              >
+                <option value="auto">Auto · current</option>
+                {displays.map((display) => (
+                  <option key={display.id} value={display.id}>
+                    {display.label}
+                    {display.primary ? ' · primary' : ''}
+                  </option>
+                ))}
+              </select>
+            }
+            description="Auto follows the current Windows display."
+            title="Display"
+          />
+          <ControlRow
+            action={
+              <div className="alignment-buttons" aria-label="Island alignment">
+                {(['left', 'center', 'right'] as IslandAlignment[]).map((alignment) => (
+                  <button
+                    aria-pressed={placement.alignment === alignment}
+                    className={placement.alignment === alignment ? 'active' : ''}
+                    key={alignment}
+                    onClick={() => updatePlacement({ ...placement, alignment })}
+                    type="button"
+                  >
+                    {alignment}
+                  </button>
+                ))}
+              </div>
+            }
+            description="Place the recessed Island line along the selected display's top edge."
+            title="Alignment"
+          />
+        </ControlSection>
       ) : null}
 
       {section === 'companion' ? (
-      <ControlSection icon={Sparkles} title="Desktop companion">
-        <ControlRow
-          action={
-            <button
-              aria-checked={petPreferences.enabled}
-              className={petPreferences.enabled ? 'mode-switch active' : 'mode-switch'}
-              onClick={() => updatePet({ ...petPreferences, enabled: !petPreferences.enabled })}
-              role="switch"
-              type="button"
-            >
-              {petPreferences.enabled ? 'Visible' : 'Hidden'}
-            </button>
-          }
-          description="Show a click-through companion that mirrors Marvi's live state."
-          title="Companion"
-        />
-        <ControlRow
-          action={
-            <select
-              aria-label="Pet display"
-              onChange={(event) =>
-                updatePet({
-                  ...petPreferences,
-                  displayId: event.target.value === 'auto' ? null : Number(event.target.value)
-                })
-              }
-              value={petPreferences.displayId ?? 'auto'}
-            >
-              <option value="auto">Auto · current</option>
-              {displays.map((display) => (
-                <option key={display.id} value={display.id}>
-                  {display.label}
-                  {display.primary ? ' · primary' : ''}
-                </option>
-              ))}
-            </select>
-          }
-          description="Auto follows the current Windows display."
-          title="Display"
-        />
-        <ControlRow
-          action={
-            <div className="alignment-buttons" aria-label="Pet side">
-              {(['left', 'right'] as PetSide[]).map((side) => (
-                <button
-                  aria-pressed={petPreferences.side === side}
-                  className={petPreferences.side === side ? 'active' : ''}
-                  key={side}
-                  onClick={() => updatePet({ ...petPreferences, side })}
-                  type="button"
-                >
-                  {side}
-                </button>
-              ))}
-            </div>
-          }
-          description="Choose which lower corner holds the companion."
-          title="Corner"
-        />
-        <ControlRow
-          action={
-            <select
-              aria-label="Pet size"
-              onChange={(event) =>
-                updatePet({ ...petPreferences, scale: Number(event.target.value) as PetScale })
-              }
-              value={petPreferences.scale}
-            >
-              <option value={0.4}>Tiny · 40%</option>
-              <option value={0.5}>Compact · 50%</option>
-              <option value={0.7}>Medium · 70%</option>
-              <option value={1}>Full · 100%</option>
-            </select>
-          }
-          description="Scale the sprite and its compact control strip together."
-          title="Size"
-        />
-      </ControlSection>
+        <ControlSection icon={Sparkles} title="Desktop companion">
+          <ControlRow
+            action={
+              <button
+                aria-checked={petPreferences.enabled}
+                className={petPreferences.enabled ? 'mode-switch active' : 'mode-switch'}
+                onClick={() => updatePet({ ...petPreferences, enabled: !petPreferences.enabled })}
+                role="switch"
+                type="button"
+              >
+                {petPreferences.enabled ? 'Visible' : 'Hidden'}
+              </button>
+            }
+            description="Show a click-through companion that mirrors Marvi's live state."
+            title="Companion"
+          />
+          <ControlRow
+            action={
+              <select
+                aria-label="Pet display"
+                onChange={(event) =>
+                  updatePet({
+                    ...petPreferences,
+                    displayId: event.target.value === 'auto' ? null : Number(event.target.value)
+                  })
+                }
+                value={petPreferences.displayId ?? 'auto'}
+              >
+                <option value="auto">Auto · current</option>
+                {displays.map((display) => (
+                  <option key={display.id} value={display.id}>
+                    {display.label}
+                    {display.primary ? ' · primary' : ''}
+                  </option>
+                ))}
+              </select>
+            }
+            description="Auto follows the current Windows display."
+            title="Display"
+          />
+          <ControlRow
+            action={
+              <div className="alignment-buttons" aria-label="Pet side">
+                {(['left', 'right'] as PetSide[]).map((side) => (
+                  <button
+                    aria-pressed={petPreferences.side === side}
+                    className={petPreferences.side === side ? 'active' : ''}
+                    key={side}
+                    onClick={() => updatePet({ ...petPreferences, side })}
+                    type="button"
+                  >
+                    {side}
+                  </button>
+                ))}
+              </div>
+            }
+            description="Choose which lower corner holds the companion."
+            title="Corner"
+          />
+          <ControlRow
+            action={
+              <select
+                aria-label="Pet size"
+                onChange={(event) =>
+                  updatePet({ ...petPreferences, scale: Number(event.target.value) as PetScale })
+                }
+                value={petPreferences.scale}
+              >
+                <option value={0.4}>Tiny · 40%</option>
+                <option value={0.5}>Compact · 50%</option>
+                <option value={0.7}>Medium · 70%</option>
+                <option value={1}>Full · 100%</option>
+              </select>
+            }
+            description="Scale the sprite and its compact control strip together."
+            title="Size"
+          />
+        </ControlSection>
       ) : null}
     </ControlPage>
   )
