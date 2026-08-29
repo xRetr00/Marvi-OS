@@ -1089,6 +1089,16 @@ export interface MemoryPolicy {
   /** The auxiliary role that decides what to keep from a turn. */
   role: string
   roleConfigured: boolean
+  /**
+   * Whether a model reads the memories and answers, or the search results
+   * reach the caller as they are.
+   *
+   * On by default. It is paid inside the window the voice path already spends
+   * waiting for the user to stop speaking, and it is the only part of memory
+   * that can say "I do not know" — a search returns its five nearest rows
+   * whatever it was asked.
+   */
+  reader: boolean
 }
 
 /**
@@ -1120,6 +1130,7 @@ export interface MemorySettingsUpdate {
   model?: string
   url?: string
   key?: string
+  reader?: boolean
 }
 
 export interface WorkspaceUpdate {

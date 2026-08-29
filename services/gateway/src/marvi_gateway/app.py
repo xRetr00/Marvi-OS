@@ -184,6 +184,9 @@ class MemorySettings(BaseModel):
     key: str | None = None
     provider: str | None = None
     provider_url: str | None = None
+    #: Whether a model reads the memories and answers, or the search results go
+    #: to the caller as they are. See `reading.py`.
+    reader: bool | None = None
     provider_key: str | None = None
     user_id: str | None = None
     workspace: str | None = None
@@ -2116,6 +2119,12 @@ def create_app(
             # import that is several hundred. See `rephrasing.py`.
             "rephrase": rephrasing.enabled(),
             "rephrase_setting": rephrasing.SETTING,
+            # On by default, unlike the others: it is paid inside the window
+            # the voice path already spends waiting for the user to finish
+            # speaking, and what it prevents -- answering from the nearest
+            # unrelated memory -- is the failure reported most.
+            "reader": reading.enabled(),
+            "reader_setting": reading.SETTING,
             # Which model decides what to keep. Already a role; surfaced here so
             # the two settings that make memory work are in one place.
             "role": "memory",
@@ -2132,6 +2141,10 @@ def create_app(
             from . import rephrasing
 
             values[rephrasing.SETTING] = "true" if update.rephrase else ""
+        if update.reader is not None:
+            # Written as an explicit word either way. The default is on, so an
+            # empty value would read as "unset" and turn it back on.
+            values[reading.SETTING] = "on" if update.reader else "off"
         if update.source is not None:
             if update.source not in embedding.SOURCES:
                 raise HTTPException(status_code=400, detail=f"unknown source {update.source!r}")

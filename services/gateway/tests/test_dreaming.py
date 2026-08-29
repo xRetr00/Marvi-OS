@@ -11,6 +11,8 @@ it was left to a model choosing a tool mid-conversation while it had an answer
 to give instead.
 """
 
+import pytest
+
 from __future__ import annotations
 
 from typing import Any
@@ -550,3 +552,28 @@ def test_a_reader_that_fails_costs_the_turn_nothing() -> None:
         assert reading.block(object(), "anything", [{"subject": "a", "body": "b"}]) == ""
     finally:
         reading.distil.ask = original
+
+
+@pytest.mark.asyncio
+async def test_the_reader_can_be_switched_off_from_settings(tmp_path, monkeypatch) -> None:
+    """On by default, because it is paid in a window already being spent. Off
+    has to be reachable for anyone who wants the search results raw."""
+    from httpx import ASGITransport, AsyncClient
+
+    from marvi_gateway import reading
+    from marvi_gateway.app import create_app
+    from marvi_gateway.runtime import RuntimeStore
+    from marvi_gateway.tools import ToolRegistry
+
+    monkeypatch.setenv("MARVI_HOME", str(tmp_path))
+    monkeypatch.delenv(reading.SETTING, raising=False)
+    app = create_app(
+        version="0.1.0-test", runtime=RuntimeStore(tmp_path / "r.db"), tools=ToolRegistry()
+    )
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://m.local") as c:
+        assert (await c.get("/memory/settings")).json()["reader"] is True
+        await c.put("/memory/settings", json={"reader": False})
+        assert (await c.get("/memory/settings")).json()["reader"] is False
+        await c.put("/memory/settings", json={"reader": True})
+        assert (await c.get("/memory/settings")).json()["reader"] is True

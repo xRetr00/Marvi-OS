@@ -295,7 +295,11 @@ function normaliseMemory(body: unknown): MemoryPolicy | null {
     defaultProviderModel:
       typeof embedding.default_provider_model === 'string' ? embedding.default_provider_model : '',
     role: typeof body.role === 'string' ? body.role : 'memory',
-    roleConfigured: body.role_configured === true
+    roleConfigured: body.role_configured === true,
+    // Defaulted true to match the Gateway: an older Gateway that does not
+    // report this is one where the reader is on, and showing the toggle off
+    // would invite somebody to "enable" what is already running.
+    reader: body.reader !== false
   }
 }
 

@@ -1828,6 +1828,38 @@ function MemorySettingsSection({
         }
         title="Deciding what to remember"
       />
+      {/* Measured against the real store: the answer was inside the top five
+          for every question it could answer, but ranked first for only half of
+          them, and a search cannot say "I do not know" — it returns its five
+          nearest rows whatever it was asked. That is where the confident wrong
+          answers came from. */}
+      <ControlRow
+        action={
+          <Picker
+            options={[
+              {
+                value: 'on',
+                label: 'Answer',
+                detail: 'A model reads them and answers, or says it does not know'
+              },
+              {
+                value: 'off',
+                label: 'Hand them over',
+                detail: 'The nearest few memories, as they are'
+              }
+            ]}
+            value={policy?.reader === false ? 'off' : 'on'}
+            onChange={(next) => apply({ reader: next === 'on' })}
+            placeholder="Answer"
+          />
+        }
+        description={
+          policy?.reader === false
+            ? 'The nearest memories go straight to Marvi, who has to work out which of them bears on the question while also holding a conversation.'
+            : 'Asked while you are still speaking, so it costs the turn nothing. It is the only part of memory that can answer “I do not know” instead of using the closest thing it found.'
+        }
+        title="Reading the memories"
+      />
       {provider === 'local' ? (
         <ControlRow
           action={

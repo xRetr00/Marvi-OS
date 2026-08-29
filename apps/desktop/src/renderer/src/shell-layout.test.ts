@@ -323,3 +323,14 @@ describe('service logos', () => {
     expect(usage).toContain('<ServiceLogo')
   })
 })
+
+describe('memory reader', () => {
+  it('can be switched off from the Memory page', () => {
+    // On by default, so the toggle has to exist for anyone who wants the
+    // search results raw. `reader !== false` in the normaliser means an older
+    // Gateway that does not report it still shows as on, which is what it is.
+    expect(app).toContain('title="Reading the memories"')
+    expect(app).toContain('apply({ reader: next === \'on\' })')
+    expect(app).toContain("policy?.reader === false ? 'off' : 'on'")
+  })
+})
