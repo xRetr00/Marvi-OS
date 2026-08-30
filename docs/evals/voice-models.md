@@ -10,9 +10,11 @@ Measured 2026-08-29 against OpenRouter, 3–4 runs per case.
 
 | model | behaviour | median | p90 | $/1k turns | note |
 | --- | --- | --- | --- | --- | --- |
-| `deepseek/deepseek-v4-flash-0731` | **18/18** | 0.74 s | 1.19 s | 0.04 | what ships today |
+| `deepseek/deepseek-v4-flash-0731` | **18/18** | 0.74 s | 1.19 s | 0.04 | what shipped before |
+| `deepseek/deepseek-v4-flash` | 41/48 | 2.18 s | 3.15 s | 0.07 | **narrates the tool call 7 of 8** |
+| `~deepseek/deepseek-v4-flash-latest` | 47/48 | 0.91 s | 1.27 s | **0.03** | Marvi's aux model |
 | `poolside/laguna-s-2.1` | 23/24 | **0.57 s** | 0.87 s | 0.06 | fastest |
-| `qwen/qwen3.7-flash` | **24/24** | 0.69 s | 0.86 s | **0.03** | |
+| `qwen/qwen3.7-flash` | **48/48** | 0.78 s | **0.88 s** | **0.03** | what ships today |
 | `inclusionai/ling-3.0-flash` | **24/24** | 1.21 s | 1.74 s | **0.02** | cheapest, slowest |
 | `nvidia/nemotron-3.5-lightning` | 16/18 | 0.93 s | 1.32 s | 0.07 | |
 | `z-ai/glm-5.3-flash` | — | — | — | — | **unusable, see below** |
@@ -63,6 +65,28 @@ They are close enough that the ranking decides it:
   across all four is under five cents per thousand turns. At any realistic
   volume this is not a real difference, and it should not be allowed to
   outweigh the other two columns.
+
+
+## Re-tested against DeepSeek V4 Flash, 30 August 2026
+
+The owner asked for the model they ran before Qwen to be measured again, having
+seen the leaks stop after the switch. Eight runs per case, 48 checks per model:
+
+| model | behaviour | median | p90 | $/1k turns |
+| --- | --- | --- | --- | --- |
+| `qwen/qwen3.7-flash` | **48/48** | **0.78 s** | **0.88 s** | 0.03 |
+| `~deepseek/deepseek-v4-flash-latest` | 47/48 | 0.91 s | 1.27 s | 0.03 |
+| `deepseek/deepseek-v4-flash` | 41/48 | 2.18 s | 3.15 s | 0.07 |
+
+Neither DeepSeek route leaked, so the owner's reading is confirmed from the
+other side: the leak was never Qwen's doing and Qwen is not what fixed it.
+
+The separation is narration. `deepseek/deepseek-v4-flash` opened with "Let me
+check" or "Let me look" on seven of eight tool turns -- spoken aloud and then
+cut off the instant the call begins, which is the stutter in the transcripts
+from before the switch. The `~...-latest` route slipped once in eight with
+"I'll check". Qwen did not do it at all, is three times faster at the median,
+and costs less. Nothing here argues for moving back.
 
 **`qwen/qwen3.7-flash` is the strongest case for a switch**: top behaviour
 score, second-fastest, cheapest but one. It is not an urgent switch — DeepSeek
