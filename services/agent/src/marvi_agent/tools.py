@@ -181,6 +181,11 @@ def _number(value: Any) -> int | None:
         return None
 
 
+#: Whether the catalogue is held behind `tool_search` instead of loaded. Off:
+#: see `from_gateway` for the three sweeps that turned it off.
+DEFER_SETTING = "MARVI_DEFER_TOOLS"
+
+
 class GatewayTools:
     """Session-scoped tool surface. One instance per voice session."""
 
@@ -548,7 +553,7 @@ class GatewayTools:
             },
         )
 
-    async def from_gateway(self) -> list[Any]:
+    async def from_gateway(self, everything: bool | None = None) -> list[Any]:
         """The tools voice starts with: the core set, and the way to find the rest.
 
         Voice had seven tools and chat had seventeen, maintained by hand in two
@@ -592,7 +597,34 @@ class GatewayTools:
         # Reading "no tool said it was core" as "nothing is core" would leave
         # voice with one tool against an older Gateway -- absence of the flag
         # is a fact about the Gateway, not about the tools.
-        defers = any(entry.get("core") for entry in self._catalogue.values())
+        # Deferring is off by default now, and the reason is three sweeps of
+        # the same 123 turns.
+        #
+        # It was on because past thirty to fifty tools a model picks worse --
+        # Anthropic's published number, cited rather than measured here. What
+        # measurement found was the other side of the ledger. Deferred, Marvi
+        # refused twenty-three things she can do. Given the names of all
+        # sixty-one in her instructions she stopped refusing and started
+        # calling them by name, directly, the way a model does with any tool
+        # it can see -- and LiveKit answered `unknown AI function` ten times,
+        # because a named tool with no schema loaded is not callable. The
+        # two-step dance was never going to hold: `tool_search` was called
+        # once in 123 turns while ten direct calls were rejected.
+        #
+        # Loaded outright, the same script reached eighteen distinct tools
+        # against fifteen attempted, with zero unknown functions, no narration,
+        # and no sign of the degraded picking the deferral was guarding
+        # against. It cost 0.1s at the median and 0.9s at p90.
+        #
+        # `MARVI_DEFER_TOOLS=on` is the way back, and `MARVI_CORE_TOOLS` still
+        # chooses what survives when it is.
+        if everything is None:
+            everything = os.environ.get(DEFER_SETTING, "off").strip().lower() in (
+                "0", "false", "no", "off", ""
+            )
+        defers = not everything and any(
+            entry.get("core") for entry in self._catalogue.values()
+        )
         self._loaded = {
             name
             for name, entry in self._catalogue.items()

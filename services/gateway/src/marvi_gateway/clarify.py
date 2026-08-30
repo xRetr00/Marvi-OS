@@ -168,7 +168,25 @@ def register_clarify_tool(registry: Any, runtime: Any) -> None:
     registry.register(
         ToolSpec(
             name="clarify",
-            description="Ask the user a question and wait for their next answer",
+            # The description is the lever, because prose in the persona was
+            # not one. Told twice -- and told in the second round never to say
+            # the words "could you clarify" without calling this -- the model
+            # said exactly those words anyway, on eight turns written to need
+            # the tool, across three sweeps of 123 turns, and called it zero
+            # times. Once it denied holding the tool at all while holding it.
+            #
+            # "Ask the user a question and wait for their next answer" is what
+            # it read instead: an interruption, something that costs a turn.
+            # What it actually does is put a question on screen with options
+            # that can be tapped, which is cheaper than a spoken question and
+            # far more reliable when the recogniser is the thing failing.
+            description=(
+                "Put a question on the user's screen with options they can tap. "
+                "Use it any time you are about to ask them something -- which "
+                "one, which file, what 'it' meant, how to spell a name. Always "
+                "call this instead of only saying the question out loud: "
+                "tapping an answer cannot be misheard, and speech can."
+            ),
             arguments={"question": str},
             # `choices` belongs here as well as in the schema below, and leaving
             # it out is why this tool could not be used with options at all.

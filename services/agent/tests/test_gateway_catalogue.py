@@ -164,7 +164,7 @@ async def test_only_the_core_tools_load_up_front() -> None:
         return httpx.Response(200, json=catalogue)
 
     tools = GatewayTools(client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
-    loaded = await tools.from_gateway()
+    loaded = await tools.from_gateway(everything=False)
 
     # `room_state` is in SPOKEN_BADLY -- voice writes that one by hand -- so
     # what is left of the core here is the search itself.
@@ -212,7 +212,7 @@ async def test_a_search_makes_the_tools_it_found_callable() -> None:
     tools = GatewayTools(client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
     agent = Agent()
 
-    await tools.from_gateway()
+    await tools.from_gateway(everything=False)
     tools.attach(agent)
     await tools._call("tool_search", {"query": "email"})
 
@@ -250,7 +250,7 @@ async def test_searching_twice_does_not_add_the_same_tool_twice() -> None:
     tools = GatewayTools(client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
     agent = Agent()
 
-    await tools.from_gateway()
+    await tools.from_gateway(everything=False)
     tools.attach(agent)
     await tools._call("tool_search", {"query": "email"})
     await tools._call("tool_search", {"query": "email"})
@@ -276,7 +276,7 @@ async def test_a_slow_tool_call_is_covered_by_a_spoken_filler() -> None:
             yield
 
     tools = GatewayTools(client=gateway(seen=[]))
-    built = await tools.from_gateway()
+    built = await tools.from_gateway(everything=False)
 
     await built[0](raw_arguments={"query": "who won"}, context=FakeContext())
 
@@ -291,8 +291,62 @@ async def test_a_tool_called_without_a_context_still_runs() -> None:
     instead of running the tool."""
     seen: list = []
     tools = GatewayTools(client=gateway(seen=seen))
-    built = await tools.from_gateway()
+    built = await tools.from_gateway(everything=False)
 
     await built[0](raw_arguments={"query": "who won"})
 
     assert [str(r.url.path) for r in seen][-1] == "/tools/web_search"
+
+
+async def test_the_whole_catalogue_loads_unless_deferring_is_asked_for() -> None:
+    """Deferring is off by default, and three sweeps of the same 123 turns are
+    why. Held back, Marvi refused twenty-three things she can do. Given the
+    names but not the schemas she called them directly and LiveKit answered
+    `unknown AI function` ten times, while `tool_search` -- the step that was
+    supposed to bridge that -- fired once in 123 turns."""
+    import httpx
+
+    from marvi_agent.tools import GatewayTools
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "tools": [
+                    {"name": "tool_search", "description": "Find", "arguments": ["query"],
+                     "core": True},
+                    {"name": "send_email", "description": "Send mail", "arguments": ["to"]},
+                    {"name": "browser_open", "description": "Open", "arguments": ["url"]},
+                ]
+            },
+        )
+
+    tools = GatewayTools(client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    loaded = {tool.info.name for tool in await tools.from_gateway()}
+
+    assert {"send_email", "browser_open", "tool_search"} <= loaded
+
+
+async def test_deferring_can_be_turned_back_on(monkeypatch) -> None:
+    import httpx
+
+    from marvi_agent.tools import DEFER_SETTING, GatewayTools
+
+    monkeypatch.setenv(DEFER_SETTING, "on")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "tools": [
+                    {"name": "tool_search", "description": "Find", "arguments": ["query"],
+                     "core": True},
+                    {"name": "send_email", "description": "Send mail", "arguments": ["to"]},
+                ]
+            },
+        )
+
+    tools = GatewayTools(client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    loaded = {tool.info.name for tool in await tools.from_gateway()}
+
+    assert loaded == {"tool_search"}
