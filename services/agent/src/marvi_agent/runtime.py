@@ -11,13 +11,23 @@ registry in `marvi_gateway.providers` stays the single source of truth.
 
 from __future__ import annotations
 
+import logging
 import os
+import time
 from dataclasses import dataclass, field
 
 import httpx
 from livekit.plugins import openai
 
+log = logging.getLogger("marvi.voice")
+
 RESOLVE_TIMEOUT = 8.0
+
+#: How many times to ask the Gateway for the voice model before giving up, and
+#: how long to wait between. See `AgentConfig.from_gateway`: a busy Gateway is
+#: not a missing one, and the difference decides whether voice starts.
+ATTEMPTS = 3
+RETRY_PAUSE = 1.5
 
 
 class VoiceStackPendingError(RuntimeError):
@@ -61,6 +71,38 @@ class AgentConfig:
 
     @classmethod
     def from_gateway(cls, client: httpx.Client | None = None) -> AgentConfig:
+        """The voice model, asked for once per session.
+
+        Retried, because this is the first thing a session does and the only
+        thing that can stop it starting at all. Twice in one evening a run died
+        here while the Gateway was up and answering `/health` -- it was busy
+        with a connector's network calls and the eight-second read expired,
+        which reached the user as "No provider is configured. Connect one in
+        the Marvi control center." Voice failed to start, and the message
+        pointed at a setting that was correct.
+
+        A retry is the right shape rather than a longer timeout: what is being
+        waited on is another local process finishing something, and it either
+        frees up in a moment or is genuinely gone.
+        """
+        for attempt in range(ATTEMPTS):
+            try:
+                return cls._ask(client)
+            except ProviderUnavailableError:
+                # A Gateway that answers "no provider" has answered. Retrying
+                # asks a question that has already been settled.
+                raise
+            except httpx.HTTPError as exc:
+                if attempt == ATTEMPTS - 1:
+                    raise ProviderUnavailableError(
+                        f"Marvi Gateway is unreachable: {exc}"
+                    ) from exc
+                log.info("the Gateway did not answer in time (%s); asking again", exc)
+                time.sleep(RETRY_PAUSE)
+        raise ProviderUnavailableError("Marvi Gateway is unreachable")
+
+    @classmethod
+    def _ask(cls, client: httpx.Client | None = None) -> AgentConfig:
         http = client or httpx.Client(timeout=RESOLVE_TIMEOUT)
         try:
             # The Gateway will not hand a credential to an unauthenticated
@@ -77,8 +119,6 @@ class AgentConfig:
                 )
             response.raise_for_status()
             body = response.json()
-        except httpx.HTTPError as exc:
-            raise ProviderUnavailableError(f"Marvi Gateway is unreachable: {exc}") from exc
         finally:
             if client is None:
                 http.close()

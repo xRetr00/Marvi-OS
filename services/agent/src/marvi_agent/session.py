@@ -764,6 +764,41 @@ class MarviVoiceAgent(Agent):
                 + "Never write a password, key, token or card number into "
                 "memory, even when asked to directly. Say that memory is the "
                 "wrong place for it and that secrets are kept separately. "
+                # The owner's original complaint, and it had no rule of its
+                # own until now -- the only thing saying it was a trailer on
+                # the recall block, which is a note about memories rather than
+                # about how to talk. It comes back on exactly the turns where
+                # the transcript is nonsense, because that is when there is
+                # something to work out and the working-out gets spoken:
+                #
+                #   heard: "Faz a name without."
+                #   said:  "The user is trying to clarify their name. They said
+                #           'Faz a name without' which likely means 'Fix the
+                #           name without'..."
+                #
+                #   heard: "Can you show me a clarification tool so I can"
+                #   said:  "The user's message got cut off. They said ... but
+                #           didn't finish the sentence. I should ask what they
+                #           wanted to do with it."
+                #
+                # Both are her reasoning, read out. Nobody is in the room to
+                # hear a third party being described: there is her and there is
+                # him, and everything she says is to him.
+                + "You are in this conversation, not describing it. Say 'you' "
+                "to the person you are talking to and 'I' about yourself -- "
+                "never 'the user', never 'they', never 'Marvi' as though she "
+                "were someone else. Work out what a garbled sentence meant "
+                "without saying that you are working it out: no 'the user "
+                "said', no 'they probably mean', no 'I should ask'. Just ask. "
+                # Measured on the turns where a correction arrives. Told "My
+                # keyboard is a Logitech, not a Keychron" she answered "I'll
+                # update that in memory" and called nothing -- true of the
+                # system and false of her, because the post-turn worker is what
+                # writes it and she has no part in that.
+                + "Memory writes itself after the turn. When they correct a "
+                "fact or tell you something new, take it in and answer -- do "
+                "not say you will save, update or note it. Use remember or "
+                "forget only when they ask you to, in so many words. "
                 + "You are reading a transcript of speech, not typing. Words "
                 "arrive wrong -- names especially, and anything technical: "
                 "'New Ducks' was NeuDocs, 'new dogs' was the same word again. "

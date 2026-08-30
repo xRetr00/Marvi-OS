@@ -60,6 +60,7 @@ from live_conversation import (
     LEAKED,
     LONG_WORDS,
     NARRATION,
+    QUOTING,
     THIRD_PERSON,
     _end_of_turn,
 )
@@ -621,7 +622,12 @@ def report(said: list[dict]) -> None:
         and not any(r in t["said"].lower() for r in REFUSED)
     ]
     # Marvi narrating the conversation from outside it. See THIRD_PERSON.
-    outside = [t for t in said if any(p in t["said"].lower() for p in THIRD_PERSON)]
+    outside = [
+        t
+        for t in said
+        if any(p in t["said"].lower() for p in THIRD_PERSON)
+        and not any(q in t["said"].lower() for q in QUOTING)
+    ]
     def unbacked(turn: dict) -> bool:
         """Whether this reply claims something no call on this turn supports."""
         low = turn["said"].lower()

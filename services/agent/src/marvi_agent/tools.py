@@ -453,6 +453,16 @@ class GatewayTools:
         """Remember a durable fact the user has told you."""
         return await self._call("memory_remember", {"subject": subject, "body": body}, context)
 
+    @function_tool
+    async def forget(self, context: RunContext, about: str) -> str:
+        """Forget what you remember about something. Pass what to forget in the
+        user's own words -- "Zed", "my keyboard", "my projects".
+
+        Use this whenever the user says to forget something, says a fact about
+        them is wrong or out of date, or corrects something you have stored.
+        """
+        return await self._call("memory_forget", {"query": about}, context)
+
     # -- spoken approval ----------------------------------------------------
 
     # -- work that takes minutes ---------------------------------------------
@@ -558,6 +568,8 @@ class GatewayTools:
             self.room_mode,
             self.recall,
             self.remember,
+            self.forget,
+            self.tool_call,
             self.approve_pending_action,
             self.deny_pending_action,
             self.await_delegated,
@@ -575,7 +587,15 @@ class GatewayTools:
             "memory_search",
             "memory_recall",
             "memory_remember",
-            # `memory_forget` and `web_fetch` used to be here and had no
+            # Restored to this list, but the other way round from how it left:
+            # it is here now *because* `forget` above is written for speech and
+            # the catalogue's version is not. Asked "Forget that I use Zed" with
+            # only the catalogue form loaded, the model called `process_list`
+            # and then said "Done. I've forgotten that you use Zed" -- it could
+            # not find a forget tool among fifty-five and reached for something
+            # adjacent. One tool, named the way the sentence is said.
+            "memory_forget",
+            # `web_fetch` used to be here and had no
             # hand-written replacement, so voice simply could not do either.
             # Every other name on this list is dropped *because* a better one
             # is written below it; these two were dropped into nothing.
@@ -781,6 +801,13 @@ class GatewayTools:
         unrelated strings.
         """
         if not self._catalogue:
+            return ""
+        # Nothing is deferred, so every one of these is already in the request
+        # with its schema attached. The list was written for the case where it
+        # was the only sign the rest existed; printed beside the real tools it
+        # is 327 tokens of the same names twice, on every turn, and a second
+        # description of a tool is a second thing to disagree with the first.
+        if not self._catalogue.keys() - self._loaded:
             return ""
         areas: dict[str, list[str]] = {}
         for name in sorted(self._catalogue):

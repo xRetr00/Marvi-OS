@@ -437,6 +437,7 @@ async def test_no_tool_is_dropped_without_a_replacement() -> None:
         "memory_recall": "recall",
         "memory_search": "recall",
         "memory_remember": "remember",
+        "memory_forget": "forget",
     }
     for dropped in GatewayTools.SPOKEN_BADLY:
         assert instead.get(dropped, dropped) in written, (

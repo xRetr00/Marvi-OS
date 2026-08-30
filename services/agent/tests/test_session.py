@@ -386,3 +386,28 @@ def test_the_persona_is_not_a_support_queue() -> None:
 
     assert "do not end turns with an offer of further help" in said
     assert "you are not a search box" in said
+
+
+def test_the_persona_puts_her_in_the_conversation() -> None:
+    """The owner's original complaint, and it had no rule of its own until the
+    eighth sweep -- the only thing saying it was a trailer on the recall block,
+    which is a note about memories rather than about how to talk.
+
+    It came back on exactly the turns where the transcript was nonsense,
+    because that is when there is something to work out and the working-out
+    gets spoken: "The user is trying to clarify their name. They said 'Faz a
+    name without' which likely means..."
+    """
+    said = MarviVoiceAgent(tools=None).instructions.lower()
+
+    assert "you are in this conversation, not describing it" in said
+    assert "never 'the user'" in said
+
+
+def test_the_persona_does_not_promise_to_write_memory() -> None:
+    """"My keyboard is a Logitech, not a Keychron." -> "I'll update that in
+    memory", with nothing called. True of the system and false of her: the
+    post-turn worker writes it and she has no part in that."""
+    said = MarviVoiceAgent(tools=None).instructions.lower()
+
+    assert "memory writes itself after the turn" in said

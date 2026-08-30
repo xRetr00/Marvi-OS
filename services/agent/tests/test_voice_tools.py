@@ -92,6 +92,14 @@ def test_tool_schemas_are_voice_sized_and_hide_transport(voice) -> None:
         "room_mode",
         "recall",
         "remember",
+        # Written for speech because "forget X" is how the sentence is said.
+        # The catalogue's `memory_forget` was the only form for a while, and
+        # among fifty-five tools the model could not find it: asked to forget
+        # Zed it called `process_list`, then `memory_unlink`, reporting success
+        # both times.
+        "forget",
+        # The bridge, from Hermes Agent. See `tool_call`.
+        "tool_call",
         "approve_pending_action",
         "deny_pending_action",
         # Hand-written for a different reason than the rest: it is an async
@@ -531,3 +539,25 @@ def test_a_receipt_survives_a_tool_that_takes_nothing() -> None:
     from marvi_agent.tools import receipt
 
     assert receipt("browser_close", {}, "ok") == "[did browser_close -> ok]"
+
+
+def test_every_hand_written_tool_is_actually_registered() -> None:
+    """`as_list` is written out by hand, and twice now a tool was added to the
+    class and not to the list -- `forget` and the `tool_call` bridge both sat
+    there decorated, described and unreachable.
+
+    Nothing failed. The model simply could not see them: asked "Forget that I
+    use Zed" it called `memory_unlink` and reported success, because among
+    fifty-five tools there was no forget tool to find.
+    """
+    from marvi_agent.tools import GatewayTools
+
+    gateway = GatewayTools()
+    registered = {tool.info.name for tool in gateway.as_list()}
+    written = {
+        name
+        for name in dir(GatewayTools)
+        if not name.startswith("_") and hasattr(getattr(gateway, name, None), "info")
+    }
+
+    assert written - registered == set(), "decorated but never handed to the Agent"

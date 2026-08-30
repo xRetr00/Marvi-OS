@@ -250,3 +250,51 @@ def test_turn_taking_is_not_faster_than_a_person_pauses() -> None:
     # And the other half: a quarter second of the user's voice cut her off
     # mid-reply, and the resumed fragments were stitched into one turn.
     assert '"min_duration": 0.5' in source
+
+
+def test_a_busy_gateway_is_asked_again_before_giving_up() -> None:
+    """Twice in one evening a run died here while the Gateway was up and
+    answering /health: it was busy with a connector's network calls, the
+    eight-second read expired, and that reached the user as "No provider is
+    configured. Connect one in the Marvi control center." Voice failed to
+    start, and the message pointed at a setting that was correct."""
+    import httpx
+
+    from marvi_agent.runtime import AgentConfig
+
+    tries: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        tries.append(1)
+        if len(tries) < 3:
+            raise httpx.ReadTimeout("the Gateway is busy", request=request)
+        return httpx.Response(
+            200,
+            json={"base_url": "https://openrouter.ai/api/v1", "model": "m", "api_key": "k"},
+        )
+
+    config = AgentConfig.from_gateway(
+        httpx.Client(transport=httpx.MockTransport(handler))
+    )
+
+    assert config.model == "m"
+    assert len(tries) == 3
+
+
+def test_a_gateway_that_says_no_provider_is_not_asked_twice() -> None:
+    """An answer is an answer. Retrying asks a question that was settled."""
+    import httpx
+    import pytest
+
+    from marvi_agent.runtime import AgentConfig, ProviderUnavailableError
+
+    tries: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        tries.append(1)
+        return httpx.Response(503, json={"detail": "nothing configured"})
+
+    with pytest.raises(ProviderUnavailableError):
+        AgentConfig.from_gateway(httpx.Client(transport=httpx.MockTransport(handler)))
+
+    assert len(tries) == 1
