@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import threading
 import time
 from typing import Any
 
@@ -51,6 +52,13 @@ FILLER_DELAY = 0.9
 #: about what is being done: it fires before the result exists, so anything
 #: more specific would be a guess spoken aloud.
 THINKING = "One sec."
+
+
+#: How long the Voice page's activity feed may hold up a tool call. Short,
+#: because this is decoration on a latency-critical path: a page that does not
+#: draw a spinner is a worse page, and a turn that waits on one is a worse
+#: assistant.
+WATCH_TIMEOUT = 0.4
 
 
 def gateway_base_url() -> str:
@@ -285,6 +293,36 @@ class GatewayTools:
             if self._client is None:
                 await client.aclose()
 
+    def _watch(self, payload: dict[str, Any]) -> None:
+        """Tell the Voice page what is happening. Never raises, never waits.
+
+        The page could say which models were loaded and nothing about the work,
+        so a turn that paused for four seconds looked the same whether she was
+        searching the web or had simply stopped. Chat has had a tool stack
+        under every answer the whole time.
+
+        On its own thread and never awaited, which is the whole design. The
+        first version asked the Gateway for the call id and waited for it: the
+        agent suite went from twelve seconds to sixty-five, and in a real
+        session that wait would have been in front of every tool call. A page
+        that does not draw a spinner is a worse page; a turn that waits on one
+        is a worse assistant.
+        """
+
+        def post() -> None:
+            import contextlib
+
+            with contextlib.suppress(Exception):
+                import httpx
+
+                httpx.post(
+                    f"{self._base_url}/voice/activity",
+                    json=payload,
+                    timeout=WATCH_TIMEOUT,
+                )
+
+        threading.Thread(target=post, daemon=True, name="marvi-voice-activity").start()
+
     async def _call(
         self, tool: str, arguments: dict[str, Any], context: RunContext | None = None
     ) -> str:
@@ -308,10 +346,25 @@ class GatewayTools:
         most -- the one that takes minutes is `await_delegated`, which sets
         its own.
         """
-        if context is None:
-            return await self._run(tool, arguments)
-        async with context.with_filler(THINKING, delay=FILLER_DELAY, max_steps=1):
-            return await self._run(tool, arguments)
+        # Reported around the call rather than inside `_run`, so the page sees
+        # a spinner for the whole of it -- including the confirmation wait,
+        # which is the longest thing that happens here and the one a user most
+        # needs to see is deliberate rather than stuck.
+        # The id is made here rather than asked for, so both reports are one
+        # way and neither is on the critical path.
+        call_id = f"{tool}-{time.time():.6f}"
+        self._watch({"call_id": call_id, "tool": tool, "arguments": arguments})
+        try:
+            if context is None:
+                said = await self._run(tool, arguments)
+            else:
+                async with context.with_filler(THINKING, delay=FILLER_DELAY, max_steps=1):
+                    said = await self._run(tool, arguments)
+        except ToolError as exc:
+            self._watch({"call_id": call_id, "outcome": "failed", "detail": str(exc)[:200]})
+            raise
+        self._watch({"call_id": call_id, "outcome": "ok", "detail": said[:200]})
+        return said
 
     async def _run(self, tool: str, arguments: dict[str, Any]) -> str:
         status, body = await self._post(f"/tools/{tool}", {"arguments": arguments})

@@ -1424,8 +1424,12 @@ def create_app(
             return {"ok": True}
         if update.used or update.window:
             voiceactivity.live.counted(update.used, update.window, update.turns)
-        if update.tool and not update.call_id:
-            return {"call_id": voiceactivity.live.began(update.tool, update.arguments)}
+        if update.tool:
+            return {
+                "call_id": voiceactivity.live.began(
+                    update.tool, update.arguments, update.call_id
+                )
+            }
         if update.call_id:
             voiceactivity.live.ended(update.call_id, update.outcome or "ok", update.detail)
         return {"ok": True}

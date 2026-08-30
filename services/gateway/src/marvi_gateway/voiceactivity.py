@@ -51,9 +51,17 @@ class Activity:
         self._window = 0
         self._turns = 0
 
-    def began(self, tool: str, arguments: dict[str, Any] | None = None) -> str:
-        """A call started. Returns the id its outcome should be reported with."""
-        call_id = f"{tool}-{time.time():.6f}"
+    def began(
+        self, tool: str, arguments: dict[str, Any] | None = None, call_id: str = ""
+    ) -> str:
+        """A call started. Returns the id its outcome is reported with.
+
+        The caller may bring its own id, and the Agent does. Handing one back
+        means the Agent has to wait for this reply before it can run the tool,
+        which put a network round trip in front of every call -- the agent test
+        suite went from twelve seconds to sixty-five before that was noticed.
+        """
+        call_id = call_id or f"{tool}-{time.time():.6f}"
         with self._lock:
             self._calls.append(
                 {
