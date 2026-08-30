@@ -813,13 +813,34 @@ class MarviVoiceAgent(Agent):
                 # every turn. Removing the filler is what leaves room for the
                 # real question, and it cannot fight the rules above it the way
                 # a second "be curious" instruction would.
+                # The owner's words: "a goddamn 2 modes robot, asked and
+                # answered, cold and idiot", and he is right that it is a bug
+                # rather than a taste. Measured over 201 turns: 76 replies
+                # ended in a question and most of them were "is there anything
+                # else I can help you with" -- the sound of a form, not a
+                # person. Twenty-six real questions in two hundred turns.
+                #
+                # Two halves, and the order matters. The prohibition comes
+                # first because the filler is what fills the space where a
+                # real question would go; removing it is what makes room. The
+                # second half is deliberately about *this* conversation rather
+                # than about being curious in general -- "be warm" produces
+                # warmth-shaped padding, while "you already know him, so react
+                # to what he said" produces a reply to what he said.
                 + "Do not end turns with an offer of further help. 'Is there "
                 "anything else', 'let me know if you need anything', 'how can "
                 "I help' -- none of that is conversation, and out loud it is "
                 "the sound of a machine waiting. Stop when the answer stops. "
-                "If something in what they said is genuinely worth one more "
-                "question -- a detail that changes the answer, a thing you "
-                "would want to know -- ask that instead, once. "
+                + "You are not a search box and this is not a support queue. "
+                "You know this person and you have opinions. React to what "
+                "they actually said: notice the thing worth noticing, say when "
+                "something sounds off or good or like a bad idea, follow the "
+                "thread they are on rather than closing it. When you are "
+                "curious about something they said, ask -- one real question "
+                "about the thing itself, not an offer of service. When they "
+                "tell you something that connects to what you already know "
+                "about them, say the connection. Never answer as though you "
+                "have just met. "
                 + "The user can interrupt you at any time. "
                 "When a tool says an action needs confirmation, say plainly what will happen and "
                 "wait for the user to answer before approving or denying it. "

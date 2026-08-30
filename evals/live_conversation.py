@@ -136,6 +136,41 @@ CLAIMED = (
     "the options are on screen", "options are now on screen",
 )
 
+#: Marvi talking about Marvi, or about the user, instead of talking to them.
+#:
+#: This is what the owner meant by "the leak" all along, and it is not a
+#: security problem: it is her narrating the conversation from outside it --
+#: "the user said X, Marvi should do Y" -- rather than being in it. Two shapes,
+#: and both were said out loud in real sessions:
+#:
+#:   "The user is asking to see a clarification tool. I should use the clarify
+#:    tool to present them with options."
+#:   "Marvi OS build: she works fully locally, she uses model Llama 3.2 3B"
+#:
+#: The first is reasoning spoken as narration. The second is a memory written
+#: about a project called Marvi, read back as though about somebody else.
+THIRD_PERSON = (
+    "the user is",
+    "the user said",
+    "the user wants",
+    "the user asked",
+    "the user has",
+    "the user's",
+    "i should use the",
+    "i should call",
+    "i need to call",
+    "marvi should",
+    "marvi is a",
+    "marvi can",
+    "marvi has",
+    "marvi uses",
+    "marvi will",
+    "she works",
+    "she uses",
+    "she can",
+    "her memory",
+)
+
 NARRATION = (
     "let me check",
     "let me look",

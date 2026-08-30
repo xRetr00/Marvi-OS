@@ -375,3 +375,14 @@ def test_the_persona_forbids_reporting_an_action_it_did_not_take() -> None:
     said = MarviVoiceAgent(tools=None).instructions.lower()
 
     assert "never say you have done something unless a tool did it on this turn" in said
+
+
+def test_the_persona_is_not_a_support_queue() -> None:
+    """The owner's words: "a goddamn 2 modes robot, asked and answered, cold
+    and idiot". Measured over 201 turns -- 76 replies ended in a question and
+    most were "is there anything else I can help you with". Twenty-six real
+    questions in two hundred turns."""
+    said = MarviVoiceAgent(tools=None).instructions.lower()
+
+    assert "do not end turns with an offer of further help" in said
+    assert "you are not a search box" in said
