@@ -11,9 +11,10 @@ would then have to reconcile.
 
 Two deliberate properties:
 
-* **A real environment variable wins.** Anything already set when the Gateway
-  starts is left alone, so launching with `OPENAI_API_KEY=...` in the shell is
-  not silently overridden by a stale saved value.
+* **A real environment variable wins until the user explicitly disconnects.**
+  Non-empty saved values do not replace a launch environment. A saved blank is
+  a durable disconnect tombstone and clears an inherited credential on every
+  Gateway start, so Disconnect does not undo itself after a restart.
 * **Secrets go out masked.** The file holds API keys; the endpoint that reads it
   must never hand them back to a renderer. Only whether a key is present.
 """
@@ -61,7 +62,7 @@ def read(path: Path | None = None) -> dict[str, str]:
 def write(values: dict[str, str], path: Path | None = None) -> Path:
     target = path or config_path()
     target.parent.mkdir(parents=True, exist_ok=True)
-    body = "\n".join(f"{k}={v}" for k, v in sorted(values.items()) if v != "")
+    body = "\n".join(f"{k}={v}" for k, v in sorted(values.items()))
     target.write_text(
         "# Marvi OS provider settings. Written by the control center.\n" + body + "\n",
         encoding="utf-8",
@@ -70,10 +71,13 @@ def write(values: dict[str, str], path: Path | None = None) -> Path:
 
 
 def load_into_environ(path: Path | None = None) -> int:
-    """Apply saved settings, without clobbering the real environment."""
+    """Apply saved settings; explicit blanks durably clear inherited values."""
     applied = 0
     for name, value in read(path).items():
-        if not os.environ.get(name, "").strip():
+        if value == "":
+            os.environ.pop(name, None)
+            applied += 1
+        elif not os.environ.get(name, "").strip():
             os.environ[name] = value
             applied += 1
     return applied
@@ -91,7 +95,9 @@ def update(changes: dict[str, str], path: Path | None = None) -> dict[str, str]:
         if not name:
             continue
         if value == "":
-            values.pop(name, None)
+            # Keep the blank. Removing the line lets an inherited key return
+            # on the next launch, making Disconnect appear to reconnect itself.
+            values[name] = ""
             os.environ.pop(name, None)
         else:
             values[name] = value
@@ -105,4 +111,5 @@ def visible(path: Path | None = None) -> dict[str, str]:
     return {
         name: (mask(value) if is_secret(name) else value)
         for name, value in read(path).items()
+        if value != ""
     }

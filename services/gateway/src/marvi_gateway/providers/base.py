@@ -33,7 +33,7 @@ ApiMode = Literal["chat_completions", "responses", "anthropic"]
 AccessPath = Literal["api", "plan", "local"]
 AuthType = Literal["api_key", "oauth_external", "oauth_device_code", "token_exchange", "none"]
 CacheStyle = Literal["none", "automatic", "cache_key", "explicit_breakpoints"]
-ReasoningStyle = Literal["none", "effort", "budget_tokens"]
+ReasoningStyle = Literal["none", "effort"]
 
 #: Public product identity used only with providers that explicitly document
 #: app attribution. It is not sent to every vendor as an invented convention.
@@ -89,7 +89,7 @@ class ReasoningPolicy:
         """Return an effort this provider will actually accept, or None."""
         if self.style != "effort" or not effort:
             return None
-        return effort if effort in self.levels else (self.default or None)
+        return effort if effort in self.levels else None
 
 
 @dataclass(frozen=True)
@@ -249,7 +249,9 @@ class ProviderProfile:
         if self.reasoning.style != "effort":
             return None
         name = self.effort_env or f"MARVI_{self.name.replace('-', '_').upper()}_EFFORT"
-        return self.reasoning.normalise(os.environ.get(name, "").strip() or None)
+        from . import effort
+
+        return effort.normalise(self, self.model_for(), os.environ.get(name, "").strip() or None)
 
     def effort_setting(self) -> str:
         """The environment variable the UI writes an effort choice to."""
@@ -350,8 +352,7 @@ class ProviderProfile:
         #
         # Enforced here rather than at each call site, because a rule every
         # caller has to remember is a rule that gets forgotten.
-        if job in DOES_NOT_DELIBERATE:
-            effort = None
+        force_reasoning_off = job in DOES_NOT_DELIBERATE
 
         if self.api_mode == "anthropic":
             system, chat = _split_system(messages)
@@ -369,10 +370,11 @@ class ProviderProfile:
                 body["stream"] = True
             if temperature is not None:
                 body["temperature"] = temperature
-            if self.reasoning.style == "budget_tokens" and effort:
-                body["thinking"] = {"type": "enabled", "budget_tokens": int(effort)}
-            elif job in DOES_NOT_DELIBERATE and self.reasoning.style == "budget_tokens":
-                body["thinking"] = {"type": "disabled"}
+            from . import effort as effort_control
+
+            effort_control.apply(
+                body, self, chosen, effort, force_off=force_reasoning_off
+            )
             if tools and self.supports_tools:
                 body["tools"] = [
                     {
@@ -390,9 +392,11 @@ class ProviderProfile:
                 body["max_output_tokens"] = limit
             if wants_stream:
                 body["stream"] = True
-            normalised = self.reasoning.normalise(effort)
-            if normalised:
-                body["reasoning"] = {"effort": normalised}
+            from . import effort as effort_control
+
+            effort_control.apply(
+                body, self, chosen, effort, force_off=force_reasoning_off
+            )
             if cache_prefix and self.cache.style == "cache_key":
                 body["prompt_cache_key"] = "marvi-system"
             if tools and self.supports_tools:
@@ -417,13 +421,9 @@ class ProviderProfile:
             body["stream_options"] = {"include_usage": True}
         if temperature is not None:
             body["temperature"] = temperature
-        normalised = self.reasoning.normalise(effort)
-        if normalised:
-            body["reasoning_effort"] = normalised
-        elif job in DOES_NOT_DELIBERATE and self.reasoning.style != "none":
-            # Asked off rather than merely left unset: several models reason by
-            # default, and silence on the parameter is not the same as "do not".
-            body["reasoning"] = {"enabled": False, "exclude": True}
+        from . import effort as effort_control
+
+        effort_control.apply(body, self, chosen, effort, force_off=force_reasoning_off)
         if cache_prefix and self.cache.style == "cache_key":
             body["prompt_cache_key"] = "marvi-system"
         if self.routes_upstream:

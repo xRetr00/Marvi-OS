@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "sources": {
+    "anthropic": "https://platform.claude.com/docs/en/build-with-claude/effort",
+    "deepinfra": "https://docs.deepinfra.com/chat/reasoning",
+    "deepseek": "https://api-docs.deepseek.com/guides/thinking_mode/",
+    "ollama": "https://docs.ollama.com/capabilities/thinking",
+    "openai": "https://developers.openai.com/api/docs/models",
+    "opencode": "https://dev.opencode.ai/docs/models/"
+  },
+  "rules": [
+    { "providers": ["openai", "openai-responses"], "pattern": "gpt-5.6*", "efforts": ["none", "low", "medium", "high", "xhigh", "max"] },
+    { "providers": ["openai", "openai-responses"], "pattern": "gpt-5.5-pro*", "efforts": ["medium", "high", "xhigh"] },
+    { "providers": ["openai", "openai-responses"], "pattern": "gpt-5.4-pro*", "efforts": ["medium", "high", "xhigh"] },
+    { "providers": ["openai", "openai-responses"], "pattern": "gpt-5.5*", "efforts": ["none", "low", "medium", "high", "xhigh"] },
+    { "providers": ["openai", "openai-responses"], "pattern": "gpt-5.4*", "efforts": ["none", "low", "medium", "high", "xhigh"] },
+    { "providers": ["openai", "openai-responses"], "pattern": "gpt-5.2-pro*", "efforts": ["high"] },
+    { "providers": ["openai", "openai-responses"], "pattern": "gpt-5.2*", "efforts": ["none", "low", "medium", "high", "xhigh"] },
+    { "providers": ["openai", "openai-responses", "codex"], "pattern": "gpt-5.3-codex*", "efforts": ["low", "medium", "high", "xhigh"] },
+    { "providers": ["openai", "openai-responses", "codex"], "pattern": "gpt-5.2-codex*", "efforts": ["low", "medium", "high", "xhigh"] },
+    { "providers": ["openai", "openai-responses", "codex"], "pattern": "gpt-5.1-codex-max*", "efforts": ["low", "medium", "high", "xhigh"] },
+    { "providers": ["openai", "openai-responses", "codex"], "pattern": "gpt-5.1-codex*", "efforts": ["low", "medium", "high"] },
+    { "providers": ["openai", "openai-responses"], "pattern": "gpt-5.1*", "efforts": ["none", "low", "medium", "high"] },
+    { "providers": ["openai", "openai-responses"], "pattern": "gpt-5-pro*", "efforts": ["high"] },
+    { "providers": ["openai", "openai-responses"], "pattern": "gpt-5*", "efforts": ["minimal", "low", "medium", "high"] },
+    { "providers": ["openai", "openai-responses"], "pattern": "o3-pro*", "efforts": ["high"] },
+    { "providers": ["openai", "openai-responses"], "pattern": "o3-mini*", "efforts": ["low", "medium", "high"] },
+    { "providers": ["openai", "openai-responses"], "pattern": "o3*", "efforts": ["low", "medium", "high"] },
+    { "providers": ["openai", "openai-responses"], "pattern": "o4-mini*", "efforts": ["low", "medium", "high"] },
+
+    { "providers": ["anthropic", "claude-code"], "pattern": "claude-*5*", "efforts": ["none", "low", "medium", "high", "xhigh", "max"] },
+    { "providers": ["anthropic", "claude-code"], "pattern": "claude-opus-4-8*", "efforts": ["none", "low", "medium", "high", "xhigh", "max"] },
+    { "providers": ["anthropic", "claude-code"], "pattern": "claude-opus-4-7*", "efforts": ["none", "low", "medium", "high", "xhigh", "max"] },
+    { "providers": ["anthropic", "claude-code"], "pattern": "claude-*-4-6*", "efforts": ["none", "low", "medium", "high", "max"] },
+
+    { "providers": ["deepseek"], "pattern": "deepseek-v4-*", "efforts": ["none", "low", "high", "max"] },
+    { "providers": ["deepseek"], "pattern": "deepseek-chat", "efforts": ["none"] },
+    { "providers": ["deepseek"], "pattern": "deepseek-reasoner", "efforts": ["low", "high", "max"] },
+
+    { "providers": ["deepinfra"], "pattern": "deepseek-ai/deepseek-v4-*", "efforts": ["none", "low", "medium", "high"] },
+    { "providers": ["deepinfra"], "pattern": "zai-org/glm-5.2*", "efforts": ["none", "low", "medium", "high"] },
+    { "providers": ["deepinfra"], "pattern": "moonshotai/kimi-k3*", "efforts": ["none", "low", "medium", "high"] },
+    { "providers": ["deepinfra"], "pattern": "inclusionai/ling-3.0-flash*", "efforts": ["none", "low", "medium", "high"] },
+
+    { "providers": ["ollama"], "pattern": "*gpt-oss*", "efforts": ["low", "medium", "high"] },
+    { "providers": ["ollama"], "pattern": "*qwen3*", "efforts": ["off", "on"] },
+    { "providers": ["ollama"], "pattern": "*deepseek-r1*", "efforts": ["off", "on"] },
+    { "providers": ["ollama"], "pattern": "*deepseek-v3.1*", "efforts": ["off", "on"] },
+
+    { "providers": ["opencode-zen", "opencode-go"], "pattern": "gpt-5.6-*", "efforts": ["none", "low", "medium", "high", "xhigh", "max"] },
+    { "providers": ["opencode-zen", "opencode-go"], "pattern": "deepseek-v4-*", "efforts": ["none", "low", "high", "max"] }
+  ]
+}

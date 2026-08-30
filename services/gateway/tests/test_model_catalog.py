@@ -101,13 +101,118 @@ def test_effort_is_offered_only_for_models_that_reason() -> None:
 
 
 def test_a_provider_that_does_not_publish_parameters_uses_its_own_policy() -> None:
-    """Anthropic's list does not mark reasoning per model, and it is uniform."""
+    """OpenAI's list needs the packaged per-model capability table."""
     profile = get("codex")
-    http = responder({"data": [{"id": "gpt-5-codex"}]})
+    http = responder({"data": [{"id": "gpt-5.2-codex"}]})
 
     (card,) = catalog.fetch(profile, http=http)
 
-    assert card.efforts == profile.reasoning.levels
+    assert card.efforts == ("low", "medium", "high", "xhigh")
+
+
+def test_openai_efforts_are_model_specific_and_include_off_where_supported() -> None:
+    profile = get("openai")
+    cards = catalog.fetch(
+        profile,
+        http=responder({"data": [{"id": "gpt-5.6-sol"}, {"id": "gpt-4.1"}]}),
+    )
+
+    by_id = {card.id: card for card in cards}
+    assert by_id["gpt-5.6-sol"].efforts == (
+        "none", "low", "medium", "high", "xhigh", "max"
+    )
+    assert by_id["gpt-4.1"].efforts == ()
+
+
+def test_openrouter_uses_the_exact_model_reasoning_metadata() -> None:
+    profile = get("openrouter")
+    cards = catalog.fetch(
+        profile,
+        http=responder(
+            {
+                "data": [
+                    {
+                        "id": "optional",
+                        "reasoning": {
+                            "supported_efforts": ["low", "high"],
+                            "mandatory": False,
+                        },
+                    },
+                    {
+                        "id": "mandatory",
+                        "reasoning": {
+                            "supported_efforts": ["minimal", "low", "medium"],
+                            "mandatory": True,
+                        },
+                    },
+                ]
+            }
+        ),
+    )
+
+    by_id = {card.id: card for card in cards}
+    assert by_id["optional"].efforts == ("none", "low", "high")
+    assert by_id["mandatory"].efforts == ("minimal", "low", "medium")
+
+
+def test_anthropic_uses_model_capabilities_instead_of_one_provider_list() -> None:
+    profile = get("anthropic")
+    (card,) = catalog.fetch(
+        profile,
+        http=responder(
+            {
+                "data": [
+                    {
+                        "id": "claude-example",
+                        "capabilities": {
+                            "effort": {
+                                "low": {"supported": True},
+                                "medium": {"supported": True},
+                                "high": {"supported": True},
+                                "xhigh": {"supported": False},
+                                "max": {"supported": True},
+                            },
+                            "thinking": {"supported": True},
+                        },
+                    }
+                ]
+            }
+        ),
+    )
+
+    assert card.efforts == ("none", "low", "medium", "high", "max")
+
+
+def test_lm_studio_uses_its_native_capability_catalog() -> None:
+    profile = get("lmstudio")
+    seen: list[str] = []
+    (card,) = catalog.fetch(
+        profile,
+        http=responder(
+            {
+                "models": [
+                    {
+                        "type": "llm",
+                        "key": "local/thinker",
+                        "display_name": "Thinker",
+                        "max_context_length": 65536,
+                        "capabilities": {
+                            "vision": False,
+                            "reasoning": {
+                                "allowed_options": ["off", "low", "medium", "high"],
+                                "default": "medium",
+                            },
+                        },
+                    }
+                ]
+            },
+            seen=seen,
+        ),
+    )
+
+    assert seen == ["http://localhost:1234/api/v1/models"]
+    assert card.efforts == ("off", "low", "medium", "high")
+    assert card.context == 65536
 
 
 def test_an_unreachable_provider_returns_nothing_rather_than_raising() -> None:
@@ -365,10 +470,12 @@ def test_an_effort_the_provider_does_not_accept_is_not_sent(monkeypatch) -> None
     assert profile.effort_for() != "extreme"
 
 
-def test_a_provider_that_does_not_reason_has_no_effort_setting() -> None:
-    """So the UI has nothing to offer, rather than a control that does nothing."""
-    assert get("anthropic").effort_setting() == ""
-    assert get("anthropic").effort_for() is None
+def test_anthropic_has_a_model_specific_effort_setting(monkeypatch) -> None:
+    profile = get("anthropic")
+    monkeypatch.setenv(profile.default_model_env, "claude-sonnet-5")
+    monkeypatch.setenv(profile.effort_setting(), "xhigh")
+
+    assert profile.effort_for() == "xhigh"
 
 
 # -- one answer, not two -----------------------------------------------------

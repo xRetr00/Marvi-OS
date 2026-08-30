@@ -17,7 +17,7 @@ is free either way.
 
 from __future__ import annotations
 
-from .base import CachePolicy, LimitPolicy, ProviderProfile, register
+from .base import CachePolicy, LimitPolicy, ProviderProfile, ReasoningPolicy, register
 
 _NO_LIMITS = LimitPolicy(style="none", note="Local hardware; nothing metered.")
 
@@ -37,6 +37,7 @@ ollama = register(
         default_model="qwen3:8b",
         default_aux_model="qwen3:4b",
         cache=CachePolicy(style="none"),
+        reasoning=ReasoningPolicy(style="effort", levels=("off", "on", "low", "medium", "high")),
         limits=_NO_LIMITS,
         supports_vision=False,
         default_max_tokens=2048,
@@ -58,6 +59,7 @@ lm_studio = register(
         default_model_env="MARVI_LMSTUDIO_MODEL",
         default_model="",
         cache=CachePolicy(style="none"),
+        reasoning=ReasoningPolicy(style="effort", levels=("off", "on", "low", "medium", "high")),
         limits=_NO_LIMITS,
         default_max_tokens=2048,
     )

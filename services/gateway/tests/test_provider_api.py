@@ -73,8 +73,22 @@ def test_an_empty_value_disconnects(tmp_path, monkeypatch) -> None:
 
     import os
 
-    assert "OPENAI_API_KEY" not in config.read(path)
+    assert config.read(path)["OPENAI_API_KEY"] == ""
     assert not os.environ.get("OPENAI_API_KEY")
+
+
+def test_disconnect_survives_restart_with_an_inherited_openai_key(tmp_path, monkeypatch) -> None:
+    path = tmp_path / "providers.env"
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-from-parent-process")
+
+    config.update({"OPENAI_API_KEY": ""}, path)
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-from-parent-process")
+    config.load_into_environ(path)
+
+    import os
+
+    assert config.read(path)["OPENAI_API_KEY"] == ""
+    assert "OPENAI_API_KEY" not in os.environ
 
 
 # -- the page ---------------------------------------------------------------

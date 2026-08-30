@@ -35,9 +35,6 @@ LIST_TIMEOUT = 10.0
 #: short enough that a model added today is selectable today.
 CACHE_SECONDS = 900.0
 
-#: What OpenRouter names in `supported_parameters` when a model can think.
-REASONING_PARAMS = ("reasoning", "include_reasoning")
-
 #: Name fragments that mark a model built for speed rather than depth. Used to
 #: suggest a voice model, never to restrict one: the user's choice always
 #: stands, and this only decides what is offered when nothing has been chosen.
@@ -98,33 +95,54 @@ def _per_million(value: Any) -> float | None:
 
 
 def _card(entry: dict[str, Any], profile: ProviderProfile) -> ModelCard | None:
-    identifier = str(entry.get("id") or entry.get("name") or "").strip()
+    if entry.get("type") == "embedding":
+        return None
+    identifier = str(entry.get("id") or entry.get("key") or entry.get("name") or "").strip()
     if not identifier:
         return None
 
     pricing = entry.get("pricing") or {}
-    parameters = entry.get("supported_parameters") or []
     modalities = ((entry.get("architecture") or {}).get("input_modalities")) or []
+    capabilities = entry.get("capabilities") or {}
+    metadata = entry.get("metadata") or {}
 
-    if parameters:
-        # OpenRouter states it per model, which is the only accurate answer for
-        # a gateway fronting both kinds under one key.
-        efforts = profile.reasoning.levels if any(p in parameters for p in REASONING_PARAMS) else ()
-    else:
-        # Everyone else is uniform enough that the provider's own policy is
-        # the honest answer -- Anthropic's list does not mark it per model.
-        efforts = profile.reasoning.levels
+    from . import effort
+
+    published = effort.from_entry(profile, entry)
+    efforts = published if published is not None else effort.supported(profile, identifier)
+    effort.remember(profile.name, identifier, tuple(efforts))
 
     return ModelCard(
         id=identifier,
         name=str(entry.get("display_name") or entry.get("name") or identifier),
         provider=profile.name,
-        context=int(_number(entry.get("context_length") or entry.get("context_window")) or 0),
+        context=int(
+            _number(
+                entry.get("context_length")
+                or entry.get("context_window")
+                or entry.get("max_input_tokens")
+                or entry.get("max_context_length")
+                or metadata.get("context_length")
+            )
+            or 0
+        ),
         efforts=tuple(efforts),
         prompt_per_million=_per_million(pricing.get("prompt")),
         completion_per_million=_per_million(pricing.get("completion")),
-        vision=("image" in modalities) or bool(profile.supports_vision and not modalities),
+        vision=("image" in modalities)
+        or capabilities.get("vision") is True
+        or bool(profile.supports_vision and not modalities and not capabilities),
     )
+
+
+def _models_url(profile: ProviderProfile) -> str:
+    """Use richer local catalog endpoints when the server publishes them."""
+    base = profile.base_url()
+    if profile.name == "lmstudio":
+        return f"{base.removesuffix('/v1')}/api/v1/models"
+    if profile.name == "ollama":
+        return f"{base.removesuffix('/v1')}/api/tags"
+    return f"{base}{profile.models_path}"
 
 
 def fetch(profile: ProviderProfile, http: Any = None) -> list[ModelCard]:
@@ -143,7 +161,7 @@ def fetch(profile: ProviderProfile, http: Any = None) -> list[ModelCard]:
 
     client = http or httpx.Client(timeout=LIST_TIMEOUT)
     try:
-        response = client.get(f"{base}{profile.models_path}", headers=profile.headers())
+        response = client.get(_models_url(profile), headers=profile.headers())
         response.raise_for_status()
         payload = response.json()
     except Exception as exc:
@@ -153,7 +171,11 @@ def fetch(profile: ProviderProfile, http: Any = None) -> list[ModelCard]:
         if http is None:
             client.close()
 
-    entries = payload.get("data") if isinstance(payload, dict) else payload
+    entries = (
+        payload.get("data") or payload.get("models")
+        if isinstance(payload, dict)
+        else payload
+    )
     if not isinstance(entries, list):
         log.warning("unexpected model list shape from %s", profile.name)
         return []
@@ -209,6 +231,9 @@ def known_vision(provider: str, model: str) -> bool | None:
 
 def forget(name: str | None = None) -> None:
     """Drop cached lists — after a credential changes, or on explicit refresh."""
+    from . import effort
+
+    effort.forget(name)
     if name is None:
         _cache.clear()
     else:

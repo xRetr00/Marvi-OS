@@ -32,7 +32,7 @@ MINIMUM_INTERVAL_MINUTES = 5
 MAX_SCHEDULES = 200
 MAX_AGENT_ROUNDS = 5
 MAX_OUTPUT_CHARS = 20_000
-EFFORTS = ("", "none", "minimal", "low", "medium", "high", "xhigh")
+EFFORTS = ("", "none", "minimal", "low", "medium", "high", "xhigh", "max")
 
 
 class ScheduleError(Exception):

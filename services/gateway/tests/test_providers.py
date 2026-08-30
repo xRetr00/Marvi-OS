@@ -244,19 +244,19 @@ def test_effort_is_only_sent_to_providers_that_accept_it() -> None:
     assert thinking.build_request(MESSAGES, effort="high")["reasoning_effort"] == "high"
 
 
-def test_an_unsupported_effort_falls_back_to_the_default() -> None:
+def test_an_unsupported_effort_is_omitted_instead_of_silently_substituted() -> None:
     thinking = profile(
         reasoning=ReasoningPolicy(style="effort", levels=("low", "high"), default="low")
     )
-    assert thinking.build_request(MESSAGES, effort="ludicrous")["reasoning_effort"] == "low"
+    assert "reasoning_effort" not in thinking.build_request(MESSAGES, effort="ludicrous")
 
 
-def test_anthropic_takes_a_thinking_budget_not_an_effort_level() -> None:
-    body = profile(
-        api_mode="anthropic", reasoning=ReasoningPolicy(style="budget_tokens")
-    ).build_request(MESSAGES, effort="2048")
+def test_anthropic_uses_adaptive_thinking_and_output_effort() -> None:
+    body = get("anthropic").build_request(MESSAGES, model="claude-sonnet-5", effort="max")
 
-    assert body["thinking"] == {"type": "enabled", "budget_tokens": 2048}
+    assert body["thinking"] == {"type": "adaptive"}
+    assert body["output_config"] == {"effort": "max"}
+    assert "budget_tokens" not in str(body)
 
 
 # -- caching, the cost lever ------------------------------------------------
@@ -444,9 +444,7 @@ def test_auxiliary_work_is_never_given_a_reasoning_budget() -> None:
         [{"role": "user", "content": "hi"}], effort="medium", job="aux"
     )
 
-    assert "reasoning_effort" not in body
-    # Asked off rather than left unset: several models reason by default.
-    assert body.get("reasoning") == {"enabled": False, "exclude": True}
+    assert body.get("reasoning") == {"effort": "none"}
 
 
 def test_voice_is_never_given_one_either() -> None:
@@ -467,7 +465,7 @@ def test_the_conversation_still_reasons() -> None:
         [{"role": "user", "content": "hi"}], effort="medium", job="main"
     )
 
-    assert body["reasoning_effort"] == "medium"
+    assert body["reasoning"] == {"effort": "medium"}
 
 
 def test_reading_a_picture_may_still_need_it() -> None:
@@ -482,17 +480,15 @@ def test_reading_a_picture_may_still_need_it() -> None:
         [{"role": "user", "content": "hi"}], effort="medium", job="vision"
     )
 
-    assert body["reasoning_effort"] == "medium"
+    assert body["reasoning"] == {"effort": "medium"}
 
 
-def test_a_thinking_budget_is_disabled_for_the_same_jobs() -> None:
-    """Anthropic takes a token budget rather than a level, and silence on the
-    parameter is not the same as "do not"."""
+def test_anthropic_adaptive_thinking_is_disabled_for_the_same_jobs() -> None:
     from marvi_gateway.providers import get
 
     profile = get("anthropic")
     body = profile.build_request(
-        [{"role": "user", "content": "hi"}], effort="2048", job="aux"
+        [{"role": "user", "content": "hi"}], effort="high", job="aux"
     )
 
     assert body.get("thinking") == {"type": "disabled"}

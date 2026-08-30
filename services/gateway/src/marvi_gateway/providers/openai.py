@@ -36,7 +36,8 @@ openai_api = register(
         supports_vision=True,
         cache=CachePolicy(style="cache_key", min_tokens=1024),
         reasoning=ReasoningPolicy(
-            style="effort", levels=("minimal", "low", "medium", "high"), default="low"
+            style="effort",
+            levels=("none", "minimal", "low", "medium", "high", "xhigh", "max"),
         ),
         limits=LimitPolicy(
             style="credit",
@@ -67,7 +68,8 @@ openai_responses = register(
         supports_vision=True,
         cache=CachePolicy(style="cache_key", min_tokens=1024),
         reasoning=ReasoningPolicy(
-            style="effort", levels=("minimal", "low", "medium", "high"), default="low"
+            style="effort",
+            levels=("none", "minimal", "low", "medium", "high", "xhigh", "max"),
         ),
         limits=LimitPolicy(
             style="credit",
@@ -98,7 +100,8 @@ codex = register(
         supports_vision=True,
         cache=CachePolicy(style="cache_key", min_tokens=1024),
         reasoning=ReasoningPolicy(
-            style="effort", levels=("minimal", "low", "medium", "high"), default="low"
+            style="effort",
+            levels=("none", "minimal", "low", "medium", "high", "xhigh", "max"),
         ),
         limits=LimitPolicy(
             style="rolling_windows",

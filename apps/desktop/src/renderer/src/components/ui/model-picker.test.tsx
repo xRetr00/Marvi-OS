@@ -8,7 +8,8 @@ import {
   filterModelGroups,
   modelBrandKey,
   modelBrandMonogram,
-  modelEffortChoices
+  modelEffortChoices,
+  modelEffortLabel
 } from './model-picker-utils'
 
 function model(id: string, name = id): ModelCard {
@@ -114,5 +115,11 @@ describe('ModelPicker', () => {
     expect(
       modelEffortChoices({ ...providers[0].models[0], reasons: false }, 'Provider default')
     ).toEqual([])
+  })
+
+  it('names a supported disabled reasoning mode as Off', () => {
+    expect(modelEffortLabel('none', 'Provider default')).toBe('Off')
+    expect(modelEffortLabel('off', 'Provider default')).toBe('Off')
+    expect(modelEffortLabel('on', 'Provider default')).toBe('On')
   })
 })

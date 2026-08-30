@@ -37,7 +37,10 @@ anthropic_api = register(
         supports_vision=True,
         # Explicit, and worth the effort: unmarked prefixes are never cached.
         cache=CachePolicy(style="explicit_breakpoints", min_tokens=1024, max_breakpoints=4),
-        reasoning=ReasoningPolicy(style="budget_tokens"),
+        reasoning=ReasoningPolicy(
+            style="effort", levels=("none", "low", "medium", "high", "xhigh", "max")
+        ),
+        models_path="/v1/models",
         limits=LimitPolicy(
             style="credit",
             readable=True,
@@ -65,7 +68,10 @@ claude_code = register(
         default_aux_model="claude-haiku-4-5-20251001",
         supports_vision=True,
         cache=CachePolicy(style="explicit_breakpoints", min_tokens=1024, max_breakpoints=4),
-        reasoning=ReasoningPolicy(style="budget_tokens"),
+        reasoning=ReasoningPolicy(
+            style="effort", levels=("none", "low", "medium", "high", "xhigh", "max")
+        ),
+        models_path="/v1/models",
         limits=LimitPolicy(
             style="rolling_windows",
             windows=(("5 hours", 5), ("week", 168)),

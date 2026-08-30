@@ -53,6 +53,8 @@ export function filterModelGroups(providers: ModelProvider[], query: string): Mo
 
 export function modelEffortLabel(value: string, fallback: string): string {
   if (!value) return fallback
+  if (value === 'none' || value === 'off') return 'Off'
+  if (value === 'on') return 'On'
   if (value === 'xhigh') return 'XHigh'
   return value.charAt(0).toUpperCase() + value.slice(1)
 }

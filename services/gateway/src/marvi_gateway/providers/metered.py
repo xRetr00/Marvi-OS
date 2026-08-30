@@ -64,7 +64,10 @@ openrouter = register(
         # OpenRouter forwards `prompt_cache_key` to backends that support it and
         # ignores it elsewhere, so sending it is free.
         cache=CachePolicy(style="cache_key", min_tokens=1024),
-        reasoning=ReasoningPolicy(style="effort", levels=("low", "medium", "high"), default="low"),
+        reasoning=ReasoningPolicy(
+            style="effort",
+            levels=("none", "minimal", "low", "medium", "high", "xhigh", "max"),
+        ),
         limits=LimitPolicy(
             style="credit",
             readable=True,
@@ -91,7 +94,7 @@ deepinfra = register(
         default_aux_model="Qwen/Qwen3-8B",
         # No prompt-cache control on the wire; the servers keep their own.
         cache=CachePolicy(style="none"),
-        reasoning=ReasoningPolicy(style="none"),
+        reasoning=ReasoningPolicy(style="effort", levels=("none", "low", "medium", "high")),
         limits=LimitPolicy(
             style="credit",
             readable=True,
@@ -119,7 +122,7 @@ deepseek = register(
         # Caching is on by the provider's own choice with nothing to send; the
         # saving still shows up in usage, which is what the budget reads.
         cache=CachePolicy(style="automatic"),
-        reasoning=ReasoningPolicy(style="none"),
+        reasoning=ReasoningPolicy(style="effort", levels=("none", "low", "high", "max")),
         limits=LimitPolicy(
             style="credit",
             readable=True,

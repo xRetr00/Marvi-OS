@@ -24,6 +24,7 @@ from .base import (
     CachePolicy,
     LimitPolicy,
     ProviderProfile,
+    ReasoningPolicy,
     register,
 )
 
@@ -47,6 +48,10 @@ zen = register(
         default_aux_model="gemini-3-flash",
         default_headers=dict(_ATTRIBUTION),
         cache=CachePolicy(style="cache_key", min_tokens=1024),
+        reasoning=ReasoningPolicy(
+            style="effort",
+            levels=("none", "minimal", "low", "medium", "high", "xhigh", "max"),
+        ),
         limits=LimitPolicy(
             style="credit",
             readable=False,
@@ -76,6 +81,10 @@ go = register(
         default_aux_model="glm-5",
         default_headers=dict(_ATTRIBUTION),
         cache=CachePolicy(style="cache_key", min_tokens=1024),
+        reasoning=ReasoningPolicy(
+            style="effort",
+            levels=("none", "minimal", "low", "medium", "high", "xhigh", "max"),
+        ),
         limits=LimitPolicy(
             style="rolling_windows",
             windows=(("5 hours", 5), ("week", 168), ("month", 720)),
