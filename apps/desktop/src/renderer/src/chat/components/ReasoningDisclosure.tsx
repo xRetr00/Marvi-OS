@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 
+import { GlyphSpinner } from '../../components/ui/glyph-spinner'
 import { haptic } from '../../lib/haptics'
 import { Markdown } from '../MarkdownView'
 import { ActivityTimer } from './ActivityTimer'
@@ -32,7 +33,13 @@ export function ReasoningDisclosure({
         }}
         type="button"
       >
-        {streaming ? <span aria-hidden="true" className="chat-activity-pulse" /> : null}
+        {streaming ? (
+          <GlyphSpinner
+            ariaLabel="Marvi is thinking"
+            className="chat-working-spinner"
+            spinner="braille"
+          />
+        ) : null}
         <span className={streaming ? 'chat-scaffold-label is-live' : 'chat-scaffold-label'}>
           {streaming ? 'Thinking' : 'Thought'}
         </span>
@@ -61,8 +68,12 @@ export function StreamActivity({
   startedAt: string
 }): React.JSX.Element {
   return (
-    <div className="chat-scaffold chat-stream-activity" data-conversation-scaffold="" role="status">
-      <span aria-hidden="true" className="chat-activity-pulse" />
+    <div className="chat-scaffold chat-stream-activity" data-conversation-scaffold="">
+      <GlyphSpinner
+        ariaLabel={`Marvi is ${label.toLowerCase()}`}
+        className="chat-working-spinner"
+        spinner="braille"
+      />
       <span className="chat-scaffold-label is-live">{label}</span>
       <ActivityTimer active startedAt={startedAt} />
     </div>

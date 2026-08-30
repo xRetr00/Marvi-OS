@@ -179,7 +179,8 @@ describe('Composer', () => {
 
     expect(html).toContain('chat-inline-tool')
     expect(html).toContain('Using Room state')
-    expect(html).toContain('chat-activity-pulse')
+    expect(html).toContain('chat-working-spinner')
+    expect(html).toContain('glyph-spinner')
     expect(html).not.toContain('chat-stream-activity')
   })
 
@@ -241,6 +242,9 @@ describe('transcript visual contract', () => {
     expect(transcript).toContain('.chat-scaffold {')
     expect(transcript).toContain('opacity: 0.67')
     expect(transcript).toContain('.chat-reasoning-body.is-live')
+    expect(transcript).toContain('max-height: min(84px, 14vh)')
+    expect(transcript).toContain('.chat-reasoning + .chat-inline-tool')
+    expect(transcript).toContain('font-size: 8.5px')
   })
 })
 

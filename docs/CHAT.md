@@ -77,11 +77,13 @@ until the Gateway settles or cancels that turn.
 
 Streaming activity is explicit without pretending partial text is complete.
 Before the first visible token, one compact timed Thinking row occupies the
-tail. Visible reasoning opens while it streams and settles into a collapsed
-Thought disclosure; it never joins the answer prose. A streamed tool owns the
+tail. Visible reasoning opens in a compact, bounded scroller while it streams
+and settles into a collapsed Thought disclosure; it never joins the answer
+prose. A streamed tool owns the
 activity row while it runs, avoiding a duplicate generic spinner. Once answer
 text begins, the partial Markdown remains readable and a small timed Working
-row carries the unfinished state. Completed tools and reasoning become faded,
+row carries the unfinished state. Tool activity uses its own smaller, separated
+row. Completed tools and reasoning become faded,
 transparent disclosures that return to full contrast on hover or keyboard
 focus. Errors use a bounded destructive surface with copyable details rather
 than masquerading as assistant prose.

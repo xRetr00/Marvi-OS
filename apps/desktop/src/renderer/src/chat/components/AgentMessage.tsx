@@ -1,4 +1,5 @@
 import { AbstractIcon } from '../../components/abstract-icon'
+import { GlyphSpinner } from '../../components/ui/glyph-spinner'
 import { UiTooltip } from '../../components/ui/tooltip'
 import { Markdown } from '../MarkdownView'
 import { formatTime } from '../time'
@@ -33,10 +34,15 @@ export function AgentMessage({
       ) : null}
       {tool ? (
         <div className="chat-scaffold chat-inline-tool" data-conversation-scaffold="">
-          <span
-            aria-hidden="true"
-            className={streaming ? 'chat-activity-pulse' : 'chat-tool-dot'}
-          />
+          {streaming ? (
+            <GlyphSpinner
+              ariaLabel={`Marvi is using ${toolLabel(tool)}`}
+              className="chat-working-spinner"
+              spinner="braille"
+            />
+          ) : (
+            <span aria-hidden="true" className="chat-tool-dot" />
+          )}
           <span className={streaming ? 'chat-scaffold-label is-live' : 'chat-scaffold-label'}>
             {streaming ? 'Using' : 'Used'} {toolLabel(tool)}
           </span>

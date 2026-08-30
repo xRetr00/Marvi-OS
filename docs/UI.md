@@ -353,8 +353,10 @@ Stop until the active turn settles.
 Tool activity and sources use transparent faded disclosure rows at rest, a
 small `Sources · count` label, and compact flat result rows only after
 expansion. Pre-token waiting, live reasoning, streamed tools, and partial answer
-text each expose one timed activity signal. Live reasoning opens while tokens
-arrive and completed reasoning collapses as Thought; neither state is rendered
+text each expose one timed activity signal using the shared Marvi glyph spinner.
+Live reasoning opens in a compact, height-bounded scroller while tokens arrive,
+and completed reasoning collapses as Thought; tool activity has its own smaller,
+separated row, and neither state is rendered
 as answer prose. Structured results use thin dividers instead of nested paper
 cards, with progressive disclosure and no model-authored UI code. Context
 percentage is shown only when both provider input usage and a catalog context

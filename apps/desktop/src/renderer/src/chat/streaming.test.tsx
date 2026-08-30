@@ -33,7 +33,8 @@ describe('a streaming reply', () => {
   it('shows a timed activity row while tokens are still arriving', () => {
     const html = markup(reply('The light', { streaming: true }))
     expect(html).toContain('chat-stream-activity')
-    expect(html).toContain('chat-activity-pulse')
+    expect(html).toContain('chat-working-spinner')
+    expect(html).toContain('glyph-spinner')
     expect(html).toContain('Working')
   })
 
@@ -72,6 +73,7 @@ describe('reasoning', () => {
     expect(html).toContain('checking the room state')
     expect(html).toContain('Thinking')
     expect(html).toContain('chat-activity-time')
+    expect(html).toContain('chat-working-spinner')
   })
 
   it('is absent entirely when the model did not reason', () => {
