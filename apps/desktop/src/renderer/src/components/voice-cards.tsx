@@ -124,8 +124,22 @@ export function VoiceActivityCard(): React.JSX.Element | null {
     () => window.marvi?.getVoiceActivity() ?? Promise.resolve(null),
     1200
   )
+  return activity ? <ActivityView activity={activity} /> : null
+}
+
+/**
+ * The card itself, given its data.
+ *
+ * Split from the polling because this project renders tests with
+ * `renderToStaticMarkup`, which never runs an effect — a component that
+ * fetches its own data is a component with no assertions on it.
+ */
+export function ActivityView({
+  activity
+}: {
+  activity: VoiceActivity
+}): React.JSX.Element | null {
   const [open, setOpen] = useState(false)
-  if (!activity) return null
 
   const { calls, running, context } = activity
   const percent = context.window
@@ -290,7 +304,17 @@ export function CalendarCard(): React.JSX.Element | null {
     const timer = setInterval(() => setNow(new Date()), 30_000)
     return () => clearInterval(timer)
   }, [])
-  if (!calendar) return null
+  return calendar ? <CalendarView calendar={calendar} now={now} /> : null
+}
+
+/** The card itself, given its data and the clock. See `ActivityView`. */
+export function CalendarView({
+  calendar,
+  now
+}: {
+  calendar: { connected: boolean; events: CalendarEvent[]; reason?: string }
+  now: Date
+}): React.JSX.Element {
 
   return (
     <section className="voice-card voice-calendar-card" aria-label="Upcoming calendar events">

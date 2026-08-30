@@ -517,13 +517,49 @@ def _report_shape(turn_ctx: Any) -> None:
         import httpx
 
         parts = []
+        characters = 0
         for item in getattr(turn_ctx, "items", []):
             role = getattr(item, "role", None)
             if role:
-                parts.append(f"{role}:{len(str(getattr(item, 'content', '')))}")
+                size = len(str(getattr(item, "content", "")))
+                characters += size
+                parts.append(f"{role}:{size}")
         httpx.post(
             f"{gateway_url()}/observations/shape",
             json={"parts": parts},
+            timeout=REPORT_TIMEOUT,
+        )
+        # And the same measurement, for the Voice page's meter.
+        #
+        # Estimated from characters rather than counted, and that is the honest
+        # trade: a tokeniser in the turn loop costs more than the number is
+        # worth, and the question the meter answers -- "is this conversation
+        # getting long" -- does not need three significant figures. Four
+        # characters to a token is the usual rule for English and JSON, and it
+        # under-counts slightly, which is the safer direction for a gauge.
+        _report_context(characters // 4)
+
+
+def _report_context(tokens: int) -> None:
+    """How full the model's context is, for the card on the Voice page.
+
+    The window comes from the same place the model does, so a meter cannot
+    disagree with the provider about how much room there is.
+    """
+    import contextlib
+
+    with contextlib.suppress(Exception):
+        import httpx
+
+        from .runtime import AgentConfig
+
+        window = getattr(_report_context, "_window", 0)
+        if not window:
+            window = AgentConfig.from_gateway().context
+            _report_context._window = window  # type: ignore[attr-defined]
+        httpx.post(
+            f"{gateway_url()}/voice/activity",
+            json={"used": tokens, "window": window, "turns": len(_said) + 1},
             timeout=REPORT_TIMEOUT,
         )
 
