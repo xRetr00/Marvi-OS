@@ -55,6 +55,7 @@ sys.path.insert(0, str(_ROOT / "services/agent/src"))
 sys.path.insert(0, str(_ROOT / "services/gateway/src"))
 
 from live_conversation import (
+    CLAIMED,
     LEAKED,
     LONG_WORDS,
     NARRATION,
@@ -396,6 +397,14 @@ def report(said: list[dict]) -> None:
     narrated = [t for t in said if any(p in t["said"].lower() for p in NARRATION)]
     longest = [t for t in said if len(t["said"].split()) > LONG_WORDS]
     silent = [t for t in said if not t["said"].strip() and not t["error"]]
+    # The claim without the call. Only when the turn called nothing at all:
+    # "I've saved it" after a real `file_write` is a report, and the same
+    # sentence with an empty tool list is an invention.
+    invented = [
+        t
+        for t in said
+        if not t["tools"] and any(p in t["said"].lower() for p in CLAIMED)
+    ]
     errors = [t for t in said if t["error"]]
     used = collections.Counter(name for t in said for name in t["tools"])
     seconds = sorted(t["seconds"] for t in said if t["seconds"])
@@ -408,6 +417,8 @@ def report(said: list[dict]) -> None:
           f"({100 * len(longest) / total:.0f}%)")
     print(f"  said nothing              {len(silent):>3}  ({100 * len(silent) / total:.0f}%)")
     print(f"  errored                   {len(errors):>3}")
+    print(f"  claimed an action it did not take "
+          f"{len(invented):>3}  ({100 * len(invented) / total:.0f}%)")
     if seconds:
         print(f"\n  turn time   median {seconds[len(seconds) // 2]:.1f}s   "
               f"p90 {seconds[int(len(seconds) * 0.9) - 1]:.1f}s   max {seconds[-1]:.1f}s")
@@ -435,6 +446,8 @@ def report(said: list[dict]) -> None:
         quiet = sum(1 for t in turns if not t["said"].strip())
         print(f"    {name:<12} {len(turns):>3} turns, {tools:>2} used a tool, {quiet:>2} silent")
 
+    for turn in invented:
+        print(f"\n  INVENTED on {turn['heard']!r}:\n    {json.dumps(turn['said'][:200])}")
     for turn in leaks:
         print(f"\n  LEAK on {turn['heard']!r}:\n    {json.dumps(turn['said'][:240])}")
     for turn in errors[:5]:

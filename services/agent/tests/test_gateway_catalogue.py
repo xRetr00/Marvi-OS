@@ -350,3 +350,66 @@ async def test_deferring_can_be_turned_back_on(monkeypatch) -> None:
     loaded = {tool.info.name for tool in await tools.from_gateway()}
 
     assert loaded == {"tool_search"}
+
+
+async def test_the_bridge_calls_a_tool_that_is_not_loaded() -> None:
+    r"""Taken from Hermes Agent, which pairs `tool_search` with a `tool_call`
+    bridge instead of making the model do a two-step. The model already emits
+    it: LiveKit logged `unknown AI function \`tool_call\`` twice in one sweep,
+    reaching for a bridge by the name the convention gave it, into nothing."""
+    import httpx
+
+    from marvi_agent.tools import GatewayTools
+
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/tools":
+            return httpx.Response(
+                200,
+                json={
+                    "tools": [
+                        {"name": "tool_search", "description": "Find", "arguments": ["query"],
+                         "core": True},
+                        {"name": "browser_close", "description": "Close", "arguments": []},
+                    ]
+                },
+            )
+        seen.append(request.url.path)
+        return httpx.Response(200, json={"status": "executed", "result": {"closed": True}})
+
+    tools = GatewayTools(client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    await tools.from_gateway(everything=False)
+
+    answer = await tools.tool_call(None, "browser_close", {})
+
+    assert seen == ["/tools/browser_close"]
+    assert "closed" in answer
+
+
+async def test_the_bridge_names_the_near_miss_instead_of_failing() -> None:
+    """A tool that does not exist is a recoverable turn, not a dead one. The
+    model gets the nearest real name and the way to search."""
+    import httpx
+
+    from marvi_agent.tools import GatewayTools
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "tools": [
+                    {"name": "tool_search", "description": "Find", "arguments": ["query"],
+                     "core": True},
+                    {"name": "browser_close", "description": "Close", "arguments": []},
+                ]
+            },
+        )
+
+    tools = GatewayTools(client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    await tools.from_gateway()
+
+    answer = await tools.tool_call(None, "browser", {})
+
+    assert "browser_close" in answer
+    assert "tool_search" in answer

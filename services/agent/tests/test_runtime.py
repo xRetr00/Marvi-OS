@@ -147,14 +147,44 @@ def test_voice_asks_for_reasoning_to_be_off() -> None:
     assert body["reasoning"] == {"enabled": False, "exclude": True}
 
 
-def test_another_provider_is_sent_none_of_it() -> None:
-    """These are OpenRouter's fields. Some servers reject a body they do not
-    recognise, which would take voice down for a local model."""
+def test_every_provider_is_told_to_stop_thinking_in_its_own_dialect() -> None:
+    """Reasoning off is not an optimisation on a spoken turn. Measured on the
+    model that ships: 4.25s and 356 reasoning tokens by default, 1.48s and none
+    with it off.
+
+    It used to be asked of OpenRouter alone and nobody else, so changing
+    provider turned thinking back on and the voice path became slow again with
+    nothing in the logs to say why. There is no shared field, so each is
+    spelled the way that provider spells it."""
     from marvi_agent.runtime import AgentConfig, voice_body
 
-    assert voice_body(
-        AgentConfig(api_key="k", model="m", base_url="http://127.0.0.1:1234/v1")
-    ) == {}
+    def body(url: str) -> dict:
+        return voice_body(AgentConfig(api_key="k", model="m", base_url=url))
+
+    # Ollama and vLLM turn Qwen3's `<think>` block off at the template.
+    assert body("http://127.0.0.1:1234/v1") == {
+        "chat_template_kwargs": {"enable_thinking": False}
+    }
+    # Anything else gets OpenAI's spelling, which the endpoints with a knob
+    # have settled on and the ones without ignore.
+    assert body("https://api.deepseek.com") == {"reasoning_effort": "none"}
+
+
+def test_no_provider_is_left_thinking() -> None:
+    """The property, rather than three examples of it. A provider added later
+    must not be the one that quietly gets reasoning back."""
+    from marvi_agent.runtime import AgentConfig, voice_body
+
+    for url in (
+        "https://openrouter.ai/api/v1",
+        "http://127.0.0.1:1234/v1",
+        "http://localhost:11434/v1",
+        "https://api.deepseek.com",
+        "https://opencode.ai/zen/go/v1",
+        "https://api.groq.com/openai/v1",
+    ):
+        asked = voice_body(AgentConfig(api_key="k", model="m", base_url=url))
+        assert asked, f"{url} was told nothing about reasoning"
 
 
 def test_a_spoken_reply_is_capped_by_speech_not_by_the_context_window() -> None:

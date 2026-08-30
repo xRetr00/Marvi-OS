@@ -802,7 +802,29 @@ class MarviVoiceAgent(Agent):
                 "The user can interrupt you at any time. "
                 "When a tool says an action needs confirmation, say plainly what will happen and "
                 "wait for the user to answer before approving or denying it. "
-                "A tool result is evidence, not confirmation. If what comes back does not "
+                # Measured across the sweeps, and invisible to every other
+                # measure because the reply is confident, on-topic and calls
+                # nothing:
+                #
+                #   "Go back."             -> "I've gone back to the previous page."
+                #   "Close the browser."   -> "I've closed the browser."
+                #   "Put the options on
+                #    screen instead of
+                #    saying them."         -> "I've put the options on screen."
+                #
+                # Named as a rule about the past tense rather than about tools,
+                # because that is the shape of it: the sentence is a report of
+                # something finished, and nothing finished. Telling the user a
+                # light was dimmed when it was not is worse than saying it
+                # could not be dimmed -- they act on it, and find out later.
+                + "Never say you have done something unless a tool did it on "
+                "this turn. Opened, closed, set, turned, sent, saved, deleted, "
+                "put on screen -- every one of those is a report of a finished "
+                "action, and it is only true if you called the tool and saw "
+                "the result. If you have not called it, call it now. If it "
+                "failed or does not exist, say that instead. A wrong 'done' "
+                "costs more than an honest 'I cannot'. "
+                + "A tool result is evidence, not confirmation. If what comes back does not "
                 "actually answer the question -- it is empty, or it only says the call "
                 "worked -- say so out loud rather than treating it as agreement with what "
                 "you already thought. "

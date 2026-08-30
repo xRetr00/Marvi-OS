@@ -138,12 +138,34 @@ def voice_body(config: AgentConfig) -> dict:
     explicitly rather than left unset, because several models reason by default
     and silence on the parameter is not the same as "do not".
 
-    Only for OpenRouter: these are its fields, and sending them to an endpoint
-    that does not know them is a request some servers reject outright.
+    Measured on the model that ships, one sentence, three ways:
+
+        default (nothing asked)      4.25s   completion 528, reasoning 356
+        enabled:false exclude:true   1.64s   completion 168, reasoning 0
+        enabled:false                1.48s   completion 161, reasoning 0
+
+    Nearly three seconds of silence, bought back by one field. Off is not an
+    optimisation here, it is the difference between a conversation and a wait.
+
+    Every provider, not only OpenRouter, and that is a fix rather than a
+    tidy-up: the guard below used to return `{}` for anything else, so
+    changing provider silently turned thinking back on and the voice path
+    became slow again with nothing to say why. Each dialect is spelled the way
+    that provider spells it -- there is no shared field -- and an endpoint that
+    does not know a field is the reason this is a lookup and not a union.
     """
-    if "openrouter.ai" not in config.base_url.lower():
-        return {}
-    body: dict = {"reasoning": {"enabled": False, "exclude": True}}
+    where = config.base_url.lower()
+    if "openrouter.ai" in where:
+        body: dict = {"reasoning": {"enabled": False, "exclude": True}}
+    elif "localhost" in where or "127.0.0.1" in where:
+        # Ollama and vLLM both take the template flag; it is what turns off
+        # Qwen3's `<think>` block at the template level rather than asking the
+        # model nicely in the prompt.
+        return {"chat_template_kwargs": {"enable_thinking": False}}
+    else:
+        # OpenAI's own spelling, which the OpenAI-compatible endpoints that
+        # have a knob at all have settled on. Providers without one ignore it.
+        return {"reasoning_effort": "none"}
     # Whatever the Gateway was configured with, rather than a policy invented
     # here. This used to hardcode `sort: latency`, which duplicated a setting
     # the user can change and pinned a constraint the numbers do not support:

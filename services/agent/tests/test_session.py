@@ -366,3 +366,12 @@ def test_the_persona_keeps_secrets_out_of_memory() -> None:
     said = MarviVoiceAgent(tools=None).instructions.lower()
 
     assert "never write a password, key, token or card number into memory" in said
+
+
+def test_the_persona_forbids_reporting_an_action_it_did_not_take() -> None:
+    """The failure every other measure scores as a quiet turn that went fine:
+    "Go back." -> "I've gone back to the previous page.", "Close the browser."
+    -> "I've closed the browser." Confident, on-topic, nothing called."""
+    said = MarviVoiceAgent(tools=None).instructions.lower()
+
+    assert "never say you have done something unless a tool did it on this turn" in said

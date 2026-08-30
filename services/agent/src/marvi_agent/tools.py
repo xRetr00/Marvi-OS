@@ -305,6 +305,52 @@ class GatewayTools:
             await self._load_found(found)
         return describe(result)
 
+    # -- the bridge ---------------------------------------------------------
+    #
+    # `tool_call` is taken from Hermes Agent, which pairs `tool_search` with a
+    # `tool_call` bridge rather than making the model do a two-step. Two things
+    # measured here say the same thing.
+    #
+    # First, the model already emits it. Twice in one sweep LiveKit logged
+    # `unknown AI function \`tool_call\`` -- the model reaching for a bridge
+    # by the name the convention gave it, into nothing.
+    #
+    # Second, when the whole catalogue was named in the instructions but only
+    # the core set was loaded, the model called the named tools directly and
+    # LiveKit rejected ten of them, while `tool_search` -- the step that was
+    # supposed to bridge that -- fired once in 123 turns. A model calls the
+    # tool it can see named. Giving that call somewhere to land is cheaper
+    # than teaching it not to make it.
+    #
+    # Costs one schema and is a no-op while nothing is deferred, which is why
+    # it is safe to keep on: it only ever turns a rejection into a call.
+
+    @function_tool
+    async def tool_call(
+        self, context: RunContext, name: str, arguments: dict[str, Any] | None = None
+    ) -> str:
+        """Call any tool by name, including one that is not currently loaded.
+        Pass the tool's own name and its arguments.
+
+        Use this when you know which tool you want. It is the same as calling
+        the tool directly and always works, even for tools you cannot see.
+        """
+        wanted = str(name or "").strip()
+        if not wanted:
+            raise ToolError("A tool name is required.")
+        if wanted not in self._catalogue:
+            near = [known for known in sorted(self._catalogue) if wanted in known]
+            return (
+                f"There is no tool called {wanted!r}."
+                + (f" Did you mean {near[0]!r}?" if near else "")
+                + f" Use {SEARCH_TOOL} with a word or two to find the right one."
+            )
+        # Loaded on the way through, so the next call goes direct and this
+        # one does not have to come back here.
+        if wanted not in self._loaded:
+            await self._load_found([wanted])
+        return await self._call(wanted, dict(arguments or {}), context)
+
     # -- room tools ---------------------------------------------------------
 
     @function_tool
