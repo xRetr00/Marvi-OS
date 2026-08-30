@@ -270,6 +270,13 @@ class _Prefetch:
             with self._lock:
                 self._query, self._block, self._at = text, block, time.monotonic()
                 self._running = ""
+                # A result for this sentence retires the last one's. Left set,
+                # a lookup that found nothing would report the *previous*
+                # turn's block as staged for this one -- `staged` only has to
+                # see a prefix match, and every fragment of a new sentence is
+                # one. `install` sets it again when there is something to set
+                # it for.
+                self._installed = False
             if block and self._agent is not None and eager():
                 self._stage(block)
 
@@ -355,11 +362,32 @@ class _Prefetch:
         return usable
 
     def take(self, text: str) -> str | None:
-        """The prefetched block for this turn, or None to fetch it live."""
+        """The prefetched block for this turn, or None to fetch it live.
+
+        An empty prefetch is a miss, not an answer. The lookup runs against an
+        interim transcript, and a recogniser cuts those mid-word: a real
+        session prefetched "You have a clar" and "Do you t can you tell me
+        what games", both of which match nothing, while the finished sentences
+        they became -- "You have a clarification tool for info." and "can you
+        tell me what games I play usually?" -- match 905 and 482 characters.
+
+        Returning that empty string was indistinguishable from "looked, found
+        nothing", so `_recall` never ran on the complete sentence and the turn
+        reached the model with no memory at all. Marvi denied knowing things
+        she had been told minutes earlier, on exactly the turns where the
+        recogniser happened to cut short, which is why she seemed to lose the
+        thread at random. Falling through costs one live lookup on those
+        turns; the alternative costs the answer.
+        """
         text = text.strip()
         with self._lock:
             fresh = time.monotonic() - self._at <= self.FRESH
-            usable = bool(self._query) and fresh and text.lower().startswith(self._query.lower())
+            usable = (
+                bool(self._query)
+                and bool(self._block)
+                and fresh
+                and text.lower().startswith(self._query.lower())
+            )
             block = self._block
             if usable:
                 # Cleared on use: the next turn is a different sentence, and a

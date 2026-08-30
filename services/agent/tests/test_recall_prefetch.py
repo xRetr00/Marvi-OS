@@ -128,3 +128,50 @@ def test_the_prefetch_is_what_pays_for_a_reading(prefetch) -> None:
     settle(prefetch)
 
     assert prefetch.readings == [True]
+
+
+def test_a_prefetch_that_found_nothing_is_a_miss_not_an_answer(monkeypatch) -> None:
+    """The recogniser cuts interims mid-word, and a cut sentence matches
+    nothing that the whole one matches.
+
+    A real session prefetched "You have a clar" and "Do you t can you tell me
+    what games" -- both empty against the live store -- while the sentences
+    they became match 905 and 482 characters. Handing the empty string back as
+    though it were the answer meant `_recall` never ran on the finished
+    sentence, so those turns reached the model with no memory at all and Marvi
+    denied knowing things she had been told minutes before.
+    """
+    def nothing(text: str, *, read: bool = False) -> str:
+        return ""
+
+    monkeypatch.setattr(session_module, "_recall", nothing)
+    prefetch = session_module._Prefetch()
+    prefetch.begin("You have a clar")
+    for _ in range(200):
+        if prefetch._query:
+            break
+        time.sleep(0.005)
+
+    assert prefetch.take("You have a clarification tool for info.") is None
+    assert prefetch.misses == 1
+
+
+def test_an_empty_lookup_does_not_claim_the_last_turn_s_block(prefetch, monkeypatch) -> None:
+    """`staged` only asks whether the text starts with the query, and every
+    fragment of a new sentence starts one. A lookup that found nothing left
+    the previous turn's block flagged as staged for this one, so the turn was
+    answered from the wrong memories and the log said so: "already in
+    context", on a sentence nothing had been staged for."""
+    prefetch.begin("what computer am I runni")
+    settle(prefetch)
+    prefetch._installed = True
+
+    monkeypatch.setattr(session_module, "_recall", lambda text, *, read=False: "")
+    prefetch._query = ""
+    prefetch.begin("anything about this?")
+    for _ in range(200):
+        if prefetch._query == "anything about this?":
+            break
+        time.sleep(0.005)
+
+    assert prefetch.staged("anything about this?") is False
