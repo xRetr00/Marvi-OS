@@ -286,14 +286,30 @@ class _Watcher:
             )
             self._thread.start()
 
+    #: Consecutive failures before it stops trying, and how long for. A page
+    #: nobody is watching, or a Gateway that is down, should not be paid for
+    #: once per tool call forever -- the agent suite spent twenty seconds on
+    #: exactly that before this existed, all of it on a 404.
+    GIVE_UP_AFTER = 3
+    QUIET_FOR = 30.0
+
     def _run(self) -> None:
+        failures = 0
+        quiet_until = 0.0
         while True:
             url, payload = self._queue.get()
+            if time.monotonic() < quiet_until:
+                continue
             try:
                 if self._client is not None:
-                    self._client.post(url, json=payload)
+                    answer = self._client.post(url, json=payload)
+                    answer.raise_for_status()
+                failures = 0
             except Exception:
-                pass
+                failures += 1
+                if failures >= self.GIVE_UP_AFTER:
+                    quiet_until = time.monotonic() + self.QUIET_FOR
+                    failures = 0
 
 
 #: One per process, which is one voice session.
