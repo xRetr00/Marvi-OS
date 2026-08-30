@@ -32,6 +32,18 @@ def gateway_base_url() -> str:
     return os.environ.get("MARVI_GATEWAY_URL", "http://127.0.0.1:8765").rstrip("/")
 
 
+#: The per-launch secret the desktop puts in every child's environment. See
+#: `marvi_gateway.localauth`: `/providers/voice` answers with the provider's
+#: raw API key, and it used to answer to anyone who could reach loopback.
+LOCAL_TOKEN = "MARVI_LOCAL_TOKEN"
+
+
+def local_token_header() -> dict[str, str]:
+    """The header that proves this process was started alongside the Gateway."""
+    token = os.environ.get(LOCAL_TOKEN, "").strip()
+    return {"x-marvi-local": token} if token else {}
+
+
 @dataclass(frozen=True, slots=True)
 class AgentConfig:
     api_key: str
@@ -48,7 +60,14 @@ class AgentConfig:
     def from_gateway(cls, client: httpx.Client | None = None) -> AgentConfig:
         http = client or httpx.Client(timeout=RESOLVE_TIMEOUT)
         try:
-            response = http.get(f"{gateway_base_url()}/providers/voice")
+            # The Gateway will not hand a credential to an unauthenticated
+            # caller any more. Both processes are started by the same
+            # supervisor with the same environment, which is what makes this
+            # the Agent and not a browser tab on the same loopback. Absent
+            # outside the app, where the Gateway does not require it either.
+            response = http.get(
+                f"{gateway_base_url()}/providers/voice", headers=local_token_header()
+            )
             if response.status_code == 503:
                 raise ProviderUnavailableError(
                     "No provider is configured. Connect one in the Marvi control center."

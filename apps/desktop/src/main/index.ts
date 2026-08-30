@@ -1,4 +1,5 @@
 import { execFile, spawn } from 'node:child_process'
+import { randomBytes } from 'node:crypto'
 import { promisify } from 'node:util'
 
 import {
@@ -551,6 +552,13 @@ function startVoiceStack(): void {
     LIVEKIT_API_KEY: credentials.key,
     LIVEKIT_API_SECRET: credentials.secret,
     MARVI_GATEWAY_URL: gateway(),
+    // The one endpoint that answers with a raw provider API key is
+    // /providers/voice, and it used to answer to anything that could reach
+    // loopback -- including any page in any browser on this machine. Both
+    // children are started from here with the same value, which is what
+    // distinguishes the agent asking from a tab asking. New every launch, and
+    // never written to disk. See marvi_gateway/localauth.py.
+    MARVI_LOCAL_TOKEN: randomBytes(32).toString('hex'),
     MARVI_HOME: stateDir(),
     MARVI_LOG_DIR: logsDir(),
     // So a child can notice this process going away and stop on its own.

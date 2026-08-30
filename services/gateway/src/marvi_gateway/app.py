@@ -28,6 +28,7 @@ from . import (
     delegate,
     distil,
     latency,
+    localauth,
     mcp_store,
     observations,
     parent,
@@ -4070,13 +4071,18 @@ def create_app(
         }
 
     @app.get("/providers/voice", response_model=VoiceProvider)
-    async def voice_provider() -> VoiceProvider:
+    async def voice_provider(request: Request) -> VoiceProvider:
         """Resolve the voice LLM for the Agent worker.
 
         The Agent runs in its own environment and must not carry its own copy of
         the provider table. It asks here, over the same loopback channel it
         already uses for tools, and gets whatever the user configured.
         """
+        # This is the one endpoint that answers with a raw API key, and it had
+        # nothing in front of it: any process on this machine, and any page in
+        # any browser on it, could read the provider credential with one
+        # unauthenticated GET. See `localauth`.
+        localauth.guard(request)
         # The LiveKit OpenAI plugin speaks chat completions, and a local server
         # that is merely configured is not the same as one that is running.
         # The same list the Voice page's readout is built from, so the page
