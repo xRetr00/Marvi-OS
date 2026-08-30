@@ -93,6 +93,20 @@ SYSTEM_PROMPT = (
     "use, a health fact: all durable. The test is whether you would look "
     "foolish not knowing it next week, not whether it stays true forever.\n"
     "\n"
+    # The owner found this before the tests did. Told out loud "I have a PS5
+    # controller", the recogniser heard "BS5", nothing downstream was looking,
+    # and the store held a product that does not exist -- ready to be said
+    # back for as long as it was there. The recogniser cannot know a word it
+    # has never seen; the vocabulary correction only knows names already in
+    # memory, and this was the turn that would have added it. This is the
+    # only place in the chain that knows what is and is not a real thing.
+    "You are reading speech, and the recogniser gets names and products "
+    "wrong. Write down what they meant rather than what it heard, when you "
+    "are sure: a BS5 controller is a PlayStation 5 controller, Vercell is "
+    "Vercel. Only when you are sure -- a name you do not recognise is "
+    "usually one you do not know rather than one that was mis-heard, and "
+    "inventing a correction is worse than storing an odd spelling.\n"
+    "\n"
     "These are not memories:\n"
     '  "how are we doing?" -> nothing\n'
     '  "what do you know about X?" -> nothing, they are asking not telling\n'

@@ -799,7 +799,28 @@ class MarviVoiceAgent(Agent):
                 # none of which called anything. Claiming an action is worse
                 # than refusing one, so this stays out until there is a fix
                 # that does not trade the rest of the tools for it.
-                "The user can interrupt you at any time. "
+                # Measured, after the owner said she was "a goddamn 2 modes
+                # robot -- cold and idiot". Over 201 turns she ended a reply
+                # with a question 37% of the time, and 50 of those 76 were
+                # "Is there anything else I can help you with?" -- the filler
+                # that sounds like interest and carries none. The median reply
+                # ran 41 words, against a character file that says "short, one
+                # thought per turn, say the thing then stop".
+                #
+                # A prohibition, not a personality instruction. SOUL.md already
+                # says warm and dry and asks for one question when the intent
+                # is unclear; what was drowning it was this closing tic on
+                # every turn. Removing the filler is what leaves room for the
+                # real question, and it cannot fight the rules above it the way
+                # a second "be curious" instruction would.
+                + "Do not end turns with an offer of further help. 'Is there "
+                "anything else', 'let me know if you need anything', 'how can "
+                "I help' -- none of that is conversation, and out loud it is "
+                "the sound of a machine waiting. Stop when the answer stops. "
+                "If something in what they said is genuinely worth one more "
+                "question -- a detail that changes the answer, a thing you "
+                "would want to know -- ask that instead, once. "
+                + "The user can interrupt you at any time. "
                 "When a tool says an action needs confirmation, say plainly what will happen and "
                 "wait for the user to answer before approving or denying it. "
                 # Measured across the sweeps, and invisible to every other

@@ -97,14 +97,14 @@ def test_tracking_whitespace_is_collapsed_before_the_model_reads_it(monkeypatch)
 def test_a_fact_worth_keeping_is_kept(monkeypatch) -> None:
     _answering(monkeypatch, "KEEP")
 
-    assert gatekeeping.worth_remembering(Model(""), "Keyboards", "They own a Keychron K2")
+    assert gatekeeping.worth_remembering(Model(""), "Keyboards", "They own a Keychron K2")[0]
 
 
 def test_the_conversation_itself_is_not_a_memory(monkeypatch) -> None:
     """How "the user said hello" was written down five times."""
     _answering(monkeypatch, "DROP")
 
-    assert not gatekeeping.worth_remembering(Model(""), "greeting", "The user said hello")
+    assert not gatekeeping.worth_remembering(Model(""), "greeting", "The user said hello")[0]
 
 
 def test_a_proposed_memory_survives_a_gate_that_cannot_answer(monkeypatch) -> None:
@@ -113,5 +113,54 @@ def test_a_proposed_memory_survives_a_gate_that_cannot_answer(monkeypatch) -> No
 
     monkeypatch.setattr(gatekeeping.distil, "ask", boom)
 
-    assert gatekeeping.worth_remembering(Model(""), "Keyboards", "They own a Keychron K2")
-    assert gatekeeping.worth_remembering(None, "Keyboards", "They own a Keychron K2")
+    assert gatekeeping.worth_remembering(Model(""), "Keyboards", "They own a Keychron K2")[0]
+    assert gatekeeping.worth_remembering(None, "Keyboards", "They own a Keychron K2")[0]
+
+
+def test_it_corrects_what_the_recogniser_mis_heard(monkeypatch) -> None:
+    """The owner said "I have a PS5 controller" out loud. The recogniser heard
+    "BS5", this gate was asked only whether the fact was worth keeping, and it
+    said KEEP -- so the store held "plays EA Sports FC 26 on PC using a BS5
+    controller" and would have said that back for as long as it was there.
+
+    Nothing else in the pipeline could catch it: the recogniser did not know
+    the word, and the vocabulary correction only knows names already in memory,
+    which was the very thing this turn was about to add."""
+    _answering(monkeypatch, None)
+    keep, body = gatekeeping.worth_remembering(
+        Model("FIX: The user plays EA Sports FC 26 on PC using a PS5 controller."),
+        "EA Sports FC 26 controller",
+        "The user plays EA Sports FC 26 on PC using a BS5 controller.",
+    )
+
+    assert keep
+    assert "PS5" in body
+    assert "BS5" not in body
+
+
+def test_a_correction_that_rewrites_the_fact_is_refused(monkeypatch) -> None:
+    """A gate that can rewrite a sentence wholesale is not a gate, it is a
+    second author. The failure to guard against is the model helpfully
+    restating the fact rather than repairing a word of it."""
+    _answering(monkeypatch, None)
+    keep, body = gatekeeping.worth_remembering(
+        Model("FIX: The user is a professional esports player who competes internationally."),
+        "EA Sports FC 26 controller",
+        "The user plays FC 26 with a BS5 controller.",
+    )
+
+    assert keep
+    assert body == "The user plays FC 26 with a BS5 controller."
+
+
+def test_a_name_it_does_not_recognise_is_left_alone(monkeypatch) -> None:
+    """An unfamiliar name is usually one the model does not know, not one the
+    recogniser got wrong. Inventing a correction is worse than the odd
+    spelling."""
+    _answering(monkeypatch, None)
+    keep, body = gatekeeping.worth_remembering(
+        Model("KEEP"), "Projects", "The user is building NeuDocs."
+    )
+
+    assert keep
+    assert body == "The user is building NeuDocs."

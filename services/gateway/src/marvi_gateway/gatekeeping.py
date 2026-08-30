@@ -175,9 +175,13 @@ def worth_keeping(client: Any, items: list[Any]) -> list[Any]:
 #: "the user said hello" was written down five times.
 ONE_SYSTEM_PROMPT = (
     "An assistant wants to write this into its long-term memory about the "
-    "person it works for. Should it?\n"
+    "person it works for. It heard it out loud, through a speech recogniser "
+    "that gets names and products wrong.\n"
     "\n"
-    "Reply with one word: KEEP or DROP.\n"
+    "Reply with exactly one of:\n"
+    "  KEEP\n"
+    "  DROP\n"
+    "  FIX: <the corrected sentence>\n"
     "\n"
     "KEEP a durable fact about them -- a possession, a person in their life, "
     "a plan with a date, a tool they use, a preference they stated, a health "
@@ -188,28 +192,73 @@ ONE_SYSTEM_PROMPT = (
     "own words and opinions. DROP anything already true on every turn, like "
     "their name.\n"
     "\n"
+    "FIX when the fact is worth keeping but contains something that plainly "
+    "is not a real thing and is one sound away from something that is. "
+    "'a BS5 controller' is a PlayStation 5 controller. 'Vercell' is Vercel. "
+    "'Zed editor' is already right, so leave it. Only correct what you are "
+    "sure of: a name you do not recognise may simply be one you do not know, "
+    "and inventing a correction is worse than keeping the odd spelling. Never "
+    "change what the fact says, only what it plainly mis-heard.\n"
+    "\n"
     "The test is whether the assistant would look foolish not knowing it next "
-    "week."
+    "week -- or foolish repeating it back wrong."
 )
 
 
-def worth_remembering(client: Any, subject: str, body: str) -> bool:
-    """Whether one proposed fact belongs in memory. Fails open."""
+#: The most a correction may change. A gate that can rewrite a sentence
+#: wholesale is not a gate, it is a second author: the fix has to be a
+#: mis-hearing repaired, not a fact restated.
+FIX_DRIFT = 0.4
+
+
+def worth_remembering(client: Any, subject: str, body: str) -> tuple[bool, str]:
+    """Whether one proposed fact belongs in memory, and how it should read.
+
+    Returns `(keep, body)`. The body is the corrected sentence when the model
+    caught a mis-hearing, and the one it was given otherwise.
+
+    The correction is the half that was missing, and the owner found it before
+    the tests did. Told out loud "I have a PS5 controller", the recogniser
+    heard "BS5", and this gate -- which is an LLM, and was asked only whether
+    the fact was worth keeping -- said KEEP. So the store holds "The user plays
+    EA Sports FC 26 on PC using a BS5 controller", and it will say that back
+    for as long as it is there.
+
+    Nothing in the pipeline was looking. The recogniser cannot know the word;
+    the vocabulary correction only knows names already in memory, and this was
+    the turn that would have put it there; and a gate asked KEEP or DROP has no
+    way to say "keep it, but that is not a real product".
+
+    Fails open in both directions: an unreachable gate keeps the fact as
+    written, and a correction that drifts too far from what was said is
+    discarded rather than trusted.
+    """
     if client is None or not body.strip():
-        return True
+        return True, body
     try:
         said = distil.ask(
             client,
             "memory",
             ONE_SYSTEM_PROMPT,
             f"Subject: {subject}\nFact: {body}"[: PREVIEW * 2],
-            8,
+            64,
             tools=False,
         )
     except Exception as exc:
         log.info("gatekeeper unavailable (%s); keeping the proposed memory", exc)
-        return True
-    verdict = (said or "").strip().upper()
-    keep = not verdict.startswith("DROP") if verdict else True
-    observations.record("gate", door="tool", kept=keep, subject=subject, body=body)
-    return keep
+        return True, body
+    verdict = (said or "").strip()
+    keep = not verdict.upper().startswith("DROP") if verdict else True
+    fixed = body
+    if keep and verdict.upper().startswith("FIX:"):
+        candidate = verdict[4:].strip().strip('"')
+        # A correction is a word or two, not a rewrite. Measured against the
+        # length of what was said rather than an edit distance, because the
+        # failure to guard against is the model helpfully restating the fact.
+        if candidate and abs(len(candidate) - len(body)) <= max(12, len(body) * FIX_DRIFT):
+            fixed = candidate
+            log.info("memory: corrected a mis-hearing before storing it")
+    observations.record(
+        "gate", door="tool", kept=keep, subject=subject, body=body, fixed=fixed
+    )
+    return keep, fixed
