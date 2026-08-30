@@ -19,7 +19,15 @@ Two of them are worth a note:
 
 from __future__ import annotations
 
-from .base import CachePolicy, LimitPolicy, ProviderProfile, ReasoningPolicy, register
+from .base import (
+    MARVI_APP_NAME,
+    MARVI_APP_URL,
+    CachePolicy,
+    LimitPolicy,
+    ProviderProfile,
+    ReasoningPolicy,
+    register,
+)
 
 openrouter = register(
     ProviderProfile(
@@ -46,6 +54,13 @@ openrouter = register(
         default_vision_model="anthropic/claude-sonnet-5",
         supports_vision=True,
         routes_upstream=True,
+        # OpenRouter uses these two headers to associate usage with the public
+        # app. `X-OpenRouter-Title` is the current spelling; `X-Title` remains
+        # only as a backward-compatible alias in their API.
+        default_headers={
+            "HTTP-Referer": MARVI_APP_URL,
+            "X-OpenRouter-Title": MARVI_APP_NAME,
+        },
         # OpenRouter forwards `prompt_cache_key` to backends that support it and
         # ignores it elsewhere, so sending it is free.
         cache=CachePolicy(style="cache_key", min_tokens=1024),

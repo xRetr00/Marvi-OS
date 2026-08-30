@@ -18,9 +18,16 @@ token-denominated rather than built on provider-reported spend.
 
 from __future__ import annotations
 
-from .base import CachePolicy, LimitPolicy, ProviderProfile, register
+from .base import (
+    MARVI_APP_NAME,
+    MARVI_APP_URL,
+    CachePolicy,
+    LimitPolicy,
+    ProviderProfile,
+    register,
+)
 
-_ATTRIBUTION = {"http-referer": "https://github.com/xRetr00/Marvi-OS", "x-title": "Marvi OS"}
+_ATTRIBUTION = {"HTTP-Referer": MARVI_APP_URL, "X-Title": MARVI_APP_NAME}
 
 zen = register(
     ProviderProfile(

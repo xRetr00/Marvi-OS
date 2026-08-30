@@ -26,6 +26,7 @@ def test_the_worker_takes_its_provider_from_the_gateway() -> None:
                 "base_url": "http://127.0.0.1:11434/v1",
                 "model": "llama4:latest",
                 "api_key": "local",
+                "headers": {"X-Test-App": "Marvi"},
             },
         )
     )
@@ -34,6 +35,7 @@ def test_the_worker_takes_its_provider_from_the_gateway() -> None:
     assert config.provider == "ollama"
     assert config.base_url == "http://127.0.0.1:11434/v1"
     assert config.model == "llama4:latest"
+    assert config.headers == {"X-Test-App": "Marvi"}
 
 
 def test_no_provider_is_a_clear_message_not_a_crash() -> None:
@@ -97,6 +99,26 @@ def test_a_spoken_reply_is_bounded() -> None:
 
     assert 0 < VOICE_REPLY_TOKENS <= 1000
     assert model._opts.max_completion_tokens == VOICE_REPLY_TOKENS
+
+
+def test_voice_forwards_provider_attribution_headers() -> None:
+    """The LiveKit path bypasses ProviderClient but must identify the same app."""
+    from marvi_agent.runtime import build_llm
+
+    headers = {
+        "HTTP-Referer": "https://marvi-alpha.vercel.app/",
+        "X-OpenRouter-Title": "Marvi",
+    }
+    model = build_llm(
+        AgentConfig(
+            api_key="k",
+            model="m",
+            base_url="https://openrouter.ai/api/v1",
+            headers=headers,
+        )
+    )
+
+    assert model._opts.extra_headers == headers
 
 
 # -- what the voice request actually carries ---------------------------------

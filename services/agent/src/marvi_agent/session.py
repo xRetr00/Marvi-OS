@@ -875,6 +875,26 @@ class MarviVoiceAgent(Agent):
                 "something and then end the turn without doing it. If you say "
                 "you will set it, set it now, in this turn. If you cannot, say "
                 "you cannot, before you say anything else. "
+                # The receipt is what makes the two rules above checkable
+                # instead of merely stated. See `tools.receipt`: every call
+                # comes back as "[did <tool> <arguments> -> ok]" or "-> FAILED",
+                # so "did I close the browser?" stops being a question about
+                # the model's memory of its own last few hundred tokens and
+                # becomes one about a line it can point at.
+                #
+                # Arguments are the half that matters. "I ran memory_forget to
+                # remove notes about your projects" was said on a turn where
+                # memory_forget had run four times -- for "Shreef", "Sharif",
+                # "Keychron K2" and "Keychron K10". Defensible sentence, false
+                # claim, and nothing in the transcript could tell them apart.
+                + "Every tool answers with a receipt: [did <tool> <arguments> "
+                "-> ok] or [did <tool> <arguments> -> FAILED]. That line is "
+                "the only evidence that something happened. Before you say you "
+                "did anything, find its receipt in this turn -- and check the "
+                "arguments, not just the name: a receipt for forgetting one "
+                "thing is not evidence you forgot another. If the receipt says "
+                "FAILED, say what failed and why, in your own words. If there "
+                "is no receipt, nothing happened. "
                 + "A tool result is evidence, not confirmation. If what comes back does not "
                 "actually answer the question -- it is empty, or it only says the call "
                 "worked -- say so out loud rather than treating it as agreement with what "

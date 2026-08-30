@@ -207,6 +207,26 @@ def test_the_agent_is_told_which_provider_to_use(client, monkeypatch) -> None:
     assert body["model"]
 
 
+def test_the_agent_receives_openrouter_attribution_headers(client) -> None:
+    """Voice calls the provider directly, so the Gateway must carry metadata over."""
+    client.put(
+        "/providers/settings",
+        json={
+            "values": {
+                "OPENROUTER_API_KEY": "k",
+                "MARVI_PROVIDER": "openrouter",
+            }
+        },
+    )
+
+    body = client.get("/providers/voice").json()
+
+    assert body["headers"] == {
+        "HTTP-Referer": "https://marvi-alpha.vercel.app/",
+        "X-OpenRouter-Title": "Marvi",
+    }
+
+
 def test_a_configured_but_dead_local_server_is_not_offered(client) -> None:
     # Ollama and LM Studio are "configured" the moment they have a default URL.
     # Handing the voice path one that nothing is listening on would break the

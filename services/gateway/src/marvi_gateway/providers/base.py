@@ -35,6 +35,11 @@ AuthType = Literal["api_key", "oauth_external", "oauth_device_code", "token_exch
 CacheStyle = Literal["none", "automatic", "cache_key", "explicit_breakpoints"]
 ReasoningStyle = Literal["none", "effort", "budget_tokens"]
 
+#: Public product identity used only with providers that explicitly document
+#: app attribution. It is not sent to every vendor as an invented convention.
+MARVI_APP_NAME = "Marvi"
+MARVI_APP_URL = "https://marvi-alpha.vercel.app/"
+
 #: Jobs that are never given a reasoning budget, whatever the user configured.
 #:
 #: `voice` because deliberation is silence on a spoken turn. `aux` because

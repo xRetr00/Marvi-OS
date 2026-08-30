@@ -71,6 +71,10 @@ unable to say which limit you are about to hit.
 Neither publishes usage over the API, so Marvi shows its own token count and
 says so.
 
+Requests to both OpenCode paths identify the public app as **Marvi** at
+`https://marvi-alpha.vercel.app/` through the supported `HTTP-Referer` /
+`X-Title` headers.
+
 ### OpenAI and Anthropic
 
 `OPENAI_API_KEY` and `ANTHROPIC_API_KEY`. OpenAI is registered twice — once for
@@ -90,6 +94,14 @@ Three metered, OpenAI-compatible APIs that needed no new machinery — with the
 client in place, a provider is now genuinely just a profile.
 
 `OPENROUTER_API_KEY`, `DEEPINFRA_API_KEY`, `DEEPSEEK_API_KEY`.
+
+OpenRouter requests include its documented app-attribution headers:
+`HTTP-Referer: https://marvi-alpha.vercel.app/` and
+`X-OpenRouter-Title: Marvi`. The Gateway profile owns these values and passes
+them to the direct LiveKit voice path as non-secret request metadata, so chat,
+background, catalog, and voice calls do not drift. DeepInfra and DeepSeek do
+not document an equivalent app-name/site attribution pair, so Marvi does not
+invent one for them.
 
 Three are worth knowing about. **OpenRouter publishes per-key spend and limits**
 at `GET /api/v1/key`; **DeepSeek publishes account balances** at

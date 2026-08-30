@@ -413,6 +413,9 @@ class VoiceProvider(BaseModel):
     base_url: str
     model: str
     api_key: str
+    #: Provider-documented app attribution passed to the direct LiveKit call.
+    #: Authentication is kept in `api_key`; this contains no credential.
+    headers: dict[str, str] = Field(default_factory=dict)
     #: What the provider says this model can hold, from its own model list.
     #: Zero when it did not say. The Agent sizes a reply against this rather
     #: than letting the plugin ask for the whole context -- which is what made
@@ -4146,6 +4149,7 @@ def create_app(
             base_url=chosen.base_url() or "",
             model=model,
             api_key=chosen.api_key() or "local",
+            headers=dict(chosen.default_headers),
             context=card.context if card else 0,
             route=route,
         )

@@ -180,7 +180,10 @@ async def test_yolo_skips_confirmation_for_the_voice_path_too(voice, gateway) ->
     async with client:
         spoken = await voice.room_mode(None, mode="relax")
 
-    assert spoken == "Done."
+    # A receipt, not a bare "Done." -- what came back used to say nothing about
+    # which tool ran or with what, so the model had no record to check its own
+    # claims against. See `tools.receipt`.
+    assert spoken == "[did room_set_mode mode=relax -> ok] Done."
     assert voice.pending_token is None
     assert executed == [("room_set_mode", {"mode": "relax"})]
 
@@ -499,3 +502,32 @@ def test_an_optional_number_the_model_spelled_none_is_absent() -> None:
     assert _number(True) is None
     assert _number("40") == 40
     assert _number(40) == 40
+
+
+def test_a_receipt_names_the_tool_and_what_it_was_given() -> None:
+    """The fabrication outlived every rule written against it because the model
+    had no record to check itself against. "I ran memory_forget to remove notes
+    about your projects" was said on a turn where memory_forget had run four
+    times -- for "Shreef", "Sharif", "Keychron K2" and "Keychron K10". Every
+    word defensible, the whole of it false."""
+    from marvi_agent.tools import receipt
+
+    said = receipt("memory_forget", {"query": "Keychron K2"}, "ok", "removed 1")
+
+    assert said == "[did memory_forget query=Keychron K2 -> ok] removed 1"
+
+
+def test_a_failure_gets_a_receipt_too() -> None:
+    """A tool that raised reached the model as a bare sentence with no subject,
+    so "it failed" and "I did not try" were the same shape in the transcript."""
+    from marvi_agent.tools import receipt
+
+    said = receipt("room_set_light", {"on": True}, "FAILED", "the bridge is unreachable")
+
+    assert said == "[did room_set_light on=True -> FAILED] the bridge is unreachable"
+
+
+def test_a_receipt_survives_a_tool_that_takes_nothing() -> None:
+    from marvi_agent.tools import receipt
+
+    assert receipt("browser_close", {}, "ok") == "[did browser_close -> ok]"

@@ -82,6 +82,56 @@ CUT_SHORT = " ... (cut short)"
 BOOKKEEPING = frozenset({"ok", "success", "status", "accepted", "applied", "changed"})
 
 
+#: How an action reports itself back to the model.
+#:
+#: The fabrication problem outlived every rule written against it. Closed off
+#: in the past tense -- "I've closed the browser" -- it came back in the future
+#: tense -- "I'll close the browser" -- and in between it produced things like
+#: "I ran memory_forget to remove notes about your projects" on a turn where
+#: `memory_forget` had run four times, for "Shreef", "Sharif", "Keychron K2"
+#: and "Keychron K10". Every word of that sentence was defensible and the whole
+#: of it was false.
+#:
+#: A rule cannot fix that, because the model is not lying: it has no record to
+#: check itself against. `describe` handed back a rendered value with nothing
+#: in it saying which tool produced it or what it was asked to do, so "did I
+#: close the browser?" was a question about its own memory of the last few
+#: hundred tokens.
+#:
+#: So every call now comes back as a receipt: the tool, the arguments that were
+#: actually sent, and whether it worked. This is the shape the literature calls
+#: an execution-grounded claim -- the published version signs them so a
+#: separate verifier can catch a forged one, which matters when something other
+#: than the model reads them. Here the reader *is* the model, one turn later,
+#: and what it needs is not proof against forgery but a record to point at.
+#:
+#: Failures get one too, and that is half the point. A tool that raised used to
+#: reach the model as a bare sentence with no subject, so "it failed" and "I
+#: did not try" were the same shape in the transcript.
+RECEIPT = "[did {tool}{arguments} -> {outcome}]"
+
+#: Arguments are what makes a receipt worth having. "I ran memory_forget" is
+#: true of a turn that forgot the wrong thing; "did memory_forget query=Shreef"
+#: is not. Bounded, because a receipt that quotes a file's contents back is a
+#: second copy of the result.
+MAX_ARGUMENT_CHARS = 90
+
+
+def receipt(tool: str, arguments: dict[str, Any] | None, outcome: str, said: str = "") -> str:
+    """One line saying what actually ran, in front of whatever it returned."""
+    shown = ""
+    if arguments:
+        pairs = []
+        for name, value in list(arguments.items())[:4]:
+            rendered = _render(value, depth=2)
+            if rendered:
+                pairs.append(f"{name}={rendered}")
+        if pairs:
+            shown = " " + " ".join(pairs)[:MAX_ARGUMENT_CHARS]
+    line = RECEIPT.format(tool=tool, arguments=shown, outcome=outcome)
+    return f"{line} {said}".strip()
+
+
 def describe(result: Any) -> str:
     """What the model is told a tool returned.
 
@@ -289,7 +339,12 @@ class GatewayTools:
                 "approve_pending_action or deny_pending_action."
             )
         if outcome == "failed":
-            raise ToolError(str(body.get("error", "the action failed")))
+            # A receipt, not a bare sentence. "The action failed" with no
+            # subject reads the same in a transcript as never having tried,
+            # which is how a failed call became a confident report of success.
+            raise ToolError(
+                receipt(tool, arguments, "FAILED", str(body.get("error", "no reason given")))
+            )
 
         result = body.get("result")
         if tool == SEARCH_TOOL and isinstance(result, dict):
@@ -303,7 +358,7 @@ class GatewayTools:
                 if isinstance(row, dict) and row.get("name")
             ]
             await self._load_found(found)
-        return describe(result)
+        return receipt(tool, arguments, "ok", describe(result))
 
     # -- the bridge ---------------------------------------------------------
     #

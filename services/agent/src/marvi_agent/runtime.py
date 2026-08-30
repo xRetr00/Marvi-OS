@@ -50,6 +50,9 @@ class AgentConfig:
     model: str
     base_url: str
     provider: str = "unknown"
+    #: Provider-documented app metadata. The Gateway remains the source of
+    #: truth because the Agent must not carry a second provider table.
+    headers: dict[str, str] = field(default_factory=dict)
     #: The model's context window, as the provider reports it. Zero when it
     #: does not, in which case the reply cap stands on its own.
     context: int = 0
@@ -87,6 +90,7 @@ class AgentConfig:
             model=body["model"],
             base_url=body["base_url"],
             provider=body.get("provider", "unknown"),
+            headers=body.get("headers") or {},
             context=int(body.get("context") or 0),
             route=body.get("route") or {},
         )
@@ -204,6 +208,7 @@ def build_llm(config: AgentConfig) -> openai.LLM:
         base_url=config.base_url,
         api_key=config.api_key,
         max_completion_tokens=reply_tokens(config.context),
+        **({"extra_headers": config.headers} if config.headers else {}),
         **({"extra_body": extra} if extra else {}),
     )
 

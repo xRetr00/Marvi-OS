@@ -213,6 +213,24 @@ def test_anthropic_authenticates_with_a_header_not_a_bearer(monkeypatch) -> None
     assert headers["anthropic-version"]
 
 
+def test_public_gateway_requests_are_attributed_to_marvi() -> None:
+    """Only providers that document app attribution receive product metadata."""
+    openrouter = get("openrouter").headers()
+    assert openrouter["HTTP-Referer"] == "https://marvi-alpha.vercel.app/"
+    assert openrouter["X-OpenRouter-Title"] == "Marvi"
+
+    for name in ("opencode-zen", "opencode-go"):
+        headers = get(name).headers()
+        assert headers["HTTP-Referer"] == "https://marvi-alpha.vercel.app/"
+        assert headers["X-Title"] == "Marvi"
+
+    for name in ("openai", "anthropic", "deepinfra", "deepseek"):
+        headers = get(name).headers()
+        assert "HTTP-Referer" not in headers
+        assert "X-OpenRouter-Title" not in headers
+        assert "X-Title" not in headers
+
+
 # -- reasoning effort -------------------------------------------------------
 
 
