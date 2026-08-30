@@ -163,10 +163,10 @@ binary and a checksum for first-time installs, and GitHub's own source archives
 are the rest.
 
 That makes the CI gates the important part. A tag that cannot be built is a tag
-that breaks every Nightly-channel update, and the failure lands on a user's machine
-rather than in the workflow. So the release job runs the full suite — desktop,
-gateway, agent, bootstrap — and then runs **`npm run build:unpack`, the exact
-build the updater will run**, and smoke-tests its output.
+that breaks every Nightly-channel update, and the failure lands on a user's
+machine rather than in the workflow. So the release job runs the full suite —
+desktop, gateway, agent, bootstrap — and then runs **`npm run build:unpack`, the
+exact build the updater will run**, and smoke-tests its output.
 
 So the release contract is:
 

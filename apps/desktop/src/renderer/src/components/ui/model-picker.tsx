@@ -24,6 +24,7 @@ interface ModelPickerProps {
   placeholder?: string
   providers: ModelProvider[]
   searchPlaceholder?: string
+  showEffort?: boolean
   side?: 'bottom' | 'left' | 'right' | 'top'
   value: ModelSelection | null
 }
@@ -47,6 +48,7 @@ export function ModelPicker({
   placeholder = 'Choose a model',
   providers,
   searchPlaceholder = 'Search models…',
+  showEffort = true,
   side = 'bottom',
   value
 }: ModelPickerProps): React.JSX.Element {
@@ -171,7 +173,7 @@ export function ModelPicker({
               <span className="model-picker-trigger-provider">
                 {selected
                   ? `${selectedProvider?.label ?? selected.provider}${
-                      selected.reasons
+                      selected.reasons && showEffort
                         ? ` · ${modelEffortLabel(effort, effortDefaultLabel)}`
                         : ''
                     }`
@@ -294,6 +296,7 @@ export function ModelPicker({
                       onHover={() => setActiveIndex(index)}
                       provider={provider.provider}
                       selected={isSelected}
+                      showEffort={showEffort}
                     />
                   )
                 })}
@@ -322,6 +325,7 @@ interface ModelOptionProps {
   onHover: () => void
   provider: string
   selected: boolean
+  showEffort: boolean
 }
 
 function ModelOption({
@@ -335,7 +339,8 @@ function ModelOption({
   onChooseEffort,
   onHover,
   provider,
-  selected
+  selected,
+  showEffort
 }: ModelOptionProps): React.JSX.Element {
   const [optionsOpen, setOptionsOpen] = useState(false)
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -374,7 +379,7 @@ function ModelOption({
           {model.id !== model.name ? <small>{model.id}</small> : null}
         </span>
         {hint ? <span className="model-picker-row-hint">{hint}</span> : null}
-        {model.reasons ? (
+        {model.reasons && showEffort ? (
           <span className="model-picker-row-effort">
             {modelEffortLabel(effort, effortDefaultLabel)}
           </span>
@@ -382,7 +387,7 @@ function ModelOption({
         {selected ? <Check aria-hidden="true" /> : null}
       </button>
 
-      {model.reasons ? (
+      {model.reasons && showEffort ? (
         <Popover.Root modal={false} onOpenChange={setOptionsOpen} open={optionsOpen}>
           <Popover.Trigger asChild>
             <button

@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import queue
 import threading
 import time
 from typing import Any
@@ -244,6 +245,61 @@ def _number(value: Any) -> int | None:
 DEFER_SETTING = "MARVI_DEFER_TOOLS"
 
 
+class _Watcher:
+    """Posts the Voice page's activity feed without any turn waiting for it.
+
+    Two earlier shapes were wrong and the tests said so. Asking the Gateway for
+    a call id and awaiting the answer took the agent suite from twelve seconds
+    to sixty-five, because that put a network round trip in front of every tool
+    call. A thread per post took it to forty-two: the wait was gone and the
+    thread creation and fresh connection were not.
+
+    So: one queue, one worker, one pooled client. A full queue drops the
+    oldest, because this is a spinner on a page -- the newest state is the only
+    one worth drawing, and a tool call must never block on a decoration.
+    """
+
+    #: Small deliberately. If the Gateway is not answering, the page is not
+    #: being watched, and a backlog of stale spinner updates helps nobody.
+    DEPTH = 32
+
+    def __init__(self) -> None:
+        self._queue: queue.Queue[tuple[str, dict[str, Any]]] = queue.Queue(maxsize=self.DEPTH)
+        self._client: httpx.Client | None = None
+        self._thread: threading.Thread | None = None
+        self._lock = threading.Lock()
+
+    def send(self, url: str, payload: dict[str, Any]) -> None:
+        self._ensure()
+        try:
+            self._queue.put_nowait((url, payload))
+        except queue.Full:
+            log.debug("voice activity feed is behind; dropping an update")
+
+    def _ensure(self) -> None:
+        with self._lock:
+            if self._thread is not None and self._thread.is_alive():
+                return
+            self._client = httpx.Client(timeout=WATCH_TIMEOUT)
+            self._thread = threading.Thread(
+                target=self._run, daemon=True, name="marvi-voice-activity"
+            )
+            self._thread.start()
+
+    def _run(self) -> None:
+        while True:
+            url, payload = self._queue.get()
+            try:
+                if self._client is not None:
+                    self._client.post(url, json=payload)
+            except Exception:  # noqa: BLE001 - a page's spinner is never worth a log line
+                pass
+
+
+#: One per process, which is one voice session.
+_watcher = _Watcher()
+
+
 class GatewayTools:
     """Session-scoped tool surface. One instance per voice session."""
 
@@ -300,28 +356,8 @@ class GatewayTools:
         so a turn that paused for four seconds looked the same whether she was
         searching the web or had simply stopped. Chat has had a tool stack
         under every answer the whole time.
-
-        On its own thread and never awaited, which is the whole design. The
-        first version asked the Gateway for the call id and waited for it: the
-        agent suite went from twelve seconds to sixty-five, and in a real
-        session that wait would have been in front of every tool call. A page
-        that does not draw a spinner is a worse page; a turn that waits on one
-        is a worse assistant.
         """
-
-        def post() -> None:
-            import contextlib
-
-            with contextlib.suppress(Exception):
-                import httpx
-
-                httpx.post(
-                    f"{self._base_url}/voice/activity",
-                    json=payload,
-                    timeout=WATCH_TIMEOUT,
-                )
-
-        threading.Thread(target=post, daemon=True, name="marvi-voice-activity").start()
+        _watcher.send(f"{self._base_url}/voice/activity", payload)
 
     async def _call(
         self, tool: str, arguments: dict[str, Any], context: RunContext | None = None

@@ -86,6 +86,22 @@ describe('ModelPicker', () => {
     expect(html).toContain('Alpha Cloud · XHigh')
   })
 
+  it('hides reasoning controls on surfaces that force reasoning off', () => {
+    const html = renderToStaticMarkup(
+      <ModelPicker
+        effort="xhigh"
+        onChange={() => {}}
+        providers={providers}
+        showEffort={false}
+        value={{ provider: 'alpha', model: 'alpha/fast' }}
+      />
+    )
+
+    expect(html).toContain('Alpha Cloud')
+    expect(html).not.toContain('XHigh')
+    expect(html).not.toContain('Reasoning effort for Fast')
+  })
+
   it('shows the actual configured model instead of masking it behind the default label', () => {
     const html = renderToStaticMarkup(
       <ModelPicker
