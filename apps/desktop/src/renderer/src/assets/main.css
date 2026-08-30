@@ -8456,6 +8456,20 @@ body {
   color: var(--ui-text-primary);
 }
 
+.sidebar-tool:disabled {
+  cursor: wait;
+  opacity: 0.45;
+}
+
+.sidebar-tools-error {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  color: var(--ui-danger);
+  font-size: 8px;
+  line-height: 11px;
+  text-overflow: ellipsis;
+}
+
 .sidebar.collapsed .sidebar-tools {
   grid-template-columns: repeat(2, 20px);
   gap: 3px;

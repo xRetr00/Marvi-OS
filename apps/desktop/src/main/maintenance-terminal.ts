@@ -13,7 +13,17 @@ export function maintenanceCommand(value: unknown): string | null {
     : null
 }
 
-export function maintenancePowerShellArgs(value: unknown): string[] | null {
+function quotePowerShell(value: string): string {
+  return `'${value.replaceAll("'", "''")}'`
+}
+
+export function maintenancePowerShellArgs(
+  value: unknown,
+  uvPath: string,
+  gatewayProject: string
+): string[] | null {
   const command = maintenanceCommand(value)
-  return command ? ['-NoExit', '-Command', command] : null
+  if (!command || !uvPath || !gatewayProject) return null
+  const invocation = `& ${quotePowerShell(uvPath)} run --project ${quotePowerShell(gatewayProject)} ${command}`
+  return ['-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-NoExit', '-Command', invocation]
 }

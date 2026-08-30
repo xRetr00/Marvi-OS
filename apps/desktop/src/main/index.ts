@@ -1846,19 +1846,53 @@ function startApp(): void {
       clipboard.writeText(value)
       return true
     })
-    ipcMain.handle('marvi:open-maintenance-terminal', (_event, action) => {
-      const args = maintenancePowerShellArgs(action)
-      if (!args || process.platform !== 'win32') return false
+    ipcMain.handle('marvi:open-maintenance-terminal', async (_event, action) => {
+      if (process.platform !== 'win32') return false
+      const root = repoRoot ?? findRepoRoot()
+      const uv = findUv()
+      const project = root ? join(root, 'services', 'gateway') : ''
+      const args = maintenancePowerShellArgs(action, uv ?? '', project)
+      if (!args || !root || !uv) {
+        desktop.warn('maintenance terminal could not resolve its runtime', {
+          action: String(action),
+          repo: Boolean(root),
+          uv: Boolean(uv)
+        })
+        return false
+      }
+      const powershell = join(
+        process.env['SystemRoot'] || 'C:\\Windows',
+        'System32',
+        'WindowsPowerShell',
+        'v1.0',
+        'powershell.exe'
+      )
       try {
-        const terminal = spawn('powershell.exe', args, {
-          cwd: repoRoot ?? process.cwd(),
+        const terminal = spawn(powershell, args, {
+          cwd: root,
           detached: true,
           stdio: 'ignore',
           windowsHide: false
         })
-        terminal.unref()
-        return true
-      } catch {
+        return await new Promise<boolean>((resolveLaunch) => {
+          terminal.once('spawn', () => {
+            terminal.unref()
+            desktop.info('maintenance terminal opened', { action: String(action) })
+            resolveLaunch(true)
+          })
+          terminal.once('error', (cause) => {
+            desktop.warn('maintenance terminal failed to open', {
+              action: String(action),
+              error: cause.message
+            })
+            resolveLaunch(false)
+          })
+        })
+      } catch (cause) {
+        desktop.warn('maintenance terminal failed to open', {
+          action: String(action),
+          error: cause instanceof Error ? cause.message : String(cause)
+        })
         return false
       }
     })

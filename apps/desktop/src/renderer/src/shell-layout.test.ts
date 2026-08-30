@@ -240,7 +240,9 @@ describe('shell layout', () => {
     expect(app).not.toContain('function MaintenancePanel')
     expect(app).not.toContain('LOCAL / READY')
     expect(app).toContain('className="sidebar-tools"')
-    expect(app).toContain('openMaintenanceTerminal(action)')
+    expect(app).toContain('void openMaintenanceTerminal(action)')
+    expect(app).toContain('maintenancePending === action')
+    expect(app).toContain('sidebar-tools-error')
     expect(lastBlock('.sidebar-tools')).toContain('grid-template-columns: repeat(4, 24px)')
   })
 

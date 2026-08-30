@@ -166,7 +166,10 @@ The sidebar footer contains four compact maintenance actions: system check,
 setup, model listing, and diagnostics. Each has an icon and command-specific
 tooltip. Activating one opens a visible PowerShell window with the fixed command
 already running; commands are selected from a main-process allowlist and are
-never assembled from renderer input. The former Maintenance settings page and
+never assembled from renderer input. Electron resolves the managed `uv`
+executable and Gateway project directly, waits for Windows to acknowledge the
+new terminal process, and reports launch failures in the sidebar. The former
+Maintenance settings page and
 static local/ready label are not part of the shell.
 
 ## ARC memory graph

@@ -55,6 +55,7 @@ import { ConversationBar } from './components/conversation-bar'
 import { ModelsPanel } from './components/models-panel'
 import { UsagePanel } from './components/usage-panel'
 import { ProcessingCard } from './components/ui/processing-card'
+import { GlyphSpinner } from './components/ui/glyph-spinner'
 import { Picker, type PickerOption } from './components/ui/picker'
 import { ModelPicker } from './components/ui/model-picker'
 import { ConnectingOverlay } from './components/ConnectingOverlay'
@@ -327,6 +328,8 @@ function MainSurface(): React.JSX.Element {
   const [settings, setSettings] = useState<SettingsPage | null>(null)
   const [version, setVersion] = useState('0.1.0-dev.0')
   const [hapticsMuted, setHapticsMutedState] = useState(getHapticsMuted)
+  const [maintenancePending, setMaintenancePending] = useState<MaintenanceAction | null>(null)
+  const [maintenanceError, setMaintenanceError] = useState('')
 
   useEffect(() => {
     void window.marvi?.getVersion().then(setVersion)
@@ -418,6 +421,24 @@ function MainSurface(): React.JSX.Element {
 
   const refreshRuntime = (): void => {
     void window.marvi?.getRuntime().then(applyRuntimeState)
+  }
+
+  const openMaintenanceTerminal = async (action: MaintenanceAction): Promise<void> => {
+    if (maintenancePending) return
+    setMaintenancePending(action)
+    setMaintenanceError('')
+    try {
+      const opened = await window.marvi?.openMaintenanceTerminal(action)
+      if (!opened) throw new Error('Windows could not open the maintenance terminal.')
+      haptic('success')
+    } catch (cause) {
+      haptic('warning')
+      setMaintenanceError(
+        cause instanceof Error ? cause.message : 'The maintenance terminal could not be opened.'
+      )
+    } finally {
+      setMaintenancePending(null)
+    }
   }
 
   const pageContextActions = (): ShellMenuAction[] => {
@@ -692,6 +713,11 @@ function MainSurface(): React.JSX.Element {
                 </nav>
 
                 <div className="sidebar-tools" aria-label="Maintenance terminals">
+                  {maintenanceError ? (
+                    <span className="sidebar-tools-error" role="alert">
+                      {maintenanceError}
+                    </span>
+                  ) : null}
                   {SIDEBAR_TOOLS.map(({ action, command, icon: Icon, label }) => (
                     <UiTooltip
                       key={action}
@@ -700,14 +726,20 @@ function MainSurface(): React.JSX.Element {
                     >
                       <button
                         aria-label={`${label}: open ${command} in PowerShell`}
+                        aria-busy={maintenancePending === action}
                         className="sidebar-tool"
+                        disabled={maintenancePending !== null}
                         onClick={() => {
                           haptic('tap')
-                          void window.marvi?.openMaintenanceTerminal(action)
+                          void openMaintenanceTerminal(action)
                         }}
                         type="button"
                       >
-                        <Icon aria-hidden="true" size={14} />
+                        {maintenancePending === action ? (
+                          <GlyphSpinner ariaLabel={`Opening ${label}`} spinner="braille" />
+                        ) : (
+                          <Icon aria-hidden="true" size={14} />
+                        )}
                       </button>
                     </UiTooltip>
                   ))}

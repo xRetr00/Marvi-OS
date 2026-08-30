@@ -12,14 +12,18 @@ describe('maintenance terminal actions', () => {
 
   it('rejects arbitrary renderer input instead of treating it as a command', () => {
     expect(maintenanceCommand('doctor; Remove-Item C:\\')).toBeNull()
-    expect(maintenancePowerShellArgs({ action: 'doctor' })).toBeNull()
+    expect(maintenancePowerShellArgs({ action: 'doctor' }, 'C:\\uv.exe', 'D:\\Marvi')).toBeNull()
   })
 
-  it('keeps the terminal open after the command finishes', () => {
-    expect(maintenancePowerShellArgs('doctor')).toEqual([
+  it('runs the fixed command through the managed environment and keeps the terminal open', () => {
+    expect(maintenancePowerShellArgs('doctor', "C:\\Marvi's Tools\\uv.exe", 'D:\\Marvi OS')).toEqual([
+      '-NoLogo',
+      '-NoProfile',
+      '-ExecutionPolicy',
+      'Bypass',
       '-NoExit',
       '-Command',
-      'marvi doctor'
+      "& 'C:\\Marvi''s Tools\\uv.exe' run --project 'D:\\Marvi OS' marvi doctor"
     ])
   })
 })
