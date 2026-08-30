@@ -302,7 +302,7 @@ time. There are two update channels, both surfaced in Updates and About:
 - `release` (default, opt-out): update to the latest signed `v*` tag. Never
   fast-forwards a moving branch; integrity rests on HTTPS plus (when signing is
   configured) `git verify-tag`, otherwise on pinning the exact tag commit.
-- `dev` (opt-in): fast-forward `origin/main` and run whatever is there.
+- `nightly` (opt-in): fast-forward `origin/main` and run whatever is there.
 
 The updater is the small Tauri binary `marvi-bootstrap.exe` (`apps/updater`).
 It is both installer and updater, and lives in `%LOCALAPPDATA%\Marvi OS\bin`;
@@ -315,7 +315,7 @@ the standalone installer copies itself there on a fresh install. The flow:
    install root, channel, its own pid, and the relaunch target.
 3. The bootstrap waits for the app to exit (fails closed), verifies the
    checkout is clean, records the pre-update commit, then fetches the target
-   (`origin/main` for dev, the latest tag for release).
+   (`origin/main` for nightly, the latest tag for release).
 4. It snapshots the built runtime, applies the target, runs `npm ci` +
    `npm run build:unpack`, and smoke-tests the produced runtime.
 5. On success it writes a result marker and relaunches. On any failure it

@@ -3796,6 +3796,7 @@ function VoiceModelPicker({ current }: { current: string }): React.JSX.Element {
   const [page, setPage] = useState<ModelPage | null>(null)
   const [providers, setProviders] = useState<ProviderPage | null>(null)
   const [chosen, setChosen] = useState(current)
+  const [chosenEffort, setChosenEffort] = useState<string | null>(null)
 
   useEffect(() => {
     let gone = false
@@ -3837,18 +3838,25 @@ function VoiceModelPicker({ current }: { current: string }): React.JSX.Element {
   return (
     <ModelPicker
       className="voice-model-picker"
-      effort={activeEffort}
+      effort={chosenEffort ?? activeEffort}
       effortDefaultLabel="Provider default"
       providers={rows}
       value={active ? { provider: activeProvider, model: activeModel.join('::') } : null}
       onChange={(next, options) => {
         if (!next) return
         setChosen(`${next.provider}::${next.model}`)
+        setChosenEffort(options?.effort ?? null)
         const env = providers?.providers.find((row) => row.name === next.provider)?.env
         if (!env?.model) return
         const values: Record<string, string> = { [env.model]: next.model }
         if (options && env.effort) values[env.effort] = options.effort
-        void window.marvi?.setProviderSettings(values)
+        void (async () => {
+          const saved = await window.marvi?.setProviderSettings(values)
+          // Voice previously threw this response away, leaving `activeEffort`
+          // permanently backed by the settings snapshot from mount.
+          if (saved) setProviders(saved)
+          setChosenEffort(null)
+        })()
       }}
       placeholder={current || 'not selected'}
       searchPlaceholder="Search models…"

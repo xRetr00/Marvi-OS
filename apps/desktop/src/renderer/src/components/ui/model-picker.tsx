@@ -170,7 +170,11 @@ export function ModelPicker({
             {selected || defaultOption?.detail ? (
               <span className="model-picker-trigger-provider">
                 {selected
-                  ? selectedProvider?.label
+                  ? `${selectedProvider?.label ?? selected.provider}${
+                      selected.reasons
+                        ? ` · ${modelEffortLabel(effort, effortDefaultLabel)}`
+                        : ''
+                    }`
                   : defaultProvider
                     ? `Default · ${defaultProvider.label}`
                     : defaultOption?.detail}

@@ -72,6 +72,20 @@ describe('ModelPicker', () => {
     expect(html).toContain('aria-haspopup="listbox"')
   })
 
+  it('keeps the selected reasoning effort visible after the menu closes', () => {
+    const html = renderToStaticMarkup(
+      <ModelPicker
+        effort="xhigh"
+        effortDefaultLabel="Provider default"
+        onChange={() => {}}
+        providers={providers}
+        value={{ provider: 'alpha', model: 'alpha/fast' }}
+      />
+    )
+
+    expect(html).toContain('Alpha Cloud · XHigh')
+  })
+
   it('shows the actual configured model instead of masking it behind the default label', () => {
     const html = renderToStaticMarkup(
       <ModelPicker

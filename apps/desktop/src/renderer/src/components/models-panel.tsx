@@ -35,6 +35,7 @@ export function ModelsPanel(): React.JSX.Element {
   const [providers, setProviders] = useState<ProviderPage | null>(null)
   const [provider, setProvider] = useState('')
   const [catalog, setCatalog] = useState<ModelProvider | null>(null)
+  const [pendingEffort, setPendingEffort] = useState<string | null>(null)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -148,15 +149,22 @@ export function ModelsPanel(): React.JSX.Element {
               </span>
             </span>
             <ModelPicker
-              effort={settings[effortEnv] ?? ''}
+              effort={pendingEffort ?? settings[effortEnv] ?? ''}
               effortDefaultLabel="Provider default"
               providers={active ? [active] : []}
               value={provider && model ? { provider, model } : null}
               onChange={(next, options) => {
                 if (!row?.env.model || !next) return
                 const values: Record<string, string> = { [row.env.model]: next.model }
-                if (options && effortEnv) values[effortEnv] = options.effort
-                void save(values)
+                if (options && effortEnv) {
+                  values[effortEnv] = options.effort
+                  // The nested effort menu must respond to the click now, not
+                  // wait for a Gateway round trip before moving its checkmark.
+                  setPendingEffort(options.effort)
+                } else {
+                  setPendingEffort(null)
+                }
+                void save(values).finally(() => setPendingEffort(null))
               }}
               placeholder={model || 'Choose a model'}
               searchPlaceholder="Search models…"
