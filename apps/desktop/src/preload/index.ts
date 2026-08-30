@@ -361,6 +361,8 @@ const marvi = {
   getUpstreams: (model?: string): Promise<UpstreamPage | null> =>
     ipcRenderer.invoke('marvi:get-upstreams', model ?? ''),
   getVoices: (): Promise<VoicePage | null> => ipcRenderer.invoke('marvi:get-voices'),
+  getVoiceActivity: (): Promise<unknown> => ipcRenderer.invoke('marvi:get-voice-activity'),
+  getCalendar: (): Promise<unknown> => ipcRenderer.invoke('marvi:get-calendar'),
   getWake: (): Promise<WakeStatus | null> => ipcRenderer.invoke('marvi:get-wake'),
   setProviderSettings: (values: Record<string, string>): Promise<ProviderPage | null> =>
     ipcRenderer.invoke('marvi:set-provider-settings', values),

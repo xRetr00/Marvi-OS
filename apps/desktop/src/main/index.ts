@@ -2270,6 +2270,35 @@ function startApp(): void {
         return null
       }
     })
+    // The two cards beside the orb. Both go through here rather than fetching
+    // from the renderer, because everything else on this page does and a
+    // second way to reach the Gateway is a second thing to keep in step with
+    // the port, the token and the CSP.
+    ipcMain.handle('marvi:get-voice-activity', async () => {
+      try {
+        const response = await fetch(`${gateway()}/voice/activity`, {
+          signal: AbortSignal.timeout(4_000)
+        })
+        return response.ok ? await response.json() : null
+      } catch {
+        return null
+      }
+    })
+
+    ipcMain.handle('marvi:get-calendar', async () => {
+      try {
+        const response = await fetch(`${gateway()}/calendar/upcoming?limit=8`, {
+          // Longer than the others: this one goes out to Google through
+          // Composio, and a card that gives up at four seconds shows "not
+          // connected" over a calendar that is merely slow.
+          signal: AbortSignal.timeout(15_000)
+        })
+        return response.ok ? await response.json() : null
+      } catch {
+        return null
+      }
+    })
+
     ipcMain.handle('marvi:get-wake', async (): Promise<WakeStatus | null> => {
       try {
         const response = await fetch(`${gateway()}/voice/wake`, {

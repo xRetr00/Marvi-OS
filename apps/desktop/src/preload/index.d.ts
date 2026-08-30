@@ -55,6 +55,10 @@ import type {
   WorkspacePolicy,
   WorkspaceUpdate
 } from '../shared/runtime'
+import type {
+  CalendarEvent,
+  VoiceActivity
+} from '../renderer/src/components/voice-cards'
 import type { IslandPlacement } from '../main/island-window'
 import type { PetPreferences } from '../main/pet-window'
 
@@ -242,6 +246,12 @@ export interface MarviDesktopApi {
   getModels: (options?: { provider?: string; refresh?: boolean }) => Promise<ModelPage | null>
   getUpstreams: (model?: string) => Promise<UpstreamPage | null>
   getVoices: () => Promise<VoicePage | null>
+  getVoiceActivity: () => Promise<VoiceActivity | null>
+  getCalendar: () => Promise<{
+    connected: boolean
+    events: CalendarEvent[]
+    reason?: string
+  } | null>
   getWake: () => Promise<WakeStatus | null>
   setProviderSettings: (values: Record<string, string>) => Promise<ProviderPage | null>
   getMemorySettings: () => Promise<MemoryPolicy | null>
