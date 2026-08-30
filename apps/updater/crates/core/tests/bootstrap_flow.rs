@@ -57,10 +57,10 @@ fn refuses_to_overwrite_a_non_empty_directory() {
 }
 
 #[test]
-fn dev_install_clones_main() {
+fn nightly_install_clones_main() {
     let repos = init_repos();
     let state = repos._tmp.path().join("state");
-    let dest = repos._tmp.path().join("dev-install");
+    let dest = repos._tmp.path().join("nightly-install");
 
     let mut cfg = InstallConfig {
         channel: Channel::Nightly,

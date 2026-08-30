@@ -292,7 +292,7 @@ class _Watcher:
             try:
                 if self._client is not None:
                     self._client.post(url, json=payload)
-            except Exception:  # noqa: BLE001 - a page's spinner is never worth a log line
+            except Exception:
                 pass
 
 

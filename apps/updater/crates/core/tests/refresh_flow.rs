@@ -35,7 +35,7 @@ fn up_to_date_reports_ok_without_moving() {
 }
 
 #[test]
-fn up_to_date_dev_install_checks_the_latest_release_for_its_updater() {
+fn up_to_date_nightly_install_checks_the_latest_release_for_its_updater() {
     let repos = init_repos();
     let state = repos._tmp.path().join("state");
     repos.tag("v0.6.0");
@@ -61,7 +61,7 @@ fn up_to_date_dev_install_checks_the_latest_release_for_its_updater() {
 }
 
 #[test]
-fn dev_update_fast_forwards_and_builds() {
+fn nightly_update_fast_forwards_and_builds() {
     let repos = init_repos();
     let state = repos._tmp.path().join("state");
     let old = repos.head(&repos.local);
@@ -78,7 +78,7 @@ fn dev_update_fast_forwards_and_builds() {
 }
 
 #[test]
-fn dev_check_returns_the_commits_that_will_be_installed() {
+fn nightly_check_returns_the_commits_that_will_be_installed() {
     let repos = init_repos();
     repos.commit(
         "feature.txt",
