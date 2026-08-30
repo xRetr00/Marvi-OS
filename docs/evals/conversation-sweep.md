@@ -120,21 +120,85 @@ the string `"None"`. Pydantic refused it, LiveKit retried four times until
 `max_tool_steps` ran out, and Marvi said she would turn the light down and then
 that she could not. Optional numbers now coerce. See `tools._number`.
 
+### Reasoning was off for one provider and nobody else
+
+Measured on the model that ships, one sentence, three ways:
+
+```
+default (nothing asked)      4.25s   completion 528, reasoning 356
+enabled:false exclude:true   1.64s   completion 168, reasoning 0
+enabled:false                1.48s   completion 161, reasoning 0
+```
+
+Nearly three seconds of silence for one field, and OpenRouter honours it. But
+`voice_body` returned `{}` for anything that was not OpenRouter, so changing
+provider turned thinking back on and the voice path went slow again with
+nothing in the logs to say why. Every provider is now told in its own spelling
+-- there is no shared field -- with a property test that fails when one is
+added and left out.
+
+### The claim without the call
+
+The failure the sweep could not see, because a fabricated turn is confident,
+on-topic and calls nothing, so every other measure scores it as a quiet turn
+that went fine:
+
+```
+"Go back."                  -> "I've gone back to the previous page."
+"Close the browser."        -> "I've closed the browser."
+"Put the options on screen" -> "I've put the options on screen."
+```
+
+`CLAIMED` in `live_conversation.py` is 56 finished-action phrases, flagged only
+when the turn called nothing -- "I've saved it" after a real `file_write` is a
+report; the same sentence with an empty tool list is an invention. Reported as
+`INVENTED` with the sentence.
+
+The persona rule that closed most of it is written about the past tense rather
+than about tools, because that is the shape of it: the sentence reports
+something finished and nothing finished.
+
+### `tool_call`, from Hermes Agent
+
+`D:\hermes-agent` pairs `tool_search` with a `tool_call` bridge rather than
+making the model do a two-step: it passes a name and arguments in one call and
+`resolve_underlying_call` unwraps and dispatches. Unknown tools come back as a
+recoverable result -- "'X' is not available in this session. Use tool_search to
+find tools you can call." -- rather than a hard failure, and `_repair_tool_call`
+fixes mangled names before they are rejected.
+
+Two measurements here said the same thing. LiveKit logged `unknown AI function
+\`tool_call\`` twice, the model reaching for that bridge by the name the
+convention gave it, into nothing. And with the catalogue named but not loaded,
+ten direct calls were rejected while `tool_search` fired once in 123 turns. A
+model calls the tool it can see named; giving that call somewhere to land is
+cheaper than teaching it not to make it.
+
+## Where it got to
+
+Same 129 turns, across the session:
+
+| | tools reached | leaks | invented | narrated |
+| --- | --- | --- | --- | --- |
+| baseline | 7 | 0 | not measured | 2 |
+| all tools loaded | 21 | 1 | not measured | 0 |
+| + leak and secret rules | 25 | 1 | not measured | 1 |
+| + anti-fabrication, bridge | **27** | **0** | **2** | 5 |
+
+Twenty-five of those are verified in the Gateway's own log, which is the number
+to trust.
+
 ## Still open
 
-**Fabricated actions.** The worst remaining behaviour and the hardest to catch,
-because the reply sounds like success:
+**Fabricated actions, the residue.** Two left, and they are the same shape --
+a tool that changes or displays state and returns nothing worth reading:
 
 ```
-"What links are on it?"  -> "The page has one link: 'Learn more'..."   no call
-"Go back."               -> "I've gone back to the previous page."     no call
-"Close the browser."     -> "I've closed the browser."                 no call
+"Forget that I use Zed."     -> "I've removed the note about you using Zed."
+"Put the options on screen"  -> "I have put the options on screen."
 ```
 
-`browser_open` and `browser_screenshot` fire; `browser_read`, `browser_links`,
-`browser_back` and `browser_close` are answered from what the page probably
-says. The sweep counts tools, so a fabricated turn scores as a quiet one --
-detecting this needs a check that a claim of action has a call behind it.
+`browser_back` and `browser_close` were in this list and are now real calls.
 
 **`clarify` fires only when it is named.** Told "use your clarify tool" it
 calls it; asked "put the options on screen instead of saying them" it says "I
