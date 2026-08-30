@@ -35,6 +35,7 @@ from . import (
     reading,
     remembering,
     selfaware,
+    standing,
     toolsearch,
     upgrade,
 )
@@ -2760,6 +2761,21 @@ def create_app(
         # stranger to the thing she had been discussing a minute earlier --
         # memory holds facts and is told not to store that a conversation
         # happened, which is right and leaves exactly this hole.
+        # Who she is talking to, before anyone says a keyword. `continuity` is
+        # what the last conversation was about; this is what is true about the
+        # person across all of them. Without it recall is the only way anyone
+        # reaches the store, so a turn that asks nothing retrievable -- "how
+        # are we doing?" -- is answered by someone who has never met them.
+        #
+        # Read from disk here and rebuilt on a background thread, so no turn
+        # ever waits for the model call that writes it.
+        if brief := standing.block():
+            blocks["standing"] = brief
+        # Guarded: a Gateway built without a memory provider still serves
+        # `/context`, and the brief it cannot rebuild is the one already on
+        # disk rather than a 500 on the request that carries the persona.
+        if memory is not None:
+            standing.ensure(memory.local.store, cognition)
         if carry := continuity.block():
             blocks["continuity"] = carry
         try:
