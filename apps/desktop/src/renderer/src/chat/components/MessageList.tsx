@@ -6,7 +6,7 @@ import { TooltipProvider, UiTooltip } from '../../components/ui/tooltip'
 import { AgentMessage } from './AgentMessage'
 import { ErrorMessage } from './ErrorMessage'
 import { ThinkingIndicator } from './ThinkingIndicator'
-import { ToolMessage } from './ToolMessage'
+import { ToolCallsSection } from './ToolCallsSection'
 import { UserMessage } from './UserMessage'
 
 function MessageRow({
@@ -51,7 +51,7 @@ function MessageRow({
         />
       )
     case 'tool':
-      return <ToolMessage message={message} />
+      return null
     default:
       return <ErrorMessage message={message} />
   }
@@ -62,6 +62,22 @@ export const STARTER_PROMPTS = [
   { code: 'MEMORY', text: 'What do you remember that could help me today?' },
   { code: 'PLAN', text: 'Help me turn my next goal into a clear plan.' }
 ] as const
+
+export type MessageListItem =
+  | { kind: 'message'; message: ChatMessage }
+  | { kind: 'tools'; messages: ChatMessage[] }
+
+export function groupToolMessages(messages: ChatMessage[]): MessageListItem[] {
+  const items: MessageListItem[] = []
+  for (const message of messages) {
+    const last = items.at(-1)
+    if (message.role === 'tool') {
+      if (last?.kind === 'tools') last.messages.push(message)
+      else items.push({ kind: 'tools', messages: [message] })
+    } else items.push({ kind: 'message', message })
+  }
+  return items
+}
 
 function EmptyState({
   onSuggestion
@@ -112,6 +128,7 @@ export function MessageList({
   const viewport = useRef<HTMLDivElement | null>(null)
   const bottom = useRef<HTMLDivElement | null>(null)
   const [pinned, setPinned] = useState(true)
+  const items = groupToolMessages(messages)
 
   useEffect(() => {
     if (pinned) bottom.current?.scrollIntoView({ behavior: busy ? 'auto' : 'smooth' })
@@ -140,15 +157,13 @@ export function MessageList({
       >
         <div className="chat-thread-content">
           {messages.length === 0 && !busy ? <EmptyState onSuggestion={onSuggestion} /> : null}
-          {messages.map((message) => (
-            <MessageRow
-              message={message}
-              key={message.id}
-              onEdit={onEdit}
-              onRegenerate={onRegenerate}
-              readAloud={readAloud}
-            />
-          ))}
+          {items.map((item) =>
+            item.kind === 'tools' ? (
+              <ToolCallsSection key={`tools-${item.messages[0].id}`} messages={item.messages} />
+            ) : (
+              <MessageRow message={item.message} key={item.message.id} onEdit={onEdit} onRegenerate={onRegenerate} readAloud={readAloud} />
+            )
+          )}
           <div ref={bottom} />
         </div>
       </div>
