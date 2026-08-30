@@ -96,9 +96,7 @@ const marvi = {
     ipcRenderer.invoke('marvi:get-voice-session'),
   setVoiceSessionActive: (active: boolean): Promise<boolean> =>
     ipcRenderer.invoke('marvi:set-voice-session-active', active),
-  readAloud: (
-    text: string
-  ): Promise<{ played: boolean; cancelled: boolean; seconds: number }> =>
+  readAloud: (text: string): Promise<{ played: boolean; cancelled: boolean; seconds: number }> =>
     ipcRenderer.invoke('marvi:read-aloud', text),
   stopReadAloud: (): Promise<boolean> => ipcRenderer.invoke('marvi:stop-read-aloud'),
   getDisplays: (): Promise<Array<{ id: number; label: string; primary: boolean }>> =>

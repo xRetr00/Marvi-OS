@@ -71,6 +71,7 @@ import {
 } from './components/ui/shell-context-menu'
 import { Chat } from './chat'
 import { AbstractIcon, type AbstractIconName } from './components/abstract-icon'
+import { CalendarCard, VoiceActivityCard } from './components/voice-cards'
 import { MessageTiming } from './components/message-timing'
 import { GraphNodePanel } from './components/graph-node-panel'
 import { ArcMemoryGraph } from './components/arc-memory-graph'
@@ -3483,6 +3484,16 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
           <dd>{deviceError ? 'unavailable' : microphoneLabel(devices)}</dd>
         </div>
       </dl>
+
+      {/* Under the rig, because it answers the next question after "which
+          models": what are they doing. */}
+      <VoiceActivityCard />
+
+      {/* And opposite it, what is coming up. Marvi reaches the same calendar
+          through calendar_events / calendar_add / calendar_move /
+          calendar_remove, so the card and the assistant are looking at one
+          thing rather than two views that can disagree. */}
+      <CalendarCard />
 
       <MessageTiming
         aria-label="Voice session metrics"

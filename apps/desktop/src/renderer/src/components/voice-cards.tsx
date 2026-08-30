@@ -82,27 +82,24 @@ export interface VoiceActivity {
 
 /** Poll a Gateway endpoint, quietly. A card that cannot load is a card that
  * shows nothing, never an error over the top of the orb. */
-function usePolled<T>(path: string, ms: number, gateway: string): T | null {
+function usePolled<T>(read: () => Promise<unknown>, ms: number): T | null {
   const [value, setValue] = useState<T | null>(null)
   useEffect(() => {
     let gone = false
-    const read = async (): Promise<void> => {
-      try {
-        const answer = await fetch(`${gateway}${path}`)
-        if (!answer.ok) return
-        const body = (await answer.json()) as T
-        if (!gone) setValue(body)
-      } catch {
-        /* the Gateway is restarting, or the card is not worth an error */
-      }
+    const ask = async (): Promise<void> => {
+      const body = await read()
+      // Only on an answer. A failed poll leaves the last good state on screen
+      // rather than blanking the card every time the Gateway restarts.
+      if (!gone && body) setValue(body as T)
     }
-    void read()
-    const timer = setInterval(() => void read(), ms)
+    void ask()
+    const timer = setInterval(() => void ask(), ms)
     return () => {
       gone = true
       clearInterval(timer)
     }
-  }, [path, ms, gateway])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ms])
   return value
 }
 
@@ -122,8 +119,11 @@ function ToolIcon({ category }: { category: string }): React.JSX.Element {
  * this card is read in are different questions: "is anything happening" wants
  * one glance, and "what did she just do" wants the list.
  */
-export function VoiceActivityCard({ gateway }: { gateway: string }): React.JSX.Element | null {
-  const activity = usePolled<VoiceActivity>('/voice/activity', 1200, gateway)
+export function VoiceActivityCard(): React.JSX.Element | null {
+  const activity = usePolled<VoiceActivity>(
+    () => window.marvi?.getVoiceActivity() ?? Promise.resolve(null),
+    1200
+  )
   const [open, setOpen] = useState(false)
   if (!activity) return null
 
@@ -148,7 +148,9 @@ export function VoiceActivityCard({ gateway }: { gateway: string }): React.JSX.E
         <div className="voice-card-meter">
           <span className="status-context-label">Context</span>
           <span className="status-detail">
-            {context.window ? `${compactTokens(context.used)}/${compactTokens(context.window)}` : '—'}
+            {context.window
+              ? `${compactTokens(context.used)}/${compactTokens(context.window)}`
+              : '—'}
           </span>
           <span aria-hidden="true" className="status-context-meter">
             {cells.map((cell, index) => (
@@ -278,11 +280,10 @@ function when(event: CalendarEvent, now: Date): string {
  * `calendar_move` and `calendar_remove`, so what is drawn here is what she can
  * change — the card and the assistant are looking at one thing.
  */
-export function CalendarCard({ gateway }: { gateway: string }): React.JSX.Element | null {
+export function CalendarCard(): React.JSX.Element | null {
   const calendar = usePolled<{ connected: boolean; events: CalendarEvent[]; reason?: string }>(
-    '/calendar/upcoming',
-    60_000,
-    gateway
+    () => window.marvi?.getCalendar() ?? Promise.resolve(null),
+    60_000
   )
   const [now, setNow] = useState(() => new Date())
   useEffect(() => {
