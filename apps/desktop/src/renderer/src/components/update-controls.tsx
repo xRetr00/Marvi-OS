@@ -328,7 +328,7 @@ export function AboutUpdates({ version }: { version: string }): React.JSX.Elemen
           <span>At startup, every 30 minutes, and after returning to Marvi.</span>
         </div>
         <div className="update-channel" aria-label="Update channel">
-          {(['release', 'dev'] as const).map((item) => (
+          {(['release', 'nightly'] as const).map((item) => (
             <button
               aria-pressed={channel === item}
               className={channel === item ? 'ui-button active' : 'ui-button'}

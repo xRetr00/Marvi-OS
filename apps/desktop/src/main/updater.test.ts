@@ -44,13 +44,13 @@ describe('update handoff command', () => {
     expect(args[args.indexOf('--desktop-pid') + 1]).toBe('4242')
   })
 
-  it('passes the dev channel through', () => {
+  it('passes the nightly channel through', () => {
     const { args } = handoffCommand('bootstrap.exe', {
       installRoot: 'D:\\Marvi-OS',
-      channel: 'dev',
+      channel: 'nightly',
       desktopPid: 7
     })
-    expect(args[args.indexOf('--channel') + 1]).toBe('dev')
+    expect(args[args.indexOf('--channel') + 1]).toBe('nightly')
   })
 
   it('only asks for a relaunch when it has something to relaunch', () => {
@@ -151,12 +151,19 @@ describe('in-progress marker', () => {
 })
 
 describe('channel persistence', () => {
-  it('defaults to release and round-trips dev', () => {
+  it('defaults to release and round-trips nightly', () => {
     const state = workspace()
     expect(getUpdateChannel(state)).toBe('release')
-    expect(setUpdateChannel(state, 'dev')).toBe('dev')
-    expect(getUpdateChannel(state)).toBe('dev')
+    expect(setUpdateChannel(state, 'nightly')).toBe('nightly')
+    expect(getUpdateChannel(state)).toBe('nightly')
     expect(setUpdateChannel(state, 'release')).toBe('release')
+  })
+
+  it('migrates the legacy dev preference to nightly', () => {
+    const state = workspace()
+    mkdirSync(state, { recursive: true })
+    writeFileSync(join(state, '.marvi-update-channel'), 'dev\n')
+    expect(getUpdateChannel(state)).toBe('nightly')
   })
 })
 

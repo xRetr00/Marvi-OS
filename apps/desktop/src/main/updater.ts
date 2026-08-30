@@ -9,7 +9,7 @@
  *
  * Channel model:
  *   - `release` (default, opt-out): update to the latest signed `v*` tag.
- *   - `dev` (opt-in): fast-forward `origin/main` and run whatever is there.
+ *   - `nightly` (opt-in): fast-forward `origin/main` and run whatever is there.
  *
  * The bootstrap lives in `%LOCALAPPDATA%\Marvi OS\bin\marvi-bootstrap.exe`;
  * the standalone installer copies itself there during a fresh install.
@@ -59,14 +59,16 @@ export function resolveBootstrap(stateDir: string): string | null {
 export function getUpdateChannel(stateDir: string): UpdateChannel {
   try {
     const raw = readFileSync(channelPath(stateDir), 'utf-8').trim().toLowerCase()
-    return raw === 'dev' ? 'dev' : 'release'
+    // `dev` was the public name through 0.6.1. Read it as nightly so an old
+    // preference survives the rename; the next settings write canonicalizes it.
+    return raw === 'nightly' || raw === 'dev' ? 'nightly' : 'release'
   } catch {
     return 'release'
   }
 }
 
 export function setUpdateChannel(stateDir: string, channel: UpdateChannel): UpdateChannel {
-  const value = channel === 'dev' ? 'dev' : 'release'
+  const value = channel === 'nightly' ? 'nightly' : 'release'
   mkdirSync(stateDir, { recursive: true })
   writeFileSync(channelPath(stateDir), `${value}\n`, 'utf-8')
   return value

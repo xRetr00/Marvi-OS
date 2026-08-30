@@ -8,6 +8,7 @@ use std::time::Duration;
 use marvi_bootstrap_core::{
     install, run_update, state_dir, InstallConfig, InstallLog, NpmBuildRunner, UpdateConfig,
 };
+use marvi_bootstrap_core::util::no_window;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Listener};
 
@@ -255,7 +256,7 @@ fn ask_about_gpu(handle: &AppHandle, progress: &mut dyn FnMut(&str)) -> Option<b
 /// asking. Marvi's own `marvi gpu` does the real detection, including whether
 /// the driver actually works.
 fn detect_gpu() -> Option<String> {
-    let output = std::process::Command::new("nvidia-smi")
+    let output = no_window(&mut std::process::Command::new("nvidia-smi"))
         .args(["--query-gpu=name", "--format=csv,noheader"])
         .output()
         .ok()?;

@@ -63,7 +63,7 @@ fn dev_install_clones_main() {
     let dest = repos._tmp.path().join("dev-install");
 
     let mut cfg = InstallConfig {
-        channel: Channel::Dev,
+        channel: Channel::Nightly,
         ..install_cfg(&dest, &repos.remote, &state, FakeBuilder::ok())
     };
     let out = install(&mut cfg, &mut |_| {});

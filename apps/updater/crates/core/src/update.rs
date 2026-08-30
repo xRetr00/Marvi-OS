@@ -214,7 +214,7 @@ pub fn run_update(cfg: &mut UpdateConfig, progress: &mut dyn FnMut(&str)) -> Upd
     discard_backups(&backups);
 
     // The updater updates itself last, from the newest published release.
-    // This is deliberately independent of the app channel: dev follows
+    // This is deliberately independent of the app channel: nightly follows
     // origin/main, but there can never be a GitHub Release named origin/main.
     // This was the one component an update could not deliver: it is a compiled
     // binary
@@ -256,7 +256,7 @@ pub fn run_update(cfg: &mut UpdateConfig, progress: &mut dyn FnMut(&str)) -> Upd
     out
 }
 
-/// Refresh native release assets without confusing the app's moving dev ref
+/// Refresh native release assets without confusing the app's moving nightly ref
 /// with a GitHub Release tag. This also runs on the already-current path: the
 /// JavaScript checkout and the separately installed bootstrap can be at
 /// different versions.
@@ -307,7 +307,7 @@ fn published_release_tag(
         Channel::Release => Ok(app_target_ref
             .filter(|name| tags::parse_release_tag(name).is_some())
             .map(str::to_owned)),
-        Channel::Dev => {
+        Channel::Nightly => {
             let remote_tags = git::ls_remote_tags(root)
                 .map_err(|error| format!("could not list release tags: {error}"))?;
             Ok(tags::latest(remote_tags).map(|(tag, _)| tag))
@@ -338,7 +338,7 @@ fn resolve_target(
     progress: &mut dyn FnMut(&str),
 ) -> Result<(String, Option<String>), (&'static str, String)> {
     match channel {
-        Channel::Dev => {
+        Channel::Nightly => {
             if let Err(e) = git::fetch_origin(root) {
                 return Err(("failed", format!("Could not reach the update server: {e}")));
             }
@@ -387,7 +387,7 @@ fn resolve_target(
 
 fn apply_target(root: &Path, channel: Channel, target_ref: &Option<String>) -> Result<(), String> {
     match channel {
-        Channel::Dev => {
+        Channel::Nightly => {
             ensure_on_main(root)?;
             git::merge_ff_only(root, "origin/main").map_err(|e| e.to_string())
         }

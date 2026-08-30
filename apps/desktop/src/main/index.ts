@@ -1370,7 +1370,7 @@ function startApp(): void {
       getUpdateChannel(updateStateDir(process.env['LOCALAPPDATA']))
     )
     ipcMain.handle('marvi:set-update-channel', (_event, channel) => {
-      if (channel !== 'release' && channel !== 'dev') {
+      if (channel !== 'release' && channel !== 'nightly') {
         return getUpdateChannel(updateStateDir(process.env['LOCALAPPDATA']))
       }
       return setUpdateChannel(updateStateDir(process.env['LOCALAPPDATA']), channel)

@@ -124,7 +124,7 @@ pub fn check(root: &Path, channel: Channel) -> CheckOutcome {
                 ..base()
             }
         }
-        Channel::Dev => {
+        Channel::Nightly => {
             let Ok(Some(target)) = git::ls_remote_branch(root, "main") else {
                 return CheckOutcome {
                     current: Some(current),

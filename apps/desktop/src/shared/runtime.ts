@@ -248,7 +248,7 @@ export interface InitiativeStatus {
   settings: Record<string, number>
 }
 
-export type UpdateChannel = 'release' | 'dev'
+export type UpdateChannel = 'release' | 'nightly'
 
 export interface UpdateStatus {
   supported: boolean

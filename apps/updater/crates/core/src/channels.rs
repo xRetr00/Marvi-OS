@@ -1,5 +1,5 @@
 //! Update channel: the single knob the user flips between the safe default
-//! (`Release`, opt-out) and the opt-in `Dev` channel that tracks `main`.
+//! (`Release`, opt-out) and the opt-in `Nightly` channel that tracks `main`.
 
 use std::fmt;
 
@@ -9,12 +9,13 @@ use serde::{Deserialize, Serialize};
 ///
 /// - `Release` (default, opt-out): updates to the latest signed `v*` tag.
 ///   Never fast-forwards a moving branch.
-/// - `Dev` (opt-in): fast-forwards `origin/main` and runs whatever is there.
+/// - `Nightly` (opt-in): fast-forwards `origin/main` and runs whatever is there.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Channel {
     Release,
-    Dev,
+    #[serde(alias = "dev")]
+    Nightly,
 }
 
 impl Default for Channel {
@@ -30,7 +31,7 @@ impl Channel {
     pub fn parse(s: &str) -> Option<Channel> {
         match s.trim().to_ascii_lowercase().as_str() {
             "release" | "stable" => Some(Channel::Release),
-            "dev" | "development" | "main" | "nightly" => Some(Channel::Dev),
+            "nightly" | "dev" | "development" | "main" => Some(Channel::Nightly),
             _ => None,
         }
     }
@@ -38,16 +39,16 @@ impl Channel {
     pub fn as_str(self) -> &'static str {
         match self {
             Channel::Release => "release",
-            Channel::Dev => "dev",
+            Channel::Nightly => "nightly",
         }
     }
 
     /// The tracked git ref for this channel. `Release` has no branch (it
-    /// follows tags); `Dev` follows `main`.
+    /// follows tags); `Nightly` follows `main`.
     pub fn branch(self) -> Option<&'static str> {
         match self {
             Channel::Release => None,
-            Channel::Dev => Some("main"),
+            Channel::Nightly => Some("main"),
         }
     }
 }
@@ -71,9 +72,20 @@ mod tests {
     fn parses_canonical_and_alias_names() {
         assert_eq!(Channel::parse("release"), Some(Channel::Release));
         assert_eq!(Channel::parse("STABLE"), Some(Channel::Release));
-        assert_eq!(Channel::parse("dev"), Some(Channel::Dev));
-        assert_eq!(Channel::parse("main"), Some(Channel::Dev));
-        assert_eq!(Channel::parse("Main"), Some(Channel::Dev));
+        assert_eq!(Channel::parse("nightly"), Some(Channel::Nightly));
+        assert_eq!(Channel::parse("dev"), Some(Channel::Nightly));
+        assert_eq!(Channel::parse("main"), Some(Channel::Nightly));
+        assert_eq!(Channel::parse("Main"), Some(Channel::Nightly));
+        assert_eq!(Channel::Nightly.as_str(), "nightly");
+    }
+
+    #[test]
+    fn migrates_the_legacy_serialized_dev_name() {
+        assert_eq!(
+            serde_json::from_str::<Channel>(r#""dev""#).unwrap(),
+            Channel::Nightly
+        );
+        assert_eq!(serde_json::to_string(&Channel::Nightly).unwrap(), r#""nightly""#);
     }
 
     #[test]

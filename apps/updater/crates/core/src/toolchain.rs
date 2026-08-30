@@ -34,6 +34,7 @@ use std::time::Duration;
 use crate::util::run_shell_reporting;
 #[cfg(windows)]
 use crate::util::run_powershell;
+use crate::util::no_window;
 
 /// How long a toolchain download is allowed to take before it is a failure
 /// rather than a slow connection.
@@ -124,7 +125,10 @@ pub fn managed_tool_path(state_dir: &Path, tool: Tool) -> PathBuf {
 }
 
 fn probe_version(exe: &Path) -> Option<String> {
-    let output = Command::new(exe).arg("--version").output().ok()?;
+    let output = no_window(&mut Command::new(exe))
+        .arg("--version")
+        .output()
+        .ok()?;
     if !output.status.success() {
         return None;
     }
@@ -133,7 +137,10 @@ fn probe_version(exe: &Path) -> Option<String> {
 
 fn on_path(tool: Tool) -> Option<(PathBuf, String)> {
     let finder = if cfg!(windows) { "where" } else { "which" };
-    let output = Command::new(finder).arg(tool.name()).output().ok()?;
+    let output = no_window(&mut Command::new(finder))
+        .arg(tool.name())
+        .output()
+        .ok()?;
     if !output.status.success() {
         return None;
     }

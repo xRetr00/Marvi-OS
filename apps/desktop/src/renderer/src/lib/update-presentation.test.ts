@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { resolveVersionPresentation } from './update-presentation'
 
 const update = {
-  channel: 'dev' as const,
+  channel: 'nightly' as const,
   available: true,
   upToDate: false,
   behindBy: 4,

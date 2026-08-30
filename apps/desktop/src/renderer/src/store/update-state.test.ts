@@ -1,8 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const status = { supported: true, inProgress: false, channel: 'dev' as const, root: 'D:\\Marvi-OS' }
+const status = {
+  supported: true,
+  inProgress: false,
+  channel: 'nightly' as const,
+  root: 'D:\\Marvi-OS'
+}
 const check = {
-  channel: 'dev' as const,
+  channel: 'nightly' as const,
   available: true,
   upToDate: false,
   current: 'a'.repeat(40),

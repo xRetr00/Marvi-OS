@@ -3,10 +3,10 @@
 //! Contract (kept in sync with `apps/desktop/src/main/updater.ts`):
 //!
 //! ```text
-//! marvi-bootstrap.exe check   --install-root <dir> --channel release|dev
-//! marvi-bootstrap.exe update  --install-root <dir> --channel release|dev
+//! marvi-bootstrap.exe check   --install-root <dir> --channel release|nightly
+//! marvi-bootstrap.exe update  --install-root <dir> --channel release|nightly
 //!                             --desktop-pid <pid> [--relaunch-exe <path>] [--no-relaunch]
-//! marvi-bootstrap.exe install --install-root <dir> --channel release|dev
+//! marvi-bootstrap.exe install --install-root <dir> --channel release|nightly
 //!                             [--repo <url>] [--relaunch-exe <path>]
 //!                             [--gpu | --cpu]
 //! ```
@@ -46,7 +46,7 @@ pub struct Cli {
 
 impl Cli {
     pub fn usage() -> String {
-        "usage: marvi-bootstrap (check|update|install) --install-root <dir> --channel <release|dev> [options]"
+        "usage: marvi-bootstrap (check|update|install) --install-root <dir> --channel <release|nightly> [options]"
             .to_string()
     }
 }
@@ -99,7 +99,7 @@ pub fn parse<I: IntoIterator<Item = String>>(args: I) -> Result<Cli, String> {
                 let v = value()?;
                 channel = Some(
                     Channel::parse(&v)
-                        .ok_or_else(|| format!("unknown channel {v:?} (expected release|dev)"))?,
+                        .ok_or_else(|| format!("unknown channel {v:?} (expected release|nightly)"))?,
                 );
             }
             "--repo" => repo = Some(value()?),

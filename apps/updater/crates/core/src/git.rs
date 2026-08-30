@@ -59,7 +59,7 @@ pub fn run(cwd: &Path, args: &[&str]) -> Result<String, GitError> {
 /// Run git but tolerate a non-zero exit (callers inspect the status code).
 /// Used for checks where failure is an expected, non-fatal outcome.
 pub fn run_status(cwd: &Path, args: &[&str]) -> Result<std::process::ExitStatus, GitError> {
-    Command::new("git")
+    no_window(&mut Command::new("git"))
         .args(args)
         .current_dir(cwd)
         .status()

@@ -10,7 +10,7 @@ use marvi_bootstrap_core::{Channel, UpdateConfig, check, run_update};
 fn config(local: &std::path::Path, state: &std::path::Path, builder: FakeBuilder) -> UpdateConfig {
     UpdateConfig {
         install_root: local.to_path_buf(),
-        channel: Channel::Dev,
+        channel: Channel::Nightly,
         state_dir: state.to_path_buf(),
         desktop_pid: None,
         relaunch_exe: None,
@@ -86,7 +86,7 @@ fn dev_check_returns_the_commits_that_will_be_installed() {
         "feat(updater): show available changes",
     );
 
-    let out = check(&repos.local, Channel::Dev);
+    let out = check(&repos.local, Channel::Nightly);
 
     assert!(out.available);
     assert_eq!(out.behind_by, 1);

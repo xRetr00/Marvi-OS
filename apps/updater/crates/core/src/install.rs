@@ -59,7 +59,7 @@ pub struct InstallOutcome {
 /// The target ref to clone for a channel.
 fn target_ref(channel: Channel, repo: &str, cwd: &Path) -> Result<(String, Option<String>), String> {
     match channel {
-        Channel::Dev => Ok(("main".to_string(), None)),
+        Channel::Nightly => Ok(("main".to_string(), None)),
         Channel::Release => {
             let tags = git::ls_remote_url_tags(repo, cwd)
                 .map_err(|e| format!("could not list release tags: {e}"))?;
