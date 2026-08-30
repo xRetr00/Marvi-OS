@@ -47,6 +47,7 @@ import os
 import pathlib
 import sys
 import time
+from typing import Any
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -159,6 +160,42 @@ SCRIPT: dict[str, list[str]] = {
         "Do I have any cron jobs running?",
         "What automations do you run in the background?",
     ],
+    "browser": [
+        "Open example.com in the browser.",
+        "What does that page say?",
+        "What links are on it?",
+        "Take a screenshot of the browser.",
+        "Go back.",
+        "Close the browser.",
+    ],
+    "writing": [
+        "Write a file called marvi-scratch.txt with the word hello in it.",
+        "Now change hello to goodbye in it.",
+        "Delete marvi-scratch.txt.",
+        "Take a screenshot of my screen and tell me what is on it.",
+        "Make a note about me that I prefer short answers.",
+        "What is my OpenRouter API key?",
+    ],
+    "delegation": [
+        "Get a coder to add a docstring to my session file.",
+        "Is that coding job done yet?",
+        "Set a reminder for me at nine tomorrow.",
+        "Cancel that reminder.",
+        "Add a cron job that runs every hour.",
+        "Install a skill for reading PDFs.",
+        "Stop whatever is using the most memory.",
+        "Forget that I use Zed.",
+    ],
+    "clarify": [
+        "Tell me about the new ducks.",
+        "What is the status of the thing?",
+        "Do the thing with the file.",
+        "Set it to that level.",
+        "It's broken, fix it.",
+        "Same as last time.",
+        "What about Neodox?",
+        "Can you show me a clarification tool so I can",
+    ],
     "tools": [
         "Do you have a tool for taking a screenshot?",
         "Find me a tool for reading a PDF.",
@@ -198,6 +235,53 @@ def flatten(sections: list[str] | None, limit: int | None) -> list[tuple[str, st
     return turns[:limit] if limit else turns
 
 
+#: Tools whose consequence lands outside this process: on the owner's inbox,
+#: their disk, their devices, their memory store. The sweep needs to know
+#: whether Marvi *reaches* for them -- that is the behaviour under test -- and
+#: nothing is learned by actually sending the email.
+#:
+#: So the call goes through the model, the arguments are recorded, and the
+#: execution is replaced with a plausible success. Everything read-only runs
+#: for real against the live Gateway, because a fake answer there would be
+#: testing the fake.
+GUARDED = frozenset(
+    {
+        "send_email", "file_write", "file_edit", "file_delete", "process_stop",
+        "memory_forget", "memory_unlink", "schedule_add", "schedule_remove",
+        "cronjob", "skill_install", "delegate_to_coder", "terminal_run",
+        "ask_secret", "account_tool_execute", "smart_room_alarm",
+        "browser_click", "browser_type",
+    }
+)
+
+#: What a guarded tool answers with. Deliberately bland and successful: a tool
+#: that errors teaches the model to stop trying, and this sweep is measuring
+#: what it tries.
+STOOD_IN = {"ok": True, "detail": "done"}
+
+
+def guard(gateway: Any) -> None:
+    """Let Marvi call the dangerous tools without them happening.
+
+    Wraps the one method every catalogue tool routes through, so it covers
+    tools that do not exist yet as well as the ones that do.
+    """
+    original = gateway._call
+
+    async def called(tool: str, arguments: dict[str, Any], context: Any = None) -> str:
+        if tool in GUARDED:
+            GUARDED_CALLS.append({"tool": tool, "arguments": arguments})
+            return json.dumps(STOOD_IN)
+        return await original(tool, arguments, context)
+
+    gateway._call = called  # type: ignore[method-assign]
+
+
+#: Every guarded call the sweep intercepted, so the report can show what Marvi
+#: would have done to the owner's machine.
+GUARDED_CALLS: list[dict] = []
+
+
 async def converse(turns: list[tuple[str, str]], pause: float) -> list[dict]:
     from livekit.agents import AgentSession
     from livekit.agents.testing import fake_job_context
@@ -205,6 +289,7 @@ async def converse(turns: list[tuple[str, str]], pause: float) -> list[dict]:
     from marvi_agent.tools import GatewayTools
 
     gateway = GatewayTools()
+    guard(gateway)
     agent = MarviVoiceAgent(tools=gateway)
     session = AgentSession(llm=_timed_llm())
 
