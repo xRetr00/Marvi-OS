@@ -345,6 +345,12 @@ resolved from the model owner's identifier rather than the outer catalog group,
 with a two-letter fallback for owners absent from the pinned brand SDK. The Chat
 trigger and default row always name the configured model and provider instead of
 hiding them behind a generic default label.
+The effort menu is model-specific: it uses live capability metadata from the
+provider when published and the Gateway's documented model-family table only
+when that provider's list omits capabilities. It preserves extended levels such
+as `minimal`, `xhigh`, and `max`. A supported `none` or `off` choice is labelled
+**Off**; mandatory-reasoning models do not show it. Unknown support hides the
+menu rather than presenting the old universal low/medium/high guess.
 Pending attachments use compact thumbnail/file tiles with name, type, size,
 and an explicit remove action. Sent images open into a bounded preview that
 closes by button, backdrop, or Escape. Context occupancy lives in the persistent

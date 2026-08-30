@@ -1309,3 +1309,24 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
 - Verified all 306 desktop tests, both desktop TypeScript targets, focused
   ESLint with zero errors, the production Electron/Vite build, and
   `git diff --check`.
+
+## 2026-08-31 — per-model reasoning effort and durable provider disconnect
+
+- Replaced the provider-wide three-level reasoning list with one per-model
+  capability resolver shared by Models, Chat, Voice, and auxiliary routing.
+  OpenRouter, Anthropic, and LM Studio metadata is authoritative; a packaged,
+  source-linked family table covers APIs such as OpenAI's that omit capability
+  data, and unknown support remains hidden.
+- Added the complete supported vocabulary where documented, including Off,
+  `minimal`, `xhigh`, and `max`, while omitting Off for mandatory-reasoning
+  models. The desktop labels provider `none`/`off` values as Off.
+- Mapped selections into provider-native request bodies: OpenAI Chat and
+  Responses, OpenRouter's nested reasoning object, Anthropic adaptive thinking
+  and `output_config.effort`, DeepSeek's toggle/effort pair, and local
+  compatibility fields. Unsupported values are omitted; deprecated Anthropic
+  token-budget thinking is gone.
+- Made provider disconnect durable. A blank setting is retained as a tombstone
+  so an inherited `OPENAI_API_KEY` cannot silently reconnect OpenAI the next
+  time the Gateway starts.
+- Verified all 1,313 Gateway tests, targeted Gateway Ruff, the shared desktop
+  model-picker tests, both desktop TypeScript targets, and `git diff --check`.

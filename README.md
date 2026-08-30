@@ -44,6 +44,11 @@ Current implemented desktop surfaces:
 - Collapse wordmark + readable JetBrains Mono monochrome design system;
 - shared Provider, Chat, and Voice session telemetry for authoritative token
   deltas, turns, latency, and elapsed time;
+- one Gateway model catalog behind Models, Chat, Voice, and auxiliary routing,
+  with provider-published per-model reasoning choices where available and a
+  documented packaged fallback for model APIs that omit capabilities; supported
+  disabled modes appear as Off rather than being hidden behind a generic
+  low/medium/high list;
 - Gateway-owned Chat threads and branches with per-thread model routing,
   typed sources/files/images, local document extraction, Parakeet dictation,
   safe GFM/math rendering, segmented provider-backed context usage, thumbnail

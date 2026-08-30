@@ -242,6 +242,17 @@ plans remain explicitly local-counter only.
 readable and writable from the Identity page, which shows the token budget and
 says when a file has been truncated. Marvi never writes `SOUL.md` itself.
 
+**2026-08-31 correction — per-model effort and durable disconnect. Done.** The
+shared catalog now reads exact reasoning metadata from OpenRouter, Anthropic,
+and LM Studio, and uses a sourced packaged model-family table for APIs such as
+OpenAI's that do not publish capabilities. Models, Chat, Voice, and auxiliary
+pickers therefore share the actual per-model subset, including Off, `minimal`,
+`xhigh`, and `max`; mandatory reasoning omits Off. Request shaping now uses
+OpenAI Chat/Responses, OpenRouter, Anthropic adaptive thinking, DeepSeek, and
+local-compatible conventions rather than one provider-level three-value field.
+Unsupported values are omitted, not substituted. Provider disconnects persist
+as blank tombstones so inherited API keys cannot reconnect on restart.
+
 ## Acceptance evidence
 
 | Evidence | State |
@@ -254,6 +265,8 @@ says when a file has been truncated. Marvi never writes `SOUL.md` itself.
 | An expired token surfaces as "reconnect"; reconnecting needs no restart | **done** — and distinct from never-connected |
 | Marvi handles no provider password anywhere in the OAuth flow | **done** — no field exists to type one into |
 | No base URL, model or key literal in application code; GUI edits take effect live | **done** |
+| Every model picker shows the same provider/model-specific effort subset | **done** — catalog metadata/fallback contract and shared picker tests |
+| Disconnect remains disconnected after a Gateway restart with an inherited key | **done** — persistent blank-tombstone test |
 | `SOUL.md` and `USER.md` shape the prompt within an enforced budget | **done** |
 | The Phase 5 injection boundary still holds with identity loaded | **done** — identity is trusted, recalled content keeps its envelope |
 | The same vendor on both paths at once, accounted independently | **structurally done** — `openai` and `codex` are separate profiles with separate usage; not yet proven live |

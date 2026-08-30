@@ -201,9 +201,11 @@ The registry reads `os.environ` and nothing else. The control center edits
 when the Gateway starts and applied immediately on save — so there is still one
 source of truth, and the GUI edits the thing that fills it.
 
-A variable already set in the real environment **wins** over the saved file, so
-launching with `OPENAI_API_KEY=...` in the shell is not silently overridden by a
-stale saved value. Clearing a value in the GUI is how you disconnect.
+A non-empty variable already set in the real environment **wins** over a saved
+non-empty value, so launching with `OPENAI_API_KEY=...` in the shell is not
+silently overridden by stale saved credentials. Clearing a value in the GUI
+writes a blank tombstone. That deliberate disconnect clears an inherited value
+on every Gateway start instead of reconnecting after a restart.
 
 Credentials are masked on the way out (`…3f9a`) and never written to the audit
 log; what is recorded is that a setting changed, not what it changed to.
@@ -274,13 +276,28 @@ blind.
 
 ### 3. Reasoning effort
 
-Three incompatible conventions, so the profile declares which one applies and
-the caller never guesses:
+Effort belongs to a model, not a provider. OpenRouter, Anthropic, and LM Studio
+publish model capability metadata, which the catalog preserves exactly.
+OpenAI's model list omits capabilities, while Ollama and some compatible
+gateways expose only partial metadata, so the packaged
+`providers/model-capabilities.json` table supplies documented model-family
+fallbacks. An unknown model gets no effort control; Marvi never guesses.
 
-- **`none`** — the effort argument is dropped.
-- **`effort`** — `reasoning_effort: low|medium|high`. An unsupported value falls
-  back to the provider's default rather than erroring.
-- **`budget_tokens`** — Anthropic's `thinking: {type: enabled, budget_tokens: N}`.
+The selected public value is then mapped to the provider's wire shape:
+
+| Provider path | Request shape |
+|---|---|
+| OpenAI Chat Completions and compatible APIs | `reasoning_effort` |
+| OpenAI Responses and Codex | `reasoning.effort` |
+| OpenRouter | `reasoning.effort` |
+| Anthropic / Claude Code | `thinking: {type: adaptive}` plus `output_config.effort`; Off uses `thinking: {type: disabled}` |
+| DeepSeek | `thinking.type` plus `reasoning_effort` |
+| LM Studio / Ollama compatibility | model-published `off`/`on` or level mapped onto the compatible effort field |
+
+Supported `none` and `off` values are displayed as **Off**. Mandatory-reasoning
+models do not receive an Off choice. Unsupported saved values are omitted
+instead of being silently replaced with a different effort. Deprecated
+Anthropic `budget_tokens` requests are never emitted.
 
 ### 4. Prompt caching — the cost lever
 

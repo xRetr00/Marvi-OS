@@ -1,5 +1,12 @@
 # Phase 12 — Providers, models, and reasoning effort
 
+**Implementation note (2026-08-31):** the per-model effort correction in this
+plan is now implemented in the existing shared catalog and request builder.
+Provider/model separation and follow-main routing were already implemented by
+the earlier Phase 12 milestones; this correction adds live capability parsing,
+the packaged fallback table, native request mapping, Off presentation, and
+durable credential disconnect tombstones.
+
 Third attempt. The previous two produced a Providers page that mixes connecting
 an account with choosing a model, an `aux` model that is a string on a provider
 profile rather than a decision, and a model list that is hardcoded because
@@ -73,8 +80,8 @@ published options and must not rewrite them.
 | Provider | Endpoint | Capabilities in the response? |
 |---|---|---|
 | OpenAI and compatible | `GET /v1/models` | **No** — `id`, `object`, `created`, `owned_by` only |
-| Anthropic | `GET /v1/models` | No |
-| OpenRouter | `GET /api/v1/models` | **Yes** — `supported_parameters`, filterable server-side |
+| Anthropic | `GET /v1/models` | **Yes** — `capabilities.effort` and `capabilities.thinking` |
+| OpenRouter | `GET /api/v1/models` | **Yes** — per-model `reasoning.supported_efforts` and `mandatory` (with `supported_parameters` retained as a legacy signal) |
 | LM Studio | `GET /api/v1/models` | **Yes** — `capabilities.reasoning.allowed_options` |
 | Ollama | `GET /api/tags`, or `/v1/models` in compat mode | Yes — a thinking capability flag |
 
@@ -88,7 +95,7 @@ published options and must not rewrite them.
 | Anthropic 4.6 | either; `budget_tokens` deprecated | `low`, `medium`, `high`, `max` |
 | Anthropic ≥ 4.7 | `thinking.type="adaptive"` with `effort` | `budget_tokens` is **rejected with a 400** |
 | LM Studio | `reasoning_effort` | whatever the model publishes in `allowed_options` |
-| Ollama | `think` | boolean, or `low`/`medium`/`high`/`max` |
+| Ollama | `think` natively; compatible effort fields on `/v1` | boolean for most thinking models; `low`/`medium`/`high` for GPT-OSS |
 
 Two conclusions follow, and they are the load-bearing ones:
 
@@ -96,9 +103,9 @@ Two conclusions follow, and they are the load-bearing ones:
    verbatim to every provider is wrong for four of the six. Marvi needs a
    generic ladder plus a per-provider mapping.
 2. **Support is discoverable for some providers and not others.** OpenRouter,
-   LM Studio and Ollama publish it; OpenAI and Anthropic do not. So the agreed
-   "fetch when possible, hide otherwise" needs a fallback table for the two
-   that cannot be asked — and that table must be data, not code.
+   Anthropic, and LM Studio publish exact model metadata. OpenAI does not, and
+   Ollama's compatibility list is partial, so "fetch when possible, hide
+   otherwise" needs a fallback table. That table is packaged data, not code.
 
 Two things I told the user earlier were wrong, and the record should say so: I
 described reasoning effort as "fixed levels like low/medium/high" when OpenAI
