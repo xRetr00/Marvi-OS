@@ -356,7 +356,10 @@ shows a real zero-percent meter as soon as a fresh chat has a known provider
 window, and never turns message or file counts into invented token estimates. Drafting
 remains available while a response streams, while the primary action becomes
 Stop until the active turn settles.
-Tool activity and sources use transparent faded disclosure rows at rest, a
+Tool activity groups consecutive calls behind one compact disclosure with
+deduplicated tilted category icons. Expanding it reveals a connected execution
+rail; each call then exposes its persisted input and untrusted output independently.
+Sources use transparent faded disclosure rows at rest, a
 small `Sources · count` label, and compact flat result rows only after
 expansion. Pre-token waiting, live reasoning, streamed tools, and partial answer
 text each expose one timed activity signal using the shared Marvi glyph spinner.
@@ -436,6 +439,9 @@ concept into a local UTC activity matrix with labeled Year, Month, Week, Day,
 and rolling 24-hour views. Year and Month use durable daily buckets; the finer
 views use durable hourly buckets. Density follows the visible non-zero
 distribution, and every cell exposes its exact timestamp and token total.
+Below the matrix, the visible range's billable total is compared with a rotating
+scale of familiar books using clearly approximate token counts and a short local
+quip. The comparison is deterministic, offline, and changes with the selected range.
 
 Icon-only and ambiguous shell controls use the shared accessible tooltip
 surface. Tooltips appear on hover and keyboard focus after a short delay, use

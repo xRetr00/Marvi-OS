@@ -9,9 +9,10 @@ import type { ChatMessage } from './types'
 import { AgentMessage } from './components/AgentMessage'
 import { Composer } from './components/Composer'
 import { ContextStatus } from './components/ContextStatus'
-import { MessageList } from './components/MessageList'
+import { groupToolMessages, MessageList } from './components/MessageList'
 import { Sessions } from './components/Sessions'
 import { ToolMessage } from './components/ToolMessage'
+import { ToolCallsSection } from './components/ToolCallsSection'
 import { UserMessage } from './components/UserMessage'
 
 const at = '2026-08-17T14:05:00Z'
@@ -138,6 +139,29 @@ describe('ToolMessage', () => {
     )
     expect(html).toContain('File read')
     expect(html).not.toContain('secret result')
+  })
+
+  it('groups tool calls behind stacked categories and keeps results independently collapsed', () => {
+    const tools = [
+      message({
+        id: 11,
+        role: 'tool',
+        content: 'found it',
+        meta: { tool: 'web_search', arguments: { query: 'Marvi' } }
+      }),
+      message({
+        id: 12,
+        role: 'tool',
+        content: 'opened it',
+        meta: { tool: 'file_read', arguments: { path: 'README.md' } }
+      })
+    ]
+    const html = renderToStaticMarkup(<ToolCallsSection messages={tools} />)
+    expect(html).toContain('Used 2 tools')
+    expect(html).toContain('chat-tool-stack-item')
+    expect(html).toContain('Web search')
+    expect(html).not.toContain('found it')
+    expect(groupToolMessages(tools)).toHaveLength(1)
   })
 })
 

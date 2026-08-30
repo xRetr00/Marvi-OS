@@ -23,7 +23,7 @@ function MessageRow({
     readingId: number | null
     toggle: (id: number, content: string) => void
   }
-}): React.JSX.Element {
+}): React.JSX.Element | null {
   switch (message.role) {
     case 'user':
       return <UserMessage message={message} onEdit={onEdit} />
@@ -64,8 +64,7 @@ export const STARTER_PROMPTS = [
 ] as const
 
 export type MessageListItem =
-  | { kind: 'message'; message: ChatMessage }
-  | { kind: 'tools'; messages: ChatMessage[] }
+  { kind: 'message'; message: ChatMessage } | { kind: 'tools'; messages: ChatMessage[] }
 
 export function groupToolMessages(messages: ChatMessage[]): MessageListItem[] {
   const items: MessageListItem[] = []
@@ -161,7 +160,13 @@ export function MessageList({
             item.kind === 'tools' ? (
               <ToolCallsSection key={`tools-${item.messages[0].id}`} messages={item.messages} />
             ) : (
-              <MessageRow message={item.message} key={item.message.id} onEdit={onEdit} onRegenerate={onRegenerate} readAloud={readAloud} />
+              <MessageRow
+                message={item.message}
+                key={item.message.id}
+                onEdit={onEdit}
+                onRegenerate={onRegenerate}
+                readAloud={readAloud}
+              />
             )
           )}
           <div ref={bottom} />

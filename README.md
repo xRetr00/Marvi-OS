@@ -50,7 +50,8 @@ Current implemented desktop surfaces:
   attachment tiles and image previews, validated generative widgets, read aloud
   through the standalone PocketTTS announcer, and a dedicated
   searchable conversation sidebar, compact human/assistant turn pairs, tool
-  disclosures, source rows, live timed thinking/reasoning/tool states, sticky
+  disclosures with grouped category icons and per-call input/output details,
+  source rows, live timed thinking/reasoning/tool states, sticky
   prompt anchors, and compact shell chrome adapted from an internal desktop;
 - compact divided control surfaces across every non-Voice/non-Chat page, a
   tactile shared button language, an inset settings dialog with a persistent
@@ -105,7 +106,7 @@ Current implemented desktop surfaces:
 - a content-free, durable usage ledger shared by Chat, Voice, background work,
   and local models, with daily and hourly UTC activity matrices across Year,
   Month, Week, Day, and rolling 24-hour views, plus optional reconciliation
-  against official provider account APIs;
+  against official provider account APIs and a playful offline book-scale comparison;
 - web search, fetch, and extract with an SSRF guard, plus file, terminal, and
   process tools confined to an allowlisted workspace root, and MCP servers
   routed through the Gateway so they inherit confirmation and audit;

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Activity, CalendarDays, RefreshCw, Server } from 'lucide-react'
+import { Activity, BookOpenText, CalendarDays, RefreshCw, Server } from 'lucide-react'
 
 import type { UsageCounters, UsagePage } from '../../../shared/runtime'
 import { ControlButton, ControlPage, ControlSection } from './control-surface'
@@ -7,6 +7,7 @@ import { ProcessingCard } from './ui/processing-card'
 import { UiTooltip } from './ui/tooltip'
 import { ServiceLogo } from '../lib/serviceLogos'
 import { buildUsageCells, usageMonthLabels, type UsageRange } from './usage-heatmap'
+import { tokenTale } from './token-tale'
 
 function count(value: number): string {
   return new Intl.NumberFormat('en', {
@@ -41,6 +42,7 @@ function UsageCalendar({ page }: { page: UsagePage }): React.JSX.Element {
   const peak = active.length
     ? active.reduce((best, cell) => (cell.billable > best.billable ? cell : best), active[0])
     : null
+  const tale = tokenTale(total)
 
   return (
     <div className="usage-calendar">
@@ -135,6 +137,12 @@ function UsageCalendar({ page }: { page: UsagePage }): React.JSX.Element {
           ))}{' '}
           More
         </div>
+      </div>
+      <div className="usage-token-tale" aria-live="polite">
+        <BookOpenText aria-hidden="true" size={16} strokeWidth={1.5} />
+        <p>
+          <strong>{tale.lead}</strong> <span>{tale.aside}</span>
+        </p>
       </div>
     </div>
   )

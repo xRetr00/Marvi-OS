@@ -6418,6 +6418,19 @@ body {
   font-size: 8px;
   letter-spacing: 0.12em;
 }
+.usage-token-tale {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 13px;
+  padding-top: 12px;
+  border-top: 1px solid var(--ui-stroke-tertiary);
+  color: var(--ui-text-tertiary);
+}
+.usage-token-tale svg { flex: none; margin-top: 1px; color: var(--ui-text-secondary); }
+.usage-token-tale p { margin: 0; font-family: var(--ui-font-serif); font-size: 12px; line-height: 1.45; }
+.usage-token-tale strong { color: var(--ui-text-primary); font-weight: 500; }
+.usage-token-tale span { color: var(--ui-text-tertiary); }
 .usage-provider-list {
   display: grid;
 }
