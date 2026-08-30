@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { metaValue, type ChatMessage } from '../types'
+import { groupToolMessages } from '../message-groups'
 import { AbstractIcon } from '../../components/abstract-icon'
 import { TooltipProvider, UiTooltip } from '../../components/ui/tooltip'
 import { AgentMessage } from './AgentMessage'
@@ -62,21 +63,6 @@ export const STARTER_PROMPTS = [
   { code: 'MEMORY', text: 'What do you remember that could help me today?' },
   { code: 'PLAN', text: 'Help me turn my next goal into a clear plan.' }
 ] as const
-
-export type MessageListItem =
-  { kind: 'message'; message: ChatMessage } | { kind: 'tools'; messages: ChatMessage[] }
-
-export function groupToolMessages(messages: ChatMessage[]): MessageListItem[] {
-  const items: MessageListItem[] = []
-  for (const message of messages) {
-    const last = items.at(-1)
-    if (message.role === 'tool') {
-      if (last?.kind === 'tools') last.messages.push(message)
-      else items.push({ kind: 'tools', messages: [message] })
-    } else items.push({ kind: 'message', message })
-  }
-  return items
-}
 
 function EmptyState({
   onSuggestion
