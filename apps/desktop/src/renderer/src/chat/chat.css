@@ -3260,6 +3260,170 @@
   opacity: 0.58;
 }
 
+.chat-tool-section {
+  width: fit-content;
+  max-width: min(560px, 100%);
+  margin: 3px 12px 7px;
+  color: var(--ui-text-tertiary);
+}
+
+.chat-tool-section-head {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 4px 3px 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.chat-tool-section-head:hover,
+.chat-tool-section-head:focus-visible {
+  color: var(--ui-text-primary);
+  outline: none;
+}
+
+.chat-tool-section-head strong {
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.chat-tool-section-head > svg,
+.chat-tool-step-head > svg {
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.chat-tool-section-head > svg.is-open,
+.chat-tool-step-head > svg.is-open {
+  transform: rotate(180deg);
+}
+
+.chat-tool-stack {
+  display: flex;
+  min-width: 30px;
+  min-height: 30px;
+  align-items: center;
+  padding-left: 2px;
+}
+
+.chat-tool-stack-item {
+  display: grid;
+  margin-left: -8px;
+  place-items: center;
+  transform-origin: center;
+}
+
+.chat-tool-stack-item:first-child { margin-left: 0; }
+
+.chat-tool-icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  place-items: center;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--ui-bg-raised) 96%, var(--ui-text-primary));
+  color: var(--ui-text-secondary);
+  box-shadow: 0 2px 7px rgb(0 0 0 / 18%);
+}
+
+.chat-tool-overflow {
+  display: grid;
+  width: 25px;
+  height: 25px;
+  margin-left: -6px;
+  place-items: center;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 7px;
+  background: var(--ui-bg-tertiary);
+  color: var(--ui-text-tertiary);
+  font-size: 8px;
+}
+
+.chat-tool-section-content {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 130ms ease;
+}
+
+.chat-tool-section-content.is-open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.chat-tool-section-content > div {
+  min-height: 0;
+  overflow: hidden;
+  padding-top: 2px;
+}
+
+.chat-tool-step {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.chat-tool-rail {
+  display: flex;
+  min-height: 42px;
+  flex-direction: column;
+  align-items: center;
+}
+
+.chat-tool-rail > i {
+  width: 1px;
+  min-height: 12px;
+  flex: 1;
+  background: var(--ui-stroke-secondary);
+}
+
+.chat-tool-step-content {
+  min-width: 0;
+  padding: 2px 0 9px;
+}
+
+.chat-tool-step-head {
+  display: flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 0;
+  border: 0;
+  background: transparent;
+  color: var(--ui-text-secondary);
+  cursor: pointer;
+  text-align: left;
+}
+
+.chat-tool-step-head:disabled { cursor: default; }
+.chat-tool-step-head:not(:disabled):hover,
+.chat-tool-step-head:not(:disabled):focus-visible { color: var(--ui-text-primary); outline: none; }
+.chat-tool-step-head strong { overflow: hidden; font-size: 9.5px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.chat-tool-category { display: block; margin-top: 1px; color: var(--ui-text-tertiary); font-size: 8px; text-transform: capitalize; }
+
+.chat-tool-detail {
+  display: grid;
+  width: fit-content;
+  max-width: min(500px, 100%);
+  gap: 9px;
+  margin: 7px 0 5px;
+  padding: 9px 10px;
+  border: 1px solid var(--ui-stroke-tertiary);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--ui-bg-tertiary) 72%, transparent);
+}
+
+.chat-tool-detail > div { display: grid; gap: 4px; min-width: 0; }
+.chat-tool-detail > div > span { color: var(--ui-text-tertiary); font-size: 8px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+.chat-tool-detail pre { max-height: 130px; margin: 0; padding: 0; overflow: auto; color: var(--ui-text-secondary); font: 8.5px/1.45 var(--ui-font-mono); white-space: pre-wrap; }
+.chat-tool-detail .chat-tool-body { max-height: 150px; }
+
 .chat-reasoning + .chat-inline-tool {
   margin-top: 7px;
   padding-top: 5px;
