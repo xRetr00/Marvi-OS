@@ -88,6 +88,13 @@ transparent disclosures that return to full contrast on hover or keyboard
 focus. Errors use a bounded destructive surface with copyable details rather
 than masquerading as assistant prose.
 
+Conversation deletion waits for Gateway acknowledgement before changing the
+sidebar and then reloads the authoritative thread list. Deleting the reserved
+initial conversation clears it into a fresh `New conversation`; other threads
+are removed. Dictation shows a starting spinner while the local recognizer
+warms and exposes startup failures inline. Read Aloud shows its preparation,
+completion, cancellation, or failure state instead of failing silently.
+
 Generative output follows Assistant UI's tool-UI pattern through a Marvi-owned
 adapter. Models may request only `sources`, `metrics`, `comparison`, `table`,
 `timeline`, `weather`, `gallery`, `document`, or `status`; the Gateway validates,

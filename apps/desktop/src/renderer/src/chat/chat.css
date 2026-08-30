@@ -3365,6 +3365,26 @@
   padding-block: 7px 10px;
 }
 
+.chat-speech-status {
+  position: absolute;
+  z-index: 5;
+  right: 18px;
+  bottom: 96px;
+  max-width: min(320px, calc(100% - 36px));
+  padding: 5px 8px;
+  border: 1px solid var(--ui-stroke-tertiary);
+  border-radius: 6px;
+  background: var(--ui-bg-raised);
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+  line-height: 14px;
+  pointer-events: none;
+}
+
+.chat-speech-status.is-active {
+  color: var(--ui-text-secondary);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .chat-scaffold-label.is-live {
     animation: none;

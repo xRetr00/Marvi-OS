@@ -309,12 +309,21 @@ export function useChat(): UseChat {
   )
   const deleteThread = useCallback(
     async (id: string) => {
-      await window.marvi?.deleteChatThread(id)
-      const next = threads.find((thread) => thread.id !== id)
+      const removed = await window.marvi?.deleteChatThread(id)
+      if (!removed) {
+        setNotice('The conversation could not be deleted. Try again when the Gateway is ready.')
+        return
+      }
+      const remaining = (await window.marvi?.getChatThreads(false)) ?? []
+      const next =
+        id === activeThreadId
+          ? remaining[0]
+          : remaining.find((thread) => thread.id === activeThreadId) ?? remaining[0]
+      setNotice('')
       if (next) await load(next.id)
       else await createThread()
     },
-    [createThread, load, threads]
+    [activeThreadId, createThread, load]
   )
 
   const addAttachments = useCallback(

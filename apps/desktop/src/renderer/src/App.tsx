@@ -622,9 +622,9 @@ function MainSurface(): React.JSX.Element {
       <div className="app-shell">
         <TitleBar
           hapticsMuted={hapticsMuted}
-          onRestart={() => window.marvi?.restartAll()}
+          onRestart={() => void window.marvi?.restartAll()}
           onSettings={() => setSettings('Preferences')}
-          onShutdown={() => window.marvi?.shutdownAll()}
+          onShutdown={() => void window.marvi?.shutdownAll()}
           onToggleSidebar={page === 'Chat' ? undefined : toggleSidebar}
           onToggleHaptics={toggleHaptics}
           page={settings ?? page}

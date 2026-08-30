@@ -439,6 +439,17 @@ async function gatewayJson(path: string, init?: RequestInit, timeoutMs = 10_000)
   }
 }
 
+async function gatewayFailure(response: Response, fallback: string): Promise<Error> {
+  try {
+    const body = (await response.json()) as { detail?: unknown; error?: unknown }
+    const detail = body.detail ?? body.error
+    if (typeof detail === 'string' && detail.trim()) return new Error(detail)
+  } catch {
+    // A non-JSON error still gets an honest HTTP fallback.
+  }
+  return new Error(`${fallback} (HTTP ${response.status})`)
+}
+
 function windowOpacity(): number {
   return 1 - (translucencyIntensity / 100) * 0.7
 }
@@ -1208,6 +1219,11 @@ function startApp(): void {
           cancelled: Boolean(value.cancelled),
           seconds: Number(value.seconds || 0)
         })
+        return {
+          played: Boolean(value.played),
+          cancelled: Boolean(value.cancelled),
+          seconds: Number(value.seconds || 0)
+        }
       } catch (cause) {
         desktop.warn('Chat Read Aloud failed', {
           error: cause instanceof Error ? cause.message : String(cause)
@@ -1949,7 +1965,9 @@ function startApp(): void {
           method: 'DELETE',
           signal: AbortSignal.timeout(5_000)
         })
-        return response.ok
+        if (!response.ok) return false
+        const value = (await response.json()) as { removed?: unknown }
+        return typeof value.removed === 'number'
       } catch {
         return false
       }
@@ -2136,9 +2154,13 @@ function startApp(): void {
           body: JSON.stringify({ language: typeof language === 'string' ? language : 'en-US' }),
           signal: AbortSignal.timeout(180_000)
         })
-        return response.ok ? await response.json() : null
-      } catch {
-        return null
+        if (!response.ok) throw await gatewayFailure(response, 'Dictation could not start')
+        return await response.json()
+      } catch (cause) {
+        desktop.warn('Chat dictation could not start', {
+          error: cause instanceof Error ? cause.message : String(cause)
+        })
+        throw cause
       }
     })
     ipcMain.handle('marvi:push-chat-dictation-audio', async (_event, id, pcm16) => {
@@ -2779,13 +2801,17 @@ function startApp(): void {
       // always-on contract. Quit stays explicit via the tray menu.
       mainWindow.hide()
     })
-    ipcMain.on('marvi:restart-all', (event) => {
-      if (!mainWindow || event.sender !== mainWindow.webContents) return
-      restartApplication(app)
+    ipcMain.handle('marvi:restart-all', (event) => {
+      if (!mainWindow || event.sender !== mainWindow.webContents) return false
+      desktop.info('whole application restart requested')
+      setTimeout(() => restartApplication(app), 50)
+      return true
     })
-    ipcMain.on('marvi:shutdown-all', (event) => {
-      if (!mainWindow || event.sender !== mainWindow.webContents) return
-      shutdownApplication(app)
+    ipcMain.handle('marvi:shutdown-all', (event) => {
+      if (!mainWindow || event.sender !== mainWindow.webContents) return false
+      desktop.info('whole application shutdown requested')
+      setTimeout(() => shutdownApplication(app), 50)
+      return true
     })
     ipcMain.handle('marvi:get-window-state', () => windowStatePayload())
     ipcMain.handle('marvi:set-translucency', (_event, value) => {

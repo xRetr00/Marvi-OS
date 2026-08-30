@@ -152,8 +152,14 @@ export function MessageList({
           <div ref={bottom} />
         </div>
       </div>
-      {readAloud ? (
-        <span className="sr-only" aria-live="polite">
+      {readAloud?.announcement ? (
+        <span
+          className={
+            readAloud.readingId === null ? 'chat-speech-status' : 'chat-speech-status is-active'
+          }
+          aria-live="polite"
+          role="status"
+        >
           {readAloud.announcement}
         </span>
       ) : null}

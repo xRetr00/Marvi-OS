@@ -79,8 +79,8 @@ const marvi = {
   minimizeWindow: (): void => ipcRenderer.send('marvi:window-minimize'),
   toggleMaximizeWindow: (): void => ipcRenderer.send('marvi:window-toggle-maximize'),
   closeWindow: (): void => ipcRenderer.send('marvi:window-close'),
-  restartAll: (): void => ipcRenderer.send('marvi:restart-all'),
-  shutdownAll: (): void => ipcRenderer.send('marvi:shutdown-all'),
+  restartAll: (): Promise<boolean> => ipcRenderer.invoke('marvi:restart-all'),
+  shutdownAll: (): Promise<boolean> => ipcRenderer.invoke('marvi:shutdown-all'),
   getWindowState: (): Promise<{ isMaximized: boolean }> =>
     ipcRenderer.invoke('marvi:get-window-state'),
   onWindowState: (listener: (state: { isMaximized: boolean }) => void): (() => void) => {
@@ -96,7 +96,10 @@ const marvi = {
     ipcRenderer.invoke('marvi:get-voice-session'),
   setVoiceSessionActive: (active: boolean): Promise<boolean> =>
     ipcRenderer.invoke('marvi:set-voice-session-active', active),
-  readAloud: (text: string): Promise<void> => ipcRenderer.invoke('marvi:read-aloud', text),
+  readAloud: (
+    text: string
+  ): Promise<{ played: boolean; cancelled: boolean; seconds: number }> =>
+    ipcRenderer.invoke('marvi:read-aloud', text),
   stopReadAloud: (): Promise<boolean> => ipcRenderer.invoke('marvi:stop-read-aloud'),
   getDisplays: (): Promise<Array<{ id: number; label: string; primary: boolean }>> =>
     ipcRenderer.invoke('marvi:get-displays'),

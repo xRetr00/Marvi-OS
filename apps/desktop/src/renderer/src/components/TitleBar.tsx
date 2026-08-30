@@ -145,6 +145,8 @@ function GuardedLifecycleButton({
             setArmed(true)
             return
           }
+          setArmed(false)
+          haptic('success')
           onConfirm()
         }}
         type="button"

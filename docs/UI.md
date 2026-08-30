@@ -130,8 +130,9 @@ restart, and shutdown. Haptics mute persists on the machine and suppresses all
 feedback patterns. Restart and shutdown arm on the first press and require a
 second press within three seconds, preventing a stray click from ending an
 active session. Both cross the narrow preload bridge into Electron main.
-Restart schedules an Electron relaunch and then enters the normal quit path;
-shutdown enters that quit path directly. The existing synchronous teardown
+The bridge acknowledges each accepted request before Electron destroys the
+renderer. Restart then schedules an Electron relaunch and enters the normal quit
+path; shutdown enters that quit path directly. The existing synchronous teardown
 stops the Gateway and every supervised child-process tree before either action
 completes.
 

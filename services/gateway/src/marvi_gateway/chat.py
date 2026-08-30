@@ -492,7 +492,13 @@ class ChatStore:
 
     def delete_thread(self, thread_id: str) -> int:
         if thread_id == DEFAULT_THREAD_ID:
-            return self.clear(thread_id)
+            removed = self.clear(thread_id)
+            self._db.execute(
+                "UPDATE threads SET title = ?, updated_at = ? WHERE id = ?",
+                ("New conversation", self._now(), thread_id),
+            )
+            self._db.commit()
+            return removed
         attachments = self._db.execute(
             "SELECT path FROM attachments WHERE thread_id = ?", (thread_id,)
         ).fetchall()

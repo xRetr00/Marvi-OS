@@ -45,8 +45,11 @@ export function useDictation(onText: (text: string) => void): {
       session = await window.marvi?.startChatDictation(navigator.language || 'en-US')
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Dictation could not start.')
+      setStarting(false)
+      return
     }
     if (!session) {
+      setError('Speech recognition is unavailable. Check Voice settings and try again.')
       setStarting(false)
       return
     }

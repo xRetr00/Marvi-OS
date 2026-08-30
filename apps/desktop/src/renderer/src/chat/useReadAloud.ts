@@ -36,12 +36,12 @@ export function useReadAloud(scope: string): ReadAloudController {
       const current = generation.current + 1
       generation.current = current
       setReadingId(id)
-      setAnnouncement('Reading response aloud.')
+      setAnnouncement('Preparing speech…')
       try {
-        await readAloudWithMarvi(chunks.join(' '))
+        const result = await readAloudWithMarvi(chunks.join(' '))
         if (generation.current !== current) return
         setReadingId(null)
-        setAnnouncement('Finished reading response.')
+        setAnnouncement(result.cancelled ? 'Read aloud stopped.' : 'Finished reading response.')
       } catch (cause) {
         if (generation.current !== current) return
         generation.current += 1
@@ -61,6 +61,12 @@ export function useReadAloud(scope: string): ReadAloudController {
   }, [scope, stop])
 
   useEffect(() => () => void stopMarviReadAloud(), [])
+
+  useEffect(() => {
+    if (readingId !== null || !announcement) return
+    const timer = window.setTimeout(() => setAnnouncement(''), 4_000)
+    return () => window.clearTimeout(timer)
+  }, [announcement, readingId])
 
   return { available, readingId, announcement, toggle, stop }
 }

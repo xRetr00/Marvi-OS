@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { ChatAttachment, ModelPage, ProviderPage } from '../../../../shared/runtime'
 import { AbstractIcon } from '../../components/abstract-icon'
+import { GlyphSpinner } from '../../components/ui/glyph-spinner'
 import { TooltipProvider, UiTooltip } from '../../components/ui/tooltip'
 import { ModelPicker } from '../../components/ui/model-picker'
 import { useDictation } from '../useDictation'
@@ -139,16 +140,34 @@ export function Composer({
               {onOverrideChange ? (
                 <SessionModel value={override ?? {}} onChange={onOverrideChange} />
               ) : null}
-              <UiTooltip label={dictation.active ? 'Stop dictation' : 'Dictate message'}>
+              <UiTooltip
+                label={
+                  dictation.starting
+                    ? 'Starting dictation'
+                    : dictation.active
+                      ? 'Stop dictation'
+                      : 'Dictate message'
+                }
+              >
                 <button
-                  aria-label={dictation.active ? 'Stop dictation' : 'Dictate message'}
+                  aria-label={
+                    dictation.starting
+                      ? 'Starting dictation'
+                      : dictation.active
+                        ? 'Stop dictation'
+                        : 'Dictate message'
+                  }
                   aria-pressed={dictation.active}
                   className={dictation.active ? 'chat-compose-tool active' : 'chat-compose-tool'}
                   disabled={busy || dictation.starting}
                   onClick={() => void (dictation.active ? dictation.stop() : dictation.start())}
                   type="button"
                 >
-                  <AbstractIcon name={dictation.active ? 'stop' : 'microphone'} size={15} />
+                  {dictation.starting ? (
+                    <GlyphSpinner ariaLabel="Starting dictation" spinner="braille" />
+                  ) : (
+                    <AbstractIcon name={dictation.active ? 'stop' : 'microphone'} size={15} />
+                  )}
                 </button>
               </UiTooltip>
               {busy && onCancel ? (

@@ -89,6 +89,14 @@ def test_a_reply_is_returned_and_remembered(store, tmp_path) -> None:
     assert roles == ["user", "assistant"]
 
 
+def test_deleting_the_reserved_conversation_resets_it_to_a_fresh_chat(store) -> None:
+    store.append("user", "old message")
+
+    assert store.delete_thread("default") == 1
+    assert store.history(thread_id="default") == []
+    assert store.get_thread("default")["title"] == "New conversation"
+
+
 def test_history_is_replayed_so_it_is_one_conversation(store, tmp_path) -> None:
     seen: list[dict] = []
 

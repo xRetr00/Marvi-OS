@@ -66,7 +66,9 @@ export interface MarviDesktopApi {
   getRuntime: () => Promise<RuntimeStatus>
   getVoiceSession: () => Promise<{ url: string; room: string; token: string }>
   setVoiceSessionActive: (active: boolean) => Promise<boolean>
-  readAloud: (text: string) => Promise<void>
+  readAloud: (
+    text: string
+  ) => Promise<{ played: boolean; cancelled: boolean; seconds: number }>
   stopReadAloud: () => Promise<boolean>
   getDisplays: () => Promise<Array<{ id: number; label: string; primary: boolean }>>
   getIslandPlacement: () => Promise<IslandPlacement>
@@ -279,8 +281,8 @@ export interface MarviDesktopApi {
   minimizeWindow: () => void
   toggleMaximizeWindow: () => void
   closeWindow: () => void
-  restartAll: () => void
-  shutdownAll: () => void
+  restartAll: () => Promise<boolean>
+  shutdownAll: () => Promise<boolean>
   getWindowState: () => Promise<{ isMaximized: boolean }>
   onWindowState: (listener: (state: { isMaximized: boolean }) => void) => () => void
   setTranslucency: (intensity: number) => Promise<number>
