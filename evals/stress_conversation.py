@@ -55,6 +55,7 @@ sys.path.insert(0, str(_ROOT / "services/agent/src"))
 sys.path.insert(0, str(_ROOT / "services/gateway/src"))
 
 from live_conversation import (
+    BACKED_BY,
     CLAIMED,
     LEAKED,
     LONG_WORDS,
@@ -595,6 +596,13 @@ def every_tool() -> list[str]:
         return []
 
 
+#: A claim is only a claim when it is not being refused. See `unbacked`.
+DENIED = (
+    "can't", "cannot", "can not", "won't", "will not", "unable",
+    "not able", "no way to", "don't have", "do not have", "couldn't",
+)
+
+
 def report(said: list[dict]) -> None:
     total = max(1, len(said))
     leaks = [t for t in said if any(p in t["said"].lower() for p in LEAKED)]
@@ -614,11 +622,32 @@ def report(said: list[dict]) -> None:
     ]
     # Marvi narrating the conversation from outside it. See THIRD_PERSON.
     outside = [t for t in said if any(p in t["said"].lower() for p in THIRD_PERSON)]
-    invented = [
-        t
-        for t in said
-        if not t["tools"] and any(p in t["said"].lower() for p in CLAIMED)
-    ]
+    def unbacked(turn: dict) -> bool:
+        """Whether this reply claims something no call on this turn supports."""
+        low = turn["said"].lower()
+        called = [str(name) for name in turn["tools"]]
+        # A claim with nothing at all behind it.
+        if not called and any(phrase in low for phrase in CLAIMED):
+            return True
+        # A claim backed by the wrong tool, which the first version of this
+        # counted as clean. See BACKED_BY.
+        for phrases, tools in BACKED_BY:
+            for phrase in phrases:
+                where = low.find(phrase)
+                if where < 0:
+                    continue
+                # "I can't set the light to two hundred percent" is a refusal,
+                # not a claim, and the first version of this counted it as one.
+                # A detector that cries wolf on honest answers is worse than no
+                # detector, because the real ones stop being read.
+                before = low[max(0, where - 40) : where]
+                if any(no in before for no in DENIED):
+                    continue
+                if not any(any(want in name for want in tools) for name in called):
+                    return True
+        return False
+
+    invented = [t for t in said if unbacked(t)]
     errors = [t for t in said if t["error"]]
     used = collections.Counter(name for t in said for name in t["tools"])
     seconds = sorted(t["seconds"] for t in said if t["seconds"])
