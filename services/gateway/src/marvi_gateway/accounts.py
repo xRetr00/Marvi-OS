@@ -30,6 +30,9 @@ SCOPE_RANK = {name: index for index, name in enumerate(ACCOUNT_SCOPES)}
 GMAIL_FETCH = "GMAIL_FETCH_EMAILS"
 GMAIL_SEND = "GMAIL_SEND_EMAIL"
 CALENDAR_EVENTS = "GOOGLECALENDAR_EVENTS_LIST"
+CALENDAR_CREATE = "GOOGLECALENDAR_CREATE_EVENT"
+CALENDAR_UPDATE = "GOOGLECALENDAR_UPDATE_EVENT"
+CALENDAR_DELETE = "GOOGLECALENDAR_DELETE_EVENT"
 
 #: Toolkits Marvi ships first-class support for: a native memory provider
 #: (`ingest.py`), and — for most of them — a curated action-effect catalog
@@ -727,6 +730,24 @@ class ComposioAccounts:
         return {"tool": tool.slug, "toolkit": tool.toolkit, "result": result}
 
 
+def _minutes_between(start: str, end: str) -> int:
+    """How long an event runs, for an API that takes a length not an end time.
+
+    Falls back to an hour rather than raising: a badly-formed end time should
+    put the event in the calendar at roughly the right size, not refuse to put
+    it in at all. The user can see it on the card and move it.
+    """
+    from datetime import datetime
+
+    try:
+        began = datetime.fromisoformat(start)
+        finished = datetime.fromisoformat(end)
+    except ValueError:
+        return 60
+    minutes = int((finished - began).total_seconds() // 60)
+    return minutes if 0 < minutes <= 60 * 24 else 60
+
+
 def register_account_tools(registry: Any, accounts: ComposioAccounts) -> None:
     """Stable broker tools keep a thousand-app catalog out of every prompt."""
     from .tools import ToolSpec
@@ -763,6 +784,61 @@ def register_account_tools(registry: Any, accounts: ComposioAccounts) -> None:
             {"calendarId": "primary", "maxResults": max(1, min(limit, 25)), "singleEvents": True},
         )
         return wrap_external("composio:googlecalendar", payload).model_dump()
+
+    # First-class rather than reachable through `account_tool_search` and
+    # `account_tool_execute`, and that is a lesson rather than a preference.
+    # `memory_forget` was reachable the same way for weeks: asked to forget
+    # something the model called `process_list`, then `memory_unlink`, and
+    # reported success both times, because among fifty-five tools there was no
+    # forget tool to find. A capability that has to be discovered before it can
+    # be used is one that gets invented instead.
+    def calendar_add(
+        summary: str, start: str, end: str = "", description: str = "", location: str = ""
+    ) -> Any:
+        accounts.require_connected("googlecalendar")
+        if not accounts.scope_allows("googlecalendar", "write"):
+            raise AccountScopeError(
+                "Adding an event needs write access; the calendar is limited to read."
+            )
+        arguments: dict[str, Any] = {
+            "calendar_id": "primary",
+            "summary": summary,
+            "start_datetime": start,
+        }
+        # Composio takes a length where the caller thinks in end times, and an
+        # hour is what a person means by "put it in at nine" when they do not
+        # say for how long.
+        arguments["event_duration_hour"] = 1 if not end else 0
+        if end:
+            arguments["event_duration_minutes"] = _minutes_between(start, end)
+        if description:
+            arguments["description"] = description
+        if location:
+            arguments["location"] = location
+        return accounts.execute(CALENDAR_CREATE, arguments)
+
+    def calendar_move(event_id: str, start: str = "", summary: str = "") -> Any:
+        accounts.require_connected("googlecalendar")
+        if not accounts.scope_allows("googlecalendar", "write"):
+            raise AccountScopeError(
+                "Changing an event needs write access; the calendar is limited to read."
+            )
+        arguments: dict[str, Any] = {"calendar_id": "primary", "event_id": event_id}
+        if start:
+            arguments["start_datetime"] = start
+        if summary:
+            arguments["summary"] = summary
+        return accounts.execute(CALENDAR_UPDATE, arguments)
+
+    def calendar_remove(event_id: str) -> Any:
+        accounts.require_connected("googlecalendar")
+        # Admin rather than write, and deliberately: deleting somebody's
+        # meeting is not the same class of act as adding one.
+        if not accounts.scope_allows("googlecalendar", "admin"):
+            raise AccountScopeError(
+                "Deleting an event needs admin access to the calendar."
+            )
+        return accounts.execute(CALENDAR_DELETE, {"calendar_id": "primary", "event_id": event_id})
 
     def send_email(recipient_email: str, subject: str, body: str) -> Any:
         accounts.require_connected("gmail")
@@ -821,6 +897,52 @@ def register_account_tools(registry: Any, accounts: ComposioAccounts) -> None:
         ToolSpec(
             "calendar_events", "Read upcoming calendar events", {}, False, calendar_events,
             optional={"limit": int},
+        )
+    )
+    registry.register(
+        ToolSpec(
+            name="calendar_add",
+            description="Put something in the user's calendar",
+            arguments={"summary": str, "start": str},
+            optional={"end": str, "description": str, "location": str},
+            sensitive=True,
+            external=False,
+            handler=calendar_add,
+            describes={
+                "summary": "What the event is called, as the user would say it",
+                "start": "When it starts, as an ISO timestamp such as "
+                "2026-09-01T09:00:00+03:00",
+                "end": "When it ends, same format. Omit for an hour.",
+                "description": "Any detail worth keeping with the event",
+                "location": "Where it is, if they said",
+            },
+        )
+    )
+    registry.register(
+        ToolSpec(
+            name="calendar_move",
+            description="Change the time or title of an existing calendar event",
+            arguments={"event_id": str},
+            optional={"start": str, "summary": str},
+            sensitive=True,
+            external=False,
+            handler=calendar_move,
+            describes={
+                "event_id": "The id from calendar_events",
+                "start": "The new start, as an ISO timestamp",
+                "summary": "A new title, if it is being renamed",
+            },
+        )
+    )
+    registry.register(
+        ToolSpec(
+            name="calendar_remove",
+            description="Delete an event from the user's calendar",
+            arguments={"event_id": str},
+            sensitive=True,
+            external=False,
+            handler=calendar_remove,
+            describes={"event_id": "The id from calendar_events"},
         )
     )
     registry.register(

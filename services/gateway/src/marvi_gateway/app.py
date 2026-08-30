@@ -23,6 +23,7 @@ from pydantic import BaseModel, Field
 from . import (
     auxiliary,
     breadcrumb,
+    calendarview,
     continuity,
     conversation,
     delegate,
@@ -39,6 +40,7 @@ from . import (
     standing,
     toolsearch,
     upgrade,
+    voiceactivity,
 )
 from . import doctor as doctor_module
 from . import plugins as plugins_module
@@ -249,6 +251,20 @@ class ReadAloudRequest(BaseModel):
 
 class VoiceSessionState(BaseModel):
     active: bool
+
+
+class VoiceActivity(BaseModel):
+    """One line of what the voice worker is doing. See `voiceactivity`."""
+
+    tool: str = ""
+    arguments: dict[str, Any] = Field(default_factory=dict)
+    call_id: str = ""
+    outcome: str = ""
+    detail: str = ""
+    used: int = 0
+    window: int = 0
+    turns: int = 0
+    cleared: bool = False
 
 
 class SpeechResult(BaseModel):
@@ -1389,6 +1405,50 @@ def create_app(
             lambda: one_shot.speak(request.text, purpose="read_aloud")
         )
         return SpeechResult(**outcome)
+
+    @app.get("/voice/activity")
+    async def read_voice_activity() -> dict[str, Any]:
+        """What Marvi is doing, for the Voice page. See `voiceactivity`."""
+        return voiceactivity.live.state()
+
+    @app.post("/voice/activity")
+    async def write_voice_activity(update: VoiceActivity) -> dict[str, Any]:
+        """The Agent reporting a call starting, finishing, or the context size.
+
+        One endpoint for all three because they are one stream: the page needs
+        them interleaved, and three endpoints would be three round trips from
+        the latency-critical process.
+        """
+        if update.cleared:
+            voiceactivity.live.cleared()
+            return {"ok": True}
+        if update.used or update.window:
+            voiceactivity.live.counted(update.used, update.window, update.turns)
+        if update.tool and not update.call_id:
+            return {"call_id": voiceactivity.live.began(update.tool, update.arguments)}
+        if update.call_id:
+            voiceactivity.live.ended(update.call_id, update.outcome or "ok", update.detail)
+        return {"ok": True}
+
+    @app.get("/calendar/upcoming")
+    async def calendar_upcoming(limit: int = 8) -> dict[str, Any]:
+        """The next few events, for the Voice page's calendar card.
+
+        Served rather than left to the tool path because a page is not a model:
+        it wants the same events every few seconds without a confirmation flow,
+        an audit line, or an external-data envelope wrapped round them.
+        """
+        try:
+            spec = tool_registry.get("calendar_events")
+        except Exception:
+            return {"connected": False, "events": [], "reason": "no calendar tool"}
+        try:
+            payload = await anyio.to_thread.run_sync(
+                lambda: spec.handler(limit=max(1, min(limit, 25)))
+            )
+        except Exception as exc:
+            return {"connected": False, "events": [], "reason": str(exc)[:160]}
+        return {"connected": True, "events": calendarview.upcoming(payload, limit)}
 
     @app.post("/voice/session-state")
     async def voice_session_state(update: VoiceSessionState) -> dict[str, bool]:

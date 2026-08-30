@@ -805,6 +805,17 @@ class MarviVoiceAgent(Agent):
                 "When what you heard does not fit what you know, the "
                 "microphone is the likeliest reason. Say the version that "
                 "makes sense and let the user correct you. "
+                # Named as the recogniser's fault, out loud, because that is
+                # what makes asking reasonable rather than rude -- and because
+                # it is the honest reason. A sentence that cannot be made to
+                # mean anything is usually not the person being unclear; it is
+                # a word the recogniser did not have.
+                + "When a sentence will not resolve into anything -- a name "
+                "you cannot place, a word that fits nothing you know, a "
+                "half-finished instruction -- the microphone is the likeliest "
+                "culprit, so say so and call clarify: 'I think I misheard "
+                "that', then put the likely options on screen. Reading is not "
+                "hearing, and a tapped answer cannot be misheard twice. "
                 "When it matters and you genuinely cannot tell -- which of two "
                 "things, which file, what 'it' refers to, a name you are about "
                 "to write down -- call clarify and let them pick. Never guess "
