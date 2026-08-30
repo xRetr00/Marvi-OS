@@ -314,12 +314,12 @@ The rest of Chat adapts Assistant UI's thread composition without adopting a
 second runtime. Entering Chat replaces the control-center navigation with a
 dedicated conversation sidebar adapted from the pinned upstream desktop.
 That sidebar owns new-chat, search, recent threads, row actions, export, and a
-clear return to the control center. Chat has no secondary page header. A compact
-560px reading column owns message flow; each turn follows the compact upstream
-human/assistant pair: one slim full-width prompt surface followed by unboxed
-Marvi prose. Sender labels remain available to assistive technology instead of
-repeating as visible headers, while timestamps and actions appear on hover or
-keyboard focus. The transcript keeps its compact 560px reading register, while
+clear return to the control center. Chat has no secondary page header. A bounded
+720px reading column owns message flow; each turn follows a compact
+human/assistant pair: one slim sticky full-width prompt surface followed by
+unboxed Marvi prose. Sender labels remain available to assistive technology
+instead of repeating as visible headers, while timestamps and actions appear on
+hover or keyboard focus. The transcript keeps its bounded reading register, while
 the composer is a near-full-width dock with a one-rem pane gutter. Its default
 state is one inline row: add control, elastic input, compact model/voice
 controls, and one neutral circular send/stop action. Narrow layouts stack the
@@ -350,9 +350,12 @@ shows a real zero-percent meter as soon as a fresh chat has a known provider
 window, and never turns message or file counts into invented token estimates. Drafting
 remains available while a response streams, while the primary action becomes
 Stop until the active turn settles.
-Tool activity and sources use transparent faded disclosure
-rows at rest, a small `Sources · count` label, and compact flat result rows only
-after expansion. Structured results use thin dividers instead of nested paper
+Tool activity and sources use transparent faded disclosure rows at rest, a
+small `Sources · count` label, and compact flat result rows only after
+expansion. Pre-token waiting, live reasoning, streamed tools, and partial answer
+text each expose one timed activity signal. Live reasoning opens while tokens
+arrive and completed reasoning collapses as Thought; neither state is rendered
+as answer prose. Structured results use thin dividers instead of nested paper
 cards, with progressive disclosure and no model-authored UI code. Context
 percentage is shown only when both provider input usage and a catalog context
 window are known.

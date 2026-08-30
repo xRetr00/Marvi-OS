@@ -1,4 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { Markdown } from './MarkdownView'
@@ -13,6 +15,7 @@ import { ToolMessage } from './components/ToolMessage'
 import { UserMessage } from './components/UserMessage'
 
 const at = '2026-08-17T14:05:00Z'
+const chatCss = readFileSync(join(__dirname, 'chat.css'), 'utf8').replace(/\r\n/g, '\n')
 
 function message(overrides: Partial<ChatMessage>): ChatMessage {
   return {
@@ -163,6 +166,23 @@ describe('Composer', () => {
     expect(html).not.toContain('// MESSAGE')
   })
 
+  it('shows streamed tool activity as quiet transcript scaffolding', () => {
+    const html = renderToStaticMarkup(
+      <AgentMessage
+        message={message({
+          role: 'assistant',
+          content: '',
+          meta: { streaming: true, tool: 'room_state' }
+        })}
+      />
+    )
+
+    expect(html).toContain('chat-inline-tool')
+    expect(html).toContain('Using Room state')
+    expect(html).toContain('chat-activity-pulse')
+    expect(html).not.toContain('chat-stream-activity')
+  })
+
   it('offers a hint to connect a provider when unavailable', () => {
     const html = renderToStaticMarkup(
       <Composer draft="" busy={false} available={false} onDraftChange={noop} onSend={noop} />
@@ -208,6 +228,19 @@ describe('Composer', () => {
     expect(html).toContain('Reply reserve')
     expect(html).toContain('Available')
     expect(html).not.toContain('chars')
+  })
+})
+
+describe('transcript visual contract', () => {
+  it('keeps prompts sticky, responses unboxed, and work evidence subordinate', () => {
+    const transcript = chatCss.slice(chatCss.lastIndexOf('/* Transcript hierarchy'))
+    expect(transcript).toContain('.chat-user {')
+    expect(transcript).toContain('position: sticky')
+    expect(transcript).toContain('.chat-assistant {')
+    expect(transcript).not.toMatch(/\.chat-assistant\s*\{[^}]*border:/s)
+    expect(transcript).toContain('.chat-scaffold {')
+    expect(transcript).toContain('opacity: 0.67')
+    expect(transcript).toContain('.chat-reasoning-body.is-live')
   })
 })
 
@@ -291,7 +324,8 @@ describe('MessageList', () => {
       />
     )
     expect(html.match(/MARVI/g)).toHaveLength(1)
-    expect(html).toContain('WORKING')
+    expect(html).toContain('Thinking')
+    expect(html).toContain('chat-activity-time')
   })
 })
 

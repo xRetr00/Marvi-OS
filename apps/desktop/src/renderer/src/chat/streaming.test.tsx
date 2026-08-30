@@ -30,13 +30,15 @@ const markup = (message: ChatMessage): string =>
   renderToStaticMarkup(<AgentMessage message={message} />)
 
 describe('a streaming reply', () => {
-  it('shows a cursor while tokens are still arriving', () => {
-    expect(markup(reply('The light', { streaming: true }))).toContain('chat-cursor')
+  it('shows a timed activity row while tokens are still arriving', () => {
+    const html = markup(reply('The light', { streaming: true }))
+    expect(html).toContain('chat-stream-activity')
+    expect(html).toContain('chat-activity-pulse')
+    expect(html).toContain('Working')
   })
 
-  it('drops the cursor once the turn is over', () => {
-    // Left on, it claims the reply is unfinished forever.
-    expect(markup(reply('The light is on.'))).not.toContain('chat-cursor')
+  it('drops live activity once the turn is over', () => {
+    expect(markup(reply('The light is on.'))).not.toContain('chat-stream-activity')
   })
 
   it('renders whatever text has arrived so far', () => {
@@ -57,9 +59,19 @@ describe('reasoning', () => {
   it('is collapsed until asked for', () => {
     const html = markup(reply('Yes.', { reasoning: 'a long deliberation' }))
 
-    expect(html).toContain('chat-reasoning-toggle')
+    expect(html).toContain('chat-disclosure-row')
     expect(html).not.toContain('chat-reasoning-body')
     expect(html).not.toContain('a long deliberation')
+  })
+
+  it('opens live reasoning while it is arriving and labels it as thinking', () => {
+    const html = markup(reply('', { reasoning: 'checking the room state', streaming: true }))
+
+    expect(html).toContain('aria-expanded="true"')
+    expect(html).toContain('chat-reasoning-body is-live')
+    expect(html).toContain('checking the room state')
+    expect(html).toContain('Thinking')
+    expect(html).toContain('chat-activity-time')
   })
 
   it('is absent entirely when the model did not reason', () => {

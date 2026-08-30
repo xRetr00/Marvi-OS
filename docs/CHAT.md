@@ -58,10 +58,11 @@ The composer keeps Marvi's provider/model/effort controls, attachment queue,
 microphone action, and stop/send state inside a rounded,
 quiet dock spanning the conversation pane with a one-rem gutter. Its desktop
 state is one row—add, elastic input, compact selectors/actions, and a neutral
-circular send/stop control—while the transcript retains its compact 560px
-reading measure. Human prompts use one slim full-row surface and Marvi replies
-remain unboxed prose directly below them; sender names stay accessible without
-becoming repeated visual headers.
+circular send/stop control—while the transcript uses a bounded 720px reading
+measure. Human prompts use one slim full-row surface and become the sticky turn
+anchor while their response scrolls beneath; Marvi replies remain unboxed prose
+directly below them. Sender names stay accessible without becoming repeated
+visual headers.
 Context is persistent shell chrome beside the other session facts. The compact
 token label and ASCII occupancy meter open the full provider-backed breakdown
 upward from the status bar without taking space from drafting.
@@ -73,6 +74,17 @@ remove action before send. Sent images expand into an in-app viewer with
 backdrop, close-button, and Escape dismissal. The draft stays editable during
 streaming so the next thought is not lost; Stop remains the active-turn action
 until the Gateway settles or cancels that turn.
+
+Streaming activity is explicit without pretending partial text is complete.
+Before the first visible token, one compact timed Thinking row occupies the
+tail. Visible reasoning opens while it streams and settles into a collapsed
+Thought disclosure; it never joins the answer prose. A streamed tool owns the
+activity row while it runs, avoiding a duplicate generic spinner. Once answer
+text begins, the partial Markdown remains readable and a small timed Working
+row carries the unfinished state. Completed tools and reasoning become faded,
+transparent disclosures that return to full contrast on hover or keyboard
+focus. Errors use a bounded destructive surface with copyable details rather
+than masquerading as assistant prose.
 
 Generative output follows Assistant UI's tool-UI pattern through a Marvi-owned
 adapter. Models may request only `sources`, `metrics`, `comparison`, `table`,
