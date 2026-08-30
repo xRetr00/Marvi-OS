@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
-import type { ChatMessage } from '../types'
+import { metaValue, type ChatMessage } from '../types'
 import { AbstractIcon } from '../../components/abstract-icon'
 import { TooltipProvider, UiTooltip } from '../../components/ui/tooltip'
 import { AgentMessage } from './AgentMessage'
@@ -28,7 +28,13 @@ function MessageRow({
     case 'user':
       return <UserMessage message={message} onEdit={onEdit} />
     case 'assistant':
-      if (message.meta.streaming && !message.content.trim()) return <ThinkingIndicator />
+      if (
+        message.meta.streaming &&
+        !message.content.trim() &&
+        !metaValue(message.meta, 'reasoning')
+      ) {
+        return <ThinkingIndicator startedAt={message.at} />
+      }
       return (
         <AgentMessage
           message={message}

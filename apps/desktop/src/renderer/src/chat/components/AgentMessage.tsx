@@ -1,11 +1,11 @@
-import { useState } from 'react'
-
 import { AbstractIcon } from '../../components/abstract-icon'
 import { UiTooltip } from '../../components/ui/tooltip'
 import { Markdown } from '../MarkdownView'
 import { formatTime } from '../time'
 import { metaValue, type ChatMessage } from '../types'
 import { CopyMessageAction } from './MessageAction'
+import { ActivityTimer } from './ActivityTimer'
+import { ReasoningDisclosure, StreamActivity } from './ReasoningDisclosure'
 import { WidgetStack } from './WidgetStack'
 
 export function AgentMessage({
@@ -19,7 +19,7 @@ export function AgentMessage({
 }): React.JSX.Element {
   const reasoning = metaValue(message.meta, 'reasoning')
   const streaming = Boolean(message.meta?.streaming)
-  const [showReasoning, setShowReasoning] = useState(false)
+  const tool = metaValue(message.meta, 'tool')
 
   return (
     <article
@@ -29,29 +29,29 @@ export function AgentMessage({
     >
       <span className="sr-only">MARVI</span>
       {reasoning ? (
-        <div className="chat-reasoning">
-          {/* Collapsed by default and never part of the answer. It is the
-              model's working, not something Marvi said — and on a thinking
-              model it is most of the bill, which is worth being able to see. */}
-          <button
-            className="chat-reasoning-toggle"
-            onClick={() => setShowReasoning((open) => !open)}
-            type="button"
-          >
-            {showReasoning ? '▾' : '▸'} Thinking
-          </button>
-          {showReasoning ? <pre className="chat-reasoning-body">{reasoning}</pre> : null}
+        <ReasoningDisclosure reasoning={reasoning} startedAt={message.at} streaming={streaming} />
+      ) : null}
+      {tool ? (
+        <div className="chat-scaffold chat-inline-tool" data-conversation-scaffold="">
+          <span
+            aria-hidden="true"
+            className={streaming ? 'chat-activity-pulse' : 'chat-tool-dot'}
+          />
+          <span className={streaming ? 'chat-scaffold-label is-live' : 'chat-scaffold-label'}>
+            {streaming ? 'Using' : 'Used'} {toolLabel(tool)}
+          </span>
+          {streaming ? <ActivityTimer active startedAt={message.at} /> : null}
         </div>
       ) : null}
-      <div className="chat-body">
-        <Markdown content={message.content} />
-        {streaming ? (
-          // Only while tokens are still arriving. A cursor on a finished
-          // message says the reply is unfinished when it is not.
-          <span aria-hidden="true" className="chat-cursor" />
-        ) : null}
-      </div>
+      {message.content.trim() ? (
+        <div className="chat-body chat-assistant-prose">
+          <Markdown content={message.content} />
+        </div>
+      ) : null}
       <WidgetStack parts={message.parts} />
+      {streaming && !tool && message.content.trim() ? (
+        <StreamActivity startedAt={message.at} />
+      ) : null}
       <div className="chat-turn-foot">
         <div className="chat-turn-actions">
           <span className="chat-message-age">{formatTime(message.at)}</span>
@@ -83,4 +83,8 @@ export function AgentMessage({
       </div>
     </article>
   )
+}
+
+function toolLabel(tool: string): string {
+  return tool.replaceAll(/[_-]+/g, ' ').replace(/^\w/, (letter) => letter.toUpperCase())
 }

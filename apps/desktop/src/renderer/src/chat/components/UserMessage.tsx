@@ -17,9 +17,14 @@ export function UserMessage({
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(message.content)
   return (
-    <article className="chat-turn chat-user" aria-label="Your message">
+    <article
+      className="chat-turn chat-user"
+      aria-label="Your message"
+      data-role="user"
+      data-slot="chat-user-message"
+    >
       <span className="sr-only">YOU</span>
-      <div className="chat-user-surface">
+      <div className="chat-user-surface" data-slot="chat-user-surface">
         {editing ? (
           <form
             className="chat-message-edit"
@@ -42,7 +47,7 @@ export function UserMessage({
             </div>
           </form>
         ) : (
-          <div className="chat-body">{message.content}</div>
+          <div className="chat-body chat-user-text">{message.content}</div>
         )}
         {message.attachments.length ? (
           <div className="chat-message-files">

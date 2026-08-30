@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ChevronDown } from 'lucide-react'
 
 import { Markdown } from '../MarkdownView'
 import { formatTime } from '../time'
@@ -14,18 +15,21 @@ export function ToolMessage({ message }: { message: ChatMessage }): React.JSX.El
 
   return (
     <details
-      className="chat-turn chat-tool"
+      className="chat-turn chat-tool chat-scaffold"
       data-conversation-scaffold=""
       onToggle={(event) => setOpen(event.currentTarget.open)}
       open={open}
     >
       <summary className="chat-tool-head">
-        <span className="chat-widget-glyph" aria-hidden="true" />
+        <span className="chat-tool-dot" aria-hidden="true" />
         <strong>{toolLabel(tool)}</strong>
         <span className="chat-tool-time">{formatTime(message.at)}</span>
-        <span className="chat-tool-caret" aria-hidden="true">
-          ›
-        </span>
+        <ChevronDown
+          aria-hidden="true"
+          className={open ? 'chat-disclosure-caret is-open' : 'chat-disclosure-caret'}
+          size={13}
+          strokeWidth={1.6}
+        />
       </summary>
       {open ? (
         <div className="chat-tool-result">
