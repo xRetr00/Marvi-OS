@@ -1340,5 +1340,11 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
 - Made provider disconnect durable. A blank setting is retained as a tombstone
   so an inherited `OPENAI_API_KEY` cannot silently reconnect OpenAI the next
   time the Gateway starts.
+- Fixed effort selection feedback in the shared picker. Models updates its
+  selected effort optimistically and reconciles it with the Gateway response;
+  the compact trigger keeps the chosen effort visible after the menu closes.
+  Voice deliberately hides the effort control because voice requests force
+  reasoning off and must not mutate the conversation effort setting.
 - Verified all 1,313 Gateway tests, targeted Gateway Ruff, the shared desktop
-  model-picker tests, both desktop TypeScript targets, and `git diff --check`.
+  model-picker tests, all 348 desktop tests, both desktop TypeScript targets,
+  and `git diff --check`.

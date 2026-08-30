@@ -338,9 +338,11 @@ provider names, slugs, and model identifiers while preserving Gateway order.
 Results remain grouped by provider, show context and input/output price facts
 when reported, and keep the active row visibly checked. Reasoning-capable rows
 show their current effort and expose the provider-supported effort levels in a
-side options menu; choosing a level commits the model and effort together. Chat
-adds a first-row default choice while Models and Voice commit an explicit
-provider/model pair. Every model row carries a compact offline brand mark
+side options menu; choosing a level commits the model and effort together. This
+effort control appears in Models and Chat only. Voice always forces reasoning
+off, so its picker selects only the explicit provider/model and never writes a
+conversation effort setting. Chat adds a first-row default choice. Every model
+row carries a compact offline brand mark
 resolved from the model owner's identifier rather than the outer catalog group,
 with a two-letter fallback for owners absent from the pinned brand SDK. The Chat
 trigger and default row always name the configured model and provider instead of

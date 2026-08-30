@@ -265,7 +265,7 @@ as blank tombstones so inherited API keys cannot reconnect on restart.
 | An expired token surfaces as "reconnect"; reconnecting needs no restart | **done** — and distinct from never-connected |
 | Marvi handles no provider password anywhere in the OAuth flow | **done** — no field exists to type one into |
 | No base URL, model or key literal in application code; GUI edits take effect live | **done** |
-| Every model picker shows the same provider/model-specific effort subset | **done** — catalog metadata/fallback contract and shared picker tests |
+| Every reasoning-configurable model picker shows the same provider/model-specific effort subset | **done** — Models and Chat share the catalog contract; Voice hides effort because its requests force reasoning off |
 | Disconnect remains disconnected after a Gateway restart with an inherited key | **done** — persistent blank-tombstone test |
 | `SOUL.md` and `USER.md` shape the prompt within an enforced budget | **done** |
 | The Phase 5 injection boundary still holds with identity loaded | **done** — identity is trusted, recalled content keeps its envelope |
