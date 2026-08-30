@@ -296,7 +296,7 @@ fn refresh_published_assets(
 }
 
 /// Select the release carrying native assets. Release-channel app updates
-/// already resolved a concrete tag. Dev updates instead resolve the newest
+/// already resolved a concrete tag. Nightly updates instead resolve the newest
 /// published tag independently; `origin/main` is a git ref, not a release.
 fn published_release_tag(
     root: &Path,

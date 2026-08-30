@@ -36,7 +36,7 @@ rebuilds, and restores the previous commit if the build fails.
 | | |
 |---|---|
 | `Release` | default, opt-out. The latest signed `v*` tag. Never follows a moving branch. |
-| `Dev` | opt-in. Fast-forwards `origin/main` and runs whatever is there. |
+| `Nightly` | opt-in. Fast-forwards `origin/main` and runs whatever is there. |
 
 A smoke test gates both: the Electron entrypoint must exist, or the build is
 treated as failed and rolled back.
@@ -142,7 +142,7 @@ Failed, skipped, and aborted runs stay open with recovery guidance, a selectable
 technical log, and an explicit Close updater action.
 
 The installed bootstrap is refreshed from the newest GitHub Release asset on
-both application channels. The `dev` application channel still follows
+both application channels. The `nightly` application channel still follows
 `origin/main`, but that moving git ref is never used as a release-download
 name; native assets resolve the newest `v*` release independently. Bootstrap
 refresh also runs when the application checkout is already current, because
@@ -163,7 +163,7 @@ binary and a checksum for first-time installs, and GitHub's own source archives
 are the rest.
 
 That makes the CI gates the important part. A tag that cannot be built is a tag
-that breaks every Dev-channel update, and the failure lands on a user's machine
+that breaks every Nightly-channel update, and the failure lands on a user's machine
 rather than in the workflow. So the release job runs the full suite — desktop,
 gateway, agent, bootstrap — and then runs **`npm run build:unpack`, the exact
 build the updater will run**, and smoke-tests its output.
@@ -175,6 +175,17 @@ So the release contract is:
 3. The toolchain is re-checked and updated if the release needs a newer one.
 4. `npm ci` and `npm run build:unpack`, then the smoke test.
 5. On failure, the previous commit is restored.
+
+Developers cut releases through the signed release console. With no arguments
+it asks for the target version; `-Version` supplies it for command-line use.
+Both paths delegate to `scripts/release.ps1`, so clean-main checks, the signed
+tag, local signature verification, and the two pushes cannot be skipped:
+
+```powershell
+.\scripts\release-console.ps1
+.\scripts\release-console.ps1 -Version 0.6.5
+npm run release:console -- -Version 0.6.5
+```
 
 ## The handoff to Marvi
 
@@ -217,6 +228,12 @@ showed one word for fifteen minutes, which is indistinguishable from a hang, and
 then either finished or said `npm exited with 1`, which explains nothing. Output
 is now streamed line by line, and the last 25 lines are carried into the error
 message.
+
+Every background process the bootstrap starts—including Git, PowerShell,
+toolchain discovery, task inspection, and GPU detection—uses Windows'
+`CREATE_NO_WINDOW` flag. Updating therefore does not flash command-prompt or
+PowerShell windows. The developer release console and explicitly requested
+maintenance terminal remain visible because they are interactive surfaces.
 
 ## What the installer deliberately does not decide
 

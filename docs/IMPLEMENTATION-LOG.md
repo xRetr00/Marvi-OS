@@ -4,16 +4,28 @@ This is the chronological record of work that has actually happened. Planned
 work belongs in `docs/phases/`; architectural decisions belong in
 `docs/DECISIONS.md`.
 
+## 2026-08-31 — Quiet updater processes and Nightly channel
+
+- Routed every production updater subprocess through the Windows hidden-window
+  boundary, including Git status, toolchain version/path probes, and NVIDIA GPU
+  detection, so updates no longer flash command-prompt or PowerShell windows.
+- Renamed the opt-in application channel from `dev` to `nightly` across the
+  bootstrap protocol and desktop UI. Existing stored `dev` preferences and old
+  command lines migrate to the canonical Nightly channel instead of resetting.
+- Added an interactive/CLI signed release console that validates a requested
+  version and delegates all mutation, signing, verification, and pushing to the
+  repository release script.
+
 ## 2026-08-28 — Bootstrap release self-refresh repair
 
 - Decoupled the installed bootstrap's release asset from the application
-  channel. Dev application updates continue to follow `origin/main`, while the
+  channel. Nightly application updates continue to follow `origin/main`, while the
   updater and native release assets resolve the newest `v*` release instead of
   attempting the invalid `releases/download/origin/main/...` URL.
 - Moved bootstrap refresh onto the already-current path as well as the normal
   application-update path, so a stale installed updater can recover even when
   the checkout itself has no commits to apply.
-- Added an end-to-end regression proving an up-to-date dev checkout resolves
+- Added an end-to-end regression proving an up-to-date nightly checkout resolves
   `v0.6.0` for updater assets and never treats `origin/main` as a release.
 
 ## 2026-08-28 — Desktop update center and version status
@@ -496,7 +508,7 @@ Validation evidence and the resulting commit are recorded in
   atomic swap) and updater (in-place with rollback), and copies itself to
   `%LOCALAPPDATA%\Marvi OS\bin` on install.
 - Added the channel model: `release` (default, opt-out) follows the latest
-  signed `v*` tag and never fast-forwards a branch; `dev` (opt-in)
+  signed `v*` tag and never fast-forwards a branch; `nightly` (opt-in)
   fast-forwards `origin/main`. Channels persist in the state dir and are
   toggled from the Updates panel.
 - Fixed every defect found in review: read-only `check` mode (target + behind

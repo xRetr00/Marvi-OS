@@ -121,7 +121,7 @@ or settings.
   quits and hands off to the small Tauri bootstrap binary
   (`apps/updater`, `marvi-bootstrap.exe`), which updates/builds atomically,
   writes a result marker, and relaunches. The `release` channel (default)
-  tracks the latest signed `v*` tag; the opt-in `dev` channel fast-forwards
+  tracks the latest signed `v*` tag; the opt-in `nightly` channel fast-forwards
   `origin/main`.
 - The updater must be tested from older releases, not only from the current
   checkout. A failed update must preserve the last working installation.

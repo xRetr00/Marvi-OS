@@ -395,7 +395,7 @@ The Electron app spawns it on update and reads its result marker unchanged.
 installer, and its in-place `git reset --hard` rollback could not preserve a
 half-written build. The bootstrap keeps the repository-owned handoff model
 (the checkout updates itself) while fixing the safety gaps found in review:
-read-only check path, channel model (`release` default vs opt-in `dev`),
+read-only check path, channel model (`release` default vs opt-in `nightly`),
 liveness-aware in-progress marker, build-output snapshot/restore, and release
 tag integrity verification. The binary is named `marvi-bootstrap` (not
 `marvi-updater`/`installer`) so Windows installer-detection heuristics never
