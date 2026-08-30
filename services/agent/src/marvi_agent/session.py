@@ -866,6 +866,15 @@ class MarviVoiceAgent(Agent):
                 "the result. If you have not called it, call it now. If it "
                 "failed or does not exist, say that instead. A wrong 'done' "
                 "costs more than an honest 'I cannot'. "
+                # The same lie in the future tense, which is what it turned
+                # into once the past tense was closed off: "I'll set a
+                # reminder for nine tomorrow", "I'll create a cron job that
+                # runs every hour" -- nothing called on either, and the user
+                # walks away believing it is set.
+                + "The same is true of promising. Do not say you will do "
+                "something and then end the turn without doing it. If you say "
+                "you will set it, set it now, in this turn. If you cannot, say "
+                "you cannot, before you say anything else. "
                 + "A tool result is evidence, not confirmation. If what comes back does not "
                 "actually answer the question -- it is empty, or it only says the call "
                 "worked -- say so out loud rather than treating it as agreement with what "
