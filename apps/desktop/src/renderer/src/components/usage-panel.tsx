@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Activity, CalendarDays, RefreshCw, Server } from 'lucide-react'
 
-import type { UsageCounters, UsageDay, UsagePage } from '../../../shared/runtime'
+import type { UsageCounters, UsagePage } from '../../../shared/runtime'
 import { ControlButton, ControlPage, ControlSection } from './control-surface'
 import { ProcessingCard } from './ui/processing-card'
 import { UiTooltip } from './ui/tooltip'
 import { ServiceLogo } from '../lib/serviceLogos'
-
-const DAYS = 365
+import { buildUsageCells, usageMonthLabels, type UsageRange } from './usage-heatmap'
 
 function count(value: number): string {
   return new Intl.NumberFormat('en', {
@@ -20,53 +19,140 @@ function money(value: number | null | undefined, currency = 'USD'): string {
   return new Intl.NumberFormat('en', { style: 'currency', currency }).format(value)
 }
 
-function UsageCalendar({ days }: { days: UsageDay[] }): React.JSX.Element {
-  const cells = useMemo(() => {
-    const byDate = new Map(days.map((day) => [day.date, day]))
-    const now = new Date()
-    const end = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
-    const start = end - (DAYS - 1) * 86_400_000
-    const result: UsageDay[] = []
-    for (let index = 0; index < DAYS; index += 1) {
-      const date = new Date(start + index * 86_400_000)
-      const key = date.toISOString().slice(0, 10)
-      result.push(
-        byDate.get(key) ?? {
-          date: key,
-          input: 0,
-          output: 0,
-          cachedInput: 0,
-          reasoning: 0,
-          billable: 0
-        }
-      )
-    }
-    return result
-  }, [days])
-  const peak = Math.max(1, ...cells.map((day) => day.billable))
+const RANGES: Array<{ id: UsageRange; label: string }> = [
+  { id: 'year', label: 'Year' },
+  { id: 'month', label: 'Month' },
+  { id: 'week', label: 'Week' },
+  { id: 'day', label: 'Day' },
+  { id: 'hours', label: '24H' }
+]
+
+function UsageCalendar({ page }: { page: UsagePage }): React.JSX.Element {
+  const [range, setRange] = useState<UsageRange>('year')
+  const cells = useMemo(
+    () => buildUsageCells(range, page.daily, page.hourly),
+    [page.daily, page.hourly, range]
+  )
+  const calendar = range === 'year' || range === 'month'
+  const week = range === 'week'
+  const months = calendar ? usageMonthLabels(cells) : []
+  const active = cells.filter((cell) => cell.billable > 0)
+  const total = cells.reduce((sum, cell) => sum + cell.billable, 0)
+  const peak = active.length
+    ? active.reduce((best, cell) => (cell.billable > best.billable ? cell : best), active[0])
+    : null
+
   return (
-    <div className="usage-calendar" aria-label="Daily billable token history for the last year">
-      <div className="usage-calendar-grid">
-        {cells.map((day) => {
-          const level = day.billable === 0 ? 0 : Math.max(1, Math.ceil((day.billable / peak) * 4))
-          return (
-            <UiTooltip
-              key={day.date}
-              label={`${day.date}: ${day.billable.toLocaleString()} billable tokens`}
-            >
-              <span className={`usage-day level-${level}`} />
-            </UiTooltip>
-          )
-        })}
+    <div className="usage-calendar">
+      <div className="usage-range-tabs" role="tablist" aria-label="Usage time range">
+        {RANGES.map((item) => (
+          <button
+            aria-selected={range === item.id}
+            className={range === item.id ? 'is-active' : ''}
+            key={item.id}
+            onClick={() => setRange(item.id)}
+            role="tab"
+            type="button"
+          >
+            {item.label}
+          </button>
+        ))}
       </div>
-      <div className="usage-calendar-legend" aria-hidden="true">
-        Less{' '}
-        {[0, 1, 2, 3, 4].map((level) => (
-          <i className={`level-${level}`} key={level} />
-        ))}{' '}
-        More
+      <div
+        className="usage-heatmap-frame"
+        aria-label={`${range} billable token activity`}
+        role="group"
+      >
+        {calendar ? (
+          <>
+            <div
+              className="usage-month-axis"
+              style={{ gridTemplateColumns: `repeat(${Math.ceil(cells.length / 7)}, 10px)` }}
+            >
+              {months.map((month) => (
+                <span key={`${month.label}-${month.column}`} style={{ gridColumn: month.column }}>
+                  {month.label}
+                </span>
+              ))}
+            </div>
+            <div className="usage-heatmap-body">
+              <div className="usage-day-axis" aria-hidden="true">
+                <span>Mon</span>
+                <span>Wed</span>
+                <span>Fri</span>
+              </div>
+              <div className="usage-calendar-grid is-calendar">
+                {cells.map((cell) => (
+                  <UsageCell cell={cell} key={cell.key} />
+                ))}
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="usage-hour-axis" aria-hidden="true">
+              <span>00</span>
+              <span>06</span>
+              <span>12</span>
+              <span>18</span>
+            </div>
+            <div className={`usage-heatmap-body ${week ? 'is-week' : 'is-hours'}`}>
+              {week ? (
+                <div className="usage-week-axis" aria-hidden="true">
+                  {cells
+                    .filter((_, index) => index % 24 === 0)
+                    .map((cell) => (
+                      <span key={cell.key}>{cell.label.slice(0, 6)}</span>
+                    ))}
+                </div>
+              ) : null}
+              <div className={`usage-calendar-grid ${week ? 'is-week' : 'is-hours'}`}>
+                {cells.map((cell) => (
+                  <UsageCell cell={cell} key={cell.key} />
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+      <div className="usage-calendar-footer">
+        <div>
+          <strong>{count(total)}</strong>
+          <span>tokens</span>
+          <strong>{active.length}</strong>
+          <span>active {calendar ? 'days' : 'hours'}</span>
+          {peak ? (
+            <>
+              <strong>{count(peak.billable)}</strong>
+              <span>peak</span>
+            </>
+          ) : null}
+        </div>
+        <div className="usage-calendar-legend" aria-hidden="true">
+          Less{' '}
+          {[0, 1, 2, 3, 4].map((level) => (
+            <i className={`level-${level}`} key={level} />
+          ))}{' '}
+          More
+        </div>
       </div>
     </div>
+  )
+}
+
+function UsageCell({
+  cell
+}: {
+  cell: ReturnType<typeof buildUsageCells>[number]
+}): React.JSX.Element {
+  const tooltip = `${cell.label} UTC · ${cell.billable.toLocaleString()} billable tokens`
+  return (
+    <span
+      aria-label={tooltip}
+      className={`usage-day level-${cell.level}${cell.inRange ? '' : ' is-outside'}`}
+      data-tooltip={tooltip}
+      tabIndex={cell.billable > 0 ? 0 : undefined}
+    />
   )
 }
 
@@ -187,11 +273,11 @@ export function UsagePanel(): React.JSX.Element {
             </div>
           </ControlSection>
           <ControlSection
-            description="Each square is one UTC day."
+            description="Daily and hourly activity from the local usage ledger. Times are UTC."
             icon={CalendarDays}
-            title="Activity · 365 days"
+            title="Activity"
           >
-            <UsageCalendar days={page.daily} />
+            <UsageCalendar page={page} />
           </ControlSection>
           <ControlSection
             description="Account totals never replace local counters."

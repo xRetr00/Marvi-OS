@@ -1543,12 +1543,12 @@
 
 .chat-context-bar .is-prompt,
 .chat-context-segments i.is-prompt {
-  background: var(--ui-accent);
+  background: var(--ui-text-primary);
 }
 
 .chat-context-bar .is-cached,
 .chat-context-segments i.is-cached {
-  background: color-mix(in srgb, var(--ui-accent) 38%, var(--ui-stroke-primary));
+  background: var(--ui-text-secondary);
 }
 
 .chat-context-bar .is-reserve,

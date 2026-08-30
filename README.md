@@ -103,7 +103,8 @@ Current implemented desktop surfaces:
   sync health, manual sync, and realtime Composio triggers entering ARC as
   untrusted events without blocking the voice path;
 - a content-free, durable usage ledger shared by Chat, Voice, background work,
-  and local models, with a dedicated Usage page and optional reconciliation
+  and local models, with daily and hourly UTC activity matrices across Year,
+  Month, Week, Day, and rolling 24-hour views, plus optional reconciliation
   against official provider account APIs;
 - web search, fetch, and extract with an SSRF guard, plus file, terminal, and
   process tools confined to an allowlisted workspace root, and MCP servers

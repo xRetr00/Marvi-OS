@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { Markdown } from './MarkdownView'
-import { contextPercent, contextSegments } from './context-breakdown'
+import { contextMeterCells, contextPercent, contextSegments } from './context-breakdown'
 import type { ChatMessage } from './types'
 import { AgentMessage } from './components/AgentMessage'
 import { Composer } from './components/Composer'
@@ -291,6 +291,35 @@ describe('contextSegments', () => {
       { id: 'available', label: 'Available', tokens: 4976 }
     ])
     expect(segments.reduce((sum, segment) => sum + segment.tokens, 0)).toBe(8000)
+    expect(
+      contextMeterCells({
+        input_tokens: 2000,
+        cached_tokens: 800,
+        context_window: 8000,
+        reply_reserve: 1024,
+        messages: 6,
+        files: 1,
+        sources: 3,
+        provider: 'openai',
+        model: 'gpt-test'
+      })
+    ).toHaveLength(12)
+  })
+
+  it('clamps invalid provider counters instead of producing a broken percentage', () => {
+    expect(
+      contextPercent({
+        input_tokens: Number.NaN,
+        cached_tokens: -20,
+        context_window: 8000,
+        reply_reserve: 1024,
+        messages: 0,
+        files: 0,
+        sources: 0,
+        provider: 'openai',
+        model: 'gpt-test'
+      })
+    ).toBe(0)
   })
 })
 

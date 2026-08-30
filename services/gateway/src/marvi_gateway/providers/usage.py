@@ -65,14 +65,18 @@ class UsageLedger:
     def record(self, provider: str, usage: Usage, at: datetime | None = None) -> None:
         if usage.total <= 0 and usage.reasoning <= 0:
             return
-        day = (at or datetime.now(UTC)).astimezone(UTC).date().isoformat()
+        stamp = (at or datetime.now(UTC)).astimezone(UTC)
+        day = stamp.date().isoformat()
+        hour = stamp.replace(minute=0, second=0, microsecond=0).isoformat().replace("+00:00", "Z")
         with self._lock:
             value = self._read()
             providers = value.setdefault("providers", {})
             daily = value.setdefault("daily", {})
+            hourly = value.setdefault("hourly", {})
             for target in (
                 providers.setdefault(provider, _empty()),
                 daily.setdefault(day, _empty()),
+                hourly.setdefault(hour, _empty()),
             ):
                 current = _normalise(target)
                 current["input"] += usage.input
@@ -97,6 +101,11 @@ class UsageLedger:
             for day, raw in sorted((value.get("daily") or {}).items())
             if isinstance(day, str)
         ]
+        hourly = [
+            {"hour": hour, **_public(raw)}
+            for hour, raw in sorted((value.get("hourly") or {}).items())
+            if isinstance(hour, str)
+        ]
         total = Usage()
         for raw in providers.values():
             total += Usage(
@@ -109,6 +118,7 @@ class UsageLedger:
             "totals": _public(total.__dict__),
             "providers": providers,
             "daily": daily,
+            "hourly": hourly,
             "updated_at": value.get("updated_at"),
         }
 

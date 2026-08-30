@@ -429,10 +429,15 @@ export interface UsageDay extends UsageCounters {
   date: string
 }
 
+export interface UsageHour extends UsageCounters {
+  hour: string
+}
+
 export interface UsagePage {
   totals: UsageCounters
   providers: UsageProvider[]
   daily: UsageDay[]
+  hourly: UsageHour[]
   account: Record<string, UsageAccount>
   updatedAt: string | null
 }

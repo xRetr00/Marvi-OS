@@ -412,6 +412,12 @@ function normaliseUsagePage(body: unknown): UsagePage | null {
       const row = raw as Record<string, unknown>
       return { date: String(row.date ?? ''), ...counters(row) }
     }),
+    hourly: Array.isArray(page.hourly)
+      ? page.hourly.map((raw) => {
+          const row = raw as Record<string, unknown>
+          return { hour: String(row.hour ?? ''), ...counters(row) }
+        })
+      : [],
     account: {},
     updatedAt: page.updated_at ? String(page.updated_at) : null
   }

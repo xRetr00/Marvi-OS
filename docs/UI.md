@@ -348,8 +348,10 @@ hiding them behind a generic default label.
 Pending attachments use compact thumbnail/file tiles with name, type, size,
 and an explicit remove action. Sent images open into a bounded preview that
 closes by button, backdrop, or Escape. Context occupancy lives in the persistent
-status bar rather than the composer: its compact token label and ASCII gauge
-open a detailed breakdown of prompt, cached input, reply reserve, and available capacity. It
+status bar rather than the composer: its compact token label and twelve-cell monochrome gauge
+open a detailed breakdown of prompt, cached input, reply reserve, and available capacity. The
+cells are sampled from those same four token segments, so the compact meter and expanded totals
+cannot disagree. It
 shows a real zero-percent meter as soon as a fresh chat has a known provider
 window, and never turns message or file counts into invented token estimates. Drafting
 remains available while a response streams, while the primary action becomes
@@ -430,8 +432,10 @@ only when the underlying operation reports one; otherwise the scan and moving
 bar are explicitly indeterminate. The visual is adapted from the supplied
 reference into Marvi's monochrome/blue vocabulary, contains no external brand,
 and never advances a fake random counter. Usage adapts the supplied calendar
-concept into UTC daily token buckets without its external GitHub fetch or game
-mode.
+concept into a local UTC activity matrix with labeled Year, Month, Week, Day,
+and rolling 24-hour views. Year and Month use durable daily buckets; the finer
+views use durable hourly buckets. Density follows the visible non-zero
+distribution, and every cell exposes its exact timestamp and token total.
 
 Icon-only and ambiguous shell controls use the shared accessible tooltip
 surface. Tooltips appear on hover and keyboard focus after a short delay, use

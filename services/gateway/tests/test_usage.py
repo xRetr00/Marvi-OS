@@ -20,6 +20,8 @@ def test_ledger_persists_totals_and_daily_buckets(tmp_path) -> None:
     assert restored["totals"]["billable"] == 40
     assert restored["providers"]["openai"]["cached_input"] == 80
     assert restored["daily"][0]["date"] == "2026-08-23"
+    assert restored["hourly"][0]["hour"] == "2026-08-23T00:00:00Z"
+    assert restored["hourly"][0]["billable"] == 40
 
 
 def test_zero_usage_does_not_create_a_ledger(tmp_path) -> None:

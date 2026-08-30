@@ -381,6 +381,7 @@ class UsagePage(BaseModel):
     totals: dict[str, int]
     providers: list[dict[str, Any]]
     daily: list[dict[str, Any]]
+    hourly: list[dict[str, Any]]
     account: dict[str, dict[str, Any]]
     updated_at: str | None
 
@@ -3803,6 +3804,7 @@ def create_app(
             totals=snapshot["totals"],
             providers=rows,
             daily=snapshot["daily"],
+            hourly=snapshot["hourly"],
             account=accounts,
             updated_at=snapshot["updated_at"],
         )
