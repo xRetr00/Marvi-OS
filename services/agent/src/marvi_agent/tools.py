@@ -160,6 +160,27 @@ def _render(value: Any, depth: int = 0) -> str:
     return str(value)
 
 
+def _number(value: Any) -> int | None:
+    """An optional integer argument as the model actually sends it.
+
+    Asked to dim the light, the model filled the optional colour temperature
+    in with the *string* "None". Pydantic refused it, the tool raised, and
+    LiveKit retried -- four times, until `max_tool_steps` ran out and the turn
+    ended with "generating final response with tool_choice='none'". The light
+    never moved and Marvi had nothing to say about why.
+
+    An optional argument a model declines to use is not an error worth losing
+    a turn over, however it spells the declining. Anything that is not a
+    number becomes the absence it was meant to be.
+    """
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+
+
 class GatewayTools:
     """Session-scoped tool surface. One instance per voice session."""
 
@@ -291,16 +312,16 @@ class GatewayTools:
         self,
         context: RunContext,
         on: bool,
-        brightness: int | None = None,
-        color_temp: int | None = None,
+        brightness: int | str | None = None,
+        color_temp: int | str | None = None,
     ) -> str:
         """Turn the room light on or off, optionally at a brightness from 1 to 100
         and a colour temperature from 2700 (warm) to 6500 (cool) kelvin."""
         arguments: dict[str, Any] = {"on": on}
-        if brightness is not None:
-            arguments["brightness"] = brightness
-        if color_temp is not None:
-            arguments["color_temp"] = color_temp
+        if (level := _number(brightness)) is not None:
+            arguments["brightness"] = level
+        if (kelvin := _number(color_temp)) is not None:
+            arguments["color_temp"] = kelvin
         return await self._call("room_set_light", arguments, context)
 
     @function_tool
@@ -588,6 +609,52 @@ class GatewayTools:
         else:
             log.info("%d tools from the Gateway, which names no core set", len(loaded))
         return loaded
+
+    def catalogue_index(self) -> str:
+        """Every tool's name, for the instructions. Names only, never schemas.
+
+        Deferring the schemas worked and then failed in a way nothing was
+        watching for. Measured over 123 real turns: seven distinct tools
+        called, `tool_search` called once, and twenty-three straight refusals
+        of things Marvi can do --
+
+            "I can't open websites in a browser right now."      browser_open
+            "I can't create cron jobs right now."                cronjob
+            "I don't have access to your calendar."              calendar_events
+            "I can't install skills right now."                  skill_install
+            "I can't delegate coding tasks right now."           delegate_to_coder
+
+        -- each phrased as a fact about herself, none of them true. A rule in
+        the persona telling her to search first had already been added and did
+        not fire, because a model cannot decide to look for a thing whose
+        existence it has no reason to suspect. Twelve tools were in front of
+        it and forty-nine were nowhere.
+
+        Names are what closes that. The schemas are the expensive half -- the
+        whole catalogue is roughly five thousand tokens of them, which is what
+        deferring exists to avoid -- while sixty-one names cost a few hundred
+        and are the entire difference between "I can't" and knowing there is
+        something to look up. Grouped by the prefix the Gateway already names
+        them with, so the list reads as areas rather than as sixty-one
+        unrelated strings.
+        """
+        if not self._catalogue:
+            return ""
+        areas: dict[str, list[str]] = {}
+        for name in sorted(self._catalogue):
+            if name == SEARCH_TOOL:
+                continue
+            head, _, rest = name.partition("_")
+            areas.setdefault(head if rest else "other", []).append(name)
+        lines = [f"{area}: {', '.join(names)}" for area, names in sorted(areas.items())]
+        return (
+            "Every tool you have. Only the common few are loaded with their "
+            "instructions attached; the rest are named here so you know they "
+            f"exist. To use one that is not loaded, call {SEARCH_TOOL} with a "
+            "word or two and it arrives ready to call. This list is what you "
+            "can do -- if something is on it, you can do it, and saying "
+            "otherwise is wrong.\n\n" + "\n".join(lines)
+        )
 
     async def _load_found(self, names: list[str]) -> None:
         """Add tools a search just found, for the rest of the session.

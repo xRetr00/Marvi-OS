@@ -316,3 +316,33 @@ def test_the_persona_says_the_tool_list_is_partial() -> None:
     assert instructions.index("Before telling anyone you cannot") < instructions.index(
         "Only say you cannot do it if the search finds nothing"
     )
+
+
+def test_the_persona_tells_her_to_ask_when_the_transcript_is_garbled() -> None:
+    """Zero `clarify` calls in 123 real turns, including eight written to need
+    it. Twice she said the words "could you clarify" without calling the tool,
+    once she denied holding it, and once she took "So it's bunk. Yeah." at face
+    value and offered to remember a name the recogniser had invented."""
+    said = MarviVoiceAgent(tools=None).instructions.lower()
+
+    assert "clarify" in said
+    assert "transcript of speech" in said
+
+
+def test_the_persona_carries_the_names_of_every_tool() -> None:
+    """A rule telling her to search first cannot fire when nothing suggests
+    there is anything to search for. See `GatewayTools.catalogue_index`."""
+    from marvi_agent.tools import GatewayTools
+
+    gateway = GatewayTools()
+    gateway._catalogue = {
+        "browser_open": {"name": "browser_open"},
+        "cronjob": {"name": "cronjob"},
+        "tool_search": {"name": "tool_search"},
+    }
+    index = gateway.catalogue_index()
+
+    assert "browser_open" in index
+    assert "cronjob" in index
+    # The way back is a loaded tool, not a name in a list.
+    assert "browser: browser_open" in index

@@ -481,3 +481,21 @@ def test_the_worker_never_refuses_a_job_for_being_busy() -> None:
     value = getattr(threshold, "prod_default", threshold)
 
     assert math.isinf(value), f"a busy desktop would be refused jobs at {value}"
+
+
+def test_an_optional_number_the_model_spelled_none_is_absent() -> None:
+    """Asked to dim the light, the model filled the optional colour temperature
+    in with the string "None". Pydantic refused it, the tool raised, LiveKit
+    retried four times until `max_tool_steps` ran out, and the light never
+    moved -- while Marvi said out loud that she would turn it down and then
+    that she could not. An optional argument the model declined to use is not
+    worth a turn."""
+    from marvi_agent.tools import _number
+
+    assert _number("None") is None
+    assert _number("null") is None
+    assert _number("") is None
+    assert _number(None) is None
+    assert _number(True) is None
+    assert _number("40") == 40
+    assert _number(40) == 40

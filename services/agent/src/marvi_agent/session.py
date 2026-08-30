@@ -715,6 +715,39 @@ class MarviVoiceAgent(Agent):
                 # and this sentence that stops it: with the rule added the
                 # answers were whole, or the model went straight to the tool and
                 # said nothing, which is the shape that works.
+                # Measured over the same 123 turns: `clarify` was called zero
+                # times, including on eight turns written to need it. Twice she
+                # typed the word instead of using the tool -- "I don't know
+                # what 'the thing' you're referring to. Could you clarify?" --
+                # and once she denied holding it at all, which is the failure
+                # the owner photographed: "I can't show you the clarification
+                # tool right now."
+                #
+                # The costlier half is what she does instead of asking. Handed
+                # "So it's bunk. Yeah." -- the recogniser's version of a
+                # sentence about NeuDocs -- she answered "You're saying the
+                # name is 'Bunk' then. I'll remember that for future
+                # reference." A mishearing was about to become a memory.
+                #
+                # Named as the recogniser's fault rather than the user's,
+                # because that is what it is and because it is the reason
+                # asking is not rude here: she is not questioning the person,
+                # she is questioning the microphone.
+                + "You are reading a transcript of speech, not typing. Words "
+                "arrive wrong -- names especially, and anything technical: "
+                "'New Ducks' was NeuDocs, 'new dogs' was the same word again. "
+                "When what you heard does not fit what you know, the "
+                "microphone is the likeliest reason. Say the version that "
+                "makes sense and let the user correct you. "
+                "When it matters and you genuinely cannot tell -- which of two "
+                "things, which file, what 'it' refers to, a name you are about "
+                "to write down -- call clarify and let them pick. Never guess "
+                "at a garbled word and then act on the guess, and never write "
+                "one into memory. Asking one short question costs a second; "
+                "the wrong answer costs the rest of the conversation. And "
+                "never say the words 'could you clarify' without calling "
+                "clarify -- the tool puts the question on screen where it can "
+                "be read, which is the whole point when hearing is the problem. "
                 + "Never say that you are about to use a tool, and never narrate "
                 "looking something up. Say nothing and use it: words spoken before "
                 "a tool call are cut off half-finished when the call begins, so the "
@@ -1230,7 +1263,12 @@ async def marvi_session(ctx: JobContext) -> None:
     # both change without the Agent being rebuilt -- a skill installed while
     # Marvi is running should be usable in the next session, not the next
     # release. `update_instructions` checked against the installed 1.6.10.
-    if blocks := await gateway.context_blocks():
+    # The names of everything, before anything the Gateway adds. See
+    # `catalogue_index`: without it Marvi refused twenty-three things she can
+    # do across one sweep, because forty-nine of her tools were not in the
+    # request in any form.
+    blocks = [index] if (index := gateway.catalogue_index()) else []
+    if blocks := blocks + await gateway.context_blocks():
         # Awaited. `inspect.signature` reports `-> None` and it is a coroutine
         # function, so checking the signature said "synchronous" and the call
         # returned a coroutine nobody ran -- every skill catalogue and every

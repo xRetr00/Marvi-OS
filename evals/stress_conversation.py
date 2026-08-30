@@ -301,7 +301,12 @@ async def converse(turns: list[tuple[str, str]], pause: float) -> list[dict]:
         if catalogue:
             gateway.attach(agent)
             await agent.update_tools([*agent.tools, *catalogue])
-        if blocks := await gateway.context_blocks():
+        # The names of everything, before anything the Gateway adds. See
+        # `catalogue_index`: without it Marvi refused twenty-three things she can
+        # do across one sweep, because forty-nine of her tools were not in the
+        # request in any form.
+        blocks = [index] if (index := gateway.catalogue_index()) else []
+        if blocks := blocks + await gateway.context_blocks():
             await agent.update_instructions(agent.instructions + "\n\n" + "\n\n".join(blocks))
         print(f"{len(agent.tools)} tools loaded\n")
 
@@ -363,6 +368,18 @@ async def converse(turns: list[tuple[str, str]], pause: float) -> list[dict]:
     return said
 
 
+def every_tool() -> list[str]:
+    """The names the Gateway publishes, so the report can name the gaps."""
+    try:
+        import httpx
+        from marvi_agent.session import gateway_url
+
+        found = httpx.get(f"{gateway_url()}/tools", timeout=20).json()
+        return sorted(str(t["name"]) for t in (found.get("tools") or []))
+    except Exception:  # noqa: BLE001 - a report is not worth failing a sweep over
+        return []
+
+
 def report(said: list[dict]) -> None:
     total = max(1, len(said))
     leaks = [t for t in said if any(p in t["said"].lower() for p in LEAKED)]
@@ -385,8 +402,19 @@ def report(said: list[dict]) -> None:
         print(f"\n  turn time   median {seconds[len(seconds) // 2]:.1f}s   "
               f"p90 {seconds[int(len(seconds) * 0.9) - 1]:.1f}s   max {seconds[-1]:.1f}s")
     print(f"\n  {len(used)} distinct tools called, {sum(used.values())} calls")
-    for name, count in used.most_common(20):
+    for name, count in used.most_common(60):
         print(f"    {name:<28} {count}")
+    # What the catalogue holds that no turn reached. A sweep meant to exercise
+    # every tool has to say which ones it did not, or the coverage number is
+    # only the count of tools that happen to be easy to ask for out loud.
+    if catalogue := every_tool():
+        missed = sorted(set(catalogue) - set(used))
+        print(f"\n  {len(used)}/{len(catalogue)} of the catalogue reached; never called:")
+        print("    " + ", ".join(missed))
+    if GUARDED_CALLS:
+        print(f"\n  {len(GUARDED_CALLS)} guarded calls (recorded, not executed):")
+        for call in GUARDED_CALLS:
+            print(f"    {call['tool']:<24} {json.dumps(call['arguments'])[:96]}")
 
     by_section: dict[str, list[dict]] = collections.defaultdict(list)
     for turn in said:
