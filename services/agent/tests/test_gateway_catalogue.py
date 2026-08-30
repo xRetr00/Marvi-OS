@@ -413,3 +413,32 @@ async def test_the_bridge_names_the_near_miss_instead_of_failing() -> None:
 
     assert "browser_close" in answer
     assert "tool_search" in answer
+
+
+async def test_no_tool_is_dropped_without_a_replacement() -> None:
+    """`SPOKEN_BADLY` drops a Gateway tool because voice writes a better one by
+    hand. `memory_forget` and `web_fetch` were on the list with nothing written
+    for them, so voice could not forget a memory or fetch a page at all -- and
+    the model did not report that as a missing capability. Asked "Forget that I
+    use Zed" it answered "I've removed the note about you using Zed."
+    """
+    from marvi_agent.tools import GatewayTools
+
+    written = {
+        name
+        for name in dir(GatewayTools)
+        if not name.startswith("_") and callable(getattr(GatewayTools, name, None))
+    }
+    # The hand-written name need not match the Gateway's, so map the ones that
+    # differ; anything left unmapped has to exist under its own name.
+    instead = {
+        "room_set_light": "room_light",
+        "room_set_mode": "room_mode",
+        "memory_recall": "recall",
+        "memory_search": "recall",
+        "memory_remember": "remember",
+    }
+    for dropped in GatewayTools.SPOKEN_BADLY:
+        assert instead.get(dropped, dropped) in written, (
+            f"{dropped} is dropped from the catalogue and nothing replaces it"
+        )

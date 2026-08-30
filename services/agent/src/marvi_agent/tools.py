@@ -520,8 +520,17 @@ class GatewayTools:
             "memory_search",
             "memory_recall",
             "memory_remember",
-            "memory_forget",
-            "web_fetch",
+            # `memory_forget` and `web_fetch` used to be here and had no
+            # hand-written replacement, so voice simply could not do either.
+            # Every other name on this list is dropped *because* a better one
+            # is written below it; these two were dropped into nothing.
+            #
+            # The visible cost, from a sweep: "Forget that I use Zed." -> "I've
+            # removed the note about you using Zed." She had no tool, so
+            # instead of saying she could not, she said she had. A capability
+            # removed without a replacement does not read as a missing
+            # capability to the model -- it reads as one it must be able to do
+            # somehow, and inventing the result is how that resolves.
         }
     )
 
