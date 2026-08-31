@@ -97,10 +97,19 @@ Set-Content -Path $cargo -Value $updated -NoNewline
 Push-Location apps\updater
 try {
   # Cargo reports normal resolver progress on stderr. PowerShell 7 promotes
-  # redirected native stderr to NativeCommandError under Stop, so discard the
-  # progress stream explicitly and judge the native exit code ourselves.
-  cargo update --workspace --offline 2>$null | Out-Null
-  if ($LASTEXITCODE -ne 0) { throw "cargo update failed with code $LASTEXITCODE." }
+  # redirected native stderr to NativeCommandError under Stop; Windows
+  # PowerShell 5.1 does the same before applying the redirection. Relax error
+  # promotion only for this native command, capture its real exit code, then
+  # restore strict handling before deciding whether the command failed.
+  $previousErrorPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = 'Continue'
+    cargo update --workspace --offline 2>&1 | Out-Null
+    $cargoExitCode = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $previousErrorPreference
+  }
+  if ($cargoExitCode -ne 0) { throw "cargo update failed with code $cargoExitCode." }
 } finally {
   Pop-Location
 }
