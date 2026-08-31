@@ -1906,21 +1906,11 @@ small,
   cursor: pointer;
 }
 
-/* Centred above the orb rather than in a corner.
- *
- * It was a panel in the top-left the size of a paragraph, which made the one
- * line that matters — what she is doing — compete with two cards and the orb
- * for the same glance. Above the orb it is on the axis the eye is already on,
- * and being small is what lets it sit there without covering the field. */
-.voice-hud-state {
-  top: 96px;
+/* The wake chip is what is left on the field: it is about the room rather
+   than about the session, and the status itself now lives in the header. */
+.voice-hud-wake {
+  top: 20px;
   left: 50%;
-  display: flex;
-  max-width: 360px;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  text-align: center;
   transform: translateX(-50%);
 }
 
@@ -2055,15 +2045,6 @@ small,
 
 .voice-spoken {
   color: var(--ui-text-emphasis);
-}
-
-@media (max-width: 980px) {
-  .voice-hud-state {
-    max-width: 70%;
-  }
-  .voice-hud-rig {
-    display: none;
-  }
 }
 
 /* ===== Overview ===== */
@@ -10404,26 +10385,14 @@ html[data-appearance='claude-code-dark'] .control-row {
   color: var(--ui-text-primary);
 }
 
-/* The month as one scrolling row rather than a seven-column grid. It is the
-   shape the design came in, and it suits a narrow card beside an orb better
-   than a block that would be as tall as it is wide. */
-.voice-calendar-strip {
-  display: flex;
-  gap: 12px;
-  margin: 0 -16px;
-  padding: 0 16px 2px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.voice-calendar-strip::-webkit-scrollbar {
-  display: none;
-}
-
-.voice-calendar-day {
+/* Seven columns. The scrolling strip the design came with fitted about a week
+   in a 288px card, so two thirds of the month lived behind a horizontal scroll
+   nobody would find — and "is next week busy" is the question a calendar is
+   for. A grid answers it without a gesture. */
+.voice-calendar-grid {
   display: grid;
-  flex-shrink: 0;
-  gap: 5px;
+  gap: 4px 2px;
+  grid-template-columns: repeat(7, 1fr);
   justify-items: center;
 }
 
@@ -10433,7 +10402,11 @@ html[data-appearance='claude-code-dark'] .control-row {
   font-weight: 700;
 }
 
-.voice-calendar-day button {
+.voice-calendar-blank {
+  display: block;
+}
+
+.voice-calendar-grid button {
   position: relative;
   width: 28px;
   height: 28px;
@@ -10448,12 +10421,12 @@ html[data-appearance='claude-code-dark'] .control-row {
   transition: background 140ms ease, color 140ms ease;
 }
 
-.voice-calendar-day button:hover {
+.voice-calendar-grid button:hover {
   background: rgb(255 255 255 / 14%);
   color: var(--ui-text-primary);
 }
 
-.voice-calendar-day button.is-selected {
+.voice-calendar-grid button.is-selected {
   background: linear-gradient(135deg, #ec4899, #fb923c);
   color: #fff;
   box-shadow: 0 4px 14px rgb(236 72 153 / 34%);
@@ -10640,25 +10613,44 @@ html[data-appearance='claude-code-dark'] .control-row {
   box-shadow: 0 8px 26px rgb(0 0 0 / 28%);
 }
 
-/* The status line reads over the field rather than in a box, so it gets the
-   glass only when it has something to say — a permanent empty pane in the
-   corner is furniture. */
-.voice-hud-state {
-  padding: 10px 14px;
-  border: 1px solid rgb(255 255 255 / 8%);
-  border-radius: 16px;
-  background: rgb(0 0 0 / 18%);
-  backdrop-filter: blur(16px);
+
+/* --- the status, in the header --------------------------------------------
+ *
+ * It was a panel over the field, the size of a paragraph, competing with two
+ * cards and the orb for one glance — while the header spent its slot on a
+ * hardcoded `READY / Say Marvi`. One row now, sized to the header rather than
+ * to its content: it must never be the thing that makes the topbar taller.
+ */
+.voice-status {
+  display: flex;
+  min-width: 0;
+  max-width: 52%;
+  align-items: baseline;
+  gap: 10px;
 }
 
-/* Small, because it sits over the field rather than beside it. The phase word
-   carries the state and the sentence carries the detail; neither needs the
-   room a corner panel was giving them. */
-.voice-hud-state {
-  padding: 7px 14px;
-  border-radius: 14px;
-}
-
-.voice-hud-state .voice-hud-phase {
+.voice-status .voice-hud-phase {
+  flex: none;
   font-size: 9px;
+  letter-spacing: 0.18em;
+}
+
+.voice-status-line {
+  overflow: hidden;
+  color: var(--ui-text-emphasis);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Only appears when something is wrong, so it is allowed to be loud. */
+.voice-status-blocker {
+  flex: none;
+  overflow: hidden;
+  max-width: 40%;
+  color: var(--ui-danger);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

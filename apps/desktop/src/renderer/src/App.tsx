@@ -72,6 +72,7 @@ import {
 import { Chat } from './chat'
 import { AbstractIcon, type AbstractIconName } from './components/abstract-icon'
 import { CalendarCard, VoiceActivityCard } from './components/voice-cards'
+import { VoiceStatus } from './components/voice-status'
 import { MessageTiming } from './components/message-timing'
 import { GraphNodePanel } from './components/graph-node-panel'
 import { ArcMemoryGraph } from './components/arc-memory-graph'
@@ -322,6 +323,8 @@ interface BuildInfo {
 function MainSurface(): React.JSX.Element {
   const voice = useStore($voiceState)
   const runtime = useStore($runtimeState)
+  // For the header's status, which is the same session state the field shows.
+  const voiceLink = useStore($voiceLink)
   const translucency = useStore($translucency)
   const chatContextStatus = useStore($chatContextStatus)
   const [page, setPage] = useState<Page>('Overview')
@@ -757,9 +760,25 @@ function MainSurface(): React.JSX.Element {
                       <AbstractIcon className="topbar-icon" name={NAV_ICONS[page]} size={20} />
                       <h1>{page}</h1>
                     </div>
-                    <span className="topbar-state">
-                      {voice.phase.toUpperCase()} / {voice.caption}
-                    </span>
+                    {/* Was `READY / Say Marvi`, hardcoded — the phase and a
+                        caption, saying nothing the state could not say for
+                        itself, while the real status panel floated over the
+                        field competing with the orb for the same glance. The
+                        header already had the slot. */}
+                    <VoiceStatus
+                      blocker={
+                        runtime.components.gateway?.state !== 'ready'
+                          ? runtime.components.gateway?.detail
+                          : runtime.components.voice?.state !== 'ready'
+                            ? runtime.components.voice?.detail
+                            : runtime.components.livekit?.state !== 'ready'
+                              ? runtime.components.livekit?.detail
+                              : ''
+                      }
+                      link={voiceLink}
+                      voice={voice}
+                      warming={runtime.components.voice?.state === 'starting'}
+                    />
                   </header>
                 ) : null}
 
@@ -3363,7 +3382,6 @@ function ServiceHealth({ compact = false }: { compact?: boolean }): React.JSX.El
 
 function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
   const voice = useStore($voiceState)
-  const link = useStore($voiceLink)
   const sessionMetrics = useStore($sessionMetrics)
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([])
   const [deviceError, setDeviceError] = useState('')
@@ -3382,27 +3400,10 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
     }
   }, [])
 
-  const livekit = runtime.components.livekit
-  const gateway = runtime.components.gateway
-  const voiceComponent = runtime.components.voice
-
-  // The one line that answers "why is nothing happening". Component detail is
-  // written for exactly this: it names what is missing rather than restating
-  // the state.
-  // The worker is loading its speech models. Shown wherever the eye lands,
-  // because a session joined during it looks identical to a working one.
-  const warming = voiceComponent?.state === 'starting'
-
-  const blocker =
-    gateway?.state !== 'ready'
-      ? gateway?.detail
-      : voiceComponent?.state !== 'ready'
-        ? voiceComponent?.detail
-        : livekit?.state !== 'ready'
-          ? livekit?.detail
-          : ''
-
-  const mood = voice.phase
+  // The phase, the blocker and the warming flag moved to the header with
+  // `VoiceStatus`, which reads them from the same runtime this does. What is
+  // left here is what the field itself needs.
+  const warming = runtime.components.voice?.state === 'starting'
   const speaking = voice.phase === 'speaking'
   const listening = voice.phase === 'listening' || voice.phase === 'wake'
 
@@ -3425,36 +3426,16 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
         </div>
       </div>
 
-      {/* Top-left: what Marvi is doing, and what is stopping it. */}
-      <div className="voice-hud voice-hud-state">
-        {/* Not joined is its own state, and saying READY for it was a lie: the
-            page claimed Marvi was listening while nothing was in the room. */}
-        <span
-          className={`voice-hud-phase phase-${
-            warming ? 'starting' : link === 'live' ? mood : 'idle'
-          }`}
-        >
-          {warming
-            ? 'WARMING UP'
-            : link === 'live'
-              ? voice.phase.toUpperCase()
-              : link === 'connecting'
-                ? 'JOINING'
-                : 'IDLE'}
-        </span>
-        {/* Said here as well as on the button, because this is where the eye
-            is. Joining before the models finish loading produced a session
-            that showed LISTENING and heard nothing -- you could talk into it
-            for as long as you liked. */}
-        <strong>
-          {warming
-            ? 'Loading the speech models — she cannot hear you yet'
-            : link === 'live'
-              ? voice.caption
-              : 'Press Join to start listening'}
-        </strong>
+      {/* The status moved into the page header -- see `VoiceStatus`. It was a
+          panel the size of a paragraph floating over the field, competing with
+          two cards and the orb for one glance, while the header spent its slot
+          on a hardcoded `READY / Say Marvi`.
+
+          The wake indicator stays on the field: it is about the room rather
+          than about the session, and it is the one thing here worth a chip of
+          its own. */}
+      <div className="voice-hud voice-hud-wake">
         <WakeIndicator />
-        {blocker ? <p className="voice-hud-blocker">{blocker}</p> : null}
       </div>
 
       {/* The pickers, handed to the activity card rather than floated beside

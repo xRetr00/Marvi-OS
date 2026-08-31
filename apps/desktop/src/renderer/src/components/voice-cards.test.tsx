@@ -111,10 +111,47 @@ describe('the calendar card', () => {
     )
 
     expect(html).toContain('September')
-    expect(html).toContain('voice-calendar-strip')
-    // Thirty days, each a button.
-    expect(html.match(/voice-calendar-day/g)).toHaveLength(30)
+    expect(html).toContain('voice-calendar-grid')
+    // Seven day-name columns, and every day of September present.
+    expect(html.match(/voice-calendar-dow/g)).toHaveLength(7)
+    for (const day of [1, 15, 30]) expect(html).toContain(`>${day}<`)
     expect(html).toContain('Nothing on')
+  })
+
+  it('lines the first day up under its own weekday', () => {
+    // 1 September 2026 is a Tuesday, so two blanks come before it. Without
+    // them the whole month sits under the wrong column names, which is a
+    // calendar that is confidently wrong rather than merely plain.
+    const html = renderToStaticMarkup(
+      <CalendarView calendar={{ connected: true, events: [] }} now={now} />
+    )
+
+    expect(html.match(/voice-calendar-blank/g)).toHaveLength(2)
+  })
+
+  it('marks the days that have something on them', () => {
+    // So "is next week busy" is answerable without clicking through seven
+    // days, which is the question a month view exists for.
+    const html = renderToStaticMarkup(
+      <CalendarView
+        calendar={{
+          connected: true,
+          events: [
+            {
+              id: 'a',
+              title: 'Standup',
+              start: '2026-09-15T09:00:00Z',
+              end: '',
+              location: '',
+              all_day: false
+            }
+          ]
+        }}
+        now={now}
+      />
+    )
+
+    expect(html).toContain('voice-calendar-dot')
   })
 
   it('counts down to something starting soon', () => {

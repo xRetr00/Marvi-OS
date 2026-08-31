@@ -19,6 +19,7 @@ import {
   addMonths,
   format,
   getDate,
+  getDay,
   getDaysInMonth,
   isSameDay,
   isToday,
@@ -46,6 +47,10 @@ import {
 
 import { compactTokens } from '../chat/context-breakdown'
 import { sourcesFrom } from './voice-sources'
+
+/** Sunday first, matching `getDay`. Initials rather than names, because a
+ * seven-column grid in a narrow card has one character of room. */
+const DAY_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 
 const CATEGORY_ICONS: Readonly<Record<string, LucideIcon>> = {
   calendar: CalendarDays,
@@ -424,26 +429,38 @@ export function CalendarView({
         </div>
       </header>
 
-      <div className="voice-calendar-strip">
+      {/* Seven columns rather than one scrolling row. The strip fitted about
+          a week in a 288px card, so two thirds of the month was behind a
+          horizontal scroll nobody would find — and "is next week busy" is the
+          question a calendar is for. A grid answers it without a gesture. */}
+      <div className="voice-calendar-grid" role="grid">
+        {DAY_INITIALS.map((initial, index) => (
+          <span className="voice-calendar-dow" key={index}>
+            {initial}
+          </span>
+        ))}
+        {/* The blanks before the first, so the columns line up with the day
+            names above them. */}
+        {Array.from({ length: getDay(startOfMonth(month)) }, (_, index) => (
+          <span className="voice-calendar-blank" key={`blank-${index}`} />
+        ))}
         {days.map((day) => (
-          <div className="voice-calendar-day" key={format(day.date, 'yyyy-MM-dd')}>
-            <span className="voice-calendar-dow">{format(day.date, 'E').charAt(0)}</span>
-            <button
-              aria-current={day.isToday ? 'date' : undefined}
-              aria-pressed={day.isSelected}
-              className={day.isSelected ? 'is-selected' : undefined}
-              onClick={() => setPicked(day.date)}
-              type="button"
-            >
-              {getDate(day.date)}
-              {/* Today keeps its own mark even when another day is picked,
-                  so scrolling three months out never loses where you are. */}
-              {day.isToday && !day.isSelected ? <i className="voice-calendar-today" /> : null}
-              {busy.has(format(day.date, 'yyyy-MM-dd')) && !day.isSelected ? (
-                <i className="voice-calendar-dot" />
-              ) : null}
-            </button>
-          </div>
+          <button
+            aria-current={day.isToday ? 'date' : undefined}
+            aria-pressed={day.isSelected}
+            className={day.isSelected ? 'is-selected' : undefined}
+            key={format(day.date, 'yyyy-MM-dd')}
+            onClick={() => setPicked(day.date)}
+            type="button"
+          >
+            {getDate(day.date)}
+            {/* Today keeps its own mark even when another day is picked, so
+                paging three months out never loses where you are. */}
+            {day.isToday && !day.isSelected ? <i className="voice-calendar-today" /> : null}
+            {busy.has(format(day.date, 'yyyy-MM-dd')) && !day.isSelected ? (
+              <i className="voice-calendar-dot" />
+            ) : null}
+          </button>
         ))}
       </div>
 
