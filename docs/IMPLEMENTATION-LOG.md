@@ -15,6 +15,9 @@ work belongs in `docs/phases/`; architectural decisions belong in
 - Added an interactive/CLI signed release console that validates a requested
   version and delegates all mutation, signing, verification, and pushing to the
   repository release script.
+- Made the signed release script PowerShell 7-safe: Cargo's normal stderr
+  progress no longer aborts the run, and package version bumps preserve JSON
+  formatting and command strings instead of rewriting the complete files.
 
 ## 2026-08-28 — Bootstrap release self-refresh repair
 

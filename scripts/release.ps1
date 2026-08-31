@@ -65,9 +65,20 @@ Write-Host "Releasing $current -> $Version" -ForegroundColor Cyan
 # it so npm tooling and `app.getVersion()` agree (see AGENTS.md versioning).
 Set-Content -Path VERSION -Value "$Version`n" -NoNewline
 foreach ($pkg in @('package.json', 'apps\desktop\package.json')) {
-  $json = Get-Content $pkg -Raw | ConvertFrom-Json
-  $json.version = $Version
-  $json | ConvertTo-Json -Depth 10 | Set-Content $pkg
+  # Change only the top-level version. ConvertTo-Json rewrites the complete
+  # file with PowerShell-specific indentation and escapes every `&&` as a
+  # Unicode sequence, turning a release bump into an unreadable full-file diff.
+  $json = Get-Content $pkg -Raw
+  if ($json -notmatch '(?m)^  "version": "[^"]+",?$') {
+    throw "Could not find the top-level version in $pkg."
+  }
+  $updatedJson = [regex]::Replace(
+    $json,
+    '(?m)^  "version": "[^"]+"',
+    "  `"version`": `"$Version`"",
+    1
+  )
+  Set-Content -Path $pkg -Value $updatedJson -NoNewline
 }
 
 # The bootstrap ships as its own binary, so a user can be running an older one
@@ -84,8 +95,15 @@ $updated = [regex]::Replace($text, '(?m)^version = "[^"]+"', "version = `"$Versi
 Set-Content -Path $cargo -Value $updated -NoNewline
 # Cargo.lock records it too; a lockfile that disagrees fails the build.
 Push-Location apps\updater
-cargo update --workspace --offline 2>&1 | Out-Null
-Pop-Location
+try {
+  # Cargo reports normal resolver progress on stderr. PowerShell 7 promotes
+  # redirected native stderr to NativeCommandError under Stop, so discard the
+  # progress stream explicitly and judge the native exit code ourselves.
+  cargo update --workspace --offline 2>$null | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw "cargo update failed with code $LASTEXITCODE." }
+} finally {
+  Pop-Location
+}
 
 git add VERSION package.json apps\desktop\package.json apps\updater\Cargo.toml apps\updater\Cargo.lock
 if ($LASTEXITCODE -ne 0) { throw 'Could not stage the version files.' }
