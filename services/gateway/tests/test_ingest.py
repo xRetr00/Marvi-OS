@@ -157,3 +157,33 @@ def test_an_injection_arriving_by_ingestion_stays_contained(memory) -> None:
     assert recalled["trusted"] is False
     assert "UNTRUSTED" in recalled["body"]
     assert recalled["body"].rstrip().endswith("]")
+
+
+def test_a_page_token_is_not_mistaken_for_a_timestamp() -> None:
+    """Every provider decided this with `"T" in cursor` -- the T between the
+    date and the time in an ISO stamp. Google Calendar's page token is base64,
+    and base64 contains the letter T about as often as any other:
+
+        EoABCn4SfAoGCKTJh7AGEnIKcApuXzZ0bG5hcXJsZTVwNmNwYjRkaG1qNHBocGVn...
+                         ^
+
+    So a page token went out as `timeMin`, Composio answered "Unable to parse
+    time", and the calendar sync failed on every attempt from the first
+    successful page onwards -- twelve hours of it in one log, every ninety
+    seconds, with a full traceback each time.
+    """
+    from marvi_gateway.ingest import _is_timestamp
+
+    token = (
+        "EoABCn4SfAoGCKTJh7AGEnIKcApuXzZ0bG5hcXJsZTVwNmNwYjRkaG1qNHBocGVnc25j"
+        "cmoxY2RrNzBjaGlkb3A2a2RyazY5aG1tc2ptZTlyNnV0aG83NWo2NnNyaWNwcWphb3Bw"
+    )
+
+    assert "T" in token, "the token that broke this has to keep its T"
+    assert not _is_timestamp(token)
+    assert _is_timestamp("2026-08-30T07:49:55Z")
+    assert _is_timestamp("2026-08-30 07:49:55")
+    # A bare date is not a cursor this sends as a time, and neither is nothing.
+    assert not _is_timestamp("2026-08-30")
+    assert not _is_timestamp("")
+    assert not _is_timestamp("09137571825892649257")

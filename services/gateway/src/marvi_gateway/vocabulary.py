@@ -73,7 +73,15 @@ def terms(memory: Any = None, identity: Any = None) -> list[str]:
 
     if memory is not None:
         try:
-            rows = memory._db.execute(
+            # Through `local.store`, not off the runtime. What is handed in is
+            # a `MemoryRuntime` -- a facade over whichever provider is
+            # configured -- and it has no `_db`, so this raised
+            # `'MemoryRuntime' object has no attribute '_db'` on every call and
+            # the recogniser got none of the names in the graph. Caught and
+            # logged, which is why it went unnoticed: the vocabulary still had
+            # "Marvi" and the identity files, so it looked like it worked.
+            store = getattr(getattr(memory, "local", None), "store", None) or memory
+            rows = store._db.execute(
                 "SELECT e.name, COUNT(r.id) AS links FROM entities e"
                 " LEFT JOIN relations r"
                 "   ON r.subject_id = e.id OR r.object_id = e.id"
