@@ -156,3 +156,17 @@ async def test_disconnecting_a_connector_retracts_what_it_ingested(tmp_path) -> 
     assert after.json()["status"] == "disconnected"  # the fake SDK no longer lists it
     assert after.json()["memory_items"] == 0
     assert sdk.account_items == []
+
+
+def test_a_connection_being_set_up_is_not_reported_as_expired() -> None:
+    """Composio reports INITIALIZING during the handshake, and every status
+    that was not live fell through to "expired". Connecting a calendar showed
+    "Authorization expired. Reconnect to keep using this connector." over a
+    connection two seconds from working -- with a Reconnect button under it --
+    and then it turned green on its own.
+    """
+    from marvi_gateway.accounts import DEAD_STATUSES, LIVE_STATUSES, PENDING_STATUSES
+
+    assert "initializing" in PENDING_STATUSES
+    assert not PENDING_STATUSES & DEAD_STATUSES, "a pending connection is not a dead one"
+    assert not PENDING_STATUSES & LIVE_STATUSES, "nor is it a live one"

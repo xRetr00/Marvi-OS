@@ -3292,14 +3292,13 @@ small,
   letter-spacing: 0.12em;
 }
 
-.voice-hud-state {
-  top: 32px;
-  left: 36px;
-}
-
+/* The terminal pass used to pin both of these into the top corners. The
+   status line is centred above the orb now and the rig lives inside the
+   activity card, so pinning either one here fights the layout that replaced
+   it. */
 .voice-hud-rig {
-  top: 32px;
-  right: 36px;
+  top: auto;
+  right: auto;
 }
 
 .voice-hud-phase,
@@ -3310,8 +3309,10 @@ small,
   color: var(--ui-accent);
 }
 
+/* Was 25px, which is a headline. It sits over the field on the same axis as
+   the orb now, and a headline there covers the thing it is describing. */
 .voice-hud-state strong {
-  font-size: 25px;
+  font-size: 14px;
 }
 
 .wake-chip,

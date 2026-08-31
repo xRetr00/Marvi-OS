@@ -43,3 +43,19 @@ describe('connector poll cadence', () => {
     expect(initialPhaseForStatus(undefined)).toBe('idle')
   })
 })
+
+describe('a connection that is still being set up', () => {
+  it('is not treated as expired', () => {
+    // Composio reports INITIALIZING during the handshake, and every status
+    // that was not live used to fall through to "expired". Connecting a
+    // calendar showed "Authorization expired. Reconnect to keep using this
+    // connector." over a connection that was two seconds from working, with a
+    // Reconnect button under it, and then it turned green on its own.
+    expect(phaseForStatus('connecting')).toBeNull()
+  })
+
+  it('picks up the wait when the modal is opened on one', () => {
+    // Rather than offering a fresh authorization the user does not need.
+    expect(initialPhaseForStatus('connecting')).toBe('waiting')
+  })
+})
