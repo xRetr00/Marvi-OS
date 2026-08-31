@@ -39,7 +39,10 @@ function presentation(summary: string): { group: UpdateChangeGroup['id']; displa
 
 /** Turn raw git subjects into a compact, bounded user-facing changelog while
  * retaining each SHA for provenance and diagnostics. */
-export function buildUpdateChangelog(commits: readonly UpdateCommit[], limit = 8): UpdateChangeGroup[] {
+export function buildUpdateChangelog(
+  commits: readonly UpdateCommit[],
+  limit = 8
+): UpdateChangeGroup[] {
   const buckets = new Map<UpdateChangeGroup['id'], UpdateChangeGroup['commits']>()
   for (const commit of commits.slice(0, Math.max(0, limit))) {
     const { group, display } = presentation(commit.summary)

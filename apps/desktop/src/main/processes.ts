@@ -92,7 +92,10 @@ export function isAlive(pid: number | undefined): boolean {
  * command line containing `marvi_gateway` or `marvi_agent` is unambiguously
  * ours. Nothing else on the machine is touched.
  */
-export function findStrays(installRoot?: string, match?: RegExp): Array<{ pid: number; command: string }> {
+export function findStrays(
+  installRoot?: string,
+  match?: RegExp
+): Array<{ pid: number; command: string }> {
   if (!isWindows()) return []
   try {
     const output = execFileSync(

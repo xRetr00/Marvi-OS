@@ -57,10 +57,7 @@ export function deviceStory(
 }
 
 /** The pill beside it: three states, and "no driver" is not an error. */
-export function deviceTone(
-  driver: string,
-  device: DeviceHealth
-): 'neutral' | 'ready' | 'danger' {
+export function deviceTone(driver: string, device: DeviceHealth): 'neutral' | 'ready' | 'danger' {
   if (driver || !device.configured) return 'neutral'
   return device.online ? 'ready' : 'danger'
 }

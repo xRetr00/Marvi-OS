@@ -51,9 +51,9 @@ describe('the renderer content security policy', () => {
     // Loopback only. A wildcard host here would make the policy decorative,
     // and this page holds the user's provider credentials in memory.
     for (const source of directive('connect-src')) {
-      expect(source === "'self'" || /^(https?|wss?):\/\/(127\.0\.0\.1|localhost):/.test(source)).toBe(
-        true
-      )
+      expect(
+        source === "'self'" || /^(https?|wss?):\/\/(127\.0\.0\.1|localhost):/.test(source)
+      ).toBe(true)
     }
   })
 

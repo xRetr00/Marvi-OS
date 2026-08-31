@@ -55,10 +55,7 @@ import type {
   WorkspacePolicy,
   WorkspaceUpdate
 } from '../shared/runtime'
-import type {
-  CalendarEvent,
-  VoiceActivity
-} from '../renderer/src/components/voice-cards'
+import type { CalendarEvent, VoiceActivity } from '../renderer/src/components/voice-cards'
 import type { IslandPlacement } from '../main/island-window'
 import type { PetPreferences } from '../main/pet-window'
 
@@ -70,9 +67,7 @@ export interface MarviDesktopApi {
   getRuntime: () => Promise<RuntimeStatus>
   getVoiceSession: () => Promise<{ url: string; room: string; token: string }>
   setVoiceSessionActive: (active: boolean) => Promise<boolean>
-  readAloud: (
-    text: string
-  ) => Promise<{ played: boolean; cancelled: boolean; seconds: number }>
+  readAloud: (text: string) => Promise<{ played: boolean; cancelled: boolean; seconds: number }>
   stopReadAloud: () => Promise<boolean>
   getDisplays: () => Promise<Array<{ id: number; label: string; primary: boolean }>>
   getIslandPlacement: () => Promise<IslandPlacement>

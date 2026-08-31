@@ -97,8 +97,7 @@ describe('mood crossfade', () => {
 
 describe('the orb says which state it is in', () => {
   /** Distance from grey. Zero is a shade of white or black. */
-  const saturation = ([r, g, b]: readonly number[]): number =>
-    Math.max(r, g, b) - Math.min(r, g, b)
+  const saturation = ([r, g, b]: readonly number[]): number => Math.max(r, g, b) - Math.min(r, g, b)
 
   it('never resolves a working state to white', () => {
     // A monochrome pass left every ramp ending in bone — idle at #e7e7e3,

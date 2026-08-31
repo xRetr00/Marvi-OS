@@ -57,7 +57,11 @@ export function AttachmentPreview({
             onClick={() => setExpanded(false)}
             role="dialog"
           >
-            <button aria-label="Close image preview" onClick={() => setExpanded(false)} type="button">
+            <button
+              aria-label="Close image preview"
+              onClick={() => setExpanded(false)}
+              type="button"
+            >
               <AbstractIcon name="close" size={16} />
             </button>
             <img alt={attachment.name} onClick={(event) => event.stopPropagation()} src={source} />

@@ -59,9 +59,10 @@ export function resolveVersionPresentation({
   }
   if (check?.available) {
     const count = check.behindBy > 0 ? `+${check.behindBy}` : 'update'
-    const status = check.behindBy > 0
-      ? `${check.behindBy} ${check.behindBy === 1 ? 'change' : 'changes'} ready to install`
-      : 'An update is ready to install'
+    const status =
+      check.behindBy > 0
+        ? `${check.behindBy} ${check.behindBy === 1 ? 'change' : 'changes'} ready to install`
+        : 'An update is ready to install'
     return {
       label: `${base} (${count})`,
       status,

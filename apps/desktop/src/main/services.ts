@@ -4,14 +4,7 @@ import { join } from 'node:path'
 
 import { stateDir } from './config'
 import { log as writeLog } from './logger'
-import {
-  groupSpawnOptions,
-  isAlive,
-  killStrays,
-  killTree,
-  stopTree,
-  whoHasPort
-} from './processes'
+import { groupSpawnOptions, isAlive, killStrays, killTree, stopTree, whoHasPort } from './processes'
 
 /**
  * Starting the local services, and knowing when they did not start.

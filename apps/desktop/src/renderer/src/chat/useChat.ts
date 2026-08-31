@@ -318,7 +318,7 @@ export function useChat(): UseChat {
       const next =
         id === activeThreadId
           ? remaining[0]
-          : remaining.find((thread) => thread.id === activeThreadId) ?? remaining[0]
+          : (remaining.find((thread) => thread.id === activeThreadId) ?? remaining[0])
       setNotice('')
       if (next) await load(next.id)
       else await createThread()

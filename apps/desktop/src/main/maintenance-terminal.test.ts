@@ -16,7 +16,9 @@ describe('maintenance terminal actions', () => {
   })
 
   it('runs the fixed command through the managed environment and keeps the terminal open', () => {
-    expect(maintenancePowerShellArgs('doctor', "C:\\Marvi's Tools\\uv.exe", 'D:\\Marvi OS')).toEqual([
+    expect(
+      maintenancePowerShellArgs('doctor', "C:\\Marvi's Tools\\uv.exe", 'D:\\Marvi OS')
+    ).toEqual([
       '-NoLogo',
       '-NoProfile',
       '-ExecutionPolicy',
