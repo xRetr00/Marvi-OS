@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import sqlite3
 import time
 from collections.abc import Callable
@@ -398,6 +399,29 @@ def _normalise_email(row: dict[str, Any]) -> MemoryItem | None:
     )
 
 
+#: An ISO timestamp, as opposed to a page token.
+#:
+#: Every provider below decided this with `"T" in cursor` -- the T between the
+#: date and the time. Google Calendar's page token is base64, and base64
+#: contains the letter T about as often as any other:
+#:
+#:   EoABCn4SfAoGCKTJh7AGEnIKcApuXzZ0bG5hcXJsZTVwNmNwYjRkaG1qNHBocGVn...
+#:                    ^
+#:
+#: So a page token was sent as `timeMin`, Composio answered "Unable to parse
+#: time", and the calendar sync failed on every attempt from the first
+#: successful page onwards. Twelve hours of it in one log, every ninety
+#: seconds, with a full traceback each time.
+#:
+#: Anchored at the start, because a cursor either begins with a date or it is
+#: not one.
+_ISO_AT = re.compile(r"^\d{4}-\d{2}-\d{2}[T ]")
+
+
+def _is_timestamp(cursor: str) -> bool:
+    return bool(cursor) and bool(_ISO_AT.match(cursor.strip()))
+
+
 def _normalise_calendar(row: dict[str, Any]) -> MemoryItem | None:
     identifier = _pick(row, "id", "event_id")
     if not identifier:
@@ -509,8 +533,9 @@ def default_registry() -> MemoryProviderRegistry:
                 CALENDAR_EVENTS,
                 lambda cursor: {
                     "calendarId": "primary", "maxResults": MAX_PER_POLL, "singleEvents": True,
-                    "orderBy": "startTime", **({"timeMin": cursor} if "T" in cursor else {}),
-                    **({"pageToken": cursor} if cursor and "T" not in cursor else {}),
+                    "orderBy": "startTime",
+                    **({"timeMin": cursor} if _is_timestamp(cursor) else {}),
+                    **({"pageToken": cursor} if cursor and not _is_timestamp(cursor) else {}),
                 },
                 ("items", "events"), ("updated", "start.dateTime", "start.date"),
             ), _normalise_calendar,
@@ -522,10 +547,17 @@ def default_registry() -> MemoryProviderRegistry:
             "notion", "Notion", _fetch_one(
                 "NOTION_FETCH_DATA",
                 lambda cursor: {
+                    # `fetch_type` became required upstream and the sync has
+                    # failed on every attempt since -- "Following fields are
+                    # missing: {'fetch_type'}" -- while the filter below said
+                    # the same thing in the older shape. Both are sent: the
+                    # filter is harmless where it is ignored, and removing it
+                    # would break whichever deployments still want it.
+                    "fetch_type": "page",
                     "page_size": MAX_PER_POLL,
                     "filter": {"value": "page", "property": "object"},
                     "sort": {"direction": "descending", "timestamp": "last_edited_time"},
-                    **({"start_cursor": cursor} if cursor and "T" not in cursor else {}),
+                    **({"start_cursor": cursor} if cursor and not _is_timestamp(cursor) else {}),
                 },
                 ("results", "items", "pages"), ("last_edited_time", "lastEditedTime"),
             ), _normalise_notion,
@@ -538,7 +570,8 @@ def default_registry() -> MemoryProviderRegistry:
                 "GOOGLEDRIVE_LIST_FILES",
                 lambda cursor: {
                     "page_size": MAX_PER_POLL, "order_by": "modifiedTime desc",
-                    "q": "trashed = false", **({"page_token": cursor} if cursor and "T" not in cursor else {}),
+                    "q": "trashed = false",
+                    **({"page_token": cursor} if cursor and not _is_timestamp(cursor) else {}),
                 },
                 ("files", "items"), ("modifiedTime", "modified_time", "modifiedDate"),
             ), _normalise_drive,

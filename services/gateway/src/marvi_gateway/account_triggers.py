@@ -148,7 +148,18 @@ class AccountTriggerIngest:
             value = value["payload"]
         return self.ingest(value)
 
+    #: How long to wait after a failed subscribe, and the ceiling it backs off
+    #: to. It used to be a flat five seconds against a fifteen-second connect
+    #: timeout: a Composio account whose trigger stream will not establish
+    #: produced a full traceback every twenty seconds, forever. Twelve hours of
+    #: that is what filled `errors.log` to 2.8MB and made a Gateway that was
+    #: running perfectly look like one crashing in a loop.
+    RETRY_START = 5.0
+    RETRY_MAX = 300.0
+
     def _run(self) -> None:
+        wait = self.RETRY_START
+        told = ""
         while not self._stop.is_set():
             try:
                 subscription = self.accounts._sdk().triggers.subscribe(timeout=15.0)
@@ -163,19 +174,34 @@ class AccountTriggerIngest:
 
                 self.connected = True
                 self.last_error = ""
+                wait = self.RETRY_START
+                told = ""
                 log.info("Composio trigger stream connected")
                 subscription.wait_forever()
             except Exception as exc:
                 self.last_error = str(exc)[:300]
-                log.warning(
-                    "Composio trigger stream failed",
-                    extra={"marvi_error": str(exc)[:240]},
-                    exc_info=True,
-                )
+                # The traceback once per distinct failure, then the same
+                # failure at info without one. A stack that repeats every
+                # twenty seconds is not evidence, it is weather -- and it
+                # buries the one traceback that is.
+                if str(exc)[:240] != told:
+                    told = str(exc)[:240]
+                    log.warning(
+                        "Composio trigger stream failed",
+                        extra={"marvi_error": told},
+                        exc_info=True,
+                    )
+                else:
+                    log.info(
+                        "Composio trigger stream still failing; retrying in %.0fs", wait
+                    )
             finally:
                 self.connected = False
                 self._subscription = None
-            if not self._stop.wait(5.0):
+            if not self._stop.wait(wait):
+                # Backed off, because the usual cause is an account that will
+                # not connect at all and retrying it hard helps nobody.
+                wait = min(self.RETRY_MAX, wait * 2)
                 continue
 
     def start(self) -> bool:
