@@ -14,12 +14,25 @@
  * language for the same two ideas is how a product starts looking like two
  * products.
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import {
+  addMonths,
+  format,
+  getDate,
+  getDaysInMonth,
+  isSameDay,
+  isToday,
+  startOfMonth,
+  subMonths
+} from 'date-fns'
+import { motion } from 'framer-motion'
 import {
   BrainCircuit,
   CalendarDays,
   CheckCircle2,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   CircleAlert,
   FileText,
   Globe2,
@@ -327,3 +340,171 @@ export interface CalendarEvent {
   all_day: boolean
 }
 
+
+/**
+ * The month, always drawn, with what is on each day.
+ *
+ * Adapted from the glass calendar the owner supplied. Two things changed and
+ * both are about fitting the app rather than taste: the Tailwind classes
+ * became CSS here, because everything else in this renderer is plain CSS and
+ * one component in a second styling system is worse than a translation; and
+ * the "Weekly / Monthly" tabs are gone, because there is one view and a tab
+ * strip with nothing behind it is a promise the card does not keep.
+ *
+ * `date-fns` and `framer-motion` are the design's own, and are now the app's.
+ *
+ * The month shows whether anything is scheduled or not. An empty list is a
+ * card that looks broken; a month with no dots on it is a month with nothing
+ * in it, which is information.
+ */
+export function CalendarView({
+  calendar,
+  now,
+  onMonth
+}: {
+  calendar: { connected: boolean; events: CalendarEvent[]; reason?: string }
+  now: Date
+  /** Told when the month changes, so the page can fetch that month. */
+  onMonth?: (month: Date) => void
+}): React.JSX.Element {
+  const [month, setMonth] = useState(() => startOfMonth(now))
+  const [picked, setPicked] = useState(() => now)
+
+  const days = useMemo(() => {
+    const first = startOfMonth(month)
+    return Array.from({ length: getDaysInMonth(month) }, (_, index) => {
+      const date = new Date(first.getFullYear(), first.getMonth(), index + 1)
+      return { date, isToday: isToday(date), isSelected: isSameDay(date, picked) }
+    })
+  }, [month, picked])
+
+  // Which days have something on them, so the strip can carry a dot without
+  // the card having to be open to the right day first.
+  const busy = useMemo(() => {
+    const marked = new Set<string>()
+    for (const event of calendar.events) {
+      const at = new Date(event.start)
+      if (!Number.isNaN(at.getTime())) marked.add(format(at, 'yyyy-MM-dd'))
+    }
+    return marked
+  }, [calendar.events])
+
+  const onPicked = calendar.events.filter((event) => {
+    const at = new Date(event.start)
+    return !Number.isNaN(at.getTime()) && isSameDay(at, picked)
+  })
+
+  const goto = (next: Date): void => {
+    setMonth(next)
+    onMonth?.(next)
+  }
+
+  return (
+    <section className="voice-card voice-calendar-card" aria-label="Calendar">
+      <header className="voice-calendar-head">
+        <motion.p
+          key={format(month, 'MMMM yyyy')}
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25 }}
+          className="voice-calendar-month"
+        >
+          {format(month, 'MMMM')}
+        </motion.p>
+        <div className="voice-calendar-nav">
+          <button
+            aria-label="Previous month"
+            onClick={() => goto(subMonths(month, 1))}
+            type="button"
+          >
+            <ChevronLeft aria-hidden="true" size={15} strokeWidth={1.8} />
+          </button>
+          <button aria-label="Next month" onClick={() => goto(addMonths(month, 1))} type="button">
+            <ChevronRight aria-hidden="true" size={15} strokeWidth={1.8} />
+          </button>
+        </div>
+      </header>
+
+      <div className="voice-calendar-strip">
+        {days.map((day) => (
+          <div className="voice-calendar-day" key={format(day.date, 'yyyy-MM-dd')}>
+            <span className="voice-calendar-dow">{format(day.date, 'E').charAt(0)}</span>
+            <button
+              aria-current={day.isToday ? 'date' : undefined}
+              aria-pressed={day.isSelected}
+              className={day.isSelected ? 'is-selected' : undefined}
+              onClick={() => setPicked(day.date)}
+              type="button"
+            >
+              {getDate(day.date)}
+              {/* Today keeps its own mark even when another day is picked,
+                  so scrolling three months out never loses where you are. */}
+              {day.isToday && !day.isSelected ? <i className="voice-calendar-today" /> : null}
+              {busy.has(format(day.date, 'yyyy-MM-dd')) && !day.isSelected ? (
+                <i className="voice-calendar-dot" />
+              ) : null}
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <div className="voice-calendar-rule" />
+
+      {!calendar.connected ? (
+        // Distinct from an empty day: only one of these is something the user
+        // can act on.
+        <p className="voice-card-empty">Calendar not connected</p>
+      ) : onPicked.length === 0 ? (
+        <p className="voice-card-empty">Nothing on {format(picked, 'EEE d MMM')}</p>
+      ) : (
+        <ul className="voice-calendar-events">
+          {onPicked.slice(0, 4).map((event) => (
+            <li key={event.id || event.start}>
+              <span className="voice-calendar-when">{when(event, now)}</span>
+              <span className="voice-calendar-title">{event.title}</span>
+              {event.location ? <span className="voice-calendar-where">{event.location}</span> : null}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}
+
+/** "in 20 min", "14:30", "All day" — whichever is shortest and still says
+ * enough. The renderer owns this because it knows the user's clock. */
+function when(event: CalendarEvent, now: Date): string {
+  const start = new Date(event.start)
+  if (Number.isNaN(start.getTime())) return ''
+  if (event.all_day) return 'All day'
+  const minutes = Math.round((start.getTime() - now.getTime()) / 60000)
+  if (minutes >= 0 && minutes < 60) return `in ${minutes} min`
+  return format(start, 'HH:mm')
+}
+
+/**
+ * What is on the calendar, from the connected account.
+ *
+ * Read from `/calendar/upcoming` rather than through the tool path: a page is
+ * not a model, and it wants the same events every minute without a
+ * confirmation flow, an audit line, or an external-data envelope around them.
+ *
+ * Marvi reaches the same calendar through `calendar_events`, `calendar_add`,
+ * `calendar_move` and `calendar_remove`, so what is drawn here is what she can
+ * change — the card and the assistant look at one thing rather than two views
+ * that can disagree.
+ */
+export function CalendarCard(): React.JSX.Element {
+  const calendar = usePolled<{ connected: boolean; events: CalendarEvent[]; reason?: string }>(
+    () => window.marvi?.getCalendar() ?? Promise.resolve(null),
+    60_000
+  )
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 30_000)
+    return () => clearInterval(timer)
+  }, [])
+  // Drawn before the first answer arrives, and drawn when there is nothing on
+  // it. The month is the card; the events are what is written on it.
+  return <CalendarView calendar={calendar ?? { connected: false, events: [] }} now={now} />
+}
