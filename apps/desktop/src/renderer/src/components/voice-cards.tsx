@@ -32,6 +32,7 @@ import {
 } from 'lucide-react'
 
 import { compactTokens } from '../chat/context-breakdown'
+import { sourcesFrom } from './voice-sources'
 
 const CATEGORY_ICONS: Readonly<Record<string, LucideIcon>> = {
   calendar: CalendarDays,
@@ -119,12 +120,15 @@ function ToolIcon({ category }: { category: string }): React.JSX.Element {
  * this card is read in are different questions: "is anything happening" wants
  * one glance, and "what did she just do" wants the list.
  */
-export function VoiceActivityCard(): React.JSX.Element | null {
+export function VoiceActivityCard({ rig }: { rig?: React.ReactNode }): React.JSX.Element | null {
   const activity = usePolled<VoiceActivity>(
     () => window.marvi?.getVoiceActivity() ?? Promise.resolve(null),
     1200
   )
-  return activity ? <ActivityView activity={activity} /> : null
+  // The pickers show even before the first poll answers: they are the part of
+  // this card that is useful in an idle session.
+  const empty: VoiceActivity = { calls: [], running: 0, context: { used: 0, window: 0, turns: 0 } }
+  return <ActivityView activity={activity ?? empty} rig={rig} />
 }
 
 /**
@@ -135,11 +139,19 @@ export function VoiceActivityCard(): React.JSX.Element | null {
  * fetches its own data is a component with no assertions on it.
  */
 export function ActivityView({
-  activity
+  activity,
+  rig
 }: {
   activity: VoiceActivity
+  /** The model and speech pickers, drawn by the page and placed here.
+   *
+   * They used to float loose above this card, which read as two unrelated
+   * panels stacked in a corner. They belong together: the pickers say which
+   * models are doing the work and everything below says what the work is. */
+  rig?: React.ReactNode
 }): React.JSX.Element | null {
   const [open, setOpen] = useState(false)
+  const [showSources, setShowSources] = useState(false)
 
   const { calls, running, context } = activity
   const percent = context.window
@@ -156,8 +168,11 @@ export function ActivityView({
       calls.findIndex((item) => categoryOf(item.tool) === categoryOf(call.tool)) === index
   )
 
+  const sources = sourcesFrom(calls)
+
   return (
     <section className="voice-card voice-activity-card" aria-label="What Marvi is doing">
+      {rig ? <div className="voice-card-rig">{rig}</div> : null}
       <div className="status-context-breakdown" data-static="true">
         <div className="voice-card-meter">
           <span className="status-context-label">Context</span>
@@ -257,6 +272,48 @@ export function ActivityView({
       ) : (
         <p className="voice-card-empty">No tools used yet</p>
       )}
+
+      {/* Where she has been, which is a different question from what she did.
+          You ask this one when an answer surprises you. */}
+      {sources.length ? (
+        <>
+          <button
+            aria-expanded={showSources}
+            className="chat-tool-section-head voice-card-sources-head"
+            onClick={() => setShowSources((value) => !value)}
+            type="button"
+          >
+            <strong>
+              {sources.length} source{sources.length === 1 ? '' : 's'}
+            </strong>
+            <ChevronDown
+              aria-hidden="true"
+              className={showSources ? 'is-open' : ''}
+              size={14}
+              strokeWidth={1.6}
+            />
+          </button>
+          <div
+            className={
+              showSources ? 'chat-tool-section-content is-open' : 'chat-tool-section-content'
+            }
+          >
+            <ul className="voice-card-sources">
+              {sources.map((source) => (
+                <li key={`${source.kind}-${source.full}`} title={source.full}>
+                  {source.kind === 'web' ? (
+                    <Globe2 aria-hidden="true" size={12} strokeWidth={1.6} />
+                  ) : (
+                    <FileText aria-hidden="true" size={12} strokeWidth={1.6} />
+                  )}
+                  <span>{source.label}</span>
+                  {source.times > 1 ? <em>×{source.times}</em> : null}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </>
+      ) : null}
     </section>
   )
 }
@@ -270,78 +327,3 @@ export interface CalendarEvent {
   all_day: boolean
 }
 
-/** "in 20 min", "14:30", "Tue 09:00" — whichever is shortest and still says
- * enough. The renderer owns this because it knows the user's clock. */
-function when(event: CalendarEvent, now: Date): string {
-  const start = new Date(event.start)
-  if (Number.isNaN(start.getTime())) return ''
-  if (event.all_day) return 'All day'
-  const minutes = Math.round((start.getTime() - now.getTime()) / 60000)
-  if (minutes >= 0 && minutes < 60) return `in ${minutes} min`
-  const sameDay = start.toDateString() === now.toDateString()
-  const clock = start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  return sameDay ? clock : `${start.toLocaleDateString([], { weekday: 'short' })} ${clock}`
-}
-
-/**
- * What is coming up, from the connected calendar.
- *
- * Read from `/calendar/upcoming` rather than through the tool path: a page is
- * not a model, and it wants the same events every few seconds without a
- * confirmation flow, an audit line, or an external-data envelope around them.
- *
- * Marvi reaches the same calendar through `calendar_events`, `calendar_add`,
- * `calendar_move` and `calendar_remove`, so what is drawn here is what she can
- * change — the card and the assistant are looking at one thing.
- */
-export function CalendarCard(): React.JSX.Element | null {
-  const calendar = usePolled<{ connected: boolean; events: CalendarEvent[]; reason?: string }>(
-    () => window.marvi?.getCalendar() ?? Promise.resolve(null),
-    60_000
-  )
-  const [now, setNow] = useState(() => new Date())
-  useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 30_000)
-    return () => clearInterval(timer)
-  }, [])
-  return calendar ? <CalendarView calendar={calendar} now={now} /> : null
-}
-
-/** The card itself, given its data and the clock. See `ActivityView`. */
-export function CalendarView({
-  calendar,
-  now
-}: {
-  calendar: { connected: boolean; events: CalendarEvent[]; reason?: string }
-  now: Date
-}): React.JSX.Element {
-
-  return (
-    <section className="voice-card voice-calendar-card" aria-label="Upcoming calendar events">
-      <header>
-        <CalendarDays aria-hidden="true" size={14} strokeWidth={1.6} />
-        <span>Next up</span>
-      </header>
-      {/* A disconnected calendar says so rather than showing an empty list.
-          Nothing and not-connected look the same otherwise, and only one of
-          them is something the user can act on. */}
-      {!calendar.connected ? (
-        <p className="voice-card-empty">Calendar not connected</p>
-      ) : calendar.events.length === 0 ? (
-        <p className="voice-card-empty">Nothing scheduled</p>
-      ) : (
-        <ul>
-          {calendar.events.slice(0, 5).map((event) => (
-            <li key={event.id || event.start}>
-              <span className="voice-calendar-when">{when(event, now)}</span>
-              <span className="voice-calendar-title">{event.title}</span>
-              {event.location ? (
-                <span className="voice-calendar-where">{event.location}</span>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  )
-}
