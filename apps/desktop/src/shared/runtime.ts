@@ -84,7 +84,14 @@ export interface AccountPage {
  * page, and it never grew the sync/triggers machinery because that stays on
  * Composio's side of the Gateway now.
  */
-export type ConnectorStatus = 'connected' | 'expired' | 'disconnected' | 'preview'
+export type ConnectorStatus =
+  | 'connected'
+  /** Composio is still setting the connection up. Not the same as expired,
+   * and reading it as expired told the user their new connector was broken. */
+  | 'connecting'
+  | 'expired'
+  | 'disconnected'
+  | 'preview'
 
 export interface ConnectorRow {
   slug: string

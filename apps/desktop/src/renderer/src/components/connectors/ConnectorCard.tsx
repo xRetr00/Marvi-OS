@@ -5,6 +5,10 @@ import type { ConnectorStatus } from '../../../../shared/runtime'
 
 const STATUS_WORD: Record<ConnectorStatus, string> = {
   connected: 'Connected',
+  // Composio is still setting it up. This used to read "Auth expired", which
+  // told the user their brand-new connector was broken while it was two
+  // seconds from working.
+  connecting: 'Connecting…',
   expired: 'Auth expired',
   preview: 'Preview',
   disconnected: 'Not connected'

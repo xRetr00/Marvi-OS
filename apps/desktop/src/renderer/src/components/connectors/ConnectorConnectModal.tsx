@@ -14,6 +14,7 @@ const PHASE_COPY: Record<string, string> = {
   authorizing: 'Opening your browser…',
   waiting: 'Waiting for authorization to finish in your browser.',
   connected: 'Connected.',
+  connecting: 'Finishing the connection…',
   expired: 'Authorization expired. Reconnect to keep using this connector.',
   disconnecting: 'Disconnecting…',
   error: 'Something went wrong.'

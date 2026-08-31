@@ -50,6 +50,7 @@ from . import setup as setup_module
 from .account_triggers import AccountTriggerIngest
 from .accounts import (
     NATIVE_MEMORY_TOOLKITS,
+    PENDING_STATUSES,
     TOOLKIT_LABELS,
     ComposioAccounts,
     register_account_tools,
@@ -776,7 +777,7 @@ class ConnectorPlaces(BaseModel):
 class ConnectorRow(BaseModel):
     slug: str
     name: str
-    status: Literal["connected", "expired", "disconnected", "preview"]
+    status: Literal["connected", "connecting", "expired", "disconnected", "preview"]
     connection_id: str = ""
     scope: Literal["read", "write", "admin"] = "read"
     connections: int = 0
@@ -3592,11 +3593,18 @@ def create_app(
                 slug=slug, name=label, status="disconnected", connections=0,
                 memory_items=memory_items, places=ConnectorPlaces(**_connector_places(slug, None)),
             )
-        status: Literal["connected", "expired", "disconnected", "preview"]
+        status: Literal["connected", "connecting", "expired", "disconnected", "preview"]
+        upstream = str(row.get("status", "")).lower()
         if row.get("connected"):
             status = "connected"
-        elif str(row.get("status", "")).lower() in {"disabled", "inactive"}:
+        elif upstream in {"disabled", "inactive"}:
             status = "disconnected"
+        elif upstream in PENDING_STATUSES:
+            # Still being set up. This branch did not exist, so a connection
+            # mid-handshake fell through to `expired` below and the user was
+            # told their brand-new connector had expired -- with a Reconnect
+            # button under it -- while it was two seconds from working.
+            status = "connecting"
         else:
             status = "expired"
         return ConnectorRow(

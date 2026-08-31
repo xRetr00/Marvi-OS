@@ -24,6 +24,14 @@ CONNECTIONS_CACHE_SECONDS = 30.0
 TOOLS_CACHE_SECONDS = 10 * 60.0
 DEAD_STATUSES = {"expired", "revoked", "failed", "disabled", "inactive"}
 LIVE_STATUSES = {"active", "connected", "success"}
+
+#: A connection Composio is still setting up. Neither live nor dead, and the
+#: distinction matters because everything that was not live used to be read as
+#: expired: connecting a calendar showed "Authorization expired. Reconnect to
+#: keep using this connector." over a connection that was working perfectly and
+#: two seconds from being ready. The user is told their brand-new connection is
+#: broken, offered a Reconnect button, and then it turns green on its own.
+PENDING_STATUSES = {"initializing", "initiated", "pending", "in_progress"}
 ACCOUNT_SCOPES = ("read", "write", "admin")
 SCOPE_RANK = {name: index for index, name in enumerate(ACCOUNT_SCOPES)}
 

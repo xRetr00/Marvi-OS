@@ -1906,13 +1906,22 @@ small,
   cursor: pointer;
 }
 
+/* Centred above the orb rather than in a corner.
+ *
+ * It was a panel in the top-left the size of a paragraph, which made the one
+ * line that matters — what she is doing — compete with two cards and the orb
+ * for the same glance. Above the orb it is on the axis the eye is already on,
+ * and being small is what lets it sit there without covering the field. */
 .voice-hud-state {
-  top: 22px;
-  left: 26px;
+  top: 96px;
+  left: 50%;
   display: flex;
-  max-width: 46%;
+  max-width: 360px;
   flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  gap: 2px;
+  text-align: center;
+  transform: translateX(-50%);
 }
 
 .voice-hud-phase {
@@ -1957,6 +1966,9 @@ small,
 }
 
 .voice-hud-state strong {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.35;
   color: var(--ui-text-emphasis);
   font-family: 'Collapse', sans-serif;
   font-size: 28px;
@@ -7791,6 +7803,18 @@ body {
   background: color-mix(in srgb, var(--ui-danger) 9%, var(--ui-bg-secondary));
 }
 
+/* Being set up. Deliberately not the danger red that expired wears: a
+   connection mid-handshake is working, and colouring it like a failure is how
+   the user came to believe their new calendar had already expired. */
+.connector-card.is-connecting {
+  border-color: color-mix(in srgb, var(--ui-accent) 32%, var(--ui-stroke-secondary));
+  background: color-mix(in srgb, var(--ui-accent) 5%, var(--ui-bg-secondary));
+}
+
+.connector-card.is-connecting .connector-card-status {
+  color: var(--ui-text-tertiary);
+}
+
 .connector-card.is-preview {
   border-color: color-mix(in srgb, #c79b58 50%, var(--ui-stroke-secondary));
   background: color-mix(in srgb, #c79b58 9%, var(--ui-bg-secondary));
@@ -10626,11 +10650,14 @@ html[data-appearance='claude-code-dark'] .control-row {
   backdrop-filter: blur(16px);
 }
 
-/* Both cards sit at the top corners now, so the status line moves below the
-   calendar rather than under it. */
+/* Small, because it sits over the field rather than beside it. The phase word
+   carries the state and the sentence carries the detail; neither needs the
+   room a corner panel was giving them. */
 .voice-hud-state {
-  top: auto;
-  bottom: 96px;
-  left: 24px;
-  max-width: 300px;
+  padding: 7px 14px;
+  border-radius: 14px;
+}
+
+.voice-hud-state .voice-hud-phase {
+  font-size: 9px;
 }

@@ -1,6 +1,12 @@
 import type { ConnectorRow, ConnectorsPage, ConnectorStatus } from '../shared/runtime'
 
-const CONNECTOR_STATUSES: ConnectorStatus[] = ['connected', 'expired', 'disconnected', 'preview']
+const CONNECTOR_STATUSES: ConnectorStatus[] = [
+  'connected',
+  'connecting',
+  'expired',
+  'disconnected',
+  'preview'
+]
 
 function normaliseConnectorStatus(value: unknown): ConnectorStatus {
   return CONNECTOR_STATUSES.includes(value as ConnectorStatus)
