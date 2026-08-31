@@ -55,6 +55,14 @@ re-remembered, five times over.
 Kokoro-82M, English only. Measured live: `tts ttfb` 346 ms median, 612 ms p90,
 generation at 8–13× real time.
 
+Six newer streaming candidates were screened and three were run on the target
+RTX 3060 on 31 August 2026. None replaces Kokoro yet. CuteTTS-distill is the
+only candidate advancing to listening and adapter work; VoXtream2 is parked
+behind it, VoxCPM2 fails realtime/VRAM gates, and Breeze-TTS-2.cpp, Gepard, and
+CTC-TTS-F fail licensing or supported native-Windows packaging gates. The
+revisions, raw timings, intelligibility smoke test, and exact failures are in
+[the candidate report](tts-candidates-2026-08-31.md).
+
 Two things worth knowing:
 
 - **English-only is a constraint on the whole system**, not a preference. It is

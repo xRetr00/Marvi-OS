@@ -42,6 +42,7 @@ prevent, so the tables here keep the three columns apart and sort by the first.
 | [Memory reader](memory-reader.md) | Whether memory needs a model to read it | `python evals/memory_answers.py` |
 | [Retrieval quality](retrieval.md) | Embedding model, thresholds, recall shape | see the doc |
 | [Speech](speech.md) | STT model and lookahead, TTS voice | see the doc |
+| [TTS challengers, 31 Aug 2026](tts-candidates-2026-08-31.md) | Six streaming TTS candidates against the native-Windows gate | see the doc |
 | [Tools](tools.md) | Whether a tool is callable, safe, and worth its schema | see the doc |
 | [From life](from-life.md) | The same failures, scored against real use | `python evals/from_life.py` |
 | [Conversation sweep](conversation-sweep.md) | 129 turns through the real pipeline: every tool, garbled speech, adversarial | `python evals/stress_conversation.py` |
