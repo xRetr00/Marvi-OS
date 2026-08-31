@@ -26,7 +26,7 @@ describe('sources', () => {
 
   it('shows a file by its name, on either kind of path', () => {
     const found = sourcesFrom([
-      call('file_read', { path: 'D:\Marvi-OS\AGENTS.md' }),
+      call('file_read', { path: 'D:\\Marvi-OS\\AGENTS.md' }),
       call('file_read', { path: '/home/x/notes.txt' })
     ])
 

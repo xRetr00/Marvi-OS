@@ -127,7 +127,12 @@ export function AuxiliarySettings(): React.JSX.Element {
 
   const resetAll = async (): Promise<void> => {
     await window.marvi?.setProviderSettings(
-      Object.fromEntries(stale.flatMap((role) => [[role.setting, ''], [role.effortSetting, '']]))
+      Object.fromEntries(
+        stale.flatMap((role) => [
+          [role.setting, ''],
+          [role.effortSetting, '']
+        ])
+      )
     )
     setReload((count) => count + 1)
   }

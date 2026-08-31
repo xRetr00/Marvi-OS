@@ -104,11 +104,7 @@ export function GraphNodePanel({
           </label>
           <label className="graph-node-field">
             <span>What it says</span>
-            <textarea
-              rows={5}
-              value={body}
-              onChange={(event) => setBody(event.target.value)}
-            />
+            <textarea rows={5} value={body} onChange={(event) => setBody(event.target.value)} />
           </label>
           <div className="provider-actions">
             <button
@@ -151,15 +147,17 @@ export function GraphNodePanel({
             <input value={name} onChange={(event) => setName(event.target.value)} />
           </label>
           <p className="notice">
-            Renaming to a name that already exists merges the two, keeping every relationship
-            both had. That is usually what you want: the same person arriving twice under two
-            spellings is the common way this graph goes wrong.
+            Renaming to a name that already exists merges the two, keeping every relationship both
+            had. That is usually what you want: the same person arriving twice under two spellings
+            is the common way this graph goes wrong.
           </p>
           <div className="provider-actions">
             <button
               className="phase active"
               disabled={!!busy || name === node.label}
-              onClick={() => void run('save', () => window.marvi!.editEntity(node.label, name, false))}
+              onClick={() =>
+                void run('save', () => window.marvi!.editEntity(node.label, name, false))
+              }
               type="button"
             >
               {busy === 'save' ? 'Saving' : 'Rename'}
@@ -170,9 +168,9 @@ export function GraphNodePanel({
                   className="phase danger"
                   disabled={!!busy}
                   onClick={() =>
-                    void run('delete', () =>
-                      window.marvi!.editEntity(node.label, '', true)
-                    ).then(onClose)
+                    void run('delete', () => window.marvi!.editEntity(node.label, '', true)).then(
+                      onClose
+                    )
                   }
                   type="button"
                 >

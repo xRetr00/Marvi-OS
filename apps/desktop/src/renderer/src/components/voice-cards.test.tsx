@@ -41,7 +41,13 @@ describe('the activity card', () => {
       <ActivityView
         activity={activity({
           calls: [
-            { id: '1', tool: 'web_search', arguments: { query: 'fc 26' }, outcome: 'running', ms: 0 }
+            {
+              id: '1',
+              tool: 'web_search',
+              arguments: { query: 'fc 26' },
+              outcome: 'running',
+              ms: 0
+            }
           ],
           running: 1
         })}
@@ -97,12 +103,18 @@ describe('the calendar card', () => {
     expect(html).toContain('Calendar not connected')
   })
 
-  it('separates an empty calendar from a missing one', () => {
+  it('draws the month even with nothing on it', () => {
+    // An empty list is a card that looks broken. A month with no dots on it
+    // is a month with nothing in it, which is information.
     const html = renderToStaticMarkup(
       <CalendarView calendar={{ connected: true, events: [] }} now={now} />
     )
 
-    expect(html).toContain('Nothing scheduled')
+    expect(html).toContain('September')
+    expect(html).toContain('voice-calendar-strip')
+    // Thirty days, each a button.
+    expect(html.match(/voice-calendar-day/g)).toHaveLength(30)
+    expect(html).toContain('Nothing on')
   })
 
   it('counts down to something starting soon', () => {
@@ -136,7 +148,7 @@ describe('the calendar card', () => {
         calendar={{
           connected: true,
           events: [
-            { id: 'b', title: 'Holiday', start: '2026-09-02', end: '', location: '', all_day: true }
+            { id: 'b', title: 'Holiday', start: '2026-09-01', end: '', location: '', all_day: true }
           ]
         }}
         now={now}

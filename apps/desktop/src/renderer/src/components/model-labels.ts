@@ -1,4 +1,4 @@
-import type { ModelCard } from "../../../shared/runtime"
+import type { ModelCard } from '../../../shared/runtime'
 
 /**
  * How a model is described in a picker.
@@ -10,16 +10,16 @@ import type { ModelCard } from "../../../shared/runtime"
  * is the one you pick for other reasons.
  */
 export function modelContext(tokens: number): string {
-  if (!tokens) return ""
+  if (!tokens) return ''
   return tokens >= 1000 ? `${Math.round(tokens / 1000)}k ctx` : `${tokens} ctx`
 }
 
 export function modelPrice(model: ModelCard): string {
   const prompt = model.promptPerMillion
   const completion = model.completionPerMillion
-  if (prompt === null && completion === null) return ""
-  if (prompt === 0 && completion === 0) return "free"
+  if (prompt === null && completion === null) return ''
+  if (prompt === 0 && completion === 0) return 'free'
   const money = (value: number | null): string =>
-    value === null ? "?" : value < 1 ? `$${value.toFixed(2)}` : `$${value.toFixed(1)}`
+    value === null ? '?' : value < 1 ? `$${value.toFixed(2)}` : `$${value.toFixed(1)}`
   return `${money(prompt)}/${money(completion)} per M`
 }

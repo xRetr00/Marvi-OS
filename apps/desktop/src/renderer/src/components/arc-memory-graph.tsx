@@ -256,10 +256,7 @@ function GraphCanvas({
             .distance(settings.linkDistance)
             .strength(settings.linkForce)
         )
-        .force(
-          'charge',
-          forceManyBody().strength(-settings.repelForce).distanceMax(520).theta(0.9)
-        )
+        .force('charge', forceManyBody().strength(-settings.repelForce).distanceMax(520).theta(0.9))
         .force('center', forceCenter(0, 0).strength(settings.centerForce))
         .force(
           'collide',
@@ -678,7 +675,7 @@ export function ArcMemoryGraph({
         selectedId={selected?.id ?? ''}
       />
       <footer className="arc-graph-inspector">
-        {hovered ?? selected ? (
+        {(hovered ?? selected) ? (
           <>
             <strong>{(hovered ?? selected)?.label}</strong>
             <span>{(hovered ?? selected)?.kind.toUpperCase()}</span>

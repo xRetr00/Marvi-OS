@@ -94,7 +94,12 @@ export function Picker({
         </button>
       </Popover.Trigger>
       <Popover.Portal>
-        <Popover.Content className="picker-panel" sideOffset={4} align="start" collisionPadding={12}>
+        <Popover.Content
+          className="picker-panel"
+          sideOffset={4}
+          align="start"
+          collisionPadding={12}
+        >
           <input
             className="picker-search"
             placeholder={searchPlaceholder}
