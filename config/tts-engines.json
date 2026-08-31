@@ -1,0 +1,94 @@
+{
+  "$comment": "Local TTS choices. Runtime source and model revisions are pinned independently because the model repositories do not contain Marvi's LiveKit adapter.",
+  "schema": 1,
+  "default_engine": "kokoro",
+  "engine_setting": "MARVI_TTS_ENGINE",
+  "voice_setting": "MARVI_TTS_VOICE",
+  "engines": [
+    {
+      "id": "kokoro",
+      "name": "Kokoro 82M",
+      "description": "Fast, low-memory default for everyday voice.",
+      "runtime": "in-process",
+      "install_to": "models/tts/kokoro-82m",
+      "model_id": "hexgrad/Kokoro-82M",
+      "model_revision": "f3ff3571791e39611d31c381e3a41a3af07b4987",
+      "default_voice": "am_michael",
+      "voices": [
+        { "id": "af_heart", "name": "Heart", "language": "English (American)", "gender": "woman" },
+        { "id": "af_bella", "name": "Bella", "language": "English (American)", "gender": "woman" },
+        { "id": "af_nicole", "name": "Nicole", "language": "English (American)", "gender": "woman" },
+        { "id": "af_sarah", "name": "Sarah", "language": "English (American)", "gender": "woman" },
+        { "id": "af_sky", "name": "Sky", "language": "English (American)", "gender": "woman" },
+        { "id": "am_adam", "name": "Adam", "language": "English (American)", "gender": "man" },
+        { "id": "am_michael", "name": "Michael", "language": "English (American)", "gender": "man" },
+        { "id": "bf_emma", "name": "Emma", "language": "English (British)", "gender": "woman" },
+        { "id": "bf_isabella", "name": "Isabella", "language": "English (British)", "gender": "woman" },
+        { "id": "bm_george", "name": "George", "language": "English (British)", "gender": "man" },
+        { "id": "bm_lewis", "name": "Lewis", "language": "English (British)", "gender": "man" }
+      ]
+    },
+    {
+      "id": "cutetts-distill",
+      "name": "CuteTTS Distill 0.23B",
+      "description": "Low-latency streaming voice with a compact GPU footprint.",
+      "runtime": "isolated",
+      "project": "services/tts-cute",
+      "install_to": "models/tts/cutetts-distill",
+      "module": "marvi_tts_cute.host",
+      "source_id": "https://github.com/OPPO-Mente-Lab/CuteTTS.git",
+      "source_revision": "ca9dbd3b82c05f5b067466088449b93ee2aa5a0c",
+      "model_id": "OPPOer/CuteTTS-distill",
+      "model_revision": "6f84092f441295c415019193424033c93c6aee68",
+      "default_voice": "cute-default",
+      "voices": [
+        { "id": "cute-default", "name": "Cute Default", "language": "English", "gender": "neutral" }
+      ]
+    },
+    {
+      "id": "voxtream2",
+      "name": "VoXtream2 0.5B",
+      "description": "Full-stream voice cloning with incremental text input.",
+      "runtime": "isolated",
+      "project": "services/tts-voxtream",
+      "install_to": "models/tts/voxtream2",
+      "module": "marvi_tts_voxtream.host",
+      "source_id": "https://github.com/herimor/voxtream.git",
+      "source_revision": "8ec2d62159dae4716ae7058827244a962d40603c",
+      "model_id": "herimor/voxtream2",
+      "model_revision": "49addec130217e8e9e82a6f49437c315c5c851fc",
+      "default_voice": "english-female",
+      "voices": [
+        { "id": "english-female", "name": "English Female", "language": "English", "gender": "woman" },
+        { "id": "english-male", "name": "English Male", "language": "English", "gender": "man" },
+        { "id": "arabic-female", "name": "Arabic Female", "language": "Arabic", "gender": "woman" },
+        { "id": "chinese-female", "name": "Chinese Female", "language": "Chinese", "gender": "woman" },
+        { "id": "french-female", "name": "French Female", "language": "French", "gender": "woman" },
+        { "id": "german-male", "name": "German Male", "language": "German", "gender": "man" },
+        { "id": "hindi-male", "name": "Hindi Male", "language": "Hindi", "gender": "man" },
+        { "id": "japanese-male", "name": "Japanese Male", "language": "Japanese", "gender": "man" },
+        { "id": "portuguese-male", "name": "Portuguese Male", "language": "Portuguese", "gender": "man" },
+        { "id": "russian-female", "name": "Russian Female", "language": "Russian", "gender": "woman" },
+        { "id": "spanish-male", "name": "Spanish Male", "language": "Spanish", "gender": "man" },
+        { "id": "swedish-female", "name": "Swedish Female", "language": "Swedish", "gender": "woman" }
+      ]
+    },
+    {
+      "id": "ctc-tts-f",
+      "name": "CTC-TTS-F",
+      "description": "THU single-speaker streaming CTC-TTS checkpoint.",
+      "runtime": "isolated",
+      "project": "services/tts-ctc",
+      "install_to": "models/tts/ctc-tts-f",
+      "module": "marvi_tts_ctc.host",
+      "source_id": "https://github.com/THU-SPMI/CTC-TTS.git",
+      "source_revision": "7b308b7762564a53e398482a5ec0685d4d9c7e9f",
+      "model_id": "THU-SPMI/CTC-TTS",
+      "model_revision": "1e568e2a03d9664037344fbccf23163a5b9b0cf7",
+      "default_voice": "ctc-f",
+      "voices": [
+        { "id": "ctc-f", "name": "CTC Female", "language": "English", "gender": "woman" }
+      ]
+    }
+  ]
+}

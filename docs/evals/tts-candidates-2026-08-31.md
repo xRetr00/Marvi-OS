@@ -7,20 +7,21 @@ STT/TTS residency, interruption, and the 60-minute soak are still required.
 
 ## Decision
 
-**Keep Kokoro as the shipping voice.** CuteTTS-distill is the only candidate
-worth advancing to a listening and adapter spike. VoXtream2 is the second
-choice because it accepts incremental text as well as emitting incremental
-audio, but its Windows runtime is rougher and slower. The other four are
+**Keep Kokoro as the default shipping voice.** At the project owner's direction,
+CuteTTS-distill, VoXtream2, and CTC-TTS-F are now selectable experimental local
+engines behind isolated runtimes. Selection is not hardware acceptance:
+CuteTTS and VoXtream retain the Windows caveats measured below, while CTC has
+only process/protocol and residency smoke evidence. The other three remain
 rejected or parked before integration.
 
 | Candidate | Native Windows | Streaming evidence | RTX 3060 result | Decision |
 | --- | --- | --- | --- | --- |
-| CuteTTS-distill ~0.23B | runs only after selecting the upstream eager sampler | 160 ms PCM chunks while autoregressive generation continues | 85 ms warm first audio; 0.31 RTF; 1.53 GiB peak allocated | **advance, not adopt** |
-| VoXtream2 ~0.5B | runs only with TorchDynamo eager fallback; shutdown error remains | full-stream incremental text plus 80 ms PCM chunks | 394 ms warm first audio; 0.47 full-text / 0.65 incremental-text RTF; 1.70 GiB peak | **park behind CuteTTS** |
+| CuteTTS-distill ~0.23B | runs only after selecting the upstream eager sampler | 160 ms PCM chunks while autoregressive generation continues | 85 ms warm first audio; 0.31 RTF; 1.53 GiB peak allocated | **selectable experimental option** |
+| VoXtream2 ~0.5B | runs only with TorchDynamo eager fallback; shutdown error remains | full-stream incremental text plus 80 ms PCM chunks | 394 ms warm first audio; 0.47 full-text / 0.65 incremental-text RTF; 1.70 GiB peak | **selectable experimental option** |
 | VoxCPM2 2B | official PyTorch path runs | 160 ms output chunks, but input is a complete string | 342 ms warm first audio; 2.09 RTF; 5.47 GiB peak; only 1.44 GiB system VRAM remained | **reject** |
 | Breeze-TTS-2.cpp 3B | source config needs a separately installed Vulkan SDK | HTTP/WebSocket path; vocoder decodes two-second chunks | not run; upstream reports about 1.2x realtime at Q8 on RTX 3060 | **reject: non-commercial weights** |
 | Gepard 1.0 ~0.56B | official setup and optimized vLLM serving path are Linux-oriented | streaming-first 22.05 kHz codec LM | not run on Windows | **park: no supported Windows serving path** |
-| CTC-TTS-F 0.03B/0.16B | released environment pins FlashAttention, CUDA 11.8-era Torch, NeMo, and shell orchestration | paper/repository demonstrate dual streaming | not run | **reject pending an explicit weight/code license and Windows package** |
+| CTC-TTS-F 0.03B/0.16B | native isolated Torch 2.6/CUDA 11.8 runtime; training-only Linux dependencies removed | dual persistent decoder workers emitted incremental 24 kHz PCM | native Windows smoke passed; 8,055/12,288 MiB total GPU use with desktop services active | **selectable experimental option; acoustic/soak acceptance pending** |
 
 The warm first-audio figures exclude model loading but include prompt/text
 preparation. RTF is wall-clock synthesis time divided by emitted audio length;
@@ -139,21 +140,29 @@ ms first-packet latency for the single-speaker model and 5.20% WER for the
 multi-speaker continuation task. However, the repository and Hugging Face card
 do not declare a license. The environment also pins Torch 2.6.0+cu118,
 FlashAttention 2.7.3, NeMo 1.21.0, older Transformers/tokenizers, and shell
-entry points. It cannot enter a shipping bakeoff until licensing and a
-maintained native-Windows inference package are explicit.
+entry points. The project owner authorized local personal-use integration
+despite the missing explicit license, so Marvi exposes it as an experimental
+isolated option. The normal acoustic and soak gates remain mandatory before it
+can become the default.
+
+The native synthesis requirement was satisfied on 2026-09-01: the isolated
+host loaded both decoder workers on GPU 0, reported 24 kHz, emitted streamed PCM,
+and completed the test utterance. Total board usage was 8,055 MiB of 12,288 MiB
+with the normal desktop services running. Listening quality, real interruption,
+device recovery, combined conversational behavior, and the 60-minute soak are
+still unverified.
 
 ## What remains before any switch
 
 1. Blind listening against Kokoro using the owner's preferred voice and the
    real Marvi failure corpus: names, Turkish words, numbers, abbreviations,
    questions, short acknowledgements, and long replies.
-2. A thin LiveKit TTS adapter test proving cancellation stops generation and
-   queued playout without creating a second scheduler.
+2. Exercise the implemented LiveKit/process adapter against each real runtime,
+   proving cancellation stops generation and queued playout.
 3. Combined CPU Parakeet plus candidate TTS residency, real speaker loopback,
    echo/self-transcription, barge-in, device switch, sleep/resume, crash
    recovery, and a 60-minute soak.
-4. A pinned, one-command native-Windows installation with no first-run network
-   downloads and complete checksums in `config/voice-models.json`.
-5. Only after those pass: update `docs/UPSTREAM.md`, the runtime contract,
-   Setup, tests, README, phase evidence, and the selected model manifest in one
-   milestone.
+4. Verify the pinned one-command native-Windows installs from an empty cache and
+   record model-file hashes where upstream only provides snapshot revisions.
+5. Only after those pass may any experimental engine replace Kokoro as default;
+   record the decision and Phase 3 hardware evidence in the same milestone.

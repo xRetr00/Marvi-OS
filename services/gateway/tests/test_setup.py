@@ -290,10 +290,36 @@ def test_the_shipped_catalog_loads_and_is_complete() -> None:
     names = {c.name for c in components}
 
     assert {"voice-stt", "voice-tts"} <= names
+    assert {
+        "tts-cute-python",
+        "tts-cute-model",
+        "tts-voxtream-python",
+        "tts-voxtream-model",
+        "tts-ctc-python",
+        "tts-ctc-model",
+    } <= names
     for component in components:
         assert component.title, component.name
         # Someone is being asked to spend disk and time; say what for.
         assert component.why or component.kind == "python", component.name
+
+
+def test_optional_tts_environments_do_not_borrow_the_shared_venv(tmp_path) -> None:
+    from marvi_gateway.setup.installer import state_of
+
+    (tmp_path / ".venv").mkdir()
+    component = catalog.Component(
+        name="isolated-tts",
+        kind="python",
+        title="Isolated TTS",
+        why="keeps incompatible Torch pins apart",
+        project="services/isolated-tts",
+        extra={"isolated": True},
+    )
+
+    assert state_of(component, tmp_path)["installed"] is False
+    (tmp_path / "services" / "isolated-tts" / ".venv").mkdir(parents=True)
+    assert state_of(component, tmp_path)["installed"] is True
 
 
 def test_the_voice_models_carry_real_hashes() -> None:

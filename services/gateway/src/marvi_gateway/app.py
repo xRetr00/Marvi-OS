@@ -4028,14 +4028,20 @@ def create_app(
         """
         from . import voices as voice_catalog
 
-        installed = voice_catalog.installed()
+        engine = voice_catalog.selected_engine()
+        engine_row = next((item for item in voice_catalog.engines() if item.id == engine), None)
+        installed = voice_catalog.installed(engine)
         chosen = voice_catalog.selected()
         return {
+            "engine_setting": voice_catalog.ENGINE_ENV,
+            "selected_engine": engine,
+            "engine_missing": engine_row is None or not engine_row.available(),
             "setting": voice_catalog.VOICE_ENV,
             "selected": chosen,
             # Said rather than silently corrected: a voice chosen and then
             # deleted should read as missing, not as though it was never picked.
             "missing": bool(chosen) and all(v.id != chosen for v in installed),
+            "engines": [item.as_row() for item in voice_catalog.engines()],
             "voices": [voice.as_row() for voice in installed],
         }
 

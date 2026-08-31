@@ -15,6 +15,9 @@ would have passed throughout.
 
 from __future__ import annotations
 
+import asyncio
+import threading
+
 import pytest
 
 from marvi_agent.voice_models import KokoroTTS
@@ -102,7 +105,7 @@ async def test_the_first_clause_is_spoken_before_the_sentence_is_finished(engine
 
 
 async def test_a_short_reply_is_still_spoken(engine) -> None:
-    """"Yes." has no clause boundary to wait for and must not be held back."""
+    """ "Yes." has no clause boundary to wait for and must not be held back."""
     speaker = tts_with(engine)
     stream = speaker.stream()
 
@@ -279,20 +282,18 @@ def test_the_two_services_offer_the_same_voices() -> None:
     """The picker writes what the engine reads. They are in different packages
     and different Python environments, so nothing but a test keeps them level.
     """
-    import re
+    import json
     from pathlib import Path
 
     from marvi_agent.voice_models import KOKORO_VOICES
 
-    gateway = (
-        Path(__file__).resolve().parents[3]
-        / "services"
-        / "gateway"
-        / "src"
-        / "marvi_gateway"
-        / "voices.py"
-    ).read_text(encoding="utf-8")
-    offered = set(re.findall(r'\("([ab][fm]_[a-z]+)"', gateway))
+    catalog = json.loads(
+        (Path(__file__).resolve().parents[3] / "config" / "tts-engines.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    kokoro = next(engine for engine in catalog["engines"] if engine["id"] == "kokoro")
+    offered = {voice["id"] for voice in kokoro["voices"]}
 
     assert offered == set(KOKORO_VOICES), (
         f"only in the Gateway: {offered - set(KOKORO_VOICES)}; "
@@ -313,8 +314,9 @@ def test_the_agent_reads_where_the_installer_writes() -> None:
     from marvi_agent.voice_models import KOKORO_ROOT
 
     root = Path(__file__).resolve().parents[3]
-    catalog = (root / "services" / "gateway" / "src" / "marvi_gateway" / "setup"
-               / "catalog.py").read_text(encoding="utf-8")
+    catalog = (
+        root / "services" / "gateway" / "src" / "marvi_gateway" / "setup" / "catalog.py"
+    ).read_text(encoding="utf-8")
 
     assert 'install_to="models/tts/kokoro-82m"' in catalog
     assert KOKORO_ROOT.as_posix().endswith("models/tts/kokoro-82m")
@@ -374,3 +376,30 @@ async def test_a_reply_that_is_flushed_mid_way_is_still_spoken_whole(engine) -> 
     said = " ".join(engine.spoken)
     assert "First sentence" in said
     assert "Second sentence" in said, f"everything after the flush was dropped: {engine.spoken}"
+
+
+async def test_cancelling_a_sidecar_pump_stops_blocked_generation() -> None:
+    from marvi_agent.voice_models import _pump
+
+    class BlockingEngine:
+        def __init__(self) -> None:
+            self.released = threading.Event()
+            self.cancelled = False
+
+        def synthesize(self, _text, _stop):
+            self.released.wait(5)
+            if False:
+                yield b""
+
+        def cancel(self) -> None:
+            self.cancelled = True
+            self.released.set()
+
+    engine = BlockingEngine()
+    task = asyncio.create_task(_pump(engine, "hello", lambda _chunk: None))
+    await asyncio.sleep(0.02)
+    task.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert engine.cancelled is True

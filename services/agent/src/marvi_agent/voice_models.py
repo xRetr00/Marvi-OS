@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import json
 import logging
 import os
 import re
+import shutil
+import subprocess
 import threading
 import time
 import uuid
@@ -47,6 +51,7 @@ KOKORO_DEFAULT_VOICE = "am_michael"
 #: moment a job takes the warm one, so without this a second copy of the
 #: weights loads onto the card partway through every conversation.
 _KOKORO: dict[tuple[str, str, int], _KokoroEngine] = {}
+_SIDECARS: dict[tuple[str, str, int], _SidecarEngine] = {}
 _ENGINE_LOCK = threading.Lock()
 
 
@@ -265,6 +270,179 @@ class KokoroTTS(tts.TTS):
         return _ClauseStream(tts=self, conn_options=conn_options)
 
 
+def _tts_catalog() -> dict[str, dict[str, Any]]:
+    path = Path(__file__).resolve().parents[4] / "config" / "tts-engines.json"
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    return {str(item["id"]): item for item in raw.get("engines", ())}
+
+
+def resolve_engine(engine: str) -> str:
+    offered = _tts_catalog()
+    if engine in offered:
+        return engine
+    if engine:
+        log.warning("unknown TTS engine %r; using Kokoro", engine)
+    return "kokoro"
+
+
+def default_voice(engine: str) -> str:
+    return str(_tts_catalog()[resolve_engine(engine)]["default_voice"])
+
+
+class _SidecarEngine:
+    """A persistent isolated upstream runtime speaking newline-delimited JSON.
+
+    Each optional engine owns a separate uv environment. That is necessary,
+    not decorative: CuteTTS pins Torch 2.5 while the Agent and CTC use different
+    stacks. Only PCM crosses this boundary, so choosing one cannot uninstall or
+    replace Kokoro's dependencies.
+    """
+
+    sample_rate = 24_000
+
+    def __init__(self, engine: str, voice: str) -> None:
+        self.engine = resolve_engine(engine)
+        spec = _tts_catalog()[self.engine]
+        offered = {str(item["id"]) for item in spec.get("voices", ())}
+        self.voice = voice if voice in offered else str(spec["default_voice"])
+        self._process: subprocess.Popen[str] | None = None
+        self._speaking = threading.Lock()
+
+    @classmethod
+    def shared(cls, engine: str, voice: str) -> _SidecarEngine:
+        key = (resolve_engine(engine), voice, 0)
+        with _ENGINE_LOCK:
+            found = _SIDECARS.get(key)
+            if found is None:
+                found = cls(engine, voice)
+                _SIDECARS[key] = found
+            return found
+
+    def _start(self) -> None:
+        if self._process is not None and self._process.poll() is None:
+            return
+        spec = _tts_catalog()[self.engine]
+        uv = shutil.which("uv")
+        if not uv:
+            raise VoiceRuntimeError("uv is required to start an optional TTS engine")
+        repo = Path(__file__).resolve().parents[4]
+        project = repo / str(spec["project"])
+        command = [uv, "run", "--project", str(project), "python", "-m", str(spec["module"])]
+        flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+        self._process = subprocess.Popen(
+            command,
+            cwd=repo,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=None,
+            text=True,
+            encoding="utf-8",
+            bufsize=1,
+            creationflags=flags,
+        )
+        ready = self._read()
+        if ready.get("event") != "ready":
+            self.close()
+            raise VoiceRuntimeError(str(ready.get("error") or f"{self.engine} did not start"))
+        self.sample_rate = int(ready.get("sample_rate") or 24_000)
+        if self.sample_rate != 24_000:
+            self.close()
+            raise VoiceRuntimeError(
+                f"{self.engine} outputs {self.sample_rate} Hz; Marvi requires 24000 Hz PCM"
+            )
+
+    def _read(self) -> dict[str, Any]:
+        if self._process is None or self._process.stdout is None:
+            raise VoiceRuntimeError(f"{self.engine} is not running")
+        line = self._process.stdout.readline()
+        if not line:
+            code = self._process.poll()
+            raise VoiceRuntimeError(f"{self.engine} stopped unexpectedly ({code})")
+        return json.loads(line)
+
+    def load(self) -> None:
+        self._start()
+
+    def synthesize(self, text: str, stop: threading.Event) -> Iterator[bytes]:
+        with self._speaking:
+            self._start()
+            process = self._process
+            if process is None or process.stdin is None:
+                raise VoiceRuntimeError(f"{self.engine} is not running")
+            process.stdin.write(json.dumps({"text": text, "voice": self.voice}) + "\n")
+            process.stdin.flush()
+            while True:
+                if stop.is_set():
+                    self.close()
+                    break
+                message = self._read()
+                event = message.get("event")
+                if event == "chunk":
+                    yield base64.b64decode(str(message["pcm"]))
+                elif event == "done":
+                    break
+                elif event == "error":
+                    raise VoiceRuntimeError(str(message.get("error") or "TTS sidecar failed"))
+
+    def close(self) -> None:
+        process, self._process = self._process, None
+        if process is not None and process.poll() is None:
+            if os.name == "nt":
+                # `uv run` and CTC's decoder both spawn children. Terminating
+                # only the wrapper can strand a CUDA model after interruption,
+                # consuming VRAM until Marvi exits. Kill this exact process
+                # tree; the next request deliberately starts a clean host.
+                subprocess.run(
+                    ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                    check=False,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
+                )
+            else:
+                process.terminate()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+
+    def cancel(self) -> None:
+        """Interrupt upstream generation; the next request starts a clean host."""
+        self.close()
+
+
+class SidecarTTS(KokoroTTS):
+    def __init__(self, *, engine: str, voice: str) -> None:
+        tts.TTS.__init__(
+            self,
+            capabilities=tts.TTSCapabilities(streaming=True),
+            sample_rate=24_000,
+            num_channels=1,
+        )
+        self.engine_id = resolve_engine(engine)
+        self._engine = _SidecarEngine.shared(self.engine_id, voice)
+
+    @property
+    def model(self) -> str:
+        return str(_tts_catalog()[self.engine_id]["model_id"])
+
+    @property
+    def provider(self) -> str:
+        return "local"
+
+    @property
+    def voices(self) -> list[str]:
+        return [str(item["id"]) for item in _tts_catalog()[self.engine_id].get("voices", ())]
+
+
+def build_tts(engine: str = "kokoro", voice: str = "") -> KokoroTTS | SidecarTTS:
+    selected = resolve_engine(engine)
+    wanted_voice = voice or default_voice(selected)
+    if selected == "kokoro":
+        return KokoroTTS(voice=wanted_voice)
+    return SidecarTTS(engine=selected, voice=wanted_voice)
+
+
 class _WholeUtteranceStream(tts.ChunkedStream):
     async def _run(self, output_emitter: tts.AudioEmitter) -> None:
         # `stream=False`: this path synthesises one whole utterance. A
@@ -302,6 +480,9 @@ class _WholeUtteranceStream(tts.ChunkedStream):
                 output_emitter.push(item)
         finally:
             stop.set()
+            cancel = getattr(engine, "cancel", None)
+            if callable(cancel) and worker.is_alive():
+                cancel()
             await asyncio.to_thread(worker.join)
 
 
@@ -599,4 +780,7 @@ async def _pump(engine: Any, text: str, release: Any) -> None:
             release(item)
     finally:
         stop.set()
+        cancel = getattr(engine, "cancel", None)
+        if callable(cancel) and worker.is_alive():
+            cancel()
         await asyncio.to_thread(worker.join)

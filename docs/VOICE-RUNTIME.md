@@ -1,50 +1,68 @@
 # Native Windows Voice Runtime
 
-## Selected bakeoff stack
+## Shipping stack and selectable TTS engines
 
 Marvi OS uses the official LiveKit Agents session pipeline with local model
 adapters:
 
-- **STT:** NVIDIA Nemotron 3.5 ASR Streaming 0.6B, exported to ONNX by the
-  pinned `altunenes/parakeet-rs` repository and executed through the upstream
-  `parakeet-rs` crate. It is stateful, cache-aware, 16 kHz, and runs with an
-  explicit language hint; the default is `en-US`, set with
-  `MARVI_STT_LANGUAGE`.
-- **TTS:** Microsoft VibeVoice Realtime 0.5B with 24 kHz streamed audio chunks
-  and three diffusion steps, selected by the native hardware bakeoff.
-  The LiveKit `StreamAdapter` sends completed sentences while generation and
-  playout are incremental. Default voice: `en-Carter_man`.
-- **Turn handling:** Silero VAD, local LiveKit multilingual turn detector,
-  interruption enabled, and WebRTC capture/playout for AEC.
+- **STT:** Parakeet TDT 0.6B v3 through ONNX Runtime on CPU. The optional v2
+  checkpoint locks recognition to English.
+- **Default TTS:** Kokoro 82M, 24 kHz mono PCM, with clause-level incremental
+  synthesis. Kokoro remains the safe default because it has the largest measured
+  throughput and memory margin on the target RTX 3060.
+- **Optional TTS:** CuteTTS Distill, VoXtream2, and CTC-TTS-F. Each runs in its
+  own `uv` project and long-lived child process. Only newline-framed requests
+  and PCM chunks cross into the LiveKit Agent, preventing incompatible Torch,
+  Transformers, Moshi, and codec pins from modifying the Agent environment.
+- **Turn handling:** Silero VAD, LiveKit interruption/playout, and WebRTC
+  capture/playout for AEC.
 
-Kyutai TTS remains documented as an upstream reference, but the current 1.8B
-runtime's practical VRAM and Windows support do not fit the RTX 3060 12 GB
-combined STT/TTS budget. Whisper and batch-only STT are rejected.
+`config/tts-engines.json` is the shared engine/voice catalog. Settings persist
+`MARVI_TTS_ENGINE` and `MARVI_TTS_VOICE`; the Gateway validates the voice
+against the selected engine and the Agent repeats that validation before load.
+Changing either choice takes effect for the next voice session.
 
 ## Installation and checks
 
-Run `marvi setup voice`. It downloads immutable Hugging Face
-revisions into `%LOCALAPPDATA%\Marvi-OS\models`, copies the official VibeVoice
-voice presets, and verifies every core payload against `config/voice-models.json`.
-Use `marvi models verify voice-stt` (or `voice-tts`) for a later integrity
-check; `marvi doctor` runs the same check across everything.
-
-Build the native STT bridge with:
+Run the normal Setup flow for Kokoro and Parakeet. The optional engines appear
+as separate runtime/model components so a user installs only the large stack
+they intend to use:
 
 ```powershell
-cargo build --release --manifest-path services/voice-runtime/Cargo.toml
-uv sync --project services/agent --dev
+uv sync --project services/tts-cute
+uv run --project services/tts-cute python -m marvi_tts_cute.setup
+
+uv sync --project services/tts-voxtream
+uv run --project services/tts-voxtream python -m marvi_tts_voxtream.setup
+
+uv sync --project services/tts-ctc
+uv run --project services/tts-ctc python -m marvi_tts_ctc.setup
 ```
+
+Setup pins the upstream source and model revisions. VoXtream Setup also loads
+its upstream runtime once so Mimi and ReDimNet are cached before an offline
+voice session. CTC Setup installs the single-speaker F checkpoint and its
+pinned WavTokenizer codec checkpoint.
 
 Start the local room server with `scripts/start-local-livekit.ps1`, then run the
 worker from `services/agent` with `uv run python -m marvi_agent.session dev`.
-The official LiveKit agent console can exercise the real microphone/speaker
-path without the Electron renderer while the desktop room client is developed.
 
-## Available VibeVoice presets
+## Voice catalogs
 
-The check script prints the authoritative installed list. The pinned upstream
-currently includes Carter, Davis, Emma, Frank, Grace, Mike, Samuel, and paired
-German, French, Italian, Japanese, Korean, Dutch, Polish, Portuguese, and
-Spanish presets. It does not contain a Turkish voice; Turkish input is supported
-by STT, while TTS voice/language quality needs explicit acceptance testing.
+- Kokoro: eleven American/British English speakers.
+- CuteTTS Distill: the upstream default distilled voice. Reference-voice
+  enrollment is not exposed until Marvi has an owned prompt-management flow.
+- VoXtream2: twelve upstream reference clips across English, Arabic, Chinese,
+  French, German, Hindi, Japanese, Portuguese, Russian, Spanish, and Swedish.
+- CTC-TTS-F: the released single-speaker female voice.
+
+An engine being selectable is not a promotion to the shipping default. The
+hardware acceptance gates in `docs/VOICE-MODEL-EVALUATION.md` still apply to
+each option: listening, combined STT/TTS residency with 2 GB system headroom,
+interruption, device switching, crash recovery, and the 60-minute soak.
+
+On 2026-09-01 all three optional engines passed a native Windows integration
+smoke on the target RTX 3060: load, 24 kHz ready event, multiple streamed PCM
+chunks, and utterance completion. CTC-TTS-F showed 8,055 MiB total GPU use out
+of 12,288 MiB while Marvi's normal desktop services remained active. This is
+process/protocol and residency evidence, not acoustic or soak acceptance.

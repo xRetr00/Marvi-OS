@@ -2365,10 +2365,24 @@ function startApp(): void {
         if (!response.ok) return null
         const body = (await response.json()) as Record<string, never>
         const rows = Array.isArray(body.voices) ? (body.voices as Array<Record<string, never>>) : []
+        const engines = Array.isArray(body.engines)
+          ? (body.engines as Array<Record<string, never>>)
+          : []
         return {
+          engineSetting: String(body.engine_setting ?? ''),
+          selectedEngine: String(body.selected_engine ?? ''),
+          engineMissing: Boolean(body.engine_missing),
           setting: String(body.setting ?? ''),
           selected: String(body.selected ?? ''),
           missing: Boolean(body.missing),
+          engines: engines.map((row) => ({
+            id: String(row.id ?? ''),
+            name: String(row.name ?? ''),
+            description: String(row.description ?? ''),
+            runtime: String(row.runtime ?? ''),
+            defaultVoice: String(row.default_voice ?? ''),
+            available: Boolean(row.available)
+          })),
           voices: rows.map((row) => ({
             id: String(row.id ?? ''),
             name: String(row.name ?? ''),

@@ -3728,6 +3728,11 @@ function WakeSettings(): React.JSX.Element {
 function VoicePicker(): React.JSX.Element {
   const [page, setPage] = useState<VoicePage | null>(null)
 
+  const reload = async (): Promise<void> => {
+    const next = await window.marvi?.getVoices()
+    setPage(next ?? null)
+  }
+
   useEffect(() => {
     let gone = false
     void (async () => {
@@ -3748,6 +3753,45 @@ function VoicePicker(): React.JSX.Element {
 
   return (
     <div className="voice-choice">
+      <Picker
+        options={(page?.engines ?? []).map((engine) => ({
+          value: engine.id,
+          label: engine.name,
+          detail: engine.available
+            ? engine.description
+            : `${engine.description} Install in Setup first.`,
+          hint: engine.runtime === 'in-process' ? 'DEFAULT' : 'ISOLATED LOCAL ENGINE',
+          disabled: !engine.available
+        }))}
+        value={page?.selectedEngine ?? ''}
+        onChange={(next) => {
+          if (!page?.engineSetting) return
+          const engine = page.engines.find((item) => item.id === next)
+          setPage({
+            ...page,
+            selectedEngine: next,
+            selected: engine?.defaultVoice ?? '',
+            voices: [],
+            missing: false,
+            engineMissing: false
+          })
+          void window.marvi
+            ?.setProviderSettings({
+              [page.engineSetting]: next,
+              [page.setting]: engine?.defaultVoice ?? ''
+            })
+            .then(() => reload())
+        }}
+        placeholder="Kokoro 82M"
+        searchPlaceholder="Search TTS engines…"
+        empty="No TTS engines available."
+      />
+      {page?.engineMissing ? (
+        <span className="construction">
+          THE SELECTED TTS ENGINE IS NOT INSTALLED. MARVI FALLS BACK TO KOKORO — INSTALL IT IN SETUP
+          OR PICK AN AVAILABLE ENGINE.
+        </span>
+      ) : null}
       <Picker
         options={(page?.voices ?? []).map((voice) => ({
           value: voice.id,

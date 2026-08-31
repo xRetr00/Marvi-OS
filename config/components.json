@@ -82,6 +82,78 @@
       "essential": true
     },
     {
+      "name": "tts-cute-python",
+      "kind": "python",
+      "title": "CuteTTS runtime",
+      "why": "Runs CuteTTS in an isolated environment so its Torch pin cannot replace the voice Agent's.",
+      "needed_for": [],
+      "source": { "type": "command" },
+      "project": "services/tts-cute",
+      "extra": { "gpu_sensitive": true, "isolated": true }
+    },
+    {
+      "name": "tts-cute-model",
+      "kind": "command",
+      "title": "CuteTTS Distill model",
+      "why": "Optional local streaming TTS voice.",
+      "needed_for": [],
+      "source": { "type": "command" },
+      "project": "services/tts-cute",
+      "install_to": "models/tts/cutetts-distill",
+      "extra": {
+        "run": ["python", "-m", "marvi_tts_cute.setup"],
+        "check": ["python", "-m", "marvi_tts_cute.setup", "--check"]
+      }
+    },
+    {
+      "name": "tts-voxtream-python",
+      "kind": "python",
+      "title": "VoXtream2 runtime",
+      "why": "Runs VoXtream2 and its Moshi stack outside the voice Agent.",
+      "needed_for": [],
+      "source": { "type": "command" },
+      "project": "services/tts-voxtream",
+      "extra": { "gpu_sensitive": true, "isolated": true }
+    },
+    {
+      "name": "tts-voxtream-model",
+      "kind": "command",
+      "title": "VoXtream2 model and voices",
+      "why": "Optional full-stream local TTS with bundled reference voices.",
+      "needed_for": [],
+      "source": { "type": "command" },
+      "project": "services/tts-voxtream",
+      "install_to": "models/tts/voxtream2",
+      "extra": {
+        "run": ["python", "-m", "marvi_tts_voxtream.setup"],
+        "check": ["python", "-m", "marvi_tts_voxtream.setup", "--check"]
+      }
+    },
+    {
+      "name": "tts-ctc-python",
+      "kind": "python",
+      "title": "CTC-TTS-F runtime",
+      "why": "Runs the upstream CTC stack outside the voice Agent.",
+      "needed_for": [],
+      "source": { "type": "command" },
+      "project": "services/tts-ctc",
+      "extra": { "gpu_sensitive": true, "isolated": true }
+    },
+    {
+      "name": "tts-ctc-model",
+      "kind": "command",
+      "title": "CTC-TTS-F model",
+      "why": "Optional THU single-speaker streaming TTS checkpoint.",
+      "needed_for": [],
+      "source": { "type": "command" },
+      "project": "services/tts-ctc",
+      "install_to": "models/tts/ctc-tts-f",
+      "extra": {
+        "run": ["python", "-m", "marvi_tts_ctc.setup"],
+        "check": ["python", "-m", "marvi_tts_ctc.setup", "--check"]
+      }
+    },
+    {
       "name": "pocket-tts",
       "kind": "command",
       "title": "PocketTTS announcer",

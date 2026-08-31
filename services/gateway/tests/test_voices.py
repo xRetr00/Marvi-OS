@@ -71,6 +71,32 @@ def test_a_current_choice_is_not_reported_missing(monkeypatch) -> None:
     assert voices.selected() in {v.id for v in voices.installed()}
 
 
+def test_kokoro_remains_the_default_engine(monkeypatch) -> None:
+    monkeypatch.delenv(voices.ENGINE_ENV, raising=False)
+
+    assert voices.selected_engine() == "kokoro"
+
+
+def test_each_engine_resolves_only_its_own_voices(monkeypatch) -> None:
+    monkeypatch.setenv(voices.ENGINE_ENV, "voxtream2")
+    monkeypatch.setenv(voices.VOICE_ENV, "am_michael")
+
+    offered = {voice.id for voice in voices.installed()}
+
+    assert "english-female" in offered
+    assert "am_michael" not in offered
+    assert voices.resolved_voice() == "english-female"
+
+
+def test_all_requested_engines_are_in_the_catalog() -> None:
+    assert {engine.id for engine in voices.engines()} >= {
+        "kokoro",
+        "cutetts-distill",
+        "voxtream2",
+        "ctc-tts-f",
+    }
+
+
 def test_the_shipped_model_is_found() -> None:
     """Armed means both switched on and the model actually present.
 
@@ -124,11 +150,7 @@ def test_the_gateway_and_the_wake_listener_agree_on_the_threshold() -> None:
     from marvi_gateway import wake
 
     source = (
-        pathlib.Path(__file__).resolve().parents[3]
-        / "apps"
-        / "wake-host"
-        / "src"
-        / "main.rs"
+        pathlib.Path(__file__).resolve().parents[3] / "apps" / "wake-host" / "src" / "main.rs"
     ).read_text(encoding="utf-8")
 
     threshold = re.search(r"DEFAULT_THRESHOLD: f32 = ([\d.]+)", source)

@@ -56,10 +56,11 @@ Kokoro-82M, English only. Measured live: `tts ttfb` 346 ms median, 612 ms p90,
 generation at 8–13× real time.
 
 Six newer streaming candidates were screened and three were run on the target
-RTX 3060 on 31 August 2026. None replaces Kokoro yet. CuteTTS-distill is the
-only candidate advancing to listening and adapter work; VoXtream2 is parked
-behind it, VoxCPM2 fails realtime/VRAM gates, and Breeze-TTS-2.cpp, Gepard, and
-CTC-TTS-F fail licensing or supported native-Windows packaging gates. The
+RTX 3060 on 31 August 2026. None replaces Kokoro yet. CuteTTS-distill,
+VoXtream2, and CTC-TTS-F are selectable experimental isolated runtimes at the
+owner's direction; CTC still lacks a completed native-Windows synthesis run.
+VoxCPM2 fails realtime/VRAM gates, while Breeze-TTS-2.cpp and Gepard remain
+outside the supported native-Windows path. The
 revisions, raw timings, intelligibility smoke test, and exact failures are in
 [the candidate report](tts-candidates-2026-08-31.md).
 

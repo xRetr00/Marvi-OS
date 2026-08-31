@@ -1,61 +1,24 @@
-"""Which voices Marvi can speak in.
-
-The TTS installer downloads twenty-five of them and nothing in the app listed
-any: the voice was an environment variable holding a filename, so choosing one
-meant knowing the naming convention and typing it exactly.
-
-The names carry more than they look like. `en-Carter_man.pt` is a language, a
-name and a gender, in a convention the model ships with — so the picker can
-show "Carter · English · man" instead of a filename, and can be filtered by
-any of those.
-
-Speaker embeddings, not audio: there is no sample to play, so these rows carry
-no preview. Producing one would mean running the TTS engine, which lives in the
-Agent's process and its own Python environment.
-"""
+"""The local TTS engines and voices offered by the control center."""
 
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import asdict, dataclass
+from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
-from .logs import get_logger
-
-log = get_logger("voice")
-
-#: Where the TTS installer puts them. One place, derived from the same app data
-#: root everything else uses.
-
-#: The variable the Agent reads when it builds the TTS adapter.
+ENGINE_ENV = "MARVI_TTS_ENGINE"
 VOICE_ENV = "MARVI_TTS_VOICE"
 
-#: The prefixes the shipped voices use. Only for display -- an unknown prefix
-#: shows as itself rather than being dropped, because a voice that exists must
-#: be selectable whether or not this table knows its language.
-LANGUAGES = {
-    "en": "English",
-    "de": "German",
-    "fr": "French",
-    "it": "Italian",
-    "jp": "Japanese",
-    "kr": "Korean",
-    "nl": "Dutch",
-    "pl": "Polish",
-    "pt": "Portuguese",
-    "es": "Spanish",
-    "in": "Indian English",
-    "zh": "Chinese",
-    "ru": "Russian",
-    "tr": "Turkish",
-}
+
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parents[4]
 
 
 @dataclass(frozen=True)
 class Voice:
-    """One installed voice, as the picker needs it."""
-
-    #: What goes in the environment variable: the filename without .pt.
     id: str
     name: str
     language: str
@@ -65,66 +28,100 @@ class Voice:
         return asdict(self)
 
 
-def _parse(stem: str) -> Voice:
-    """`en-Carter_man` -> Carter, English, man.
+@dataclass(frozen=True)
+class Engine:
+    id: str
+    name: str
+    description: str
+    runtime: str
+    default_voice: str
+    install_to: str
+    project: str
+    voices: tuple[Voice, ...]
 
-    Tolerant on purpose. A voice whose name does not fit the convention is
-    still installed and still speakable, so it comes back named after its own
-    file rather than being hidden.
-    """
-    language, _, rest = stem.partition("-")
-    if not rest:
-        return Voice(id=stem, name=stem, language="", gender="")
-    name, _, gender = rest.partition("_")
-    return Voice(
-        id=stem,
-        name=name or stem,
-        language=LANGUAGES.get(language.lower(), language),
-        gender=gender,
+    def as_row(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "runtime": self.runtime,
+            "default_voice": self.default_voice,
+            "available": self.available(),
+        }
+
+    def available(self) -> bool:
+        from .setup.catalog import install_root
+
+        target = install_root() / self.install_to
+        if self.id == "kokoro":
+            return (target / "kokoro-v1_0.pth").is_file()
+        runtime = _repo_root() / self.project / ".venv"
+        return runtime.is_dir() and (target / ".marvi-revision").is_file()
+
+
+@lru_cache(maxsize=1)
+def catalog() -> tuple[str, tuple[Engine, ...]]:
+    raw = json.loads((_repo_root() / "config" / "tts-engines.json").read_text("utf-8"))
+    engines = tuple(
+        Engine(
+            id=str(item["id"]),
+            name=str(item["name"]),
+            description=str(item.get("description", "")),
+            runtime=str(item.get("runtime", "isolated")),
+            default_voice=str(item["default_voice"]),
+            install_to=str(item.get("install_to", "")),
+            project=str(item.get("project", "")),
+            voices=tuple(
+                Voice(
+                    id=str(voice["id"]),
+                    name=str(voice["name"]),
+                    language=str(voice.get("language", "")),
+                    gender=str(voice.get("gender", "")),
+                )
+                for voice in item.get("voices", ())
+            ),
+        )
+        for item in raw.get("engines", ())
     )
+    return str(raw.get("default_engine", "kokoro")), engines
 
 
-#: Kokoro's voices, which ship inside the checkpoint rather than as separate
-#: files.
-#:
-#: The engine changed and the shape of a "voice" changed with it. VibeVoice took
-#: a speaker prompt off disk, so the picker listed a directory; Kokoro bakes a
-#: fixed set into an 82M checkpoint, so the picker lists these. The prefix is
-#: the model's own convention: `a` American, `b` British, then `f` or `m`.
-KOKORO_VOICES = (
-    ("am_michael", "Michael", "English (American)", "man"),
-    ("am_adam", "Adam", "English (American)", "man"),
-    ("af_heart", "Heart", "English (American)", "woman"),
-    ("af_bella", "Bella", "English (American)", "woman"),
-    ("af_nicole", "Nicole", "English (American)", "woman"),
-    ("af_sarah", "Sarah", "English (American)", "woman"),
-    ("af_sky", "Sky", "English (American)", "woman"),
-    ("bm_george", "George", "English (British)", "man"),
-    ("bm_lewis", "Lewis", "English (British)", "man"),
-    ("bf_emma", "Emma", "English (British)", "woman"),
-    ("bf_isabella", "Isabella", "English (British)", "woman"),
-)
+def engines() -> list[Engine]:
+    return list(catalog()[1])
 
 
-def installed() -> list[Voice]:
-    """Every voice Marvi can speak in.
+def selected_engine() -> str:
+    default, offered = catalog()
+    chosen = os.environ.get(ENGINE_ENV, "").strip()
+    return chosen if any(engine.id == chosen for engine in offered) else default
 
-    No longer a directory listing. The speech engine is Kokoro, whose voices
-    are part of the checkpoint rather than files somebody downloads -- so this
-    is a fixed list, and it is never empty, which removes the "install the
-    voice model before you can choose one" state entirely.
-    """
-    return [
-        Voice(id=voice, name=name, language=language, gender=gender)
-        for voice, name, language, gender in KOKORO_VOICES
-    ]
+
+def installed(engine: str | None = None) -> list[Voice]:
+    wanted = engine or selected_engine()
+    found = next((item for item in catalog()[1] if item.id == wanted), None)
+    return list(found.voices) if found else []
 
 
 def selected() -> str:
-    """The configured voice, whether or not it is installed.
-
-    Reported as configured rather than silently corrected: a voice that was
-    chosen and then deleted should show as missing, not as though the choice
-    never happened.
-    """
     return os.environ.get(VOICE_ENV, "").strip()
+
+
+def resolved_voice(engine: str | None = None, voice: str | None = None) -> str:
+    wanted_engine = engine or selected_engine()
+    found = next((item for item in catalog()[1] if item.id == wanted_engine), None)
+    if found is None:
+        return ""
+    wanted_voice = selected() if voice is None else voice
+    if any(item.id == wanted_voice for item in found.voices):
+        return wanted_voice
+    return found.default_voice
+
+
+# Compatibility for the language policy and older tests. The source of truth is
+# now the shared JSON catalog, not a second tuple that can drift from the UI.
+KOKORO_VOICES = tuple(
+    (voice.id, voice.name, voice.language, voice.gender)
+    for engine in catalog()[1]
+    if engine.id == "kokoro"
+    for voice in engine.voices
+)

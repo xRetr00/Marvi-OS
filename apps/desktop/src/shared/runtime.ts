@@ -530,13 +530,26 @@ export interface InstalledVoice {
   gender: string
 }
 
+export interface TTSEngine {
+  id: string
+  name: string
+  description: string
+  runtime: string
+  defaultVoice: string
+  available: boolean
+}
+
 export interface VoicePage {
+  engineSetting: string
+  selectedEngine: string
+  engineMissing: boolean
   /** The environment variable a choice is written to. */
   setting: string
   selected: string
   /** True when a voice was chosen and its file is no longer there — said
    * rather than silently corrected. */
   missing: boolean
+  engines: TTSEngine[]
   voices: InstalledVoice[]
 }
 

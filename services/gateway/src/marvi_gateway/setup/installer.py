@@ -447,7 +447,7 @@ def state_of(component: Component, repo_root: Path, deep: bool = True) -> dict[s
     if component.kind == "python":
         marker = repo_root / (component.project or "") / ".venv"
         shared = repo_root / ".venv"
-        if marker.is_dir() or shared.is_dir():
+        if marker.is_dir() or (shared.is_dir() and not component.extra.get("isolated")):
             return {"installed": True, "detail": "environment present", "problems": []}
         return {"installed": False, "detail": "not synced", "problems": []}
     if component.kind == "command":

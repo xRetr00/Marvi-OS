@@ -20,10 +20,12 @@
 
 ## Implemented
 
-- Pinned Nemotron 3.5 ONNX and VibeVoice Realtime payload manifests, downloads,
-  checksums, voice presets, and setup diagnostics.
-- Native Rust `parakeet-rs` sidecar plus a stateful LiveKit streaming STT adapter.
-- Incremental VibeVoice PCM generation plus LiveKit sentence stream adapter.
+- Pinned Parakeet TDT ONNX and Kokoro payload manifests, downloads, checksums,
+  voices, and setup diagnostics.
+- Chunked Parakeet ONNX Runtime STT adapter on CPU.
+- Kokoro clause-streaming LiveKit adapter as the default, plus isolated
+  selectable CuteTTS Distill, VoXtream2, and CTC-TTS-F PCM sidecars. These
+  options remain experimental until their individual hardware gates pass.
 - Official `AgentSession` with local VAD/turn detection, barge-in tuning, OpenCode
   Go streaming LLM, and a transcript-level `Marvi` wake gate.
 - Local LiveKit Server start script and worker entrypoint.
@@ -35,12 +37,12 @@
 ## Hardware bakeoff evidence
 
 [`../evidence/phase-3-hardware-bakeoff.json`](../evidence/phase-3-hardware-bakeoff.json)
-records an RTX 3060 run. With three diffusion steps, VibeVoice produced its
+records the earlier RTX 3060 baseline. With three diffusion steps, VibeVoice produced its
 first PCM chunk in 0.735 s at 0.994 RTF and 2.683 GiB peak allocated VRAM.
 Nemotron transcribed the synthesized 5.333 s sample in 3.024 s (0.567 RTF),
 correctly recovering “Marvi”; post-bakeoff GPU use was 4.245 GiB.
 
-Kokoro ONNX was also measured as a fallback: 54 voices and 0.406 RTF, but it
-did not yield its first chunk until the full utterance was synthesized (2.493
-s for the benchmark sentence), so it does not replace VibeVoice's acoustic
-streaming path.
+The current candidate measurements and exact source/model pins are recorded in
+[`../evals/tts-candidates-2026-08-31.md`](../evals/tts-candidates-2026-08-31.md).
+That evidence keeps Kokoro as default; adding an option to Settings is not a
+substitute for the combined loopback and soak gate.

@@ -1351,3 +1351,26 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
 - Verified all 1,313 Gateway tests, targeted Gateway Ruff, the shared desktop
   model-picker tests, all 348 desktop tests, both desktop TypeScript targets,
   and `git diff --check`.
+
+## 2026-09-01 — selectable isolated local TTS engines
+
+- Kept Kokoro 82M as the default and added CuteTTS Distill, VoXtream2, and
+  CTC-TTS-F to one shared engine/voice catalog used by Gateway, Agent, and UI.
+- Added engine selection above the per-engine voice picker. The Gateway persists
+  `MARVI_TTS_ENGINE` and `MARVI_TTS_VOICE`, rejects cross-engine stale voices,
+  and the next LiveKit voice session loads the selected pair.
+- Isolated each optional upstream in its own locked `uv` project. A persistent
+  newline/PCM sidecar lets the LiveKit TTS adapter retain streaming playout and
+  cancellation without mixing mutually incompatible Torch stacks into the
+  Agent process.
+- Added pinned Setup components for each runtime/model. VoXtream includes its
+  twelve upstream reference clips; Cute and single-speaker CTC expose their
+  fixed released voices.
+- Recorded source/model pins, license terms, modification boundaries, update
+  paths, and the distinction between selectable experimental options and a
+  hardware-accepted default.
+- Installed all three isolated stacks on the target RTX 3060 and exercised the
+  real sidecar protocol. Every engine loaded, reported 24 kHz, emitted multiple
+  PCM chunks, and completed an utterance. CTC-TTS-F used 8,055 MiB total GPU
+  memory with the normal desktop services still running, leaving 4,233 MiB;
+  acoustic acceptance, interruption hardware evidence, and soak remain open.

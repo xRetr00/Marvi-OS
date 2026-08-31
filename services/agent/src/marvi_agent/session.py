@@ -31,7 +31,7 @@ from .parakeet_stt import PARAKEET_ROOT, ParakeetSTT
 from .runtime import AgentConfig, build_llm, build_local_turn_detector
 from .timing import TimedLLM
 from .tools import GatewayTools
-from .voice_models import KOKORO_DEFAULT_VOICE, KokoroTTS
+from .voice_models import KOKORO_DEFAULT_VOICE, build_tts, default_voice, resolve_engine
 
 log = logging.getLogger("marvi.voice")
 
@@ -135,6 +135,25 @@ def configured_voice() -> str:
         if chosen and not body.get("missing"):
             return chosen
     return os.environ.get("MARVI_TTS_VOICE", KOKORO_DEFAULT_VOICE)
+
+
+def configured_tts() -> tuple[str, str]:
+    """The selected engine and a voice that belongs to that engine."""
+    import contextlib
+
+    with contextlib.suppress(Exception):
+        import httpx
+
+        body = httpx.get(f"{gateway_url()}/voices", timeout=REPORT_TIMEOUT).json()
+        engine = resolve_engine(str(body.get("selected_engine") or ""))
+        if body.get("engine_missing"):
+            return "kokoro", default_voice("kokoro")
+        voice = str(body.get("selected") or "")
+        if voice and not body.get("missing"):
+            return engine, voice
+        return engine, default_voice(engine)
+    engine = resolve_engine(os.environ.get("MARVI_TTS_ENGINE", "kokoro"))
+    return engine, os.environ.get("MARVI_TTS_VOICE", "") or default_voice(engine)
 
 
 #: Turns that carry nothing to look up.
@@ -1092,16 +1111,19 @@ def prewarm(proc: JobProcess) -> None:
     started = time.monotonic()
     apply_speech_settings()
     _load_vocabulary()
-    voice = configured_voice()
-    engine = KokoroTTS(voice=voice)
+    tts_engine, voice = configured_tts()
+    engine = build_tts(tts_engine, voice)
     try:
         engine.prewarm()
     except Exception as exc:  # pragma: no cover - depends on the models on disk
-        # Not fatal. A job can still load it, slowly; refusing to start the
-        # worker over this would take voice down entirely.
+        # Keep the worker registered for diagnostics, but do not call it ready:
+        # dispatching a room to a selected engine that cannot load produces a
+        # silent session and hides the actionable setup/runtime error.
         log.warning("could not prewarm the speech models: %s", exc)
+        _report_ready(False, f"{tts_engine} could not load: {exc}")
         return
     proc.userdata["tts"] = engine
+    proc.userdata["tts_engine"] = tts_engine
     proc.userdata["tts_voice"] = voice
     # The recogniser too. It builds ONNX sessions, which is seconds rather than
     # milliseconds, and doing it inside the first turn is felt as Marvi not
@@ -1138,14 +1160,16 @@ def build_session(proc: JobProcess | None = None) -> tuple[AgentSession, Callabl
     starting, so the loop stays answerable and the first spoken reply does not
     pay for the load either.
     """
-    voice = configured_voice()
+    tts_engine, voice = configured_tts()
     warmed = (proc.userdata if proc else {}) or {}
     # Reused only when it is the same voice: a voice changed in Settings must
     # not be answered in the previous one.
     local_tts = (
         warmed.get("tts")
-        if warmed.get("tts") is not None and warmed.get("tts_voice") == voice
-        else KokoroTTS(voice=voice)
+        if warmed.get("tts") is not None
+        and warmed.get("tts_engine") == tts_engine
+        and warmed.get("tts_voice") == voice
+        else build_tts(tts_engine, voice)
     )
     # No StreamAdapter. It exists to make a non-streaming TTS usable, by
     # batching tokens into sentences of at least twelve characters before

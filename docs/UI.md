@@ -420,7 +420,10 @@ Settings destinations follow the Models page's one-purpose page structure:
 one quiet page heading, one or more icon-led sections, then flat setting rows.
 Voice expands to three purpose-built child pages: **Speech recognition** (STT),
 **Wake word**, and **Voice synthesis** (TTS), so opening a destination answers
-one question without crowding the top-level rail. Appearance follows the same
+one question without crowding the top-level rail. Voice synthesis presents the
+local engine first and only that engine's voices second; changing engines also
+selects its valid default voice, so a stale cross-engine speaker can never be
+saved invisibly. Appearance follows the same
 expandable pattern with five child pages: **Themes**, **Fonts**, **Window**,
 **Dynamic Island**, and **Desktop companion**. Marvi remains the default theme;
 Anthropic Dark, Claude Code Dark, Midnight, Forest, and Graphite provide

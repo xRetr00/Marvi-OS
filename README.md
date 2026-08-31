@@ -19,7 +19,8 @@ Phase 7 has the update handoff working and a packaged installer building, and
 Phase 8's vision ownership and contracts are complete with native camera
 calibration still pending. The
 native-Windows stack runs Parakeet TDT streaming ASR through ONNX Runtime,
-Kokoro 82M, an official LiveKit `AgentSession`, and an Electron
+Kokoro 82M by default, selectable isolated CuteTTS Distill, VoXtream2, and
+CTC-TTS-F runtimes, an official LiveKit `AgentSession`, and an Electron
 LiveKit microphone/playout participant. The remaining Phase 3 gate is a real
 loudspeaker double-talk test plus the 60-minute duplex soak.
 
@@ -73,8 +74,8 @@ Current implemented desktop surfaces:
 - an idle Island that always recesses to its seed, with global YOLO and sensor
   state kept in the control-center status surfaces instead;
 - Gateway-backed confirmation mode plus monitor/alignment placement controls.
-- pinned model downloads, integrity checks, 25 TTS voices, and repeatable RTX
-  3060 latency/VRAM evidence;
+- pinned model downloads, integrity checks, an engine-aware TTS/voice picker,
+  and repeatable RTX 3060 latency/VRAM evidence;
 - local LiveKit room credentials, hidden development lifecycle, WebRTC AEC,
   streamed STT/TTS, local wake gating, and authoritative Island voice states;
 - a structured tool router with exact-argument, single-use confirmation tokens
