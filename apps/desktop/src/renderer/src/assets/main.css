@@ -10277,64 +10277,202 @@ html[data-appearance='claude-code-dark'] .control-row {
   }
 }
 
-/* The two cards beside the orb.
+
+/* --- The voice page's glass ------------------------------------------------
  *
- * Positioned like the rest of the HUD — absolute, over the field — because
- * this page is one canvas with things floating on it rather than a layout.
- * The activity card sits under the rig it explains; the calendar sits opposite
- * so the eye is not asked to read one column of everything.
+ * One surface, used by every floating thing on this page: the two cards, the
+ * subtitle, the status line. They used to be four different treatments — a
+ * flat panel, bare text over the field, a dark strip — which read as four
+ * unrelated widgets rather than one instrument.
  *
- * The insides are Chat's: `status-context-*` and `chat-tool-*` come from
- * chat.css, which is global. Only the frame is described here. */
+ * Adapted from the glass calendar the owner supplied: a dark translucent fill,
+ * a hairline of white, a real blur behind it. The blur is what makes it glass
+ * rather than a grey box, and it is affordable here because the field behind
+ * it is a canvas that is already compositing.
+ */
+.voice-glass {
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 18px;
+  background: rgb(0 0 0 / 22%);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 12px 34px rgb(0 0 0 / 32%);
+}
+
 .voice-card {
   position: absolute;
   z-index: 2;
-  width: 262px;
-  padding: 10px 12px;
-  border: 1px solid var(--ui-border-subtle, rgb(255 255 255 / 8%));
-  border-radius: 10px;
-  background: rgb(0 0 0 / 42%);
-  backdrop-filter: blur(9px);
+  width: 288px;
+  padding: 14px 16px;
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 18px;
+  background: rgb(0 0 0 / 22%);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 12px 34px rgb(0 0 0 / 32%);
   pointer-events: auto;
   font-size: 11px;
 }
 
 .voice-activity-card {
-  top: 150px;
-  right: 26px;
+  top: 20px;
+  right: 24px;
   display: grid;
-  gap: 8px;
+  gap: 10px;
 }
 
 .voice-calendar-card {
-  top: 150px;
-  left: 26px;
+  top: 20px;
+  left: 24px;
   display: grid;
-  gap: 7px;
+  gap: 12px;
 }
 
-.voice-calendar-card header {
-  display: flex;
+/* The pickers, now inside the card rather than floating above it. The rig
+   keeps its own grid; this only gives it a bottom rule so the models read as
+   the heading of the work below them. */
+.voice-card-rig {
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgb(255 255 255 / 9%);
+}
+
+.voice-card-rig .voice-hud-rig {
+  position: static;
+  top: auto;
+  right: auto;
   gap: 6px;
+}
+
+/* --- the calendar --------------------------------------------------------- */
+
+.voice-calendar-head {
+  display: flex;
   align-items: center;
+  justify-content: space-between;
+}
+
+.voice-calendar-month {
+  margin: 0;
+  color: var(--ui-text-primary);
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.voice-calendar-nav {
+  display: flex;
+  gap: 2px;
+}
+
+.voice-calendar-nav button {
+  display: grid;
+  padding: 5px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ui-text-tertiary);
+  cursor: pointer;
+  place-items: center;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.voice-calendar-nav button:hover {
+  background: rgb(255 255 255 / 10%);
+  color: var(--ui-text-primary);
+}
+
+/* The month as one scrolling row rather than a seven-column grid. It is the
+   shape the design came in, and it suits a narrow card beside an orb better
+   than a block that would be as tall as it is wide. */
+.voice-calendar-strip {
+  display: flex;
+  gap: 12px;
+  margin: 0 -16px;
+  padding: 0 16px 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.voice-calendar-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.voice-calendar-day {
+  display: grid;
+  flex-shrink: 0;
+  gap: 5px;
+  justify-items: center;
+}
+
+.voice-calendar-dow {
   color: var(--ui-text-tertiary);
   font-size: 9px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  font-weight: 700;
 }
 
-.voice-calendar-card ul,
-.voice-card-live {
+.voice-calendar-day button {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ui-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.voice-calendar-day button:hover {
+  background: rgb(255 255 255 / 14%);
+  color: var(--ui-text-primary);
+}
+
+.voice-calendar-day button.is-selected {
+  background: linear-gradient(135deg, #ec4899, #fb923c);
+  color: #fff;
+  box-shadow: 0 4px 14px rgb(236 72 153 / 34%);
+}
+
+/* Today keeps its mark under another day's selection, so scrolling three
+   months out never loses where you are. */
+.voice-calendar-today,
+.voice-calendar-dot {
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  transform: translateX(-50%);
+}
+
+.voice-calendar-today {
+  background: #f472b6;
+}
+
+/* A day with something on it, which is why the month is drawn at all when
+   nothing is scheduled: no dots is an answer. */
+.voice-calendar-dot {
+  background: var(--ui-text-tertiary);
+}
+
+.voice-calendar-rule {
+  height: 1px;
+  background: rgb(255 255 255 / 12%);
+}
+
+.voice-calendar-events {
   display: grid;
-  gap: 6px;
+  gap: 7px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.voice-calendar-card li {
+.voice-calendar-events li {
   display: grid;
-  grid-template-columns: 62px 1fr;
+  grid-template-columns: 58px 1fr;
   gap: 2px 8px;
   align-items: baseline;
 }
@@ -10358,10 +10496,20 @@ html[data-appearance='claude-code-dark'] .control-row {
   font-size: 10px;
 }
 
+/* --- the activity card ---------------------------------------------------- */
+
 .voice-card-meter {
   display: flex;
   gap: 7px;
   align-items: center;
+}
+
+.voice-card-live {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .voice-card-live li {
@@ -10422,4 +10570,67 @@ html[data-appearance='claude-code-dark'] .control-row {
   margin: 0;
   color: var(--ui-text-tertiary);
   font-size: 10px;
+}
+
+.voice-card-sources {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 4px 0 0;
+  list-style: none;
+}
+
+.voice-card-sources li {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  overflow: hidden;
+  color: var(--ui-text-tertiary);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.voice-card-sources li span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.voice-card-sources li em {
+  color: var(--ui-text-tertiary);
+  font-style: normal;
+  opacity: 0.7;
+}
+
+/* --- glass for the rest of the page ---------------------------------------
+ *
+ * The subtitle and the status line were the two things left flat. Everything
+ * floating over the field is now one material, which is the point: four
+ * treatments in one view read as four widgets that happen to share a screen.
+ */
+.voice-transcript p {
+  border: 1px solid rgb(255 255 255 / 9%);
+  border-radius: 14px;
+  background: rgb(0 0 0 / 26%);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 8px 26px rgb(0 0 0 / 28%);
+}
+
+/* The status line reads over the field rather than in a box, so it gets the
+   glass only when it has something to say — a permanent empty pane in the
+   corner is furniture. */
+.voice-hud-state {
+  padding: 10px 14px;
+  border: 1px solid rgb(255 255 255 / 8%);
+  border-radius: 16px;
+  background: rgb(0 0 0 / 18%);
+  backdrop-filter: blur(16px);
+}
+
+/* Both cards sit at the top corners now, so the status line moves below the
+   calendar rather than under it. */
+.voice-hud-state {
+  top: auto;
+  bottom: 96px;
+  left: 24px;
+  max-width: 300px;
 }

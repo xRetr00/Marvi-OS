@@ -340,7 +340,6 @@ export interface CalendarEvent {
   all_day: boolean
 }
 
-
 /**
  * The month, always drawn, with what is on each day.
  *
@@ -462,7 +461,9 @@ export function CalendarView({
             <li key={event.id || event.start}>
               <span className="voice-calendar-when">{when(event, now)}</span>
               <span className="voice-calendar-title">{event.title}</span>
-              {event.location ? <span className="voice-calendar-where">{event.location}</span> : null}
+              {event.location ? (
+                <span className="voice-calendar-where">{event.location}</span>
+              ) : null}
             </li>
           ))}
         </ul>

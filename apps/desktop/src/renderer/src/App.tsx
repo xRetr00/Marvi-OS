@@ -3457,42 +3457,44 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
         {blocker ? <p className="voice-hud-blocker">{blocker}</p> : null}
       </div>
 
-      {/* Top-right: what is actually doing the work. Not repeated from the
-          status bar — that says whether things are up; this says which ones. */}
-      <dl className="voice-hud voice-hud-rig">
-        <div>
-          <dt>LLM</dt>
-          <dd>
-            <VoiceModelPicker current={runtime.model?.llm ?? ''} />
-          </dd>
-        </div>
-        <div>
-          <dt>SPEECH IN</dt>
-          <dd>{runtime.model?.stt || 'not installed'}</dd>
-        </div>
-        <div>
-          {/* The voice, chosen here rather than three clicks away in Settings.
+      {/* The pickers, handed to the activity card rather than floated beside
+          it. Two panels in one corner read as two unrelated widgets; together
+          they read as one instrument — which models are working, and what the
+          work is. */}
+      <VoiceActivityCard
+        rig={
+          <dl className="voice-hud-rig">
+            <div>
+              <dt>LLM</dt>
+              <dd>
+                <VoiceModelPicker current={runtime.model?.llm ?? ''} />
+              </dd>
+            </div>
+            <div>
+              <dt>SPEECH IN</dt>
+              <dd>{runtime.model?.stt || 'not installed'}</dd>
+            </div>
+            <div>
+              {/* The voice, chosen here rather than three clicks away in Settings.
               It is the one thing about speech output anybody changes, and the
               page where you hear it is the page to change it on. */}
-          <dt>SPEECH OUT</dt>
-          <dd>
-            <VoicePicker />
-          </dd>
-        </div>
-        <div>
-          <dt>MIC</dt>
-          <dd>{deviceError ? 'unavailable' : microphoneLabel(devices)}</dd>
-        </div>
-      </dl>
+              <dt>SPEECH OUT</dt>
+              <dd>
+                <VoicePicker />
+              </dd>
+            </div>
+            <div>
+              <dt>MIC</dt>
+              <dd>{deviceError ? 'unavailable' : microphoneLabel(devices)}</dd>
+            </div>
+          </dl>
+        }
+      />
 
-      {/* Under the rig, because it answers the next question after "which
-          models": what are they doing. */}
-      <VoiceActivityCard />
-
-      {/* And opposite it, what is coming up. Marvi reaches the same calendar
-          through calendar_events / calendar_add / calendar_move /
-          calendar_remove, so the card and the assistant are looking at one
-          thing rather than two views that can disagree. */}
+      {/* Opposite it, the month. Marvi reaches the same calendar through
+          calendar_events / calendar_add / calendar_move / calendar_remove, so
+          the card and the assistant are looking at one thing rather than two
+          views that can disagree. */}
       <CalendarCard />
 
       <MessageTiming
