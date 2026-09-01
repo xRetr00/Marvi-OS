@@ -71,6 +71,22 @@
       "reason": "accent accuracy, first-partial, and finalization gates failed"
     },
     {
+      "engine": "kyutai-stt-1b-en-fr-moshi-0.2.13-cuda-bf16",
+      "source_revision": "4c4f65e147df056adf3346290d64c7b9649b18c9",
+      "model_revision": "1c34c6b4f7e9299bb61985f145052ff131005dde",
+      "predictions_sha256": "6D27CFA3A96BFC0F1638DBC23461152DF0512E3654D9232D7AAB75F7B1E5861D",
+      "wer": 0.466276,
+      "rtf": 0.662945,
+      "first_partial_ms_p50": 1433.701,
+      "first_partial_ms_p90": 4717.377,
+      "final_after_eos_ms_p50": 665.274,
+      "peak_rss_mb": 2656.121,
+      "peak_vram_mb": 3058.0,
+      "empty_hypotheses": 5,
+      "eligible": false,
+      "reason": "last-place accent accuracy and both streaming latency gates failed"
+    },
+    {
       "engine": "qwen3-asr-0.6b-official-vllm-realtime",
       "eligible": false,
       "reason": "official vLLM runtime does not support native Windows",

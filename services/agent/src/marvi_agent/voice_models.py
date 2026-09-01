@@ -21,9 +21,7 @@ from livekit.agents import DEFAULT_API_CONNECT_OPTIONS, APIConnectOptions, tts
 log = logging.getLogger("marvi.voice")
 
 APP_DATA = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local")) / "Marvi-OS"
-NEMOTRON_MODEL = (
-    APP_DATA / "models/stt/nemotron-3.5/nemotron-3.5-asr-streaming-0.6b-onnx"
-)
+NEMOTRON_MODEL = APP_DATA / "models/stt/nemotron-3.5/nemotron-3.5-asr-streaming-0.6b-onnx"
 #: Where the installer puts Kokoro. Matches `install_to` in the setup
 #: catalog; the test below fails if the two drift.
 KOKORO_ROOT = APP_DATA / "models/tts/kokoro-82m"
@@ -213,9 +211,7 @@ class _KokoroEngine:
         path = KOKORO_ROOT / "voices" / f"{self.voice}.pt"
         if not path.is_file():
             return
-        self._pipeline.voices[self.voice] = torch.load(
-            path, map_location=device, weights_only=True
-        )
+        self._pipeline.voices[self.voice] = torch.load(path, map_location=device, weights_only=True)
 
     def synthesize(self, text: str, stop: threading.Event) -> Iterator[bytes]:
         with self._speaking:
@@ -293,9 +289,9 @@ class _SidecarEngine:
     """A persistent isolated upstream runtime speaking newline-delimited JSON.
 
     Each optional engine owns a separate uv environment. That is necessary,
-    not decorative: CuteTTS pins Torch 2.5 while the Agent and CTC use different
-    stacks. Only PCM crosses this boundary, so choosing one cannot uninstall or
-    replace Kokoro's dependencies.
+    not decorative: CuteTTS and VoXtream pin stacks that differ from the Agent.
+    Only PCM crosses this boundary, so choosing one cannot uninstall or replace
+    Kokoro's dependencies.
     """
 
     sample_rate = 24_000
@@ -310,11 +306,15 @@ class _SidecarEngine:
 
     @classmethod
     def shared(cls, engine: str, voice: str) -> _SidecarEngine:
-        key = (resolve_engine(engine), voice, 0)
+        selected = resolve_engine(engine)
+        spec = _tts_catalog()[selected]
+        offered = {str(item["id"]) for item in spec.get("voices", ())}
+        selected_voice = voice if voice in offered else str(spec["default_voice"])
+        key = (selected, selected_voice, 0)
         with _ENGINE_LOCK:
             found = _SIDECARS.get(key)
             if found is None:
-                found = cls(engine, voice)
+                found = cls(selected, selected_voice)
                 _SIDECARS[key] = found
             return found
 
@@ -329,6 +329,12 @@ class _SidecarEngine:
         project = repo / str(spec["project"])
         command = [uv, "run", "--project", str(project), "python", "-m", str(spec["module"])]
         flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+        environment = os.environ.copy()
+        # The Agent itself runs inside a uv environment. Passing its
+        # VIRTUAL_ENV into another `uv run --project` makes uv warn on every
+        # optional-engine start and can make future uv versions select the
+        # wrong environment. Each sidecar owns the project named above.
+        environment.pop("VIRTUAL_ENV", None)
         self._process = subprocess.Popen(
             command,
             cwd=repo,
@@ -339,6 +345,7 @@ class _SidecarEngine:
             encoding="utf-8",
             bufsize=1,
             creationflags=flags,
+            env=environment,
         )
         ready = self._read()
         if ready.get("event") != "ready":
@@ -388,7 +395,7 @@ class _SidecarEngine:
         process, self._process = self._process, None
         if process is not None and process.poll() is None:
             if os.name == "nt":
-                # `uv run` and CTC's decoder both spawn children. Terminating
+                # `uv run` and optional runtimes can spawn children. Terminating
                 # only the wrapper can strand a CUDA model after interruption,
                 # consuming VRAM until Marvi exits. Kill this exact process
                 # tree; the next request deliberately starts a clean host.
@@ -451,8 +458,12 @@ class _WholeUtteranceStream(tts.ChunkedStream):
         # refusal was logged inside the emitter's own task where nothing was
         # watching.
         output_emitter.initialize(
-            request_id=str(uuid.uuid4()), sample_rate=24_000, num_channels=1,
-            mime_type="audio/pcm", frame_size_ms=20, stream=False,
+            request_id=str(uuid.uuid4()),
+            sample_rate=24_000,
+            num_channels=1,
+            mime_type="audio/pcm",
+            frame_size_ms=20,
+            stream=False,
         )
         stop = threading.Event()
         queue: asyncio.Queue[bytes | BaseException | None] = asyncio.Queue()
@@ -527,9 +538,7 @@ _LEAD_TIMEOUT = float(os.environ.get("MARVI_TTS_LEAD_TIMEOUT", "0.7") or 0.7)
 #:
 #: Anthropic-style `<invoke>`, OpenAI-style `<tool_call>`, and the namespaced
 #: variants of both.
-_TOOL_MARKUP = re.compile(
-    r"<\s*/?\s*(antml:)?(invoke|function_calls?|parameter|tool_call)\b", re.I
-)
+_TOOL_MARKUP = re.compile(r"<\s*/?\s*(antml:)?(invoke|function_calls?|parameter|tool_call)\b", re.I)
 
 
 def _speakable(text: str) -> tuple[str, bool]:
@@ -741,9 +750,7 @@ class _ClauseStream(tts.SynthesizeStream):
                 produced,
                 spent,
                 produced / spent,
-                ""
-                if produced / spent >= 1.0
-                else "  <- below real time, expect gaps",
+                "" if produced / spent >= 1.0 else "  <- below real time, expect gaps",
             )
 
 

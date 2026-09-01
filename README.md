@@ -20,7 +20,7 @@ Phase 8's vision ownership and contracts are complete with native camera
 calibration still pending. The
 native-Windows stack runs the current chunked Parakeet TDT ASR baseline through
 ONNX Runtime, Kokoro 82M by default, selectable isolated CuteTTS Distill,
-VoXtream2, and CTC-TTS-F runtimes, an official LiveKit `AgentSession`, and an
+and VoXtream2 runtimes, an official LiveKit `AgentSession`, and an
 Electron LiveKit microphone/playout participant. The remaining Phase 3 gate is
 a real
 loudspeaker double-talk test plus the 60-minute duplex soak.

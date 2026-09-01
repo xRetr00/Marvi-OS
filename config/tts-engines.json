@@ -31,7 +31,7 @@
     {
       "id": "cutetts-distill",
       "name": "CuteTTS Distill 0.23B",
-      "description": "Low-latency streaming voice with a compact GPU footprint.",
+      "description": "Low-latency streaming with CuteTTS's bundled reference voice.",
       "runtime": "isolated",
       "project": "services/tts-cute",
       "install_to": "models/tts/cutetts-distill",
@@ -40,9 +40,9 @@
       "source_revision": "ca9dbd3b82c05f5b067466088449b93ee2aa5a0c",
       "model_id": "OPPOer/CuteTTS-distill",
       "model_revision": "6f84092f441295c415019193424033c93c6aee68",
-      "default_voice": "cute-default",
+      "default_voice": "cute-reference",
       "voices": [
-        { "id": "cute-default", "name": "Cute Default", "language": "English", "gender": "neutral" }
+        { "id": "cute-reference", "name": "Cute Reference", "language": "English", "gender": "woman" }
       ]
     },
     {
@@ -71,23 +71,6 @@
         { "id": "russian-female", "name": "Russian Female", "language": "Russian", "gender": "woman" },
         { "id": "spanish-male", "name": "Spanish Male", "language": "Spanish", "gender": "man" },
         { "id": "swedish-female", "name": "Swedish Female", "language": "Swedish", "gender": "woman" }
-      ]
-    },
-    {
-      "id": "ctc-tts-f",
-      "name": "CTC-TTS-F",
-      "description": "THU single-speaker streaming CTC-TTS checkpoint.",
-      "runtime": "isolated",
-      "project": "services/tts-ctc",
-      "install_to": "models/tts/ctc-tts-f",
-      "module": "marvi_tts_ctc.host",
-      "source_id": "https://github.com/THU-SPMI/CTC-TTS.git",
-      "source_revision": "7b308b7762564a53e398482a5ec0685d4d9c7e9f",
-      "model_id": "THU-SPMI/CTC-TTS",
-      "model_revision": "1e568e2a03d9664037344fbccf23163a5b9b0cf7",
-      "default_voice": "ctc-f",
-      "voices": [
-        { "id": "ctc-f", "name": "CTC Female", "language": "English", "gender": "woman" }
       ]
     }
   ]

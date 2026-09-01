@@ -93,8 +93,11 @@ def test_all_requested_engines_are_in_the_catalog() -> None:
         "kokoro",
         "cutetts-distill",
         "voxtream2",
-        "ctc-tts-f",
     }
+
+
+def test_removed_ctc_engine_is_not_offered() -> None:
+    assert "ctc-tts-f" not in {engine.id for engine in voices.engines()}
 
 
 def test_the_shipped_model_is_found() -> None:

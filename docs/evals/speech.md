@@ -13,9 +13,14 @@ streaming-only accented-English challenger run on 1 September 2026 did not
 produce a replacement: Qwen's community Rust rolling server led accuracy at
 20.23% WER but ran at 1.46 RTF on its available native CPU build; Nemotron 3.5
 was the best GPU compromise at 30.06% WER and 0.099 RTF, but took 1.065 seconds
-to its first useful partial. The exact corpus, all five candidate outcomes,
+to its first useful partial. The exact corpus, all six candidate outcomes,
 per-accent results, and prediction hashes are in
 [the streaming STT report](stt-candidates-2026-09-01.md).
+
+Kyutai STT 1B was added as a follow-up on the identical slice. It ran genuine
+80 ms causal Mimi frames at 0.663 RTF and used 3,058 MB incremental VRAM, but
+lost the accuracy ranking at 46.63% WER, left five clips empty, and took 1.434
+seconds to its median first useful partial. It was not integrated.
 
 ### The language lock is the model, not the prompt
 
@@ -69,9 +74,11 @@ Kokoro-82M, English only. Measured live: `tts ttfb` 346 ms median, 612 ms p90,
 generation at 8–13× real time.
 
 Six newer streaming candidates were screened and three were run on the target
-RTX 3060 on 31 August 2026. None replaces Kokoro yet. CuteTTS-distill,
-VoXtream2, and CTC-TTS-F are selectable experimental isolated runtimes at the
-owner's direction; CTC still lacks a completed native-Windows synthesis run.
+RTX 3060 on 31 August 2026. None replaces Kokoro yet. CuteTTS-distill and
+VoXtream2 remain selectable experimental isolated runtimes. CTC-TTS-F was
+removed after the owner's listening trial. Cute now uses the package's actual
+bundled reference in explicit voice-clone mode; a corrected run produced first
+PCM in 392 ms and 4.16 seconds of audio in 3.63 seconds (0.873 RTF).
 VoxCPM2 fails realtime/VRAM gates, while Breeze-TTS-2.cpp and Gepard remain
 outside the supported native-Windows path. The
 revisions, raw timings, intelligibility smoke test, and exact failures are in

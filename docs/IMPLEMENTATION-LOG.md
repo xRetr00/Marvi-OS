@@ -1392,3 +1392,28 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   PCM chunks, and completed an utterance. CTC-TTS-F used 8,055 MiB total GPU
   memory with the normal desktop services still running, leaving 4,233 MiB;
   acoustic acceptance, interruption hardware evidence, and soak remain open.
+
+## 2026-09-01 — TTS repair and Kyutai STT follow-up
+
+- Removed CTC-TTS-F from the shared catalog, Setup components, isolated service,
+  tests, and current product documentation after the owner's listening trial.
+  Historical measurements remain explicitly marked as rejected evidence.
+- Corrected CuteTTS's voice contract. The catalog now exposes the upstream
+  package's real bundled `default_reference.wav` as `Cute Reference`, and the
+  sidecar uses explicit `voice_clone` mode for warmup and synthesis instead of
+  advertising a fabricated default voice and calling reference-free TTS mode.
+- Normalized voice IDs before indexing the persistent sidecar cache so a stale
+  `cute-default` setting cannot launch a second CUDA copy beside
+  `cute-reference`. Optional launches also stop inheriting the Agent's
+  `VIRTUAL_ENV`, removing uv's wrong-environment warning and ambiguity.
+- Exercised the corrected Cute path on the RTX 3060: 62.68 s cold load, 392 ms
+  first PCM, 3.63 s wall time for 4.16 s of audio (0.873 RTF), and 26 chunks.
+- Added an evaluation-only Kyutai runner based on the official Moshi 0.2.13
+  incremental loop and pinned `stt-1b-en_fr` weights. The native CUDA run over
+  the unchanged 54-clip EdAcc slice measured 46.63% WER, 0.663 RTF, 1.434 s
+  median first useful partial, 665 ms median EOS finalization, 3,058 MB
+  incremental VRAM, and five empty hypotheses. It lost the bakeoff and was not
+  integrated.
+- Verified 13 Agent voice-model tests, 45 Gateway voice/Setup tests, three Cute
+  host tests, catalog JSON parsing, targeted Ruff, model artifact hashes, the
+  complete hardware corpus, shared scoring, and `git diff --check`.

@@ -10,7 +10,7 @@ adapters:
 - **Default TTS:** Kokoro 82M, 24 kHz mono PCM, with clause-level incremental
   synthesis. Kokoro remains the safe default because it has the largest measured
   throughput and memory margin on the target RTX 3060.
-- **Optional TTS:** CuteTTS Distill, VoXtream2, and CTC-TTS-F. Each runs in its
+- **Optional TTS:** CuteTTS Distill and VoXtream2. Each runs in its
   own `uv` project and long-lived child process. Only newline-framed requests
   and PCM chunks cross into the LiveKit Agent, preventing incompatible Torch,
   Transformers, Moshi, and codec pins from modifying the Agent environment.
@@ -34,15 +34,11 @@ uv run --project services/tts-cute python -m marvi_tts_cute.setup
 
 uv sync --project services/tts-voxtream
 uv run --project services/tts-voxtream python -m marvi_tts_voxtream.setup
-
-uv sync --project services/tts-ctc
-uv run --project services/tts-ctc python -m marvi_tts_ctc.setup
 ```
 
 Setup pins the upstream source and model revisions. VoXtream Setup also loads
 its upstream runtime once so Mimi and ReDimNet are cached before an offline
-voice session. CTC Setup installs the single-speaker F checkpoint and its
-pinned WavTokenizer codec checkpoint.
+voice session.
 
 Start the local room server with `scripts/start-local-livekit.ps1`, then run the
 worker from `services/agent` with `uv run python -m marvi_agent.session dev`.
@@ -50,19 +46,20 @@ worker from `services/agent` with `uv run python -m marvi_agent.session dev`.
 ## Voice catalogs
 
 - Kokoro: eleven American/British English speakers.
-- CuteTTS Distill: the upstream default distilled voice. Reference-voice
-  enrollment is not exposed until Marvi has an owned prompt-management flow.
+- CuteTTS Distill: the upstream package's bundled female reference recording,
+  exposed as `Cute Reference`. Marvi always uses explicit voice-clone mode;
+  reference enrollment is not exposed until there is an owned prompt flow.
 - VoXtream2: twelve upstream reference clips across English, Arabic, Chinese,
   French, German, Hindi, Japanese, Portuguese, Russian, Spanish, and Swedish.
-- CTC-TTS-F: the released single-speaker female voice.
 
 An engine being selectable is not a promotion to the shipping default. The
 hardware acceptance gates in `docs/VOICE-MODEL-EVALUATION.md` still apply to
 each option: listening, combined STT/TTS residency with 2 GB system headroom,
 interruption, device switching, crash recovery, and the 60-minute soak.
 
-On 2026-09-01 all three optional engines passed a native Windows integration
-smoke on the target RTX 3060: load, 24 kHz ready event, multiple streamed PCM
-chunks, and utterance completion. CTC-TTS-F showed 8,055 MiB total GPU use out
-of 12,288 MiB while Marvi's normal desktop services remained active. This is
-process/protocol and residency evidence, not acoustic or soak acceptance.
+On 2026-09-01 CuteTTS passed a corrected native-Windows synthesis smoke using
+that exact bundled reference: 392 ms first PCM, 3.63 seconds wall time for 4.16
+seconds of 24 kHz output (0.873 RTF), and 26 PCM chunks. This is process and
+voice-selection evidence, not acoustic, interruption, or soak acceptance.
+CTC-TTS-F was removed from the product catalog and Setup at the owner's
+direction after hands-on testing; it is no longer a selectable engine.

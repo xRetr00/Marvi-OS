@@ -79,13 +79,24 @@ def test_optional_tts_uses_the_isolated_runtime() -> None:
     assert engine._engine.voice == "english-male"
 
 
-def test_a_voice_from_another_engine_falls_back_locally() -> None:
+def test_cute_uses_the_reference_voice_from_its_own_catalog() -> None:
+    from marvi_agent import voice_models
     from marvi_agent.voice_models import SidecarTTS, build_tts
 
-    engine = build_tts("ctc-tts-f", "am_michael")
+    voice_models._SIDECARS.clear()
+
+    engine = build_tts("cutetts-distill", "cute-default")
+    current = build_tts("cutetts-distill", "cute-reference")
 
     assert isinstance(engine, SidecarTTS)
-    assert engine._engine.voice == "ctc-f"
+    assert engine._engine.voice == "cute-reference"
+    assert current._engine is engine._engine
+
+
+def test_removed_ctc_engine_falls_back_to_kokoro() -> None:
+    from marvi_agent.voice_models import KokoroTTS, build_tts
+
+    assert isinstance(build_tts("ctc-tts-f", "ctc-f"), KokoroTTS)
 
 
 def test_sidecar_protocol_streams_pcm_and_sends_the_selected_voice() -> None:
@@ -120,6 +131,33 @@ def test_sidecar_protocol_streams_pcm_and_sends_the_selected_voice() -> None:
     assert request == {"text": "Hello.", "voice": "english-male"}
 
 
+def test_sidecar_launch_does_not_inherit_the_agent_virtualenv(monkeypatch) -> None:
+    import io
+    import json
+
+    from marvi_agent import voice_models
+
+    class Process:
+        stdin = io.StringIO()
+        stdout = io.StringIO(json.dumps({"event": "ready", "sample_rate": 24000}) + "\n")
+
+        def poll(self):
+            return None
+
+    captured = {}
+    monkeypatch.setenv("VIRTUAL_ENV", "agent-environment")
+    monkeypatch.setattr(voice_models.shutil, "which", lambda name: "uv")
+    monkeypatch.setattr(
+        voice_models.subprocess,
+        "Popen",
+        lambda command, **options: captured.update(options) or Process(),
+    )
+
+    voice_models._SidecarEngine("voxtream2", "english-male")._start()
+
+    assert "VIRTUAL_ENV" not in captured["env"]
+
+
 def test_sidecar_close_kills_the_windows_process_tree(monkeypatch) -> None:
     from marvi_agent import voice_models
 
@@ -140,7 +178,7 @@ def test_sidecar_close_kills_the_windows_process_tree(monkeypatch) -> None:
         "run",
         lambda command, **options: calls.append((command, options)),
     )
-    engine = voice_models._SidecarEngine("ctc-tts-f", "ctc-f")
+    engine = voice_models._SidecarEngine("voxtream2", "english-female")
     engine._process = Process()
 
     engine.close()

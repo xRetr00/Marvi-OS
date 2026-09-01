@@ -5,11 +5,8 @@ import contextlib
 import json
 import os
 import sys
+import sysconfig
 from pathlib import Path
-
-# Reserve the real stdout for the machine protocol. Upstream progress/logging
-# goes to stderr, including imports outside the explicit redirect blocks.
-sys.stdout = sys.stderr
 
 
 def _root() -> Path:
@@ -22,7 +19,30 @@ def _send(event: str, **values: object) -> None:
     sys.__stdout__.flush()
 
 
+def _reference_voice(voice: str) -> Path:
+    """Resolve the one voice shipped by the pinned upstream package.
+
+    CuteTTS is a voice-cloning model. Its web demo ships a reference recording
+    and uses that recording for warmup, but Marvi previously advertised a
+    made-up "Cute Default" and called plain TTS mode without any reference.
+    That made the picker and the sound disagree. Keep the protocol explicit:
+    the catalog voice maps to the exact upstream-bundled recording.
+    """
+
+    if voice != "cute-reference":
+        raise ValueError(f"unknown CuteTTS voice: {voice}")
+    path = (
+        Path(sysconfig.get_path("data")) / "share" / "cutetts" / "default_reference.wav"
+    )
+    if not path.is_file():
+        raise FileNotFoundError(f"CuteTTS reference voice is missing: {path}")
+    return path
+
+
 def main() -> None:
+    # Reserve the real stdout for the machine protocol. Imports and upstream
+    # progress belong on stderr; `_send` deliberately retains `sys.__stdout__`.
+    sys.stdout = sys.stderr
     try:
         with contextlib.redirect_stdout(sys.stderr):
             import numpy as np
@@ -36,9 +56,14 @@ def main() -> None:
             torch._dynamo.config.suppress_errors = True
             model = CuteTTS.from_pretrained(_root(), device="cuda")
             set_sampler_compile_mode("eager")
+            reference = _reference_voice("cute-reference")
             list(
                 model.generate_stream(
-                    "Marvi is ready.", diffusion_steps=4, show_progress=False
+                    "Marvi is ready.",
+                    mode="voice_clone",
+                    reference_audio=reference,
+                    diffusion_steps=4,
+                    show_progress=False,
                 )
             )
         _send("ready", sample_rate=int(model.sample_rate))
@@ -49,9 +74,12 @@ def main() -> None:
     for line in sys.stdin:
         try:
             request = json.loads(line)
+            reference = _reference_voice(str(request.get("voice") or ""))
             with contextlib.redirect_stdout(sys.stderr):
                 chunks = model.generate_stream(
                     str(request.get("text") or ""),
+                    mode="voice_clone",
+                    reference_audio=reference,
                     diffusion_steps=4,
                     show_progress=False,
                 )

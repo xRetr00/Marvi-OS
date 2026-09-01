@@ -26,6 +26,10 @@ Full Kyutai Unmute is not a shipping candidate because its documented runtime ta
    They measured 34.46% and 37.98% WER respectively and also missed the partial
    gate. Official Qwen vLLM realtime is ineligible because vLLM has no native
    Windows runtime.
+4. **Kyutai STT 1B is rejected.** Its official Moshi CUDA path was realtime at
+   0.663 RTF with 3,058 MB incremental VRAM, but it ranked last at 46.63% WER,
+   produced five empty hypotheses, and measured 1.434 s median first partial
+   plus 665 ms median finalization after EOS.
 
 The existing Parakeet TDT remains the explicitly permitted non-streaming
 baseline exception until a genuinely streaming candidate beats it on Marvi's
@@ -39,15 +43,20 @@ Whisper, whisper.cpp, faster-whisper, and WhisperLive are rejected. Chunking a n
 1. **Kokoro-82M remains the current shipping default.** It is the measured
    low-residency baseline, not a claim that its submitted-utterance buffering
    satisfies the future full-duplex streaming gate.
-2. **CuteTTS Distill, VoXtream2, and CTC-TTS-F are selectable experimental
-   options.** Cute and VoXtream emitted incremental PCM on the target GPU; CTC
-   passed only the native process/residency smoke. None has completed listening,
-   cancellation, combined voice residency, loopback, and soak acceptance.
+2. **CuteTTS Distill and VoXtream2 are selectable experimental options.** Cute
+   now maps its catalog entry to the upstream-bundled female reference and runs
+   explicit voice-clone mode; its corrected smoke measured 392 ms first PCM and
+   0.873 RTF. Neither option has completed listening, cancellation, combined
+   voice residency, loopback, and soak acceptance.
 3. **VoxCPM2 is rejected** for slower-than-realtime synthesis and inadequate
    shared-GPU headroom. Breeze-TTS-2.cpp and Gepard remain outside the supported
    native-Windows path.
 4. **Kyutai delayed-stream TTS and Orpheus TTS 3B** remain parked because their
    deployment or runtime footprints do not fit this machine.
+
+CTC-TTS-F was removed from the catalog, Setup, adapter, and tests after the
+owner's listening trial. Its historical measurements remain in the dated
+report only as rejected evidence.
 
 Qwen3-TTS is rejected as too heavy for the always-resident budget. PocketTTS,
 Chatterbox's official whole-waveform API, and other sentence-buffered engines

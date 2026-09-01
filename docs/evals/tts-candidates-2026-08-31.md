@@ -1,5 +1,11 @@
 # Streaming TTS challengers — 31 August 2026
 
+> Product status update, 1 September 2026: CTC-TTS-F was removed from Marvi's
+> catalog and Setup after the owner's listening trial. CuteTTS now uses its
+> upstream-bundled `default_reference.wav` in explicit voice-clone mode. The
+> measurements below remain historical bakeoff evidence; current option status
+> is stated in Decision.
+
 Six newly released TTS paths were checked against Marvi's native-Windows,
 full-duplex voice gates. This is a candidate screen and short synthesis trial,
 not a selection bakeoff: listening, a real LiveKit loopback session, combined
@@ -7,21 +13,20 @@ STT/TTS residency, interruption, and the 60-minute soak are still required.
 
 ## Decision
 
-**Keep Kokoro as the default shipping voice.** At the project owner's direction,
-CuteTTS-distill, VoXtream2, and CTC-TTS-F are now selectable experimental local
-engines behind isolated runtimes. Selection is not hardware acceptance:
-CuteTTS and VoXtream retain the Windows caveats measured below, while CTC has
-only process/protocol and residency smoke evidence. The other three remain
-rejected or parked before integration.
+**Keep Kokoro as the default shipping voice.** CuteTTS-distill and VoXtream2
+are selectable experimental local engines behind isolated runtimes. Selection
+is not hardware acceptance; both retain the Windows caveats measured below.
+CTC-TTS-F was subsequently removed. The other three remain rejected or parked
+before integration.
 
 | Candidate | Native Windows | Streaming evidence | RTX 3060 result | Decision |
 | --- | --- | --- | --- | --- |
-| CuteTTS-distill ~0.23B | runs only after selecting the upstream eager sampler | 160 ms PCM chunks while autoregressive generation continues | 85 ms warm first audio; 0.31 RTF; 1.53 GiB peak allocated | **selectable experimental option** |
+| CuteTTS-distill ~0.23B | runs only after selecting the upstream eager sampler | 160 ms PCM chunks while autoregressive generation continues | corrected bundled-reference run: 392 ms first PCM; 0.873 RTF; 26 chunks | **selectable experimental option** |
 | VoXtream2 ~0.5B | runs only with TorchDynamo eager fallback; shutdown error remains | full-stream incremental text plus 80 ms PCM chunks | 394 ms warm first audio; 0.47 full-text / 0.65 incremental-text RTF; 1.70 GiB peak | **selectable experimental option** |
 | VoxCPM2 2B | official PyTorch path runs | 160 ms output chunks, but input is a complete string | 342 ms warm first audio; 2.09 RTF; 5.47 GiB peak; only 1.44 GiB system VRAM remained | **reject** |
 | Breeze-TTS-2.cpp 3B | source config needs a separately installed Vulkan SDK | HTTP/WebSocket path; vocoder decodes two-second chunks | not run; upstream reports about 1.2x realtime at Q8 on RTX 3060 | **reject: non-commercial weights** |
 | Gepard 1.0 ~0.56B | official setup and optimized vLLM serving path are Linux-oriented | streaming-first 22.05 kHz codec LM | not run on Windows | **park: no supported Windows serving path** |
-| CTC-TTS-F 0.03B/0.16B | native isolated Torch 2.6/CUDA 11.8 runtime; training-only Linux dependencies removed | dual persistent decoder workers emitted incremental 24 kHz PCM | native Windows smoke passed; 8,055/12,288 MiB total GPU use with desktop services active | **selectable experimental option; acoustic/soak acceptance pending** |
+| CTC-TTS-F 0.03B/0.16B | native isolated Torch 2.6/CUDA 11.8 runtime; training-only Linux dependencies removed | dual persistent decoder workers emitted incremental 24 kHz PCM | native Windows smoke passed; 8,055/12,288 MiB total GPU use with desktop services active | **removed after owner listening trial** |
 
 The warm first-audio figures exclude model loading but include prompt/text
 preparation. RTF is wall-clock synthesis time divided by emitted audio length;

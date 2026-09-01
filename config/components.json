@@ -130,30 +130,6 @@
       }
     },
     {
-      "name": "tts-ctc-python",
-      "kind": "python",
-      "title": "CTC-TTS-F runtime",
-      "why": "Runs the upstream CTC stack outside the voice Agent.",
-      "needed_for": [],
-      "source": { "type": "command" },
-      "project": "services/tts-ctc",
-      "extra": { "gpu_sensitive": true, "isolated": true }
-    },
-    {
-      "name": "tts-ctc-model",
-      "kind": "command",
-      "title": "CTC-TTS-F model",
-      "why": "Optional THU single-speaker streaming TTS checkpoint.",
-      "needed_for": [],
-      "source": { "type": "command" },
-      "project": "services/tts-ctc",
-      "install_to": "models/tts/ctc-tts-f",
-      "extra": {
-        "run": ["python", "-m", "marvi_tts_ctc.setup"],
-        "check": ["python", "-m", "marvi_tts_ctc.setup", "--check"]
-      }
-    },
-    {
       "name": "pocket-tts",
       "kind": "command",
       "title": "PocketTTS announcer",

@@ -295,8 +295,6 @@ def test_the_shipped_catalog_loads_and_is_complete() -> None:
         "tts-cute-model",
         "tts-voxtream-python",
         "tts-voxtream-model",
-        "tts-ctc-python",
-        "tts-ctc-model",
     } <= names
     for component in components:
         assert component.title, component.name

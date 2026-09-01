@@ -24,7 +24,7 @@
   voices, and setup diagnostics.
 - Chunked Parakeet ONNX Runtime STT adapter on CPU.
 - Kokoro clause-streaming LiveKit adapter as the default, plus isolated
-  selectable CuteTTS Distill, VoXtream2, and CTC-TTS-F PCM sidecars. These
+  selectable CuteTTS Distill and VoXtream2 PCM sidecars. These
   options remain experimental until their individual hardware gates pass.
 - Official `AgentSession` with local VAD/turn detection, barge-in tuning, OpenCode
   Go streaming LLM, and a transcript-level `Marvi` wake gate.
@@ -36,6 +36,10 @@
 - Replace the chunked Parakeet TDT baseline exception with a native stateful
   streaming recognizer that passes accented/owner-speech accuracy, the 300 ms
   median first-partial gate, and combined STT/TTS residency.
+
+The 1 September follow-up also rejected Kyutai STT 1B: 46.63% accented-English
+WER, 0.663 RTF, 1.434 s median first partial, 665 ms median EOS finalization,
+and 3,058 MB incremental VRAM on the target RTX 3060.
 
 ## Hardware bakeoff evidence
 
