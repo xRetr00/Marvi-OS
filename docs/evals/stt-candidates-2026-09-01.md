@@ -15,6 +15,12 @@ The follow-up Kyutai STT 1B run was realtime at 0.663 RTF but ranked last on
 accented accuracy at 46.63% WER, took 1.434 seconds to its median first useful
 partial, and left five clips empty.
 
+The requested Whisper large-v3-turbo follow-up used WhisperLiveKit's actual
+AlignAtt SimulStreaming policy rather than ordinary offline Whisper chunking.
+It measured 36.80% WER, 2.747 RTF, and a 2.530-second median first stable
+partial. It therefore lost to the Qwen Rust accuracy leader, was slower than
+realtime, and failed the first-partial gate. It is not promoted.
+
 The current Parakeet TDT recognizer remains the non-streaming baseline
 exception. Its historical 13.7% figure used an earlier corpus and must not be
 compared numerically with this pinned slice. None of these results authorizes a
@@ -31,6 +37,7 @@ VRAM is incremental above the desktop baseline.
 | Qwen3-ASR 0.6B `qwen3-asr-rs` | rolling 8 s window, prefix rollback, CPU f32 | **20.23%** | 1.462 | 3,762 / 4,363 ms | 2,515 ms | 3,044 MB | CPU | reject: not realtime |
 | Nemotron 3.5 Streaming 0.6B | cache-aware RNNT, 320 ms feeds, CUDA f16 | 30.06% | **0.099** | 1,065 / 2,753 ms | 33 ms | 2,736 MB | 2,967 MB | best GPU challenger; partial gate failed |
 | Parakeet Realtime EOU 120M | cache-aware RNNT, 160 ms feeds, CUDA f16 | 34.46% | 0.125 | **903 / 2,178 ms** | **20 ms** | 3,222 MB | **2,187 MB** | reject: accuracy and partial gate |
+| Whisper large-v3-turbo via WhisperLiveKit | AlignAtt SimulStreaming, 100 ms updates, Faster-Whisper CUDA encoder | 36.80% | 2.747 | 2,530 / 3,253 ms | 288 ms | 2,462 MB | 1,865 MB | reject: slower than realtime, accuracy and partial gate |
 | Qwen3-ASR 0.6B causal | append-only causal tower, 1.92 s blocks, CUDA bf16 | 37.98% | 0.437 | 7,991 / 10,953 ms | 696 ms | **2,124 MB** | 5,762 MB | reject: accuracy and latency |
 | Kyutai STT 1B | causal Mimi frames, official Moshi 0.2.13, CUDA bf16 | 46.63% | 0.663 | 1,434 / 4,717 ms | 665 ms | 2,656 MB | 3,058 MB | reject: last-place accuracy and latency |
 | Qwen3-ASR 0.6B official vLLM realtime | official rolling/prefix-stabilized server | — | — | — | — | — | — | ineligible: vLLM has no native Windows support |
@@ -44,17 +51,17 @@ latency measure model work, not microphone endpointing or LiveKit transport.
 WER is aggregate word error within each six-clip group. `Ghanain English` is
 the spelling in the pinned EdAcc metadata and is retained for reproducibility.
 
-| L1 group | Qwen Rust rolling | Nemotron 3.5 | Parakeet EOU | Qwen causal | Kyutai 1B |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Ghanain English | **8.00%** | 17.33% | 24.00% | 25.33% | 42.67% |
-| Hindi | **7.55%** | 9.43% | 11.32% | 15.09% | 15.09% |
-| Indian English | **13.68%** | 16.84% | 25.26% | 23.16% | 40.00% |
-| Jamaican English | **20.90%** | 26.87% | 31.34% | 32.84% | 49.25% |
-| Kenyan English | **22.86%** | 44.29% | 54.29% | 52.86% | 71.43% |
-| Lithuanian | **20.69%** | 27.59% | 37.93% | 36.78% | 37.93% |
-| Mandarin | **17.98%** | 26.97% | 25.84% | 28.09% | 34.83% |
-| Nigerian English | **28.99%** | 50.72% | 57.97% | 73.91% | 52.17% |
-| Spanish | **40.26%** | 50.65% | 41.56% | 55.84% | 74.03% |
+| L1 group | Qwen Rust rolling | Nemotron 3.5 | Parakeet EOU | WLK turbo | Qwen causal | Kyutai 1B |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Ghanain English | **8.00%** | 17.33% | 24.00% | 26.67% | 25.33% | 42.67% |
+| Hindi | **7.55%** | 9.43% | 11.32% | 24.53% | 15.09% | 15.09% |
+| Indian English | **13.68%** | 16.84% | 25.26% | 23.16% | 23.16% | 40.00% |
+| Jamaican English | **20.90%** | 26.87% | 31.34% | 29.85% | 32.84% | 49.25% |
+| Kenyan English | **22.86%** | 44.29% | 54.29% | 55.71% | 52.86% | 71.43% |
+| Lithuanian | **20.69%** | 27.59% | 37.93% | 33.33% | 36.78% | 37.93% |
+| Mandarin | **17.98%** | 26.97% | 25.84% | 24.72% | 28.09% | 34.83% |
+| Nigerian English | **28.99%** | 50.72% | 57.97% | 60.87% | 73.91% | 52.17% |
+| Spanish | **40.26%** | 50.65% | 41.56% | 57.14% | 55.84% | 74.03% |
 
 Normal English would have hidden the main finding. Kenyan, Nigerian, and
 Spanish-accented speech separate these engines sharply; the small EOU model's
@@ -104,6 +111,14 @@ metrics are checked into `evidence/stt-2026-09-01/summary.json`.
   (Mimi), and
   `CD87DD5D17169151782AC700280EC057E5D658A9AFBE238A048EA5FF318CCE69`
   (tokenizer).
+- WhisperLiveKit `b781ce9334c8085131b2b7a146a61d4e22ba5af1`
+  (`whisperlivekit==0.2.26`), OpenAI Whisper large-v3-turbo decoder SHA-256
+  `AFF26AE408ABCBA5FBF8813C21E62B0941638C5F6EEBFB145BE0C9839262A19A`,
+  and `mobiuslabsgmbh/faster-whisper-large-v3-turbo` encoder snapshot
+  `0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf` with `model.bin` SHA-256
+  `E76620F83D5F5B69EFD3D87E3DC180C1BD21DF9FBEBACFD4335E5E1EFCC018DA`.
+  The isolated Windows runtime used Faster-Whisper 1.2.1, CTranslate2 4.8.2,
+  and Torch 2.9.1+cu130. No offline transcript replaced SimulStreaming commits.
 - `parakeet.cpp` v0.5.0 official Windows CUDA binaries and f16 GGUFs from
   `mudler/parakeet-cpp-gguf`
   `bf0af9f425fa01809cadec671b3cb672709d13e9`.
@@ -149,6 +164,14 @@ The Kyutai follow-up uses an isolated Python 3.12 environment containing
 
 ```powershell
 python evals\kyutai_stt_runner.py <manifest.jsonl> <corpus-dir> <model-dir> <predictions.jsonl>
+```
+
+The WhisperLiveKit follow-up uses its pinned source checkout, an explicit
+large-v3-turbo CTranslate2 encoder snapshot, the checksum-verified OpenAI
+decoder, and the CUDA 12 DLL directory required by CTranslate2 on Windows:
+
+```powershell
+python evals\whisperlivekit_runner.py <manifest.jsonl> <corpus-dir> <encoder-dir> <decoder-cache> <cuda-runtime-dir> <predictions.jsonl>
 ```
 
 The runners deliberately stay evaluation-only. A candidate still needs the

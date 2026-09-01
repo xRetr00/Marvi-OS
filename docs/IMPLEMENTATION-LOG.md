@@ -4,6 +4,22 @@ This is the chronological record of work that has actually happened. Planned
 work belongs in `docs/phases/`; architectural decisions belong in
 `docs/DECISIONS.md`.
 
+## 2026-09-01 — WhisperLiveKit large-v3-turbo follow-up
+
+- Pinned WhisperLiveKit 0.2.26 at
+  `b781ce9334c8085131b2b7a146a61d4e22ba5af1`, the OpenAI
+  large-v3-turbo decoder checksum, and the exact CTranslate2 turbo encoder
+  snapshot in an isolated native-Windows CUDA environment.
+- Added an evaluation-only driver for WLK's real AlignAtt SimulStreaming
+  processor with 100 ms audio updates; no offline or final-only Whisper result
+  was substituted for committed streaming tokens.
+- Ran the unchanged 54-clip EdAcc accented-English slice. The result was 36.80%
+  WER, 2.747 RTF, 2.530 s median first stable partial, 288 ms median EOS
+  finalization, 2,462 MB peak process RAM, and 1,865 MB incremental VRAM.
+- Rejected the candidate because it lost the accuracy lead, was slower than
+  realtime, and missed the first-partial gate. No shipping adapter, Setup
+  option, or default change was made.
+
 ## 2026-09-01 — Accented-English streaming STT bakeoff
 
 - Built a deterministic 54-clip, nine-background EdAcc test slice with pinned

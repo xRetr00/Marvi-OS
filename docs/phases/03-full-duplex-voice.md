@@ -41,6 +41,11 @@ The 1 September follow-up also rejected Kyutai STT 1B: 46.63% accented-English
 WER, 0.663 RTF, 1.434 s median first partial, 665 ms median EOS finalization,
 and 3,058 MB incremental VRAM on the target RTX 3060.
 
+The requested Whisper large-v3-turbo follow-up used WhisperLiveKit's pinned
+AlignAtt SimulStreaming path and was also rejected: 36.80% WER, 2.747 RTF,
+2.530 s median first stable partial, 288 ms median EOS finalization, and 1,865
+MB incremental VRAM. No runtime adapter was added.
+
 ## Hardware bakeoff evidence
 
 [`../evidence/phase-3-hardware-bakeoff.json`](../evidence/phase-3-hardware-bakeoff.json)

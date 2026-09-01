@@ -58,6 +58,22 @@
       "reason": "accent accuracy and first-partial gate failed"
     },
     {
+      "engine": "whisper-large-v3-turbo-whisperlivekit-0.2.26-b781ce9-simulstreaming-faster-whisper-cuda",
+      "source_revision": "b781ce9334c8085131b2b7a146a61d4e22ba5af1",
+      "encoder_revision": "0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf",
+      "predictions_sha256": "444A837C199B7EA6D255FF65C2E82A8B2EA2EE9607CCBBB818E057AA88E635AE",
+      "wer": 0.368035,
+      "rtf": 2.74708,
+      "first_partial_ms_p50": 2530.16,
+      "first_partial_ms_p90": 3252.747,
+      "final_after_eos_ms_p50": 288.314,
+      "peak_rss_mb": 2461.531,
+      "peak_vram_mb": 1865.0,
+      "empty_hypotheses": 0,
+      "eligible": false,
+      "reason": "slower than realtime and misses accented-accuracy and first-partial gates"
+    },
+    {
       "engine": "qwen3-asr-0.6b-causal-hf-cuda-bf16",
       "predictions_sha256": "7D0B1B34CD74908ED003560925B06EB3122AF76455152BE5CE566B2CEC0470AA",
       "wer": 0.379765,

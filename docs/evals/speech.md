@@ -13,7 +13,7 @@ streaming-only accented-English challenger run on 1 September 2026 did not
 produce a replacement: Qwen's community Rust rolling server led accuracy at
 20.23% WER but ran at 1.46 RTF on its available native CPU build; Nemotron 3.5
 was the best GPU compromise at 30.06% WER and 0.099 RTF, but took 1.065 seconds
-to its first useful partial. The exact corpus, all six candidate outcomes,
+to its first useful partial. The exact corpus, all seven candidate outcomes,
 per-accent results, and prediction hashes are in
 [the streaming STT report](stt-candidates-2026-09-01.md).
 
@@ -21,6 +21,13 @@ Kyutai STT 1B was added as a follow-up on the identical slice. It ran genuine
 80 ms causal Mimi frames at 0.663 RTF and used 3,058 MB incremental VRAM, but
 lost the accuracy ranking at 46.63% WER, left five clips empty, and took 1.434
 seconds to its median first useful partial. It was not integrated.
+
+Whisper large-v3-turbo was then measured through pinned WhisperLiveKit
+SimulStreaming rather than a normal offline Whisper call. Its 36.80% WER ranked
+between Parakeet EOU and Qwen causal, but 2.747 RTF made it slower than realtime
+and its first stable partial took 2.530 seconds median. Despite low 1,865 MB
+incremental VRAM and 288 ms median EOS finalization, it failed the combined
+gate and was not integrated.
 
 ### The language lock is the model, not the prompt
 

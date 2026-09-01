@@ -30,13 +30,23 @@ Full Kyutai Unmute is not a shipping candidate because its documented runtime ta
    0.663 RTF with 3,058 MB incremental VRAM, but it ranked last at 46.63% WER,
    produced five empty hypotheses, and measured 1.434 s median first partial
    plus 665 ms median finalization after EOS.
+5. **Whisper large-v3-turbo through WhisperLiveKit is rejected.** The requested
+   follow-up exercised WLK's 100 ms AlignAtt SimulStreaming commits with its
+   Faster-Whisper CUDA encoder, not ordinary offline transcription. It measured
+   36.80% WER, 2.747 RTF, and a 2.530 s median first stable partial. Its 288 ms
+   median EOS finalization and 1,865 MB incremental VRAM passed individually,
+   but it was slower than realtime and failed accuracy and partial latency.
 
 The existing Parakeet TDT remains the explicitly permitted non-streaming
 baseline exception until a genuinely streaming candidate beats it on Marvi's
 accented and owner-speech corpus and passes the latency, loopback, and soak
 gates. See [the pinned candidate report](evals/stt-candidates-2026-09-01.md).
 
-Whisper, whisper.cpp, faster-whisper, and WhisperLive are rejected. Chunking a non-streaming encoder and revising overlapping windows is not the incremental, stateful STT architecture required for this product.
+Ordinary Whisper, whisper.cpp, faster-whisper, and WhisperLive chunking remain
+rejected: revising overlapping windows from a non-streaming encoder is not the
+incremental, stateful STT architecture required for this product.
+WhisperLiveKit's specialized SimulStreaming policy was nevertheless measured
+as an explicit challenger and rejected on the hardware gates above.
 
 ### Streaming TTS
 
