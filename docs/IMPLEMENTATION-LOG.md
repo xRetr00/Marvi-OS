@@ -4,6 +4,24 @@ This is the chronological record of work that has actually happened. Planned
 work belongs in `docs/phases/`; architectural decisions belong in
 `docs/DECISIONS.md`.
 
+## 2026-09-01 — Accented-English streaming STT bakeoff
+
+- Built a deterministic 54-clip, nine-background EdAcc test slice with pinned
+  source revision, stable selection, per-audio checksums, and 16 kHz PCM
+  conversion, plus a shared WER/latency/resource scorer with unit tests.
+- Exercised Qwen3-ASR causal on CUDA, Qwen3-ASR's community Rust rolling server
+  on its available native CPU build, Nemotron 3.5 Streaming and Parakeet
+  Realtime EOU through the official `parakeet.cpp` Windows CUDA release. The
+  official Qwen vLLM path was marked ineligible instead of replaced with WSL
+  because vLLM does not support Windows natively.
+- Qwen Rust led accented accuracy at 20.23% WER but was slower than realtime;
+  Nemotron was the best GPU compromise at 30.06% WER and 0.099 RTF, but still
+  took 1.065 seconds to its first useful partial. No engine passed Marvi's
+  complete gate, so no default changed.
+- Recorded per-accent results, runtime and model pins, exact output hashes,
+  native hardware limits, and the current Parakeet TDT baseline exception in
+  `docs/evals/stt-candidates-2026-09-01.md`.
+
 ## 2026-08-31 — Quiet updater processes and Nightly channel
 
 - Routed every production updater subprocess through the Windows hidden-window

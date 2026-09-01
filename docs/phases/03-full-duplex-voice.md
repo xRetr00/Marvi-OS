@@ -33,6 +33,9 @@
 ## Still required before this phase can be marked complete
 
 - Real speaker double-talk/barge-in test and unattended 60-minute soak.
+- Replace the chunked Parakeet TDT baseline exception with a native stateful
+  streaming recognizer that passes accented/owner-speech accuracy, the 300 ms
+  median first-partial gate, and combined STT/TTS residency.
 
 ## Hardware bakeoff evidence
 
@@ -46,3 +49,10 @@ The current candidate measurements and exact source/model pins are recorded in
 [`../evals/tts-candidates-2026-08-31.md`](../evals/tts-candidates-2026-08-31.md).
 That evidence keeps Kokoro as default; adding an option to Settings is not a
 substitute for the combined loopback and soak gate.
+
+The 1 September streaming STT bakeoff is recorded in
+[`../evals/stt-candidates-2026-09-01.md`](../evals/stt-candidates-2026-09-01.md).
+Qwen's Rust rolling server led its accented-English slice at 20.23% WER but was
+slower than realtime on the available native CPU build. Nemotron 3.5 was the
+best GPU compromise at 30.06% WER and 0.099 RTF, but missed the first-partial
+gate at 1.065 seconds. No STT candidate was promoted.

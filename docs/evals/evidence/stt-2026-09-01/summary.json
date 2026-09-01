@@ -1,0 +1,81 @@
+{
+  "schema": "marvi-stt-bakeoff-v1",
+  "date": "2026-09-01",
+  "hardware": {
+    "os": "Windows",
+    "gpu": "NVIDIA GeForce RTX 3060",
+    "vram_mb": 12288,
+    "driver": "610.88"
+  },
+  "corpus": {
+    "dataset": "edinburghcstr/edacc",
+    "revision": "d9ae7bd344f0562b766ec93ee5ce8f2f9568ce66",
+    "split": "test",
+    "clips": 54,
+    "speakers": 20,
+    "audio_seconds": 248.19,
+    "reference_words": 682,
+    "manifest_sha256": "B809D38ACB41DC5B07B680393BA978858A069FA6239D1C722A50143BF9017B77"
+  },
+  "results": [
+    {
+      "engine": "qwen3-asr-0.6b-rust-rolling-cpu-f32",
+      "predictions_sha256": "746B5BC8D5E185ADB0CD329C41AA405634178E651746279D26FB02A5A87B72C5",
+      "wer": 0.202346,
+      "rtf": 1.461838,
+      "first_partial_ms_p50": 3762.052,
+      "first_partial_ms_p90": 4362.749,
+      "final_after_eos_ms_p50": 2514.984,
+      "peak_rss_mb": 3043.852,
+      "peak_vram_mb": 0.0,
+      "eligible": false,
+      "reason": "native CPU build is slower than realtime and misses the first-partial gate"
+    },
+    {
+      "engine": "nemotron-3.5-streaming-0.6b-parakeet.cpp-v0.5.0-cuda-f16",
+      "predictions_sha256": "74C9E693DF4E743822AF251571E8794243A4DA3270E5589522E43B2DD743A97D",
+      "wer": 0.300587,
+      "rtf": 0.099121,
+      "first_partial_ms_p50": 1064.84,
+      "first_partial_ms_p90": 2752.557,
+      "final_after_eos_ms_p50": 32.793,
+      "peak_rss_mb": 2735.711,
+      "peak_vram_mb": 2967.0,
+      "eligible": false,
+      "reason": "misses the first-partial gate"
+    },
+    {
+      "engine": "parakeet-realtime-eou-120m-parakeet.cpp-v0.5.0-cuda-f16",
+      "predictions_sha256": "2BB88D40CE7D5E9869386C59D16ED8CF34EA00AFB1597F5F9EDD804DBB1613F1",
+      "wer": 0.344575,
+      "rtf": 0.12451,
+      "first_partial_ms_p50": 903.325,
+      "first_partial_ms_p90": 2178.31,
+      "final_after_eos_ms_p50": 19.631,
+      "peak_rss_mb": 3222.059,
+      "peak_vram_mb": 2187.0,
+      "eligible": false,
+      "reason": "accent accuracy and first-partial gate failed"
+    },
+    {
+      "engine": "qwen3-asr-0.6b-causal-hf-cuda-bf16",
+      "predictions_sha256": "7D0B1B34CD74908ED003560925B06EB3122AF76455152BE5CE566B2CEC0470AA",
+      "wer": 0.379765,
+      "rtf": 0.437285,
+      "first_partial_ms_p50": 7990.537,
+      "first_partial_ms_p90": 10952.623,
+      "final_after_eos_ms_p50": 696.266,
+      "peak_rss_mb": 2123.734,
+      "peak_vram_mb": 5762.0,
+      "eligible": false,
+      "reason": "accent accuracy, first-partial, and finalization gates failed"
+    },
+    {
+      "engine": "qwen3-asr-0.6b-official-vllm-realtime",
+      "eligible": false,
+      "reason": "official vLLM runtime does not support native Windows",
+      "metrics": null
+    }
+  ],
+  "decision": "no_promotion"
+}

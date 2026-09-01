@@ -15,32 +15,46 @@ Full Kyutai Unmute is not a shipping candidate because its documented runtime ta
 
 ### Streaming STT
 
-1. **Selected: NVIDIA Nemotron 3.5 ASR Streaming 0.6B through `parakeet-rs`.**
-   This is the current multilingual cache-aware model, not old Marvi's Parakeet
-   baseline. The pinned ONNX path loads natively with CUDA, accepts arbitrary
-   feeds while preserving encoder/decoder state, and takes an explicit
-   language hint (`en-US` by default).
-2. **Moonshine Voice Medium Streaming** remains the CPU/packaging fallback if
-   the real microphone corpus does not validate Nemotron quality.
-3. **sherpa-onnx streaming models** remain a second packaging fallback.
+1. **No new streaming STT is selected.** The 1 September 2026
+   accented-English bakeoff found that the Qwen3-ASR Rust rolling path was most
+   accurate at 20.23% WER, but its native CPU build was slower than realtime.
+2. **NVIDIA Nemotron 3.5 ASR Streaming 0.6B is the best GPU challenger**, not a
+   selected engine. Through the pinned `parakeet.cpp` CUDA runtime it measured
+   30.06% WER and 0.099 RTF, but its 1.065 s median first useful partial missed
+   the 300 ms gate.
+3. **Parakeet Realtime EOU 120M and Qwen3-ASR causal are rejected for now.**
+   They measured 34.46% and 37.98% WER respectively and also missed the partial
+   gate. Official Qwen vLLM realtime is ineligible because vLLM has no native
+   Windows runtime.
+
+The existing Parakeet TDT remains the explicitly permitted non-streaming
+baseline exception until a genuinely streaming candidate beats it on Marvi's
+accented and owner-speech corpus and passes the latency, loopback, and soak
+gates. See [the pinned candidate report](evals/stt-candidates-2026-09-01.md).
 
 Whisper, whisper.cpp, faster-whisper, and WhisperLive are rejected. Chunking a non-streaming encoder and revising overlapping windows is not the incremental, stateful STT architecture required for this product.
 
 ### Streaming TTS
 
-1. **Selected: Microsoft VibeVoice-Realtime 0.5B.** The pinned official runtime
-   emits acoustic PCM chunks, exposes 25 official presets, and passes realtime
-   throughput at three diffusion steps on the target GPU.
-2. **Kyutai delayed-stream TTS** is rejected for the active 12 GB/native-Windows
-   stack: its current practical runtime budget and supported deployment path do
-   not fit alongside ASR and later vision.
-3. **Kokoro ONNX** was fast overall and exposes 54 voices, but its stream did not
-   yield until synthesis of the submitted utterance completed. It is not the
-   primary acoustic-streaming engine.
-4. **Orpheus TTS 3B** remains parked because its runtime/model footprint is a
-   poor fit for this machine.
+1. **Kokoro-82M remains the current shipping default.** It is the measured
+   low-residency baseline, not a claim that its submitted-utterance buffering
+   satisfies the future full-duplex streaming gate.
+2. **CuteTTS Distill, VoXtream2, and CTC-TTS-F are selectable experimental
+   options.** Cute and VoXtream emitted incremental PCM on the target GPU; CTC
+   passed only the native process/residency smoke. None has completed listening,
+   cancellation, combined voice residency, loopback, and soak acceptance.
+3. **VoxCPM2 is rejected** for slower-than-realtime synthesis and inadequate
+   shared-GPU headroom. Breeze-TTS-2.cpp and Gepard remain outside the supported
+   native-Windows path.
+4. **Kyutai delayed-stream TTS and Orpheus TTS 3B** remain parked because their
+   deployment or runtime footprints do not fit this machine.
 
-Qwen3-TTS is rejected as too heavy for the always-resident budget. PocketTTS, Chatterbox's official whole-waveform API, and other sentence-buffered engines are rejected as the main voice because they cannot preserve full-duplex call behavior. CosyVoice is not a primary candidate until its official path proves genuine incremental generation without overlap stitching.
+Qwen3-TTS is rejected as too heavy for the always-resident budget. PocketTTS,
+Chatterbox's official whole-waveform API, and other sentence-buffered engines
+are rejected as future full-duplex defaults. CosyVoice is not a primary
+candidate until its official path proves genuine incremental generation
+without overlap stitching. See
+[the dated TTS report](evals/tts-candidates-2026-08-31.md).
 
 ## Duplex architecture under test
 

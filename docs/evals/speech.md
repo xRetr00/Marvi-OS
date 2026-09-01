@@ -4,8 +4,18 @@ The two components a person judges before Marvi has said anything useful.
 
 ## Recognition
 
-Parakeet TDT 0.6B through a streaming ONNX wrapper. Two model choices and one
+Parakeet TDT 0.6B through a chunked ONNX wrapper. Two model choices and one
 setting — and the setting matters more than the choice.
+
+This is now the explicit non-streaming baseline exception, not proof that
+lookahead over an offline encoder satisfies the new shipping contract. A
+streaming-only accented-English challenger run on 1 September 2026 did not
+produce a replacement: Qwen's community Rust rolling server led accuracy at
+20.23% WER but ran at 1.46 RTF on its available native CPU build; Nemotron 3.5
+was the best GPU compromise at 30.06% WER and 0.099 RTF, but took 1.065 seconds
+to its first useful partial. The exact corpus, all five candidate outcomes,
+per-accent results, and prediction hashes are in
+[the streaming STT report](stt-candidates-2026-09-01.md).
 
 ### The language lock is the model, not the prompt
 
@@ -27,6 +37,9 @@ conversation, and it loses. **The recogniser is the lock.**
 
 The accuracy figures come from a corpus run. The latency half was established
 from live logs and is the more important half:
+
+These historical percentages used a different corpus and are not directly
+comparable with the 2026-09-01 EdAcc slice.
 
 - `transcript behind` median 198 ms, **p90 2,930 ms**
 - `end of turn` tracks it within ~380 ms at both median and p90
