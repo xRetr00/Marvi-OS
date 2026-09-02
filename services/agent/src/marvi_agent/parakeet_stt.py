@@ -70,11 +70,17 @@ ENGINE_SETTING = "MARVI_STT_ENGINE"
 #:
 #:     parakeet-tdt   WER 20.81%  RTF 0.055  first partial 2,910 ms
 #:     nemotron-3.5   WER 24.79%  RTF 0.090  first partial 1,063 ms
+#:     kyutai-1b      WER 35.26%  RTF 0.80   first partial 3,521 ms
 #:
 #: Four points of word error against 1.8 seconds off the first word. Neither
 #: is better; they are different trades, so both are offered and the more
 #: accurate one is the default.
-ENGINES = ("parakeet-tdt", "nemotron-3.5")
+#:
+#: Kyutai loses on both of those numbers and is here for a third one the other
+#: two cannot produce at all: it says when the speaker has finished, from
+#: content and intonation, instead of leaving turn-taking to a 600 ms timer.
+#: See `kyutai_stt`.
+ENGINES = ("parakeet-tdt", "nemotron-3.5", "kyutai-1b")
 
 
 def chosen_engine() -> str:
@@ -98,6 +104,13 @@ def build_stt(engine: str = "") -> Any:
         if installed():
             return NemotronSTT()
         log.warning("stt: nemotron is selected but not installed; using parakeet")
+    if selected == "kyutai-1b":
+        from .kyutai_stt import KyutaiSTT
+        from .kyutai_stt import installed as kyutai_installed
+
+        if kyutai_installed():
+            return KyutaiSTT()
+        log.warning("stt: kyutai is selected but not installed; using parakeet")
     return ParakeetSTT()
 
 

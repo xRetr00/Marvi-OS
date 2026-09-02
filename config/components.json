@@ -364,6 +364,40 @@
       "extra": {
         "note": "1.5 GB. Only needed if the Nemotron recogniser is chosen in Settings > Speech recognition."
       }
+    },
+    {
+      "name": "stt-kyutai-model",
+      "kind": "model",
+      "title": "Kyutai STT 1B",
+      "why": "The only recogniser that says when you have finished speaking, from content and intonation rather than from a silence timer. Less accurate than either other option and uses most of the graphics card.",
+      "needed_for": [],
+      "source": {
+        "type": "huggingface",
+        "id": "kyutai/stt-1b-en_fr-candle",
+        "revision": "095e38f6242006a93c2541149b181988397f5c7c"
+      },
+      "install_to": "models/stt/kyutai-stt-1b-candle",
+      "files": {
+        "config.json": [
+          1315,
+          "A3F1C6F7A39FCA1FB1BBFF68EAABC560B8037D2CDC68AA1F489859949A4223DE"
+        ],
+        "tokenizer_en_fr_audio_8000.model": [
+          120378,
+          "CD87DD5D17169151782AC700280EC057E5D658A9AFBE238A048EA5FF318CCE69"
+        ],
+        "mimi-pytorch-e351c8d8@125.safetensors": [
+          384644900,
+          "09B782F0629851A271227FB9D36DB65C041790365F11BBE5D3D59369CF863F50"
+        ],
+        "model.safetensors": [
+          1978522200,
+          "B9E97C53229DCE728D65C76BFA892F7B563C69D671899F0EBC6518582DDDEC6F"
+        ]
+      },
+      "extra": {
+        "note": "2.3 GB. Only needed if the Kyutai recogniser is chosen in Settings > Speech recognition."
+      }
     }
   ]
 }

@@ -89,7 +89,8 @@ def main() -> None:
     early: dict[int, int] = {index: 0 for index in range(heads)}
     silent = 0
 
-    for row in rows:
+    def measure(row: dict) -> None:
+        nonlocal silent
         pcm, _ = sphn.read(
             str(args.corpus / row["audio"]), sample_rate=mimi.sample_rate
         )
@@ -178,7 +179,7 @@ def main() -> None:
 
         if last_word is None:
             silent += 1
-            continue
+            return
         cells = []
         for index in range(heads):
             when = last_fired[index]
@@ -192,6 +193,9 @@ def main() -> None:
             f"{row['id'][:22]:<22} {last_word:9.2f}s "
             + " ".join(f"{cell:>12}" for cell in cells)
         )
+
+    for row in rows:
+        measure(row)
 
     print()
     print("last crossing relative to the last word, and premature crossings:")

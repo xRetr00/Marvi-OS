@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import ctypes
 import json
 import os
 import subprocess
+import sys
 import time
 import wave
 from pathlib import Path
@@ -65,7 +67,7 @@ def _peak_rss_mb() -> float:
 class KyutaiStreamingStt:
     def __init__(self, model_dir: Path) -> None:
         checkpoint = loaders.CheckpointInfo.from_hf_repo(
-            "kyutai/stt-1b-en_fr",
+            "kyutai/stt-1b-en_fr-candle",
             config_path=model_dir / "config.json",
             moshi_weights=model_dir / "model.safetensors",
             mimi_weights=model_dir / "mimi-pytorch-e351c8d8@125.safetensors",
@@ -187,6 +189,14 @@ class KyutaiStreamingStt:
 
 
 def main() -> None:
+    # Windows' console is cp1252, and this model is English *and French*: one
+    # accented character in a transcript and the run dies on a print, 195 clips
+    # short, with a UnicodeEncodeError that says nothing about audio. The
+    # results file already writes UTF-8; only the progress line was fragile.
+    for handle in (sys.stdout, sys.stderr):
+        with contextlib.suppress(Exception):
+            handle.reconfigure(encoding="utf-8", errors="replace")
+
     parser = argparse.ArgumentParser()
     parser.add_argument("manifest", type=Path)
     parser.add_argument("corpus", type=Path)

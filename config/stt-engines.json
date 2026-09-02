@@ -1,5 +1,5 @@
 {
-  "$comment": "Local recognisers. Runtime source and model revisions are pinned independently because the model repositories do not contain Marvi's LiveKit adapter. Measured on 2 September 2026 against docs/evals/stt-candidates: parakeet-tdt leads on accuracy and throughput, nemotron leads on responsiveness by 1.8 seconds.",
+  "$comment": "Local recognisers. Runtime source and model revisions are pinned independently because the model repositories do not contain Marvi's LiveKit adapter. Measured on 2 September 2026 against docs/evals/stt-candidates: parakeet-tdt leads on accuracy and throughput, nemotron leads on responsiveness by 1.8 seconds, and kyutai-1b loses both while being the only one that can end a turn on meaning rather than on a timer.",
   "schema": 1,
   "default_engine": "parakeet-tdt",
   "engine_setting": "MARVI_STT_ENGINE",
@@ -34,6 +34,27 @@
         "wer": 0.2479,
         "rtf": 0.09,
         "first_partial_ms_p50": 1063
+      }
+    },
+    {
+      "id": "kyutai-1b",
+      "name": "Kyutai STT 1B",
+      "description": "Knows when you have finished talking, from what you said rather than from silence. Least accurate of the three and needs most of the card.",
+      "runtime": "moshi",
+      "install_to": "models/stt/kyutai-stt-1b-candle",
+      "model_file": "model.safetensors",
+      "model_id": "kyutai/stt-1b-en_fr-candle",
+      "model_revision": "095e38f6242006a93c2541149b181988397f5c7c",
+      "language": "en,fr",
+      "semantic_vad": true,
+      "measured": {
+        "corpus": "edacc-2026-09-02",
+        "wer": 0.3526,
+        "rtf": 0.8,
+        "first_partial_ms_p50": 3521,
+        "arabic_wer": 0.2017,
+        "vad_lead_ms_p50": -280,
+        "vad_premature_per_14_clips": 1
       }
     }
   ]

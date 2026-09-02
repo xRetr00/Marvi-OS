@@ -66,16 +66,20 @@ class Recogniser:
         if not self.install_to or not self.model_file:
             return False
         root = install_root()
-        # All three, because the adapter needs all three. The weights alone
-        # would put the recogniser in the picker and then fall back to the
-        # default the moment it was chosen, and cuBLAS is the one that fails
-        # latest and least legibly -- the library loads and dies on the first
-        # frame of audio.
-        return (
-            (root / self.install_to / self.model_file).is_file()
-            and (root / "runtimes/parakeet-cpp/lib/parakeet.dll").is_file()
-            and (root / "runtimes/parakeet-cpp/cudart/cudart64_12.dll").is_file()
-        )
+        if not (root / self.install_to / self.model_file).is_file():
+            return False
+        # Weights are not enough for every runtime. parakeet.cpp needs its own
+        # native library and NVIDIA's cuBLAS beside it, and cuBLAS is the piece
+        # that fails latest and least legibly: the library loads and then dies
+        # on the first frame of audio. Kyutai runs on the agent's own PyTorch
+        # and needs nothing else on disk.
+        if self.runtime == "parakeet-cpp":
+            return (
+                root / "runtimes/parakeet-cpp/lib/parakeet.dll"
+            ).is_file() and (
+                root / "runtimes/parakeet-cpp/cudart/cudart64_12.dll"
+            ).is_file()
+        return True
 
 
 @lru_cache(maxsize=1)

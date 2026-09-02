@@ -1175,11 +1175,14 @@ def _recogniser(warmed: dict[str, Any]) -> Any:
     # The engine first, then which weights within it. Selecting Nemotron and
     # keeping a warm Parakeet is the same bug as keeping a warm v2 when v3 is
     # asked for, one level up.
-    wanted = (
-        "nemotron-3.5-asr-streaming-0.6b"
-        if chosen_engine() == "nemotron-3.5"
-        else chosen_model().name.removesuffix("-onnx")
-    )
+    # A name per engine, because the comparison below is by name. Only the
+    # in-process recogniser varies its weights by setting, so only it has to
+    # ask which model it would load.
+    engine = chosen_engine()
+    wanted = {
+        "nemotron-3.5": "nemotron-3.5-asr-streaming-0.6b",
+        "kyutai-1b": "kyutai-stt-1b-en_fr",
+    }.get(engine) or chosen_model().name.removesuffix("-onnx")
     listener = warmed.get("stt")
     if listener is not None and warmed.get("stt_model") == wanted:
         return listener

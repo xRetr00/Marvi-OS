@@ -96,6 +96,22 @@ VAD_INDEX = 2
 VAD_THRESHOLD_SETTING = "MARVI_KYUTAI_VAD_THRESHOLD"
 VAD_THRESHOLD = 0.5
 
+#: Consecutive frames over the threshold before the turn is called ended.
+#:
+#: The heads spike for a frame or two mid-utterance -- on a breath, on a digit
+#: sequence -- and a bare threshold acts on every one of them. Measured over 14
+#: voice-agent clips, counting crossings before the real end of the turn:
+#:
+#:     hold   head 1 (1.0s)        head 2 (2.0s)
+#:     1      8 early, -0.44s      5 early, -0.44s
+#:     3      2 early, -0.28s      1 early, -0.28s
+#:     5      1 early, -0.12s      1 early, -0.12s
+#:
+#: Three frames is 240 ms and takes head 2 from five premature endings to one
+#: while giving up 0.16 s. Five buys nothing more and costs another 0.16 s.
+VAD_HOLD_SETTING = "MARVI_KYUTAI_VAD_HOLD"
+VAD_HOLD = 3
+
 #: Mimi's frame. The model consumes exactly this much audio per step and
 #: nothing else is a valid feed size.
 FRAME_SECONDS = 0.08
@@ -289,6 +305,8 @@ class KyutaiStream(stt.RecognizeStream):
         self._open = False
         self._first = True
         self._ended_by_vad = 0
+        #: How many frames in a row the pause head has been over threshold.
+        self._high_for = 0
 
     def set_transcribing(self, on: bool) -> None:
         self._transcribing = on
@@ -305,6 +323,7 @@ class KyutaiStream(stt.RecognizeStream):
         model.reset()
         self._first = True
         self._open = True
+        self._high_for = 0
         quiet = np.zeros(FRAME_SAMPLES, dtype=np.float32)
         for _ in range(int(PREFIX_SECONDS / FRAME_SECONDS)):
             model.step(quiet, self._first)
@@ -330,6 +349,7 @@ class KyutaiStream(stt.RecognizeStream):
     async def _run(self) -> None:
         model = await asyncio.to_thread(self._kyutai._build)
         threshold = _setting(VAD_THRESHOLD_SETTING, VAD_THRESHOLD)
+        hold = max(1, int(_setting(VAD_HOLD_SETTING, VAD_HOLD)))
         try:
             async for item in self._input_ch:
                 if isinstance(item, self._FlushSentinel):
@@ -353,10 +373,15 @@ class KyutaiStream(stt.RecognizeStream):
                         self._said = (self._said + piece).strip()
                         self._spoke_at = time.monotonic()
                         self._emit(stt.SpeechEventType.INTERIM_TRANSCRIPT, self._said)
-                    # Only once something has been said. The pause heads spike
-                    # on digits and on audio the model reads as silence, and an
-                    # end-of-turn before the first word is not a turn ending.
-                    if self._said and done > threshold:
+                    # Sustained, and only once something has been said.
+                    #
+                    # The heads are pause detectors: they are high through the
+                    # silence before anyone speaks, and they spike for a frame
+                    # or two mid-sentence. Both guards are load-bearing -- the
+                    # first probe of this signal, without them, would have
+                    # ended one clip's turn 8.9 seconds early.
+                    self._high_for = self._high_for + 1 if done > threshold else 0
+                    if self._said and self._high_for >= hold:
                         finished = True
                         break
                 if finished:

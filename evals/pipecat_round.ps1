@@ -63,8 +63,15 @@ Step "whisper-large-v3-turbo" {
 }
 
 Step "kyutai-stt-1b" {
+    # The `-candle` checkpoint, which is the one Marvi installs.
+    #
+    # `kyutai/stt-1b-en_fr` and `kyutai/stt-1b-en_fr-candle` are the same
+    # model published under two names, and only the second carries the four
+    # VAD heads -- 135 tensors against 131. The first round measured the
+    # first, so it measured this model with the only feature worth having
+    # it for absent.
     & "$root\runtimes\kyutai-stt\Scripts\python.exe" evals\kyutai_stt_runner.py `
-        "$corpus\manifest.jsonl" $corpus "$root\models\kyutai-stt-1b-en-fr" `
+        "$corpus\manifest.jsonl" $corpus "$root\models\kyutai-stt-1b-candle" `
         "$results\kyutai-pipecat.jsonl" *> "$results\kyutai-pipecat.log"
 }
 
