@@ -18,15 +18,15 @@ export const PHASE_ORB: Record<AssistantPhase, OrbState> = {
 }
 
 export const PHASE_ACCENT: Record<AssistantPhase, string> = {
-  ready: '#8a9097',
-  wake: '#147ec1',
-  listening: '#38bdf8',
-  thinking: '#147ec1',
-  speaking: '#7dd3fc',
-  action: '#34d399',
-  notification: '#fbbf24',
-  confirmation: '#fbbf24',
-  error: '#f87171'
+  ready: 'var(--ui-text-tertiary)',
+  wake: 'var(--ui-accent)',
+  listening: 'var(--ui-accent)',
+  thinking: 'var(--ui-accent)',
+  speaking: 'var(--ui-accent)',
+  action: 'var(--ui-accent)',
+  notification: 'var(--ui-accent)',
+  confirmation: 'var(--ui-accent)',
+  error: 'var(--ui-danger)'
 }
 
 export function orbStateFor(phase: AssistantPhase): OrbState {

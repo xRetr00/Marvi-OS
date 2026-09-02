@@ -15,8 +15,8 @@ describe('phase → orb mapping', () => {
 
   it('maps every assistant phase to an accent color', () => {
     for (const phase of ASSISTANT_PHASES) {
-      expect(PHASE_ACCENT[phase]).toMatch(/^#[0-9a-f]{6}$/i)
+      expect(PHASE_ACCENT[phase]).toMatch(/^var\(--ui-/)
     }
-    expect(accentFor('error')).toBe('#f87171')
+    expect(accentFor('error')).toBe('var(--ui-danger)')
   })
 })
