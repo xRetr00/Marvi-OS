@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import _ctypes
 import argparse
 import array
 import ctypes
-import _ctypes
 import json
 import os
 import subprocess
