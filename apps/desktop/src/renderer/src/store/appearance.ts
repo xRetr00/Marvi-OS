@@ -30,6 +30,18 @@ function readChoice<T extends string>(key: string, choices: readonly T[], fallba
   return stored && choices.includes(stored as T) ? (stored as T) : fallback
 }
 
+export function syncAppearanceStorage(key: string, value: string | null): boolean {
+  if (key === STYLE_KEY && value && APPEARANCE_STYLES.includes(value as AppearanceStyle)) {
+    $appearanceStyle.set(value as AppearanceStyle)
+    return true
+  }
+  if (key === FONT_KEY && value && FONT_FAMILIES.includes(value as FontFamily)) {
+    $fontFamily.set(value as FontFamily)
+    return true
+  }
+  return false
+}
+
 export const $appearanceStyle = atom<AppearanceStyle>(
   typeof window === 'undefined' ? 'marvi' : readChoice(STYLE_KEY, APPEARANCE_STYLES, 'marvi')
 )
@@ -66,5 +78,11 @@ if (typeof document !== 'undefined') {
   $fontFamily.subscribe((font) => {
     syncRoot()
     persistString(FONT_KEY, font)
+  })
+  // The control center and Dynamic Island are separate renderer processes.
+  // Storage events keep the always-on surface in step with live appearance
+  // changes instead of requiring an application restart.
+  window.addEventListener('storage', (event) => {
+    syncAppearanceStorage(event.key ?? '', event.newValue)
   })
 }

@@ -7,7 +7,8 @@ import {
   $fontFamily,
   applyAppearancePreferences,
   setAppearanceStyle,
-  setFontFamily
+  setFontFamily,
+  syncAppearanceStorage
 } from './appearance'
 
 describe('appearance preferences', () => {
@@ -55,5 +56,13 @@ describe('appearance preferences', () => {
       'newsreader',
       'geist-mono'
     ])
+  })
+
+  it('synchronizes valid cross-window appearance changes', () => {
+    expect(syncAppearanceStorage('marvi.desktop.appearance.style.v1', 'forest')).toBe(true)
+    expect(syncAppearanceStorage('marvi.desktop.appearance.font.v1', 'newsreader')).toBe(true)
+    expect($appearanceStyle.get()).toBe('forest')
+    expect($fontFamily.get()).toBe('newsreader')
+    expect(syncAppearanceStorage('marvi.desktop.appearance.style.v1', 'unknown')).toBe(false)
   })
 })
