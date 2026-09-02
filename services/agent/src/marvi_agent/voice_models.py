@@ -18,6 +18,8 @@ from typing import Any
 import numpy as np
 from livekit.agents import DEFAULT_API_CONNECT_OPTIONS, APIConnectOptions, tts
 
+from . import sidecars
+
 log = logging.getLogger("marvi.voice")
 
 APP_DATA = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local")) / "Marvi-OS"
@@ -50,6 +52,11 @@ KOKORO_DEFAULT_VOICE = "am_michael"
 #: weights loads onto the card partway through every conversation.
 _KOKORO: dict[tuple[str, str, int], _KokoroEngine] = {}
 _SIDECARS: dict[tuple[str, str, int], _SidecarEngine] = {}
+
+#: How long an interrupted synthesis gets to unwind before the sidecar is
+#: killed. Longer than a drain of one sentence, shorter than anybody would
+#: wait for the next one.
+_STOP_GRACE = 6.0
 _ENGINE_LOCK = threading.Lock()
 
 
@@ -329,6 +336,9 @@ class _SidecarEngine:
             _SIDECARS.clear()
             if found is None:
                 found = cls(selected, selected_voice)
+                # Registered on creation rather than on start: a sidecar that
+                # fails half way through starting still has a process to kill.
+                sidecars.track(found)
             _SIDECARS[key] = found
             return found
 
@@ -405,7 +415,22 @@ class _SidecarEngine:
             process.stdin.flush()
             while True:
                 if stop.is_set():
-                    self.close()
+                    # Drained, not killed.
+                    #
+                    # This used to `close()`, which taskkills the sidecar and
+                    # everything under it. So every barge-in destroyed a
+                    # process holding a model in VRAM, and the next sentence
+                    # paid a full reload -- tens of seconds for CuteTTS or
+                    # VoXtream. Interrupting an assistant is the most ordinary
+                    # thing a person does to one; it should not be the most
+                    # expensive.
+                    #
+                    # The upstream generation is left to finish and its audio
+                    # thrown away. That costs a few hundred milliseconds of GPU
+                    # nobody hears, and leaves a warm process for the next
+                    # sentence. Only a sidecar that will not finish gets killed.
+                    if not self._drain():
+                        self.close()
                     break
                 message = self._read()
                 event = message.get("event")
@@ -416,27 +441,39 @@ class _SidecarEngine:
                 elif event == "error":
                     raise VoiceRuntimeError(str(message.get("error") or "TTS sidecar failed"))
 
+    #: How long to let an abandoned generation finish before killing it. A
+    #: sentence is at most a few seconds of audio and the sidecars run faster
+    #: than realtime, so anything past this is wedged rather than busy.
+    DRAIN_TIMEOUT = 5.0
+
+    def _drain(self) -> bool:
+        """Read the rest of an abandoned response so the process stays usable.
+
+        The protocol is a stream per request. Abandoning one mid-flight leaves
+        chunks in the pipe that the *next* request would read as its own, so
+        the choice is to finish reading this one or to throw the process away.
+        Reading is far cheaper.
+        """
+        process = self._process
+        if process is None or process.stdout is None:
+            return False
+        deadline = time.monotonic() + self.DRAIN_TIMEOUT
+        while time.monotonic() < deadline:
+            try:
+                message = self._read()
+            except VoiceRuntimeError:
+                return False
+            if message.get("event") in ("done", "error"):
+                return True
+        log.warning("%s did not finish after an interruption; restarting it", self.engine)
+        return False
+
     def close(self) -> None:
         process, self._process = self._process, None
-        if process is not None and process.poll() is None:
-            if os.name == "nt":
-                # `uv run` and optional runtimes can spawn children. Terminating
-                # only the wrapper can strand a CUDA model after interruption,
-                # consuming VRAM until Marvi exits. Kill this exact process
-                # tree; the next request deliberately starts a clean host.
-                subprocess.run(
-                    ["taskkill", "/PID", str(process.pid), "/T", "/F"],
-                    check=False,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    creationflags=subprocess.CREATE_NO_WINDOW,
-                )
-            else:
-                process.terminate()
-            try:
-                process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                process.kill()
+        # `uv run` is a wrapper around the runtime that holds the model, so
+        # the whole tree goes. See `sidecars.kill_tree`.
+        sidecars.kill_tree(process)
+        sidecars.forget(self)
 
     def cancel(self) -> None:
         """Interrupt upstream generation; the next request starts a clean host."""
@@ -516,10 +553,15 @@ class _WholeUtteranceStream(tts.ChunkedStream):
                 output_emitter.push(item)
         finally:
             stop.set()
+            # Given a moment to stop on its own before being killed. The worker
+            # notices `stop` on its next chunk and drains the sidecar, which
+            # keeps the process warm; `cancel` throws it away, and that is the
+            # fallback rather than the routine path.
+            await asyncio.to_thread(worker.join, _STOP_GRACE)
             cancel = getattr(engine, "cancel", None)
             if callable(cancel) and worker.is_alive():
                 cancel()
-            await asyncio.to_thread(worker.join)
+                await asyncio.to_thread(worker.join)
 
 
 #: Punctuation that ends something worth speaking. A clause is enough: waiting
@@ -812,7 +854,8 @@ async def _pump(engine: Any, text: str, release: Any) -> None:
             release(item)
     finally:
         stop.set()
+        await asyncio.to_thread(worker.join, _STOP_GRACE)
         cancel = getattr(engine, "cancel", None)
         if callable(cancel) and worker.is_alive():
             cancel()
-        await asyncio.to_thread(worker.join)
+            await asyncio.to_thread(worker.join)

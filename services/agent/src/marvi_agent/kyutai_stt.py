@@ -78,6 +78,7 @@ import numpy as np
 from livekit.agents import DEFAULT_API_CONNECT_OPTIONS, APIConnectOptions, stt
 from livekit.agents.types import NOT_GIVEN, NotGivenOr
 
+from . import sidecars
 from .parakeet_stt import APP_DATA
 
 log = logging.getLogger("marvi.voice")
@@ -204,6 +205,7 @@ class _Model:
             creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
             env=environment,
         )
+        sidecars.track(self)
         ready = self._read()
         if ready.get("event") != "ready":
             self.release()
@@ -271,17 +273,29 @@ class _Model:
             raise KyutaiUnavailableError(str(answer.get("error")))
         return str(answer.get("text") or ""), float(answer.get("done") or 0.0)
 
+    def close(self) -> None:
+        """The name the sidecar registry calls. `release` is the STT spelling."""
+        self.release()
+
     def release(self) -> None:
         process, self._process = getattr(self, "_process", None), None
         if process is None:
             return
+        # Asked to leave first: closing stdin ends the host's `for line in
+        # sys.stdin` loop, which lets it free the model rather than being shot
+        # holding it.
         with contextlib.suppress(Exception):
             if process.stdin:
                 process.stdin.close()
-        with contextlib.suppress(Exception):
-            process.wait(timeout=5)
-        with contextlib.suppress(Exception):
-            process.kill()
+        try:
+            process.wait(timeout=2)
+        except Exception:
+            sidecars.kill_tree(process)
+        else:
+            # `uv run` may outlive the Python it started even when that one
+            # exits cleanly.
+            sidecars.kill_tree(process)
+        sidecars.forget(self)
 
 
 class KyutaiSTT(stt.STT):
