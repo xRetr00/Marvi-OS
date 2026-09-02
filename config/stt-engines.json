@@ -1,5 +1,5 @@
 {
-  "$comment": "Local recognisers. Runtime source and model revisions are pinned independently because the model repositories do not contain Marvi's LiveKit adapter. Measured on 2 September 2026 against docs/evals/stt-candidates: parakeet-tdt leads on accuracy and throughput, nemotron leads on responsiveness by 1.8 seconds, and kyutai-1b loses both while being the only one that can end a turn on meaning rather than on a timer.",
+  "$comment": "Local recognisers, measured 2 September 2026 on 200 voice-agent clips from pipecat-ai/stt-benchmark-data and re-checked against 162 accented EdAcc clips. parakeet-tdt wins on accuracy, throughput and end-of-speech latency and is the default. nemotron-3.5 reaches a first partial 1.8 seconds sooner. kyutai-1b is the only one that ends a turn on meaning rather than on a timer, which is worth roughly 0.9 seconds of turn-taking and is why it is carried despite losing on every other number. See docs/evals/stt-voice-agent-2026-09-02.md.",
   "schema": 1,
   "default_engine": "parakeet-tdt",
   "engine_setting": "MARVI_STT_ENGINE",
@@ -10,10 +10,17 @@
       "description": "Most accurate and the fastest to finish. Waits about three seconds before its first partial.",
       "runtime": "in-process",
       "measured": {
+        "corpus": "pipecat-voice-agent-2026-09-02",
+        "wer": 0.0344,
+        "semantic_wer": 0.0162,
+        "clean_rate": 0.71,
+        "rtf": 0.041,
+        "first_partial_ms_p50": 4115,
+        "eos_ms_p50": 51
+      },
+      "measured_accented": {
         "corpus": "edacc-2026-09-02",
         "wer": 0.2081,
-        "rtf": 0.055,
-        "first_partial_ms_p50": 2910,
         "arabic_wer": 0.0803
       }
     },
@@ -30,16 +37,23 @@
       "runtime_id": "parakeet.cpp v0.5.0 official Windows CUDA",
       "language": "en",
       "measured": {
+        "corpus": "pipecat-voice-agent-2026-09-02",
+        "wer": 0.073,
+        "semantic_wer": 0.0438,
+        "clean_rate": 0.52,
+        "rtf": 0.38,
+        "first_partial_ms_p50": 2364,
+        "eos_ms_p50": 150
+      },
+      "measured_accented": {
         "corpus": "edacc-2026-09-02",
-        "wer": 0.2479,
-        "rtf": 0.09,
-        "first_partial_ms_p50": 1063
+        "wer": 0.2479
       }
     },
     {
       "id": "kyutai-1b",
       "name": "Kyutai STT 1B",
-      "description": "Knows when you have finished talking, from what you said rather than from silence. Least accurate of the three and needs most of the card.",
+      "description": "Ends a turn when you sound finished rather than after a fixed pause -- about 0.9 seconds sooner in practice. Less accurate than the other two and uses most of the graphics card.",
       "runtime": "moshi",
       "install_to": "models/stt/kyutai-stt-1b-candle",
       "model_file": "model.safetensors",
@@ -48,13 +62,20 @@
       "language": "en,fr",
       "semantic_vad": true,
       "measured": {
-        "corpus": "edacc-2026-09-02",
-        "wer": 0.3526,
-        "rtf": 0.8,
-        "first_partial_ms_p50": 3521,
-        "arabic_wer": 0.2017,
+        "corpus": "pipecat-voice-agent-2026-09-02",
+        "wer": 0.081,
+        "semantic_wer": 0.0555,
+        "clean_rate": 0.56,
+        "rtf": 0.42,
+        "first_partial_ms_p50": 3618,
+        "eos_ms_p50": 472,
         "vad_lead_ms_p50": -280,
         "vad_premature_per_14_clips": 1
+      },
+      "measured_accented": {
+        "corpus": "edacc-2026-09-02",
+        "wer": 0.3526,
+        "arabic_wer": 0.2017
       }
     }
   ]

@@ -63,9 +63,13 @@ number. Two guards, both cheap:
 from __future__ import annotations
 
 import asyncio
+import base64
 import contextlib
+import json
 import logging
 import os
+import shutil
+import subprocess
 import time
 from pathlib import Path
 from typing import Any
@@ -74,11 +78,15 @@ import numpy as np
 from livekit.agents import DEFAULT_API_CONNECT_OPTIONS, APIConnectOptions, stt
 from livekit.agents.types import NOT_GIVEN, NotGivenOr
 
-from .parakeet_stt import APP_DATA, SAMPLE_RATE
+from .parakeet_stt import APP_DATA
 
 log = logging.getLogger("marvi.voice")
 
 MODEL_ROOT = APP_DATA / "models/stt/kyutai-stt-1b-candle"
+
+#: The isolated project the recogniser runs in, and its entry point.
+PROJECT = "services/stt-kyutai"
+MODULE = "marvi_stt_kyutai.host"
 
 #: The files the checkpoint is made of. Named rather than globbed so a partial
 #: download reads as missing instead of loading and failing deep inside moshi.
@@ -112,10 +120,21 @@ VAD_THRESHOLD = 0.5
 VAD_HOLD_SETTING = "MARVI_KYUTAI_VAD_HOLD"
 VAD_HOLD = 3
 
+#: Mimi's rate, which is not Marvi's.
+#:
+#: Every other recogniser here takes 16 kHz, so `SAMPLE_RATE` is 16,000 and the
+#: frame size was computed from it -- 1,280 samples, which the sidecar refused
+#: as "expected 1920, got 1280". Mimi runs at 24 kHz and consumes exactly 1,920
+#: samples per step; nothing else is a valid feed size.
+#:
+#: Declared to `RecognizeStream` so LiveKit resamples the room's audio on the
+#: way in, rather than this doing it by hand on every frame.
+KYUTAI_SAMPLE_RATE = 24_000
+
 #: Mimi's frame. The model consumes exactly this much audio per step and
 #: nothing else is a valid feed size.
 FRAME_SECONDS = 0.08
-FRAME_SAMPLES = int(FRAME_SECONDS * SAMPLE_RATE)
+FRAME_SAMPLES = int(FRAME_SECONDS * KYUTAI_SAMPLE_RATE)
 
 #: Silence the model is given before the first real audio.
 #:
@@ -148,33 +167,60 @@ class KyutaiUnavailableError(RuntimeError):
 
 
 class _Model:
-    """Mimi, the language model and the tokenizer, loaded once per process."""
+    """The recogniser, in its own process, one line of JSON per frame.
+
+    Isolated rather than imported. Resolving `moshi` into the agent's
+    environment replaces torch 2.13.0+cu130 with a 2.9.1 CPU wheel and
+    downgrades numpy, safetensors and sounddevice with it -- which takes
+    Kokoro's speech synthesis and every CUDA path in the agent down too. The
+    two TTS engines are isolated for exactly this reason and this is the same
+    boundary: PCM in, text out.
+    """
+
+    #: Long enough for a 2.3 GB checkpoint onto a card that may be busy.
+    START_TIMEOUT = 240.0
 
     def __init__(self, model_dir: Path) -> None:
         if not installed():
             raise KyutaiUnavailableError(f"the Kyutai checkpoint is not at {model_dir}")
-        # Triton has no Windows build, and `moshi` reaches for `torch.compile`
-        # unless told not to. Eager is what the benchmark measured.
-        os.environ.setdefault("NO_TORCH_COMPILE", "1")
-        import torch
-        from moshi.models import LMGen, loaders
-
-        self._torch = torch
-        checkpoint = loaders.CheckpointInfo.from_hf_repo(
-            "kyutai/stt-1b-en_fr-candle",
-            config_path=model_dir / CONFIG,
-            moshi_weights=model_dir / WEIGHTS,
-            mimi_weights=model_dir / MIMI,
-            tokenizer=model_dir / TOKENIZER,
+        uv = shutil.which("uv")
+        if not uv:
+            raise KyutaiUnavailableError("uv is required to start the Kyutai recogniser")
+        repo = Path(__file__).resolve().parents[4]
+        environment = os.environ.copy()
+        # The agent runs inside a uv environment of its own, and passing
+        # VIRTUAL_ENV into another `uv run --project` makes uv warn on every
+        # start and can select the wrong environment outright.
+        environment.pop("VIRTUAL_ENV", None)
+        self._process = subprocess.Popen(
+            [uv, "run", "--project", str(repo / PROJECT), "python", "-m", MODULE],
+            cwd=repo,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=None,
+            text=True,
+            encoding="utf-8",
+            bufsize=1,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+            env=environment,
         )
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.mimi = checkpoint.get_mimi(device=device)
-        self.tokenizer = checkpoint.get_text_tokenizer()
-        self.lm = checkpoint.get_moshi(device=device)
-        self.gen = LMGen(self.lm, temp=0, temp_text=0, use_sampling=False)
-        self.device = device
-        self.delay_seconds = float(checkpoint.stt_config.get("audio_delay_seconds", 0.5))
-        self.heads = len(getattr(self.lm, "extra_heads", ()) or ())
+        ready = self._read()
+        if ready.get("event") != "ready":
+            self.release()
+            raise KyutaiUnavailableError(str(ready.get("error") or "it did not start"))
+        self.device = "sidecar"
+        self.heads = int(ready.get("heads") or 0)
+        self.delay_seconds = float(ready.get("delay_seconds") or 0.5)
+        self.sample_rate = int(ready.get("sample_rate") or KYUTAI_SAMPLE_RATE)
+        if self.sample_rate != KYUTAI_SAMPLE_RATE:
+            # Said rather than resampled quietly: a rate mismatch here is a
+            # different checkpoint, and guessing at it produces a recogniser
+            # that transcribes confident nonsense.
+            self.release()
+            raise KyutaiUnavailableError(
+                f"the Kyutai sidecar reports {self.sample_rate} Hz; "
+                f"this adapter feeds {KYUTAI_SAMPLE_RATE} Hz"
+            )
         if not self.heads:
             # Loadable and useless for the one thing this recogniser is for.
             # Said loudly rather than degrading into a worse Parakeet.
@@ -182,44 +228,60 @@ class _Model:
                 "stt: this Kyutai checkpoint carries no VAD heads; turn-taking "
                 "falls back to the silence timer. Install stt-1b-en_fr-candle."
             )
-        self.mimi.streaming_forever(1)
-        self.gen.streaming_forever(1)
+
+    def _read(self) -> dict[str, Any]:
+        # Held in a local for the whole call: `readline` blocks, `release` runs
+        # on another thread, and reading the attribute again afterwards finds
+        # nothing there. The TTS sidecar learned this the expensive way.
+        process = self._process
+        if process is None or process.stdout is None:
+            raise KyutaiUnavailableError("the Kyutai recogniser is not running")
+        line = process.stdout.readline()
+        if not line:
+            raise KyutaiUnavailableError(
+                f"the Kyutai recogniser stopped unexpectedly ({process.poll()})"
+            )
+        return json.loads(line)
+
+    def _ask(self, **request: Any) -> dict[str, Any]:
+        process = self._process
+        if process is None or process.stdin is None:
+            raise KyutaiUnavailableError("the Kyutai recogniser is not running")
+        process.stdin.write(json.dumps(request) + "\n")
+        process.stdin.flush()
+        return self._read()
 
     def reset(self) -> None:
-        self.mimi.reset_streaming()
-        self.gen.reset_streaming()
+        self._ask(op="reset")
 
     def step(self, samples: np.ndarray, first: bool) -> tuple[str, float]:
-        """One frame in; the text it produced and the end-of-turn probability."""
-        torch = self._torch
-        with torch.inference_mode():
-            chunk = torch.from_numpy(samples).to(self.device)[None, None, :]
-            codes = self.mimi.encode(chunk)
-            if first:
-                # The first step primes the depformer and returns nothing
-                # usable; upstream's own loop does the same.
-                self.gen.step(codes)
-            found = self.gen.step_with_extra_heads(codes)
-            if found is None:
-                return "", 0.0
-            tokens, heads = found
-            index = int(_setting(VAD_INDEX_SETTING, VAD_INDEX))
-            done = 0.0
-            if heads and 0 <= index < len(heads):
-                # Element 0 of the head's softmax is the probability of a pause
-                # of that length. `prs[2][0] > 0.5` is Kyutai's own test.
-                done = float(heads[index][0, 0, 0].item())
-            token = int(tokens[0, 0].item())
-            if token in (0, 3):
-                return "", done
-            return self.tokenizer.id_to_piece(token).replace("▁", " "), done
+        """One frame in; the text it produced and the end-of-turn probability.
+
+        `first` is the sidecar's business, not the caller's: it primes its own
+        depformer after a reset. The parameter stays so the in-process shape
+        and this one are interchangeable for the tests.
+        """
+        pcm = (np.clip(samples, -1.0, 1.0) * 32_767).astype(np.int16).tobytes()
+        answer = self._ask(
+            op="feed",
+            pcm=base64.b64encode(pcm).decode("ascii"),
+            vad_index=int(_setting(VAD_INDEX_SETTING, VAD_INDEX)),
+        )
+        if answer.get("event") == "error":
+            raise KyutaiUnavailableError(str(answer.get("error")))
+        return str(answer.get("text") or ""), float(answer.get("done") or 0.0)
 
     def release(self) -> None:
-        for name in ("gen", "lm", "mimi"):
-            with contextlib.suppress(Exception):
-                delattr(self, name)
+        process, self._process = getattr(self, "_process", None), None
+        if process is None:
+            return
         with contextlib.suppress(Exception):
-            self._torch.cuda.empty_cache()
+            if process.stdin:
+                process.stdin.close()
+        with contextlib.suppress(Exception):
+            process.wait(timeout=5)
+        with contextlib.suppress(Exception):
+            process.kill()
 
 
 class KyutaiSTT(stt.STT):
@@ -252,9 +314,8 @@ class KyutaiSTT(stt.STT):
         began = time.monotonic()
         self._model = _Model(self._model_dir)
         log.info(
-            "stt: kyutai ready in %.1fs on %s, %d VAD heads",
+            "stt: kyutai ready in %.1fs, %d VAD heads",
             time.monotonic() - began,
-            self._model.device,
             self._model.heads,
         )
         return self._model
@@ -296,7 +357,7 @@ class KyutaiStream(stt.RecognizeStream):
     _SILENCE = 0.6
 
     def __init__(self, *, stt: KyutaiSTT, conn_options: APIConnectOptions) -> None:
-        super().__init__(stt=stt, conn_options=conn_options, sample_rate=SAMPLE_RATE)
+        super().__init__(stt=stt, conn_options=conn_options, sample_rate=KYUTAI_SAMPLE_RATE)
         self._kyutai = stt
         self._said = ""
         self._spoke_at = time.monotonic()
