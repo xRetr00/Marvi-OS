@@ -2,7 +2,9 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 
 import {
-  DynamicIsland,
+  DynamicIsland
+} from './DynamicIsland'
+import {
   ISLAND_AUTO_EXPAND_MS,
   ISLAND_ENTER_SECONDS,
   ISLAND_EXIT_SECONDS,
@@ -10,7 +12,7 @@ import {
   islandHasOrb,
   islandInteractionMode,
   islandPresentationKey
-} from './DynamicIsland'
+} from './island-presentation'
 import { DEFAULT_ASSISTANT_STATE } from '../../../shared/runtime'
 
 describe('DynamicIsland', () => {

@@ -15,8 +15,8 @@ surface and its native-window behavior can be proven without the voice engine.
   blue signal, Collapse branding, and JetBrains Mono system text.
 - Recessed Marvi-style sleep seed: `76×8` transparent body at the top edge so
   only its short light line remains visible.
-- Compact state-specific Island geometry: wake `180×34`,
-  listening `210×38`, thinking `230×40`, speaking `250×42`.
+- A top-attached `38×30` orb notch for active states that briefly expands on
+  state entry and expands again on hover; confirmations remain fully disclosed.
 - A tightly fitted native host that follows measured content with a two-pixel
   transparent edge inset; bounds are validated in Electron before use.
 - Transparent, frameless, click-through, non-focusable, non-draggable,
@@ -39,6 +39,9 @@ surface and its native-window behavior can be proven without the voice engine.
 - Theme- and font-synchronized presentation across renderer processes, with
   compositor-only state entrances/exits, reduced-motion behavior, and a quieter
   persistent offline treatment.
+- Three native pointer policies: click-through sleep, non-focusable hover
+  capture for orb states, and focusable confirmation controls. Expanded states
+  remain flush with the screen edge rather than floating below it.
 - Settings for Confirm/YOLO mode and explicit display plus left/center/right
   Island placement, with accessible switch/pressed semantics.
 - Real Gateway/component, microphone, camera, phase, mode, and version data in

@@ -61,7 +61,9 @@ import { Picker, type PickerOption } from './components/ui/picker'
 import { ModelPicker } from './components/ui/model-picker'
 import { ConnectingOverlay } from './components/ConnectingOverlay'
 import {
-  DynamicIsland,
+  DynamicIsland
+} from './components/DynamicIsland'
+import {
   ISLAND_AUTO_EXPAND_MS,
   ISLAND_ENTER_SECONDS,
   ISLAND_EXIT_SECONDS,
@@ -69,7 +71,7 @@ import {
   islandHasOrb,
   islandInteractionMode,
   islandPresentationKey
-} from './components/DynamicIsland'
+} from './components/island-presentation'
 import { VoiceOrb } from './orb'
 import { ElectricGazeBackground } from './components/ElectricGazeBackground'
 import { HapticsProvider } from './components/HapticsProvider'
@@ -6627,15 +6629,18 @@ function IslandSurface(): React.JSX.Element {
   }, [interactionMode])
 
   useEffect(() => {
-    setHoverExpanded(false)
-    if (!hasOrb) {
-      setAutoExpanded(false)
-      return
-    }
+    const revealTimer = window.setTimeout(() => {
+      setHoverExpanded(false)
+      setAutoExpanded(hasOrb)
+    }, 0)
+    const collapseTimer = hasOrb
+      ? window.setTimeout(() => setAutoExpanded(false), ISLAND_AUTO_EXPAND_MS)
+      : undefined
 
-    setAutoExpanded(true)
-    const timer = window.setTimeout(() => setAutoExpanded(false), ISLAND_AUTO_EXPAND_MS)
-    return () => window.clearTimeout(timer)
+    return () => {
+      window.clearTimeout(revealTimer)
+      if (collapseTimer !== undefined) window.clearTimeout(collapseTimer)
+    }
   }, [hasOrb, presentationKey])
 
   useEffect(() => {

@@ -200,20 +200,24 @@ embeddings are never presented as a Marvi embedding setting.
 
 ## Dynamic Island
 
-The Island is smaller than Marvi's previous implementation and grows only for
-content that requires attention.
+The Island is a screen-edge notch, not a detached floating pill. Its top edge
+is flush with the selected display's work area and its body grows downward.
+Orb-driven states collapse to the live orb and progressively disclose their
+copy on hover.
 
 Target sizes at 100% scaling:
 
-| State        |           Size | Content                                                         |
-| ------------ | -------------: | --------------------------------------------------------------- |
-| sleep        |         `76×8` | recessed top-edge seed; only a short light line remains visible |
-| listening    |       `210×38` | `LISTEN`, compact live waveform                                 |
-| thinking     |       `230×40` | `THINK`, low-cost ASCII pulse                                   |
-| speaking     |       `250×42` | `SPEAK`, output waveform, interrupt hint                        |
-| action       |       `280×46` | tool glyph, short verb, progress                                |
-| notification | up to `320×64` | one concise world/room event                                    |
-| confirmation | up to `360×92` | exact action summary, approve/deny                              |
+| State                  |           Size | Content                                                   |
+| ---------------------- | -------------: | --------------------------------------------------------- |
+| sleep                  |         `76×8` | recessed seed; only the short light line is visible       |
+| collapsed orb state    |        `38×30` | authoritative live orb only                               |
+| listening expanded     |       `210×38` | `LISTEN`, live waveform and concise state copy             |
+| thinking expanded      |       `230×40` | `THINK`, low-cost ASCII pulse and concise state copy       |
+| speaking expanded      |       `250×42` | `SPEAK`, output waveform and interrupt hint                |
+| action expanded        |       `280×46` | tool orb, short verb, progress                             |
+| notification expanded  | up to `320×64` | one concise world/room event                               |
+| error expanded         |       `280×46` | quiet offline/error state and recovery detail              |
+| confirmation           | up to `360×92` | exact action summary, approve/deny; never hover-collapsed   |
 
 Rules:
 
@@ -234,6 +238,10 @@ Rules:
 - Camera, microphone, and global mode indicators do not appear in the Island.
   Their authoritative state remains available in the control center.
 - Background events may animate the Island but may not focus the main window.
+- A newly entered orb state discloses its copy for 1.8 seconds, then collapses
+  to the `38×30` orb notch. Hovering that notch expands the same state again;
+  leaving returns it to the orb. Hover capture never makes the window focusable
+  and never activates the current application.
 - The native host follows measured content plus a two-pixel transparent edge
   inset. It never reserves a larger invisible stage. Resize only at
   content/state boundaries; never animate native window bounds per frame.
@@ -243,8 +251,9 @@ Rules:
 - The Island reads the selected appearance and font live from the shared
   renderer preferences. Its surface, type, borders, orb, and status accents use
   theme tokens rather than hard-coded phase palettes.
-- Passive states are click-through, non-focusable, non-movable, frameless, and
-  have no host background. Pointer/focus is enabled only for temporary actions.
+- Sleep is click-through. Orb states capture pointer hover while remaining
+  non-focusable. Only confirmations become focusable and interactive. Every
+  state remains non-movable, frameless, and free of a native host background.
 
 Typography reuses the current Marvi desktop faces: Collapse for the product
 wordmark and JetBrains Mono for ASCII construction, labels, status, and data.

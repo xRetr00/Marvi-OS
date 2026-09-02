@@ -1448,3 +1448,19 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
 - Reframed persistent Gateway loss as a quiet, still-visible `OFFLINE` state,
   retained authoritative detail, and added reduced-motion behavior for both
   state transitions and the passive seed.
+
+## 2026-09-02 — top-attached orb notch interaction
+
+- Replaced the detached active-state pill with a screen-edge notch: a flat top
+  joins the selected work area and the rounded body grows downward.
+- Orb-driven Gateway states now collapse to a `38×30` live-orb surface. A new
+  state discloses its concise copy for 1.8 seconds, then the copy can be revealed
+  again by hovering the orb.
+- Split the native pointer policy into click-through, hover capture, and fully
+  interactive modes. Hover capture leaves the Electron window non-focusable so
+  the Island cannot steal focus from a game or another desktop application.
+- Kept confirmation content fully expanded and focusable, retained the passive
+  ready seed, and preserved compositor-only/reduced-motion transitions.
+- Verified all 378 desktop tests, the production Electron build, TypeScript,
+  ESLint with errors-only output, native-boundary tests, and rendered collapsed
+  plus expanded notch states with no browser-console errors.
