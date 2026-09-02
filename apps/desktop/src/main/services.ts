@@ -90,6 +90,8 @@ export interface ServiceSpec {
   env?: Record<string, string>
   /** Where this installation lives, so another checkout is left alone. */
   installRoot?: string
+  /** Called once the child exists, with its PID, so the launch can record it. */
+  onStarted?: (name: string, pid: number) => void
   /**
    * The port this service listens on, if it does.
    *
@@ -202,6 +204,10 @@ class Service {
 
     this.child = child
     this.startedAt = Date.now()
+    // Recorded before anything can go wrong with it. The launch that started
+    // this child owns it, and the record is what the next launch reads instead
+    // of guessing from parent PIDs. See `ownership`.
+    if (child.pid) this.spec.onStarted?.(this.spec.name, child.pid)
     child.stdout?.on('data', (chunk: Buffer) => this.log(chunk.toString()))
     child.stderr?.on('data', (chunk: Buffer) => this.log(chunk.toString()))
 

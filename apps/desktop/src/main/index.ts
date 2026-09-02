@@ -31,6 +31,7 @@ import {
   stateDir
 } from './config'
 import { configure as configureLogging, desktop, installCatchers } from './logger'
+import * as ownership from './ownership'
 import { killStrays, reclaimPort } from './processes'
 import {
   offlineRuntime,
@@ -447,6 +448,25 @@ function gateway(): string {
  */
 const localToken = randomBytes(32).toString('hex')
 
+/** This launch's id, and the record every child is measured against. */
+let launchId = ''
+let runtimeRecord: ownership.RuntimeRecord | null = null
+
+/** Extra environment every child gets, filled in as the launch decides it. */
+const childEnvExtra: Record<string, string> = {}
+
+/**
+ * Record a child the moment it exists, by PID and creation time.
+ *
+ * The creation time is the half that matters: a PID alone stops identifying a
+ * process as soon as the number is reused, which is exactly how an abandoned
+ * Gateway read as "another running Marvi" and was left holding the port.
+ */
+function rememberChild(name: string, pid: number): void {
+  if (!runtimeRecord) return
+  ownership.remember(stateDir(), runtimeRecord, name, pid)
+}
+
 function localHeaders(): Record<string, string> {
   return { 'x-marvi-local': localToken }
 }
@@ -575,13 +595,35 @@ function startVoiceStack(): void {
   // reason that looks like nothing at all.
   publishLocalToken()
 
+  // Ownership, declared before anything exists to own.
+  //
+  // Everything below used to infer it: a Gateway holding the port was adopted
+  // if its parent PID happened to be alive and killed if not, and both
+  // branches are wrong in some case. An adopted Gateway carries the previous
+  // launch's token, provider settings, model and log path -- which is how one
+  // ran with no desktop behind it, refusing the Agent its credentials 285
+  // times. See docs/PROCESS-OWNERSHIP.md.
+  //
+  // Written first so a child spawned a moment later already knows which launch
+  // it belongs to, and so a crash before the first spawn leaves a record the
+  // next launch can clean rather than a mystery.
+  launchId = ownership.newLaunchId()
+  runtimeRecord = ownership.claim(stateDir(), launchId)
+  childEnvExtra.MARVI_LAUNCH_ID = launchId
+
+  // The previous launch's children, by recorded identity rather than by
+  // pattern. Most will already have left on their own -- a new launch id is
+  // their signal to stand down -- so this is the fallback for one that is
+  // wedged, which is the only job a kill should have.
+  const previous = ownership.stopPrevious(stateDir())
+  for (const stopped of previous) desktop.warn(`stopped ${stopped} from the previous launch`)
+
   const strays = killStrays(repoRoot ?? undefined)
   if (strays > 0) desktop.warn(`stopped ${strays} leftover process(es) from a previous session`)
 
-  // And the port, which the sweep above cannot reach: it is scoped to this
-  // install root, and a Gateway from a second installation holding 8765 is
-  // deliberately left alone. Ownership is the question that matters there, not
-  // which checkout it came from -- one whose parent is gone belongs to nobody.
+  // And the port, which neither of the above can reach: they are scoped to
+  // this install root and to this launch's own record, and a Gateway from a
+  // second installation holding 8765 is deliberately left alone.
   const reclaimed = reclaimPort(Number(gatewayBind(repoRoot).port))
   if (reclaimed) desktop.warn(reclaimed)
 
@@ -631,6 +673,9 @@ function startVoiceStack(): void {
     // is this process being killed — and then nothing runs the code that would
     // have stopped anything.
     MARVI_PARENT_PID: String(process.pid),
+    // Which launch owns this child. It stands down when the record on disk
+    // stops naming this id -- see `marvi_gateway.parent`.
+    ...childEnvExtra,
     // Python's stdout on Windows is the console codepage — cp1252 here — and
     // every log line with an em dash, an ellipsis or a name that is not Latin-1
     // raised UnicodeEncodeError inside `logging` itself. The line was lost and
@@ -652,6 +697,7 @@ function startVoiceStack(): void {
 
   supervisor.add({
     name: 'livekit',
+    onStarted: rememberChild,
     // Swept before starting, so a restart never leaves two.
     match: /livekit-server/i,
     installRoot: repoRoot ?? undefined,
@@ -666,6 +712,7 @@ function startVoiceStack(): void {
   })
   supervisor.add({
     name: 'gateway',
+    onStarted: rememberChild,
     // Swept before starting, so a restart never leaves two.
     match: /marvi_gateway/i,
     installRoot: repoRoot ?? undefined,
@@ -689,6 +736,7 @@ function startVoiceStack(): void {
   })
   supervisor.add({
     name: 'agent',
+    onStarted: rememberChild,
     // Swept before starting, so a restart never leaves two.
     match: /marvi_agent\.session/i,
     installRoot: repoRoot ?? undefined,
@@ -3101,6 +3149,15 @@ app.on('before-quit', () => {
   petHost?.stop()
   petHost = null
   petBounds = null
+  // The record first, then the children.
+  //
+  // A child that notices the file has gone is already on its way out, so if
+  // this process dies halfway through the shutdown that is the half worth
+  // having done. The reverse order leaves children alive with a record saying
+  // they are owned by a desktop that no longer exists -- which is the state
+  // this whole mechanism exists to prevent.
+  ownership.clear(stateDir())
+  runtimeRecord = null
   // Synchronous: Electron does not await anything here, and a promise would
   // be abandoned mid-kill.
   supervisor?.stopAllNow()
