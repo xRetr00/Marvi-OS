@@ -67,6 +67,8 @@ Current implemented desktop surfaces:
   a Preferences destination, a collapsible branded sidebar, consistent control tooltips, and
   audible desktop haptics;
 - passive `76×8` top-edge Island seed that expands for active voice states;
+- a tightly fitted, theme-aware Island host with restrained state transitions
+  and reduced-motion support;
 - canonical rounded app icon rendered from purpose-sized assets in the desktop,
   bootstrapper, tray, taskbar/package, shortcuts, sidebar, and About; external
   connector and provider identities use offline TheSVG brand marks;

@@ -1433,3 +1433,18 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
 - Verified 13 Agent voice-model tests, 45 Gateway voice/Setup tests, three Cute
   host tests, catalog JSON parsing, targeted Ruff, model artifact hashes, the
   complete hardware corpus, shared scoring, and `git diff --check`.
+
+## 2026-09-02 — native Dynamic Island fit, motion, and theme synchronization
+
+- Reduced the transparent native host inset from 12 px to 2 px so screen
+  capture and always-on-top composition no longer expose an oversized invisible
+  stage around the visible Island.
+- Kept native bounds changes discrete while adding one compositor-only
+  fade/settle transition for meaningful presentation changes. Measurement now
+  reads layout dimensions, so transforms cannot drive per-frame host resizing.
+- Replaced the Island's hard-coded black surface and phase colors with the
+  selected appearance tokens, and synchronized appearance/font storage changes
+  across the independent main and Island renderer processes.
+- Reframed persistent Gateway loss as a quiet, still-visible `OFFLINE` state,
+  retained authoritative detail, and added reduced-motion behavior for both
+  state transitions and the passive seed.

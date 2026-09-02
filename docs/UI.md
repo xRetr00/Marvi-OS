@@ -234,9 +234,15 @@ Rules:
 - Camera, microphone, and global mode indicators do not appear in the Island.
   Their authoritative state remains available in the control center.
 - Background events may animate the Island but may not focus the main window.
-- The native host follows measured content plus a small transparent shadow
-  inset. Resize only at content/state boundaries; never animate native window
-  bounds per frame.
+- The native host follows measured content plus a two-pixel transparent edge
+  inset. It never reserves a larger invisible stage. Resize only at
+  content/state boundaries; never animate native window bounds per frame.
+- State changes use one restrained compositor-only fade/vertical settle on the
+  rendered content. Native bounds do not participate in the animation, exits
+  are quicker than entrances, and reduced-motion users get an immediate swap.
+- The Island reads the selected appearance and font live from the shared
+  renderer preferences. Its surface, type, borders, orb, and status accents use
+  theme tokens rather than hard-coded phase palettes.
 - Passive states are click-through, non-focusable, non-movable, frameless, and
   have no host background. Pointer/focus is enabled only for temporary actions.
 

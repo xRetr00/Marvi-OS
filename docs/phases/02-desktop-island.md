@@ -17,8 +17,8 @@ surface and its native-window behavior can be proven without the voice engine.
   only its short light line remains visible.
 - Compact state-specific Island geometry: wake `180×34`,
   listening `210×38`, thinking `230×40`, speaking `250×42`.
-- A dynamic native host that follows measured content with a small transparent
-  shadow inset; bounds are validated in Electron before use.
+- A tightly fitted native host that follows measured content with a two-pixel
+  transparent edge inset; bounds are validated in Electron before use.
 - Transparent, frameless, click-through, non-focusable, non-draggable,
   always-on-top behavior for passive states.
 - Control-center preview state synchronized to the independent Island renderer.
@@ -36,6 +36,9 @@ surface and its native-window behavior can be proven without the voice engine.
   an actionable confirmation is visible. Settled and expired prompts collapse
   automatically, Gateway loss removes stale controls, and every idle mode
   returns to the line-only seed.
+- Theme- and font-synchronized presentation across renderer processes, with
+  compositor-only state entrances/exits, reduced-motion behavior, and a quieter
+  persistent offline treatment.
 - Settings for Confirm/YOLO mode and explicit display plus left/center/right
   Island placement, with accessible switch/pressed semantics.
 - Real Gateway/component, microphone, camera, phase, mode, and version data in
