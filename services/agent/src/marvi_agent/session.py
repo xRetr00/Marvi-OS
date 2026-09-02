@@ -26,8 +26,8 @@ from livekit.agents import (
 )
 from livekit.plugins import silero
 
-from . import observability
-from .parakeet_stt import PARAKEET_ROOT, ParakeetSTT
+from . import delegated, observability
+from .parakeet_stt import PARAKEET_ROOT, build_stt
 from .runtime import AgentConfig, build_llm, build_local_turn_detector
 from .timing import TimedLLM
 from .tools import GatewayTools
@@ -1067,6 +1067,15 @@ class MarviVoiceAgent(Agent):
         # search would return whatever sits nearest to "okay" and present it
         # as bearing on the turn, and it costs ~325 tokens on top of a system
         # prompt already near 2,200 -- paid on the turns that least need it.
+        # Work she handed off, before anything else this turn.
+        #
+        # It goes in whether or not the turn is worth a memory search, because
+        # a finished job is news and the turn that carries it is whichever one
+        # happens next -- including "okay" and "thanks". See `delegated`.
+        if finished := delegated.jobs.block():
+            turn_ctx.add_message(role="system", content=finished)
+            log.info("delegated: a finished job was put in front of this turn")
+
         if not needs_memory(text):
             log.info("recall: skipped, nothing in this turn to look up")
             return
@@ -1128,10 +1137,13 @@ def prewarm(proc: JobProcess) -> None:
     # The recogniser too. It builds ONNX sessions, which is seconds rather than
     # milliseconds, and doing it inside the first turn is felt as Marvi not
     # hearing the opening sentence.
-    listener = ParakeetSTT()
+    listener = build_stt()
     try:
         listener.prewarm()
         proc.userdata["stt"] = listener
+        # Which one, so the session can tell a warm recogniser it wants from a
+        # warm recogniser it does not. See `build_session`.
+        proc.userdata["stt_model"] = listener.model
     except Exception as exc:  # pragma: no cover - depends on the model on disk
         log.warning("could not prewarm the recogniser: %s", exc)
     # Silero is small but not free, and it is loaded on the same critical path.
@@ -1142,6 +1154,53 @@ def prewarm(proc: JobProcess) -> None:
     # this function.
     _state["warm"] = True
     _announce_ready()
+
+
+def _recogniser(warmed: dict[str, Any]) -> Any:
+    """The selected recogniser, reusing the warm one only if it is that one.
+
+    `warmed.get("stt") or ParakeetSTT()` took whatever had been prewarmed, so
+    changing the recogniser in Settings left the old one loaded and the setting
+    visibly did nothing -- the same shape as the TTS engine cache holding every
+    engine it had ever built. The TTS path already compared engines before
+    reusing; this did not, because until there was a choice there was nothing
+    to compare.
+
+    The one being replaced is released rather than dropped: an ONNX session on
+    CUDA holds device memory for as long as the object lives, and the worker
+    process outlives any single call.
+    """
+    from .parakeet_stt import chosen_engine, chosen_model
+
+    # The engine first, then which weights within it. Selecting Nemotron and
+    # keeping a warm Parakeet is the same bug as keeping a warm v2 when v3 is
+    # asked for, one level up.
+    wanted = (
+        "nemotron-3.5-asr-streaming-0.6b"
+        if chosen_engine() == "nemotron-3.5"
+        else chosen_model().name.removesuffix("-onnx")
+    )
+    listener = warmed.get("stt")
+    if listener is not None and warmed.get("stt_model") == wanted:
+        return listener
+    if listener is not None:
+        log.info("stt: %s was warm, %s is selected; letting the first go",
+                 warmed.get("stt_model"), wanted)
+        listener.release()
+        warmed.pop("stt", None)
+        warmed.pop("stt_model", None)
+    return build_stt()
+
+
+#: How long to wait for sound to become words before saying so.
+#:
+#: Longer than a slow final transcript, shorter than the silence a person reads
+#: as being ignored.
+TRANSCRIPTION_TIMEOUT = 2.0
+
+#: What she says when the recogniser heard something and produced nothing.
+#: Short, and it does not apologise twice or explain the pipeline.
+MISHEARD = "Sorry, I did not catch that."
 
 
 def build_session(proc: JobProcess | None = None) -> tuple[AgentSession, Callable[[], None]]:
@@ -1189,10 +1248,28 @@ def build_session(proc: JobProcess | None = None) -> tuple[AgentSession, Callabl
         )
 
     session = AgentSession(
-        stt=warmed.get("stt") or ParakeetSTT(),
+        stt=_recogniser(warmed),
         vad=warmed.get("vad") or silero.VAD.load(),
         llm=_timed_llm(),
         tts=local_tts,
+        # Sound arrived and never became words. Set, at last: the handler for
+        # `user_transcription_timeout` has been wired in `observability` the
+        # whole time, listening for an event that could not fire because the
+        # option that produces it was never passed. A warning nobody could
+        # trigger is not instrumentation, it is decoration.
+        #
+        # This is the failure mode LiveKit's own writing on short utterances
+        # names first -- the recogniser silently produces no final transcript
+        # for a brief answer, turn-taking never completes, and the agent goes
+        # quiet. Marvi's log has the shape of it: thirty-four turns that went
+        # `listening -> thinking` and then back to `listening` without her ever
+        # speaking. From the outside that is indistinguishable from her
+        # ignoring you.
+        #
+        # Two seconds, because it must be longer than a slow final transcript
+        # and shorter than the silence a person reads as being ignored. See
+        # `_lost_the_words` for what happens when it fires.
+        transcription_timeout=TRANSCRIPTION_TIMEOUT,
         turn_handling=TurnHandlingOptions(
             turn_detection=build_local_turn_detector(),
             # LiveKit's own defaults for the delay, after a conversation where

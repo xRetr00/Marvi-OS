@@ -62,6 +62,45 @@ PARAKEET_ENGLISH_ROOT = APP_DATA / "models/stt/parakeet-tdt-0.6b-v2-onnx"
 LANGUAGE_SETTING = "MARVI_STT_LANGUAGE"
 
 
+ENGINE_SETTING = "MARVI_STT_ENGINE"
+
+#: The recognisers Marvi can be told to use, and what each one is for.
+#:
+#: Measured 2 September 2026 over 162 EdAcc clips, 2,158 reference words:
+#:
+#:     parakeet-tdt   WER 20.81%  RTF 0.055  first partial 2,910 ms
+#:     nemotron-3.5   WER 24.79%  RTF 0.090  first partial 1,063 ms
+#:
+#: Four points of word error against 1.8 seconds off the first word. Neither
+#: is better; they are different trades, so both are offered and the more
+#: accurate one is the default.
+ENGINES = ("parakeet-tdt", "nemotron-3.5")
+
+
+def chosen_engine() -> str:
+    """Which recogniser, from the setting. Falls back to the default."""
+    wanted = os.environ.get(ENGINE_SETTING, "").strip().lower()
+    return wanted if wanted in ENGINES else ENGINES[0]
+
+
+def build_stt(engine: str = "") -> Any:
+    """The selected recogniser, or the default when the choice cannot be met.
+
+    Falls back rather than raising, and says so. A recogniser that will not
+    load is a Marvi that cannot hear at all, which is worse than a Marvi
+    hearing you through her second choice -- and the Voice page names the one
+    actually running, so the fallback is visible rather than silent.
+    """
+    selected = (engine or chosen_engine()).strip().lower()
+    if selected == "nemotron-3.5":
+        from .nemotron_stt import NemotronSTT, installed
+
+        if installed():
+            return NemotronSTT()
+        log.warning("stt: nemotron is selected but not installed; using parakeet")
+    return ParakeetSTT()
+
+
 def chosen_model() -> Path:
     """Which recogniser to load, from the language setting.
 
@@ -235,6 +274,19 @@ class ParakeetSTT(stt.STT):
     async def aclose(self) -> None:
         await asyncio.gather(*(stream.aclose() for stream in tuple(self._streams)))
         self._streams.clear()
+        self.release()
+
+    def release(self) -> None:
+        """Let go of the ONNX sessions.
+
+        A warmed recogniser that nobody will use again is not free: the CUDA
+        execution provider holds its device memory for as long as the session
+        object lives, and the process that built it outlives any one call. With
+        one model that never mattered, because the same one was wanted next
+        time. With a choice of recogniser it does -- see `build_session`, which
+        drops a warmed recogniser whose model is not the selected one.
+        """
+        self._asr = None
 
 
 class ParakeetStream(stt.RecognizeStream):

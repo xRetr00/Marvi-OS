@@ -312,10 +312,24 @@ class _SidecarEngine:
         selected_voice = voice if voice in offered else str(spec["default_voice"])
         key = (selected, selected_voice, 0)
         with _ENGINE_LOCK:
+            # Every other sidecar goes, and that is the whole point of the
+            # cache being keyed rather than a single slot. A sidecar is a live
+            # process holding a model in VRAM: switching engine three times
+            # left three of them resident, and on a 12 GB card the third one
+            # has nowhere to go. Nothing reclaimed them, because the key it was
+            # no longer looked up under is not a key anything ever visits
+            # again.
+            #
+            # Closed rather than dropped: letting the object fall out of the
+            # dict leaves the process running with no handle to stop it.
             found = _SIDECARS.get(key)
+            for name, other in list(_SIDECARS.items()):
+                if name != key:
+                    other.close()
+            _SIDECARS.clear()
             if found is None:
                 found = cls(selected, selected_voice)
-                _SIDECARS[key] = found
+            _SIDECARS[key] = found
             return found
 
     def _start(self) -> None:
@@ -359,12 +373,23 @@ class _SidecarEngine:
             )
 
     def _read(self) -> dict[str, Any]:
-        if self._process is None or self._process.stdout is None:
+        # Held in a local for the whole call. `readline` blocks, `close` runs on
+        # another thread and sets `self._process = None`, and reading the
+        # attribute again afterwards found nothing there:
+        #
+        #   could not prewarm the speech models:
+        #   'NoneType' object has no attribute 'poll'
+        #
+        # It happened when a session ended while prewarm was still waiting for
+        # the sidecar's ready line. Prewarm then failed, so the models loaded
+        # inside the first spoken turn instead -- which is what the 6.8-second
+        # time-to-first-token spikes in the log are.
+        process = self._process
+        if process is None or process.stdout is None:
             raise VoiceRuntimeError(f"{self.engine} is not running")
-        line = self._process.stdout.readline()
+        line = process.stdout.readline()
         if not line:
-            code = self._process.poll()
-            raise VoiceRuntimeError(f"{self.engine} stopped unexpectedly ({code})")
+            raise VoiceRuntimeError(f"{self.engine} stopped unexpectedly ({process.poll()})")
         return json.loads(line)
 
     def load(self) -> None:

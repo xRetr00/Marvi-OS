@@ -452,6 +452,16 @@ class GatewayTools:
             )
 
         result = body.get("result")
+        # A handed-off job is followed from here, so its answer can reach the
+        # next turn on its own. `await_delegated` covers the case where the
+        # model chooses to wait; this covers the case where it does not, which
+        # is most of them -- the job finishes, nobody asks, and the owner finds
+        # out by asking about work that completed four minutes ago.
+        if tool == "delegate_to_coder" and isinstance(result, dict) and result.get("id"):
+            from .delegated import jobs
+
+            jobs.attach(self._job_status)
+            jobs.watch(str(result["id"]))
         if tool == SEARCH_TOOL and isinstance(result, dict):
             # The half of the search that matters. Telling the model a tool
             # exists and leaving it uncallable is worse than not having the
@@ -929,6 +939,24 @@ class GatewayTools:
             "can do -- if something is on it, you can do it, and saying "
             "otherwise is wrong.\n\n" + "\n".join(lines)
         )
+
+    def _job_status(self, job: str) -> dict[str, Any]:
+        """One delegated job's state, for the background watcher.
+
+        Synchronous and its own request: the watcher is a plain thread with no
+        loop to await on, and this must never touch the one a turn is running
+        on.
+        """
+        import httpx
+
+        found = httpx.post(
+            f"{self._base_url}/tools/delegated_status",
+            json={"arguments": {"job": job}},
+            timeout=REQUEST_TIMEOUT,
+        )
+        found.raise_for_status()
+        answer = found.json().get("result")
+        return answer if isinstance(answer, dict) else {}
 
     async def _load_found(self, names: list[str]) -> None:
         """Add tools a search just found, for the rest of the session.

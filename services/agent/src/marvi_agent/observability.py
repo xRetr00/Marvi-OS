@@ -172,7 +172,17 @@ def attach(session: AgentSession, provider: str = "") -> None:
     def _stt_timeout(_event: Any) -> None:
         # Sound arrived and never became words. Distinct from silence, and the
         # two are indistinguishable without this.
+        #
+        # Said out loud as well as logged. Going quiet is the worst of the
+        # three things that can happen here: a wrong transcript can be
+        # corrected and a refusal can be argued with, but silence is
+        # indistinguishable from Marvi not listening, so the person repeats
+        # themselves into nothing and eventually stops asking.
         log.warning("stt: timed out waiting for a transcript")
+        with contextlib.suppress(Exception):
+            from .session import MISHEARD
+
+            session.say(MISHEARD)
 
     @session.on("speech_created")
     def _speech(event: Any) -> None:
