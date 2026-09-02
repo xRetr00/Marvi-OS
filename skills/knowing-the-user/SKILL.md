@@ -1,6 +1,6 @@
 ---
 name: knowing-the-user
-description: When to write something down about the person you work for, and when to leave it alone. Use when the user says something standing about themselves - their name, work, hours, how they want to be addressed, a preference for how you behave - or when you are about to ask them something you may already have been told.
+description: When to write something down about the person you work for, and when to leave it alone. Use when the user says something standing about themselves - their name, work, hours, how they want to be addressed, a preference for how you behave - or when you are about to ask them something you may already have been told. Not for what they are doing right now or asked for once; that is remembering, and most of it should not be written down at all.
 license: MIT
 metadata:
   author: Marvi OS

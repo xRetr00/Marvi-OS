@@ -1,6 +1,6 @@
 ---
 name: marvi-agent
-description: What Marvi is made of - the services, where they run, what each one owns, and how a voice turn actually flows through them. Use when the user asks how you work, what a component does, why a part of you behaves a certain way, or when you are about to explain your own architecture.
+description: What Marvi is made of - the services, where they run, what each one owns, and how a voice turn actually flows through them. Use when the user asks how you work, what a component does, why a part of you behaves a certain way, or when you are about to explain your own architecture. Not for what she can do for the user - that is the tool catalogue - and not for diagnosing a fault, which is diagnose-myself.
 license: MIT
 metadata:
   author: Marvi OS

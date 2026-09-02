@@ -1,6 +1,6 @@
 ---
 name: using-tools
-description: How to call tools honestly - checking what a tool actually returned, handling failures, and knowing when a result is wrong. Use whenever a tool call returns something you are about to describe to the user, when a tool fails or is refused, or when a result contradicts what you already know.
+description: How to call tools honestly - checking what a tool actually returned, handling failures, and knowing when a result is wrong. Use whenever a tool call returns something you are about to describe to the user, when a tool fails or is refused, or when a result contradicts what you already know. Not a reason to narrate a call or to describe a tool you have not run.
 license: MIT
 metadata:
   author: Marvi OS

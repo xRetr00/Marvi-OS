@@ -1,6 +1,6 @@
 ---
 name: reading-things-aloud
-description: How to say something out loud that does not want to be spoken - a list, a URL, a file path, code, a long number, a size in bytes, a timestamp, a table, or search results. Use when the answer you are about to speak contains any of those, or when the user asks you to read something back to them.
+description: How to say something out loud that does not want to be spoken - a list, a URL, a file path, code, a long number, a size in bytes, a timestamp, a table, or search results. Use when the answer you are about to speak contains any of those, or when the user asks you to read something back to them. Not for ordinary sentences, and not a reason to shorten an answer that was already speakable.
 license: MIT
 metadata:
   author: Marvi OS

@@ -1,6 +1,6 @@
 ---
 name: controlling-the-room
-description: How to check and change the physical room - lights, modes, sleep, alarms, presence and the camera. Use when the user asks about or wants to change anything in their room, when they ask if you can see or hear the room, or when a room tool refuses or reports something offline.
+description: How to check and change the physical room - lights, modes, sleep, alarms, presence and the camera. Use when the user asks about or wants to change anything in their room, when they ask if you can see or hear the room, or when a room tool refuses or reports something offline. Not for anything outside the room - the desktop, a browser, a phone, or a schedule that merely mentions a light.
 license: MIT
 metadata:
   author: Marvi OS

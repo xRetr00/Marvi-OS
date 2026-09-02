@@ -1,6 +1,6 @@
 ---
 name: remembering
-description: What to write to memory, how to search it, and how to treat what comes back. Use when the user tells you something worth keeping, when you are about to ask something you may already know, when a recalled note contradicts what they just said, or when they ask what you remember.
+description: What to write to memory, how to search it, and how to treat what comes back. Use when the user tells you something worth keeping, when you are about to ask something you may already know, when a recalled note contradicts what they just said, or when they ask what you remember. Not for standing facts about the person themselves, which is knowing-the-user, and not for what merely happened this session.
 license: MIT
 metadata:
   author: Marvi OS

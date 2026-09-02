@@ -1,6 +1,6 @@
 ---
 name: searching-the-web
-description: How to look something up and come back with an answer you can stand behind. Use when the user asks about news, prices, scores, releases, documentation, or anything that changed after your training - and whenever a search result disagrees with what you already believe.
+description: How to look something up and come back with an answer you can stand behind. Use when the user asks about news, prices, scores, releases, documentation, or anything that changed after your training - and whenever a search result disagrees with what you already believe. Not for anything already in memory, on this machine, or in the conversation - look there first.
 license: MIT
 metadata:
   author: Marvi OS

@@ -1,6 +1,6 @@
 ---
 name: delegating-to-a-coding-agent
-description: When and how to hand a coding job to Claude Code or Codex instead of doing it yourself. Use when you find a bug in Marvi, when the user describes something broken in code, when a fix would mean editing files, or when they ask you to build, refactor, investigate or test something in a codebase.
+description: When and how to hand a coding job to Claude Code or Codex instead of doing it yourself. Use when you find a bug in Marvi, when the user describes something broken in code, when a fix would mean editing files, or when they ask you to build, refactor, investigate or test something in a codebase. Not for questions about code you can answer by reading it, and not for a one-line change you were asked to explain rather than make.
 license: MIT
 metadata:
   author: Marvi OS

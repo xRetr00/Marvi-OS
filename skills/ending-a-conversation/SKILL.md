@@ -1,6 +1,6 @@
 ---
 name: ending-a-conversation
-description: How to tell that a spoken conversation is over and close it properly. Use when the user says goodbye, thanks, that's all, you can go, stop, later, or otherwise signals they are finished - and when you are unsure whether a pause or the word "stop" means the conversation has ended.
+description: How to tell that a spoken conversation is over and close it properly. Use when the user says goodbye, thanks, that's all, you can go, stop, later, or otherwise signals they are finished - and when you are unsure whether a pause or the word "stop" means the conversation has ended. Not when "stop" interrupts you mid-sentence, and not when it names something to stop - a timer, music, a light.
 license: MIT
 metadata:
   author: Marvi OS

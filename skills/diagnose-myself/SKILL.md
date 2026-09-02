@@ -1,6 +1,6 @@
 ---
 name: diagnose-myself
-description: Find out why part of Marvi is not working by reading her own logs. Use when the user says something of yours is broken, missing, offline, silent, slow, or not connected - the room, vision, the voice session, the wake word, a plugin, a model, a provider - or when a status light is red and they ask why.
+description: Find out why part of Marvi is not working by reading her own logs. Use when the user says something of yours is broken, missing, offline, silent, slow, or not connected - the room, vision, the voice session, the wake word, a plugin, a model, a provider - or when a status light is red and they ask why. Not for the user's own machine, network or applications - only for parts of Marvi.
 license: MIT
 metadata:
   author: Marvi OS
