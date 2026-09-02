@@ -104,3 +104,17 @@ def test_the_file_does_not_grow_without_limit() -> None:
         continuity.remember(f"topic {index}")
 
     assert len(continuity._load()) == continuity.KEEP
+
+
+def test_a_session_about_nothing_leaves_no_note() -> None:
+    """The summariser is told to answer NOTHING and mostly does.
+
+    The file on this machine has "Greeting" in it -- one word, no subject, and
+    it would have been read into the next session as though it were a topic.
+    """
+    from marvi_gateway.continuity import worth_keeping
+
+    for empty in ("NOTHING", "Greeting", "small talk", "nothing in particular", ""):
+        assert worth_keeping(empty) is False, empty
+    for real in ("the graph UI in Marvi", "editing a calendar event"):
+        assert worth_keeping(real) is True, real

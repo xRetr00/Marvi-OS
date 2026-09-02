@@ -76,3 +76,45 @@ def test_no_token_issued_means_no_token_required(monkeypatch) -> None:
     monkeypatch.delenv(localauth.SETTING, raising=False)
 
     localauth.guard(Asking())
+
+
+def test_a_token_left_on_disk_is_accepted_too(tmp_path, monkeypatch) -> None:
+    """The failure this exists for: a Gateway the desktop adopted.
+
+    Relaunch while an old Gateway still holds the port with a live parent and
+    the new desktop adopts it. The adopted Gateway then checks a token from the
+    previous launch while the new Agent presents the current one, and every
+    request for the provider credential is refused. 285 of those in one day's
+    log, and a voice job that died four seconds after the first.
+    """
+    monkeypatch.setenv("MARVI_HOME", str(tmp_path))
+    monkeypatch.setenv(localauth.SETTING, "a-token-from-the-previous-launch")
+    written = tmp_path / localauth.TOKEN_FILE
+    written.parent.mkdir(parents=True, exist_ok=True)
+    written.write_text("the-token-this-launch-issued", encoding="utf-8")
+
+    # Both are accepted: both were issued by a desktop that owns this install.
+    localauth.guard(Asking(x_marvi_local="the-token-this-launch-issued"))
+    localauth.guard(Asking(x_marvi_local="a-token-from-the-previous-launch"))
+    with pytest.raises(HTTPException):
+        localauth.guard(Asking(x_marvi_local="neither-of-them"))
+
+
+def test_a_browser_is_still_refused_with_a_file_on_disk(tmp_path, monkeypatch) -> None:
+    """The token is not the check that stops the drive-by, and never was."""
+    monkeypatch.setenv("MARVI_HOME", str(tmp_path))
+    monkeypatch.delenv(localauth.SETTING, raising=False)
+    written = tmp_path / localauth.TOKEN_FILE
+    written.parent.mkdir(parents=True, exist_ok=True)
+    written.write_text("a-real-token", encoding="utf-8")
+
+    with pytest.raises(HTTPException):
+        localauth.guard(Asking(sec_fetch_site="cross-site", x_marvi_local="a-real-token"))
+
+
+def test_no_token_anywhere_leaves_the_guard_open(tmp_path, monkeypatch) -> None:
+    """A developer running the Gateway by hand is not locked out of it."""
+    monkeypatch.setenv("MARVI_HOME", str(tmp_path))
+    monkeypatch.delenv(localauth.SETTING, raising=False)
+    assert localauth.expected() == []
+    localauth.guard(Asking())

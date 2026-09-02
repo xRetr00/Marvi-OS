@@ -92,6 +92,27 @@ class AgentConfig:
                 # A Gateway that answers "no provider" has answered. Retrying
                 # asks a question that has already been settled.
                 raise
+            except httpx.HTTPStatusError as exc:
+                # A 403 here is `localauth` refusing this process, and no
+                # number of retries fixes it. It was logged as "the Gateway did
+                # not answer in time", which is what a timeout looks like and
+                # sent the search in the wrong direction -- the log has 285 of
+                # these and a job that died with an unhandled exception four
+                # seconds later.
+                if exc.response.status_code == 403:
+                    raise ProviderUnavailableError(
+                        "The Gateway refused this process its provider "
+                        "credentials (403). MARVI_LOCAL_TOKEN does not match "
+                        "the one the Gateway was started with -- usually a "
+                        "Gateway left running from an earlier launch. Restart "
+                        "Marvi so both are started together. See "
+                        "marvi_gateway/localauth.py."
+                    ) from exc
+                if attempt == ATTEMPTS - 1:
+                    raise ProviderUnavailableError(
+                        f"Marvi Gateway is unreachable: {exc}"
+                    ) from exc
+                log.info("the Gateway answered %s; asking again", exc)
             except httpx.HTTPError as exc:
                 if attempt == ATTEMPTS - 1:
                     raise ProviderUnavailableError(

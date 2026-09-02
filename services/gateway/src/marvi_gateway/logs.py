@@ -478,11 +478,24 @@ def _install_catchers() -> None:
 
     def on_thread_exception(args) -> None:  # type: ignore[no-untyped-def]
         # A background thread dying quietly is the failure nobody notices.
+        name = getattr(args.thread, "name", "?")
         engine.critical(
             "uncaught exception in thread %s",
-            getattr(args.thread, "name", "?"),
+            name,
             exc_info=(args.exc_type, args.exc_value, args.exc_traceback),
         )
+        # And recorded, not only printed.
+        #
+        # `smart_room_supervisor` died twice this way -- `sock.recv` raising
+        # inside the plugin's own liveness check, which the plugin does not
+        # catch. The traceback went to the log and nothing else happened: the
+        # Gateway stayed up, the room stopped being supervised, and no surface
+        # said so. A crashed supervisor is a degraded capability, and the
+        # health endpoint is where that belongs.
+        with contextlib.suppress(Exception):
+            from . import threadwatch
+
+            threadwatch.died(name, args.exc_value)
 
     threading.excepthook = on_thread_exception
 

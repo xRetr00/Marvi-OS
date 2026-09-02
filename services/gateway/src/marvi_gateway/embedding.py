@@ -26,6 +26,8 @@ to this one. One shape, and the base URL decides which.
 from __future__ import annotations
 
 import os
+import threading
+import time
 from typing import Any
 
 from .logs import get_logger
@@ -131,6 +133,19 @@ class Embedder:
 
     def __init__(self) -> None:
         self._local: Any = None
+        #: Held while the local model loads.
+        #:
+        #: Recall runs on two threads by design -- the Agent prefetches while
+        #: the sentence is still being spoken and fetches again if the guess
+        #: missed -- so both arrive here with `_local` still None and both
+        #: start loading 130 MB. Two `SentenceTransformer` constructions over
+        #: the same files, at the same moment, on Windows. The failures in the
+        #: log come in pairs seconds apart, which is the shape of exactly that.
+        #:
+        #: Not proof: the pairing is consistent with it and the cause was never
+        #: reproduced. The lock is worth having regardless -- loading the model
+        #: twice was never intended, and it costs one uncontended acquire.
+        self._loading = threading.Lock()
 
     @property
     def ready(self) -> bool:
@@ -153,21 +168,38 @@ class Embedder:
                 return self._locally(wanted)
             return self._from_provider(wanted)
         except Exception as exc:
+            # With the traceback. Twenty-six of these are in the log as
+            # "[Errno 22] Invalid argument" and nothing else, which names
+            # neither the call nor the file -- not enough to tell a model that
+            # failed to load from one that failed to encode, and the two have
+            # nothing in common.
             log.warning(
                 "embeddings unavailable; falling back to keyword recall: %s", exc,
+                exc_info=True,
                 extra={"marvi_source": source(), "marvi_model": model_name()},
             )
             return []
 
     def _locally(self, texts: list[str]) -> list[list[float]]:
         if self._local is None:
-            from sentence_transformers import SentenceTransformer
+            with self._loading:
+                # Checked again inside the lock: the thread that waited here
+                # wants the model the first one built, not a second copy.
+                if self._local is None:
+                    from sentence_transformers import SentenceTransformer
 
-            # CPU explicitly. The card is busy speaking, and an embedding model
-            # that competes with Kokoro for it would trade a fast recall for a
-            # stuttering voice.
-            self._local = SentenceTransformer(installed() or model_name(), device="cpu")
-            log.info("embeddings: %s loaded on the CPU", model_name())
+                    began = time.monotonic()
+                    # CPU explicitly. The card is busy speaking, and an
+                    # embedding model that competes with Kokoro for it would
+                    # trade a fast recall for a stuttering voice.
+                    self._local = SentenceTransformer(
+                        installed() or model_name(), device="cpu"
+                    )
+                    log.info(
+                        "embeddings: %s loaded on the CPU in %.1fs",
+                        model_name(),
+                        time.monotonic() - began,
+                    )
         return [vector.tolist() for vector in self._local.encode(texts)]
 
     def _from_provider(self, texts: list[str]) -> list[list[float]]:

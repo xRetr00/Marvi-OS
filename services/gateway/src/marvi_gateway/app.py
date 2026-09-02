@@ -38,6 +38,7 @@ from . import (
     remembering,
     selfaware,
     standing,
+    threadwatch,
     toolsearch,
     upgrade,
     voiceactivity,
@@ -1190,6 +1191,20 @@ def create_app(
         # is one level up and the user can act on it.
         if state == "offline" and (why := plugins_module.not_running(room_module.PLUGIN_NAME)):
             return ComponentStatus(state="offline", detail=why)
+        # A supervisor that died takes the room with it, quietly.
+        #
+        # The plugin's crash monitor is the only thing that restarts the room
+        # runtime, and its liveness check ends in `sock.recv` -- which raises
+        # when the runtime restarts, and which the plugin catches around the
+        # restart but not around the check. It died twice; the Gateway stayed
+        # up; this endpoint went on saying the room was fine. The next thing
+        # to go wrong would have been a light that does not come on, with
+        # nothing anywhere connecting the two.
+        if gone := [name for name in threadwatch.degraded() if name.startswith("smart_room")]:
+            return ComponentStatus(
+                state="error",
+                detail=f"the room supervisor stopped ({gone[0]}); restart Marvi",
+            )
         return ComponentStatus(state=state, detail=detail)  # type: ignore[arg-type]
 
     def vision_status() -> ComponentStatus:

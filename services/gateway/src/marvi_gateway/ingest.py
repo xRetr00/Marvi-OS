@@ -553,7 +553,15 @@ def default_registry() -> MemoryProviderRegistry:
                     # the same thing in the older shape. Both are sent: the
                     # filter is harmless where it is ignored, and removing it
                     # would break whichever deployments still want it.
-                    "fetch_type": "page",
+                    #
+                    # Plural. The singular was accepted by nothing: every poll
+                    # since has failed with "Input should be 'pages',
+                    # 'databases' or 'all'" -- 77 consecutive syncs in the log,
+                    # each one a Notion workspace that never reached memory.
+                    # The `filter` below keeps its singular "page" because that
+                    # is Notion's own object-type vocabulary and a different
+                    # field entirely.
+                    "fetch_type": "pages",
                     "page_size": MAX_PER_POLL,
                     "filter": {"value": "page", "property": "object"},
                     "sort": {"direction": "descending", "timestamp": "last_edited_time"},

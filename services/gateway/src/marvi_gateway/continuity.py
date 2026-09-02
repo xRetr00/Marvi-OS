@@ -98,10 +98,43 @@ def _load() -> list[dict[str, Any]]:
     return found if isinstance(found, list) else []
 
 
+#: Answers that are the model agreeing there was nothing, in other words.
+#:
+#: It is told to reply exactly NOTHING for small talk and mostly does, but the
+#: file has "Greeting" in it -- one word, no subject, and it would have been
+#: read into the next session as though it were a topic. A note has to name
+#: something to be worth carrying; these name the absence of one.
+NOTHING_MUCH = (
+    "nothing",
+    "greeting",
+    "greetings",
+    "small talk",
+    "smalltalk",
+    "chitchat",
+    "chit-chat",
+    "casual conversation",
+    "a greeting",
+    "general conversation",
+    "no particular subject",
+    "no specific topic",
+)
+
+
+def worth_keeping(text: str) -> bool:
+    """Whether a summary names a subject, rather than the lack of one."""
+    clean = " ".join(str(text or "").split()).strip().strip(".").lower()
+    if not clean:
+        return False
+    if clean.startswith("nothing"):
+        return False
+    return clean not in NOTHING_MUCH
+
+
 def remember(text: str) -> None:
     """Keep one note about a session that just ended. Never raises."""
     clean = " ".join(str(text or "").split())[:MAX_CHARS]
-    if not clean or clean.upper().startswith("NOTHING"):
+    if not worth_keeping(clean):
+        log.info("nothing worth carrying from this session (%r)", clean[:60])
         return
     notes = [*_load(), {"at": round(time.time(), 3), "about": clean}][-KEEP:]
     try:

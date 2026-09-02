@@ -48,9 +48,39 @@ SETTING = "MARVI_LOCAL_TOKEN"
 
 HEADER = "x-marvi-local"
 
+#: Where the desktop also leaves the token, for a Gateway it did not start.
+#:
+#: The environment is the better channel and stays primary. It is not the only
+#: one that can be right, because a Gateway is not always started by the
+#: desktop that is currently using it: relaunch while an old Gateway still
+#: holds port 8765 with a live parent and the new desktop adopts it. The
+#: adopted Gateway then checks a token from the previous launch while the new
+#: Agent presents the current one, and every request for the provider
+#: credential is refused. The log has 285 of those and a voice job that died
+#: four seconds after the first.
+#:
+#: Both are accepted, because both were written by a desktop that owns this
+#: install. What this costs: a same-user process can read the file, where
+#: reading another process's environment takes a handle and a little more
+#: effort. That is a difference of degree inside a threat this guard already
+#: says it does not close -- see the note on `MARVI_LOCAL_TOKEN` above. The
+#: check that actually stops the drive-by is `Sec-Fetch-Site`, and it is
+#: unaffected.
+TOKEN_FILE = "state/local-token"
 
-def expected() -> str:
-    return os.environ.get(SETTING, "").strip()
+
+def _from_file() -> str:
+    from .paths import root
+
+    try:
+        return (root() / TOKEN_FILE).read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+def expected() -> list[str]:
+    """Every token this Gateway will accept. Empty when the guard is disabled."""
+    return [token for token in (os.environ.get(SETTING, "").strip(), _from_file()) if token]
 
 
 def from_a_browser(request: Request) -> bool:
@@ -73,8 +103,19 @@ def guard(request: Request) -> None:
     wanted = expected()
     if not wanted:
         return
+    offered = request.headers.get(HEADER, "")
     # `compare_digest` rather than `==`: the comparison is against a secret and
-    # a local attacker can time it as easily as a remote one.
-    if not hmac.compare_digest(request.headers.get(HEADER, ""), wanted):
-        log.warning("refused an unauthenticated request for a credential")
+    # a local attacker can time it as easily as a remote one. Every candidate
+    # is checked rather than stopping at the first match, so the work does not
+    # depend on which one it was.
+    if not any(hmac.compare_digest(offered, token) for token in wanted):
+        log.warning(
+            "refused an unauthenticated request for %s -- the caller's token "
+            "matches neither the one this Gateway was started with nor the one "
+            "on disk. Usually a Gateway left running from an earlier launch; "
+            "restart Marvi so both are started together.",
+            # `getattr`: the path is for the log line and nothing else, and a
+            # guard that raises while reporting a refusal refuses nothing.
+            getattr(getattr(request, "url", None), "path", "a guarded endpoint"),
+        )
         raise HTTPException(status_code=403, detail="a local token is required")

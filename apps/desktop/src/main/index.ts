@@ -451,6 +451,32 @@ function localHeaders(): Record<string, string> {
   return { 'x-marvi-local': localToken }
 }
 
+/**
+ * Leave the token where a Gateway this launch did not start can find it.
+ *
+ * The environment is the better channel and stays the primary one. It is not
+ * enough on its own: relaunch while an old Gateway still holds port 8765 with
+ * a live parent and this desktop adopts it rather than replacing it. The
+ * adopted Gateway then checks a token from the previous launch while this
+ * launch's Agent presents the current one, and every request for the provider
+ * credential is refused with a 403 — 285 of them in one day's log, and a voice
+ * job that died four seconds after the first.
+ *
+ * Written before any child starts, so the Gateway can read it whenever it
+ * first needs to.
+ */
+function publishLocalToken(): void {
+  try {
+    const target = join(stateDir(), 'state')
+    mkdirSync(target, { recursive: true })
+    writeFileSync(join(target, 'local-token'), localToken, { encoding: 'utf8' })
+  } catch (error) {
+    // Not fatal: the environment channel still works for a Gateway started
+    // here, which is the ordinary case.
+    desktop.warn(`could not publish the local token: ${String(error)}`)
+  }
+}
+
 async function gatewayJson(path: string, init?: RequestInit, timeoutMs = 10_000): Promise<unknown> {
   try {
     const response = await fetch(`${gateway()}${path}`, {
@@ -547,6 +573,8 @@ function startVoiceStack(): void {
   // Anything left running from a session that did not shut down cleanly. An
   // orphaned Gateway holds port 8765, and the new one then fails to bind for a
   // reason that looks like nothing at all.
+  publishLocalToken()
+
   const strays = killStrays(repoRoot ?? undefined)
   if (strays > 0) desktop.warn(`stopped ${strays} leftover process(es) from a previous session`)
 
