@@ -28,7 +28,7 @@ from livekit.agents import (
 from livekit.plugins import silero
 
 from . import delegated, observability, sidecars
-from .parakeet_stt import PARAKEET_ROOT, build_stt
+from .parakeet_stt import PARAKEET_ROOT, build_stt, chosen_engine
 from .runtime import AgentConfig, build_llm, build_local_turn_detector
 from .timing import TimedLLM
 from .tools import GatewayTools
@@ -1119,8 +1119,26 @@ def prewarm(proc: JobProcess) -> None:
     the model already resident and starts speaking immediately.
     """
     started = time.monotonic()
+    # Timed in pieces, because the total has been anywhere from 4.4 to 112
+    # seconds on this machine and one number cannot say which part moved.
+    #
+    # Every one of these seconds lands on somebody's join whenever the pool has
+    # no warm process to hand out -- see `_pool_is_busy`. When a join feels
+    # slow, this is the line to read: `prewarm: settings 0.2s, vocabulary 0.4s,
+    # tts(kokoro) 17.1s, stt(parakeet-tdt) 7.9s, vad 0.3s, total 25.9s` says
+    # which one to go after, and a bare "ready in 25.9s" does not.
+    marks: dict[str, float] = {}
+
+    def mark(name: str, since: float) -> float:
+        now = time.monotonic()
+        marks[name] = now - since
+        return now
+
+    step = started
     apply_speech_settings()
+    step = mark("settings", step)
     _load_vocabulary()
+    step = mark("vocabulary", step)
     tts_engine, voice = configured_tts()
     engine = build_tts(tts_engine, voice)
     try:
@@ -1132,6 +1150,7 @@ def prewarm(proc: JobProcess) -> None:
         log.warning("could not prewarm the speech models: %s", exc)
         _report_ready(False, f"{tts_engine} could not load: {exc}")
         return
+    step = mark(f"tts({tts_engine})", step)
     proc.userdata["tts"] = engine
     proc.userdata["tts_engine"] = tts_engine
     proc.userdata["tts_voice"] = voice
@@ -1147,9 +1166,31 @@ def prewarm(proc: JobProcess) -> None:
         proc.userdata["stt_model"] = listener.model
     except Exception as exc:  # pragma: no cover - depends on the model on disk
         log.warning("could not prewarm the recogniser: %s", exc)
+    step = mark(f"stt({chosen_engine()})", step)
     # Silero is small but not free, and it is loaded on the same critical path.
     proc.userdata["vad"] = silero.VAD.load()
-    log.info("speech models ready in %.1fs, before any call", time.monotonic() - started)
+    mark("vad", step)
+    total = time.monotonic() - started
+    log.info(
+        "prewarm: %s, total %.1fs",
+        ", ".join(f"{name} {seconds:.1f}s" for name, seconds in marks.items()),
+        total,
+    )
+    if total > SLOW_PREWARM:
+        # Named as a problem rather than left as a number in a list. A join
+        # landing on a prewarm this long is the difference between Marvi
+        # answering and Marvi appearing broken, and the slowest step is the
+        # only actionable part of it.
+        slowest = max(marks.items(), key=lambda item: item[1])
+        log.warning(
+            "prewarm took %.1fs, mostly %s (%.1fs). A join arriving now waits "
+            "for all of it: the pool keeps one warm process and it is busy "
+            "until this finishes.",
+            total,
+            slowest[0],
+            slowest[1],
+        )
+    log.info("speech models ready in %.1fs, before any call", total)
     # And only now is Join worth offering. See `_state`: a worker with a socket
     # and no warm process answers a job by making the caller wait for exactly
     # this function.
@@ -1189,7 +1230,7 @@ def _recogniser(warmed: dict[str, Any]) -> Any:
     CUDA holds device memory for as long as the object lives, and the worker
     process outlives any single call.
     """
-    from .parakeet_stt import chosen_engine, chosen_model
+    from .parakeet_stt import chosen_model
 
     # The engine first, then which weights within it. Selecting Nemotron and
     # keeping a warm Parakeet is the same bug as keeping a warm v2 when v3 is
@@ -1641,6 +1682,12 @@ async def marvi_session(ctx: JobContext) -> None:
 #: The UI had said ready six seconds earlier, so Join was pressed six seconds
 #: early, and the six seconds were spent with the button already pushed. The
 #: models were not slow; the promise was.
+#: Past this, a prewarm is worth complaining about rather than merely
+#: recording. Measured on this machine: 4.4s at best, 112.4s at worst, with the
+#: middle of the range around 25s. Ten seconds is comfortably above a good run
+#: and well below the ones that make Marvi look broken.
+SLOW_PREWARM = 10.0
+
 _state = {"registered": False, "warm": False}
 
 
