@@ -1,5 +1,5 @@
 {
-  "$comment": "What Marvi can install. Data, not code \u2014 adding a component means adding an entry here. Voice models live in voice-models.json until the PowerShell installers are retired, because duplicating their hashes is how two files drift apart.",
+  "$comment": "What Marvi can install. Data, not code — adding a component means adding an entry here. Voice models live in voice-models.json until the PowerShell installers are retired, because duplicating their hashes is how two files drift apart.",
   "schema": 1,
   "components": [
     {
@@ -87,9 +87,14 @@
       "title": "CuteTTS runtime",
       "why": "Runs CuteTTS in an isolated environment so its Torch pin cannot replace the voice Agent's.",
       "needed_for": [],
-      "source": { "type": "command" },
+      "source": {
+        "type": "command"
+      },
       "project": "services/tts-cute",
-      "extra": { "gpu_sensitive": true, "isolated": true }
+      "extra": {
+        "gpu_sensitive": true,
+        "isolated": true
+      }
     },
     {
       "name": "tts-cute-model",
@@ -97,12 +102,23 @@
       "title": "CuteTTS Distill model",
       "why": "Optional local streaming TTS voice.",
       "needed_for": [],
-      "source": { "type": "command" },
+      "source": {
+        "type": "command"
+      },
       "project": "services/tts-cute",
       "install_to": "models/tts/cutetts-distill",
       "extra": {
-        "run": ["python", "-m", "marvi_tts_cute.setup"],
-        "check": ["python", "-m", "marvi_tts_cute.setup", "--check"]
+        "run": [
+          "python",
+          "-m",
+          "marvi_tts_cute.setup"
+        ],
+        "check": [
+          "python",
+          "-m",
+          "marvi_tts_cute.setup",
+          "--check"
+        ]
       }
     },
     {
@@ -111,9 +127,14 @@
       "title": "VoXtream2 runtime",
       "why": "Runs VoXtream2 and its Moshi stack outside the voice Agent.",
       "needed_for": [],
-      "source": { "type": "command" },
+      "source": {
+        "type": "command"
+      },
       "project": "services/tts-voxtream",
-      "extra": { "gpu_sensitive": true, "isolated": true }
+      "extra": {
+        "gpu_sensitive": true,
+        "isolated": true
+      }
     },
     {
       "name": "tts-voxtream-model",
@@ -121,12 +142,23 @@
       "title": "VoXtream2 model and voices",
       "why": "Optional full-stream local TTS with bundled reference voices.",
       "needed_for": [],
-      "source": { "type": "command" },
+      "source": {
+        "type": "command"
+      },
       "project": "services/tts-voxtream",
       "install_to": "models/tts/voxtream2",
       "extra": {
-        "run": ["python", "-m", "marvi_tts_voxtream.setup"],
-        "check": ["python", "-m", "marvi_tts_voxtream.setup", "--check"]
+        "run": [
+          "python",
+          "-m",
+          "marvi_tts_voxtream.setup"
+        ],
+        "check": [
+          "python",
+          "-m",
+          "marvi_tts_voxtream.setup",
+          "--check"
+        ]
       }
     },
     {
@@ -259,6 +291,78 @@
       },
       "extra": {
         "note": "130MB, downloaded here rather than on first recall -- otherwise the first question anybody asks stalls a voice turn while it fetches, or fails outright with no network."
+      }
+    },
+    {
+      "name": "stt-nemotron-runtime",
+      "kind": "binary",
+      "title": "Nemotron recogniser runtime",
+      "why": "The native library the Nemotron recogniser runs on. The default recogniser is in-process and needs none of this.",
+      "needed_for": [],
+      "source": {
+        "type": "url",
+        "base_url": "https://github.com/mudler/parakeet.cpp/releases/download/v0.5.0"
+      },
+      "install_to": "runtimes/parakeet-cpp/lib",
+      "binary": "parakeet.dll",
+      "extra": {
+        "version": "0.5.0",
+        "note": "Sizes and hashes are the GitHub release digests for v0.5.0."
+      },
+      "files_by_platform": {
+        "windows-amd64": {
+          "parakeet-v0.5.0-lib-win-cuda-x64.zip": [
+            156486028,
+            "be61348d3e1ea60059c141ae3eda7f04bd69bea80ecc689f96bc47a6a1691016"
+          ]
+        }
+      }
+    },
+    {
+      "name": "stt-nemotron-cuda",
+      "kind": "binary",
+      "title": "Nemotron CUDA runtime",
+      "why": "NVIDIA's redistributable cuBLAS, which the recogniser library links against. Not optional: without it beside the DLL the library loads and then fails on the first frame.",
+      "needed_for": [],
+      "source": {
+        "type": "url",
+        "base_url": "https://github.com/mudler/parakeet.cpp/releases/download/v0.5.0"
+      },
+      "install_to": "runtimes/parakeet-cpp/cudart",
+      "binary": "cudart64_12.dll",
+      "extra": {
+        "version": "0.5.0",
+        "note": "580 MB, and only for this recogniser."
+      },
+      "files_by_platform": {
+        "windows-amd64": {
+          "cudart-parakeet-bin-win-cuda-x64.zip": [
+            580185113,
+            "cc2b5fb99951720130e4a701e0978419d0a878e25c88bebc1416152616bd1d94"
+          ]
+        }
+      }
+    },
+    {
+      "name": "stt-nemotron-model",
+      "kind": "model",
+      "title": "Nemotron 3.5 Streaming 0.6B",
+      "why": "The recogniser that says what it heard about 1.8 seconds sooner than the default, for roughly four points more word error. Measured 2 September 2026 over 162 EdAcc clips.",
+      "needed_for": [],
+      "source": {
+        "type": "huggingface",
+        "id": "mudler/parakeet-cpp-gguf",
+        "revision": "bf0af9f425fa01809cadec671b3cb672709d13e9"
+      },
+      "install_to": "models/stt/nemotron-3.5-asr-streaming-0.6b",
+      "files": {
+        "nemotron-3.5-asr-streaming-0.6b-f16.gguf": [
+          1484324992,
+          "B64413C3886EDF2B45EB3E757F911F1BC8020B7CF157622CD0BD0452C6D84AAC"
+        ]
+      },
+      "extra": {
+        "note": "1.5 GB. Only needed if the Nemotron recogniser is chosen in Settings > Speech recognition."
       }
     }
   ]

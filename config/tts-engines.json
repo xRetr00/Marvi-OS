@@ -15,23 +15,79 @@
       "model_revision": "f3ff3571791e39611d31c381e3a41a3af07b4987",
       "default_voice": "am_michael",
       "voices": [
-        { "id": "af_heart", "name": "Heart", "language": "English (American)", "gender": "woman" },
-        { "id": "af_bella", "name": "Bella", "language": "English (American)", "gender": "woman" },
-        { "id": "af_nicole", "name": "Nicole", "language": "English (American)", "gender": "woman" },
-        { "id": "af_sarah", "name": "Sarah", "language": "English (American)", "gender": "woman" },
-        { "id": "af_sky", "name": "Sky", "language": "English (American)", "gender": "woman" },
-        { "id": "am_adam", "name": "Adam", "language": "English (American)", "gender": "man" },
-        { "id": "am_michael", "name": "Michael", "language": "English (American)", "gender": "man" },
-        { "id": "bf_emma", "name": "Emma", "language": "English (British)", "gender": "woman" },
-        { "id": "bf_isabella", "name": "Isabella", "language": "English (British)", "gender": "woman" },
-        { "id": "bm_george", "name": "George", "language": "English (British)", "gender": "man" },
-        { "id": "bm_lewis", "name": "Lewis", "language": "English (British)", "gender": "man" }
-      ]
+        {
+          "id": "af_heart",
+          "name": "Heart",
+          "language": "English (American)",
+          "gender": "woman"
+        },
+        {
+          "id": "af_bella",
+          "name": "Bella",
+          "language": "English (American)",
+          "gender": "woman"
+        },
+        {
+          "id": "af_nicole",
+          "name": "Nicole",
+          "language": "English (American)",
+          "gender": "woman"
+        },
+        {
+          "id": "af_sarah",
+          "name": "Sarah",
+          "language": "English (American)",
+          "gender": "woman"
+        },
+        {
+          "id": "af_sky",
+          "name": "Sky",
+          "language": "English (American)",
+          "gender": "woman"
+        },
+        {
+          "id": "am_adam",
+          "name": "Adam",
+          "language": "English (American)",
+          "gender": "man"
+        },
+        {
+          "id": "am_michael",
+          "name": "Michael",
+          "language": "English (American)",
+          "gender": "man"
+        },
+        {
+          "id": "bf_emma",
+          "name": "Emma",
+          "language": "English (British)",
+          "gender": "woman"
+        },
+        {
+          "id": "bf_isabella",
+          "name": "Isabella",
+          "language": "English (British)",
+          "gender": "woman"
+        },
+        {
+          "id": "bm_george",
+          "name": "George",
+          "language": "English (British)",
+          "gender": "man"
+        },
+        {
+          "id": "bm_lewis",
+          "name": "Lewis",
+          "language": "English (British)",
+          "gender": "man"
+        }
+      ],
+      "cloning": false
     },
     {
       "id": "cutetts-distill",
       "name": "CuteTTS Distill 0.23B",
-      "description": "Low-latency streaming with CuteTTS's bundled reference voice.",
+      "description": "Low-latency streaming. Has no voice bank of its own: it speaks in whatever voice you record for it, and ships one reference to start from.",
       "runtime": "isolated",
       "project": "services/tts-cute",
       "install_to": "models/tts/cutetts-distill",
@@ -42,13 +98,19 @@
       "model_revision": "6f84092f441295c415019193424033c93c6aee68",
       "default_voice": "cute-reference",
       "voices": [
-        { "id": "cute-reference", "name": "Cute Reference", "language": "English", "gender": "woman" }
-      ]
+        {
+          "id": "cute-reference",
+          "name": "Cute Reference",
+          "language": "English",
+          "gender": "woman"
+        }
+      ],
+      "cloning": true
     },
     {
       "id": "voxtream2",
       "name": "VoXtream2 0.5B",
-      "description": "Full-stream voice cloning with incremental text input.",
+      "description": "Twelve reference voices across ten languages, and speaks in a recorded voice as well.",
       "runtime": "isolated",
       "project": "services/tts-voxtream",
       "install_to": "models/tts/voxtream2",
@@ -59,19 +121,80 @@
       "model_revision": "49addec130217e8e9e82a6f49437c315c5c851fc",
       "default_voice": "english-female",
       "voices": [
-        { "id": "english-female", "name": "English Female", "language": "English", "gender": "woman" },
-        { "id": "english-male", "name": "English Male", "language": "English", "gender": "man" },
-        { "id": "arabic-female", "name": "Arabic Female", "language": "Arabic", "gender": "woman" },
-        { "id": "chinese-female", "name": "Chinese Female", "language": "Chinese", "gender": "woman" },
-        { "id": "french-female", "name": "French Female", "language": "French", "gender": "woman" },
-        { "id": "german-male", "name": "German Male", "language": "German", "gender": "man" },
-        { "id": "hindi-male", "name": "Hindi Male", "language": "Hindi", "gender": "man" },
-        { "id": "japanese-male", "name": "Japanese Male", "language": "Japanese", "gender": "man" },
-        { "id": "portuguese-male", "name": "Portuguese Male", "language": "Portuguese", "gender": "man" },
-        { "id": "russian-female", "name": "Russian Female", "language": "Russian", "gender": "woman" },
-        { "id": "spanish-male", "name": "Spanish Male", "language": "Spanish", "gender": "man" },
-        { "id": "swedish-female", "name": "Swedish Female", "language": "Swedish", "gender": "woman" }
-      ]
+        {
+          "id": "english-female",
+          "name": "English Female",
+          "language": "English",
+          "gender": "woman"
+        },
+        {
+          "id": "english-male",
+          "name": "English Male",
+          "language": "English",
+          "gender": "man"
+        },
+        {
+          "id": "arabic-female",
+          "name": "Arabic Female",
+          "language": "Arabic",
+          "gender": "woman"
+        },
+        {
+          "id": "chinese-female",
+          "name": "Chinese Female",
+          "language": "Chinese",
+          "gender": "woman"
+        },
+        {
+          "id": "french-female",
+          "name": "French Female",
+          "language": "French",
+          "gender": "woman"
+        },
+        {
+          "id": "german-male",
+          "name": "German Male",
+          "language": "German",
+          "gender": "man"
+        },
+        {
+          "id": "hindi-male",
+          "name": "Hindi Male",
+          "language": "Hindi",
+          "gender": "man"
+        },
+        {
+          "id": "japanese-male",
+          "name": "Japanese Male",
+          "language": "Japanese",
+          "gender": "man"
+        },
+        {
+          "id": "portuguese-male",
+          "name": "Portuguese Male",
+          "language": "Portuguese",
+          "gender": "man"
+        },
+        {
+          "id": "russian-female",
+          "name": "Russian Female",
+          "language": "Russian",
+          "gender": "woman"
+        },
+        {
+          "id": "spanish-male",
+          "name": "Spanish Male",
+          "language": "Spanish",
+          "gender": "man"
+        },
+        {
+          "id": "swedish-female",
+          "name": "Swedish Female",
+          "language": "Swedish",
+          "gender": "woman"
+        }
+      ],
+      "cloning": true
     }
   ]
 }
