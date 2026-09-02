@@ -82,6 +82,27 @@ class KyutaiStreamingStt:
             (float(checkpoint.stt_config["audio_delay_seconds"]) + 1.0)
             * self.mimi.sample_rate
         )
+        # Silence before the speech, and this is the whole reason the first
+        # round scored this model at 40.73% with eleven empty clips.
+        #
+        # Fed audio that begins with a word already in progress, the model
+        # emits nothing at all. Measured directly on the six clips that came
+        # back empty: isolated, all six produced nothing; with one second of
+        # silence in front, all six produced correct transcripts --
+        #
+        #   ref  UH IT'S BASICALLY LIKE A WEB PAGE LINK IT'S NOT REALLY AN APP
+        #   was  (nothing)
+        #   now  It's basically like a web pa...
+        #
+        # The checkpoint's own `audio_silence_prefix_seconds` is 0.0, which is
+        # what made this easy to miss, but Kyutai's demo never starts mid-word:
+        # the stream is open and quiet before anyone speaks. A benchmark that
+        # starts the audio at the first syllable is not testing the model, it
+        # is testing an entrance nobody uses.
+        self.prefix_samples = int(
+            max(float(checkpoint.stt_config.get("audio_silence_prefix_seconds", 0.0)), 1.0)
+            * self.mimi.sample_rate
+        )
         self.mimi.streaming_forever(1)
         self.lm_gen.streaming_forever(1)
 
@@ -91,9 +112,11 @@ class KyutaiStreamingStt:
             input_audio_seconds = source.getnframes() / source.getframerate()
         pcm, _ = sphn.read(str(audio_path), sample_rate=self.mimi.sample_rate)
         audio = torch.from_numpy(pcm[None, 0:1]).to(device="cuda")
-        audio_samples = audio.shape[-1]
+        audio_samples = audio.shape[-1] + self.prefix_samples
         input_audio_samples = round(input_audio_seconds * self.mimi.sample_rate)
-        audio = torch.nn.functional.pad(audio, (0, self.flush_samples))
+        audio = torch.nn.functional.pad(
+            audio, (self.prefix_samples, self.flush_samples)
+        )
         self.mimi.reset_streaming()
         self.lm_gen.reset_streaming()
         pieces: list[str] = []
@@ -102,6 +125,7 @@ class KyutaiStreamingStt:
         partials = 0
         first_frame = True
         input_compute_seconds = 0.0
+        frames = 0
 
         for offset in range(0, audio.shape[-1], self.frame_size):
             chunk = audio[:, :, offset : offset + self.frame_size]
@@ -113,8 +137,23 @@ class KyutaiStreamingStt:
                 self.lm_gen.step(codes)
                 first_frame = False
             tokens = self.lm_gen.step(codes)
+            # Wait for the GPU before stopping the clock.
+            #
+            # Without this the loop times how long it takes to *queue* work,
+            # not to do it, because every CUDA call here returns immediately.
+            # It is why the first round reported RTF 0.244 for a model that
+            # actually spends 60ms on an 80ms frame. Measured both ways over
+            # 48 decodes: 59.3 ms/frame with one sync per clip, 78.7 ms/frame
+            # syncing every frame, and 24 ms/frame syncing never -- the last
+            # of which is not a measurement of anything.
+            #
+            # Per frame rather than per clip, because that is the question a
+            # streaming recogniser has to answer: audio arrives every 80ms and
+            # there is no running ahead of a microphone.
+            torch.cuda.synchronize()
             elapsed = time.perf_counter() - started
             compute_seconds += elapsed
+            frames += 1
             if offset < audio_samples:
                 input_compute_seconds += elapsed
             if tokens is None:
@@ -141,6 +180,9 @@ class KyutaiStreamingStt:
             "partials": partials,
             "audio_seconds": input_audio_seconds,
             "feed_ms": self.frame_size / self.mimi.sample_rate * 1_000.0,
+            # The number that decides whether it keeps up: compute per frame
+            # against the 80ms the frame represents.
+            "ms_per_frame": compute_seconds / max(frames, 1) * 1_000.0,
         }
 
 
