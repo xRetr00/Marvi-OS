@@ -29,7 +29,7 @@
  */
 
 import { execFileSync } from 'child_process'
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { randomBytes } from 'crypto'
 
@@ -105,7 +105,18 @@ export function write(stateDir: string, record: RuntimeRecord): void {
   try {
     const target = join(stateDir, 'state')
     mkdirSync(target, { recursive: true })
-    writeFileSync(runtimePath(stateDir), JSON.stringify(record, null, 2), 'utf8')
+    // Written whole, then moved into place.
+    //
+    // This file is rewritten every time a child starts, and every child reads
+    // it on a timer. A plain write leaves a window where a reader sees half a
+    // file — and the child's rule for "no readable record" has to be "the
+    // desktop is shutting down". A rename is atomic on both platforms, so that
+    // window does not exist. The reader tolerates a torn read as well; belt
+    // and braces, because the cost of getting this wrong is every child
+    // exiting at once.
+    const temporary = `${runtimePath(stateDir)}.${process.pid}.tmp`
+    writeFileSync(temporary, JSON.stringify(record, null, 2), 'utf8')
+    renameSync(temporary, runtimePath(stateDir))
   } catch {
     // Not fatal. Without the record the lifecycle behaves as it did before
     // this file existed, which is imperfect rather than broken.

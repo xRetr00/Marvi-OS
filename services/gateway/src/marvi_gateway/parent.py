@@ -68,24 +68,104 @@ def _alive(pid: int) -> bool:
     return True
 
 
+LAUNCH_ENV = "MARVI_LAUNCH_ID"
+
+
+#: Told apart on purpose. "There is no record" and "the record could not be
+#: read" look the same to a `try/except` and mean opposite things: the first is
+#: a shutdown that has begun, the second is a file being rewritten under us.
+GONE = "gone"
+UNREADABLE = "unreadable"
+
+
+def _launch_on_disk() -> str | None:
+    """The launch that owns this machine, or `GONE`/`UNREADABLE`.
+
+    A plain None for both was the first version of this and it was wrong in a
+    way that would have taken the whole stack down: the record is rewritten on
+    every child start, a reader landing mid-write gets half a file, and
+    treating that as "no record" makes every child conclude the desktop has
+    shut down and exit together.
+    """
+    from .paths import root
+
+    path = root() / "state" / "runtime.json"
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return GONE
+    except OSError:
+        return UNREADABLE
+    try:
+        import json
+
+        found = json.loads(raw)
+    except ValueError:
+        return UNREADABLE
+    launch = found.get("launchId") if isinstance(found, dict) else None
+    return str(launch) if isinstance(launch, str) and launch else UNREADABLE
+
+
+def _superseded(mine: str) -> bool:
+    """Whether a newer launch has taken over, or the shutdown has begun.
+
+    Only two answers end this process: the record is gone (the desktop removes
+    it before stopping its children) or it names a different launch. Anything
+    unreadable is "ask again later" -- a file being rewritten is not a reason
+    to stand down, and the parent-PID check below still covers a desktop that
+    died without tidying.
+    """
+    if not mine:
+        return False
+    current = _launch_on_disk()
+    if current == UNREADABLE:
+        return False
+    return current != mine
+
+
 def watch(pid: int | None = None, on_gone: object = None) -> threading.Thread | None:
-    """Exit this process when `pid` stops existing. Returns the watcher.
+    """Exit when the launch that started this process is over. Returns the watcher.
+
+    Three conditions, and the first two are new. Watching the parent PID alone
+    was an inference: PIDs are recycled, so "my parent is alive" was true of a
+    parent that had exited and whose number now belonged to something else --
+    and the Gateway that outlived its desktop stayed up on the strength of it,
+    refusing the Agent its credentials 285 times.
+
+    * the ownership record names a different launch -> a newer one owns the
+      machine, stand down
+    * the record has gone -> the desktop is shutting down and removed it first
+    * the parent PID no longer exists -> the desktop died without tidying
 
     None when there is nothing to watch, which is the normal case for a service
     started by hand: a developer running the Gateway in a terminal has not
     asked for it to die when anything else does.
     """
     parent = pid if pid is not None else int(os.environ.get(PARENT_ENV, "0") or 0)
+    mine = os.environ.get(LAUNCH_ENV, "").strip()
     if not parent or not _alive(parent):
         return None
 
     def wait() -> None:
+        # Twice in a row before acting. The record is replaced by a rename, and
+        # a reader that lands in the gap sees no file at all -- which is the
+        # same thing a shutdown looks like. One check apart is enough to tell
+        # a rename from a departure.
+        confirmations = 0
         while _alive(parent):
+            confirmations = confirmations + 1 if _superseded(mine) else 0
+            if confirmations >= 2:
+                log.warning(
+                    "a newer launch owns this machine; shutting down",
+                    extra={"marvi_launch": mine},
+                )
+                break
             time.sleep(CHECK_SECONDS)
-        log.warning(
-            "the process that started this one is gone; shutting down",
-            extra={"marvi_parent": str(parent)},
-        )
+        else:
+            log.warning(
+                "the process that started this one is gone; shutting down",
+                extra={"marvi_parent": str(parent)},
+            )
         if callable(on_gone):
             on_gone()
         # `os._exit` rather than `sys.exit`: this is a daemon thread, and a

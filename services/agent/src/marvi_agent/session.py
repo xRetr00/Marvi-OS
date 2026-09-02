@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import logging
 import os
 import re
@@ -1825,10 +1826,50 @@ def _watch_parent() -> None:
     if not alive():
         return
 
+    def superseded() -> bool:
+        """Whether a newer launch owns this machine.
+
+        The same rule the Gateway's `parent` module applies, duplicated for the
+        same reason the parent watchdog is duplicated: these are separate uv
+        projects and a cross-project import is only ever accidentally true.
+
+        Told apart deliberately: a record that is *gone* is the desktop
+        shutting down and removing it before stopping its children, while one
+        that cannot be read is a file being rewritten -- and treating the
+        second like the first would stand every child down at once.
+        """
+        mine = os.environ.get("MARVI_LAUNCH_ID", "").strip()
+        if not mine:
+            return False
+        home = os.environ.get("MARVI_HOME", "").strip()
+        record = (
+            Path(home) if home else Path(os.environ.get("LOCALAPPDATA", "")) / "Marvi-OS"
+        ) / "state" / "runtime.json"
+        try:
+            raw = record.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            return True
+        except OSError:
+            return False
+        try:
+            found = json.loads(raw)
+        except ValueError:
+            return False
+        current = found.get("launchId") if isinstance(found, dict) else None
+        return bool(current) and current != mine
+
     def wait() -> None:
+        # Twice in a row, so a record glimpsed mid-rename is not mistaken for
+        # one that has gone.
+        confirmations = 0
         while alive():
+            confirmations = confirmations + 1 if superseded() else 0
+            if confirmations >= 2:
+                log.warning("a newer launch owns this machine; shutting down")
+                break
             time.sleep(2.0)
-        log.warning("the process that started this one is gone; shutting down")
+        else:
+            log.warning("the process that started this one is gone; shutting down")
         # The sidecars first, by hand.
         #
         # `os._exit` runs no `atexit` handler and no `finally`, so the registry
