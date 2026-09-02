@@ -58,7 +58,7 @@ import type {
   WorkspaceUpdate
 } from '../shared/runtime'
 import type { CalendarEvent, VoiceActivity } from '../renderer/src/components/voice-cards'
-import type { IslandPlacement } from '../main/island-window'
+import type { IslandInteractionMode, IslandPlacement } from '../main/island-window'
 import type { PetPreferences } from '../main/pet-window'
 
 export interface MarviDesktopApi {
@@ -288,7 +288,7 @@ export interface MarviDesktopApi {
   previewAssistantState: (state: AssistantState) => void
   publishVoiceState: (state: AssistantState) => void
   setIslandSize: (size: { width: number; height: number }) => void
-  setIslandInteractive: (interactive: boolean) => void
+  setIslandInteraction: (mode: IslandInteractionMode) => void
   minimizeWindow: () => void
   toggleMaximizeWindow: () => void
   closeWindow: () => void

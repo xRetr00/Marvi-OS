@@ -62,9 +62,11 @@ import { ModelPicker } from './components/ui/model-picker'
 import { ConnectingOverlay } from './components/ConnectingOverlay'
 import {
   DynamicIsland,
+  ISLAND_AUTO_EXPAND_MS,
   ISLAND_ENTER_SECONDS,
   ISLAND_EXIT_SECONDS,
   ISLAND_REDUCED_MOTION_SECONDS,
+  islandHasOrb,
   islandPresentationKey
 } from './components/DynamicIsland'
 import { VoiceOrb } from './orb'
@@ -6605,6 +6607,12 @@ function IslandSurface(): React.JSX.Element {
   const reduceMotion = useReducedMotion()
   const measureRef = useRef<HTMLDivElement>(null)
   const [resolvingToken, setResolvingToken] = useState<string | null>(null)
+  const [autoExpanded, setAutoExpanded] = useState(false)
+  const [hoverExpanded, setHoverExpanded] = useState(false)
+  const hasOrb = islandHasOrb(voice)
+  const presentationKey = islandPresentationKey(voice)
+  const confirmationExpanded = voice.phase === 'confirmation' && Boolean(voice.confirmation)
+  const expanded = confirmationExpanded || (hasOrb && (autoExpanded || hoverExpanded))
 
   useEffect(() => {
     void window.marvi?.getRuntime().then(applyRuntimeState)
@@ -6613,10 +6621,22 @@ function IslandSurface(): React.JSX.Element {
   }, [])
 
   useEffect(() => {
-    window.marvi?.setIslandInteractive(
-      voice.phase === 'confirmation' && Boolean(voice.confirmation)
+    window.marvi?.setIslandInteraction(
+      confirmationExpanded ? 'interactive' : hasOrb ? 'hover' : 'passive'
     )
-  }, [voice.confirmation, voice.phase])
+  }, [confirmationExpanded, hasOrb])
+
+  useEffect(() => {
+    setHoverExpanded(false)
+    if (!hasOrb) {
+      setAutoExpanded(false)
+      return
+    }
+
+    setAutoExpanded(true)
+    const timer = window.setTimeout(() => setAutoExpanded(false), ISLAND_AUTO_EXPAND_MS)
+    return () => window.clearTimeout(timer)
+  }, [hasOrb, presentationKey])
 
   useEffect(() => {
     const element = measureRef.current
@@ -6635,7 +6655,13 @@ function IslandSurface(): React.JSX.Element {
   }, [])
 
   return (
-    <div className={`island-stage island-stage-${voice.phase}`}>
+    <div
+      className={`island-stage island-stage-${voice.phase} ${hasOrb ? 'island-stage-hover' : ''}`}
+      onPointerEnter={() => {
+        if (hasOrb) setHoverExpanded(true)
+      }}
+      onPointerLeave={() => setHoverExpanded(false)}
+    >
       <div className="island-measure" ref={measureRef}>
         <AnimatePresence initial={false} mode="popLayout">
           <motion.div
@@ -6652,7 +6678,7 @@ function IslandSurface(): React.JSX.Element {
                   }
             }
             initial={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.97, y: -5 }}
-            key={islandPresentationKey(voice)}
+            key={`${presentationKey}:${expanded ? 'expanded' : 'collapsed'}`}
             transition={
               reduceMotion
                 ? { duration: ISLAND_REDUCED_MOTION_SECONDS }
@@ -6661,6 +6687,7 @@ function IslandSurface(): React.JSX.Element {
           >
             <DynamicIsland
               confirmationPending={resolvingToken === voice.confirmation?.token}
+              expanded={expanded}
               onConfirmationDecision={async (decision) => {
                 if (!voice.confirmation || resolvingToken === voice.confirmation.token) return
                 const token = voice.confirmation.token

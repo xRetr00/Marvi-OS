@@ -778,7 +778,7 @@ nav {
   display: grid;
   width: 100%;
   height: 100%;
-  place-items: center;
+  place-items: start center;
   background: transparent;
   pointer-events: none;
 }
@@ -797,10 +797,8 @@ nav {
   width: 100%;
   height: 100%;
 }
-.island-stage-ready {
-  align-items: start;
-}
-.island-stage-confirmation {
+.island-stage-confirmation,
+.island-stage-hover {
   pointer-events: auto;
 }
 .island-stage-ready .island-measure {
@@ -852,15 +850,19 @@ nav {
   border: 0;
 }
 .dynamic-island {
+  position: relative;
   display: grid;
-  grid-template-columns: 20px 1fr;
+  grid-template-columns: 20px;
   align-items: center;
-  gap: 7px;
-  width: 150px;
+  justify-content: center;
+  gap: 0;
+  width: 38px;
   height: 30px;
-  padding: 4px 10px 4px 6px;
+  padding: 5px 9px;
+  overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--ui-stroke-primary) 72%, transparent);
-  border-radius: 999px;
+  border-top: 0;
+  border-radius: 0 0 19px 19px;
   background: linear-gradient(
     180deg,
     color-mix(in srgb, var(--ui-bg-raised) 94%, var(--ui-text-primary) 6%) 0%,
@@ -874,16 +876,27 @@ nav {
     background-color 140ms cubic-bezier(0.25, 1, 0.5, 1),
     box-shadow 140ms cubic-bezier(0.25, 1, 0.5, 1);
 }
+.dynamic-island.is-expanded {
+  grid-template-columns: 20px minmax(0, 1fr);
+  justify-content: initial;
+  gap: 8px;
+  padding: 6px 12px 6px 8px;
+  border-radius: 0 0 22px 22px;
+}
+.dynamic-island.is-collapsed .island-orb {
+  transform: translateY(-1px);
+}
 .dynamic-island.island-compact {
   width: 250px;
   height: 42px;
 }
 /* Background room event: two columns only, no signals block, no controls. */
 .dynamic-island.island-room-event {
-  grid-template-columns: 20px 1fr;
-  width: 232px;
-  height: 28px;
   border-color: rgb(255 255 255 / 12%);
+}
+.dynamic-island.island-room-event.is-expanded {
+  width: 232px;
+  height: 38px;
 }
 .dynamic-island.island-room-event .island-copy strong {
   overflow: hidden;
@@ -936,31 +949,31 @@ nav {
     0 0 6px var(--ui-accent-soft),
     inset 0 1px 0 color-mix(in srgb, var(--ui-text-primary) 8%, transparent);
 }
-.dynamic-island[data-phase='wake'] {
+.dynamic-island.is-expanded[data-phase='wake'] {
   width: 180px;
   height: 34px;
 }
-.dynamic-island[data-phase='listening'] {
+.dynamic-island.is-expanded[data-phase='listening'] {
   width: 210px;
   height: 38px;
 }
-.dynamic-island[data-phase='thinking'] {
+.dynamic-island.is-expanded[data-phase='thinking'] {
   width: 230px;
   height: 40px;
 }
-.dynamic-island[data-phase='speaking'] {
+.dynamic-island.is-expanded[data-phase='speaking'] {
   width: 250px;
   height: 42px;
 }
-.dynamic-island[data-phase='action'] {
+.dynamic-island.is-expanded[data-phase='action'] {
   width: 280px;
   height: 46px;
 }
-.dynamic-island[data-phase='notification'] {
+.dynamic-island.is-expanded[data-phase='notification'] {
   width: 320px;
   height: 64px;
 }
-.dynamic-island[data-phase='error'] {
+.dynamic-island.is-expanded[data-phase='error'] {
   width: 280px;
   height: 46px;
   border-color: color-mix(in srgb, var(--ui-danger) 26%, var(--ui-stroke-primary));

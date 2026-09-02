@@ -42,6 +42,7 @@ import { type ServiceReport, ServiceSupervisor, findUv } from './services'
 import {
   islandWindowBounds,
   normalizeIslandContentSize,
+  normalizeIslandInteractionMode,
   type IslandContentSize,
   type IslandPlacement
 } from './island-window'
@@ -827,7 +828,7 @@ function sizeAndPositionIsland(window: BrowserWindow, contentSize: IslandContent
     ? currentDisplay
     : screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
   window.setBounds(
-    islandWindowBounds(display.workArea, contentSize, 6, islandPlacement.alignment),
+    islandWindowBounds(display.workArea, contentSize, islandPlacement.alignment),
     false
   )
 }
@@ -3034,12 +3035,12 @@ function startApp(): void {
         sizeAndPositionIsland(islandWindow, size)
       }
     })
-    ipcMain.on('marvi:island-interactive', (event, interactive) => {
+    ipcMain.on('marvi:island-interactive', (event, requestedMode) => {
       if (!islandWindow || islandWindow.isDestroyed() || event.sender !== islandWindow.webContents)
         return
-      const enabled = interactive === true
-      islandWindow.setFocusable(enabled)
-      islandWindow.setIgnoreMouseEvents(!enabled, { forward: true })
+      const mode = normalizeIslandInteractionMode(requestedMode)
+      islandWindow.setFocusable(mode === 'interactive')
+      islandWindow.setIgnoreMouseEvents(mode === 'passive', { forward: true })
     })
 
     tray = createTray()

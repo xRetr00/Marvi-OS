@@ -58,7 +58,7 @@ import type {
   WorkspacePolicy,
   WorkspaceUpdate
 } from '../shared/runtime'
-import type { IslandPlacement } from '../main/island-window'
+import type { IslandInteractionMode, IslandPlacement } from '../main/island-window'
 import type { PetPreferences } from '../main/pet-window'
 
 const marvi = {
@@ -432,8 +432,8 @@ const marvi = {
   publishVoiceState: (state: AssistantState): void => ipcRenderer.send('marvi:voice-state', state),
   setIslandSize: (size: { width: number; height: number }): void =>
     ipcRenderer.send('marvi:island-size', size),
-  setIslandInteractive: (interactive: boolean): void =>
-    ipcRenderer.send('marvi:island-interactive', interactive)
+  setIslandInteraction: (mode: IslandInteractionMode): void =>
+    ipcRenderer.send('marvi:island-interactive', mode)
 }
 
 contextBridge.exposeInMainWorld('marvi', marvi)

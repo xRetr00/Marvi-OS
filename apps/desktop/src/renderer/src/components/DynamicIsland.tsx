@@ -8,6 +8,12 @@ import { accentFor, orbStateFor } from '../orb/phase'
 export const ISLAND_ENTER_SECONDS = 0.2
 export const ISLAND_EXIT_SECONDS = 0.13
 export const ISLAND_REDUCED_MOTION_SECONDS = 0.01
+export const ISLAND_AUTO_EXPAND_MS = 1800
+
+export function islandHasOrb(state: VoiceState): boolean {
+  if (state.phase === 'confirmation') return false
+  return state.phase !== 'ready' || Boolean(state.roomEvent)
+}
 
 export function islandPresentationKey(state: VoiceState): string {
   if (state.phase === 'confirmation') {
@@ -19,10 +25,12 @@ export function islandPresentationKey(state: VoiceState): string {
 
 export function DynamicIsland({
   state,
+  expanded = true,
   confirmationPending = false,
   onConfirmationDecision
 }: {
   state: VoiceState
+  expanded?: boolean
   confirmationPending?: boolean
   onConfirmationDecision?: (decision: 'approve' | 'deny') => void
 }): React.JSX.Element {
@@ -33,11 +41,13 @@ export function DynamicIsland({
   if (state.phase === 'ready' && state.roomEvent) {
     return (
       <div
-        className="dynamic-island island-room-event"
+        className={`dynamic-island island-room-event ${expanded ? 'is-expanded' : 'is-collapsed'}`}
         data-phase="ready"
         data-event={state.roomEvent.type}
+        data-expanded={expanded}
         role="status"
         aria-live="polite"
+        aria-label={`Room: ${state.roomEvent.summary}`}
       >
         <Orb
           state={orbStateFor('ready')}
@@ -47,10 +57,12 @@ export function DynamicIsland({
           className="island-orb"
           themeRevision={appearance}
         />
-        <div className="island-copy">
-          <small>ROOM</small>
-          <strong>{state.roomEvent.summary}</strong>
-        </div>
+        {expanded ? (
+          <div className="island-copy">
+            <small>ROOM</small>
+            <strong>{state.roomEvent.summary}</strong>
+          </div>
+        ) : null}
       </div>
     )
   }
@@ -99,9 +111,16 @@ export function DynamicIsland({
   }
 
   const reactive = state.phase === 'listening' || state.phase === 'speaking'
+  const label = ISLAND_PHASE_LABEL[state.phase]
 
   return (
-    <div className={`dynamic-island island-${state.phase}`} data-phase={state.phase}>
+    <div
+      aria-label={`${label}: ${state.caption}${state.detail ? `. ${state.detail}` : ''}`}
+      className={`dynamic-island island-${state.phase} ${expanded ? 'is-expanded' : 'is-collapsed'}`}
+      data-expanded={expanded}
+      data-phase={state.phase}
+      role="status"
+    >
       <Orb
         state={orbStateFor(state.phase)}
         size={20}
@@ -111,11 +130,13 @@ export function DynamicIsland({
         className="island-orb"
         themeRevision={appearance}
       />
-      <div className="island-copy">
-        <small>{ISLAND_PHASE_LABEL[state.phase]}</small>
-        <strong>{state.caption}</strong>
-        {state.detail ? <span>{state.detail}</span> : null}
-      </div>
+      {expanded ? (
+        <div className="island-copy">
+          <small>{label}</small>
+          <strong>{state.caption}</strong>
+          {state.detail ? <span>{state.detail}</span> : null}
+        </div>
+      ) : null}
     </div>
   )
 }

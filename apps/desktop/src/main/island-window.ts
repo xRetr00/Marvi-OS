@@ -6,6 +6,7 @@ export interface IslandContentSize {
 }
 
 export type IslandAlignment = 'left' | 'center' | 'right'
+export type IslandInteractionMode = 'passive' | 'hover' | 'interactive'
 
 export interface IslandPlacement {
   displayId: number | null
@@ -15,8 +16,14 @@ export interface IslandPlacement {
 // Two pixels are enough to preserve the hairline edge without leaving a
 // noticeable transparent capture stage around the always-on-top surface.
 export const ISLAND_WINDOW_INSET = 2
-export const ISLAND_MIN_CONTENT_SIZE: IslandContentSize = { width: 76, height: 8 }
+export const ISLAND_MIN_CONTENT_SIZE: IslandContentSize = { width: 38, height: 8 }
+export const ISLAND_SEED_CONTENT_SIZE: IslandContentSize = { width: 76, height: 8 }
 export const ISLAND_MAX_CONTENT_SIZE: IslandContentSize = { width: 360, height: 92 }
+
+export function normalizeIslandInteractionMode(value: unknown): IslandInteractionMode {
+  if (value === 'hover' || value === 'interactive') return value
+  return 'passive'
+}
 
 export function normalizeIslandContentSize(value: unknown): IslandContentSize | null {
   if (!value || typeof value !== 'object') return null
@@ -39,7 +46,6 @@ export function normalizeIslandContentSize(value: unknown): IslandContentSize | 
 export function islandWindowBounds(
   workArea: Rectangle,
   contentSize: IslandContentSize,
-  topOffset = 6,
   alignment: IslandAlignment = 'center'
 ): Rectangle {
   const width = contentSize.width + ISLAND_WINDOW_INSET * 2
@@ -53,13 +59,9 @@ export function islandWindowBounds(
 
   return {
     x: Math.round(xByAlignment[alignment]),
-    y: Math.round(
-      workArea.y +
-        (contentSize.width === ISLAND_MIN_CONTENT_SIZE.width &&
-        contentSize.height === ISLAND_MIN_CONTENT_SIZE.height
-          ? 0
-          : topOffset)
-    ),
+    // Every presentation grows from the work-area edge like a physical notch.
+    // No detached six-pixel gap remains above active states.
+    y: Math.round(workArea.y),
     width,
     height
   }
