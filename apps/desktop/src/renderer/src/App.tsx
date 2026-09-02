@@ -60,7 +60,13 @@ import { GlyphSpinner } from './components/ui/glyph-spinner'
 import { Picker, type PickerOption } from './components/ui/picker'
 import { ModelPicker } from './components/ui/model-picker'
 import { ConnectingOverlay } from './components/ConnectingOverlay'
-import { DynamicIsland } from './components/DynamicIsland'
+import {
+  DynamicIsland,
+  ISLAND_ENTER_SECONDS,
+  ISLAND_EXIT_SECONDS,
+  ISLAND_REDUCED_MOTION_SECONDS,
+  islandPresentationKey
+} from './components/DynamicIsland'
 import { VoiceOrb } from './orb'
 import { ElectricGazeBackground } from './components/ElectricGazeBackground'
 import { HapticsProvider } from './components/HapticsProvider'
@@ -6635,10 +6641,23 @@ function IslandSurface(): React.JSX.Element {
           <motion.div
             animate={{ opacity: 1, scale: 1, y: 0 }}
             className="island-transition-shell"
-            exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.985, y: -3 }}
+            exit={
+              reduceMotion
+                ? { opacity: 0, transition: { duration: ISLAND_REDUCED_MOTION_SECONDS } }
+                : {
+                    opacity: 0,
+                    scale: 0.985,
+                    y: -3,
+                    transition: { duration: ISLAND_EXIT_SECONDS, ease: [0.4, 0, 1, 1] }
+                  }
+            }
             initial={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.97, y: -5 }}
             key={islandPresentationKey(voice)}
-            transition={reduceMotion ? { duration: 0.01 } : { duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+            transition={
+              reduceMotion
+                ? { duration: ISLAND_REDUCED_MOTION_SECONDS }
+                : { duration: ISLAND_ENTER_SECONDS, ease: [0.22, 1, 0.36, 1] }
+            }
           >
             <DynamicIsland
               confirmationPending={resolvingToken === voice.confirmation?.token}
@@ -6660,12 +6679,6 @@ function IslandSurface(): React.JSX.Element {
       </div>
     </div>
   )
-}
-
-function islandPresentationKey(voice: VoiceState): string {
-  if (voice.phase === 'confirmation') return `confirmation:${voice.confirmation?.token ?? 'empty'}`
-  if (voice.phase === 'ready' && voice.roomEvent) return `room-event:${voice.roomEvent.id}`
-  return voice.phase
 }
 
 /**

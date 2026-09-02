@@ -5,6 +5,18 @@ import { $appearanceStyle } from '../store/appearance'
 import { Orb } from '../orb/Orb'
 import { accentFor, orbStateFor } from '../orb/phase'
 
+export const ISLAND_ENTER_SECONDS = 0.2
+export const ISLAND_EXIT_SECONDS = 0.13
+export const ISLAND_REDUCED_MOTION_SECONDS = 0.01
+
+export function islandPresentationKey(state: VoiceState): string {
+  if (state.phase === 'confirmation') {
+    return `confirmation:${state.confirmation?.token ?? 'empty'}`
+  }
+  if (state.phase === 'ready' && state.roomEvent) return `room-event:${state.roomEvent.id}`
+  return state.phase
+}
+
 export function DynamicIsland({
   state,
   confirmationPending = false,

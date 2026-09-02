@@ -1,10 +1,25 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 
-import { DynamicIsland } from './DynamicIsland'
+import {
+  DynamicIsland,
+  ISLAND_ENTER_SECONDS,
+  ISLAND_EXIT_SECONDS,
+  ISLAND_REDUCED_MOTION_SECONDS,
+  islandPresentationKey
+} from './DynamicIsland'
 import { DEFAULT_ASSISTANT_STATE } from '../../../shared/runtime'
 
 describe('DynamicIsland', () => {
+  it('uses stable presentation keys and a faster exit than entrance', () => {
+    expect(islandPresentationKey(DEFAULT_ASSISTANT_STATE)).toBe('ready')
+    expect(
+      islandPresentationKey({ ...DEFAULT_ASSISTANT_STATE, roomEvent: { ...ROOM_EVENT, id: 12 } })
+    ).toBe('room-event:12')
+    expect(ISLAND_EXIT_SECONDS).toBeLessThan(ISLAND_ENTER_SECONDS)
+    expect(ISLAND_REDUCED_MOTION_SECONDS).toBeLessThan(ISLAND_EXIT_SECONDS)
+  })
+
   it('recesses ready into the line-only seed on the native surface', () => {
     const html = renderToStaticMarkup(<DynamicIsland state={DEFAULT_ASSISTANT_STATE} />)
 
