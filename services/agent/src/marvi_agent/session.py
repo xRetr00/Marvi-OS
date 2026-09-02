@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import os
 import re
@@ -26,7 +27,7 @@ from livekit.agents import (
 )
 from livekit.plugins import silero
 
-from . import delegated, observability
+from . import delegated, observability, sidecars
 from .parakeet_stt import PARAKEET_ROOT, build_stt
 from .runtime import AgentConfig, build_llm, build_local_turn_detector
 from .timing import TimedLLM
@@ -1687,6 +1688,15 @@ def _watch_parent() -> None:
         while alive():
             time.sleep(2.0)
         log.warning("the process that started this one is gone; shutting down")
+        # The sidecars first, by hand.
+        #
+        # `os._exit` runs no `atexit` handler and no `finally`, so the registry
+        # would never fire -- and this is the *common* way a worker ends, not
+        # an edge case: closing Marvi kills the desktop, and every optional
+        # speech runtime under this process was left holding VRAM until the
+        # machine restarted.
+        with contextlib.suppress(Exception):
+            sidecars.close_all()
         # `os._exit`: this is a daemon thread, and a SystemExit raised here
         # would be swallowed by the thread, which is the outcome being fixed.
         os._exit(0)
