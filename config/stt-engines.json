@@ -1,0 +1,40 @@
+{
+  "$comment": "Local recognisers. Runtime source and model revisions are pinned independently because the model repositories do not contain Marvi's LiveKit adapter. Measured on 2 September 2026 against docs/evals/stt-candidates: parakeet-tdt leads on accuracy and throughput, nemotron leads on responsiveness by 1.8 seconds.",
+  "schema": 1,
+  "default_engine": "parakeet-tdt",
+  "engine_setting": "MARVI_STT_ENGINE",
+  "engines": [
+    {
+      "id": "parakeet-tdt",
+      "name": "Parakeet TDT 0.6B",
+      "description": "Most accurate and the fastest to finish. Waits about three seconds before its first partial.",
+      "runtime": "in-process",
+      "measured": {
+        "corpus": "edacc-2026-09-02",
+        "wer": 0.2081,
+        "rtf": 0.055,
+        "first_partial_ms_p50": 2910,
+        "arabic_wer": 0.0803
+      }
+    },
+    {
+      "id": "nemotron-3.5",
+      "name": "Nemotron 3.5 Streaming 0.6B",
+      "description": "First words about 1.8 seconds sooner, for roughly four points more word error.",
+      "runtime": "parakeet-cpp",
+      "abi_version": 6,
+      "install_to": "models/stt/nemotron-3.5-asr-streaming-0.6b",
+      "model_file": "nemotron-3.5-asr-streaming-0.6b-f16.gguf",
+      "model_id": "mudler/parakeet-cpp-gguf",
+      "model_revision": "bf0af9f425fa01809cadec671b3cb672709d13e9",
+      "runtime_id": "parakeet.cpp v0.5.0 official Windows CUDA",
+      "language": "en",
+      "measured": {
+        "corpus": "edacc-2026-09-02",
+        "wer": 0.2479,
+        "rtf": 0.09,
+        "first_partial_ms_p50": 1063
+      }
+    }
+  ]
+}
