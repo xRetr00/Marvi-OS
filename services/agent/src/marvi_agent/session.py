@@ -1157,6 +1157,24 @@ def prewarm(proc: JobProcess) -> None:
     _announce_ready()
 
 
+def _pool_is_busy() -> None:
+    """A job took the warm process. There is not another one yet.
+
+    `warm` was set once, when the first process finished prewarming, and never
+    unset -- so the Gateway went on saying "a warm process is waiting" through
+    the whole time the pool was empty and refilling. Join stayed offered, the
+    job found no idle process, and LiveKit started a cold one: the log has
+    joins that waited 4.3 s, 4.6 s and 7.6 s for exactly that, behind prewarms
+    that have measured anywhere from 4.4 s to 112 s on this machine.
+
+    Reported from the job process because that is the one that knows. The
+    replacement's own prewarm calls `_announce_ready` when it finishes, so the
+    signal comes back on its own.
+    """
+    _state["warm"] = False
+    _report_ready(False, "loading speech models for the next call")
+
+
 def _recogniser(warmed: dict[str, Any]) -> Any:
     """The selected recogniser, reusing the warm one only if it is that one.
 
@@ -1499,6 +1517,10 @@ async def marvi_session(ctx: JobContext) -> None:
     # thread, so it needs the loop to schedule the update on.
     prefetch.attach(voice_agent, asyncio.get_running_loop())
     connecting = time.monotonic()
+    # This process is no longer the warm one. Said before the session starts,
+    # so the desktop holds Join rather than offering a second one that would
+    # wait for a cold prewarm.
+    await asyncio.to_thread(_pool_is_busy)
     await session.start(agent=voice_agent, room=ctx.room)
     log.info("joined %s in %.1fs, listening", ctx.room.name, time.monotonic() - connecting)
 

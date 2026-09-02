@@ -96,17 +96,15 @@ def test_switching_tts_engine_closes_the_one_being_replaced(monkeypatch) -> None
     """
     from marvi_agent import voice_models
 
-    started: list[voice_models._SidecarEngine] = []
+    # `__init__` rather than `__new__`: monkeypatch restores an inherited
+    # attribute by setting it explicitly, so patching `__new__` leaves
+    # `object.__new__` bound directly to the class -- and that one refuses the
+    # extra arguments, which broke the *next* test rather than this one.
+    def build(self, engine: str, voice: str) -> None:
+        self.engine, self.voice, self._process = engine, voice, None
+        self.closed = False
 
-    def build(cls, engine: str, voice: str):
-        made = object.__new__(voice_models._SidecarEngine)
-        made.engine, made.voice = engine, voice
-        made._process = None
-        made.closed = False
-        started.append(made)
-        return made
-
-    monkeypatch.setattr(voice_models._SidecarEngine, "__new__", build)
+    monkeypatch.setattr(voice_models._SidecarEngine, "__init__", build)
     monkeypatch.setattr(
         voice_models._SidecarEngine,
         "close",
@@ -126,9 +124,11 @@ def test_asking_for_the_same_engine_twice_reuses_the_open_one(monkeypatch) -> No
     from marvi_agent import voice_models
 
     voice_models._SIDECARS.clear()
-    monkeypatch.setattr(
-        voice_models._SidecarEngine, "__init__", lambda self, engine, voice: None
-    )
+
+    def build(self, engine: str, voice: str) -> None:
+        self.engine, self.voice, self._process = engine, voice, None
+
+    monkeypatch.setattr(voice_models._SidecarEngine, "__init__", build)
     monkeypatch.setattr(voice_models._SidecarEngine, "close", lambda self: None)
 
     first = voice_models._SidecarEngine.shared("cutetts-distill", "cute-reference")
