@@ -4045,6 +4045,78 @@ def create_app(
             "voices": [voice.as_row() for voice in installed],
         }
 
+    @app.get("/voices/clones")
+    async def clone_list() -> dict[str, Any]:
+        """The voices Marvi learned from a recording, and who can speak them."""
+        from . import cloning
+
+        return {
+            "engines": cloning.engines(),
+            "shortest_seconds": cloning.SHORTEST,
+            "longest_seconds": cloning.LONGEST,
+            "clones": [clone.as_row() for clone in cloning.saved()],
+        }
+
+    @app.post("/voices/clones")
+    async def clone_add(request: Request) -> dict[str, Any]:
+        """Keep a recording as a voice.
+
+        The audio arrives base64 in JSON rather than as a multipart upload:
+        the desktop app reads the file itself and already speaks JSON to every
+        other endpoint here, and a second body format would be one more thing
+        to get wrong for no gain at these sizes.
+        """
+        import base64
+
+        from . import cloning
+
+        localauth.guard(request)
+        body = await request.json()
+        engine = str(body.get("engine", "")).strip()
+        name = str(body.get("name", "")).strip()
+        try:
+            audio = base64.b64decode(str(body.get("audio", "")), validate=True)
+        except (ValueError, TypeError):
+            return {"ok": False, "detail": "the recording was not valid base64"}
+        try:
+            clone = cloning.add(engine, name, audio)
+        except cloning.CloneError as exc:
+            # The reason, not a status code. Every one of these is something
+            # the person can fix by choosing a different recording.
+            return {"ok": False, "detail": str(exc)}
+        return {"ok": True, "clone": clone.as_row()}
+
+    @app.delete("/voices/clones/{engine}/{voice}")
+    async def clone_remove(engine: str, voice: str, request: Request) -> dict[str, Any]:
+        from . import cloning
+
+        localauth.guard(request)
+        return {"ok": cloning.remove(engine, voice)}
+
+    @app.get("/recognisers")
+    async def recogniser_list() -> dict[str, Any]:
+        """The recognisers Marvi can listen with, and which one is chosen.
+
+        The mirror of `/voices`. Two have been selectable by environment
+        variable since the Nemotron adapter landed and neither was offered
+        anywhere, so the choice existed only for whoever knew the variable's
+        name and the exact spelling of the value.
+        """
+        from . import recognisers
+
+        chosen = recognisers.selected()
+        offered = recognisers.engines()
+        running = next((item for item in offered if item.id == chosen), None)
+        return {
+            "setting": recognisers.ENGINE_ENV,
+            "selected": chosen,
+            # A recogniser chosen and then uninstalled reads as missing rather
+            # than as though it had never been picked -- the same rule the
+            # voice list follows, for the same reason.
+            "missing": running is None or not running.available(),
+            "engines": [item.as_row() for item in offered],
+        }
+
     @app.get("/models")
     async def models(provider: str = "", refresh: bool = False) -> dict[str, Any]:
         """The models a provider actually has, for the picker to offer.

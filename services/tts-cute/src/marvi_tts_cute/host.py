@@ -19,16 +19,35 @@ def _send(event: str, **values: object) -> None:
     sys.__stdout__.flush()
 
 
+def _cloned(engine: str, voice: str) -> Path | None:
+    """A voice recorded for this engine, if that is what was asked for.
+
+    Cloned voices live beside the models rather than inside them, so a model
+    reinstall does not take somebody's recordings with it. Checked before the
+    bundled names because a clone can only ever be an addition -- the built-in
+    identifiers are fixed and known.
+    """
+    base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
+    found = base / "Marvi-OS" / "voices" / engine / f"{voice}.wav"
+    return found if found.is_file() else None
+
+
 def _reference_voice(voice: str) -> Path:
     """Resolve the one voice shipped by the pinned upstream package.
 
-    CuteTTS is a voice-cloning model. Its web demo ships a reference recording
+    CuteTTS is a voice-cloning model with no voice bank at all: the one
+    catalog entry is upstream's demo recording, and every other voice is one
+    somebody recorded. See the Gateway's `cloning` module.
+
+    Its web demo ships a reference recording
     and uses that recording for warmup, but Marvi previously advertised a
     made-up "Cute Default" and called plain TTS mode without any reference.
     That made the picker and the sound disagree. Keep the protocol explicit:
     the catalog voice maps to the exact upstream-bundled recording.
     """
 
+    if clone := _cloned("cutetts-distill", voice):
+        return clone
     if voice != "cute-reference":
         raise ValueError(f"unknown CuteTTS voice: {voice}")
     path = (

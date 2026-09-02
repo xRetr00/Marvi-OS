@@ -20,6 +20,19 @@ def _send(event: str, **values: object) -> None:
     sys.__stdout__.flush()
 
 
+def _cloned(engine: str, voice: str) -> Path | None:
+    """A voice recorded for this engine, if that is what was asked for.
+
+    Cloned voices live beside the models rather than inside them, so a model
+    reinstall does not take somebody's recordings with it. Checked before the
+    bundled names because a clone can only ever be an addition -- the built-in
+    identifiers are fixed and known.
+    """
+    base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
+    found = base / "Marvi-OS" / "voices" / engine / f"{voice}.wav"
+    return found if found.is_file() else None
+
+
 def main() -> None:
     try:
         os.environ.setdefault("HF_HOME", str(_root() / "huggingface"))
@@ -56,8 +69,12 @@ def main() -> None:
     for line in sys.stdin:
         try:
             request = json.loads(line)
-            voice = str(request.get("voice") or "english-female").replace("-", "_")
-            prompt = source / "assets" / "audio" / f"{voice}.wav"
+            asked = str(request.get("voice") or "english-female")
+            # A recorded voice wins over a bundled one. The bundled names are
+            # fixed, so a clone can only ever be an addition, never a shadow.
+            prompt = _cloned("voxtream2", asked) or (
+                source / "assets" / "audio" / f"{asked.replace('-', '_')}.wav"
+            )
             with contextlib.redirect_stdout(sys.stderr):
                 for frame, _compute_seconds in generator.generate_stream(
                     prompt_audio_path=prompt,

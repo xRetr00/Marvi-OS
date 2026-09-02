@@ -23,6 +23,10 @@ class Voice:
     name: str
     language: str
     gender: str
+    #: True for a voice learned from a recording. The picker shows both kinds
+    #: in one list because the engine treats them the same way, and only this
+    #: kind can be deleted.
+    cloned: bool = False
 
     def as_row(self) -> dict[str, Any]:
         return asdict(self)
@@ -37,6 +41,9 @@ class Engine:
     default_voice: str
     install_to: str
     project: str
+    #: Whether this engine speaks in a voice recorded for it. Two of the three
+    #: do, and nothing said so until the cloning page needed to know.
+    cloning: bool
     voices: tuple[Voice, ...]
 
     def as_row(self) -> dict[str, Any]:
@@ -46,6 +53,7 @@ class Engine:
             "description": self.description,
             "runtime": self.runtime,
             "default_voice": self.default_voice,
+            "cloning": self.cloning,
             "available": self.available(),
         }
 
@@ -71,6 +79,7 @@ def catalog() -> tuple[str, tuple[Engine, ...]]:
             default_voice=str(item["default_voice"]),
             install_to=str(item.get("install_to", "")),
             project=str(item.get("project", "")),
+            cloning=bool(item.get("cloning", False)),
             voices=tuple(
                 Voice(
                     id=str(voice["id"]),
@@ -97,9 +106,22 @@ def selected_engine() -> str:
 
 
 def installed(engine: str | None = None) -> list[Voice]:
+    """Every voice this engine can speak in, shipped and recorded alike.
+
+    Cloned voices are appended rather than kept in a separate list: the picker
+    asks one question, and an engine cannot tell the difference between a
+    bundled reference recording and one you made this morning.
+    """
     wanted = engine or selected_engine()
     found = next((item for item in catalog()[1] if item.id == wanted), None)
-    return list(found.voices) if found else []
+    if found is None:
+        return []
+    from . import cloning
+
+    return list(found.voices) + [
+        Voice(id=clone.id, name=clone.name, language="", gender="", cloned=True)
+        for clone in cloning.saved(wanted)
+    ]
 
 
 def selected() -> str:
