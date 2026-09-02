@@ -1387,7 +1387,20 @@ def create_app(
         url = os.environ.get("LIVEKIT_URL", "ws://127.0.0.1:7880")
         key = os.environ.get("LIVEKIT_API_KEY", "devkey")
         secret = os.environ.get("LIVEKIT_API_SECRET", "secret")
-        room = os.environ.get("MARVI_LIVEKIT_ROOM", "marvi-os-local")
+        # A new room every time, and this is why the agent sometimes did not
+        # turn up at all.
+        #
+        # Marvi uses automatic dispatch: LiveKit sends the job when the *room
+        # is created*. `marvi-os-local` was a fixed name, and an empty room
+        # lingers for its `empty_timeout` -- five minutes by default. Join
+        # again inside that window and the room already exists, so nothing is
+        # created, so no job is dispatched, and the desktop sits connected to a
+        # room with nobody in it. LiveKit's own writing on join latency names
+        # this one directly: use a unique room name for each interaction.
+        #
+        # The identity was already unique per session. The room was not, and
+        # the room is the half that dispatch keys on.
+        room = os.environ.get("MARVI_LIVEKIT_ROOM", "") or f"marvi-os-{uuid4().hex[:12]}"
         identity = f"marvi-desktop-{uuid4().hex[:10]}"
         token = (
             api.AccessToken(key, secret)

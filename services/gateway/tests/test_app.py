@@ -80,8 +80,34 @@ async def test_livekit_session_issues_local_room_credentials() -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["url"] == "ws://127.0.0.1:7880"
-    assert payload["room"] == "marvi-os-local"
     assert payload["token"].count(".") == 2
+    assert payload["room"].startswith("marvi-os-")
+
+
+@pytest.mark.asyncio
+async def test_every_session_gets_its_own_room() -> None:
+    """Automatic dispatch fires when the room is created, not when it is joined.
+
+    A fixed room name meant the second join inside the room's `empty_timeout`
+    created nothing, dispatched nothing, and left the desktop connected to an
+    empty room with no agent in it.
+    """
+    transport = ASGITransport(app=create_app(version="0.1.0-test"))
+    async with AsyncClient(transport=transport, base_url="http://marvi.local") as client:
+        first = (await client.post("/livekit/session")).json()
+        second = (await client.post("/livekit/session")).json()
+
+    assert first["room"] != second["room"]
+
+
+@pytest.mark.asyncio
+async def test_a_pinned_room_name_is_still_honoured(monkeypatch) -> None:
+    monkeypatch.setenv("MARVI_LIVEKIT_ROOM", "marvi-os-pinned")
+    transport = ASGITransport(app=create_app(version="0.1.0-test"))
+    async with AsyncClient(transport=transport, base_url="http://marvi.local") as client:
+        payload = (await client.post("/livekit/session")).json()
+
+    assert payload["room"] == "marvi-os-pinned"
 
 
 @pytest.mark.asyncio
