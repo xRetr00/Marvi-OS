@@ -811,6 +811,11 @@ nav {
   width: max-content;
   height: max-content;
 }
+.island-transition-shell {
+  display: inline-flex;
+  transform-origin: 50% 0;
+  will-change: transform, opacity;
+}
 .dynamic-island.island-seed {
   display: grid;
   width: 76px;
@@ -854,15 +859,20 @@ nav {
   width: 150px;
   height: 30px;
   padding: 4px 10px 4px 6px;
-  border: 1px solid rgb(255 255 255 / 8%);
+  border: 1px solid color-mix(in srgb, var(--ui-stroke-primary) 72%, transparent);
   border-radius: 999px;
-  background: linear-gradient(180deg, #09090a 0%, #020203 72%, #000 100%);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--ui-bg-raised) 94%, var(--ui-text-primary) 6%) 0%,
+    var(--ui-bg) 100%
+  );
   box-shadow:
-    var(--shadow-nous),
-    inset 0 1px 0 rgb(255 255 255 / 7%);
+    0 1px 2px rgb(0 0 0 / 42%),
+    inset 0 1px 0 color-mix(in srgb, var(--ui-text-primary) 8%, transparent);
   transition:
-    border-color 100ms ease,
-    box-shadow 100ms ease;
+    border-color 140ms cubic-bezier(0.25, 1, 0.5, 1),
+    background-color 140ms cubic-bezier(0.25, 1, 0.5, 1),
+    box-shadow 140ms cubic-bezier(0.25, 1, 0.5, 1);
 }
 .dynamic-island.island-compact {
   width: 250px;
@@ -922,9 +932,9 @@ nav {
 .island-speaking {
   border-color: color-mix(in srgb, var(--ui-accent) 38%, transparent);
   box-shadow:
-    var(--shadow-nous),
-    0 0 16px rgb(20 126 193 / 10%),
-    inset 0 1px 0 rgb(255 255 255 / 7%);
+    0 1px 2px rgb(0 0 0 / 42%),
+    0 0 6px var(--ui-accent-soft),
+    inset 0 1px 0 color-mix(in srgb, var(--ui-text-primary) 8%, transparent);
 }
 .dynamic-island[data-phase='wake'] {
   width: 180px;
@@ -953,7 +963,10 @@ nav {
 .dynamic-island[data-phase='error'] {
   width: 280px;
   height: 46px;
-  border-color: color-mix(in srgb, var(--ui-danger) 48%, transparent);
+  border-color: color-mix(in srgb, var(--ui-danger) 26%, var(--ui-stroke-primary));
+}
+.dynamic-island[data-phase='error'] .island-copy small {
+  color: color-mix(in srgb, var(--ui-danger) 70%, var(--ui-text-secondary));
 }
 .dynamic-island.island-confirmation {
   display: flex;
@@ -10627,6 +10640,18 @@ html[data-appearance='claude-code-dark'] .control-row {
   max-width: 52%;
   align-items: baseline;
   gap: 10px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .island-transition-shell {
+    will-change: auto;
+  }
+
+  .island-seed-line {
+    animation: none;
+    opacity: 0.82;
+    transform: none;
+  }
 }
 
 .voice-status .voice-hud-phase {

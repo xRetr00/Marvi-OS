@@ -17,6 +17,7 @@ import {
 } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { readFile } from 'fs/promises'
 import { join, resolve } from 'path'
 import icon from '../../resources/icon.png?asset'
 import trayIcon from '../../resources/tray-icon.png?asset'
@@ -87,6 +88,8 @@ import type {
   UsagePage,
   RuntimeStatus,
   UpstreamPage,
+  RecogniserPage,
+  VoiceClonePage,
   VoicePage,
   LanguagePolicy,
   MemoryPolicy,
@@ -433,6 +436,20 @@ function gateway(): string {
  * Every one of these had the same six lines of try/catch/timeout around it, and
  * six copies of a timeout is five chances to pick the wrong one.
  */
+/**
+ * The per-launch secret every child gets, and this process's proof of being it.
+ *
+ * Module scope rather than rebuilt with `childEnv`, because the endpoints that
+ * check it are also called from here -- and a restart that rolled the token
+ * would leave this process unable to reach the Gateway it just started.
+ * New every launch and never written to disk. See marvi_gateway/localauth.py.
+ */
+const localToken = randomBytes(32).toString('hex')
+
+function localHeaders(): Record<string, string> {
+  return { 'x-marvi-local': localToken }
+}
+
 async function gatewayJson(path: string, init?: RequestInit, timeoutMs = 10_000): Promise<unknown> {
   try {
     const response = await fetch(`${gateway()}${path}`, {
@@ -575,7 +592,7 @@ function startVoiceStack(): void {
     // children are started from here with the same value, which is what
     // distinguishes the agent asking from a tab asking. New every launch, and
     // never written to disk. See marvi_gateway/localauth.py.
-    MARVI_LOCAL_TOKEN: randomBytes(32).toString('hex'),
+    MARVI_LOCAL_TOKEN: localToken,
     MARVI_HOME: stateDir(),
     MARVI_LOG_DIR: logsDir(),
     // So a child can notice this process going away and stop on its own.
@@ -2381,13 +2398,110 @@ function startApp(): void {
             description: String(row.description ?? ''),
             runtime: String(row.runtime ?? ''),
             defaultVoice: String(row.default_voice ?? ''),
+            cloning: Boolean(row.cloning),
             available: Boolean(row.available)
           })),
           voices: rows.map((row) => ({
             id: String(row.id ?? ''),
             name: String(row.name ?? ''),
             language: String(row.language ?? ''),
-            gender: String(row.gender ?? '')
+            gender: String(row.gender ?? ''),
+            cloned: Boolean(row.cloned)
+          }))
+        }
+      } catch {
+        return null
+      }
+    })
+    ipcMain.handle('marvi:get-voice-clones', async (): Promise<VoiceClonePage | null> => {
+      try {
+        const response = await fetch(`${gateway()}/voices/clones`, {
+          signal: AbortSignal.timeout(5_000)
+        })
+        if (!response.ok) return null
+        const body = (await response.json()) as Record<string, never>
+        const rows = Array.isArray(body.clones) ? (body.clones as Array<Record<string, never>>) : []
+        return {
+          engines: Array.isArray(body.engines) ? (body.engines as string[]).map(String) : [],
+          shortestSeconds: Number(body.shortest_seconds ?? 0),
+          longestSeconds: Number(body.longest_seconds ?? 0),
+          clones: rows.map((row) => ({
+            id: String(row.id ?? ''),
+            name: String(row.name ?? ''),
+            engine: String(row.engine ?? ''),
+            seconds: Number(row.seconds ?? 0)
+          }))
+        }
+      } catch {
+        return null
+      }
+    })
+    ipcMain.handle('marvi:add-voice-clone', async (_event, engine, name) => {
+      if (typeof engine !== 'string' || typeof name !== 'string') {
+        return { ok: false, detail: 'bad request' }
+      }
+      // The native picker, and the file is read here rather than in the
+      // renderer: the renderer has no filesystem, and routing a recording
+      // through a drag-and-drop payload would be a second way in for the same
+      // thing.
+      const chosen = await dialog.showOpenDialog({
+        title: 'Choose a recording of the voice',
+        filters: [{ name: 'Recording', extensions: ['wav'] }],
+        properties: ['openFile']
+      })
+      if (chosen.canceled || !chosen.filePaths[0]) return { ok: false, detail: '' }
+      try {
+        const audio = await readFile(chosen.filePaths[0])
+        const response = await fetch(`${gateway()}/voices/clones`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', ...localHeaders() },
+          body: JSON.stringify({ engine, name, audio: audio.toString('base64') }),
+          signal: AbortSignal.timeout(30_000)
+        })
+        if (!response.ok) return { ok: false, detail: 'the Gateway refused' }
+        const body = (await response.json()) as Record<string, never>
+        return { ok: Boolean(body.ok), detail: String(body.detail ?? '') }
+      } catch (error) {
+        return { ok: false, detail: String(error) }
+      }
+    })
+    ipcMain.handle('marvi:remove-voice-clone', async (_event, engine, voice) => {
+      if (typeof engine !== 'string' || typeof voice !== 'string') return false
+      try {
+        const response = await fetch(
+          `${gateway()}/voices/clones/${encodeURIComponent(engine)}/${encodeURIComponent(voice)}`,
+          {
+            method: 'DELETE',
+            headers: localHeaders(),
+            signal: AbortSignal.timeout(10_000)
+          }
+        )
+        if (!response.ok) return false
+        const body = (await response.json()) as Record<string, never>
+        return Boolean(body.ok)
+      } catch {
+        return false
+      }
+    })
+    ipcMain.handle('marvi:get-recognisers', async (): Promise<RecogniserPage | null> => {
+      try {
+        const response = await fetch(`${gateway()}/recognisers`, {
+          signal: AbortSignal.timeout(5_000)
+        })
+        if (!response.ok) return null
+        const body = (await response.json()) as Record<string, never>
+        const rows = Array.isArray(body.engines) ? (body.engines as Array<Record<string, never>>) : []
+        return {
+          setting: String(body.setting ?? ''),
+          selected: String(body.selected ?? ''),
+          missing: Boolean(body.missing),
+          engines: rows.map((row) => ({
+            id: String(row.id ?? ''),
+            name: String(row.name ?? ''),
+            description: String(row.description ?? ''),
+            runtime: String(row.runtime ?? ''),
+            available: Boolean(row.available),
+            measured: (row.measured ?? {}) as RecogniserPage['engines'][number]['measured']
           }))
         }
       } catch {

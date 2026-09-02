@@ -1,4 +1,5 @@
 import { useStore } from '@nanostores/react'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import {
@@ -171,6 +172,8 @@ import type {
   SkillsPage,
   StoreSkill,
   RoomVisionPreview,
+  RecogniserPage,
+  VoiceClonePage,
   VoicePage,
   PendingQuestion,
   PendingSecret,
@@ -3796,8 +3799,13 @@ function VoicePicker(): React.JSX.Element {
         options={(page?.voices ?? []).map((voice) => ({
           value: voice.id,
           label: voice.name,
-          detail: [voice.language, voice.gender].filter(Boolean).join(' · '),
-          hint: voice.id
+          // A recorded voice has no language or gender to state — nobody
+          // asked for either — so the detail says where it came from instead
+          // of showing an empty separator.
+          detail: voice.cloned
+            ? 'Recorded here'
+            : [voice.language, voice.gender].filter(Boolean).join(' · '),
+          hint: voice.cloned ? 'CLONED' : voice.id
         }))}
         value={page?.selected ?? ''}
         onChange={(next) => {
@@ -5441,7 +5449,152 @@ function VoiceSynthesisPanel(): React.JSX.Element {
         </div>
         <VoicePicker />
       </ControlSection>
+      <ControlSection icon={Mic} title="Voice cloning">
+        <div>
+          <p>
+            Two of the three engines have no fixed voice bank — they speak in whatever voice you
+            record for them. CuteTTS has exactly one reference recording and nothing else, so a
+            recording here is the only way it gets another voice.
+          </p>
+        </div>
+        <VoiceCloning />
+      </ControlSection>
     </ControlPage>
+  )
+}
+
+/**
+ * Teaching an engine a voice from a recording.
+ *
+ * Its own section rather than a button inside the voice picker, because it is
+ * a different kind of act: picking a voice is instant and reversible, and this
+ * writes a file and adds an entry that then shows up in the picker for good.
+ *
+ * The engine is chosen here and not inherited from the picker above. Kokoro
+ * cannot clone at all, and a clone belongs to the engine that made it — the
+ * same recording through CuteTTS and through VoXtream is two different voices,
+ * so "clone for the engine you happen to be using" would be a quiet way to
+ * make a voice that vanishes when you switch.
+ */
+function VoiceCloning(): React.JSX.Element {
+  const [page, setPage] = useState<VoiceClonePage | null>(null)
+  const [engine, setEngine] = useState('')
+  const [name, setName] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [problem, setProblem] = useState('')
+
+  const reload = async (): Promise<void> => {
+    const next = await window.marvi?.getVoiceClones()
+    setPage(next ?? null)
+    if (next && !engine) setEngine(next.engines[0] ?? '')
+  }
+
+  useEffect(() => {
+    // Loaded once; every later refresh follows an action taken here. The
+    // `gone` guard is the pattern the other panels use -- a settings page can
+    // be navigated away from while the Gateway is still answering.
+    let gone = false
+    void (async () => {
+      const next = await window.marvi?.getVoiceClones()
+      if (gone) return
+      setPage(next ?? null)
+      setEngine((current) => current || (next?.engines[0] ?? ''))
+    })()
+    return () => {
+      gone = true
+    }
+  }, [])
+
+  if (page && page.engines.length === 0) {
+    return <span className="construction">NO INSTALLED ENGINE CAN SPEAK IN A RECORDED VOICE.</span>
+  }
+
+  const record = async (): Promise<void> => {
+    if (!engine || !name.trim() || busy) return
+    setBusy(true)
+    setProblem('')
+    const result = await window.marvi?.addVoiceClone(engine, name.trim())
+    setBusy(false)
+    // An empty detail is the file dialog being cancelled, which is not a
+    // failure and should not be reported as one.
+    if (!result?.ok) {
+      if (result?.detail) setProblem(result.detail)
+      return
+    }
+    setName('')
+    await reload()
+  }
+
+  return (
+    <>
+      <ControlRow
+        action={
+          <Picker
+            options={(page?.engines ?? []).map((id) => ({
+              value: id,
+              label: id === 'cutetts-distill' ? 'CuteTTS Distill 0.23B' : 'VoXtream2 0.5B',
+              detail:
+                id === 'cutetts-distill'
+                  ? 'No voice bank of its own — a recording is the only way to add one'
+                  : 'Twelve built-in voices, and speaks in a recorded one too'
+            }))}
+            value={engine}
+            onChange={setEngine}
+            placeholder="Choose an engine"
+          />
+        }
+        description="A cloned voice belongs to the engine that made it and appears in that engine's voice list."
+        title="Engine"
+      />
+      <ControlRow
+        action={
+          <div className="voice-choice">
+            <input
+              className="control-input"
+              onChange={(event) => setName(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') void record()
+              }}
+              placeholder="Name this voice"
+              value={name}
+            />
+            <button
+              className="control-button"
+              disabled={!engine || !name.trim() || busy}
+              onClick={() => void record()}
+              type="button"
+            >
+              {busy ? 'ADDING…' : 'CHOOSE A RECORDING'}
+            </button>
+          </div>
+        }
+        description={
+          page
+            ? `A WAV of one person speaking, ${page.shortestSeconds}–${page.longestSeconds} seconds. Five to ten seconds of ordinary speech works best.`
+            : 'A WAV of one person speaking.'
+        }
+        title="Add a voice"
+      />
+      {problem ? <span className="construction">{problem.toUpperCase()}</span> : null}
+      {(page?.clones ?? []).map((clone) => (
+        <ControlRow
+          action={
+            <button
+              className="control-button"
+              onClick={() => {
+                void window.marvi?.removeVoiceClone(clone.engine, clone.id).then(() => reload())
+              }}
+              type="button"
+            >
+              DELETE
+            </button>
+          }
+          description={`${clone.engine} · ${clone.seconds.toFixed(1)}s · ${clone.id}`}
+          key={`${clone.engine}/${clone.id}`}
+          title={clone.name}
+        />
+      ))}
+    </>
   )
 }
 
@@ -5465,16 +5618,31 @@ function WakeWordPanel(): React.JSX.Element {
   )
 }
 
-/** The two things about the recogniser worth changing. */
+/**
+ * How Marvi listens: which recogniser, how far ahead, and on what.
+ *
+ * The engine row is new. Two recognisers have been selectable by environment
+ * variable since the Nemotron adapter landed and neither was offered anywhere,
+ * so the accuracy-versus-responsiveness trade could only be taken by somebody
+ * who knew the variable's name. The measured numbers ride along in the detail
+ * line for the same reason: "more accurate" and "faster" are not a choice
+ * anybody can make, and four points of word error against 1.8 seconds is.
+ */
 function RecognitionSettings(): React.JSX.Element {
   const [lookahead, setLookahead] = useState('')
   const [device, setDevice] = useState('')
+  const [recognisers, setRecognisers] = useState<RecogniserPage | null>(null)
 
   useEffect(() => {
     let gone = false
     void (async () => {
-      const page = await window.marvi?.getProviders()
-      if (gone || !page) return
+      const [page, listeners] = await Promise.all([
+        window.marvi?.getProviders(),
+        window.marvi?.getRecognisers()
+      ])
+      if (gone) return
+      if (listeners) setRecognisers(listeners)
+      if (!page) return
       const values = (page as unknown as { settings?: Record<string, string> }).settings ?? {}
       setLookahead(values['MARVI_STT_LOOKAHEAD'] ?? '2.0')
       setDevice(values['MARVI_STT_DEVICE'] ?? 'cpu')
@@ -5488,8 +5656,37 @@ function RecognitionSettings(): React.JSX.Element {
     void window.marvi?.setProviderSettings(values)
   }
 
+  const engineOptions = (recognisers?.engines ?? [])
+    .filter((engine) => engine.available)
+    .map((engine) => ({
+      value: engine.id,
+      label: engine.name,
+      detail: engine.description
+    }))
+
   return (
     <>
+      {engineOptions.length > 1 ? (
+        <ControlRow
+          action={
+            <Picker
+              options={engineOptions}
+              value={recognisers?.selected ?? ''}
+              onChange={(next) => {
+                setRecognisers((current) => (current ? { ...current, selected: next } : current))
+                save({ MARVI_STT_ENGINE: next })
+              }}
+              placeholder="Parakeet TDT 0.6B"
+            />
+          }
+          description={
+            recognisers?.missing
+              ? 'The chosen recogniser is no longer installed; Marvi is listening with the default.'
+              : 'Marvi restarts the voice worker after this changes, and unloads the recogniser she was using.'
+          }
+          title="Recogniser"
+        />
+      ) : null}
       <ControlRow
         action={
           <Picker
@@ -6399,6 +6596,7 @@ function AboutPanel({
 
 function IslandSurface(): React.JSX.Element {
   const voice = useStore($voiceState)
+  const reduceMotion = useReducedMotion()
   const measureRef = useRef<HTMLDivElement>(null)
   const [resolvingToken, setResolvingToken] = useState<string | null>(null)
 
@@ -6419,8 +6617,10 @@ function IslandSurface(): React.JSX.Element {
     if (!element) return
 
     const reportSize = (): void => {
-      const bounds = element.getBoundingClientRect()
-      window.marvi?.setIslandSize({ width: bounds.width, height: bounds.height })
+      // Layout size stays stable while the child uses compositor-only entrance
+      // motion. Reading transformed bounds here would make the native host
+      // chase animation frames and create the transparent-stage flicker.
+      window.marvi?.setIslandSize({ width: element.offsetWidth, height: element.offsetHeight })
     }
     const observer = new ResizeObserver(reportSize)
     observer.observe(element)
@@ -6431,24 +6631,41 @@ function IslandSurface(): React.JSX.Element {
   return (
     <div className={`island-stage island-stage-${voice.phase}`}>
       <div className="island-measure" ref={measureRef}>
-        <DynamicIsland
-          confirmationPending={resolvingToken === voice.confirmation?.token}
-          onConfirmationDecision={async (decision) => {
-            if (!voice.confirmation || resolvingToken === voice.confirmation.token) return
-            const token = voice.confirmation.token
-            setResolvingToken(token)
-            try {
-              const next = await window.marvi?.resolveConfirmation(token, decision)
-              if (next) applyRuntimeState(next)
-            } finally {
-              setResolvingToken(null)
-            }
-          }}
-          state={voice}
-        />
+        <AnimatePresence initial={false} mode="popLayout">
+          <motion.div
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="island-transition-shell"
+            exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.985, y: -3 }}
+            initial={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.97, y: -5 }}
+            key={islandPresentationKey(voice)}
+            transition={reduceMotion ? { duration: 0.01 } : { duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <DynamicIsland
+              confirmationPending={resolvingToken === voice.confirmation?.token}
+              onConfirmationDecision={async (decision) => {
+                if (!voice.confirmation || resolvingToken === voice.confirmation.token) return
+                const token = voice.confirmation.token
+                setResolvingToken(token)
+                try {
+                  const next = await window.marvi?.resolveConfirmation(token, decision)
+                  if (next) applyRuntimeState(next)
+                } finally {
+                  setResolvingToken(null)
+                }
+              }}
+              state={voice}
+            />
+          </motion.div>
+        </AnimatePresence>
       </div>
     </div>
   )
+}
+
+function islandPresentationKey(voice: VoiceState): string {
+  if (voice.phase === 'confirmation') return `confirmation:${voice.confirmation?.token ?? 'empty'}`
+  if (voice.phase === 'ready' && voice.roomEvent) return `room-event:${voice.roomEvent.id}`
+  return voice.phase
 }
 
 /**

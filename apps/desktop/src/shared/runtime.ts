@@ -528,6 +528,8 @@ export interface InstalledVoice {
   name: string
   language: string
   gender: string
+  /** True for a voice learned from a recording rather than shipped. */
+  cloned?: boolean
 }
 
 export interface TTSEngine {
@@ -536,6 +538,8 @@ export interface TTSEngine {
   description: string
   runtime: string
   defaultVoice: string
+  /** Whether this engine speaks in a voice recorded for it. */
+  cloning: boolean
   available: boolean
 }
 
@@ -551,6 +555,49 @@ export interface VoicePage {
   missing: boolean
   engines: TTSEngine[]
   voices: InstalledVoice[]
+}
+
+/** A voice Marvi learned from a recording. */
+export interface VoiceClone {
+  id: string
+  name: string
+  engine: string
+  seconds: number
+}
+
+export interface VoiceClonePage {
+  /** The engines that can speak in a recorded voice. Two of the three. */
+  engines: string[]
+  shortestSeconds: number
+  longestSeconds: number
+  clones: VoiceClone[]
+}
+
+/** One local recogniser Marvi can listen with. */
+export interface STTEngine {
+  id: string
+  name: string
+  description: string
+  runtime: string
+  available: boolean
+  /** What the bakeoff measured, so the picker can show the trade rather than
+   * asking somebody to remember which of two names was the accurate one. */
+  measured: {
+    wer?: number
+    rtf?: number
+    first_partial_ms_p50?: number
+    arabic_wer?: number
+    corpus?: string
+  }
+}
+
+export interface RecogniserPage {
+  /** The environment variable a choice is written to. */
+  setting: string
+  selected: string
+  /** True when a recogniser was chosen and is no longer installed. */
+  missing: boolean
+  engines: STTEngine[]
 }
 
 /** What the wake word is doing. */

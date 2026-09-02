@@ -46,6 +46,8 @@ import type {
   UpdateResult,
   UpdateStatus,
   UpstreamPage,
+  RecogniserPage,
+  VoiceClonePage,
   VoicePage,
   LanguagePolicy,
   MaintenanceAction,
@@ -359,6 +361,14 @@ const marvi = {
   getUpstreams: (model?: string): Promise<UpstreamPage | null> =>
     ipcRenderer.invoke('marvi:get-upstreams', model ?? ''),
   getVoices: (): Promise<VoicePage | null> => ipcRenderer.invoke('marvi:get-voices'),
+  getRecognisers: (): Promise<RecogniserPage | null> =>
+    ipcRenderer.invoke('marvi:get-recognisers'),
+  getVoiceClones: (): Promise<VoiceClonePage | null> =>
+    ipcRenderer.invoke('marvi:get-voice-clones'),
+  addVoiceClone: (engine: string, name: string): Promise<{ ok: boolean; detail: string }> =>
+    ipcRenderer.invoke('marvi:add-voice-clone', engine, name),
+  removeVoiceClone: (engine: string, voice: string): Promise<boolean> =>
+    ipcRenderer.invoke('marvi:remove-voice-clone', engine, voice),
   getVoiceActivity: (): Promise<unknown> => ipcRenderer.invoke('marvi:get-voice-activity'),
   getCalendar: (): Promise<unknown> => ipcRenderer.invoke('marvi:get-calendar'),
   getWake: (): Promise<WakeStatus | null> => ipcRenderer.invoke('marvi:get-wake'),
