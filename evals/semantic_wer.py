@@ -40,7 +40,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -123,11 +122,16 @@ def judge(key: str, reference: str, hypothesis: str) -> tuple[int, str]:
             )
             answer.raise_for_status()
             said = answer.json()["choices"][0]["message"]["content"]
-            found = re.search(r"\{.*\}", said, re.DOTALL)
-            if not found:
+            # The first object, not everything between the first brace and the
+            # last. A greedy match spans a reply that came back as two lines of
+            # JSON -- which happened, and took the whole 200-clip run down with
+            # "Extra data: line 2 column 1" after the audio had already been
+            # transcribed.
+            start = said.find("{")
+            if start < 0:
                 last = f"unparsable: {said[:60]}"
                 continue
-            parsed = json.loads(found.group(0))
+            parsed, _end = json.JSONDecoder().raw_decode(said[start:])
             return max(0, int(parsed["errors"])), str(parsed.get("why") or "")
         except Exception as exc:  # noqa: BLE001 - one clip failing must not end the run
             last = str(exc)[:120]
@@ -160,7 +164,19 @@ def main() -> None:
 
     def score(row: dict) -> dict:
         reference = references[row["id"]]
-        errors, why = judge(key, reference, str(row.get("text") or ""))
+        try:
+            errors, why = judge(key, reference, str(row.get("text") or ""))
+        except RuntimeError as exc:
+            # One clip the judge could not answer for must not discard 199
+            # transcriptions that took an hour of GPU time. Counted and
+            # reported rather than silently dropped or silently scored zero.
+            return {
+                "id": row["id"],
+                "words": len(reference.split()),
+                "errors": None,
+                "why": f"unjudged: {exc}",
+                "text": row.get("text"),
+            }
         return {
             "id": row["id"],
             "words": len(reference.split()),
@@ -172,16 +188,20 @@ def main() -> None:
     with ThreadPoolExecutor(max_workers=AT_ONCE) as pool:
         judged = list(pool.map(score, predictions))
 
-    words = sum(row["words"] for row in judged)
-    errors = sum(row["errors"] for row in judged)
-    clean = sum(1 for row in judged if row["errors"] == 0)
+    scored = [row for row in judged if row["errors"] is not None]
+    words = sum(row["words"] for row in scored)
+    errors = sum(row["errors"] for row in scored)
+    clean = sum(1 for row in scored if row["errors"] == 0)
     summary = {
-        "clips": len(judged),
+        "clips": len(scored),
+        # Said out loud: a denominator that quietly shrank is a number nobody
+        # can compare against the other rows.
+        "unjudged": len(judged) - len(scored),
         "reference_words": words,
         "meaning_errors": errors,
         "semantic_wer": round(errors / words, 6) if words else 0.0,
         "clean_clips": clean,
-        "clean_rate": round(clean / len(judged), 6) if judged else 0.0,
+        "clean_rate": round(clean / len(scored), 6) if scored else 0.0,
         "judge": JUDGE,
     }
     args.output.write_text(
