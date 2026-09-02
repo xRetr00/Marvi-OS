@@ -5667,13 +5667,21 @@ function RecognitionSettings(): React.JSX.Element {
     void window.marvi?.setProviderSettings(values)
   }
 
-  const engineOptions = (recognisers?.engines ?? [])
-    .filter((engine) => engine.available)
-    .map((engine) => ({
-      value: engine.id,
-      label: engine.name,
-      detail: engine.description
-    }))
+  // Shown even when not installed, the way the TTS engine picker does it.
+  //
+  // Filtering on `available` meant Nemotron simply was not there: nothing said
+  // it existed, nothing said it needed installing, and the page looked like a
+  // machine with two recognisers. A disabled row with a reason is the only
+  // version of this that can be acted on.
+  const engineOptions = (recognisers?.engines ?? []).map((engine) => ({
+    value: engine.id,
+    label: engine.name,
+    detail: engine.available
+      ? engine.description
+      : `${engine.description} Install it in Setup first.`,
+    hint: engine.runtime === 'in-process' ? 'DEFAULT' : 'OPTIONAL DOWNLOAD',
+    disabled: !engine.available
+  }))
 
   return (
     <>
