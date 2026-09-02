@@ -13,8 +13,8 @@ class SttScoreTests(unittest.TestCase):
         )
 
     def test_edit_counts_separates_error_types(self) -> None:
-        self.assertEqual(edit_counts("a b c".split(), "a x c d".split()), (1, 0, 1))
-        self.assertEqual(edit_counts("a b c".split(), "a c".split()), (0, 1, 0))
+        self.assertEqual(edit_counts(["a", "b", "c"], ["a", "x", "c", "d"]), (1, 0, 1))
+        self.assertEqual(edit_counts(["a", "b", "c"], ["a", "c"]), (0, 1, 0))
 
     def test_score_uses_aggregate_word_error_rate(self) -> None:
         manifest = [

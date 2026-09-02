@@ -116,7 +116,11 @@ def score(manifest_path: Path, predictions_path: Path) -> dict[str, object]:
             {
                 **prediction,
                 "id": item["id"],
-                "l1": item["l1"],
+                # Not every corpus has a first-language dimension. EdAcc and
+                # L2-ARCTIC are built around one; the Pipecat voice-agent set
+                # is not, and requiring the field turned a missing column into
+                # a KeyError after the run had already been done.
+                "l1": item.get("l1") or item.get("accent") or "all",
                 "reference": item["reference"],
                 "normalized_reference": " ".join(reference_words),
                 "normalized_hypothesis": " ".join(hypothesis_words),
