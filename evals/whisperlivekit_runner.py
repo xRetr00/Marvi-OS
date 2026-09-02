@@ -73,7 +73,7 @@ def _read_pcm16_mono(path: Path) -> tuple[np.ndarray, float]:
 
 
 class WhisperLiveKitStreamingStt:
-    def __init__(self, encoder_model: Path, decoder_cache: Path) -> None:
+    def __init__(self, encoder_model: Path, decoder_cache: Path, vac: bool = True) -> None:
         from whisperlivekit.core import TranscriptionEngine
         from whisperlivekit.simul_whisper.backend import (
             SimulStreamingOnlineProcessor,
@@ -89,10 +89,19 @@ class WhisperLiveKitStreamingStt:
             model_cache_dir=str(decoder_cache.resolve()),
             lan="en",
             min_chunk_size=0.1,
+            # VAC is upstream's own default (`config.py`: `vac: bool = True`)
+            # and the first round ran without it, because this driver builds the
+            # processor directly and never goes through `AudioProcessor` -- the
+            # only place that consults it. So large-v3-turbo transcribed silence
+            # as well as speech for every clip, which is most of what a voice
+            # activity controller exists to prevent and most of why the measured
+            # RTF was 2.747. A "slower than realtime" verdict taken from a
+            # configuration the library does not ship is not a verdict.
+            vac=vac,
+            vac_chunk_size=0.04,
             frame_threshold=25,
             beams=1,
             decoder_type="greedy",
-            vac=False,
             vad=False,
             diarization=False,
         )
@@ -157,6 +166,15 @@ def main() -> None:
     parser.add_argument("cuda_runtime", type=Path)
     parser.add_argument("output", type=Path)
     parser.add_argument("--limit", type=int)
+    # VAC is upstream's default and the shipped configuration, so it is the
+    # default here. It is a flag rather than a constant because this venv has
+    # no `onnxruntime`, and without it WhisperLiveKit loads the VAC model from
+    # TorchScript *per session* -- the runner builds a processor per clip, so
+    # that is a fresh JIT load 162 times, and the run went from minutes to
+    # hours. The accuracy question does not depend on it: these clips are
+    # pre-segmented speech with little silence for a voice-activity controller
+    # to skip. The realtime-factor question does.
+    parser.add_argument("--no-vac", dest="vac", action="store_false")
     args = parser.parse_args()
 
     manifest = [
@@ -188,7 +206,7 @@ def main() -> None:
 
     baseline_vram = _gpu_memory_mb()
     load_started = time.perf_counter()
-    runtime = WhisperLiveKitStreamingStt(args.encoder_model, args.decoder_cache)
+    runtime = WhisperLiveKitStreamingStt(args.encoder_model, args.decoder_cache, args.vac)
     load_seconds = time.perf_counter() - load_started
     peak_vram = _gpu_memory_mb()
 
@@ -207,7 +225,10 @@ def main() -> None:
                 "model_load_seconds": load_seconds,
                 "peak_rss_mb": _peak_rss_mb(),
                 "peak_vram_mb": max(0.0, peak_vram - baseline_vram),
-                "streaming_semantics": "alignatt-simulstreaming-100ms-updates",
+                "streaming_semantics": (
+                    "alignatt-simulstreaming-100ms-updates-"
+                    + ("vac" if args.vac else "novac")
+                ),
             }
             output.write(json.dumps(record, ensure_ascii=False) + "\n")
             output.flush()

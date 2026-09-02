@@ -202,7 +202,9 @@ def test_the_recogniser_settings_come_from_the_gateway() -> None:
     # Applied before the models are built, or it applies to nothing.
     prewarm = inspect.getsource(session.prewarm)
     assert "apply_speech_settings()" in prewarm
-    assert prewarm.index("apply_speech_settings()") < prewarm.index("ParakeetSTT(")
+    # `build_stt()` now, because which recogniser to build is itself one of
+    # the settings the Gateway answers with.
+    assert prewarm.index("apply_speech_settings()") < prewarm.index("build_stt()")
 
 
 def test_a_gateway_that_cannot_answer_leaves_the_defaults() -> None:
@@ -287,3 +289,37 @@ def test_the_reported_model_is_the_one_loaded(tmp_path) -> None:
     assert ParakeetSTT(model_dir=tmp_path / "parakeet-tdt-0.6b-v2-onnx").model == (
         "parakeet-tdt-0.6b-v2"
     )
+
+
+def test_the_recogniser_is_given_a_timeout_to_produce_words() -> None:
+    """`observability` has listened for `user_transcription_timeout` the whole
+    time, for an event that could not fire because the option that produces it
+    was never passed. A warning nobody can trigger is decoration.
+
+    It is the failure LiveKit's own writing on short utterances names first:
+    the recogniser silently produces no final transcript for a brief answer,
+    turn-taking never completes, and the agent goes quiet. Marvi's log has the
+    shape of it -- thirty-four turns that went listening, thinking, and back to
+    listening without her speaking."""
+    import inspect
+
+    from marvi_agent import session as session_module
+
+    built = inspect.getsource(session_module.build_session)
+
+    assert "transcription_timeout=TRANSCRIPTION_TIMEOUT" in built
+    assert 0 < session_module.TRANSCRIPTION_TIMEOUT <= 4
+
+
+def test_she_says_something_when_the_words_never_arrive() -> None:
+    """Silence is the worst of the three outcomes. A wrong transcript can be
+    corrected and a refusal argued with, but silence is indistinguishable from
+    not listening, so the person repeats themselves into nothing."""
+    import inspect
+
+    from marvi_agent import observability, session
+
+    handler = inspect.getsource(observability.attach)
+
+    assert "session.say(MISHEARD)" in handler
+    assert session.MISHEARD

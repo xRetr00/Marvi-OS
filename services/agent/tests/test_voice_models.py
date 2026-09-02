@@ -185,3 +185,96 @@ def test_sidecar_close_kills_the_windows_process_tree(monkeypatch) -> None:
 
     assert calls[0][0] == ["taskkill", "/PID", "4321", "/T", "/F"]
     assert engine._process is None
+
+
+def test_switching_engine_stops_the_one_it_replaces() -> None:
+    """A sidecar is a live process holding a model in VRAM. Switching engine
+    three times left three of them resident, and on a 12 GB card the third has
+    nowhere to go -- nothing reclaimed them, because a key the cache no longer
+    looks anything up under is a key nothing ever visits again."""
+    from marvi_agent import voice_models
+    from marvi_agent.voice_models import build_tts
+
+    voice_models._SIDECARS.clear()
+    closed: list[str] = []
+
+    first = build_tts("cutetts-distill", "cute-reference")
+    assert hasattr(first, "_engine")
+    first._engine.close = lambda: closed.append("cutetts-distill")  # type: ignore[method-assign]
+
+    build_tts("voxtream2", "")
+
+    assert closed == ["cutetts-distill"], "the replaced engine was left running"
+    assert len(voice_models._SIDECARS) == 1, "more than one engine stayed warm"
+
+
+def test_asking_for_the_same_engine_twice_keeps_it_warm() -> None:
+    """Eviction must not evict the thing being asked for: reloading a model on
+    every call would be worse than leaving two resident."""
+    from marvi_agent import voice_models
+    from marvi_agent.voice_models import build_tts
+
+    voice_models._SIDECARS.clear()
+    first = build_tts("cutetts-distill", "cute-reference")
+    again = build_tts("cutetts-distill", "cute-reference")
+
+    assert first._engine is again._engine
+
+
+def test_a_warm_recogniser_for_another_model_is_not_reused(monkeypatch) -> None:
+    """`warmed.get("stt") or ParakeetSTT()` took whatever had been prewarmed,
+    so changing the recogniser in Settings left the old one loaded and the
+    setting visibly did nothing. The TTS path already compared engines before
+    reusing; this did not, because until there was a choice there was nothing
+    to compare."""
+    from marvi_agent import session as session_module
+
+    released: list[str] = []
+
+    class Warm:
+        model = "parakeet-tdt-0.6b-v2"
+
+        def release(self) -> None:
+            released.append(self.model)
+
+    from pathlib import Path
+
+    import marvi_agent.parakeet_stt as stt_module
+
+    monkeypatch.setattr(
+        session_module,
+        "build_stt",
+        lambda: type("Fresh", (), {"model": "parakeet-tdt-0.6b-v3"})(),
+    )
+    monkeypatch.setattr(stt_module, "chosen_model", lambda: Path("parakeet-tdt-0.6b-v3-onnx"))
+    monkeypatch.setattr(stt_module, "chosen_engine", lambda: "parakeet-tdt")
+    warmed: dict = {"stt": Warm(), "stt_model": "parakeet-tdt-0.6b-v2"}
+
+    listener = session_module._recogniser(warmed)
+
+    assert listener.model == "parakeet-tdt-0.6b-v3"
+    assert released == ["parakeet-tdt-0.6b-v2"], "the replaced recogniser kept its device memory"
+    assert "stt" not in warmed
+
+
+def test_the_warm_recogniser_is_reused_when_it_is_the_selected_one(monkeypatch) -> None:
+    """Rebuilding ONNX sessions on every call is seconds, felt as Marvi not
+    hearing the opening sentence."""
+    from pathlib import Path
+
+    import marvi_agent.parakeet_stt as stt_module
+    from marvi_agent import session as session_module
+
+    class Warm:
+        model = "parakeet-tdt-0.6b-v3"
+
+        def release(self) -> None:
+            raise AssertionError("released the recogniser it was asked for")
+
+    monkeypatch.setattr(stt_module, "chosen_model", lambda: Path("parakeet-tdt-0.6b-v3-onnx"))
+    monkeypatch.setattr(stt_module, "chosen_engine", lambda: "parakeet-tdt")
+    warm = Warm()
+
+    assert (
+        session_module._recogniser({"stt": warm, "stt_model": "parakeet-tdt-0.6b-v3"}) is warm
+    )
