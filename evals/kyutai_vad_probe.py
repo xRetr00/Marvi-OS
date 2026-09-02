@@ -88,8 +88,12 @@ def main() -> None:
         )
         audio = torch.from_numpy(pcm[None, 0:1]).to(device="cuda")
         quiet = torch.zeros(1, 1, frame, device="cuda")
-        mimi.reset_streaming()
-        gen.reset_streaming()
+        # Inside inference mode, because the streaming state was allocated
+        # inside it and PyTorch refuses an in-place update to an inference
+        # tensor from outside.
+        with torch.inference_mode():
+            mimi.reset_streaming()
+            gen.reset_streaming()
 
         fired: dict[int, float | None] = {index: None for index in range(heads)}
         last_word: float | None = None
@@ -118,6 +122,15 @@ def main() -> None:
                 if piece.strip():
                     said.append(piece)
                     last_word = at
+            # Only after something has been said.
+            #
+            # The heads are pause detectors, so they are high during the
+            # silence prefix -- correctly, and uselessly: the first crossing on
+            # every clip was a second before the first word. An end-of-turn
+            # before the turn has begun is not a turn ending, and this is the
+            # same guard the adapter carries.
+            if last_word is None:
+                return
             for index, head in enumerate(extra):
                 if fired[index] is None and float(head[0, 0, 0].item()) > args.threshold:
                     fired[index] = at
