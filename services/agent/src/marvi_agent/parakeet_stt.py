@@ -151,8 +151,20 @@ SAMPLE_RATE = 16_000
 #: this buys accuracy with lag on the live transcript rather than with anything
 #: the turn waits for.
 DEFAULT_LOOKAHEAD = 2.0
-#: How much audio it takes at a time. Larger is slightly faster and no more
-#: accurate; the lookahead is the dial that matters.
+#: How much audio it takes at a time.
+#:
+#: The comment here used to say "larger is slightly faster and no more
+#: accurate; the lookahead is the dial that matters". True of accuracy and
+#: badly wrong about latency: a partial cannot exist before its chunk is full,
+#: so this is the *floor* on how soon a word can appear on screen. Measured on
+#: 200 voice-agent clips, first useful partial at the median:
+#:
+#:     chunk 2.0s  lookahead 2.0s   4,115 ms   WER 3.44%   clean 71%
+#:     chunk 2.0s  lookahead 0.8s   2,913 ms   WER 4.19%   clean 66%
+#:
+#: Two seconds of that is this constant, and no lookahead setting can reach it.
+#: Settable for the same reason the lookahead is: which trade is right depends
+#: on whether somebody is dictating or talking.
 DEFAULT_CHUNK = 2.0
 
 #: How much of the past the encoder re-reads on every chunk.
@@ -184,6 +196,20 @@ def lookahead_seconds() -> float:
         return max(0.2, min(float(os.environ.get("MARVI_STT_LOOKAHEAD") or DEFAULT_LOOKAHEAD), 4.0))
     except ValueError:
         return DEFAULT_LOOKAHEAD
+
+
+def chunk_seconds() -> float:
+    """How much audio the recogniser takes at a time, from the setting.
+
+    Bounded at half a second because below that the encoder is re-reading four
+    seconds of left context for every fragment and the throughput cost stops
+    being worth the latency, and at four because past that the first word is
+    slower than anybody will sit through.
+    """
+    try:
+        return max(0.5, min(float(os.environ.get("MARVI_STT_CHUNK") or DEFAULT_CHUNK), 4.0))
+    except ValueError:
+        return DEFAULT_CHUNK
 
 
 def providers() -> list[str]:
@@ -248,7 +274,7 @@ class ParakeetSTT(stt.STT):
         chosen = providers()
         self._asr = StreamingTdtASR(
             str(self._model_dir),
-            chunk_secs=DEFAULT_CHUNK,
+            chunk_secs=chunk_seconds(),
             left_context_secs=DEFAULT_LEFT_CONTEXT,
             right_context_secs=lookahead_seconds(),
             providers=chosen,

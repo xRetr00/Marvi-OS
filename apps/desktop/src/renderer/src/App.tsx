@@ -5639,8 +5639,53 @@ function WakeWordPanel(): React.JSX.Element {
  * line for the same reason: "more accurate" and "faster" are not a choice
  * anybody can make, and four points of word error against 1.8 seconds is.
  */
+/**
+ * How soon a word appears on screen, as three measured points rather than one
+ * dial.
+ *
+ * This used to set the lookahead alone, and the lookahead cannot get below
+ * two seconds no matter what it is set to: a partial cannot exist before its
+ * *chunk* is full, and the chunk was a constant nobody could reach. Measured
+ * over 200 voice-agent clips, median first useful partial and the share of
+ * turns with no meaning-changing error:
+ *
+ *     chunk 2.0s  look 2.0s   4,115 ms   71% clean   <- what shipped
+ *     chunk 2.0s  look 0.8s   2,913 ms   66% clean
+ *     chunk 1.0s  look 0.8s   1,868 ms   58% clean
+ *     chunk 0.5s  look 0.8s   1,968 ms   57% clean   <- not offered
+ *
+ * Half a second is not offered because it is slower *and* worse: below about a
+ * second the recogniser spends more time re-reading its context than the
+ * smaller chunk saves, so the first word arrives later than at 1.0s for three
+ * more points of error. A dial with a setting that is worse in every direction
+ * is a trap.
+ */
+const PACE = [
+  {
+    value: 'responsive',
+    label: 'Responsive',
+    detail: 'First words in about 1.9s. More mistakes on screen',
+    chunk: '1.0',
+    lookahead: '0.8'
+  },
+  {
+    value: 'balanced',
+    label: 'Balanced',
+    detail: 'About 2.9s',
+    chunk: '2.0',
+    lookahead: '0.8'
+  },
+  {
+    value: 'accurate',
+    label: 'Accurate',
+    detail: 'The default. About 4.1s, and the fewest mistakes',
+    chunk: '2.0',
+    lookahead: '2.0'
+  }
+]
+
 function RecognitionSettings(): React.JSX.Element {
-  const [lookahead, setLookahead] = useState('')
+  const [pace, setPace] = useState('')
   const [device, setDevice] = useState('')
   const [recognisers, setRecognisers] = useState<RecogniserPage | null>(null)
 
@@ -5655,7 +5700,13 @@ function RecognitionSettings(): React.JSX.Element {
       if (listeners) setRecognisers(listeners)
       if (!page) return
       const values = (page as unknown as { settings?: Record<string, string> }).settings ?? {}
-      setLookahead(values['MARVI_STT_LOOKAHEAD'] ?? '2.0')
+      // Matched back from the two values, because they are what is stored and
+      // a preset that cannot recognise its own settings shows blank.
+      const look = values['MARVI_STT_LOOKAHEAD'] ?? '2.0'
+      const chunk = values['MARVI_STT_CHUNK'] ?? '2.0'
+      setPace(
+        PACE.find((option) => option.lookahead === look && option.chunk === chunk)?.value ?? ''
+      )
       setDevice(values['MARVI_STT_DEVICE'] ?? 'cpu')
     })()
     return () => {
@@ -5709,21 +5760,19 @@ function RecognitionSettings(): React.JSX.Element {
       <ControlRow
         action={
           <Picker
-            options={[
-              { value: '0.8', label: 'Fast', detail: 'Subtitles keep up; more mistakes' },
-              { value: '2.0', label: 'Accurate', detail: 'The default. Two seconds behind you' },
-              { value: '3.0', label: 'Most accurate', detail: 'Slowest subtitles' }
-            ]}
-            value={lookahead}
+            options={PACE}
+            value={pace}
             onChange={(next) => {
-              setLookahead(next)
-              save({ MARVI_STT_LOOKAHEAD: next })
+              const chosen = PACE.find((option) => option.value === next)
+              if (!chosen) return
+              setPace(next)
+              save({ MARVI_STT_LOOKAHEAD: chosen.lookahead, MARVI_STT_CHUNK: chosen.chunk })
             }}
             placeholder="Accurate"
           />
         }
-        description="Longer lookahead improves accuracy while subtitles follow farther behind."
-        title="Recognition accuracy"
+        description="How long Marvi waits before putting a word on screen. It does not change how fast she answers — the end of a sentence is flushed the moment you stop."
+        title="Subtitle speed"
       />
       <ControlRow
         action={

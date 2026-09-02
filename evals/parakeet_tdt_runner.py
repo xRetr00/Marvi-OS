@@ -34,9 +34,9 @@ sys.path.insert(0, str(_ROOT / "services/agent/src"))
 #: than restated here. A benchmark that picks its own chunk size measures a
 #: configuration nobody runs.
 from marvi_agent.parakeet_stt import (
-    DEFAULT_CHUNK,
     DEFAULT_LEFT_CONTEXT,
     chosen_model,
+    chunk_seconds,
     lookahead_seconds,
     providers,
 )
@@ -56,7 +56,7 @@ class ShippingParakeet:
         self.model_dir = model_dir
         self.asr = StreamingTdtASR(
             str(model_dir),
-            chunk_secs=DEFAULT_CHUNK,
+            chunk_secs=chunk_seconds(),
             left_context_secs=DEFAULT_LEFT_CONTEXT,
             right_context_secs=lookahead_seconds(),
             providers=providers(),
@@ -125,7 +125,7 @@ class ShippingParakeet:
             "final_after_eos_ms": final_seconds * 1_000.0,
             "partials": partials,
             "audio_seconds": audio_seconds,
-            "feed_ms": round(DEFAULT_CHUNK * 1_000.0, 1),
+            "feed_ms": round(chunk_seconds() * 1_000.0, 1),
             "first_block": bool(first),
         }
 
@@ -169,7 +169,7 @@ def main() -> None:
         args.output,
         engine=f"{Path(model_dir).name.removesuffix('-onnx')}-onnx-{providers()[0]}",
         semantics=(
-            f"marvi-shipping-tdt-chunk{DEFAULT_CHUNK}s-"
+            f"marvi-shipping-tdt-chunk{chunk_seconds()}s-"
             f"left{DEFAULT_LEFT_CONTEXT}s-lookahead{lookahead_seconds()}s"
         ),
         transcribe=runtime.transcribe,

@@ -1482,7 +1482,28 @@ async def marvi_session(ctx: JobContext) -> None:
     or find no speech engine, and all three looked identical from outside.
     """
     started = time.monotonic()
-    log.info("job %s starting for room %s", ctx.job.id, ctx.room.name)
+    # Whether this process was warm when the job arrived is the single most
+    # useful fact about a slow join, and nothing said it.
+    #
+    # LiveKit hands a job to an idle process when one exists and starts a cold
+    # one when it does not. A cold one runs `prewarm` first -- 4.4 s at best on
+    # this machine and 112 s at worst -- and every second of that is spent
+    # before the room is joined, looking from outside exactly like Marvi
+    # ignoring you. `proc.userdata` is filled by `prewarm`, so its emptiness is
+    # the test.
+    warm_already = bool((ctx.proc.userdata or {}).get("stt")) if ctx.proc else False
+    log.info(
+        "job %s starting for room %s, process %s",
+        ctx.job.id,
+        ctx.room.name,
+        "already warm" if warm_already else "COLD - it will load models first",
+    )
+    if not warm_already:
+        log.warning(
+            "this join landed on a cold process: the pool keeps one warm "
+            "process (num_idle_processes=1) and it was already taken, so the "
+            "models load now, on the join. See docs/VOICE-JOIN-LATENCY.md."
+        )
 
     session, warm = build_session(ctx.proc)
     log.info("session built in %.1fs", time.monotonic() - started)
@@ -1563,7 +1584,23 @@ async def marvi_session(ctx: JobContext) -> None:
     # wait for a cold prewarm.
     await asyncio.to_thread(_pool_is_busy)
     await session.start(agent=voice_agent, room=ctx.room)
-    log.info("joined %s in %.1fs, listening", ctx.room.name, time.monotonic() - connecting)
+    # Both numbers, because they answer different questions. The first is what
+    # LiveKit's connect cost; the second is what the person waited from the job
+    # arriving to Marvi listening, which is the one they can feel.
+    log.info(
+        "joined %s in %.1fs, listening - %.1fs from job start (%s process)",
+        ctx.room.name,
+        time.monotonic() - connecting,
+        time.monotonic() - started,
+        "warm" if warm_already else "cold",
+    )
+    if time.monotonic() - started > SLOW_JOIN:
+        log.warning(
+            "this join took %.1fs from job to listening. If the process was "
+            "cold, the fix is pool capacity; if it was warm, the time is in "
+            "the steps logged above. See docs/VOICE-JOIN-LATENCY.md.",
+            time.monotonic() - started,
+        )
 
     # How a conversation ends: the model decides, from what was said.
     #
@@ -1687,6 +1724,11 @@ async def marvi_session(ctx: JobContext) -> None:
 #: middle of the range around 25s. Ten seconds is comfortably above a good run
 #: and well below the ones that make Marvi look broken.
 SLOW_PREWARM = 10.0
+
+#: Past this, a join is worth complaining about. A phone call connects in about
+#: two seconds and this is meant to feel like one; three leaves room for a
+#: local LiveKit handshake without flagging every ordinary join.
+SLOW_JOIN = 3.0
 
 _state = {"registered": False, "warm": False}
 
