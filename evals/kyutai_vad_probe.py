@@ -48,6 +48,10 @@ def main() -> None:
     parser.add_argument("model", type=Path)
     parser.add_argument("--limit", type=int, default=12)
     parser.add_argument("--threshold", type=float, default=THRESHOLD)
+    #: Consecutive frames above the threshold before the crossing counts. The
+    #: heads spike for a frame or two mid-utterance; a sustained run is what
+    #: distinguishes "they stopped" from "they breathed".
+    parser.add_argument("--hold", type=int, default=1)
     args = parser.parse_args()
 
     rows = [
@@ -75,11 +79,14 @@ def main() -> None:
     gen.streaming_forever(1)
     prefix_frames = int(PREFIX_SECONDS / seconds_per_frame)
 
-    print(f"{heads} pause heads, threshold {args.threshold}")
+    print(f"{heads} pause heads, threshold {args.threshold}, hold {args.hold} frame(s)")
     print(f"{'clip':<22} {'last word':>10} {'0.5s':>8} {'1.0s':>8} {'2.0s':>8} {'3.0s':>8}")
     print("-" * 70)
 
     leads: dict[int, list[float]] = {index: [] for index in range(heads)}
+    #: Crossings before the last one. Each is a turn this head would have cut
+    #: short if the first crossing ended the turn.
+    early: dict[int, int] = {index: 0 for index in range(heads)}
     silent = 0
 
     for row in rows:
@@ -96,6 +103,10 @@ def main() -> None:
             gen.reset_streaming()
 
         fired: dict[int, float | None] = {index: None for index in range(heads)}
+        last_fired: dict[int, float | None] = {index: None for index in range(heads)}
+        spikes: dict[int, int] = {index: 0 for index in range(heads)}
+        was_high: dict[int, bool] = {index: False for index in range(heads)}
+        run_length: dict[int, int] = {index: 0 for index in range(heads)}
         last_word: float | None = None
         said: list[str] = []
         step = 0
@@ -132,8 +143,27 @@ def main() -> None:
             if last_word is None:
                 return
             for index, head in enumerate(extra):
-                if fired[index] is None and float(head[0, 0, 0].item()) > args.threshold:
-                    fired[index] = at
+                if float(head[0, 0, 0].item()) > args.threshold:
+                    run_length[index] += 1
+                else:
+                    run_length[index] = 0
+                high = run_length[index] >= args.hold
+                # Every crossing, not the first.
+                #
+                # The first version of this took the first crossing after the
+                # first word and reported a median of -0.76s, which read as
+                # "the model calls the turn before the sentence even lands".
+                # It was measuring mid-utterance pauses: one clip crossed 8.9
+                # seconds before its last word. A signal used as end-of-turn
+                # has to be judged on how often it is wrong, not on how early
+                # it can be right, so this counts the spikes and records the
+                # last one as well as the first.
+                if high and not was_high[index]:
+                    spikes[index] += 1
+                    if fired[index] is None:
+                        fired[index] = at
+                    last_fired[index] = at
+                was_high[index] = high
 
         for _ in range(prefix_frames):
             run(quiet)
@@ -151,31 +181,33 @@ def main() -> None:
             continue
         cells = []
         for index in range(heads):
-            when = fired[index]
+            when = last_fired[index]
             if when is None:
                 cells.append("never")
                 continue
             leads[index].append(when - last_word)
-            cells.append(f"{when - last_word:+.2f}s")
+            early[index] += max(0, spikes[index] - 1)
+            cells.append(f"{when - last_word:+.2f}s x{spikes[index]}")
         print(
             f"{row['id'][:22]:<22} {last_word:9.2f}s "
-            + " ".join(f"{cell:>8}" for cell in cells)
+            + " ".join(f"{cell:>12}" for cell in cells)
         )
 
     print()
-    print("after the last word, median over the clips that fired:")
+    print("last crossing relative to the last word, and premature crossings:")
     for index, label in enumerate(("0.5s", "1.0s", "2.0s", "3.0s")[:heads]):
         got = leads[index]
         if not got:
             print(f"  head {index} ({label}): never fired")
             continue
         print(
-            f"  head {index} ({label}): {statistics.median(got):+.2f}s "
-            f"on {len(got)}/{len(rows) - silent} clips"
+            f"  head {index} ({label}): median {statistics.median(got):+.2f}s, "
+            f"{early[index]} premature crossing(s) across {len(got)} clips"
         )
     print()
-    print("Marvi's fallback timer is +0.60s. A head with a median below that")
-    print("ends the turn sooner than every other recogniser here.")
+    print("Marvi's fallback timer is +0.60s. A head only beats it if its median")
+    print("is lower AND its premature count is zero -- a head that fires early")
+    print("cuts somebody off mid-sentence, which is worse than waiting.")
 
 
 if __name__ == "__main__":
