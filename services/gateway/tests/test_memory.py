@@ -266,3 +266,66 @@ def test_the_tool_path_still_carries_the_envelope(tmp_path) -> None:
 
     assert found, "the memory is gone, not merely out of the block"
     assert "EXTERNAL DATA" in str(found[0]["body"])
+
+
+def test_a_broken_embedder_does_not_empty_recall(tmp_path, monkeypatch) -> None:
+    """The failure the log described and the code did the opposite of.
+
+    `search` asked `embedder.ready`, which answers "are embeddings configured",
+    not "did they just work". A configured-but-failing embedder therefore
+    blanked the keyword query on every question and then contributed nothing
+    itself. Measured on the running Gateway: 176 memories, twelve concurrent
+    questions, twelve empty answers -- including "what do you remember about my
+    controller" against a store holding "EA Sports FC 26 controller".
+    """
+    from marvi_gateway import embedding
+    from marvi_gateway.memory import MemoryStore
+
+    monkeypatch.setenv("MARVI_EMBEDDING_SOURCE", "local")
+    store = MemoryStore(tmp_path / "memory.sqlite3")
+    store.remember(
+        kind="fact",
+        subject="EA Sports FC 26 controller",
+        body="The user plays EA Sports FC 26 on PC using a PS5 controller.",
+        source="test",
+    )
+
+    # Configured, and failing on every call -- which is what `[Errno 22]` in
+    # the log was, whatever caused it.
+    monkeypatch.setattr(embedding.Embedder, "embed", lambda *_a, **_k: [])
+
+    found = store.search("what do you remember about my controller", limit=5)
+    assert found, "a broken embedder silently emptied recall"
+    assert any("controller" in row["subject"].lower() for row in found)
+
+
+def test_a_working_embedder_still_suppresses_keyword_on_a_question(
+    tmp_path, monkeypatch
+) -> None:
+    """The original reasoning stands and must not be lost to the fix.
+
+    On a question, keyword matches the stopwords -- "what music do I like"
+    returned development workflows. Suppression is right when the semantic side
+    actually answered; it was only wrong when that side was dead.
+    """
+    from marvi_gateway.memory import MemoryStore
+
+    monkeypatch.setenv("MARVI_EMBEDDING_SOURCE", "local")
+    store = MemoryStore(tmp_path / "memory.sqlite3")
+    store.remember(kind="fact", subject="Music", body="Likes jazz.", source="test")
+
+    answered = [{"id": 1, "subject": "Music", "body": "Likes jazz.", "kind": "fact"}]
+    monkeypatch.setattr(
+        MemoryStore, "search_similar", lambda *_a, **_k: list(answered)
+    )
+    asked: list[str] = []
+    original = MemoryStore._row
+
+    def watch(self, row):  # noqa: ANN001 - mirrors the method being wrapped
+        asked.append("keyword")
+        return original(self, row)
+
+    monkeypatch.setattr(MemoryStore, "_row", watch)
+    found = store.search("what music do I like", limit=5)
+    assert found, "the semantic answer was dropped"
+    assert asked == [], "keyword ran on a question the embedding had already answered"

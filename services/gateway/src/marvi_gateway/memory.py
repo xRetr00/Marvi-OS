@@ -830,10 +830,28 @@ class MemoryStore:
         """
         capped = max(1, min(limit, 100))
         match = _fts_query(query)
-        # No embeddings configured means keyword is all there is, and half a
-        # search beats none.
-        semantic = self._embedder().ready
-        if semantic and _reads_as_a_question(query):
+        # The semantic side first, because whether it *worked* decides whether
+        # keyword may be suppressed.
+        #
+        # This used to ask `embedder.ready`, which answers "are embeddings
+        # configured", not "did they just work". So a configured-but-failing
+        # embedder blanked the keyword query on every question and then
+        # contributed nothing itself -- the union of nothing and nothing. The
+        # log said "falling back to keyword recall" while the code disabled
+        # keyword search precisely when it was the only index left.
+        #
+        # Measured on the running Gateway: 176 memories, twelve concurrent
+        # questions, twelve empty answers -- including "what do you remember
+        # about my controller" against a store containing "EA Sports FC 26
+        # controller". The same query with embeddings switched off returned it
+        # immediately.
+        by_meaning = self.search_similar(query, limit=capped)
+        # Only a semantic search that actually returned something earns the
+        # right to silence keyword. The reasoning for suppressing it stands --
+        # on a question, keyword matches the stopwords and answers "what music
+        # do I like" with development workflows -- but a wrong answer beats no
+        # answer far less often than no answer beats no answer at all.
+        if by_meaning and _reads_as_a_question(query):
             match = ""
         rows = (
             self._db.execute(
@@ -845,7 +863,6 @@ class MemoryStore:
             else []
         )
         by_word = [self._row(row) for row in rows]
-        by_meaning = self.search_similar(query, limit=capped)
 
         found: list[dict[str, Any]] = []
         seen: set[int] = set()
