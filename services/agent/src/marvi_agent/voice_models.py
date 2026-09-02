@@ -54,9 +54,15 @@ _KOKORO: dict[tuple[str, str, int], _KokoroEngine] = {}
 _SIDECARS: dict[tuple[str, str, int], _SidecarEngine] = {}
 
 #: How long an interrupted synthesis gets to unwind before the sidecar is
-#: killed. Longer than a drain of one sentence, shorter than anybody would
-#: wait for the next one.
-_STOP_GRACE = 6.0
+#: killed.
+#:
+#: Short on purpose. `cancel` kills the process, and on Windows that is the
+#: only thing that unblocks a worker thread sitting in `readline` on a sidecar
+#: with nothing more to say -- so this window is a courtesy, not a policy. A
+#: sidecar still producing audio finishes its sentence well inside a second and
+#: keeps its warm model; one that has stopped talking is killed exactly as
+#: before, so the worst case is the old behaviour.
+_STOP_GRACE = 1.0
 _ENGINE_LOCK = threading.Lock()
 
 
@@ -441,10 +447,11 @@ class _SidecarEngine:
                 elif event == "error":
                     raise VoiceRuntimeError(str(message.get("error") or "TTS sidecar failed"))
 
-    #: How long to let an abandoned generation finish before killing it. A
-    #: sentence is at most a few seconds of audio and the sidecars run faster
-    #: than realtime, so anything past this is wedged rather than busy.
-    DRAIN_TIMEOUT = 5.0
+    #: How long to let an abandoned generation finish before giving up on it.
+    #:
+    #: Matched to `_STOP_GRACE`: draining for longer than the caller will wait
+    #: means the process gets killed anyway, and the drain only cost the delay.
+    DRAIN_TIMEOUT = _STOP_GRACE
 
     def _drain(self) -> bool:
         """Read the rest of an abandoned response so the process stays usable.
