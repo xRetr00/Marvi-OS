@@ -43,6 +43,9 @@ from . import (
     upgrade,
     voiceactivity,
 )
+from . import (
+    connected as connected_accounts,
+)
 from . import doctor as doctor_module
 from . import plugins as plugins_module
 from . import room as room_module
@@ -2876,6 +2879,18 @@ def create_app(
             standing.ensure(memory.local.store, cognition)
         if carry := continuity.block():
             blocks["continuity"] = carry
+        # Which accounts will actually answer.
+        #
+        # The tools were always there; whether Gmail responds depends on a
+        # connection made in a settings page months ago, and nothing said so.
+        # Six were connected on the owner's machine and the recorded failure is
+        # her telling him he had none. Read from the same 30-second cache the
+        # Connectors page polls, so no turn waits on Composio.
+        if accounts is not None and accounts.available():
+            try:
+                blocks["accounts"] = connected_accounts.describe(accounts.cached_connections())
+            except Exception as exc:  # pragma: no cover - depends on the provider
+                get_logger("gateway").info("could not list connected accounts: %s", exc)
         try:
             from .setup import skills as skills_module
 

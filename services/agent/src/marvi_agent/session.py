@@ -751,12 +751,19 @@ class MarviVoiceAgent(Agent):
                 # forty-nine wait behind `tool_search`, and nothing had ever
                 # told her they were there. A capability she denies is worse
                 # than one she lacks: the user stops asking.
-                + "The tools you can see are the common ones, not all of them. "
-                "Many more -- email, calendar, files, the screen, the browser, "
-                "schedules, accounts -- load only when you go looking. Before "
-                "telling anyone you cannot do something, call tool_search with "
-                "one or two plain words for the thing itself and use what it "
-                "returns. Only say you cannot do it if the search finds nothing. "
+                # The sentence that used to live here -- "the tools you can
+                # see are the common ones, not all of them ... call
+                # tool_search before telling anyone you cannot do something" --
+                # is now added by `TOOL_SEARCH_NOTE` at the end of the session
+                # build, and only when tools are actually deferred.
+                #
+                # It was stated unconditionally, and deferral has been off
+                # since it was measured and reverted. So all sixty-eight tools
+                # shipped with their schemas while the instructions insisted
+                # most were hidden and had to be searched for. Two costs: turns
+                # spent searching for tools already in the request, and a
+                # standing falsehood about her own shape in a persona that
+                # spends most of its length on not saying false things.
                 + (architecture() + " " if architecture() else "")
                 # Measured, not guessed. With thirteen tools in the request and
                 # no rule against it, this model narrates before calling one --
@@ -1255,6 +1262,26 @@ def _recogniser(warmed: dict[str, Any]) -> Any:
     return build_stt()
 
 
+#: What to tell her when most of her tools are not in the request.
+#:
+#: Measured over 95 real turns with deferral on: `tool_search` was called zero
+#: times, and Marvi told the user she had no screenshot tool, could not read a
+#: PDF, could not check email or calendar and had no connected accounts --
+#: `read_screen`, `file_read`, `email_recent`, `calendar_events` and
+#: `accounts_status` all exist. A capability she denies is worse than one she
+#: lacks: the user stops asking.
+#:
+#: Said only when it is true. With deferral off this describes a request that
+#: does not exist.
+TOOL_SEARCH_NOTE = (
+    "The tools you can see are the common ones, not all of them. Many more -- "
+    "email, calendar, files, the screen, the browser, schedules, accounts -- "
+    "load only when you go looking. Before telling anyone you cannot do "
+    "something, call tool_search with one or two plain words for the thing "
+    "itself and use what it returns. Only say you cannot do it if the search "
+    "finds nothing."
+)
+
 #: How long to wait for sound to become words before saying so.
 #:
 #: Longer than a slow final transcript, shorter than the silence a person reads
@@ -1694,6 +1721,9 @@ async def marvi_session(ctx: JobContext) -> None:
     # do across one sweep, because forty-nine of her tools were not in the
     # request in any form.
     blocks = [index] if (index := gateway.catalogue_index()) else []
+    # Only when it is true. See `GatewayTools.defers`.
+    if gateway.defers():
+        blocks.append(TOOL_SEARCH_NOTE)
     if blocks := blocks + await gateway.context_blocks():
         # Awaited. `inspect.signature` reports `-> None` and it is a coroutine
         # function, so checking the signature said "synchronous" and the call

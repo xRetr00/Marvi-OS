@@ -887,6 +887,21 @@ class GatewayTools:
             log.info("%d tools from the Gateway, which names no core set", len(loaded))
         return loaded
 
+    def defers(self) -> bool:
+        """Whether any tool is behind `tool_search` rather than in the request.
+
+        Asked by the persona, which used to state the deferred architecture
+        unconditionally. Deferral has been off since it was measured and
+        reverted -- `MARVI_DEFER_TOOLS` defaults to off -- so all sixty-eight
+        tools ship with their schemas and the instructions went on saying "the
+        tools you can see are the common ones, not all of them" and telling her
+        to search before admitting she cannot do something. Both false. A
+        prompt that misdescribes the request is a prompt the model has to
+        disagree with to be right, and `catalogue_index` already suppresses
+        itself in exactly this case.
+        """
+        return bool(self._catalogue.keys() - self._loaded)
+
     def catalogue_index(self) -> str:
         """Every tool's name, for the instructions. Names only, never schemas.
 

@@ -218,7 +218,14 @@ export function reclaimPort(port: number, match = /marvi_gateway/i): string {
   if (!details || !match.test(`${details.command} ${details.executable}`)) {
     return `port ${port} is held by process ${holder.pid}, which is not a Marvi service`
   }
-  if (isAlive(details.parentPid)) {
+  // The parent, verified rather than merely counted.
+  //
+  // `isAlive(parentPid)` was true of a parent that had exited and whose PID
+  // had been reused, so an abandoned Gateway read as "another running Marvi"
+  // and was left holding the port -- which is how one survived with no desktop
+  // behind it, refusing the Agent its credentials 285 times.
+  const parent = describeProcess(details.parentPid)
+  if (parent) {
     return `port ${port} is held by another running Marvi (process ${holder.pid})`
   }
   return killTree(holder.pid, true)
@@ -226,10 +233,8 @@ export function reclaimPort(port: number, match = /marvi_gateway/i): string {
     : `port ${port} is held by process ${holder.pid} and it could not be stopped`
 }
 
-/** One process's command line, image path and parent, or null. */
-export function describeProcess(
-  pid: number
-): { command: string; executable: string; parentPid: number } | null {
+/** One process's command line, image path, parent and creation time, or null. */
+export function describeProcess(pid: number): ProcessFacts | null {
   if (!isWindows()) return null
   try {
     const output = execFileSync(
@@ -238,7 +243,8 @@ export function describeProcess(
         '-NoProfile',
         '-Command',
         `$p = Get-CimInstance Win32_Process -Filter "ProcessId=${pid}"; ` +
-          'if ($p) { "$($p.ParentProcessId)|$($p.ExecutablePath)|$($p.CommandLine)" }'
+          'if ($p) { $t = $p.CreationDate.ToUniversalTime().ToString("o"); ' +
+          '"$($p.ParentProcessId)|$t|$($p.ExecutablePath)|$($p.CommandLine)" }'
       ],
       { encoding: 'utf8', windowsHide: true, timeout: 10_000 }
     ).trim()
@@ -246,10 +252,58 @@ export function describeProcess(
     const parts = output.split('|')
     return {
       parentPid: Number(parts[0]),
-      executable: parts[1] ?? '',
-      command: parts.slice(2).join('|')
+      startedAt: parts[1] ?? '',
+      executable: parts[2] ?? '',
+      command: parts.slice(3).join('|')
     }
   } catch {
     return null
   }
+}
+
+/**
+ * Whether the process at `pid` is still the one that was recorded there.
+ *
+ * `isAlive` answers "does a process have this number", which is not the same
+ * question and is the one the lifecycle kept asking. Windows recycles PIDs
+ * within minutes on a busy machine, so "the Gateway's parent is alive" was
+ * true of a parent that had exited hours earlier and whose number now belonged
+ * to something unrelated -- and the launch that asked adopted an abandoned
+ * Gateway on the strength of it.
+ *
+ * A process is the same process when the number *and* the creation time match.
+ * The command line is compared too when one was recorded, because the cheapest
+ * way to be sure is to check the thing that is expensive to fake.
+ */
+export function isSameProcess(pid: number | undefined, recorded: ProcessRecord): boolean {
+  if (!pid || pid <= 0 || !isAlive(pid)) return false
+  if (!recorded.startedAt) {
+    // Nothing to compare against: an older record, or a platform where the
+    // creation time could not be read. Falls back to existence, which is what
+    // this replaced -- no worse, and it says so.
+    return true
+  }
+  const facts = describeProcess(pid)
+  if (!facts) return false
+  if (facts.startedAt !== recorded.startedAt) return false
+  if (recorded.command && facts.command && !facts.command.includes(recorded.command)) {
+    return false
+  }
+  return true
+}
+
+export interface ProcessFacts {
+  command: string
+  executable: string
+  parentPid: number
+  /** ISO 8601, UTC. Empty when it could not be read. */
+  startedAt: string
+}
+
+/** Enough to recognise a process again after its PID has been reused. */
+export interface ProcessRecord {
+  pid: number
+  startedAt: string
+  /** A distinctive fragment of the command line, or empty to skip the check. */
+  command?: string
 }

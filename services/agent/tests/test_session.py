@@ -308,14 +308,38 @@ def test_the_persona_says_the_tool_list_is_partial() -> None:
     (`accounts_status`). A capability she denies is worse than one she lacks,
     because the user stops asking.
     """
-    instructions = MarviVoiceAgent().instructions
+    from marvi_agent.session import TOOL_SEARCH_NOTE
 
-    assert "not all of them" in instructions
-    assert "call tool_search" in instructions
+    assert "not all of them" in TOOL_SEARCH_NOTE
+    assert "call tool_search" in TOOL_SEARCH_NOTE
     # The order matters: search first, deny only after.
-    assert instructions.index("Before telling anyone you cannot") < instructions.index(
+    assert TOOL_SEARCH_NOTE.index("Before telling anyone you cannot") < TOOL_SEARCH_NOTE.index(
         "Only say you cannot do it if the search finds nothing"
     )
+
+
+def test_the_partial_list_is_claimed_only_when_it_is_partial() -> None:
+    """And not when every tool is already in the request.
+
+    Deferral has been off since it was measured and reverted, so all
+    sixty-eight tools ship with their schemas -- while the persona went on
+    insisting most were hidden and had to be searched for. Turns were spent
+    searching for tools already present, and a persona that spends most of its
+    length on not saying false things carried a false sentence about its own
+    shape.
+    """
+    from marvi_agent.session import TOOL_SEARCH_NOTE
+    from marvi_agent.tools import GatewayTools
+
+    assert TOOL_SEARCH_NOTE not in MarviVoiceAgent().instructions
+
+    tools = GatewayTools.__new__(GatewayTools)
+    tools._catalogue = {"a": {}, "b": {}, "tool_search": {}}
+    tools._loaded = {"a", "b", "tool_search"}
+    assert tools.defers() is False, "nothing is hidden, so nothing should be claimed"
+
+    tools._loaded = {"a", "tool_search"}
+    assert tools.defers() is True
 
 
 def test_the_persona_tells_her_to_ask_when_the_transcript_is_garbled() -> None:
