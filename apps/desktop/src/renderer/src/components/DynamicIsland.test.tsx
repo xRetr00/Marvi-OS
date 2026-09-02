@@ -22,6 +22,24 @@ describe('DynamicIsland', () => {
 
     expect(html).toContain('island-orb')
     expect(html).toContain('Listening')
+    expect(html).toContain('LISTEN')
+  })
+
+  it('presents a persistent outage as a quiet current state', () => {
+    const html = renderToStaticMarkup(
+      <DynamicIsland
+        state={{
+          ...DEFAULT_ASSISTANT_STATE,
+          phase: 'error',
+          caption: 'Gateway unavailable',
+          detail: 'Retrying locally'
+        }}
+      />
+    )
+
+    expect(html).toContain('OFFLINE')
+    expect(html).toContain('Gateway unavailable')
+    expect(html).toContain('Retrying locally')
   })
 
   const ROOM_EVENT = {
@@ -138,7 +156,7 @@ describe('DynamicIsland', () => {
       />
     )
 
-    expect(html).toContain('ACTION')
+    expect(html).toContain('WORKING')
     expect(html).not.toContain('YOLO')
     expect(html).not.toContain('MIC')
     expect(html).not.toContain('CAM')

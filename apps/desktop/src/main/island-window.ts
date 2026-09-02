@@ -12,7 +12,9 @@ export interface IslandPlacement {
   alignment: IslandAlignment
 }
 
-export const ISLAND_WINDOW_INSET = 12
+// Two pixels are enough to preserve the hairline edge without leaving a
+// noticeable transparent capture stage around the always-on-top surface.
+export const ISLAND_WINDOW_INSET = 2
 export const ISLAND_MIN_CONTENT_SIZE: IslandContentSize = { width: 76, height: 8 }
 export const ISLAND_MAX_CONTENT_SIZE: IslandContentSize = { width: 360, height: 92 }
 

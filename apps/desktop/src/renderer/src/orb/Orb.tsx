@@ -14,6 +14,7 @@ export function Orb({
   level = 0,
   accent = '#147ec1',
   reactive = false,
+  themeRevision,
   className = 'orb'
 }: {
   state: OrbState
@@ -21,6 +22,7 @@ export function Orb({
   level?: number
   accent?: string
   reactive?: boolean
+  themeRevision?: string
   className?: string
 }): React.JSX.Element {
   const ref = useRef<HTMLCanvasElement | null>(null)
@@ -34,8 +36,13 @@ export function Orb({
     levelRef.current = level
   }, [level])
   useEffect(() => {
-    accentRef.current = accent
-  }, [accent])
+    const canvas = ref.current
+    const variable = /^var\((--[^,)]+)/.exec(accent)?.[1]
+    accentRef.current =
+      canvas && variable
+        ? getComputedStyle(canvas).getPropertyValue(variable).trim() || '#147ec1'
+        : accent
+  }, [accent, themeRevision])
   useEffect(() => {
     reactiveRef.current = reactive
   }, [reactive])

@@ -26,22 +26,22 @@ describe('normalizeIslandContentSize', () => {
 })
 
 describe('islandWindowBounds', () => {
-  it('centers the transparent host around only the measured content', () => {
+  it('centers the tightly fitted transparent host around the measured content', () => {
     expect(
       islandWindowBounds({ x: 100, y: 40, width: 1200, height: 800 }, { width: 150, height: 30 })
-    ).toEqual({ x: 613, y: 46, width: 174, height: 54 })
+    ).toEqual({ x: 623, y: 46, width: 154, height: 34 })
   })
 
   it('anchors the recessed seed directly to the work-area edge', () => {
     expect(
       islandWindowBounds({ x: 100, y: 40, width: 1200, height: 800 }, ISLAND_MIN_CONTENT_SIZE)
-    ).toEqual({ x: 650, y: 40, width: 100, height: 32 })
+    ).toEqual({ x: 660, y: 40, width: 80, height: 12 })
   })
 
   it('supports explicit left and right placement', () => {
     const workArea = { x: 100, y: 40, width: 1200, height: 800 }
     const size = { width: 150, height: 30 }
     expect(islandWindowBounds(workArea, size, 6, 'left').x).toBe(118)
-    expect(islandWindowBounds(workArea, size, 6, 'right').x).toBe(1108)
+    expect(islandWindowBounds(workArea, size, 6, 'right').x).toBe(1128)
   })
 })
