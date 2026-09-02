@@ -157,6 +157,13 @@ def test_keyword_and_semantic_are_interleaved_not_concatenated(tmp_path) -> None
     is small and a literal hit is therefore rare. With 147 memories, "what
     computer do I have" matched "Computer Engineering" literally and buried the
     entry naming the actual machine.
+
+    Asked as a *lookup*, because that is where both sides run. On a question
+    the keyword side is suppressed on purpose -- and "what computer do I have"
+    returning "Computer Engineering" is the very example the suppression rule
+    was written from. This test used to ask it as a question and passed only
+    because embeddings are off in tests, so the suppression never triggered:
+    it was asserting that the wrong answer leads, in a test named for the fix.
     """
     store = MemoryStore(tmp_path / "m.db")
     literal = store.remember("computer science", "The user studies Computer Engineering.")
@@ -167,7 +174,7 @@ def test_keyword_and_semantic_are_interleaved_not_concatenated(tmp_path) -> None
         entry for entry in store.recent(limit=50) if entry["id"] == meaning
     ]
 
-    found = [row["id"] for row in store.search("what computer do I have", limit=2)]
+    found = [row["id"] for row in store.search("computer", limit=2)]
 
     assert found == [literal, meaning]
 

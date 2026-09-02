@@ -321,7 +321,7 @@ def test_a_working_embedder_still_suppresses_keyword_on_a_question(
     asked: list[str] = []
     original = MemoryStore._row
 
-    def watch(self, row):  # noqa: ANN001 - mirrors the method being wrapped
+    def watch(self, row):
         asked.append("keyword")
         return original(self, row)
 
