@@ -3,9 +3,12 @@ import { describe, expect, it } from 'vitest'
 
 import {
   DynamicIsland,
+  ISLAND_AUTO_EXPAND_MS,
   ISLAND_ENTER_SECONDS,
   ISLAND_EXIT_SECONDS,
   ISLAND_REDUCED_MOTION_SECONDS,
+  islandHasOrb,
+  islandInteractionMode,
   islandPresentationKey
 } from './DynamicIsland'
 import { DEFAULT_ASSISTANT_STATE } from '../../../shared/runtime'
@@ -18,6 +21,22 @@ describe('DynamicIsland', () => {
     ).toBe('room-event:12')
     expect(ISLAND_EXIT_SECONDS).toBeLessThan(ISLAND_ENTER_SECONDS)
     expect(ISLAND_REDUCED_MOTION_SECONDS).toBeLessThan(ISLAND_EXIT_SECONDS)
+    expect(ISLAND_AUTO_EXPAND_MS).toBe(1800)
+  })
+
+  it('captures hover without focus only for states that have an orb', () => {
+    expect(islandHasOrb(DEFAULT_ASSISTANT_STATE)).toBe(false)
+    expect(islandInteractionMode(DEFAULT_ASSISTANT_STATE)).toBe('passive')
+    expect(
+      islandInteractionMode({
+        ...DEFAULT_ASSISTANT_STATE,
+        phase: 'listening',
+        caption: 'Listening'
+      })
+    ).toBe('hover')
+    expect(
+      islandInteractionMode({ ...DEFAULT_ASSISTANT_STATE, roomEvent: ROOM_EVENT })
+    ).toBe('hover')
   })
 
   it('recesses ready into the line-only seed on the native surface', () => {
@@ -38,6 +57,21 @@ describe('DynamicIsland', () => {
     expect(html).toContain('island-orb')
     expect(html).toContain('Listening')
     expect(html).toContain('LISTEN')
+  })
+
+  it('collapses an orb state to the notch without removing its accessible status', () => {
+    const html = renderToStaticMarkup(
+      <DynamicIsland
+        expanded={false}
+        state={{ ...DEFAULT_ASSISTANT_STATE, phase: 'speaking', caption: 'Speaking' }}
+      />
+    )
+
+    expect(html).toContain('is-collapsed')
+    expect(html).toContain('data-expanded="false"')
+    expect(html).toContain('aria-label="SPEAK: Speaking"')
+    expect(html).toContain('island-orb')
+    expect(html).not.toContain('<strong>Speaking</strong>')
   })
 
   it('presents a persistent outage as a quiet current state', () => {

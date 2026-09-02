@@ -858,7 +858,7 @@ nav {
   gap: 0;
   width: 38px;
   height: 30px;
-  padding: 5px 9px;
+  padding: 4px 8px 5px;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--ui-stroke-primary) 72%, transparent);
   border-top: 0;

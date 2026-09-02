@@ -67,6 +67,7 @@ import {
   ISLAND_EXIT_SECONDS,
   ISLAND_REDUCED_MOTION_SECONDS,
   islandHasOrb,
+  islandInteractionMode,
   islandPresentationKey
 } from './components/DynamicIsland'
 import { VoiceOrb } from './orb'
@@ -6610,6 +6611,7 @@ function IslandSurface(): React.JSX.Element {
   const [autoExpanded, setAutoExpanded] = useState(false)
   const [hoverExpanded, setHoverExpanded] = useState(false)
   const hasOrb = islandHasOrb(voice)
+  const interactionMode = islandInteractionMode(voice)
   const presentationKey = islandPresentationKey(voice)
   const confirmationExpanded = voice.phase === 'confirmation' && Boolean(voice.confirmation)
   const expanded = confirmationExpanded || (hasOrb && (autoExpanded || hoverExpanded))
@@ -6621,10 +6623,8 @@ function IslandSurface(): React.JSX.Element {
   }, [])
 
   useEffect(() => {
-    window.marvi?.setIslandInteraction(
-      confirmationExpanded ? 'interactive' : hasOrb ? 'hover' : 'passive'
-    )
-  }, [confirmationExpanded, hasOrb])
+    window.marvi?.setIslandInteraction(interactionMode)
+  }, [interactionMode])
 
   useEffect(() => {
     setHoverExpanded(false)

@@ -15,6 +15,13 @@ export function islandHasOrb(state: VoiceState): boolean {
   return state.phase !== 'ready' || Boolean(state.roomEvent)
 }
 
+export function islandInteractionMode(
+  state: VoiceState
+): 'passive' | 'hover' | 'interactive' {
+  if (state.phase === 'confirmation' && state.confirmation) return 'interactive'
+  return islandHasOrb(state) ? 'hover' : 'passive'
+}
+
 export function islandPresentationKey(state: VoiceState): string {
   if (state.phase === 'confirmation') {
     return `confirmation:${state.confirmation?.token ?? 'empty'}`
