@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import json
 import queue
+import re
 import threading
 import time
 from typing import Any
@@ -242,6 +243,45 @@ def apply(store: Any, operations: list[dict[str, Any]]) -> dict[str, Any]:
     return done
 
 
+#: Words that carry no fact. The recall side of memory has had this list since
+#: it was measured; the write side never got one.
+ACKNOWLEDGEMENTS = frozenset(
+    {
+        "yeah", "yes", "yep", "yup", "ok", "okay", "sure", "right", "fine", "good",
+        "great", "nice", "cool", "no", "nope", "nah", "not", "really", "thanks",
+        "thank", "you", "cheers", "please", "hmm", "huh", "oh", "ah", "ha", "uh",
+        "um", "mhm", "mm", "go", "ahead", "carry", "on", "continue", "keep",
+        "going", "got", "it", "i", "see", "makes", "sense", "sounds", "exactly",
+        "correct", "true", "and", "so", "then", "well", "but", "just", "now",
+        "still", "also", "very", "bye", "goodbye", "hi", "hello", "hey", "morning",
+        "night", "sorry", "welcome",
+    }
+)
+
+
+def worth_extracting(user: str, assistant: str) -> bool:
+    """Whether this exchange could contain anything to remember.
+
+    The mirror of the Agent's `needs_memory`, which decides whether a turn is
+    worth *searching* memory for. The writing side never had one: every turn
+    with any text at all bought a model call to decide what to remember,
+    including "okay", "thanks" and "yeah, go ahead".
+
+    That is two model calls per turn -- this one and the skill review below it
+    -- on the turns least likely to contain a fact. Off the latency path, since
+    both run on a worker thread, and squarely on the token budget, which is the
+    thing that then runs out and silences the events that mattered.
+
+    Only what the *user* said is examined. What Marvi said back is not a source
+    of facts about the user, and a long helpful answer to "thanks" should not
+    make a bare acknowledgement look substantial.
+    """
+    words = re.findall(r"[\w']+", (user or "").lower())
+    if not words:
+        return False
+    return not all(word in ACKNOWLEDGEMENTS for word in words)
+
+
 def extract(store: Any, client: Any, user: str, assistant: str) -> dict[str, int]:
     """Decide and apply what to remember from one exchange.
 
@@ -249,6 +289,9 @@ def extract(store: Any, client: Any, user: str, assistant: str) -> dict[str, int
     callers use.
     """
     if client is None or not (user.strip() or assistant.strip()):
+        return {"add": 0, "update": 0, "delete": 0, "ignored": 0}
+    if not worth_extracting(user, assistant):
+        log.info("memory: nothing in this turn to write down; not asking a model")
         return {"add": 0, "update": 0, "delete": 0, "ignored": 0}
 
     known = _existing(store, _turn_text(user, assistant))
@@ -406,7 +449,7 @@ class Rememberer:
                     self.noted = list(result.get("noted") or [])[:3]
                 else:
                     self._observe_callback(user, assistant)
-                if self._propose_skills:
+                if self._propose_skills and worth_extracting(user, assistant):
                     self._review_skills(user, assistant)
             except Exception as exc:  # pragma: no cover - the thread must survive
                 log.warning("memory worker recovered from: %s", exc)

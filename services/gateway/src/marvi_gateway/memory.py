@@ -174,8 +174,17 @@ CREATE TABLE IF NOT EXISTS memories (
     trusted   INTEGER NOT NULL DEFAULT 1,
     at        TEXT NOT NULL,
     strength  INTEGER NOT NULL DEFAULT 1,
-    last_used TEXT
+    last_used TEXT,
+    -- Which recurring thing this is an occurrence of, or NULL.
+    --
+    -- Episodic memories deliberately never supersede each other: two moments
+    -- are not a contradiction. That is right, and it is why one yearly
+    -- birthday became twenty-three memories dated 2002 to 2071 -- twenty-three
+    -- renderings of one recurring event, which nothing distinguished from
+    -- twenty-three moments. This is the distinction.
+    series    TEXT
 );
+CREATE INDEX IF NOT EXISTS memories_series ON memories(series) WHERE series IS NOT NULL;
 CREATE TABLE IF NOT EXISTS entities (
     id   INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
@@ -336,6 +345,15 @@ class MemoryStore:
         #: Built on first use, because most stores never need one.
         self._embed: Any = None
         self._db.executescript(SCHEMA)
+        # `CREATE TABLE IF NOT EXISTS` does nothing to a table that already
+        # exists, so a new column has to be added by hand on an existing store.
+        columns = {row["name"] for row in self._db.execute("PRAGMA table_info(memories)")}
+        if "series" not in columns:
+            self._db.execute("ALTER TABLE memories ADD COLUMN series TEXT")
+            self._db.execute(
+                "CREATE INDEX IF NOT EXISTS memories_series ON memories(series)"
+                " WHERE series IS NOT NULL"
+            )
         self._db.commit()
 
     def close(self) -> None:
@@ -350,6 +368,7 @@ class MemoryStore:
         kind: MemoryKind = "episodic",
         source: str = "marvi",
         trusted: bool = True,
+        series: str = "",
     ) -> int:
         """Store a fact, replacing one it corrects rather than sitting beside it.
 
@@ -380,11 +399,19 @@ class MemoryStore:
         if not subject.strip():
             raise ValueError("a memory needs a subject")
         self._refuse_secrets(subject, body)
+        # One memory per recurring series, replaced as occurrences arrive.
+        #
+        # The rule above -- episodic memories never supersede -- is right for
+        # two moments and wrong for two renderings of the same recurring thing.
+        # A series id says which case this is, so a daily standup is one entry
+        # that stays current rather than thirty that pile up.
+        if series and (previous := self._same_series(series)):
+            return self._replace(previous, subject, body, kind, source, trusted, series)
         if kind == "semantic" and (previous := self._supersedes(body, source, trusted)):
             return self._replace(previous, subject, body, kind, source, trusted)
         cursor = self._db.execute(
-            "INSERT INTO memories (kind, subject, body, source, trusted, at)"
-            " VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO memories (kind, subject, body, source, trusted, at, series)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?)",
             (
                 kind,
                 subject.strip()[:200],
@@ -392,6 +419,7 @@ class MemoryStore:
                 source,
                 1 if trusted else 0,
                 datetime.now(UTC).isoformat(),
+                series or None,
             ),
         )
         self._db.commit()
@@ -412,6 +440,14 @@ class MemoryStore:
             },
         )
         return memory_id
+
+    def _same_series(self, series: str) -> int | None:
+        """The existing memory for this recurring series, if there is one."""
+        row = self._db.execute(
+            "SELECT id FROM memories WHERE series = ? ORDER BY id DESC LIMIT 1",
+            (series,),
+        ).fetchone()
+        return int(row["id"]) if row else None
 
     def _supersedes(self, body: str, source: str, trusted: bool) -> int | None:
         """The id of the fact this one corrects, or None if it is new.
@@ -449,7 +485,14 @@ class MemoryStore:
         return None
 
     def _replace(
-        self, memory_id: int, subject: str, body: str, kind: str, source: str, trusted: bool
+        self,
+        memory_id: int,
+        subject: str,
+        body: str,
+        kind: str,
+        source: str,
+        trusted: bool,
+        series: str = "",
     ) -> int:
         """Overwrite a fact in place, keeping its id.
 
@@ -459,7 +502,7 @@ class MemoryStore:
         """
         self._db.execute(
             "UPDATE memories SET kind = ?, subject = ?, body = ?, source = ?,"
-            " trusted = ?, at = ? WHERE id = ?",
+            " trusted = ?, at = ?, series = COALESCE(?, series) WHERE id = ?",
             (
                 kind,
                 subject.strip()[:200],
@@ -467,6 +510,7 @@ class MemoryStore:
                 source,
                 1 if trusted else 0,
                 datetime.now(UTC).isoformat(),
+                series or None,
                 memory_id,
             ),
         )

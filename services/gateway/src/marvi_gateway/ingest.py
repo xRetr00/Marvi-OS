@@ -86,6 +86,12 @@ def _cursor(payload: Any, records: list[dict[str, Any]], *record_paths: str) -> 
     return newest
 
 
+#: A Google Calendar instance id is `<baseEventId>_<YYYYMMDD>`, or
+#: `_<YYYYMMDDTHHMMSSZ>` for a timed occurrence. What precedes it identifies
+#: the series.
+_INSTANCE_SUFFIX = re.compile(r"_\d{8}(T\d{6}Z)?$")
+
+
 @dataclass(frozen=True)
 class MemoryItem:
     provider_id: str
@@ -94,6 +100,18 @@ class MemoryItem:
     entities: tuple[str, ...] = ()
     relation: str = "appears in"
     cursor: str = ""
+    #: What recurring thing this is an occurrence of, or "".
+    #:
+    #: A yearly birthday produced 23 separate episodic memories dated 2002 to
+    #: 2071, because `remember` deliberately never supersedes an episodic
+    #: memory -- two moments are not a contradiction, they are two moments.
+    #: True of two moments; false of twenty-three renderings of one recurring
+    #: event, and nothing distinguished the two cases.
+    #:
+    #: A thirty-day horizon now stops the birthday specifically. It does not
+    #: stop a *daily* standup, which yields thirty occurrences inside that
+    #: window. This is what stops that.
+    series: str = ""
 
     def fingerprint(self) -> str:
         body = f"{self.subject}\0{self.body}".encode("utf-8", errors="replace")
@@ -430,9 +448,13 @@ def _normalise_calendar(row: dict[str, Any]) -> MemoryItem | None:
     when = _text(_pick(row, "start.dateTime", "start.date", "start_time"), 100)
     description = _text(_pick(row, "description", "location") or "", 1_500)
     body = "\n".join(part for part in (f"Starts {when}" if when else "", description) if part)
+    # The series, when this is one occurrence of a recurring event. Google
+    # gives it for free: the instance id is the base id plus a date.
+    base = _INSTANCE_SUFFIX.sub("", str(identifier))
     return MemoryItem(
         f"composio:googlecalendar:{identifier}", f"Event: {summary}", body or summary,
         cursor=_text(_pick(row, "updated", "start.dateTime", "start.date"), 80),
+        series=f"composio:googlecalendar:{base}" if base != str(identifier) else "",
     )
 
 
@@ -763,7 +785,11 @@ class AccountIngest:
         candidates = gatekeeping.worth_keeping(self.cognition, candidates)
         skipped += before - len(candidates)
         for item in candidates:
-            self.memory.remember_external(item.subject, item.body, source=item.provider_id)
+            # The series, so occurrences of one recurring event collapse to one
+            # memory instead of one per occurrence. See `MemoryItem.series`.
+            self.memory.remember_external(
+                item.subject, item.body, source=item.provider_id, series=item.series
+            )
             for entity in item.entities:
                 self.memory.link(
                     entity, item.relation, item.subject, source=item.provider_id, trusted=False

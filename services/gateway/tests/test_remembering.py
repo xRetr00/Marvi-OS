@@ -88,8 +88,14 @@ def test_a_model_can_catch_what_string_matching_cannot(store) -> None:
 
 def test_an_empty_answer_stores_nothing(store) -> None:
     """The right answer most of the time. A store that keeps something from
-    every exchange is a transcript."""
-    done = remembering.extract(store, Model("[]"), "hello", "Hi there.")
+    every exchange is a transcript.
+
+    A substantive turn, because "hello" no longer reaches the model at all --
+    `worth_extracting` refuses a turn made only of acknowledgements and
+    greetings, and this test is about what happens when the model *is* asked
+    and answers with nothing.
+    """
+    done = remembering.extract(store, Model("[]"), "what is the graph UI for", "Hi there.")
 
     assert done == {"add": 0, "update": 0, "delete": 0, "ignored": 0, "noted": []}
     assert store.recent(limit=5) == []
@@ -110,7 +116,9 @@ def test_it_asks_the_memory_role(store) -> None:
     reasoning -- which is what the auxiliary roles are for."""
     model = Model("[]")
 
-    remembering.extract(store, model, "hello", "Hi.")
+    # Substantive, so the turn gets past `worth_extracting` and there is a call
+    # to inspect. A greeting is refused before any model is chosen.
+    remembering.extract(store, model, "my desktop has an RTX 3060", "Hi.")
 
     assert model.calls[0]["job"] == "aux"
 
@@ -277,3 +285,43 @@ def test_what_was_written_is_named_not_counted(tmp_path) -> None:
     )
 
     assert done["noted"] == ["bakery"]
+
+
+def test_an_acknowledgement_does_not_buy_a_model_call() -> None:
+    """Two model calls per turn ran on the turns least likely to hold a fact.
+
+    The Agent's recall side has had `needs_memory` since it was measured -- a
+    turn made only of acknowledgements is not worth searching memory for. The
+    writing side never got the same gate, so "okay", "thanks" and "yeah, go
+    ahead" each bought an extraction call and a skill-review call.
+
+    Off the latency path, both of them, and squarely on the token budget --
+    which is the thing that then runs out and silences the events that mattered.
+    """
+    from marvi_gateway.remembering import worth_extracting
+
+    reply = "Here is a long and genuinely helpful answer about several things."
+    for empty in ("okay", "thanks", "yeah go ahead", "ok cool thanks", "hmm", ""):
+        assert worth_extracting(empty, reply) is False, empty
+    for real in ("I have a PS5 controller", "remember I use VS Code", "what is the weather"):
+        assert worth_extracting(real, reply) is True, real
+
+
+def test_the_gate_reads_the_user_not_the_assistant() -> None:
+    """A long answer to "thanks" must not make "thanks" look substantial."""
+    from marvi_gateway.remembering import worth_extracting
+
+    assert worth_extracting("thanks", "A thousand words about the graph UI.") is False
+    assert worth_extracting("my name is Shereef", "ok") is True
+
+
+def test_extract_returns_without_a_client_call_on_an_empty_turn() -> None:
+    from marvi_gateway.remembering import extract
+
+    class Exploding:
+        def complete(self, *_a, **_k):  # noqa: ANN002, ANN003
+            raise AssertionError("a model was asked about an acknowledgement")
+
+    assert extract(None, Exploding(), "okay", "sure") == {
+        "add": 0, "update": 0, "delete": 0, "ignored": 0
+    }
