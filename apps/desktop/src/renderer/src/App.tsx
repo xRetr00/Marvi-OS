@@ -60,9 +60,7 @@ import { GlyphSpinner } from './components/ui/glyph-spinner'
 import { Picker, type PickerOption } from './components/ui/picker'
 import { ModelPicker } from './components/ui/model-picker'
 import { ConnectingOverlay } from './components/ConnectingOverlay'
-import {
-  DynamicIsland
-} from './components/DynamicIsland'
+import { DynamicIsland } from './components/DynamicIsland'
 import {
   ISLAND_AUTO_EXPAND_MS,
   ISLAND_ENTER_SECONDS,

@@ -436,6 +436,35 @@ def _normalise_calendar(row: dict[str, Any]) -> MemoryItem | None:
     )
 
 
+#: How far ahead the calendar is worth reading, and how far back.
+#:
+#: Thirty days forward is "what is coming up". One day back catches something
+#: that started this morning and is still worth knowing about, without
+#: re-ingesting history on every fresh sync.
+CALENDAR_DAYS_AHEAD = 30
+CALENDAR_DAYS_BEHIND = 1
+
+
+def _calendar_floor(cursor: str) -> str:
+    """Where to start reading: the sync cursor, or a day ago on a fresh sync."""
+    if _is_timestamp(cursor):
+        return cursor
+    from datetime import UTC, datetime, timedelta
+
+    return (
+        datetime.now(UTC) - timedelta(days=CALENDAR_DAYS_BEHIND)
+    ).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _calendar_ceiling() -> str:
+    """The horizon. Always sent, cursor or not -- it is what stops the walk."""
+    from datetime import UTC, datetime, timedelta
+
+    return (
+        datetime.now(UTC) + timedelta(days=CALENDAR_DAYS_AHEAD)
+    ).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def _normalise_slack(row: dict[str, Any]) -> MemoryItem | None:
     identifier = _pick(row, "client_msg_id", "ts", "id")
     if not identifier:
@@ -534,7 +563,23 @@ def default_registry() -> MemoryProviderRegistry:
                 lambda cursor: {
                     "calendarId": "primary", "maxResults": MAX_PER_POLL, "singleEvents": True,
                     "orderBy": "startTime",
-                    **({"timeMin": cursor} if _is_timestamp(cursor) else {}),
+                    # Bounded at both ends, and `timeMax` is the one that
+                    # matters.
+                    #
+                    # `singleEvents` expands a recurring event into one item
+                    # per occurrence -- which is what makes "what is on this
+                    # week" answerable, and what made a yearly birthday walk
+                    # forward forever. With no upper bound it ingested 23
+                    # instances of the same event, dated 13 August 2002 through
+                    # 13 August 2071, journalled every one as news and wrote 25
+                    # of them into memory as episodic facts. It also spent the
+                    # mind's daily token budget, which then silenced the
+                    # calendar events that were real.
+                    #
+                    # An assistant is interested in the near future. Anything
+                    # past the horizon is not a thing to be told about now.
+                    "timeMin": _calendar_floor(cursor),
+                    "timeMax": _calendar_ceiling(),
                     **({"pageToken": cursor} if cursor and not _is_timestamp(cursor) else {}),
                 },
                 ("items", "events"), ("updated", "start.dateTime", "start.date"),

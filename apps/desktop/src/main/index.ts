@@ -2568,7 +2568,9 @@ function startApp(): void {
         })
         if (!response.ok) return null
         const body = (await response.json()) as Record<string, never>
-        const rows = Array.isArray(body.engines) ? (body.engines as Array<Record<string, never>>) : []
+        const rows = Array.isArray(body.engines)
+          ? (body.engines as Array<Record<string, never>>)
+          : []
         return {
           setting: String(body.setting ?? ''),
           selected: String(body.selected ?? ''),

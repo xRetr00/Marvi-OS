@@ -29,7 +29,10 @@ const page: RecogniserPage = {
 describe('recogniser selection', () => {
   const getRecognisers = vi.fn(async () => page)
   const setProviderSettings = vi.fn(
-    async (_values: Record<string, string>): Promise<ProviderPage | null> => ({}) as ProviderPage
+    async (values: Record<string, string>): Promise<ProviderPage | null> => {
+      void values
+      return {} as ProviderPage
+    }
   )
 
   beforeEach(() => {
