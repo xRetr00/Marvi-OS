@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextlib
 import json
 import os
 import socket
@@ -42,6 +43,7 @@ from . import (
     toolsearch,
     upgrade,
     voiceactivity,
+    worldnow,
 )
 from . import (
     connected as connected_accounts,
@@ -2193,6 +2195,22 @@ def create_app(
         runtime_store.audit("schedule", action, {"id": schedule_id})
         return schedule_page()
 
+    @app.get("/schedules/tokens")
+    async def schedule_tokens(days: int = 7) -> dict[str, Any]:
+        """What the user's cron jobs have spent. A calculator, not a budget.
+
+        Every run already recorded its provider, model and token count and
+        nothing ever added them up, so "what do my cron jobs cost" had no
+        answer short of reading the table by hand. These jobs are the user's
+        own automation; counting is Marvi's business and capping is not.
+
+        Declared before `/schedules/{schedule_id}` so "tokens" is not parsed
+        as an id.
+        """
+        if scheduler is None:
+            return {"days": days, "runs": 0, "tokens": 0, "jobs": []}
+        return scheduler.store.token_report(days=max(1, min(days, 90)))
+
     @app.get("/schedules/{schedule_id}", response_model=ScheduleRow)
     async def read_schedule(schedule_id: int) -> ScheduleRow:
         if scheduler is None:
@@ -2882,6 +2900,24 @@ def create_app(
             standing.ensure(memory.local.store, cognition)
         if carry := continuity.block():
             blocks["continuity"] = carry
+        # What is true right now: the room, the desktop, and what they have
+        # been doing today.
+        #
+        # The Mind read all of this to decide whether to interrupt, and Marvi
+        # -- the one actually talking -- read none of it. The pieces reached
+        # her by separate paths when they reached her at all, so the same
+        # question got a different answer depending on which tool the model
+        # happened to think of. Composed from what the Gateway already holds,
+        # so no spoken turn waits on a sensor.
+        with contextlib.suppress(Exception):
+            snapshot = sidecar.snapshot() if sidecar is not None else None
+            seeing = activity.world_context() if activity.available() else None
+            if world := worldnow.describe(
+                snapshot,
+                seeing,
+                recent_apps=activity.used_today() if activity.available() else None,
+            ):
+                blocks["world"] = world
         # Which accounts will actually answer.
         #
         # The tools were always there; whether Gmail responds depends on a

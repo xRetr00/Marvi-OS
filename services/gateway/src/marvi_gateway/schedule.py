@@ -401,6 +401,51 @@ class ScheduleStore:
                 self._db.execute("UPDATE schedules SET enabled=0, next_run=NULL WHERE id=?", (schedule_id,))
             self._db.commit()
 
+    def token_report(self, days: int = 7) -> dict[str, Any]:
+        """What the user's own cron jobs have spent. Counting only.
+
+        Deliberately not a budget. These jobs are written by the user, for the
+        user, and a ceiling Marvi enforces on somebody's own automation is
+        Marvi deciding how much their work is worth. The mind's budget exists
+        because the mind spends on its own initiative; this does not.
+
+        What was missing is arithmetic. Every run already records its provider,
+        model and token count -- nothing added them up, so "what do my cron jobs
+        cost" had no answer short of reading the table by hand.
+        """
+        since = (datetime.now(UTC) - timedelta(days=max(1, days))).isoformat()
+        rows = self._db.execute(
+            """SELECT e.schedule_id, s.name, e.provider, e.model,
+                      COUNT(*) AS runs, COALESCE(SUM(e.tokens), 0) AS tokens
+                 FROM schedule_executions e
+                 LEFT JOIN schedules s ON s.id = e.schedule_id
+                WHERE e.claimed_at >= ?
+                GROUP BY e.schedule_id, e.provider, e.model
+                ORDER BY tokens DESC""",
+            (since,),
+        ).fetchall()
+        jobs = [
+            {
+                "schedule_id": row["schedule_id"],
+                "name": row["name"] or f"schedule {row['schedule_id']}",
+                "provider": row["provider"] or "unknown",
+                "model": row["model"] or "unknown",
+                "runs": int(row["runs"]),
+                "tokens": int(row["tokens"]),
+            }
+            for row in rows
+        ]
+        total = sum(job["tokens"] for job in jobs)
+        runs = sum(job["runs"] for job in jobs)
+        return {
+            "days": max(1, days),
+            "runs": runs,
+            "tokens": total,
+            "tokens_per_run": round(total / runs, 1) if runs else 0.0,
+            "tokens_per_day": round(total / max(1, days), 1),
+            "jobs": jobs,
+        }
+
     def executions(self, schedule_id: int, limit: int = 20) -> list[dict[str, Any]]:
         self.get(schedule_id)
         with self._lock:
