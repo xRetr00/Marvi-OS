@@ -127,6 +127,54 @@ class ActivityWatch:
             return (datetime.now(UTC) - seen).total_seconds() > IDLE_AFTER_SECONDS
         return None
 
+    def today(self, limit: int = 400) -> list[dict[str, Any]]:
+        """Which applications were used today, longest first.
+
+        The adapter could only ever answer "what is in front of you right
+        now" -- one window, this instant. That is enough to decide whether to
+        interrupt and useless for "what have I been doing today", which is the
+        question a person actually asks an assistant.
+
+        Durations are summed per application from the window bucket, so a
+        morning spent moving between two editors reads as two applications with
+        real minutes against them rather than as whichever one happened to be
+        focused when the question was asked.
+
+        Titles are deliberately dropped. A window title is set by the
+        application and a browser tab's by the page -- untrusted text, and the
+        application name is the part that answers the question.
+        """
+        from collections import defaultdict
+        from datetime import UTC, datetime
+
+        events = self._latest("currentwindow", limit=max(1, min(limit, 2000)))
+        if not events:
+            return []
+        start = datetime.now(UTC).astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
+        seconds: dict[str, float] = defaultdict(float)
+        for event in events:
+            stamp = str(event.get("timestamp") or "")
+            try:
+                when = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            if when.astimezone() < start:
+                continue
+            app = str((event.get("data") or {}).get("app") or "").strip()
+            if not app:
+                continue
+            seconds[app] += float(event.get("duration") or 0.0)
+        ranked = sorted(seconds.items(), key=lambda pair: -pair[1])
+        return [
+            {"app": app, "seconds": round(total, 1), "minutes": round(total / 60.0, 1)}
+            for app, total in ranked
+            if total > 0
+        ]
+
+    def used_today(self, most: int = 5) -> list[str]:
+        """Just the names, for the prompt. Longest-used first."""
+        return [row["app"] for row in self.today()[:most]]
+
     def world_context(self) -> dict[str, Any]:
         """A compact picture of what the machine's user is doing right now."""
         window = self.current_window()
@@ -157,6 +205,15 @@ def register_activity_tools(registry, activity: ActivityWatch) -> None:
         # page can write whatever it likes here. Treat it as external content.
         return wrap_external("activitywatch", context).model_dump()
 
+    def activity_today(_arguments: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Which applications were used today, longest first.
+
+        Application names only, and they come from the window manager rather
+        than from any page, so unlike a window title this is not text somebody
+        else chose. Wrapped anyway, because it still originates outside Marvi.
+        """
+        return wrap_external("activitywatch", {"apps": activity.today()}).model_dump()
+
     registry.register(
         ToolSpec(
             name="activity_now",
@@ -164,5 +221,14 @@ def register_activity_tools(registry, activity: ActivityWatch) -> None:
             arguments={},
             sensitive=False,
             handler=activity_now,
+        )
+    )
+    registry.register(
+        ToolSpec(
+            name="activity_today",
+            description="Which apps the user has spent time in today, longest first",
+            arguments={},
+            sensitive=False,
+            handler=activity_today,
         )
     )

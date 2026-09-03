@@ -19,9 +19,10 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from . import salience
 from .journal import EventJournal
 from .policy import InitiativeSettings, Verdict, WorldState, day_start, evaluate
 
@@ -32,6 +33,15 @@ MAX_EVENTS_PER_TURN = 10
 
 #: The quietest visible surface. Nothing below this is worth a model call.
 QUIETEST_VISIBLE = "activity"
+
+
+def _cap_to_activity(surface: str) -> str:
+    """The loudest a repetitive event may be: seen, never announced."""
+    from .policy import SURFACES
+
+    if SURFACES.index(surface) <= SURFACES.index(QUIETEST_VISIBLE):
+        return surface
+    return QUIETEST_VISIBLE
 
 
 def _worth_thinking_about(verdict: Any) -> bool:
@@ -145,8 +155,25 @@ class Mind:
                 base,
                 last_surfaced=self.journal.last_surfaced(event["source"], event["kind"]),
             )
-            verdict = evaluate(
-                event, world, self.settings, wanted=self._wanted_surface(event)
+            wanted = self._wanted_surface(event)
+            verdict = evaluate(event, world, self.settings, wanted=wanted)
+            # How much this is worth, before anything is paid to find out.
+            #
+            # The first stage of the Amygdala in PLAN.md: deterministic
+            # salience ahead of any optional model judgement. Repetition is the
+            # whole signal -- a sensor that has flipped forty times this hour is
+            # not news the forty-first time -- and nothing here reads the
+            # event's text, so wording cannot argue its way past it.
+            from .policy import SURFACES
+
+            worth = salience.assess(
+                self.journal.seen_recently(
+                    event["source"],
+                    event["kind"],
+                    moment - timedelta(seconds=salience.WINDOW_SECONDS),
+                )
+                - 1,
+                urgent=SURFACES.index(wanted) >= SURFACES.index("speak"),
             )
             logger.info(
                 "mind policy evaluated event",
@@ -156,6 +183,8 @@ class Mind:
                     "marvi_kind": event["kind"],
                     "marvi_trusted": event["trusted"],
                     "marvi_rule": verdict.rule,
+                    "marvi_salience": round(worth.score, 3),
+                    "marvi_repeats": worth.repeats,
                     "marvi_surface_ceiling": verdict.surface,
                     "marvi_llm_eligible": bool(
                         self.deliberate is not None and verdict.allow and verdict.surface != "silent"
@@ -167,7 +196,18 @@ class Mind:
             # `detail` is diagnostic text about the rule. What Marvi would
             # actually say is separate, and only deliberation can phrase it.
             sentence = event["summary"]
-            if self.deliberate is not None and verdict.allow and _worth_thinking_about(verdict):
+            if not worth.worth_a_model and verdict.surface != "silent":
+                # Recorded, inspectable, and not thought about. The event still
+                # reaches the journal and the activity feed; what it stops
+                # buying is a model call to confirm what arithmetic already
+                # said.
+                surface, detail = _cap_to_activity(verdict.surface), worth.reason
+            if (
+                self.deliberate is not None
+                and verdict.allow
+                and worth.worth_a_model
+                and _worth_thinking_about(verdict)
+            ):
                 # An LLM may only make a decision quieter, never louder: the
                 # policy ceiling is not something a model gets to argue with.
                 proposed, proposed_detail, tokens = self.deliberate(event, verdict)

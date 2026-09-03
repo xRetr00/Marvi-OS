@@ -224,6 +224,21 @@ class EventJournal:
         ).fetchone()
         return int(row["total"])
 
+    def seen_recently(self, source: str, kind: str, since: datetime) -> int:
+        """How many events of this source and kind arrived since `since`.
+
+        The input to salience. Counting `(source, kind)` rather than the
+        fingerprint on purpose: the journal already collapses byte-identical
+        events, and the flood that cost 911,280 tokens was *near*-identical --
+        "Awake", "Sleep state changed", "Awake" — one sensor with a different
+        sentence each time.
+        """
+        row = self._db.execute(
+            "SELECT COUNT(*) n FROM events WHERE source = ? AND kind = ? AND at >= ?",
+            (source, kind, since.isoformat()),
+        ).fetchone()
+        return int(row["n"])
+
     def last_surfaced(self, source: str, kind: str) -> datetime | None:
         """When Marvi last actually surfaced something for this source/kind."""
         row = self._db.execute(
