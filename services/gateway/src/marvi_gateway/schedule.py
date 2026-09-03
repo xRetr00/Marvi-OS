@@ -25,8 +25,8 @@ from .logs import get_logger
 log = get_logger("schedule")
 ACTIONS = {
     "remind": "Add a reminder to Marvi's trusted event journal",
-    "check_accounts": "Pull new connected-account items into ARC",
-    "reflect": "Run ARC reflection",
+    "check_accounts": "Pull new connected-account items into Marvi Cortex",
+    "reflect": "Run Marvi Cortex reflection",
 }
 MINIMUM_INTERVAL_MINUTES = 5
 MAX_SCHEDULES = 200

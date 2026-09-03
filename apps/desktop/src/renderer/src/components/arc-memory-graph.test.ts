@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { MemoryGraphPage } from '../../../shared/runtime'
 import { memoryNodeColor, memoryNodeRadius, seedMemoryGraph } from './arc-memory-layout'
 
-describe('ARC memory graph layout', () => {
+describe('Marvi Cortex memory graph layout', () => {
   it('gives d3-force a deterministic, non-overlapping seed', () => {
     const graph: MemoryGraphPage = {
       mode: 'tree',

@@ -101,7 +101,7 @@ Exit criteria:
 
 Implemented extension: built-in Composio Connect lifecycle, dynamic scoped tool
 broker, six native memory providers with per-connection cursor/health state,
-and realtime/signed-webhook trigger ingestion into ARC.
+and realtime/signed-webhook trigger ingestion into Marvi Cortex.
 
 Exit criteria:
 
@@ -119,6 +119,38 @@ Exit criteria:
 2. Encode the proactivity contract as ordered, named rules.
 3. Decide the least intrusive useful surface and record why.
 4. Speak proactively without borrowing the full-duplex streaming stack.
+
+Implemented behavior in this phase is branded **Marvi Cortex**. Existing
+`/arc/...` routes and `arc:*` durable graph identifiers remain compatibility
+contracts until a separately tested migration is justified.
+
+### Future Cortex extension — Amygdala
+
+Amygdala is planned, not implemented. It will add bounded salience, urgency,
+and emotional-weight metadata to events without becoming a second agent or an
+unreviewable mood simulation.
+
+1. Define a small typed salience record with source evidence, confidence,
+   urgency, decay, and reason codes; never infer protected or clinical traits.
+2. Compute deterministic safety/urgency signals before any optional model
+   judgement, and treat external content as untrusted data rather than policy.
+3. Feed the score into Thalamus routing and Executive Cortex prioritization;
+   keep Confirm/YOLO, tool validation, and audit authority unchanged.
+4. Bound decay, repetition amplification, interruption rate, and quiet-hours
+   behavior so emotionally worded external content cannot monopolize attention.
+5. Expose a content-minimized explanation in diagnostics and allow the user to
+   disable learned weighting while preserving explicit alarms and safety rules.
+6. Ship behavior tests for ordinary events, urgent events, adversarial external
+   content, decay/cooldown, explanation output, and workflow transitions.
+
+Exit criteria:
+
+- Amygdala cannot execute tools or bypass Cortex policy;
+- the same event produces a stable deterministic baseline;
+- untrusted instructions cannot raise authority through emotional wording;
+- urgency improves prioritization without breaking quiet hours or interruption
+  limits;
+- every influence on a decision is inspectable without logging private content.
 
 ## Phase 7 — first Windows release
 
@@ -146,7 +178,7 @@ The durable job bridge to Marvi Agent was dropped from this phase; see
    windows cannot be compared and mostly cannot be read back. Credit and window
    limits are displayed, not used for control.
 4. `SOUL.md` and `USER.md`, composed into the prompt under a token budget.
-5. Every background cognition call declares `job="aux"`: ARC mind/presence use
+5. Every background cognition call declares `job="aux"`: Cortex mind/presence use
    the `mind` role, reflection uses `memory`, and Auto resolves to the active
    provider's auxiliary default rather than its main conversation model.
 
@@ -165,7 +197,7 @@ Full plan and research in `phases/09-providers-identity.md`.
    or yours to do. The line: anything that spends money, takes real time,
    downloads at scale, or touches another process is a decision, not a repair.
 4. Retry is bounded, jittered, and never applied to an external write.
-5. ARC/provider diagnostics correlate jobs and calls with route, model, timing,
+5. Cortex/provider diagnostics correlate jobs and calls with route, model, timing,
    usage, counts, and outcome while excluding prompts, completions, memory
    bodies, and account payloads.
 

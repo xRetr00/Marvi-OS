@@ -165,7 +165,7 @@
       "name": "pocket-tts",
       "kind": "command",
       "title": "PocketTTS announcer",
-      "why": "Lets ARC, Room welcomes, and Chat Read Aloud speak without opening Voice chat.",
+      "why": "Lets Marvi Cortex, Room welcomes, and Chat Read Aloud speak without opening Voice chat.",
       "needed_for": [
         "announce"
       ],

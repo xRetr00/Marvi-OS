@@ -21,7 +21,7 @@ Where to look when something is wrong, and what guarantees the files make.
 doing"; `errors.log` answers "what went wrong", which is the question anyone
 actually has. It is usually the only file needed.
 
-ARC diagnostics are correlation-friendly and content-free. Provider calls log
+Cortex diagnostics are correlation-friendly and content-free. Provider calls log
 a call ID, job (`aux` for cognition), provider, model, message/tool counts,
 input character count, latency, token usage, fallback attempts, and outcome.
 Mind and scheduler records add stable event/job identifiers, policy rule,

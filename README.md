@@ -105,14 +105,14 @@ Current implemented desktop surfaces:
   entries retain an untrusted boundary and provider stores are never merged;
 - a knowledge graph, recall-based reinforcement, reflection that promotes
   repeated episodes into durable facts, and a consolidation pass that forgets
-  only what was never useful, presented as ARC with an Obsidian-style PixiJS +
+  only what was never useful, presented as **Marvi Cortex** with an Obsidian-style PixiJS +
   d3-force local memory graph, provenance tree, explicit-connection view, and
   shared Chat/Voice `memory_recall` tool; every LLM-assisted mind/reflection
   call uses its Models → Auxiliary role with content-free route/latency/usage
   diagnostics;
 - native Gmail, Google Calendar, Slack, Notion, GitHub, and Google Drive memory
   providers with per-connection cursors, content-aware deduplication, visible
-  sync health, manual sync, and realtime Composio triggers entering ARC as
+  sync health, manual sync, and realtime Composio triggers entering Marvi Cortex as
   untrusted events without blocking the voice path;
 - a content-free, durable usage ledger shared by Chat, Voice, background work,
   and local models, with daily and hourly UTC activity matrices across Year,

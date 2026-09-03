@@ -226,7 +226,7 @@ import { $voiceLink, sayAsUser, startVoice, stopVoice } from './store/voice-sess
 const NAV_GROUPS = [
   { label: 'Core', items: ['Overview', 'Voice', 'Chat'] },
   { label: 'Context', items: ['Vision', 'Room', 'Activity'] },
-  { label: 'ARC', items: ['Identity', 'Graph', 'Mind'] },
+  { label: 'Cortex', items: ['Identity', 'Graph', 'Mind'] },
   { label: 'Capabilities', items: ['Skills', 'Connectors', 'MCP', 'Plugins'] }
 ] as const
 
@@ -1970,8 +1970,8 @@ function MindPanel(): React.JSX.Element {
 
   return (
     <ControlPage
-      description="ARC's observe → reflect → commit cycle and the reasoning record behind every autonomous decision."
-      title="ARC Mind"
+      description="Marvi Cortex's observe → reflect → commit cycle and the reasoning record behind every autonomous decision."
+      title="Marvi Cortex Mind"
     >
       <ControlSection
         action={
@@ -1989,7 +1989,7 @@ function MindPanel(): React.JSX.Element {
               {status?.paused ? 'Paused' : 'Active'}
             </ControlPill>
           }
-          title="ARC cycle"
+          title="Cortex cycle"
         />
         <ControlRow
           action={
@@ -2358,8 +2358,8 @@ function MemoryPanel(): React.JSX.Element {
 
   return (
     <ControlPage
-      description="ARC turns observations into durable context, then keeps every source and relationship inspectable."
-      title="ARC Memory"
+      description="Marvi Cortex turns observations into durable context, then keeps every source and relationship inspectable."
+      title="Marvi Cortex Memory"
     >
       <div className="arc-memory-workspace">
         <div className="arc-memory-toolbar">
@@ -4307,7 +4307,7 @@ function SchedulesPanel(): React.JSX.Element {
               value={mode}
               onChange={(event) => setMode(event.target.value as 'action' | 'agent')}
             >
-              <option value="action">Reminder / ARC action</option>
+              <option value="action">Reminder / Cortex action</option>
               <option value="agent">Agent task with tools</option>
             </select>
           </label>

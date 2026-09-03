@@ -77,10 +77,12 @@ Marvi Gateway is the only backend address known to the renderer. It owns:
 - memory access;
 - update/status information.
 
-### ARC: memory, mind, and subconscious cycle
+### Marvi Cortex: memory, mind, and subconscious cycle
 
-ARC is the product name for Marvi's existing Gateway-owned cognition boundary,
-not another agent process. It has three stages:
+Marvi Cortex is the product name for Marvi's existing Gateway-owned cognition
+boundary, not another agent process. `ARC` remains only as a compatibility name
+in existing route paths, durable graph identifiers, and historical records. It
+has three stages:
 
 1. **Observe** — trusted and untrusted events enter the durable journal with
    provenance; memories remain episodic or semantic in the local SQLite store.
@@ -90,14 +92,36 @@ not another agent process. It has three stages:
    written by the Gateway. Tool side effects still pass through confirmation
    or the visible YOLO mode.
 
-The initiative scheduler is ARC's subconscious loop: bounded ingest, mind,
+The initiative scheduler is Marvi Cortex's subconscious loop: bounded ingest, mind,
 reflection, and consolidation jobs. An idle tick is a no-op, failures remain
 visible, and no cognition runs in React. The control center reads a projection
 from `/arc/memory/graph`; it never receives a SQLite handle or mutation
 authority. Tree mode groups memories by provenance, while Connections mode
 shows explicit entity relationships.
 
-Every LLM-assisted ARC operation is an auxiliary job. Mind deliberation and
+The Cortex vocabulary names responsibilities, not extra processes or permission
+boundaries:
+
+| Cortex region | Responsibility | Current authority/status |
+| --- | --- | --- |
+| **Thalamus** | Sensory and event routing | Gateway journal, ingest, connector triggers, and Smart Room event boundary |
+| **Hippocampus** | Episodic memory formation | Gateway memory runtime and selected durable memory provider |
+| **Amygdala** | Salience, urgency, and emotional weight | **Future work; not implemented or used for decisions today** |
+| **Executive Cortex** | Planning, inhibition, and decisions | Gateway mind and ordered proactivity policy |
+| **Basal Ganglia** | Action and tool selection | Audited Gateway tool registry and Confirm/YOLO execution boundary |
+| **Broca** | Response formulation and speech planning | Conversation/voice response pipeline; realtime playout remains LiveKit-owned |
+| **Wernicke** | Language understanding | STT transcript and model-input preparation; inference remains engine/provider-owned |
+| **RAS** | Wakefulness, attention, and readiness | Local wake word, presence facts, and session-readiness state |
+| **Hypothalamus** | Internal state, budgets, cooldowns, and drives | Gateway initiative policy and usage/budget state |
+| **Cerebellum** | Execution smoothing, timing, and routines | Gateway scheduling plus LiveKit-owned turn/interruption timing |
+| **Marvi's DMN** | Marvi identity and user identity | `SOUL.md`, `USER.md`, and the shared identity composer |
+| **Marvi World** | Room, activity, accounts, and conversation state | Gateway-owned bounded world/context projection |
+
+These names may appear in UI explanations and diagnostics, but ownership stays
+with the architecture authorities above. In particular, Cortex does not move
+media inference, RTC lifecycle, room drivers, or tool policy into React.
+
+Every LLM-assisted Marvi Cortex operation is an auxiliary job. Mind deliberation and
 presence judgement use the `mind` role; scheduled and manual reflection use the
 `memory` role. A role pinned in Models → Auxiliary selects that provider/model;
 Auto uses the active provider's `default_aux_model`. Deterministic memory
@@ -108,7 +132,7 @@ fixed read-only subset of the existing registry (`memory_recall`, graph
 neighbours, web search/extract, workspace list/read, and Mind diagnostics).
 Skills, commands, writes, account actions, dynamic external tools, and
 confirmation bypasses are absent; the loop is capped at three model rounds.
-Provider calls and ARC jobs record route, model, timing, usage, outcome, and
+Provider calls and Cortex jobs record route, model, timing, usage, outcome, and
 stable event/call identifiers in the rotating subsystem logs without recording
 prompts, completions, memory bodies, or external account payloads.
 
@@ -134,7 +158,7 @@ embedding, and consolidation. Honcho receives user and assistant messages as
 separate peer-attributed messages and recall uses session context (summary,
 representation, and peer card). Mem0 receives the same two-role message list
 and is pinned to 1.0.11 because current 2.x extraction is ADD-only. The local
-ARC reflection/dreamer jobs become no-ops while an external provider is active,
+Cortex reflection/dreamer jobs become no-ops while an external provider is active,
 so there is no shadow store or merged answer.
 
 It does not implement RTC, STT, TTS, home automation, OAuth providers, or model
@@ -142,11 +166,11 @@ inference itself.
 
 ### User cron jobs
 
-User schedules are separate from ARC's fixed internal ticks. Their durable
+User schedules are separate from Marvi Cortex's fixed internal ticks. Their durable
 SQLite records belong to Marvi Gateway; APScheduler is only the replaceable
 clock rebuilt from those records. Jobs accept one-shot durations/timestamps,
 recurring intervals, and five-field cron expressions. A fixed action job can
-write a reminder or invoke an existing ARC operation. An agent job runs a
+write a reminder or invoke an existing Cortex operation. An agent job runs a
 self-contained prompt through ProviderClient with optional per-job provider,
 model, reasoning effort, and an exact ToolRegistry allowlist. It has no Chat
 transcript and no private action path.

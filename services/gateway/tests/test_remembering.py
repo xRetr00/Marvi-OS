@@ -319,7 +319,7 @@ def test_extract_returns_without_a_client_call_on_an_empty_turn() -> None:
     from marvi_gateway.remembering import extract
 
     class Exploding:
-        def complete(self, *_a, **_k):  # noqa: ANN002, ANN003
+        def complete(self, *_a, **_k):
             raise AssertionError("a model was asked about an acknowledgement")
 
     assert extract(None, Exploding(), "okay", "sure") == {

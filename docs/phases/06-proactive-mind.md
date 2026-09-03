@@ -21,9 +21,9 @@ Vision moved to [`08-vision.md`](08-vision.md); this phase is cognition only.
 ## Implemented — the REAL-AGENCY mind
 
 These Gateway-owned memory, mind, and initiative boundaries are presented to
-the product as **ARC**. ARC's subconscious cycle is observe → reflect → commit;
+the product as **Marvi Cortex**. Cortex's subconscious cycle is observe → reflect → commit;
 it does not introduce a second runtime or weaken the policy/confirmation
-boundary. The Memory control-center page now exposes the read-only ARC graph
+boundary. The Memory control-center page now exposes the read-only Cortex graph
 projection with tree and explicit-connection modes.
 
 - `marvi_gateway.journal`: a durable event journal. Room transitions, account
@@ -57,7 +57,7 @@ projection with tree and explicit-connection modes.
   subconscious journal through that ingest tick. Chat performs bounded
   automatic recall; Chat and Voice also share the canonical read-only
   `memory_recall` Gateway tool (`memory_search` remains an alias).
-- The ARC graph is rendered with PixiJS WebGL and d3-force, using the pinned MIT
+- The Cortex graph is rendered with PixiJS WebGL and d3-force, using the pinned MIT
   Advanced Graph View as the architecture reference. Dragging a node reheats
   the actual force simulation so linked nodes respond instead of moving as a
   disconnected SVG decoration.

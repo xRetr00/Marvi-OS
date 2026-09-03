@@ -410,7 +410,7 @@ atomically swaps it into place; updates follow the same tag with rollback.
 **Decision:** Marvi uses the official Composio SDK and hosted Connect Links for
 provider OAuth. Gateway owns the project-key setup, connection lifecycle,
 per-toolkit read/write/admin ceiling, dynamic tool broker, provider sync state,
-and trigger-to-ARC boundary. Provider OAuth tokens remain in Composio. The LLM
+and trigger-to-Cortex boundary. Provider OAuth tokens remain in Composio. The LLM
 receives two stable discovery/execution tools instead of the full remote
 catalog; every execution re-resolves its schema and capability class.
 
@@ -425,9 +425,9 @@ upstream, while user authority, confirmation, audit, provenance, and durable
 memory are Marvi product policy. Keeping that seam in Gateway prevents React,
 voice workers, or external content from becoming a second execution authority.
 
-## ADR-025 — ARC cognition is auxiliary and observability is content-free
+## ADR-025 — Cortex cognition is auxiliary and observability is content-free
 
-**Decision:** Every LLM call made for ARC's mind, presence judgement, memory
+**Decision:** Every LLM call made for Cortex's mind, presence judgement, memory
 reflection, or subconscious schedule declares `job="aux"` and a named Models →
 Auxiliary role. A configured role pins its provider/model; Auto uses the active
 provider's `default_aux_model`. Deterministic ingest, recall, graph projection,
@@ -445,7 +445,7 @@ that evidence without turning diagnostic files into a second memory database.
 
 **Decision:** Gateway exposes a five-method `MemoryProvider` seam and selects
 exactly one of the local SQLite store, Mem0, or Honcho. Provider-owned semantic
-retrieval stays below that seam. The local ARC reflection/dreamer is disabled
+retrieval stays below that seam. The local Cortex reflection/dreamer is disabled
 when an external provider owns consolidation. `USER.md` remains authoritative
 over Honcho's derived peer card. Mem0 is pinned to 1.0.11; upgrading to its
 ADD-only 2.x algorithm requires passing the correction acceptance case first.

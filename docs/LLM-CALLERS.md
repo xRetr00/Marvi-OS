@@ -11,9 +11,9 @@ Traced from the code, not from memory.
 | Consumer | How it reaches a provider | Through `ProviderClient`? | What identity it sends |
 |---|---|---|---|
 | **Chat** (`chat.py`) | `ProviderClient.call_with_fallback()` | **Yes** | `identity.compose()` — SOUL.md, USER.md, the chat brief, curiosity guidance, plugin context lines |
-| **ARC mind** (`mind.py` → `deliberate.py`) | shared `CognitionHarness` → `ProviderClient.call_with_fallback(job="aux")`, Auxiliary `mind` role | **Yes** | SOUL.md, USER.md, current date/time, bounded decision task, event envelope; bounded read-only tools |
+| **Cortex mind** (`mind.py` → `deliberate.py`) | shared `CognitionHarness` → `ProviderClient.call_with_fallback(job="aux")`, Auxiliary `mind` role | **Yes** | SOUL.md, USER.md, current date/time, bounded decision task, event envelope; bounded read-only tools |
 | **Presence judgement** (`presence.py`) | `ProviderClient.call_with_fallback(job="aux")`, Auxiliary `mind` role | **Yes** | a presence-specific bounded prompt |
-| **ARC reflection** (`memory.py` → `distil.py`) | shared `CognitionHarness` → `ProviderClient.call_with_fallback(job="aux")`, Auxiliary `memory` role | **Yes** | SOUL.md, USER.md, current date/time, repeated subjects/counts; bounded memory/web/workspace reads |
+| **Cortex reflection** (`memory.py` → `distil.py`) | shared `CognitionHarness` → `ProviderClient.call_with_fallback(job="aux")`, Auxiliary `memory` role | **Yes** | SOUL.md, USER.md, current date/time, repeated subjects/counts; bounded memory/web/workspace reads |
 | **Distillation** (`distil.py`) | `ProviderClient.call_with_fallback(job="aux")`, named Auxiliary role | **Yes** | task-specific title/web prompts |
 | **Voice** (`marvi_agent/runtime.py`) | `livekit.plugins.openai.LLM`, direct to the provider | **No** | a hardcoded `instructions=` string in `session.py` |
 | **Vision** (`describe.py`) | raw `httpx.post(f"{base_url}/chat/completions")` | **No** | its own `PROMPT` constant |
@@ -36,7 +36,7 @@ Two more that look like LLM users and are not:
 
 `ProviderClient` is the *intended* one. It owns fallback across providers,
 cooldown after a rejected credential or a 429, token and billable accounting,
-cache policy, structured route/latency diagnostics and limit policy. Chat, ARC,
+cache policy, structured route/latency diagnostics and limit policy. Chat, Cortex,
 presence, and distillation go through it. **Voice and Vision do not.**
 
 Vision is the further gone of the two: it has its own credentials entirely —
@@ -50,7 +50,7 @@ and is for half the callers.
 
 ### 2. There is no single source of truth for the harness
 
-`identity.compose()` now feeds both Chat and the shared ARC cognition harness.
+`identity.compose()` now feeds both Chat and the shared Cortex cognition harness.
 Mind and memory reflection therefore receive the same durable identity prefix,
 while retaining small task-specific instructions and Auxiliary routing. Voice
 and Vision still have separate latency/media-specific call paths.

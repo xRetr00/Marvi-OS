@@ -120,7 +120,7 @@ discovered from configuration under `mcp__<server>__<tool>`.
   is out of scope by request.
 - Letta remains a candidate for the mind rather than the store; see ADR-014a.
 
-## 2026-08-24 extension — built-in accounts and six-provider ARC sync
+## 2026-08-24 extension — built-in accounts and six-provider Cortex sync
 
 The original Gmail/Calendar polling proof is now a provider registry with
 Gmail, Google Calendar, Slack, Notion, GitHub, and Google Drive in that rollout
@@ -137,7 +137,7 @@ idempotency, and audit path. The fixed Gmail send compatibility tool is subject
 to the same ceiling.
 
 Realtime Composio trigger events and optional signed webhooks enter one
-identity-checked, deduplicated, untrusted ARC boundary and can initiate a bounded
+identity-checked, deduplicated, untrusted Cortex boundary and can initiate a bounded
 native-provider sync. The renderer receives status and controls only. Typed Chat
 and LiveKit Voice receive the same raw nested tool schema from Gateway.
 

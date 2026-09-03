@@ -86,7 +86,7 @@ function GraphCanvas({
         return
       }
 
-      app.canvas.setAttribute('aria-label', 'Interactive ARC memory graph')
+      app.canvas.setAttribute('aria-label', 'Interactive Marvi Cortex memory graph')
       app.canvas.setAttribute('data-testid', 'arc-memory-graph')
       app.canvas.setAttribute('role', 'img')
       host.appendChild(app.canvas)
@@ -515,7 +515,7 @@ export function ArcMemoryGraph({
     }
   }, [graph, query])
 
-  if (loading) return <div className="arc-graph-empty">BUILDING ARC GRAPH…</div>
+  if (loading) return <div className="arc-graph-empty">BUILDING CORTEX GRAPH…</div>
   if (graph.nodes.length === 0) {
     return (
       <div className="arc-graph-empty">
