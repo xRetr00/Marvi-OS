@@ -206,6 +206,7 @@ import {
 } from '../../main/pet-window'
 import { $heard, $spoken, subtitleTail } from './store/transcript'
 import { deviceStanding, deviceStory, deviceTone } from './room-devices'
+import { usePolled } from './hooks/usePolled'
 import { $voiceLink, sayAsUser, startVoice, stopVoice } from './store/voice-session'
 
 /**
@@ -3513,23 +3514,13 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
  * exactly like one running and never triggering — both are Marvi ignoring you.
  */
 function useWake(pollMs: number): WakeStatus | null {
-  const [wake, setWake] = useState<WakeStatus | null>(null)
-
-  useEffect(() => {
-    let gone = false
-    const read = async (): Promise<void> => {
-      const next = await window.marvi?.getWake()
-      if (!gone) setWake(next ?? null)
-    }
-    void read()
-    const timer = setInterval(() => void read(), pollMs)
-    return () => {
-      gone = true
-      clearInterval(timer)
-    }
-  }, [pollMs])
-
-  return wake
+  // Three components want this at 1.5 s, 3 s and 4 s. They used to be three
+  // requests; they are now three subscribers to one, running at 1.5 s.
+  return usePolled<WakeStatus>(
+    'voice/wake',
+    () => window.marvi?.getWake() ?? Promise.resolve(null),
+    pollMs
+  )
 }
 
 /**

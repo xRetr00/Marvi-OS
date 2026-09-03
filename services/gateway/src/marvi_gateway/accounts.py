@@ -8,6 +8,7 @@ OAuth token, or unrestricted Composio session.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import sqlite3
 import time
@@ -382,6 +383,51 @@ class DiscoveredTool:
         }
 
 
+def _quiet(module: Any) -> None:
+    """Turn off the Composio SDK's telemetry, in both places it is read.
+
+    Every SDK method is wrapped in a tracer that posts one event per call to
+    `telemetry.composio.dev`, one HTTP request each, from a background thread.
+    In `providers.log` for one ordinary afternoon that is a POST roughly twice
+    a second, all day, from a machine whose whole point is that it runs here.
+
+    On an exception the same event carries `traceback.format_exc()` -- the
+    stack of a failure inside Marvi, sent to a third party. That is the part
+    worth turning off even if the request rate were free.
+
+    `allow_tracking=False` on the constructor is the SDK's own switch and is
+    passed at every call site. It is not enough on its own: the switch is a
+    `ContextVar`, and a new thread starts from a fresh context where the
+    default is `True` again. Measured --
+
+        after _quiet   : False
+        inside a task  : False
+        in a new thread: True
+
+    -- and Marvi reaches accounts from its own threads, not only from request
+    handlers. So the queue the tracer feeds is stopped as well, which is the
+    part that holds no matter which thread asks.
+
+    Both, deliberately: the kwarg and the variable are the supported
+    interface and should keep working if the internals move, and the stub is
+    the one that cannot be escaped. Each is wrapped, so an SDK that has
+    rearranged either of them still leaves a working client.
+    """
+    with contextlib.suppress(Exception):
+        module.core.models.base.allow_tracking.set(False)
+    with contextlib.suppress(Exception):
+        telemetry = module.core.models._telemetry
+        if getattr(telemetry.push_event, "__name__", "") != "_dropped":
+
+            def _dropped(event: object) -> None:
+                """Where Composio's telemetry goes now."""
+
+            telemetry.push_event = _dropped
+            # The tracer imported the name directly, so the module it landed
+            # in has its own reference to replace.
+            module.core.models.base.push_event = _dropped
+
+
 class ComposioAccounts:
     def __init__(
         self,
@@ -412,7 +458,8 @@ class ComposioAccounts:
             import composio
         except ImportError as exc:
             raise AccountsUnavailableError("The Composio SDK is not installed.") from exc
-        client = composio.Composio(api_key=value)
+        _quiet(composio)
+        client = composio.Composio(api_key=value, allow_tracking=False)
         try:
             client.toolkits.list(limit=1, sort_by="usage")
         except Exception as exc:
@@ -433,7 +480,8 @@ class ComposioAccounts:
             import composio
         except ImportError as exc:
             raise AccountsUnavailableError("The Composio SDK is not installed.") from exc
-        self._client = composio.Composio(api_key=self._key)
+        _quiet(composio)
+        self._client = composio.Composio(api_key=self._key, allow_tracking=False)
         return self._client
 
     # -- catalog and OAuth lifecycle --------------------------------------

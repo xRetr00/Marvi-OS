@@ -247,6 +247,45 @@ class RedactionFilter(logging.Filter):
         return True
 
 
+#: Endpoints the desktop asks about on a timer, forever.
+#:
+#: These are the health and status reads: "is the wake word on", "is anything
+#: running", "how much has been spent". They answer the same thing all day and
+#: each one writes an access line, so an idle afternoon produced a 959 KB
+#: `gateway.log` in which 335 of every 335 lines were nothing happening --
+#: and the one real event, a crash, had to be dug out from under them.
+#:
+#: Dropped only when they succeeded. A poll that 404s or 500s is exactly the
+#: thing this log is for and still appears.
+QUIET_POLLS = frozenset(
+    {"/runtime", "/usage", "/voice/wake", "/voice/activity", "/voice/speech", "/health"}
+)
+
+
+class QuietPollingFilter(logging.Filter):
+    """Keep the routine heartbeat out of the access log.
+
+    Applied to `uvicorn.access`, whose records carry the request in `args` as
+    `(client, method, path, http_version, status)`. Anything it cannot read in
+    that shape is kept: this filter exists to remove noise, and guessing wrong
+    about an unfamiliar record should lose nothing.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        args = record.args
+        if not isinstance(args, tuple) or len(args) < 5:
+            return True
+        path, status = args[2], args[4]
+        if not isinstance(path, str):
+            return True
+        try:
+            if int(status) >= 400:
+                return True
+        except (TypeError, ValueError):
+            return True
+        return path.split("?", 1)[0] not in QUIET_POLLS
+
+
 # -- formatting --------------------------------------------------------------
 
 
@@ -432,6 +471,11 @@ def configure(
             records, *sinks, respect_handler_level=True
         )
         _listener.start()
+
+        # On the logger rather than a handler: uvicorn writes its access log
+        # through its own configuration, and the desktop reads that off the
+        # child's stdout. A filter here is the one place both paths pass.
+        logging.getLogger("uvicorn.access").addFilter(QuietPollingFilter())
 
         _install_catchers()
         atexit.register(shutdown)

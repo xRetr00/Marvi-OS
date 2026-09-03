@@ -15,6 +15,7 @@
  * products.
  */
 import { useEffect, useMemo, useState } from 'react'
+import { usePolled } from '../hooks/usePolled'
 import {
   addMonths,
   format,
@@ -99,29 +100,6 @@ export interface VoiceActivity {
   context: { used: number; window: number; turns: number }
 }
 
-/** Poll a Gateway endpoint, quietly. A card that cannot load is a card that
- * shows nothing, never an error over the top of the orb. */
-function usePolled<T>(read: () => Promise<unknown>, ms: number): T | null {
-  const [value, setValue] = useState<T | null>(null)
-  useEffect(() => {
-    let gone = false
-    const ask = async (): Promise<void> => {
-      const body = await read()
-      // Only on an answer. A failed poll leaves the last good state on screen
-      // rather than blanking the card every time the Gateway restarts.
-      if (!gone && body) setValue(body as T)
-    }
-    void ask()
-    const timer = setInterval(() => void ask(), ms)
-    return () => {
-      gone = true
-      clearInterval(timer)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ms])
-  return value
-}
-
 function ToolIcon({ category }: { category: string }): React.JSX.Element {
   const Icon = CATEGORY_ICONS[category] ?? Wrench
   return (
@@ -140,6 +118,7 @@ function ToolIcon({ category }: { category: string }): React.JSX.Element {
  */
 export function VoiceActivityCard({ rig }: { rig?: React.ReactNode }): React.JSX.Element | null {
   const activity = usePolled<VoiceActivity>(
+    'voice/activity',
     () => window.marvi?.getVoiceActivity() ?? Promise.resolve(null),
     1200
   )
@@ -514,6 +493,7 @@ function when(event: CalendarEvent, now: Date): string {
  */
 export function CalendarCard(): React.JSX.Element {
   const calendar = usePolled<{ connected: boolean; events: CalendarEvent[]; reason?: string }>(
+    'calendar/upcoming',
     () => window.marvi?.getCalendar() ?? Promise.resolve(null),
     60_000
   )
