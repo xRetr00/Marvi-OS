@@ -5,9 +5,8 @@ with no desktop behind it, three Python processes deep, refusing the Agent its
 provider credentials 285 times and answering every memory question with
 nothing.
 
-This is the plan for a root fix. It is not implemented yet; the pieces it
-touches are the ones that decide whether Marvi starts at all, and the order
-below matters.
+Implemented 3 September 2026. What follows is the design and then, at the end,
+what shipped and what turned out to be unnecessary.
 
 ## The fault
 
@@ -109,9 +108,10 @@ own when they see the new id, and are killed only if they do not.
 desktop dies before finishing, the children have already seen the file go and
 are exiting anyway.
 
-**Update.** The updater writes a new `launch_id` before it replaces any file.
-Every running child stands down, which is exactly what an update needs and is
-currently left to whatever the installer's process sweep happens to catch.
+**Update.** The updater waits for the desktop to exit, and every child watches
+the desktop's PID as its third condition -- so they stand down on their own
+before any file is replaced. No change to the updater was needed; see the note
+at the end.
 
 **Crash of the desktop.** `runtime.json` stays, but the desktop entry's pid and
 creation time no longer resolve to a live process. Children exit on the third
@@ -129,25 +129,51 @@ condition, and the next launch finds a stale record it can safely clean.
 * "Is Marvi running?" gets an answer that is a fact rather than a guess, which
   the installer, the updater and Doctor all currently re-derive differently.
 
-## Order of work
+## What shipped
 
-1. **Identity verification** (`pid` + creation time + command line) in
-   `apps/desktop/src/main/processes.ts`. Independently correct, no behaviour
-   change beyond refusing to act on a recycled PID. Ships alone.
-2. **`runtime.json`** written and cleared by the desktop, plus `MARVI_LAUNCH_ID`
-   in the child environment. Nothing reads it yet.
-3. **Child watchdogs** read it -- `marvi_gateway/parent.py` and the Agent's
-   `_watch_parent`, which are already the same code twice and should become one
-   contract expressed in two places rather than two behaviours.
-4. **Startup path** switches from "adopt if the parent is alive" to "stop every
-   recorded child, then start". `reclaimPort` stays as the fallback for a
-   wedged process holding the port.
-5. **Updater** bumps the launch id before touching files.
+1. **Identity verification.** `describeProcess` now reads the creation time,
+   and `isSameProcess(pid, record)` compares number, creation time and command
+   line. `reclaimPort` uses it, so an abandoned Gateway whose parent's PID has
+   been reused no longer reads as "another running Marvi".
+2. **`ownership.ts`.** `runtime.json` with a `launch_id`, the machine's boot
+   time, and every child by PID and creation time. Written atomically -- see
+   below -- claimed before the first spawn, cleared before the children on
+   shutdown. `MARVI_LAUNCH_ID` goes to every child.
+3. **Child watchdogs.** `marvi_gateway/parent.py` and the Agent's
+   `_watch_parent` each gained the same three conditions: the record names a
+   different launch, the record is gone, or the parent PID no longer exists.
+4. **Startup.** `ownership.stopPrevious` runs before `killStrays` and
+   `reclaimPort`, stopping the previous launch's children by recorded identity.
+   The two sweeps remain as the fallback for a process that is wedged or
+   belongs to another checkout.
 
-Steps 1 and 2 are safe on their own and leave the current behaviour intact.
-Step 4 is the one that changes what happens at launch and wants a manual
-test on this machine: launch, relaunch while running, kill the desktop and
-relaunch, and reboot with services set to autostart.
+### The race this nearly shipped with
+
+The record is rewritten every time a child starts, and every child reads it on
+a timer. The first version returned "no record" for both an absent file and an
+unparseable one -- so a reader landing mid-write would have concluded the
+desktop had shut down, and **every child would have exited at once**. A test
+written to assert the opposite caught it.
+
+Two defences, because the cost of getting it wrong is the whole stack:
+
+* the writer renames a temporary file into place, which is atomic
+* the reader tells `GONE` from `UNREADABLE` and only acts on the first, and
+  requires the condition twice in a row before standing down
+
+### Step 5 turned out to be unnecessary
+
+The plan had the updater bump the launch id before replacing files. It does not
+need to: the updater already waits for the desktop to exit, and every child
+watches the desktop's PID as its third condition. Once the desktop is gone the
+children stand down whether or not the record was touched. Adding a Rust change
+for a case already covered would have been motion rather than work.
+
+## Still to do by hand
+
+The startup path is the part that changes what happens at launch, and it wants
+a run on a real machine rather than a test: launch, relaunch while running,
+kill the desktop and relaunch, and reboot with services set to autostart.
 
 ## What is deliberately not proposed
 

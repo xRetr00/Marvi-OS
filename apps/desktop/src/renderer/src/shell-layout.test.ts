@@ -153,7 +153,11 @@ describe('shell layout', () => {
     expect(app).toContain('page?.engines ?? []')
     expect(app).toContain('[page.engineSetting]: next')
     expect(app).toContain('[page.setting]: engine?.defaultVoice')
-    expect(app).toContain('title="Recognition accuracy"')
+    // Renamed from "Recognition accuracy": the row sets the chunk as well as
+    // the lookahead now, and what it changes is when a word appears on screen,
+    // not how accurate the recogniser is. Measured, the two move together --
+    // 4,115ms and 71% clean turns against 1,868ms and 58%.
+    expect(app).toContain('title="Subtitle speed"')
     expect(app).toContain('title="Window translucency"')
     expect(app).toContain('title="Alignment"')
   })
