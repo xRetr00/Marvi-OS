@@ -418,6 +418,20 @@ class KyutaiStream(stt.RecognizeStream):
         if self._said:
             log.info("stt: turn ended by %s", why)
             self._emit(stt.SpeechEventType.FINAL_TRANSCRIPT, self._said)
+            # And the event LiveKit actually acts on.
+            #
+            # The semantic VAD was doing its work and nobody was listening.
+            # `audio_recognition` honours `END_OF_SPEECH` from an STT only when
+            # the session runs `turn_detection="stt"`, and this stream emitted
+            # nothing but interim and final transcripts -- so the end of turn
+            # was still decided by silence, and the 0.9 seconds the heads buy
+            # were thrown away in the plumbing.
+            #
+            # Emitted only when the model called it. A turn ended by the
+            # fallback timer is an ordinary silence ending and must not claim
+            # to be more.
+            if why == "the model":
+                self._emit(stt.SpeechEventType.END_OF_SPEECH, "")
         self._said = ""
         self._pending = np.zeros(0, dtype=np.float32)
 

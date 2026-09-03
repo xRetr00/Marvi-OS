@@ -1228,6 +1228,32 @@ def _pool_is_busy() -> None:
     _report_ready(False, "loading speech models for the next call")
 
 
+def _turn_detection() -> str:
+    """Who decides the turn ended: the recogniser, or silence.
+
+    `"stt"` only for a recogniser that actually says so. LiveKit's
+    `audio_recognition` acts on `END_OF_SPEECH` from an STT *only* in this
+    mode, and it resets the VAD afterwards so a wrong end-of-turn can still be
+    corrected by an interruption -- which is the safety net that makes trusting
+    the recogniser reasonable.
+
+    Kyutai is the only one of the three that can. Its four pause heads answer
+    "has the speaker finished" from content and intonation, measured at 0.28 s
+    *before* the last word is transcribed against a 0.6 s timer that starts
+    after it. Parakeet cannot stream at all and Nemotron has no end-of-turn
+    signal, so for those the answer is still silence.
+
+    Per engine rather than global for exactly that reason: this is a claim
+    about the recogniser, and two of the three cannot make it.
+    """
+    from .parakeet_stt import chosen_engine
+
+    if chosen_engine() == "kyutai-1b":
+        log.info("turn-taking: the recogniser decides, using its own end-of-turn")
+        return "stt"
+    return build_local_turn_detector()
+
+
 def _recogniser(warmed: dict[str, Any]) -> Any:
     """The selected recogniser, reusing the warm one only if it is that one.
 
@@ -1366,7 +1392,7 @@ def build_session(proc: JobProcess | None = None) -> tuple[AgentSession, Callabl
         # `_lost_the_words` for what happens when it fires.
         transcription_timeout=TRANSCRIPTION_TIMEOUT,
         turn_handling=TurnHandlingOptions(
-            turn_detection=build_local_turn_detector(),
+            turn_detection=_turn_detection(),
             # LiveKit's own defaults for the delay, after a conversation where
             # one sentence became two turns:
             #
