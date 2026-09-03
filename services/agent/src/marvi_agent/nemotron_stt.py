@@ -28,6 +28,7 @@ import ctypes
 import json
 import logging
 import os
+import re
 import time
 from pathlib import Path
 from typing import Any
@@ -152,6 +153,25 @@ class _Library:
             self._context = None
 
 
+#: Language tags the model writes into the transcript as if they were words.
+#:
+#: Nemotron is multilingual and marks what it decided it was listening to, in
+#: band, as text. It reaches everything downstream verbatim -- the log, the
+#: chat transcript, the prompt, and memory:
+#:
+#:     stt: Yes, I was telling you you said something weird. <en-US> What was it? <en-US>
+#:
+#: Twenty-eight of them in one afternoon. Marvi was being asked to answer a
+#: question with a locale code stapled to it, and the same code was written
+#: into whatever the turn was worth remembering.
+#:
+#: Matched narrowly, on the shape of a language tag rather than on angle
+#: brackets generally: a speaker who says "less than" is transcribed as words,
+#: but a transcript is still the user's text and this only removes what the
+#: model added to it.
+LANGUAGE_TAG = re.compile(r"\s*<[a-z]{2}(?:-[A-Za-z]{2,4})?>\s*")
+
+
 class NemotronSTT(stt.STT):
     """Streaming recognition through parakeet.cpp, one model shared by streams."""
 
@@ -252,9 +272,18 @@ class NemotronStream(stt.RecognizeStream):
         piece = str(update.get("text") or "")
         if not piece:
             return
-        self._said = (self._said + piece).strip()
+        # Appended raw and stripped where the transcript is read, not after
+        # every piece: stripping as it goes eats a piece that is only a space,
+        # and the next word lands against the last one. The Kyutai adapter had
+        # the same line and one afternoon of "apretty", "thespeech" and
+        # "outsearch" to show for it.
+        self._said += piece
         self._spoke_at = time.monotonic()
-        self._emit(stt.SpeechEventType.INTERIM_TRANSCRIPT, self._said)
+        self._emit(stt.SpeechEventType.INTERIM_TRANSCRIPT, self.transcript())
+
+    def transcript(self) -> str:
+        """What was said, without what the model wrote about it."""
+        return LANGUAGE_TAG.sub(" ", self._said).strip()
 
     async def _settle(self, library: _Library) -> None:
         if self._stream is None:
@@ -263,8 +292,8 @@ class NemotronStream(stt.RecognizeStream):
         with contextlib.suppress(Exception):
             self._heard(await asyncio.to_thread(library.finish, stream))
         library.end(stream)
-        if self._said:
-            self._emit(stt.SpeechEventType.FINAL_TRANSCRIPT, self._said)
+        if said := self.transcript():
+            self._emit(stt.SpeechEventType.FINAL_TRANSCRIPT, said)
         self._said = ""
         self._pending = np.zeros(0, dtype=np.float32)
 

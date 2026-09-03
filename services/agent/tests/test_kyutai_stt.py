@@ -318,3 +318,41 @@ def test_audio_that_became_no_words_still_resets_the_model(monkeypatch) -> None:
 
     made._begin(model)
     assert model.resets == 1, "the next utterance did not start from a clean model"
+
+
+def test_a_bare_space_is_still_a_word_boundary(monkeypatch) -> None:
+    """Stripping the whole transcript after every piece eats the spaces.
+
+    This model emits a bare space as a piece of its own, and the accumulator
+    stripped what it had built after each one -- so `("that's" + " ").strip()`
+    is `"that's"` and the next piece lands against it:
+
+        "that's a pretty good"  ->  "that'sa pretty good"
+
+    One afternoon's transcripts carry "apretty", "thespeech", "pasparler",
+    "outsearch" and "Mybrilliant", and the name corrector then found "SaaS
+    project" inside "that'sa" and made it worse.
+    """
+    made, model = stream(
+        monkeypatch,
+        [(" that", 0.0), ("'", 0.0), ("s", 0.0), (" ", 0.0), ("a", 0.0), (" pretty", 0.0)],
+    )
+    made._begin(model)
+    for _ in range(6):
+        piece, _done = model.step(np.zeros(kyutai_stt.FRAME_SAMPLES, np.float32), False)
+        if piece:
+            made._said += piece
+
+    assert made._said.strip() == "that's a pretty"
+
+
+def test_the_finished_transcript_has_no_edges(monkeypatch) -> None:
+    # Accumulating raw means the leading space from the first piece survives
+    # to the end; it must not reach the transcript.
+    made, model = stream(monkeypatch, [], tail=" and that is that ")
+    made._open = True
+    made._said = " Well"
+    asyncio.run(made._settle(model, "the timer"))
+
+    spoken = [text for _kind, text in made._event_ch.sent if text]
+    assert spoken and spoken[0] == "Well and that is that"

@@ -477,11 +477,11 @@ class KyutaiStream(stt.RecognizeStream):
         # Flush past the model's own text delay, or the last words never
         # arrive: the text stream deliberately lags the audio by 0.5 s.
         tail, peak = model.flush(int(model.delay_seconds / FRAME_SECONDS) + 1)
-        if tail:
-            self._said = (self._said + tail).strip()
+        # Appended raw and stripped once, at the end. See `_drain`.
+        self._said += tail
         self._peak = max(self._peak, peak)
         self._open = False
-        said, self._said = self._said, ""
+        said, self._said = self._said.strip(), ""
         self._pending = np.zeros(0, dtype=np.float32)
         return said
 
@@ -561,9 +561,22 @@ class KyutaiStream(stt.RecognizeStream):
             piece, done = model.step(frame, self._first)
             self._first = False
             if piece:
-                self._said = (self._said + piece).strip()
+                # Appended raw. Stripping the whole transcript after every
+                # piece looks harmless and eats word boundaries: this model
+                # emits a bare space as a piece of its own, and
+                # `("that's" + " ").strip()` is `"that's"`, so the next piece
+                # lands against it. That is where
+                #
+                #     "that's a pretty good"  ->  "that'sa pretty good"
+                #
+                # came from, and with it "apretty", "thespeech", "outsearch"
+                # and "Mybrilliant" all through one afternoon's transcripts --
+                # then handed to the name corrector, which found "SaaS project"
+                # inside "that'sa" and made it worse. Stripped once, where the
+                # transcript is finished with.
+                self._said += piece
                 self._spoke_at = time.monotonic()
-                said.append(self._said)
+                said.append(self._said.strip())
             # Sustained, and only once something has been said.
             #
             # The heads are pause detectors: they are high through the silence
