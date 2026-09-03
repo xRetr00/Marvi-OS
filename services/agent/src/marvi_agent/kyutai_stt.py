@@ -421,6 +421,36 @@ class KyutaiStream(stt.RecognizeStream):
         self._said = ""
         self._pending = np.zeros(0, dtype=np.float32)
 
+    def _drain(self, model: _Model, threshold: float, hold: int) -> tuple[list[str], bool]:
+        """Every complete frame in the buffer, on one worker thread.
+
+        Returns the interim transcripts to emit and whether the model called
+        the turn finished. Emission stays on the event loop, because
+        `_event_ch.send_nowait` belongs to it; everything that blocks happens
+        here.
+        """
+        said: list[str] = []
+        while self._pending.size >= FRAME_SAMPLES:
+            frame = self._pending[:FRAME_SAMPLES]
+            self._pending = self._pending[FRAME_SAMPLES:]
+            piece, done = model.step(frame, self._first)
+            self._first = False
+            if piece:
+                self._said = (self._said + piece).strip()
+                self._spoke_at = time.monotonic()
+                said.append(self._said)
+            # Sustained, and only once something has been said.
+            #
+            # The heads are pause detectors: they are high through the silence
+            # before anyone speaks, and they spike for a frame or two
+            # mid-sentence. Both guards are load-bearing -- the first probe of
+            # this signal, without them, would have ended one clip's turn 8.9
+            # seconds early.
+            self._high_for = self._high_for + 1 if done > threshold else 0
+            if self._said and self._high_for >= hold:
+                return said, True
+        return said, False
+
     async def _run(self) -> None:
         model = await asyncio.to_thread(self._kyutai._build)
         threshold = _setting(VAD_THRESHOLD_SETTING, VAD_THRESHOLD)
@@ -438,27 +468,28 @@ class KyutaiStream(stt.RecognizeStream):
                 )
                 if not self._open:
                     await asyncio.to_thread(self._begin, model)
-                finished = False
-                while self._pending.size >= FRAME_SAMPLES:
-                    frame = self._pending[:FRAME_SAMPLES]
-                    self._pending = self._pending[FRAME_SAMPLES:]
-                    piece, done = await asyncio.to_thread(model.step, frame, self._first)
-                    self._first = False
-                    if piece:
-                        self._said = (self._said + piece).strip()
-                        self._spoke_at = time.monotonic()
-                        self._emit(stt.SpeechEventType.INTERIM_TRANSCRIPT, self._said)
-                    # Sustained, and only once something has been said.
-                    #
-                    # The heads are pause detectors: they are high through the
-                    # silence before anyone speaks, and they spike for a frame
-                    # or two mid-sentence. Both guards are load-bearing -- the
-                    # first probe of this signal, without them, would have
-                    # ended one clip's turn 8.9 seconds early.
-                    self._high_for = self._high_for + 1 if done > threshold else 0
-                    if self._said and self._high_for >= hold:
-                        finished = True
-                        break
+                # Every whole frame in one hop, not one hop per frame.
+                #
+                # This awaited `asyncio.to_thread(model.step, ...)` per 80 ms
+                # frame, and each of those is a thread handoff plus a JSON
+                # write and a blocking `readline` on the sidecar's pipe. At
+                # 12.5 frames a second, serially awaited, that is 12.5 round
+                # trips through an executor the LiveKit runtime is also using
+                # -- so the cost is not the 36 ms of model time measured in
+                # isolation, it is that plus however long a worker takes to
+                # come free while the same loop is running the VAD and the
+                # speech synthesis.
+                #
+                # The log shows what that did live: partials trickling one word
+                # at a time, then `silero: inference is slower than realtime,
+                # delay 1.497s`, then the transcript timeout firing and Marvi
+                # apologising while the sentence was still arriving. Starving
+                # the VAD is how a slow recogniser becomes a broken turn.
+                said, finished = await asyncio.to_thread(
+                    self._drain, model, threshold, hold
+                )
+                for text in said:
+                    self._emit(stt.SpeechEventType.INTERIM_TRANSCRIPT, text)
                 if finished:
                     self._ended_by_vad += 1
                     await asyncio.to_thread(self._settle, model, "the model")

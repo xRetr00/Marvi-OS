@@ -244,8 +244,20 @@ def test_the_gateway_selection_reaches_the_recogniser_builder(monkeypatch) -> No
             }
 
     monkeypatch.setattr(httpx, "get", lambda *_args, **_kwargs: Response())
-    monkeypatch.delenv("MARVI_STT_ENGINE", raising=False)
-    monkeypatch.delenv("MARVI_STT_CHUNK", raising=False)
+    # Set rather than deleted, so monkeypatch has a value to restore.
+    #
+    # `apply_speech_settings` writes straight into `os.environ`, and
+    # `delenv(raising=False)` on a variable that was not there records nothing
+    # to undo -- so the Kyutai selection leaked out of this test and into every
+    # one that ran after it. It went unnoticed while `_recogniser` had no entry
+    # for `kyutai-1b` and fell through to the Parakeet name; the moment that
+    # map was completed, a later test started releasing the warm recogniser it
+    # had just been given.
+    #
+    # A different starting value also makes this a stronger test: the Gateway's
+    # answer has to win, not merely arrive.
+    monkeypatch.setenv("MARVI_STT_ENGINE", "parakeet-tdt")
+    monkeypatch.setenv("MARVI_STT_CHUNK", "2.0")
 
     apply_speech_settings()
 
