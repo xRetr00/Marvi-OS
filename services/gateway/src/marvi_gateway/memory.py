@@ -184,7 +184,6 @@ CREATE TABLE IF NOT EXISTS memories (
     -- twenty-three moments. This is the distinction.
     series    TEXT
 );
-CREATE INDEX IF NOT EXISTS memories_series ON memories(series) WHERE series IS NOT NULL;
 CREATE TABLE IF NOT EXISTS entities (
     id   INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
@@ -345,16 +344,32 @@ class MemoryStore:
         #: Built on first use, because most stores never need one.
         self._embed: Any = None
         self._db.executescript(SCHEMA)
-        # `CREATE TABLE IF NOT EXISTS` does nothing to a table that already
-        # exists, so a new column has to be added by hand on an existing store.
+        self._migrate()
+        self._db.commit()
+
+    def _migrate(self) -> None:
+        """Columns added after a store already existed on somebody's disk.
+
+        `CREATE TABLE IF NOT EXISTS` does nothing to a table that is already
+        there, so a new column has to be added by hand -- and anything in
+        `SCHEMA` that *references* the new column runs before that happens.
+
+        That is exactly how this broke: the `series` index was written into
+        `SCHEMA` beside the column, `executescript` reached the index on an
+        existing database, and the Gateway died at import with
+
+            sqlite3.OperationalError: no such column: series
+
+        which is a crash loop the desktop cannot start through. The index now
+        lives here, after the column exists, for new and old stores alike.
+        """
         columns = {row["name"] for row in self._db.execute("PRAGMA table_info(memories)")}
         if "series" not in columns:
             self._db.execute("ALTER TABLE memories ADD COLUMN series TEXT")
-            self._db.execute(
-                "CREATE INDEX IF NOT EXISTS memories_series ON memories(series)"
-                " WHERE series IS NOT NULL"
-            )
-        self._db.commit()
+        self._db.execute(
+            "CREATE INDEX IF NOT EXISTS memories_series ON memories(series)"
+            " WHERE series IS NOT NULL"
+        )
 
     def close(self) -> None:
         self._db.close()

@@ -329,3 +329,55 @@ def test_a_working_embedder_still_suppresses_keyword_on_a_question(
     found = store.search("what music do I like", limit=5)
     assert found, "the semantic answer was dropped"
     assert asked == [], "keyword ran on a question the embedding had already answered"
+
+
+def test_a_store_from_before_a_column_existed_still_opens(tmp_path) -> None:
+    """The Gateway crashed at import on every database already on a disk.
+
+    `series` was added to the `memories` table *and* indexed, both inside
+    SCHEMA. On a fresh install that works. On an existing one, the
+    `CREATE TABLE IF NOT EXISTS` is a no-op, so `executescript` reached the
+    index with no such column and raised -- before the ALTER TABLE that would
+    have added it, which ran afterwards. Every start died the same way and the
+    desktop could not come up.
+
+    This is the old schema, near enough: a `memories` table without the column.
+    """
+    import sqlite3
+
+    from marvi_gateway.memory import MemoryStore
+
+    path = tmp_path / "memory.sqlite3"
+    old = sqlite3.connect(path)
+    old.executescript(
+        """
+        CREATE TABLE memories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            kind TEXT NOT NULL,
+            subject TEXT NOT NULL,
+            body TEXT NOT NULL,
+            source TEXT NOT NULL DEFAULT '',
+            trusted INTEGER NOT NULL DEFAULT 1,
+            at TEXT NOT NULL DEFAULT (datetime('now')),
+            strength REAL NOT NULL DEFAULT 1.0,
+            last_used TEXT NOT NULL DEFAULT ''
+        );
+        """
+    )
+    old.execute(
+        "INSERT INTO memories (kind, subject, body) VALUES ('fact', 'Kept', 'Still here.')"
+    )
+    old.commit()
+    old.close()
+
+    store = MemoryStore(path)
+    assert [row["subject"] for row in store.recent(limit=5)] == ["Kept"]
+    # And the column the crash was about is now there, with its index.
+    kept = sqlite3.connect(path)
+    assert "series" in {r[1] for r in kept.execute("PRAGMA table_info(memories)")}
+    assert kept.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='index' AND name='memories_series'"
+    ).fetchone()
+    kept.close()
+    # Opening it a second time must not trip over the index it just made.
+    MemoryStore(path)
