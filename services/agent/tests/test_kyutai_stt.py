@@ -9,6 +9,9 @@ mid-sentence when it is wrong.
 
 from __future__ import annotations
 
+import asyncio
+import threading
+
 import numpy as np
 import pytest
 
@@ -20,10 +23,13 @@ class _Model:
 
     delay_seconds = 0.0
 
-    def __init__(self, script: list[tuple[str, float]]) -> None:
+    def __init__(self, script: list[tuple[str, float]], tail: str = "") -> None:
         self.script = list(script)
         self.resets = 0
         self.steps = 0
+        #: What the closing silence shakes out of the model, and how it was got.
+        self.tail = tail
+        self.flushes: list[int] = []
 
     def reset(self) -> None:
         self.resets += 1
@@ -32,8 +38,30 @@ class _Model:
         self.steps += 1
         return self.script.pop(0) if self.script else ("", 0.0)
 
+    def flush(self, frames: int) -> tuple[str, float]:
+        self.flushes.append(int(frames))
+        return self.tail, 0.0
+
+
+class _Channel:
+    """Somewhere for the stream to put events, remembering which thread sent.
+
+    The thread matters: `Chan.send_nowait` wakes the waiting coroutine with
+    `future.set_result`, which is only valid on the loop's own thread. See
+    `test_events_are_sent_from_the_event_loop`.
+    """
+
+    def __init__(self) -> None:
+        self.sent: list[tuple[object, str]] = []
+        self.threads: set[int] = set()
+
+    def send_nowait(self, event) -> None:
+        self.sent.append((event.type, event.alternatives[0].text))
+        self.threads.add(threading.get_ident())
+
 
 def stream(monkeypatch, script, **settings) -> tuple[kyutai_stt.KyutaiStream, _Model]:
+    tail = settings.pop("tail", "")
     for name, value in settings.items():
         monkeypatch.setenv(name, str(value))
     # No prefix in the tests: it is a second of silence per utterance, which
@@ -49,7 +77,10 @@ def stream(monkeypatch, script, **settings) -> tuple[kyutai_stt.KyutaiStream, _M
     made._first = True
     made._ended_by_vad = 0
     made._high_for = 0
-    return made, _Model(script)
+    made._peak = 0.0
+    made._spoke_at = 0.0
+    made._event_ch = _Channel()
+    return made, _Model(script, tail=tail)
 
 
 def drive(made, model, script_length: int, threshold=0.5, hold=3) -> bool:
@@ -160,3 +191,106 @@ def test_every_offered_engine_can_be_chosen(engine: str, monkeypatch) -> None:
 
     monkeypatch.setenv(ENGINE_SETTING, engine)
     assert chosen_engine() == engine
+
+
+def test_the_turn_is_committed_however_it_ended(monkeypatch) -> None:
+    """The end of the turn has to reach LiveKit even when the timer called it.
+
+    This is the bug that made Marvi go silent in a live call. `END_OF_SPEECH`
+    was emitted only when the pause heads ended the turn, on the reasoning that
+    a turn ended by the fallback timer should not claim to be more than an
+    ordinary silence ending. But the session runs `turn_detection="stt"` for
+    this recogniser, and in that mode `audio_recognition` commits a turn on
+    nothing else: `_vad_base_turn_detection` is false, and the VAD's own
+    end-of-speech is gated behind `_user_turn_committed`, which only the STT
+    end-of-speech branch ever sets.
+
+    So a turn the heads did not call was transcribed and then dropped on the
+    floor -- "Hey, Marvi, how are you doing?" reached the log at 13:51:44 and
+    was never answered. Both endings, because only one of them regressed and a
+    test for one of them would not have caught it.
+    """
+    from livekit.agents import stt as livekit_stt
+
+    for why in ("the model", "the timer"):
+        made, model = stream(monkeypatch, [], tail="")
+        made._open = True
+        made._said = "hey marvi"
+        asyncio.run(made._settle(model, why))
+        kinds = [kind for kind, _text in made._event_ch.sent]
+        assert livekit_stt.SpeechEventType.FINAL_TRANSCRIPT in kinds
+        assert livekit_stt.SpeechEventType.END_OF_SPEECH in kinds, (
+            f"a turn ended by {why} never reaches the LLM"
+        )
+
+
+def test_a_turn_with_nothing_in_it_ends_nothing(monkeypatch) -> None:
+    # The other direction: silence that never became words is not a turn, and
+    # committing it would have Marvi answer an empty string.
+    made, model = stream(monkeypatch, [])
+    made._open = True
+    made._said = ""
+    asyncio.run(made._settle(model, "the timer"))
+    assert made._event_ch.sent == []
+
+
+def test_the_closing_silence_is_one_round_trip(monkeypatch) -> None:
+    """Kyutai's flush, asked for once instead of seven times.
+
+    The trick is theirs -- the text stream lags the audio by
+    `audio_delay_seconds`, so their own script appends that many frames of
+    silence and reads the tail off the end. The cost was ours: a frame at a
+    time meant seven JSON writes and seven blocking pipe reads in the gap
+    between the speaker stopping and Marvi answering, measured live at 1.53 s.
+    """
+    made, model = stream(monkeypatch, [], tail=" doing?")
+    model.delay_seconds = 0.5
+    made._open = True
+    made._said = "how are you"
+    asyncio.run(made._settle(model, "the timer"))
+    assert model.flushes == [7], "the flush is back to a round trip per frame"
+    assert model.steps == 0
+    # And the tail it shook loose is part of the transcript, not lost.
+    assert (" ".join(text for _kind, text in made._event_ch.sent)).strip().startswith(
+        "how are you doing?"
+    )
+
+
+def test_the_opening_silence_is_one_round_trip(monkeypatch) -> None:
+    # The prefix runs on the first frame of every utterance -- the moment the
+    # person starts talking -- so twelve round trips there sat on the critical
+    # path of every single turn.
+    made, model = stream(monkeypatch, [])
+    monkeypatch.setattr(kyutai_stt, "PREFIX_SECONDS", 1.0)
+    made._begin(model)
+    assert model.flushes == [12]
+    assert model.steps == 0
+
+
+def test_events_are_sent_from_the_event_loop(monkeypatch) -> None:
+    """Where an event is sent from is not a detail; it is 1.53 s of silence.
+
+    `Chan.send_nowait` appends to a deque and then wakes the waiting coroutine
+    with `future.set_result` -- valid only on the loop's own thread. Sent from
+    a worker, the future resolves but the loop is never signalled: it sleeps in
+    its selector until something else wakes it, and only then sees the
+    transcript. Nothing is dropped, which is why this read as a slow model
+    rather than a missed wakeup.
+
+    `_settle` used to run wholesale through `asyncio.to_thread` and emit from
+    in there. Live, that put 1.53 s between "turn ended by the timer" in the
+    log and the transcript reaching the session -- on top of every reply.
+    """
+    made, model = stream(monkeypatch, [], tail=" doing?")
+    made._open = True
+    made._said = "how are you"
+
+    async def run() -> int:
+        await made._settle(model, "the timer")
+        return threading.get_ident()
+
+    loop_thread = asyncio.run(run())
+    assert made._event_ch.sent, "nothing was emitted at all"
+    assert made._event_ch.threads == {loop_thread}, (
+        "an event was sent from a worker thread; the loop will not be woken"
+    )

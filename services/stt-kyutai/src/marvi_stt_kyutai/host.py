@@ -10,7 +10,7 @@ One JSON object per line, both directions.
 
     -> {"op": "reset"}                       start a fresh utterance
     -> {"op": "feed", "pcm": "<base64>"}     exactly one 80 ms frame
-    -> {"op": "flush"}                       push past the model's text delay
+    -> {"op": "flush", "frames": 7}          that many frames of silence, at once
     <- {"event": "ready", "sample_rate": 24000, "heads": 4}
     <- {"event": "text", "text": " hello", "done": 0.03}
     <- {"event": "error", "error": "..."}
@@ -19,6 +19,15 @@ One JSON object per line, both directions.
 recogniser exists. It rides on every frame rather than being asked for,
 because the caller needs it at the same rate it needs the text and a second
 round trip per 80 ms would be absurd.
+
+`flush` answers with everything those frames produced and the highest `done`
+among them, in one reply. Silence is the only way to get the last words out of
+this model -- the text stream lags the audio by `audio_delay_seconds`, so
+Kyutai's own transcription script appends `ceil(audio_delay_seconds *
+frame_rate)` frames of it and reads the tail off the end. Doing that a frame at
+a time cost seven round trips at the one moment nobody can afford them: the
+gap between the speaker stopping and Marvi answering. Measured live, 1.53 s of
+it.
 
 ## Why one frame per message
 
@@ -97,6 +106,32 @@ def main() -> None:
         return
 
     first = True
+
+    def once(samples: np.ndarray, index: int) -> tuple[str, float]:
+        """One frame through the model: the text it produced, and the pause."""
+        nonlocal first
+        with torch.inference_mode():
+            chunk = torch.from_numpy(samples).to(device)[None, None, :]
+            codes = mimi.encode(chunk)
+            if first:
+                # The first step primes the depformer and returns nothing
+                # usable; upstream's own loop does the same.
+                gen.step(codes)
+                first = False
+            found = gen.step_with_extra_heads(codes)
+        if found is None:
+            return "", 0.0
+        tokens, extra = found
+        done = 0.0
+        if extra and 0 <= index < len(extra):
+            # Element 0 of the head's softmax is the probability of a pause
+            # of that length. `prs[2][0] > 0.5` is Kyutai's own test.
+            done = float(extra[index][0, 0, 0].item())
+        token = int(tokens[0, 0].item())
+        if token in (0, 3):
+            return "", done
+        return tokenizer.id_to_piece(token).replace("▁", " "), done
+
     for line in sys.stdin:
         try:
             request = json.loads(line)
@@ -114,37 +149,24 @@ def main() -> None:
             if operation not in ("feed", "flush"):
                 _send("error", error=f"unknown op {operation!r}")
                 continue
-            if operation == "flush":
-                samples = np.zeros(frame, dtype=np.float32)
-            else:
-                raw = base64.b64decode(request.get("pcm") or "")
-                samples = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32_768.0
-                if samples.size != frame:
-                    _send("error", error=f"expected {frame} samples, got {samples.size}")
-                    continue
             index = int(request.get("vad_index", VAD_INDEX))
-            with torch.inference_mode():
-                chunk = torch.from_numpy(samples).to(device)[None, None, :]
-                codes = mimi.encode(chunk)
-                if first:
-                    # The first step primes the depformer and returns nothing
-                    # usable; upstream's own loop does the same.
-                    gen.step(codes)
-                    first = False
-                found = gen.step_with_extra_heads(codes)
-            if found is None:
-                _send("text", text="", done=0.0)
+            if operation == "flush":
+                quiet = np.zeros(frame, dtype=np.float32)
+                text, peak = "", 0.0
+                # A request for no frames does nothing. Priming is handled
+                # by `once`, so an empty flush need not step the model at all.
+                for _ in range(max(0, int(request.get("frames", 1)))):
+                    piece, done = once(quiet, index)
+                    text += piece
+                    peak = max(peak, done)
+                _send("text", text=text, done=peak)
                 continue
-            tokens, extra = found
-            done = 0.0
-            if extra and 0 <= index < len(extra):
-                # Element 0 of the head's softmax is the probability of a pause
-                # of that length. `prs[2][0] > 0.5` is Kyutai's own test.
-                done = float(extra[index][0, 0, 0].item())
-            token = int(tokens[0, 0].item())
-            piece = ""
-            if token not in (0, 3):
-                piece = tokenizer.id_to_piece(token).replace("▁", " ")
+            raw = base64.b64decode(request.get("pcm") or "")
+            samples = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32_768.0
+            if samples.size != frame:
+                _send("error", error=f"expected {frame} samples, got {samples.size}")
+                continue
+            piece, done = once(samples, index)
             _send("text", text=piece, done=done)
         except Exception as exc:  # noqa: BLE001 - keep the host alive for the next request
             _send("error", error=str(exc))

@@ -273,6 +273,31 @@ class _Model:
             raise KyutaiUnavailableError(str(answer.get("error")))
         return str(answer.get("text") or ""), float(answer.get("done") or 0.0)
 
+    def flush(self, frames: int) -> tuple[str, float]:
+        """`frames` of silence in one round trip; the text and the peak pause.
+
+        Silence is how anything is got out of this model at the end: the text
+        stream lags the audio by `audio_delay_seconds`, so the last words are
+        still inside it when the speaker stops. Kyutai's own transcription
+        script appends `ceil(audio_delay_seconds * frame_rate)` silent frames
+        for exactly this and reads the tail off the end.
+
+        Asked for in one call rather than seven, which is tidier and,
+        measured, no faster: seven round trips took 156 ms and one round trip
+        took 156 ms, because all of it is the model's seven steps and none of
+        it is the pipe. Recorded here so nobody spends the afternoon again
+        optimising a boundary that costs nothing. The 1.53 s this was blamed
+        for is in `_settle`, and was never the flush.
+        """
+        answer = self._ask(
+            op="flush",
+            frames=int(frames),
+            vad_index=int(_setting(VAD_INDEX_SETTING, VAD_INDEX)),
+        )
+        if answer.get("event") == "error":
+            raise KyutaiUnavailableError(str(answer.get("error")))
+        return str(answer.get("text") or ""), float(answer.get("done") or 0.0)
+
     def close(self) -> None:
         """The name the sidecar registry calls. `release` is the STT spelling."""
         self.release()
@@ -382,6 +407,8 @@ class KyutaiStream(stt.RecognizeStream):
         self._ended_by_vad = 0
         #: How many frames in a row the pause head has been over threshold.
         self._high_for = 0
+        #: The highest it reached this turn, for the log. See `_settle`.
+        self._peak = 0.0
 
     def set_transcribing(self, on: bool) -> None:
         self._transcribing = on
@@ -396,44 +423,97 @@ class KyutaiStream(stt.RecognizeStream):
     def _begin(self, model: _Model) -> None:
         """Start an utterance, with the silence this model needs in front."""
         model.reset()
-        self._first = True
+        self._first = False
         self._open = True
         self._high_for = 0
-        quiet = np.zeros(FRAME_SAMPLES, dtype=np.float32)
-        for _ in range(int(PREFIX_SECONDS / FRAME_SECONDS)):
-            model.step(quiet, self._first)
-            self._first = False
+        self._peak = 0.0
+        # One call, not twelve. Worth roughly nothing in time -- the twelve
+        # model steps are the cost, not the twelve messages -- but this sits on
+        # the critical path of every utterance and one operation there is
+        # easier to reason about than a loop that can interleave with a reset.
+        model.flush(int(PREFIX_SECONDS / FRAME_SECONDS))
 
-    def _settle(self, model: _Model, why: str) -> None:
+    def _close(self, model: _Model) -> str:
+        """The blocking half of ending a turn: flush, and hand back the words.
+
+        Split from the emitting half because of where each has to run. This
+        one blocks on the model and belongs on a worker thread; the emitting
+        belongs on the event loop, and putting it here cost 1.53 s of silence
+        after every sentence.
+        """
         if not self._open:
-            return
+            return ""
         # Flush past the model's own text delay, or the last words never
         # arrive: the text stream deliberately lags the audio by 0.5 s.
-        quiet = np.zeros(FRAME_SAMPLES, dtype=np.float32)
-        for _ in range(int(model.delay_seconds / FRAME_SECONDS) + 1):
-            piece, _done = model.step(quiet, False)
-            if piece:
-                self._said = (self._said + piece).strip()
+        tail, peak = model.flush(int(model.delay_seconds / FRAME_SECONDS) + 1)
+        if tail:
+            self._said = (self._said + tail).strip()
+        self._peak = max(self._peak, peak)
         self._open = False
-        if self._said:
-            log.info("stt: turn ended by %s", why)
-            self._emit(stt.SpeechEventType.FINAL_TRANSCRIPT, self._said)
-            # And the event LiveKit actually acts on.
-            #
-            # The semantic VAD was doing its work and nobody was listening.
-            # `audio_recognition` honours `END_OF_SPEECH` from an STT only when
-            # the session runs `turn_detection="stt"`, and this stream emitted
-            # nothing but interim and final transcripts -- so the end of turn
-            # was still decided by silence, and the 0.9 seconds the heads buy
-            # were thrown away in the plumbing.
-            #
-            # Emitted only when the model called it. A turn ended by the
-            # fallback timer is an ordinary silence ending and must not claim
-            # to be more.
-            if why == "the model":
-                self._emit(stt.SpeechEventType.END_OF_SPEECH, "")
-        self._said = ""
+        said, self._said = self._said, ""
         self._pending = np.zeros(0, dtype=np.float32)
+        return said
+
+    async def _settle(self, model: _Model, why: str) -> None:
+        """End the turn: the model on a thread, the events on the loop.
+
+        `_settle` used to be one synchronous method run wholesale through
+        `asyncio.to_thread`, emitting from in there. That is the bug behind the
+        1.53 s between "turn ended by the timer" in the log and the transcript
+        reaching the session.
+
+        `Chan.send_nowait` appends to a deque and then wakes the waiting
+        coroutine with `future.set_result` -- an asyncio call that is only
+        valid on the loop's own thread. Called from a worker, the future is
+        resolved but the loop is never signalled: it stays asleep in its
+        selector until something *else* wakes it, and only then notices the
+        transcript. Nothing is lost, so it looked like a slow model rather
+        than a missed wakeup, and the flush wore the blame for it.
+
+        `_drain` already had this right, and said so in a comment -- "Emission
+        stays on the event loop, because `_event_ch.send_nowait` belongs to
+        it". This is that rule applied to the other path.
+        """
+        said = await asyncio.to_thread(self._close, model)
+        if said:
+            self._said = said
+            # What the heads actually did, every turn, whoever ended it.
+            #
+            # Head 2 answers "is a two-second pause starting" and the fallback
+            # timer fires after 0.6 s of quiet, so the timer can win on
+            # arithmetic alone and the model never gets to speak. Whether that
+            # is what happens is a measurement, not a guess, and this is it:
+            # how high the head reached against the bar it had to clear.
+            log.info(
+                "stt: turn ended by %s (pause head peaked at %.2f, needed %.2f for %d frames)",
+                why,
+                self._peak,
+                _setting(VAD_THRESHOLD_SETTING, VAD_THRESHOLD),
+                max(1, int(_setting(VAD_HOLD_SETTING, VAD_HOLD))),
+            )
+            self._emit(stt.SpeechEventType.FINAL_TRANSCRIPT, self._said)
+            # And the event LiveKit acts on. Always, however the turn ended.
+            #
+            # This was emitted only when the pause heads called it, reasoning
+            # that a turn ended by the fallback timer is an ordinary silence
+            # ending and should not claim to be more. The reasoning was about
+            # honesty; the effect was a deadlock. The session runs
+            # `turn_detection="stt"` for this recogniser, and in that mode
+            # `audio_recognition` has no other way to commit a turn:
+            # `_vad_base_turn_detection` is false, and the VAD's own
+            # end-of-speech runs the detector only `if self._turn_detection_mode
+            # == "stt" and self._user_turn_committed` -- a flag set nowhere but
+            # the branch this event feeds.
+            #
+            # So on every turn the heads stayed quiet for, the transcript was
+            # delivered and nothing ever asked the LLM about it. Live: "Hey,
+            # Marvi, how are you doing?" transcribed at 13:51:44, and Marvi
+            # never answered for the remaining 86 seconds of the call. The turn
+            # is over either way; which clock said so belongs in the log line
+            # above, not in whether LiveKit is told.
+            self._emit(stt.SpeechEventType.END_OF_SPEECH, "")
+        self._said = ""
+        self._peak = 0.0
 
     def _drain(self, model: _Model, threshold: float, hold: int) -> tuple[list[str], bool]:
         """Every complete frame in the buffer, on one worker thread.
@@ -460,6 +540,7 @@ class KyutaiStream(stt.RecognizeStream):
             # mid-sentence. Both guards are load-bearing -- the first probe of
             # this signal, without them, would have ended one clip's turn 8.9
             # seconds early.
+            self._peak = max(self._peak, done)
             self._high_for = self._high_for + 1 if done > threshold else 0
             if self._said and self._high_for >= hold:
                 return said, True
@@ -472,7 +553,7 @@ class KyutaiStream(stt.RecognizeStream):
         try:
             async for item in self._input_ch:
                 if isinstance(item, self._FlushSentinel):
-                    await asyncio.to_thread(self._settle, model, "flush")
+                    await self._settle(model, "flush")
                     continue
                 samples = np.frombuffer(bytes(item.data), dtype=np.int16)
                 if not samples.size or not self._transcribing:
@@ -506,9 +587,9 @@ class KyutaiStream(stt.RecognizeStream):
                     self._emit(stt.SpeechEventType.INTERIM_TRANSCRIPT, text)
                 if finished:
                     self._ended_by_vad += 1
-                    await asyncio.to_thread(self._settle, model, "the model")
+                    await self._settle(model, "the model")
                 elif self._said and time.monotonic() - self._spoke_at >= self._SILENCE:
-                    await asyncio.to_thread(self._settle, model, "the timer")
+                    await self._settle(model, "the timer")
         finally:
             with contextlib.suppress(Exception):
-                await asyncio.to_thread(self._settle, model, "close")
+                await self._settle(model, "close")
