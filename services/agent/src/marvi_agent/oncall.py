@@ -57,6 +57,21 @@ STALE = 10.0
 #: for the case where something keeps the mark fresh forever.
 PATIENCE = 600.0
 
+#: How long to wait before believing there is no call.
+#:
+#: The replacement process is created at the same instant the job is assigned,
+#: so its first look at the marker and the job process writing that marker are
+#: a straight race. Marking the call earlier wins it by a couple of hundred
+#: milliseconds, which is not the same as winning it: process start-up on
+#: Windows is not that predictable, and losing means twelve seconds of
+#: checkpoint loading through the opening turn of a conversation.
+#:
+#: So the loser also gets a second look. A pause before the first load costs a
+#: second and a half on a prewarm that takes twelve to forty-seven, and only
+#: ever when the marker is absent -- if a call is already running the first
+#: look catches it and this never happens.
+GRACE = 1.5
+
 #: How long the worker must allow a process to finish initialising.
 #:
 #: Not a free number: the wait happens *inside* `prewarm`, which LiveKit runs
@@ -129,9 +144,14 @@ def wait_until_free(patience: float = PATIENCE) -> float:
     has no job and the only thing it would do with the GPU is take it from the
     call that does.
     """
-    if not busy():
-        return 0.0
     began = time.monotonic()
+    if not busy():
+        # Nothing yet -- but a call starting right now has not written its
+        # mark. Look again before committing the card. See `GRACE`.
+        time.sleep(GRACE)
+        if not busy():
+            return 0.0
+        log.info("prewarm: a call started while this process was spawning")
     log.info("prewarm: a call is in progress; waiting rather than taking the GPU from it")
     while busy() and time.monotonic() - began < patience:
         time.sleep(0.5)

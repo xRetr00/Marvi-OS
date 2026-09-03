@@ -175,3 +175,40 @@ def test_an_empty_lookup_does_not_claim_the_last_turn_s_block(prefetch, monkeypa
         time.sleep(0.005)
 
     assert prefetch.staged("anything about this?") is False
+
+
+def test_a_sentence_that_grew_is_looked_up_again(prefetch) -> None:
+    """The fragment that gets searched is not always the one carrying the question.
+
+    The prefix test accepts an early fragment's answer for the whole sentence,
+    and that was read as the early fragment being as good as the sentence. It
+    is, for "what computer am I". It is not for a sentence that opens with
+    something else:
+
+        interim   "I am fine. The"
+        final     "I am fine. The king told me, what's the status of the king?"
+
+    The fragment matched nothing, nothing was staged, and the turn fetched live
+    and found 454 characters the prefetch had never gone looking for -- nine
+    turns out of thirteen in one real conversation.
+    """
+    prefetch.begin("I am fine. The")
+    settle(prefetch)
+    assert prefetch.asked == ["I am fine. The"]
+
+    prefetch.begin("I am fine. The king told me, what's the status of the king?")
+    settle(prefetch)
+
+    assert len(prefetch.asked) == 2, "the question itself was never searched for"
+    assert "status of the king" in prefetch.asked[-1]
+
+
+def test_a_sentence_that_barely_grew_is_not(prefetch) -> None:
+    # The other side of it: a couple more words is the same question, and a
+    # search per interim is what the one-at-a-time rule exists to prevent.
+    prefetch.begin("what computer am I")
+    settle(prefetch)
+    prefetch.begin("what computer am I running")
+    time.sleep(0.05)
+
+    assert len(prefetch.asked) == 1

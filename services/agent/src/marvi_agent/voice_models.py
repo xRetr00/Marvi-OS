@@ -784,7 +784,16 @@ class _ClauseStream(tts.SynthesizeStream):
             # The next segment is a new reply and buys its own cushion.
             released = False
 
+        # Time spent waiting for the model to write the next words, kept apart
+        # from time spent turning words into sound. See the log line below.
+        # Measured as the gap between finishing one item and receiving the
+        # next, rather than by taking the iteration apart: same number, and it
+        # leaves the loop that carries every spoken word exactly as it was.
+        idle = 0.0
+        handed = time.monotonic()
+
         async for item in self._input_ch:
+            idle += time.monotonic() - handed
             if isinstance(item, self._FlushSentinel):
                 # Say what is buffered, and keep the segment open.
                 #
@@ -796,6 +805,9 @@ class _ClauseStream(tts.SynthesizeStream):
                 # segment, closed once, when the input actually ends.
                 await speak(buffer)
                 buffer = ""
+                # Before the continue, or the synthesis just done would be
+                # counted as time spent waiting for the model.
+                handed = time.monotonic()
                 continue
 
             buffer += item
@@ -804,27 +816,55 @@ class _ClauseStream(tts.SynthesizeStream):
                 if not clause:
                     break
                 await speak(clause)
+            handed = time.monotonic()
 
         await speak(buffer)
         close_segment()
         output_emitter.end_input()
 
-        # The number that says whether the reply was heard in one piece.
+        # Whether the reply was heard in one piece -- and, when it was not,
+        # which half of the pipeline to go after.
         #
-        # The room plays audio at exactly real time, so anything below 1.0
-        # here means the engine produced it slower than the room consumed
-        # it, the player ran dry, and the reply arrived word, gap, word.
-        # Working that out the first time took an afternoon and a log full
-        # of progress bars. It is one line now.
+        # The room plays audio at exactly real time, so below 1.0 overall means
+        # the player ran dry and the reply arrived word, gap, word. That much
+        # was right. What was wrong was the label: `began` is the start of the
+        # *reply*, and this loop spends most of it waiting on `_input_ch` for
+        # the LLM to write the next clause. A slow model was therefore reported
+        # as a slow engine, under a line that starts with `tts:`.
+        #
+        # Live, that misread a whole conversation. Across four turns the
+        # numbers moved together --
+        #
+        #     llm ttft 1921ms  tts ttfb  627ms   9.9s of audio in  6.8s (1.46x)
+        #     llm ttft 3520ms  tts ttfb 2628ms   2.6s of audio in  6.4s (0.40x)
+        #     llm ttft 3550ms  tts ttfb 5242ms  14.7s of audio in 14.1s (1.04x)
+        #     llm ttft 4094ms  tts ttfb 8854ms  14.2s of audio in 23.2s (0.61x)
+        #
+        # -- the "TTS rate" falling as the model's own latency climbed, on a
+        # local engine whose speed had not changed at all. Two afternoons went
+        # into the engine on the strength of that number.
+        #
+        # So both are reported: what the engine did with the time it had, and
+        # how much of the reply was spent waiting for something to say.
         spent = time.monotonic() - began
         produced = pushed[0] / _BYTES_PER_SECOND
+        working = max(spent - idle, 1e-6)
         if spent > 0 and produced > 0:
             log.info(
-                "tts: %.1fs of audio in %.1fs (%.2fx real time)%s",
+                "tts: %.1fs of audio in %.1fs (%.2fx real time; engine %.2fx, "
+                "%.1fs waiting for the model)%s",
                 produced,
                 spent,
                 produced / spent,
-                "" if produced / spent >= 1.0 else "  <- below real time, expect gaps",
+                produced / working,
+                idle,
+                ""
+                if produced / spent >= 1.0
+                else (
+                    "  <- gaps, and the model is the slower half"
+                    if idle > working
+                    else "  <- gaps, and the engine is the slower half"
+                ),
             )
 
 

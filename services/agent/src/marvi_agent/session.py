@@ -258,6 +258,28 @@ class _Prefetch:
     #: older belongs to a sentence that has already been answered.
     FRESH = 20.0
 
+    #: How much longer the sentence has to get before it is worth asking again.
+    #:
+    #: The prefix test means an early fragment's answer is *accepted* for the
+    #: whole sentence, and this used to be read as an early fragment's answer
+    #: being as *good* as the whole sentence's. For "what computer am I" it is.
+    #: For a sentence that opens with something else, it is not:
+    #:
+    #:     interim   "I am fine. The"                                 <- searched
+    #:     final     "I am fine. The king told me, what's the status of the king?"
+    #:
+    #: The fragment matched nothing, so nothing was staged, so the turn fetched
+    #: live and found 454 characters of memory the prefetch had never looked
+    #: for. Across one conversation that was nine turns out of thirteen fetching
+    #: after the turn ended -- the whole cost this class exists to move, still
+    #: sitting in front of every reply, and preemptive generation discarded with
+    #: it.
+    #:
+    #: So a sentence that has grown by this much since the last finished lookup
+    #: earns another one. Two or three background searches a turn against a
+    #: local index, in exchange for the one that actually carries the question.
+    GROWTH = 24
+
     def __init__(self) -> None:
         #: Set by `attach` once the session exists. Without them the prefetch
         #: still works and simply does not stage anything, which is the old
@@ -290,8 +312,18 @@ class _Prefetch:
         if len(text) < self.MINIMUM or not needs_memory(text):
             return
         with self._lock:
-            covered = self._running or self._query
-            if covered and text.lower().startswith(covered.lower()):
+            # One at a time, always: a lookup in flight covers everything that
+            # extends it, and starting a second is how this ended up with a
+            # search per word.
+            if self._running and text.lower().startswith(self._running.lower()):
+                return
+            # A finished lookup covers this only while the sentence has not
+            # grown enough to be a different question. See `GROWTH`.
+            if (
+                self._query
+                and text.lower().startswith(self._query.lower())
+                and len(text) - len(self._query) < self.GROWTH
+            ):
                 return
             self._running = text
 
@@ -1560,6 +1592,30 @@ async def marvi_session(ctx: JobContext) -> None:
     or find no speech engine, and all three looked identical from outside.
     """
     started = time.monotonic()
+    # First, before anything else in this function.
+    #
+    # LiveKit spawns the replacement process the moment this job is assigned,
+    # so the replacement's `prewarm` and this line are in a straight race, and
+    # marking the call just before `session.start` -- three log lines and a
+    # session build later -- lost it:
+    #
+    #     15:39:03.86  job AJ_jYoLYQk4BcMt starting, process already warm
+    #     15:39:04.0   the replacement begins loading Kyutai
+    #     15:39:04.2   joined, listening        <- the mark was set about here
+    #     15:39:16.34  stt: kyutai ready in 12.3s
+    #
+    # Twelve seconds of a 2.3 GB checkpoint loading onto the card, through the
+    # first turn of the conversation, with no "a call is in progress; waiting"
+    # anywhere in the log because by the time the mark existed the replacement
+    # had already looked and seen nothing. That turn: `llm ttft 3628ms, tts
+    # ttfb 1972ms, end to end 13345ms`, and 7.4 seconds from the person
+    # finishing to Marvi starting. The next turn, after the load finished, was
+    # 633 ms.
+    #
+    # Winning by 300 ms instead of losing by 200 is still a race, which is why
+    # `wait_until_free` also looks twice. See `oncall.GRACE`.
+    live = oncall.Marker()
+    live.start()
     # Whether this process was warm when the job arrived is the single most
     # useful fact about a slow join, and nothing said it.
     #
@@ -1661,10 +1717,6 @@ async def marvi_session(ctx: JobContext) -> None:
     # so the desktop holds Join rather than offering a second one that would
     # wait for a cold prewarm.
     await asyncio.to_thread(_pool_is_busy)
-    # And say so where another process can see it, so the replacement this
-    # very moment creates does not load its models on top of this call.
-    live = oncall.Marker()
-    live.start()
     await session.start(agent=voice_agent, room=ctx.room)
     # Both numbers, because they answer different questions. The first is what
     # LiveKit's connect cost; the second is what the person waited from the job

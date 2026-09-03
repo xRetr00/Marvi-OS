@@ -128,3 +128,45 @@ def test_the_wait_fits_inside_what_the_worker_allows() -> None:
     # Comfortably past the call lengths that killed it: 171s of waiting had
     # 9 seconds left of 180.
     assert oncall.INIT_BUDGET >= 600.0
+
+
+def test_a_call_that_starts_while_the_process_is_spawning_is_caught(monkeypatch) -> None:
+    """The race the marker alone loses.
+
+    LiveKit creates the replacement process the instant a job is assigned, so
+    the replacement's first look and the job writing its mark happen together.
+    Marking the call first in the entrypoint wins by a couple of hundred
+    milliseconds; it does not make the race go away. Live, the marker lost:
+
+        15:39:03.86  job starting, process already warm
+        15:39:04.0   the replacement begins loading Kyutai
+        15:39:16.34  stt: kyutai ready in 12.3s
+
+    -- twelve seconds of checkpoint loading through the opening turn, and no
+    "waiting" line anywhere, because by the time the mark existed the
+    replacement had already looked.
+    """
+    looks = {"n": 0}
+
+    def appears_on_the_second_look() -> bool:
+        looks["n"] += 1
+        # Absent on the first look, present on the second, gone by the third.
+        return looks["n"] == 2
+
+    monkeypatch.setattr(oncall, "GRACE", 0.0)
+    monkeypatch.setattr(oncall, "busy", appears_on_the_second_look)
+    monkeypatch.setattr(time, "sleep", lambda _s: None)
+
+    oncall.wait_until_free()
+    assert looks["n"] >= 3, "it committed the card after one look"
+
+
+def test_an_idle_machine_still_only_pauses_briefly(monkeypatch) -> None:
+    # The cost of that second look, paid on every genuinely cold prewarm.
+    # It must stay a pause, not a wait.
+    monkeypatch.setattr(oncall, "busy", lambda: False)
+    slept: list[float] = []
+    monkeypatch.setattr(time, "sleep", slept.append)
+
+    assert oncall.wait_until_free() == 0.0
+    assert sum(slept) <= 2.0, f"an idle prewarm paused for {sum(slept)}s"

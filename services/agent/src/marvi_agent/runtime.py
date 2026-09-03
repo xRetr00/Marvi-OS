@@ -48,9 +48,57 @@ def gateway_base_url() -> str:
 LOCAL_TOKEN = "MARVI_LOCAL_TOKEN"
 
 
-def local_token_header() -> dict[str, str]:
+#: Where the desktop also leaves the token. The Gateway's own `localauth`
+#: reads the same file, for the same reason from the other side.
+TOKEN_FILE = "state/local-token"
+
+
+def _token_on_disk() -> str:
+    from .parakeet_stt import APP_DATA
+
+    try:
+        return (APP_DATA / TOKEN_FILE).read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+def local_tokens() -> list[str]:
+    """Every token this process can offer, best first.
+
+    The mirror of `localauth.expected()`, which accepts the token the Gateway
+    was started with *or* the one on disk. This offered only the environment,
+    and the environment is a snapshot taken when this process started.
+
+    That asymmetry is a real failure and it is in the log. The Gateway
+    restarted twenty-nine times in one afternoon; a worker from an earlier
+    launch goes on presenting the token from that launch, and every request is
+    refused in bursts of four -- one per retry:
+
+        15:22 x4   15:23 x4   15:28 x4   15:49 x4   15:51 x4
+        refused an unauthenticated request for /providers/voice
+
+    all of them for the one endpoint that hands out the provider credential,
+    which is to say: voice stopped working until the whole app was restarted.
+    The Gateway's own comment already worked this out for the adopted-Gateway
+    case and fixed only that side of it.
+
+    The file costs what it costs on the Gateway side too, and the reasoning is
+    the same: a same-user process can read it, which is a difference of degree
+    inside a threat this guard already says it does not close. The check that
+    stops a drive-by is `Sec-Fetch-Site`, and it is untouched.
+    """
+    seen: list[str] = []
+    for token in (os.environ.get(LOCAL_TOKEN, "").strip(), _token_on_disk()):
+        if token and token not in seen:
+            seen.append(token)
+    return seen
+
+
+def local_token_header(token: str | None = None) -> dict[str, str]:
     """The header that proves this process was started alongside the Gateway."""
-    token = os.environ.get(LOCAL_TOKEN, "").strip()
+    if token is None:
+        tokens = local_tokens()
+        token = tokens[0] if tokens else ""
     return {"x-marvi-local": token} if token else {}
 
 
@@ -131,9 +179,17 @@ class AgentConfig:
             # supervisor with the same environment, which is what makes this
             # the Agent and not a browser tab on the same loopback. Absent
             # outside the app, where the Gateway does not require it either.
-            response = http.get(
-                f"{gateway_base_url()}/providers/voice", headers=local_token_header()
-            )
+            # Each token the Gateway might accept, in turn. Usually one; two
+            # when this worker outlived the Gateway that started it. See
+            # `local_tokens`.
+            where = f"{gateway_base_url()}/providers/voice"
+            tokens = local_tokens() or [""]
+            response = http.get(where, headers=local_token_header(tokens[0]))
+            for token in tokens[1:]:
+                if response.status_code != 403:
+                    break
+                log.info("the Gateway refused one of this process's tokens; trying the next")
+                response = http.get(where, headers=local_token_header(token))
             if response.status_code == 503:
                 raise ProviderUnavailableError(
                     "No provider is configured. Connect one in the Marvi control center."
