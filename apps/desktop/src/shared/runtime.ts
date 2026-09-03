@@ -557,6 +557,22 @@ export interface VoicePage {
   voices: InstalledVoice[]
 }
 
+/** The voices Marvi's proactive speech can use.
+ *
+ * Its own list because the announcer is its own engine: PocketTTS on the CPU,
+ * cold-started per announcement, deliberately not the warmed voice path. */
+export interface AnnouncerVoices {
+  setting: string
+  selected: string
+  engine: string
+  /** False when the gated model could not be reached; `detail` says why. */
+  canClone: boolean
+  detail: string
+  shortestSeconds?: number
+  longestSeconds?: number
+  voices: Array<{ id: string; name: string; cloned: boolean; seconds?: number }>
+}
+
 /** A voice Marvi learned from a recording. */
 export interface VoiceClone {
   id: string

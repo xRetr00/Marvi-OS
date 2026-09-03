@@ -46,6 +46,7 @@ import type {
   UpdateStatus,
   UpstreamPage,
   RecogniserPage,
+  AnnouncerVoices,
   VoiceClonePage,
   VoicePage,
   LanguagePolicy,
@@ -244,6 +245,7 @@ export interface MarviDesktopApi {
   getUpstreams: (model?: string) => Promise<UpstreamPage | null>
   getVoices: () => Promise<VoicePage | null>
   getRecognisers: () => Promise<RecogniserPage | null>
+  getAnnouncerVoices: () => Promise<AnnouncerVoices | null>
   getVoiceClones: () => Promise<VoiceClonePage | null>
   addVoiceClone: (engine: string, name: string) => Promise<{ ok: boolean; detail: string }>
   removeVoiceClone: (engine: string, voice: string) => Promise<boolean>

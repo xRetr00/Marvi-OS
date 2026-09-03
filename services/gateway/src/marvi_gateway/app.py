@@ -4127,6 +4127,30 @@ def create_app(
             "voices": [voice.as_row() for voice in installed],
         }
 
+    @app.get("/announcer/voices")
+    async def announcer_voices() -> dict[str, Any]:
+        """The voices Marvi's proactive speech can use.
+
+        Its own list because the announcer is its own engine: PocketTTS on the
+        CPU, cold-started per announcement, deliberately not the warmed voice
+        path. What it shares with the conversational engines is the clone
+        store, so a recording is added and deleted the same way.
+        """
+        from . import announce, cloning
+
+        can_clone, why = announce.cloning_available()
+        return {
+            "setting": "MARVI_ANNOUNCE_VOICE",
+            "selected": announce.selected_voice(),
+            "voices": announce.voices(),
+            "engine": cloning.ANNOUNCER,
+            "can_clone": can_clone,
+            "detail": why,
+            "shortestSeconds": cloning.SHORTEST,
+            "longestSeconds": cloning.LONGEST,
+            "canClone": can_clone,
+        }
+
     @app.get("/voices/clones")
     async def clone_list() -> dict[str, Any]:
         """The voices Marvi learned from a recording, and who can speak them."""

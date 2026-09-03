@@ -47,6 +47,7 @@ import type {
   UpdateStatus,
   UpstreamPage,
   RecogniserPage,
+  AnnouncerVoices,
   VoiceClonePage,
   VoicePage,
   LanguagePolicy,
@@ -363,6 +364,8 @@ const marvi = {
   getVoices: (): Promise<VoicePage | null> => ipcRenderer.invoke('marvi:get-voices'),
   getRecognisers: (): Promise<RecogniserPage | null> =>
     ipcRenderer.invoke('marvi:get-recognisers'),
+  getAnnouncerVoices: (): Promise<AnnouncerVoices | null> =>
+    ipcRenderer.invoke('marvi:get-announcer-voices'),
   getVoiceClones: (): Promise<VoiceClonePage | null> =>
     ipcRenderer.invoke('marvi:get-voice-clones'),
   addVoiceClone: (engine: string, name: string): Promise<{ ok: boolean; detail: string }> =>

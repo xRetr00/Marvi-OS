@@ -2491,6 +2491,16 @@ function startApp(): void {
         return null
       }
     })
+    ipcMain.handle('marvi:get-announcer-voices', async () => {
+      try {
+        const response = await fetch(`${gateway()}/announcer/voices`, {
+          signal: AbortSignal.timeout(5_000)
+        })
+        return response.ok ? await response.json() : null
+      } catch {
+        return null
+      }
+    })
     ipcMain.handle('marvi:get-voice-clones', async (): Promise<VoiceClonePage | null> => {
       try {
         const response = await fetch(`${gateway()}/voices/clones`, {

@@ -68,6 +68,46 @@ class InstallError(Exception):
     pass
 
 
+def hugging_face_token() -> str:
+    """The user's Hugging Face token, from the environment or their settings.
+
+    Read at download time rather than baked into the component, because it is a
+    credential and belongs in the same place as every other one.
+    """
+    import os
+
+    for name in ("HF_TOKEN", "HUGGING_FACE_HUB_TOKEN"):
+        if found := os.environ.get(name, "").strip():
+            return found
+    return ""
+
+
+def _explain(status: int, path: str, url: str) -> str:
+    """An HTTP failure as something a person can act on.
+
+    "HTTP 401 fetching model.safetensors" is true and useless: it does not say
+    that the repository is gated, that the fix is a token, or where the token
+    goes. Both of the failures worth naming are ones the user can clear in a
+    minute and neither is visible from the status code alone.
+    """
+    gated = "huggingface.co" in url
+    if status in (401, 403) and gated:
+        return (
+            f"{path} is in a gated Hugging Face repository. Accept its terms on "
+            "huggingface.co, then add your access token in Setup > Providers "
+            "(or set HF_TOKEN) and run this again."
+        )
+    if status == 429 and gated:
+        return (
+            f"Hugging Face is rate limiting this download of {path}. Adding your "
+            "access token in Setup > Providers (or setting HF_TOKEN) raises the "
+            "limit considerably; otherwise wait a few minutes and retry."
+        )
+    if status == 404:
+        return f"{path} is not at {url} -- the pinned revision may have moved"
+    return f"HTTP {status} fetching {path}"
+
+
 def _download(
     url: str,
     destination: Path,
@@ -86,6 +126,11 @@ def _download(
     # Only resume when the server can be told where to continue from, and only
     # when what is on disk is plausibly a prefix of the real file.
     headers = {}
+    # A token when there is one. Hugging Face gates some repositories and
+    # throttles anonymous traffic, and both look like an ordinary HTTP failure
+    # from here. See `hugging_face_token` for where it comes from.
+    if token := hugging_face_token():
+        headers["Authorization"] = f"Bearer {token}"
     if already and spec.size and already < spec.size:
         headers["Range"] = f"bytes={already}-"
     elif already:
@@ -101,7 +146,7 @@ def _download(
                 part.unlink(missing_ok=True)
                 raise InstallError("stale partial download; retry to start over")
             if response.status_code not in (200, 206):
-                raise InstallError(f"HTTP {response.status_code} fetching {spec.path}")
+                raise InstallError(_explain(response.status_code, spec.path, url))
             if response.status_code == 200 and already:
                 # No resume offered, so start again rather than appending to a
                 # prefix the server is not honouring.

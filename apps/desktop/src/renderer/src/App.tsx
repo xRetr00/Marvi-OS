@@ -182,6 +182,7 @@ import type {
   SkillsPage,
   StoreSkill,
   RoomVisionPreview,
+  AnnouncerVoices,
   VoiceClonePage,
   VoicePage,
   PendingQuestion,
@@ -5502,6 +5503,17 @@ function VoiceSynthesisPanel(): React.JSX.Element {
         </div>
         <VoicePicker />
       </ControlSection>
+      <ControlSection icon={Radio} title="Announcer">
+        <div>
+          <p>
+            The voice Marvi speaks in when she starts the conversation — a reminder, something
+            she noticed, or Read Aloud in chat. It runs cold on the processor rather than
+            holding the graphics card, so it is a separate voice from the one in a call. Clone
+            your own recording here and the two can match.
+          </p>
+        </div>
+        <AnnouncerVoice />
+      </ControlSection>
       <ControlSection icon={Mic} title="Voice cloning">
         <div>
           <p>
@@ -5529,6 +5541,136 @@ function VoiceSynthesisPanel(): React.JSX.Element {
  * so "clone for the engine you happen to be using" would be a quiet way to
  * make a voice that vanishes when you switch.
  */
+/**
+ * Which voice Marvi announces in, and cloning one for her.
+ *
+ * Separate from the conversational voice picker because the announcer is a
+ * separate engine: PocketTTS, on the processor, loaded per announcement and
+ * deliberately never kept warm. That split is a real cost — proactive Marvi
+ * and conversational Marvi sound like different people — and cloning is what
+ * closes it without keeping a second model resident.
+ */
+function AnnouncerVoice(): React.JSX.Element {
+  const [page, setPage] = useState<AnnouncerVoices | null>(null)
+  const [name, setName] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [problem, setProblem] = useState('')
+
+  const reload = async (): Promise<void> => {
+    setPage((await window.marvi?.getAnnouncerVoices()) ?? null)
+  }
+
+  useEffect(() => {
+    let gone = false
+    void (async () => {
+      const next = await window.marvi?.getAnnouncerVoices()
+      if (!gone) setPage(next ?? null)
+    })()
+    return () => {
+      gone = true
+    }
+  }, [])
+
+  const record = async (): Promise<void> => {
+    if (!page || !name.trim() || busy) return
+    setBusy(true)
+    setProblem('')
+    const result = await window.marvi?.addVoiceClone(page.engine, name.trim())
+    setBusy(false)
+    // An empty detail is the file dialog being cancelled, which is not a
+    // failure and should not be reported as one.
+    if (!result?.ok) {
+      if (result?.detail) setProblem(result.detail)
+      return
+    }
+    setName('')
+    await reload()
+  }
+
+  return (
+    <>
+      <ControlRow
+        action={
+          <Picker
+            options={(page?.voices ?? []).map((voice) => ({
+              value: voice.id,
+              label: voice.name,
+              detail: voice.cloned ? 'Recorded here' : 'Built in',
+              hint: voice.cloned ? 'CLONED' : undefined
+            }))}
+            value={page?.selected ?? ''}
+            onChange={(next) => {
+              if (!page) return
+              setPage({ ...page, selected: next })
+              void window.marvi?.setProviderSettings({ [page.setting]: next })
+            }}
+            placeholder="Alba"
+            searchPlaceholder="Search announcer voices…"
+          />
+        }
+        description="Used for reminders, things Marvi noticed, and Read Aloud."
+        title="Announcer voice"
+      />
+      {page && !page.canClone ? (
+        <span className="construction">{page.detail.toUpperCase()}</span>
+      ) : (
+        <ControlRow
+          action={
+            <div className="voice-choice">
+              <input
+                className="control-input"
+                onChange={(event) => setName(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') void record()
+                }}
+                placeholder="Name this voice"
+                value={name}
+              />
+              <button
+                className="control-button"
+                disabled={!name.trim() || busy}
+                onClick={() => void record()}
+                type="button"
+              >
+                {busy ? 'ADDING…' : 'CHOOSE A RECORDING'}
+              </button>
+            </div>
+          }
+          description={
+            page
+              ? `A WAV of one person speaking, ${page.shortestSeconds ?? 1}–${page.longestSeconds ?? 60} seconds.`
+              : 'A WAV of one person speaking.'
+          }
+          title="Clone a voice for her"
+        />
+      )}
+      {problem ? <span className="construction">{problem.toUpperCase()}</span> : null}
+      {(page?.voices ?? [])
+        .filter((voice) => voice.cloned)
+        .map((voice) => (
+          <ControlRow
+            action={
+              <button
+                className="control-button"
+                onClick={() => {
+                  void window.marvi
+                    ?.removeVoiceClone(page?.engine ?? 'pocket', voice.id)
+                    .then(() => reload())
+                }}
+                type="button"
+              >
+                DELETE
+              </button>
+            }
+            description={`${voice.seconds?.toFixed(1) ?? '?'}s · ${voice.id}`}
+            key={voice.id}
+            title={voice.name}
+          />
+        ))}
+    </>
+  )
+}
+
 function VoiceCloning(): React.JSX.Element {
   const [page, setPage] = useState<VoiceClonePage | null>(null)
   const [engine, setEngine] = useState('')

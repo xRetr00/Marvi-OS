@@ -43,6 +43,19 @@ SYNTHESIS_CHUNK_CHARS = 400
 FRAME_MILLISECONDS = 20
 
 
+def hugging_face_token() -> str:
+    """The user's Hugging Face token, from the environment or their settings.
+
+    `kyutai/pocket-tts` is gated -- auto-approved, but still gated -- and a
+    gated repository without a token is an ordinary HTTP failure that the
+    library swallows into a quieter model.
+    """
+    for name in ("HF_TOKEN", "HUGGING_FACE_HUB_TOKEN"):
+        if found := os.environ.get(name, "").strip():
+            return found
+    return ""
+
+
 def voice_source(voice: str) -> str | Path:
     """What to condition on: a built-in voice name, or a cloned recording.
 
@@ -83,6 +96,21 @@ def voices() -> list[dict[str, Any]]:
 
 def selected_voice() -> str:
     return os.environ.get("MARVI_ANNOUNCE_VOICE", "").strip() or DEFAULT_VOICE
+
+
+def cloning_available() -> tuple[bool, str]:
+    """Whether the announcer can speak in a recorded voice, and why not.
+
+    Answered without loading the model: this is asked by a settings page, and
+    a page that pays for a 300 MB download to grey out a button is a page
+    nobody opens twice.
+    """
+    if not hugging_face_token():
+        return False, (
+            "Cloning needs the gated kyutai/pocket-tts model. Accept its terms "
+            "on Hugging Face and add your token in Setup."
+        )
+    return True, ""
 
 
 class AnnounceUnavailableError(Exception):
@@ -227,7 +255,25 @@ class Announcer:
                 torch.set_num_threads(max(1, min(4, os.cpu_count() or 1)))
             except ImportError:
                 pass
+            # The token, so the gated model is reachable.
+            #
+            # `TTSModel.load_model` tries `kyutai/pocket-tts` and, on *any*
+            # exception, silently falls back to
+            # `kyutai/pocket-tts-without-voice-cloning` with
+            # `has_voice_cloning = False`. Nothing in Marvi ever chose the
+            # lesser model: the gated fetch failed once without a token and the
+            # library quietly took the other one, which is why cloning was
+            # unavailable and nothing said so.
+            if token := hugging_face_token():
+                os.environ.setdefault("HF_TOKEN", token)
+                os.environ.setdefault("HUGGING_FACE_HUB_TOKEN", token)
             self._model = TTSModel.load_model()
+            if not getattr(self._model, "has_voice_cloning", True):
+                logger.warning(
+                    "the announcer loaded the model without voice cloning; a "
+                    "cloned voice cannot be used until Hugging Face access is "
+                    "granted and a token is set. See Setup."
+                )
             # A name, or a recording.
             #
             # `get_state_for_audio_prompt` takes either a `.safetensors`

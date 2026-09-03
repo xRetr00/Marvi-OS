@@ -154,7 +154,11 @@ def test_an_http_error_is_reported_not_swallowed(root) -> None:
     outcome = installer.install(thing(root), root, http=serving(status=404))
 
     assert outcome.ok is False
-    assert "404" in outcome.detail
+    # The status code became a sentence a person can act on. "HTTP 401
+    # fetching model.safetensors" is true and useless: it does not say the
+    # repository is gated, that the fix is a token, or where the token goes.
+    assert "weights.bin" in outcome.detail
+    assert "may have moved" in outcome.detail
 
 
 def test_nothing_is_left_where_it_could_be_trusted(root) -> None:
