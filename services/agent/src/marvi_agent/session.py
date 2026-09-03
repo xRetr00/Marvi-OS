@@ -28,7 +28,7 @@ from livekit.agents import (
 )
 from livekit.plugins import silero
 
-from . import delegated, observability, sidecars
+from . import delegated, observability, oncall, sidecars
 from .parakeet_stt import PARAKEET_ROOT, build_stt, chosen_engine
 from .runtime import AgentConfig, build_llm, build_local_turn_detector
 from .timing import TimedLLM
@@ -1135,6 +1135,16 @@ def prewarm(proc: JobProcess) -> None:
     happens off the critical path. Loading here means a job that arrives finds
     the model already resident and starts speaking immediately.
     """
+    # Not while somebody is talking.
+    #
+    # This process exists because a job took the warm one, so it was created
+    # at the exact moment a call began -- and the first thing it wants to do
+    # is load a 2.3 GB checkpoint onto the card that call is using. Measured,
+    # that costs the live recogniser about a fifth of its speed. Nothing is
+    # lost by waiting: this process has no job, and the pool it is refilling
+    # is for the *next* call. See `oncall`.
+    oncall.wait_until_free()
+
     started = time.monotonic()
     # Timed in pieces, because the total has been anywhere from 4.4 to 112
     # seconds on this machine and one number cannot say which part moved.
@@ -1646,6 +1656,10 @@ async def marvi_session(ctx: JobContext) -> None:
     # so the desktop holds Join rather than offering a second one that would
     # wait for a cold prewarm.
     await asyncio.to_thread(_pool_is_busy)
+    # And say so where another process can see it, so the replacement this
+    # very moment creates does not load its models on top of this call.
+    live = oncall.Marker()
+    live.start()
     await session.start(agent=voice_agent, room=ctx.room)
     # Both numbers, because they answer different questions. The first is what
     # LiveKit's connect cost; the second is what the person waited from the job
@@ -1726,6 +1740,10 @@ async def marvi_session(ctx: JobContext) -> None:
         # exactly what stopped jobs being dispatched before.
         reason = getattr(getattr(event, "reason", None), "value", "session closed")
         log.info("session closed (%s); ending the job", reason)
+        # Released first: the replacement process is sitting in
+        # `oncall.wait_until_free` and should start loading now, not after
+        # whatever the rest of this shutdown takes.
+        live.stop()
         _remember_the_session()
         ctx.shutdown(reason=str(reason))
 

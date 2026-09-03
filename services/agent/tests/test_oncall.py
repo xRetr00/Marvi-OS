@@ -1,0 +1,99 @@
+"""The warm pool waiting its turn.
+
+`prewarm` runs on a process created at the moment a job took the warm one --
+which is the moment somebody started talking. Loading a second 2.3 GB
+checkpoint onto the same card right then cost the live recogniser about a
+fifth of its speed, measured: 157 ms per flush to 187 ms, worst 203 ms.
+"""
+
+from __future__ import annotations
+
+import os
+import time
+
+import pytest
+
+from marvi_agent import oncall
+
+
+@pytest.fixture(autouse=True)
+def _elsewhere(tmp_path, monkeypatch):
+    monkeypatch.setattr(oncall, "MARKER", tmp_path / "state" / "voice-call.live")
+    yield
+
+
+def test_no_marker_means_nobody_is_talking() -> None:
+    assert oncall.busy() is False
+    # And a prewarm on an idle machine does not pause at all.
+    assert oncall.wait_until_free() == 0.0
+
+
+def test_a_live_call_is_seen_from_another_process() -> None:
+    live = oncall.Marker()
+    live.start()
+    try:
+        assert oncall.busy() is True
+        # The pid is in it, so a stuck marker can be traced to something.
+        assert oncall.MARKER.read_text(encoding="utf-8") == str(os.getpid())
+    finally:
+        live.stop()
+    # Removed on the way out rather than left to expire: the replacement
+    # should start loading when the call ends, not ten seconds later.
+    assert oncall.busy() is False
+    assert not oncall.MARKER.exists()
+
+
+def test_a_job_that_died_stops_holding_the_pool(monkeypatch) -> None:
+    """Freshness, not existence.
+
+    A crashed job cannot delete its own marker. If the file alone meant "busy",
+    one crash would leave every future prewarm waiting for a call that ended --
+    so the pool would never refill again until somebody deleted a file.
+    """
+    oncall.MARKER.parent.mkdir(parents=True, exist_ok=True)
+    oncall.MARKER.write_text("31816", encoding="utf-8")
+    old = time.time() - (oncall.STALE + 5)
+    os.utime(oncall.MARKER, (old, old))
+
+    assert oncall.busy() is False
+    assert oncall.wait_until_free() == 0.0
+
+
+def test_the_wait_ends_when_the_call_does(monkeypatch) -> None:
+    calls = {"n": 0}
+
+    def answers(*_a: object) -> bool:
+        calls["n"] += 1
+        # Busy for the first few looks, then the call is over.
+        return calls["n"] <= 3
+
+    monkeypatch.setattr(oncall, "busy", answers)
+    monkeypatch.setattr(time, "sleep", lambda _s: None)
+    oncall.wait_until_free()
+    # Looked four times: busy, busy, busy, free. It stops at the first look
+    # that says the call is over rather than sitting out the rest of a poll.
+    assert calls["n"] == 4
+
+
+def test_it_gives_up_rather_than_wedging_the_pool(monkeypatch) -> None:
+    # Staleness covers a crash; this covers the other shape, where something
+    # keeps the mark fresh forever. A pool that never refills is worse than a
+    # call that shares the card.
+    monkeypatch.setattr(oncall, "busy", lambda: True)
+    monkeypatch.setattr(time, "sleep", lambda _s: None)
+    waited = oncall.wait_until_free(patience=0.05)
+    assert waited >= 0.05
+
+
+def test_the_beat_keeps_it_fresh(monkeypatch) -> None:
+    monkeypatch.setattr(oncall, "BEAT", 0.02)
+    live = oncall.Marker()
+    live.start()
+    try:
+        first = oncall.MARKER.stat().st_mtime_ns
+        deadline = time.monotonic() + 2.0
+        while oncall.MARKER.stat().st_mtime_ns == first and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert oncall.MARKER.stat().st_mtime_ns != first, "the marker went stale mid-call"
+    finally:
+        live.stop()

@@ -121,9 +121,16 @@ def test_project_key_is_validated_before_install(monkeypatch, tmp_path) -> None:
                 raise RuntimeError("invalid project key")
             return Model(items=[])
 
+    built: list[bool] = []
+
     class Candidate:
-        def __init__(self, api_key: str) -> None:
+        # `allow_tracking` is not optional decoration: without it every SDK
+        # call posts an event to telemetry.composio.dev, and a failing one
+        # posts the traceback with it. Taken as a keyword here so the test
+        # fails if it stops being passed, rather than only if it is renamed.
+        def __init__(self, api_key: str, allow_tracking: bool = True) -> None:
             self.toolkits = Toolkits(api_key)
+            built.append(allow_tracking)
 
     monkeypatch.delenv("COMPOSIO_API_KEY", raising=False)
     monkeypatch.setitem(sys.modules, "composio", Model(Composio=Candidate))
@@ -135,6 +142,7 @@ def test_project_key_is_validated_before_install(monkeypatch, tmp_path) -> None:
 
     accounts.configure("valid-key-value")
     assert accounts.available() is True
+    assert built and not any(built), "a client was built with telemetry left on"
 
 
 @pytest.mark.asyncio

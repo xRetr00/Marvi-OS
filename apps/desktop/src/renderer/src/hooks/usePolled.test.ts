@@ -85,7 +85,10 @@ describe('a slow Gateway', () => {
   it('is not sent a second request while it owes an answer', async () => {
     vi.useFakeTimers()
     let started = 0
-    let release: (() => void) | null = null
+    // Initialised to a no-op rather than null: assigned only inside the
+    // promise executor, TypeScript narrows it to `never` and the call below
+    // stops compiling.
+    let release = (): void => {}
     const read = async (): Promise<unknown> => {
       started += 1
       await new Promise<void>((resolve) => {
@@ -102,7 +105,7 @@ describe('a slow Gateway', () => {
     await vi.advanceTimersByTimeAsync(5000)
     expect(started).toBe(1)
 
-    release?.()
+    release()
     await vi.advanceTimersByTimeAsync(500)
     expect(started).toBe(2)
     off()

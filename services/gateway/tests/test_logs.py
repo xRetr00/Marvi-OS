@@ -369,3 +369,52 @@ def test_a_reset_that_is_not_a_transport_teardown_stays_an_error() -> None:
         {"message": "_call_connection_lost", "exception": RuntimeError("something else")}
     ) is False
     assert is_client_hangup({"message": "task exception was never retrieved"}) is False
+
+
+def test_the_routine_heartbeat_stays_out_of_the_access_log() -> None:
+    """959 KB of `gateway.log` for one idle afternoon, and 335 of 335 lines nothing.
+
+    The desktop asks the same handful of endpoints on a timer forever -- is the
+    wake word on, is anything running, how much has been spent. Each answer
+    wrote an access line, and the one real event in that file, a crash loop,
+    had to be dug out from under them.
+    """
+    import logging
+
+    from marvi_gateway.logs import QuietPollingFilter
+
+    def access(path: str, status: int) -> logging.LogRecord:
+        record = logging.LogRecord(
+            "uvicorn.access", logging.INFO, __file__, 0, '%s - "%s %s HTTP/%s" %d', None, None
+        )
+        record.args = ("127.0.0.1:49649", "GET", path, "1.1", status)
+        return record
+
+    quiet = QuietPollingFilter()
+    assert quiet.filter(access("/voice/wake", 200)) is False
+    assert quiet.filter(access("/usage?refresh=false", 200)) is False
+    assert quiet.filter(access("/runtime", 200)) is False
+
+    # Anything that is not the heartbeat still shows.
+    assert quiet.filter(access("/chat", 200)) is True
+    assert quiet.filter(access("/voice/transcript", 200)) is True
+
+    # And a poll that failed is exactly what this log is for.
+    assert quiet.filter(access("/voice/wake", 500)) is True
+    assert quiet.filter(access("/runtime", 404)) is True
+
+
+def test_a_record_it_cannot_read_is_kept() -> None:
+    # This filter removes noise. Guessing wrong about an unfamiliar record
+    # should lose nothing, so anything not shaped like an access line passes.
+    import logging
+
+    from marvi_gateway.logs import QuietPollingFilter
+
+    quiet = QuietPollingFilter()
+    plain = logging.LogRecord("uvicorn.access", logging.INFO, __file__, 0, "started", None, None)
+    assert quiet.filter(plain) is True
+
+    odd = logging.LogRecord("uvicorn.access", logging.INFO, __file__, 0, "%s", None, None)
+    odd.args = ("127.0.0.1", "GET", None, "1.1", "who knows")
+    assert quiet.filter(odd) is True
