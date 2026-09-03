@@ -294,3 +294,27 @@ def test_events_are_sent_from_the_event_loop(monkeypatch) -> None:
     assert made._event_ch.threads == {loop_thread}, (
         "an event was sent from a worker thread; the loop will not be woken"
     )
+
+
+def test_audio_that_became_no_words_still_resets_the_model(monkeypatch) -> None:
+    """`_settle` is the only thing that resets the recogniser.
+
+    The fallback timer is gated on `self._said`, which is right for ending a
+    turn -- silence that never became words is not a turn -- and wrong for the
+    model underneath, which is left open holding whatever state it had. Live,
+    the failures came in pairs: audio transcribed to nothing, Marvi apologised,
+    the person repeated themselves, and that transcribed to nothing either.
+    """
+    made, model = stream(monkeypatch, [])
+    made._open = True
+    made._said = ""
+    made._opened_at = 0.0  # long ago
+
+    # Nothing to emit -- an empty transcript is not a turn and must not become
+    # one -- but the stream has to be closed so the next `_begin` resets.
+    asyncio.run(made._settle(model, "nothing heard"))
+    assert made._event_ch.sent == []
+    assert made._open is False
+
+    made._begin(model)
+    assert model.resets == 1, "the next utterance did not start from a clean model"

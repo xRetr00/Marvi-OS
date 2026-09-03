@@ -43,6 +43,41 @@ let room: Room | null = null
 /** Guards against a second start while the first is still connecting. */
 let starting: Promise<void> | null = null
 
+/** Repeats "a call is running" for as long as one is. See `SAY_AGAIN`. */
+let heartbeat: ReturnType<typeof setInterval> | null = null
+
+/**
+ * How often the Gateway is reminded that this call is still going.
+ *
+ * The Gateway stops believing a session report after 45 seconds
+ * (`conversation.TRUSTED_FOR`), deliberately: a renderer that dies mid-call
+ * would otherwise keep Marvi silent for the life of the Gateway. That design
+ * assumes the truth is repeated -- its own comment says "the desktop already
+ * polls the Gateway several times a minute" -- and it never was. The flag was
+ * sent once on connect and once on disconnect, so every call longer than 45
+ * seconds looked finished from the Gateway's side while it was still running.
+ *
+ * A five-minute call spent four of those minutes with the mind free to talk
+ * over it, and with the status bar reporting on a voice worker rather than on
+ * the conversation the person was having.
+ *
+ * Fifteen seconds is three reports inside the window, so two can be lost --
+ * to a hiccup, a slow Gateway, a dropped request -- without the call being
+ * declared over.
+ */
+const SAY_AGAIN = 15_000
+
+function sayItIsRunning(active: boolean): void {
+  void window.marvi?.setVoiceSessionActive(active)
+  if (heartbeat) {
+    clearInterval(heartbeat)
+    heartbeat = null
+  }
+  if (active) {
+    heartbeat = setInterval(() => void window.marvi?.setVoiceSessionActive(true), SAY_AGAIN)
+  }
+}
+
 export async function startVoice(): Promise<void> {
   if (room || starting) return starting ?? undefined
   $voiceError.set('')
@@ -50,12 +85,12 @@ export async function startVoice(): Promise<void> {
   starting = connectVoiceRoom()
     .then((connected) => {
       room = connected
-      void window.marvi?.setVoiceSessionActive(true)
+      sayItIsRunning(true)
       // Ending from the other side — the agent going away, the server
       // restarting — has to land in the same state as pressing End, or the
       // button would offer to stop something already stopped.
       connected.once('disconnected', () => {
-        void window.marvi?.setVoiceSessionActive(false)
+        sayItIsRunning(false)
         room = null
         $voiceLink.set('off')
         // A new call starts unmuted. Carrying mute across a hang-up means
@@ -83,7 +118,7 @@ export async function stopVoice(): Promise<void> {
   const current = room
   room = null
   $voiceLink.set('off')
-  void window.marvi?.setVoiceSessionActive(false)
+  sayItIsRunning(false)
   if (current) await current.disconnect()
 }
 

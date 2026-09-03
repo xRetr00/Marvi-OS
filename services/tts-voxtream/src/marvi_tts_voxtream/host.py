@@ -15,6 +15,40 @@ def _root() -> Path:
     return base / "Marvi-OS" / "models" / "tts" / "voxtream2"
 
 
+#: Config the checkpoint ships with, and the one setting Marvi overrides.
+#:
+#: `prepare_prompt` runs inside *every* `generate_stream` call: it loads the
+#: prompt WAV, encodes it through Mimi, and runs the ReDimNet speaker encoder
+#: over it to build the voice embedding. None of that depends on the text being
+#: spoken and none of it changes between utterances -- the prompt for a given
+#: voice is a fixed file on disk -- so with `cache_prompt: false` it is the
+#: same work, from scratch, on every reply.
+#:
+#: What that costs shows up in the voice log as speech that cannot keep up with
+#: itself:
+#:
+#:     tts: 10.5s of audio in 13.1s (0.80x real time)  <- below real time
+#:     tts:  3.3s of audio in  6.6s (0.50x real time)  <- below real time
+#:     tts:  2.4s of audio in  5.5s (0.44x real time)  <- below real time
+#:
+#: Below one is not a number, it is the sound of Marvi talking, stopping, and
+#: continuing: the player runs out of audio while the model is still making it.
+#:
+#: Upstream's own cache writes `<prompt>.prompt.npy` beside the WAV and skips
+#: straight to the tensors. It is keyed on the file name alone, which is safe
+#: here only because the two settings that would change the result --
+#: `enhance_prompt` and `apply_vad` -- are false in this config and Marvi never
+#: passes them; if either is ever turned on, the cached files have to go.
+TUNING = {"cache_prompt": True}
+
+
+def _settings(source: Path) -> dict:
+    return {
+        **json.loads((source / "configs" / "generator.json").read_text("utf-8")),
+        **TUNING,
+    }
+
+
 def _send(event: str, **values: object) -> None:
     sys.__stdout__.write(json.dumps({"event": event, **values}) + "\n")
     sys.__stdout__.flush()
@@ -35,6 +69,31 @@ def _cloned(engine: str, voice: str) -> Path | None:
 
 def main() -> None:
     try:
+        # Never compile. There is nothing here that can.
+        #
+        # `compile=False` is already passed to `SpeechGenerator`, but that is
+        # VoXtream's own switch and it does not reach the Mimi codec underneath:
+        # moshi decorates its gating, rope and transformer paths with
+        # `torch_compile_lazy`, which compiles on first call unless
+        # `NO_TORCH_COMPILE` is set. The Kyutai recogniser sets it. This did not,
+        # and one afternoon of agent.log is 2,840 lines out of 3,648 -- 78% of
+        # the file -- of this:
+        #
+        #     torch/_dynamo/convert_frame.py:1125] BackendCompilerFailed:
+        #     backend='inductor' raised: RuntimeError: Cannot find a working
+        #     triton installation.
+        #
+        # forty separate times. There is no triton on Windows, so inductor
+        # cannot succeed here, ever. `suppress_errors` catches each failure and
+        # falls back to eager, which is why this was a warning rather than a
+        # crash -- but dynamo re-traces and re-attempts on every new input
+        # shape, and text of a different length is a different shape, so the
+        # cost recurs instead of being paid once at load.
+        #
+        # `NO_TORCH_COMPILE` is moshi's switch; `TORCHDYNAMO_DISABLE` covers
+        # VoXtream's own code and the speaker encoder, which moshi's does not.
+        os.environ.setdefault("NO_TORCH_COMPILE", "1")
+        os.environ.setdefault("TORCHDYNAMO_DISABLE", "1")
         os.environ.setdefault("HF_HOME", str(_root() / "huggingface"))
         source = _root() / "source"
         with contextlib.redirect_stdout(sys.stderr):
@@ -45,9 +104,7 @@ def main() -> None:
             from voxtream.generator import SpeechGenerator
 
             torch._dynamo.config.suppress_errors = True
-            config = SpeechGeneratorConfig(
-                **json.loads((source / "configs" / "generator.json").read_text("utf-8"))
-            )
+            config = SpeechGeneratorConfig(**_settings(source))
             speaking_rate = json.loads(
                 (source / "configs" / "speaking_rate.json").read_text("utf-8")
             )

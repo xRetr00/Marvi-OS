@@ -57,6 +57,29 @@ STALE = 10.0
 #: for the case where something keeps the mark fresh forever.
 PATIENCE = 600.0
 
+#: How long the worker must allow a process to finish initialising.
+#:
+#: Not a free number: the wait happens *inside* `prewarm`, which LiveKit runs
+#: under `initialize_process_timeout`, so waiting for a call spends the
+#: process's initialisation budget. At 180 seconds -- chosen when the only
+#: thing in there was loading models -- a call longer than three minutes killed
+#: the spare outright:
+#:
+#:     15:03:02.44  prewarm: a call is in progress; waiting
+#:     15:05:53.57  prewarm: the call ended after 171.1s; loading the models now
+#:     15:06:02.50  error initializing process ... TimeoutError   <- 180.06s
+#:     15:06:04.64  prewarm total 11.1s          <- the load that had just begun
+#:     15:06:17.71  prewarm total 13.0s          <- and its replacement, again
+#:
+#: The wait had used 171 of the 180, the load needed 11 more, and the process
+#: was killed two seconds from being ready -- so the card loaded Kyutai twice
+#: more, back to back, immediately after the call.
+#:
+#: Derived from `PATIENCE` rather than written next to it, because the failure
+#: is what happens when the two drift apart. The margin is five minutes over
+#: the longest wait: the slowest prewarm ever measured here is 48.6 s.
+INIT_BUDGET = PATIENCE + 300.0
+
 
 def busy() -> bool:
     """Is a call happening right now, as far as anyone can tell from here."""

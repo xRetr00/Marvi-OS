@@ -870,6 +870,41 @@ def load_installed_plugins() -> list[plugins_module.LoadedPlugin]:
     return found
 
 
+def voice_state(*, worker_ready: bool, detail: str, in_a_call: bool) -> ComponentStatus:
+    """Voice, once LiveKit and the models are known to be in place.
+
+    Its own function, at module level, because the interesting case is
+    unreachable from a test otherwise: on a machine without the speech models
+    installed `voice_status` answers "pending" long before it reaches here, so
+    a test written against the endpoint passed whether this logic was right or
+    absent entirely. It was written that way first and passed both times.
+
+    The readiness flag answers one question -- would a *new* call be answered
+    right now -- and during a call the honest answer is no: the warm process
+    was taken and its replacement waits for the GPU until the call ends.
+    Reporting that as the state of *voice* put
+
+        WARMING UP  Loading the speech models
+
+    across the top of a working conversation, for the whole five minutes of it.
+    That is not a slow start being reported; it is the wrong question answered
+    loudly.
+
+    Voice demonstrably works while a session is running, so that is what is
+    said. The pool's state still reaches the UI as the detail, for the one
+    thing it is good for: knowing the next join will be slower.
+    """
+    if worker_ready:
+        return ComponentStatus(state="ready", detail="LiveKit up, worker registered")
+    if in_a_call:
+        return ComponentStatus(
+            state="ready", detail="in a call; the spare process warms up when it ends"
+        )
+    return ComponentStatus(
+        state="starting", detail=detail or "the voice worker is still starting"
+    )
+
+
 def create_app(
     version: str | None = None,
     runtime: RuntimeStore | None = None,
@@ -1288,12 +1323,11 @@ def create_app(
         from . import agent_ready
 
         live = agent_ready.status()
-        if not live["ready"]:
-            return ComponentStatus(
-                state="starting",
-                detail=live["detail"] or "the voice worker is still starting",
-            )
-        return ComponentStatus(state="ready", detail="LiveKit up, worker registered")
+        return voice_state(
+            worker_ready=bool(live["ready"]),
+            detail=str(live["detail"] or ""),
+            in_a_call=conversation.active(),
+        )
 
     def drain_room_events() -> dict[str, Any] | None:
         """Journal every room event since the last poll. Returns the newest.

@@ -1523,7 +1523,12 @@ server = AgentServer(
     # TimeoutError -- "error initializing process", four times, and then no
     # worker at all. Loading the models early is right; pretending it is fast
     # is not.
-    initialize_process_timeout=180.0,
+    #
+    # It is now also the budget for waiting out a call, because that wait
+    # happens inside `prewarm`. 180 seconds killed the spare on any call longer
+    # than three minutes -- see `oncall.INIT_BUDGET`, which owns both numbers so
+    # they cannot drift apart again.
+    initialize_process_timeout=oncall.INIT_BUDGET,
     # Never refuse a job for being busy.
     #
     # LiveKit marks a worker unavailable above 0.7 CPU load so a fleet can hand

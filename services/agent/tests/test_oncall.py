@@ -97,3 +97,34 @@ def test_the_beat_keeps_it_fresh(monkeypatch) -> None:
         assert oncall.MARKER.stat().st_mtime_ns != first, "the marker went stale mid-call"
     finally:
         live.stop()
+
+
+def test_the_wait_fits_inside_what_the_worker_allows() -> None:
+    """The wait happens inside `prewarm`, on the worker's initialisation clock.
+
+    That is the trap this pair of numbers exists to close. `prewarm` waits for
+    the call, and LiveKit runs `prewarm` under `initialize_process_timeout` --
+    so the wait spends the process's budget for starting up. At 180 seconds,
+    a call longer than three minutes killed the spare two seconds before it
+    finished loading:
+
+        15:03:02.44  prewarm: a call is in progress; waiting
+        15:05:53.57  prewarm: the call ended after 171.1s; loading now
+        15:06:02.50  error initializing process ... TimeoutError   <- 180.06s
+
+    and the card then loaded Kyutai twice more, back to back, for the process
+    that died and its replacement.
+    """
+    from marvi_agent import session
+
+    assert oncall.INIT_BUDGET > oncall.PATIENCE, "the wait cannot fit in the budget"
+    # And room for the slowest prewarm ever measured here, 48.6s.
+    assert oncall.INIT_BUDGET - oncall.PATIENCE >= 120.0
+
+    # And the worker has to actually be using it. Two constants that agree
+    # with each other and not with the AgentServer would be the same bug,
+    # with a passing test on top.
+    assert session.server._initialize_process_timeout == oncall.INIT_BUDGET
+    # Comfortably past the call lengths that killed it: 171s of waiting had
+    # 9 seconds left of 180.
+    assert oncall.INIT_BUDGET >= 600.0

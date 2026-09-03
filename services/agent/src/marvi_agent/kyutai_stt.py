@@ -150,6 +150,34 @@ FRAME_SAMPLES = int(FRAME_SECONDS * KYUTAI_SAMPLE_RATE)
 #: that opens on a word.
 PREFIX_SECONDS = 1.0
 
+#: How long an open stream may hear nothing before it is reset anyway.
+#:
+#: The fallback timer only fires when something has been transcribed:
+#:
+#:     elif self._said and time.monotonic() - self._spoke_at >= self._SILENCE
+#:
+#: which is right for ending a turn -- silence that never became words is not a
+#: turn -- and wrong for the model, because `_settle` is also the only thing
+#: that resets it. An utterance that produced no text at all left the stream
+#: open, holding whatever state it had, and the next one carried on inside it.
+#:
+#: Live, that came in pairs: a stretch of audio transcribed to nothing, Marvi
+#: apologised, the person repeated themselves, and *that* transcribed to
+#: nothing too:
+#:
+#:     15:05:19,891  vad: user listening -> speaking
+#:     15:05:26,294  vad: user speaking -> listening     <- 6.4s, no partials
+#:     15:05:27,719  stt: timed out waiting for a transcript
+#:     15:05:29,874  turn: assistant said Sorry, I did not catch that.
+#:     15:05:31,240  vad: user listening -> speaking
+#:     15:05:34,139  vad: user speaking -> listening     <- 2.9s, no partials
+#:     15:05:35,565  stt: timed out waiting for a transcript
+#:
+#: Four seconds is comfortably longer than any real gap inside one sentence --
+#: the turn timer is 0.6 s -- so this only ever fires on audio that produced
+#: nothing whatever, which is exactly the state worth clearing.
+SILENT_RESET = 4.0
+
 
 def _setting(name: str, fallback: float) -> float:
     try:
@@ -409,6 +437,8 @@ class KyutaiStream(stt.RecognizeStream):
         self._high_for = 0
         #: The highest it reached this turn, for the log. See `_settle`.
         self._peak = 0.0
+        #: When this utterance opened, for `SILENT_RESET`.
+        self._opened_at = time.monotonic()
 
     def set_transcribing(self, on: bool) -> None:
         self._transcribing = on
@@ -427,6 +457,7 @@ class KyutaiStream(stt.RecognizeStream):
         self._open = True
         self._high_for = 0
         self._peak = 0.0
+        self._opened_at = time.monotonic()
         # One call, not twelve. Worth roughly nothing in time -- the twelve
         # model steps are the cost, not the twelve messages -- but this sits on
         # the critical path of every utterance and one operation there is
@@ -590,6 +621,17 @@ class KyutaiStream(stt.RecognizeStream):
                     await self._settle(model, "the model")
                 elif self._said and time.monotonic() - self._spoke_at >= self._SILENCE:
                     await self._settle(model, "the timer")
+                elif (
+                    self._open
+                    and not self._said
+                    and time.monotonic() - self._opened_at >= SILENT_RESET
+                ):
+                    # Heard, and nothing came of it. `_settle` emits nothing
+                    # for an empty transcript -- silence is not a turn -- but
+                    # it is also the only thing that resets the model, and
+                    # leaving it open carries this state into the next
+                    # utterance. See `SILENT_RESET`.
+                    await self._settle(model, "nothing heard")
         finally:
             with contextlib.suppress(Exception):
                 await self._settle(model, "close")

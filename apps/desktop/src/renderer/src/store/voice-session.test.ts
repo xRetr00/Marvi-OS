@@ -141,3 +141,64 @@ describe('a failure to join', () => {
     expect($voiceError.get()).toBe('')
   })
 })
+
+describe('telling the Gateway the call is still happening', () => {
+  beforeEach(async () => {
+    vi.resetModules()
+    connect.mockReset()
+    vi.stubGlobal('window', {
+      marvi: { setVoiceSessionActive: vi.fn(async () => true) }
+    })
+  })
+
+  it('keeps saying so, because the Gateway stops believing it', async () => {
+    // `conversation.TRUSTED_FOR` is 45 seconds and deliberately so: a renderer
+    // that dies mid-call would otherwise keep Marvi silent for the life of the
+    // Gateway. That design assumes the truth is repeated -- its own comment
+    // says "the desktop already polls the Gateway several times a minute" --
+    // and nothing ever did. It was sent once on connect and once on
+    // disconnect, so a five-minute call spent four of those minutes looking
+    // finished: the mind free to talk over it, and the status bar reporting on
+    // a voice worker instead of the conversation being had.
+    vi.useFakeTimers()
+    connect.mockResolvedValue(fakeRoom())
+    const { startVoice } = await import('./voice-session')
+
+    await startVoice()
+    const said = (
+      window as unknown as {
+        marvi: { setVoiceSessionActive: ReturnType<typeof vi.fn> }
+      }
+    ).marvi.setVoiceSessionActive
+    expect(said).toHaveBeenCalledWith(true)
+    const onceStarted = said.mock.calls.length
+
+    await vi.advanceTimersByTimeAsync(46_000)
+    // At least one more report inside the window the Gateway trusts.
+    expect(said.mock.calls.length).toBeGreaterThan(onceStarted)
+    expect(said).toHaveBeenLastCalledWith(true)
+    vi.useRealTimers()
+  })
+
+  it('stops repeating once the call is over', async () => {
+    // The other half. A heartbeat that outlives the call keeps the mind muted
+    // and the status bar wrong, which is the failure it was added to prevent.
+    vi.useFakeTimers()
+    connect.mockResolvedValue(fakeRoom())
+    const { startVoice, stopVoice } = await import('./voice-session')
+
+    await startVoice()
+    await stopVoice()
+    const said = (
+      window as unknown as {
+        marvi: { setVoiceSessionActive: ReturnType<typeof vi.fn> }
+      }
+    ).marvi.setVoiceSessionActive
+    expect(said).toHaveBeenLastCalledWith(false)
+    const afterHangUp = said.mock.calls.length
+
+    await vi.advanceTimersByTimeAsync(120_000)
+    expect(said.mock.calls.length).toBe(afterHangUp)
+    vi.useRealTimers()
+  })
+})

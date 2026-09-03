@@ -72,12 +72,25 @@ def main() -> None:
     # would make offline voice fail after Setup had claimed success.
     os.environ["HF_HOME"] = str(_root() / "huggingface")
     import torch._dynamo
+    # The same switch the host sets; see the note there. Setup builds a
+    # generator to prove the checkpoint loads, and doing that through a
+    # compiler that cannot work adds minutes to a first install.
+    os.environ.setdefault("NO_TORCH_COMPILE", "1")
+    os.environ.setdefault("TORCHDYNAMO_DISABLE", "1")
+
     from voxtream.config import SpeechGeneratorConfig
     from voxtream.generator import SpeechGenerator
 
     torch._dynamo.config.suppress_errors = True
+    # The same override the host uses. Setup builds a generator to prove the
+    # checkpoint loads, and it may as well leave the prompt cache warm.
+    from .host import TUNING
+
     config = SpeechGeneratorConfig(
-        **json.loads((target / "configs" / "generator.json").read_text("utf-8"))
+        **{
+            **json.loads((target / "configs" / "generator.json").read_text("utf-8")),
+            **TUNING,
+        }
     )
     speaking_rate = json.loads(
         (target / "configs" / "speaking_rate.json").read_text("utf-8")
