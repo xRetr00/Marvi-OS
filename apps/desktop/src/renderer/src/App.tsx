@@ -247,7 +247,7 @@ const SETTINGS_GROUPS = [
   },
   {
     gapBefore: true,
-    items: ['Voice', 'Workspace', 'Appearance', 'Preferences', 'Schedules', 'About']
+    items: ['Voice', 'Workspace', 'Appearance', 'Preferences', 'Cron jobs', 'About']
   }
 ] as const
 
@@ -307,7 +307,7 @@ const SETTINGS_ICONS: Record<SettingsPage | 'Voice' | 'Appearance', AbstractIcon
   'Dynamic Island': 'preferences',
   'Desktop companion': 'preferences',
   Preferences: 'preferences',
-  Schedules: 'schedules',
+  'Cron jobs': 'schedules',
   About: 'about'
 }
 
@@ -4272,10 +4272,10 @@ function SchedulesPanel(): React.JSX.Element {
   }
 
   return (
-    <ControlPage description="Tasks that run at a specific time." title="Schedules">
+    <ControlPage description="Automated tasks that run now, later, or repeatedly." title="Cron jobs">
       {error ? <p className="notice notice-warn">{error}</p> : null}
 
-      <ControlSection icon={Clock3} title="New schedule">
+      <ControlSection icon={Clock3} title="New cron job">
         <div className="schedule-form">
           <label>
             <span>Name</span>
@@ -4317,7 +4317,7 @@ function SchedulesPanel(): React.JSX.Element {
                 <span>Task</span>
                 <textarea
                   value={prompt}
-                  placeholder="A self-contained instruction to run on this schedule"
+                  placeholder="A self-contained instruction for this cron job"
                   rows={4}
                   onChange={(event) => setPrompt(event.target.value)}
                 />
@@ -4405,17 +4405,17 @@ function SchedulesPanel(): React.JSX.Element {
             disabled={!name || !when || (mode === 'agent' && !prompt.trim())}
             onClick={() => void add()}
           >
-            Add schedule
+            Create cron job
           </button>
         </div>
       </ControlSection>
 
-      <ControlSection icon={CalendarDays} title="Schedules">
+      <ControlSection icon={CalendarDays} title="Cron jobs">
         {!page ? (
           <ProcessingCard
             compact
-            detail="Reading the local schedule registry."
-            title="Loading schedules"
+            detail="Reading the local cron job registry."
+            title="Loading cron jobs"
           />
         ) : null}
         <div className="service-list">
@@ -4479,8 +4479,8 @@ function SchedulesPanel(): React.JSX.Element {
 
         {page && page.schedules.length === 0 ? (
           <ControlEmpty
-            description="Create one above when you want a task to run later."
-            title="Nothing scheduled"
+            description="Create one above when you want a task to run later or repeatedly."
+            title="No cron jobs"
           />
         ) : null}
       </ControlSection>
@@ -5450,7 +5450,7 @@ function SettingsShell({
               <AppearancePanel section="companion" />
             ) : page === 'Preferences' ? (
               <PreferencesPanel runtime={runtime} />
-            ) : page === 'Schedules' ? (
+            ) : page === 'Cron jobs' ? (
               <SchedulesPanel />
             ) : (
               <AboutPanel fallbackVersion={version} runtime={runtime} />

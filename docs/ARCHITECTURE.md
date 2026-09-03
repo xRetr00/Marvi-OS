@@ -166,7 +166,7 @@ inference itself.
 
 ### User cron jobs
 
-User schedules are separate from Marvi Cortex's fixed internal ticks. Their durable
+User-created cron jobs are separate from Marvi Cortex's fixed internal ticks. Their durable
 SQLite records belong to Marvi Gateway; APScheduler is only the replaceable
 clock rebuilt from those records. Jobs accept one-shot durations/timestamps,
 recurring intervals, and five-field cron expressions. A fixed action job can

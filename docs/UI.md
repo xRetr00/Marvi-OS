@@ -455,7 +455,7 @@ Instrument Sans, Newsreader, and Geist Mono are selectable independently so
 changing a palette never silently changes the user's type preference. Runtime,
 approval mode, and device health remain under **Preferences**.
 
-Schedules is the control surface for Gateway cron jobs. Its compact form
+Cron jobs is the control surface for Gateway-owned automated jobs. Its compact form
 switches between fixed reminder/Cortex actions and agent tasks. Agent tasks expose
 the self-contained brief, provider, model, reasoning effort, exact tool
 allowlist, and delivery destination; empty inference fields mean Auto and an

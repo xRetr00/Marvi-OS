@@ -26,7 +26,7 @@ routing, tool policy, audit, and the future messaging connection.
 - Delivery is a typed Gateway adapter seam. The default advertises only
   `local`, retaining output without claiming a messaging send. Future adapters
   can expose destinations and deliver results without changing cron execution.
-- The desktop Schedules page exposes agent/fixed mode, model controls, tool
+- The desktop Cron jobs page exposes agent/fixed mode, model controls, tool
   selection, delivery selection, route details, latest output/error, run-now,
   pause/resume, and removal.
 
