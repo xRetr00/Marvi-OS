@@ -66,10 +66,12 @@ def apply_speech_settings() -> None:
 
         body = httpx.get(f"{gateway_url()}/voice/speech", timeout=REPORT_TIMEOUT).json()
         for name, key in (
-            ("MARVI_STT_DEVICE", "device"),
-            ("MARVI_STT_LOOKAHEAD", "lookahead"),
-            # Which recogniser to load. Read by `chosen_model` before the STT
+            # Which recogniser to load. Read by `chosen_engine` before the STT
             # is built, which is why this has to happen here rather than after.
+            ("MARVI_STT_ENGINE", "engine"),
+            ("MARVI_STT_DEVICE", "device"),
+            ("MARVI_STT_CHUNK", "chunk"),
+            ("MARVI_STT_LOOKAHEAD", "lookahead"),
             ("MARVI_STT_LANGUAGE", "stt_language"),
             # The sentence itself, not the language code. Built once in the
             # Gateway and used verbatim, because the same rule written out in
@@ -85,8 +87,10 @@ def apply_speech_settings() -> None:
             if value := str(body.get(key) or "").strip():
                 os.environ[name] = value
         log.info(
-            "speech settings from the Gateway: %s, %ss lookahead, understands %s, speaks %s",
+            "speech settings from the Gateway: %s on %s, %ss chunks, %ss lookahead, understands %s, speaks %s",
+            os.environ.get("MARVI_STT_ENGINE", "parakeet-tdt"),
             os.environ.get("MARVI_STT_DEVICE", "cpu"),
+            os.environ.get("MARVI_STT_CHUNK", "2.0"),
             os.environ.get("MARVI_STT_LOOKAHEAD", "2.0"),
             os.environ.get("MARVI_STT_LANGUAGE", "auto"),
             str(body.get("tts_language") or "en"),

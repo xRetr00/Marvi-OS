@@ -7,6 +7,8 @@ synthesis wanted the same GPU, and the recogniser runs on the processor now.
 
 from __future__ import annotations
 
+import os
+
 import pytest
 
 # -- the recogniser that replaced the sidecar --------------------------------
@@ -221,6 +223,34 @@ def test_a_gateway_that_cannot_answer_leaves_the_defaults() -> None:
         os.environ.pop("MARVI_GATEWAY_URL", None)
 
     assert os.environ.get("MARVI_STT_DEVICE") == before
+
+
+def test_the_gateway_selection_reaches_the_recogniser_builder(monkeypatch) -> None:
+    """The saved Kyutai choice must survive the desktop/Agent process boundary."""
+    import httpx
+
+    from marvi_agent.parakeet_stt import chosen_engine
+    from marvi_agent.session import apply_speech_settings
+
+    class Response:
+        @staticmethod
+        def json():
+            return {
+                "engine": "kyutai-1b",
+                "device": "cuda",
+                "chunk": "1.25",
+                "lookahead": "0.8",
+                "stt_language": "en",
+            }
+
+    monkeypatch.setattr(httpx, "get", lambda *_args, **_kwargs: Response())
+    monkeypatch.delenv("MARVI_STT_ENGINE", raising=False)
+    monkeypatch.delenv("MARVI_STT_CHUNK", raising=False)
+
+    apply_speech_settings()
+
+    assert chosen_engine() == "kyutai-1b"
+    assert os.environ["MARVI_STT_CHUNK"] == "1.25"
 
 
 def test_the_left_context_is_the_one_that_was_measured() -> None:

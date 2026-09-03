@@ -110,6 +110,7 @@ import {
 } from './components/capabilities/capability-library'
 import { ContextStatus } from './chat/components/ContextStatus'
 import { $chatContextStatus } from './store/chat-context'
+import { $recognisers, chooseRecogniser, refreshRecognisers } from './store/recognisers'
 
 function stateTone(state: string | undefined): 'neutral' | 'ready' | 'warning' | 'danger' {
   if (state === 'ready' || state === 'connected' || state === 'active' || state === 'running') {
@@ -183,7 +184,6 @@ import type {
   SkillsPage,
   StoreSkill,
   RoomVisionPreview,
-  RecogniserPage,
   VoiceClonePage,
   VoicePage,
   PendingQuestion,
@@ -3467,7 +3467,9 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
             </div>
             <div>
               <dt>SPEECH IN</dt>
-              <dd>{runtime.model?.stt || 'not installed'}</dd>
+              <dd>
+                <RecogniserPicker />
+              </dd>
             </div>
             <div>
               {/* The voice, chosen here rather than three clicks away in Settings.
@@ -3723,6 +3725,48 @@ function WakeSettings(): React.JSX.Element {
                     : 'Registered to start at login. It has not started yet; give it a moment.')}
           </p>
         </>
+      ) : null}
+    </div>
+  )
+}
+
+/** The recogniser used by both the Voice rig and Speech recognition settings. */
+function RecogniserPicker(): React.JSX.Element {
+  const page = useStore($recognisers)
+
+  useEffect(() => {
+    void refreshRecognisers()
+  }, [])
+
+  if (page && page.engines.length === 0) {
+    return (
+      <span className="construction">RECOGNISERS UNAVAILABLE — THE GATEWAY DID NOT ANSWER.</span>
+    )
+  }
+
+  return (
+    <div className="voice-choice">
+      <Picker
+        options={(page?.engines ?? []).map((engine) => ({
+          value: engine.id,
+          label: engine.name,
+          detail: engine.available
+            ? engine.description
+            : `${engine.description} Install it in Setup first.`,
+          hint: engine.runtime === 'in-process' ? 'LOCAL ENGINE' : 'OPTIONAL DOWNLOAD',
+          disabled: !engine.available
+        }))}
+        value={page?.selected ?? ''}
+        onChange={(next) => void chooseRecogniser(next)}
+        placeholder="Parakeet TDT 0.6B"
+        searchPlaceholder="Search STT engines…"
+        empty="No STT engines available."
+      />
+      {page?.missing ? (
+        <span className="construction">
+          THE SELECTED RECOGNISER IS NOT INSTALLED. MARVI FALLS BACK TO THE DEFAULT — INSTALL IT IN
+          SETUP OR PICK AN AVAILABLE ENGINE.
+        </span>
       ) : null}
     </div>
   )
@@ -5687,17 +5731,13 @@ const PACE = [
 function RecognitionSettings(): React.JSX.Element {
   const [pace, setPace] = useState('')
   const [device, setDevice] = useState('')
-  const [recognisers, setRecognisers] = useState<RecogniserPage | null>(null)
+  const recognisers = useStore($recognisers)
 
   useEffect(() => {
     let gone = false
     void (async () => {
-      const [page, listeners] = await Promise.all([
-        window.marvi?.getProviders(),
-        window.marvi?.getRecognisers()
-      ])
+      const page = await window.marvi?.getProviders()
       if (gone) return
-      if (listeners) setRecognisers(listeners)
       if (!page) return
       const values = (page as unknown as { settings?: Record<string, string> }).settings ?? {}
       // Matched back from the two values, because they are what is stored and
@@ -5718,45 +5758,17 @@ function RecognitionSettings(): React.JSX.Element {
     void window.marvi?.setProviderSettings(values)
   }
 
-  // Shown even when not installed, the way the TTS engine picker does it.
-  //
-  // Filtering on `available` meant Nemotron simply was not there: nothing said
-  // it existed, nothing said it needed installing, and the page looked like a
-  // machine with two recognisers. A disabled row with a reason is the only
-  // version of this that can be acted on.
-  const engineOptions = (recognisers?.engines ?? []).map((engine) => ({
-    value: engine.id,
-    label: engine.name,
-    detail: engine.available
-      ? engine.description
-      : `${engine.description} Install it in Setup first.`,
-    hint: engine.runtime === 'in-process' ? 'DEFAULT' : 'OPTIONAL DOWNLOAD',
-    disabled: !engine.available
-  }))
-
   return (
     <>
-      {engineOptions.length > 1 ? (
-        <ControlRow
-          action={
-            <Picker
-              options={engineOptions}
-              value={recognisers?.selected ?? ''}
-              onChange={(next) => {
-                setRecognisers((current) => (current ? { ...current, selected: next } : current))
-                save({ MARVI_STT_ENGINE: next })
-              }}
-              placeholder="Parakeet TDT 0.6B"
-            />
-          }
-          description={
-            recognisers?.missing
-              ? 'The chosen recogniser is no longer installed; Marvi is listening with the default.'
-              : 'Marvi restarts the voice worker after this changes, and unloads the recogniser she was using.'
-          }
-          title="Recogniser"
-        />
-      ) : null}
+      <ControlRow
+        action={<RecogniserPicker />}
+        description={
+          recognisers?.missing
+            ? 'The chosen recogniser is no longer installed; Marvi is listening with the default.'
+            : 'Marvi restarts the voice worker after this changes, and unloads the recogniser she was using.'
+        }
+        title="Recogniser"
+      />
       <ControlRow
         action={
           <Picker

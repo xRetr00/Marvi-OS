@@ -162,6 +162,12 @@ describe('shell layout', () => {
     expect(app).toContain('title="Alignment"')
   })
 
+  it('uses the same working recogniser picker on Voice and in Settings', () => {
+    expect(app.match(/<RecogniserPicker \/>/g)).toHaveLength(2)
+    expect(app).not.toContain("runtime.model?.stt || 'not installed'")
+    expect(app).toContain('onChange={(next) => void chooseRecogniser(next)}')
+  })
+
   it('separates Room and Vision with the smart room hierarchy', () => {
     expect(app).toContain('<RoomPanel runtime={runtime} view="room" />')
     expect(app).toContain('<RoomPanel runtime={runtime} view="vision" />')

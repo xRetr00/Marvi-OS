@@ -144,3 +144,15 @@ def test_the_agent_is_told_the_sentence_rather_than_the_code() -> None:
 
     assert speech["stt_language"] == language.ANY
     assert "in English" in speech["reply_instruction"]
+
+
+def test_the_agent_is_told_the_saved_recogniser_and_chunk(monkeypatch) -> None:
+    """The worker cannot inherit settings saved after its process started."""
+    monkeypatch.setenv("MARVI_STT_ENGINE", "kyutai-1b")
+    monkeypatch.setenv("MARVI_STT_CHUNK", "1.25")
+
+    with TestClient(create_app()) as client:
+        speech = client.get("/voice/speech").json()
+
+    assert speech["engine"] == "kyutai-1b"
+    assert speech["chunk"] == "1.25"

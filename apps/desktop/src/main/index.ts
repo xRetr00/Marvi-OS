@@ -60,6 +60,7 @@ import {
 import { NativePetHost, petActionPage, petTaskCount, resolvePetHostPaths } from './pet-host'
 import { maintenancePowerShellArgs } from './maintenance-terminal'
 import { restartApplication, shutdownApplication } from './lifecycle-actions'
+import { requiresVoiceWorkerRestart } from './voice-settings'
 import {
   canUpdate,
   checkForUpdate,
@@ -2644,7 +2645,10 @@ function startApp(): void {
           body: JSON.stringify({ values }),
           signal: AbortSignal.timeout(8_000)
         })
-        return response.ok ? normaliseProviderPage(await response.json()) : null
+        if (!response.ok) return null
+        const page = normaliseProviderPage(await response.json())
+        if (page && requiresVoiceWorkerRestart(values)) supervisor?.retry('agent')
+        return page
       } catch {
         return null
       }

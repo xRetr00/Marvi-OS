@@ -23,6 +23,8 @@
 - Pinned Parakeet TDT ONNX and Kokoro payload manifests, downloads, checksums,
   voices, and setup diagnostics.
 - Chunked Parakeet ONNX Runtime STT adapter on CPU.
+- Gateway-authoritative STT selection shared by the Voice-page and Settings
+  pickers, with Agent restart and startup-time engine configuration handoff.
 - Kokoro clause-streaming LiveKit adapter as the default, plus isolated
   selectable CuteTTS Distill and VoXtream2 PCM sidecars. These
   options remain experimental until their individual hardware gates pass.

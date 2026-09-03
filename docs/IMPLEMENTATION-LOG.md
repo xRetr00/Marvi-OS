@@ -4,6 +4,20 @@ This is the chronological record of work that has actually happened. Planned
 work belongs in `docs/phases/`; architectural decisions belong in
 `docs/DECISIONS.md`.
 
+## 2026-09-03 — Voice-page STT selection repair
+
+- Replaced the Voice activity rig's static STT label with the same
+  Gateway-backed recogniser picker used by Speech recognition settings, with a
+  shared renderer store so Kyutai and other selections cannot disagree between
+  the two surfaces.
+- Restarted the Agent worker after STT or TTS settings are saved and extended
+  its startup handoff to include the selected recogniser and chunk size. The
+  worker now loads the persisted `MARVI_STT_ENGINE` instead of silently
+  returning to Parakeet after a settings change.
+- Added Gateway/Agent boundary tests, picker synchronization and rollback
+  tests, worker-restart classification tests, and a Voice-page layout
+  regression check.
+
 ## 2026-09-01 — WhisperLiveKit large-v3-turbo follow-up
 
 - Pinned WhisperLiveKit 0.2.26 at

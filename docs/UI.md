@@ -411,6 +411,14 @@ ASCII framing, or a grid of decorative cards. Content is capped at 880 px so
 labels and values remain easy to scan. Narrow windows stack row actions below
 their labels. Voice and Chat retain their purpose-built interaction layouts.
 
+The Voice activity rig exposes the Gateway's authoritative speech-input
+selection as a picker, beside the existing speech-output picker. It shares one
+recogniser store with Settings → Voice → Speech recognition, so selecting
+Kyutai or another installed STT updates both surfaces immediately. Saving an
+STT or TTS setting restarts the Agent worker; the restarted worker asks the
+Gateway for the selected engine, device, chunk, and lookahead before loading
+its models.
+
 The 212 px navigation rail begins with a bounded brand block and uses a thin
 vertical spine to connect each purpose group. Rows keep a compact 31 px rhythm,
 icons interrupt the spine, quiet two-letter orientation codes sit at the far

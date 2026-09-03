@@ -2235,10 +2235,12 @@ def create_app(
         """
         from marvi_gateway.wake import DEVICE_SETTING
 
-        from . import language
+        from . import language, recognisers
 
         return {
+            "engine": recognisers.selected(),
             "device": os.environ.get("MARVI_STT_DEVICE", "").strip().lower() or "cpu",
+            "chunk": os.environ.get("MARVI_STT_CHUNK", "").strip() or "2.0",
             "lookahead": os.environ.get("MARVI_STT_LOOKAHEAD", "").strip() or "2.0",
             "microphone": os.environ.get(DEVICE_SETTING, "").strip(),
             "stt_language": language.understand(),
