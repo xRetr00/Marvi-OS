@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import logging
 import time
+from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any
 
@@ -50,12 +51,21 @@ class Mind:
 
     # -- world ---------------------------------------------------------------
 
-    def world(self, now: datetime, conversation_active: bool, present: bool) -> WorldState:
+    def world(
+        self,
+        now: datetime,
+        conversation_active: bool,
+        present: bool,
+        at_machine: bool | None = None,
+        doing: str = "",
+    ) -> WorldState:
         return WorldState(
             now=now,
             conversation_active=conversation_active,
             present=present,
             tokens_today=self.journal.tokens_since(day_start(now)),
+            at_machine=at_machine,
+            doing=doing,
         )
 
     def _wanted_surface(self, event: dict[str, Any]) -> str:
@@ -70,6 +80,8 @@ class Mind:
         now: datetime | None = None,
         conversation_active: bool = False,
         present: bool = True,
+        at_machine: bool | None = None,
+        doing: str = "",
     ) -> dict[str, Any]:
         moment = now or datetime.now(UTC)
         pending = self.journal.pending(limit=MAX_EVENTS_PER_TURN)
@@ -78,7 +90,7 @@ class Mind:
             logger.debug("mind tick idle", extra={"marvi_pending": 0})
             return {"considered": 0, "decisions": [], "surfaced": []}
 
-        base = self.world(moment, conversation_active, present)
+        base = self.world(moment, conversation_active, present, at_machine, doing)
         decisions: list[dict[str, Any]] = []
         surfaced: list[dict[str, Any]] = []
         logger.info(
@@ -87,17 +99,16 @@ class Mind:
                 "marvi_pending": len(pending),
                 "marvi_conversation_active": conversation_active,
                 "marvi_present": present,
+                "marvi_at_machine": at_machine,
+                "marvi_doing": doing[:120],
                 "marvi_tokens_today": base.tokens_today,
             },
         )
 
         for event in pending:
             started = time.perf_counter()
-            world = WorldState(
-                now=base.now,
-                conversation_active=base.conversation_active,
-                present=base.present,
-                tokens_today=base.tokens_today,
+            world = replace(
+                base,
                 last_surfaced=self.journal.last_surfaced(event["source"], event["kind"]),
             )
             verdict = evaluate(

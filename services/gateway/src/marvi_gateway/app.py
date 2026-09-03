@@ -1059,6 +1059,7 @@ def create_app(
             # half of that job: one decides what to keep from a turn, this
             # reads across what was kept.
             auxiliary_client=cognition,
+            activity=activity if activity.available() else None,
             room_state=(
                 lambda: {
                     "present": bool(

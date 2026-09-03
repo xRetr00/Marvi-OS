@@ -46,6 +46,7 @@ class Initiative:
         memory_summarise: Any = None,
         auxiliary_client: Any = None,
         room_state: Any = None,
+        activity: Any = None,
     ) -> None:
         self.mind = mind
         self.journal = journal
@@ -56,6 +57,9 @@ class Initiative:
         # means the deterministic passes still run and this one does not.
         self.auxiliary_client = auxiliary_client
         self.room_state = room_state
+        # Desktop activity. None is normal -- ActivityWatch is optional, and
+        # the mind decides without it exactly as it did before.
+        self.activity = activity
         self._scheduler: Any = None
         self.last_runs: dict[str, str] = {}
         self.last_errors: dict[str, str] = {}
@@ -160,7 +164,30 @@ class Initiative:
                     extra={"marvi_job": "mind", "marvi_error": str(exc)[:240]},
                     exc_info=True,
                 )
-        return self.mind.tick(conversation_active=conversation, present=present)
+        # What the desktop is doing, which is the signal the room cannot give.
+        #
+        # `activity.py` says in its own docstring that the focused window is
+        # "genuinely useful context for 'is now a good moment to interrupt'",
+        # and it was registered only as tools the model could call -- so the
+        # thing that decides whether to interrupt never read it.
+        at_machine, doing = None, ""
+        if self.activity is not None:
+            try:
+                context = self.activity.world_context()
+                idle = context.get("idle")
+                at_machine = None if idle is None else not idle
+                doing = str(context.get("summary") or "")
+            except Exception as exc:
+                logger.info(
+                    "initiative desktop-activity read failed; deciding without it",
+                    extra={"marvi_job": "mind", "marvi_error": str(exc)[:200]},
+                )
+        return self.mind.tick(
+            conversation_active=conversation,
+            present=present,
+            at_machine=at_machine,
+            doing=doing,
+        )
 
     def run_reflect(self) -> dict[str, Any]:
         if self.memory is None:

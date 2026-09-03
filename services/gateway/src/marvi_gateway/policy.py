@@ -13,7 +13,7 @@ no work.
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -52,8 +52,37 @@ SURFACE_CEILING: dict[str, str] = {
     "room:visitor_report": "speak",
     "room:mode_changed": "activity",
     "room:light_changed": "activity",
+    # Keyed on what the ingest actually writes.
+    #
+    # `run_ingest` journals `source=f"accounts:{toolkit}"` and `kind=toolkit`,
+    # so the key the policy builds is `accounts:gmail:gmail` -- and the two
+    # entries that used to live here, `accounts:email` and `accounts:calendar`,
+    # could never match anything. The intent ("email and calendar are worth a
+    # glance") has been dead configuration for as long as accounts have been
+    # ingested this way, and both fell through to the default instead.
+    "accounts:gmail:gmail": "island",
+    "accounts:googlecalendar:googlecalendar": "island",
+    "accounts:notion:notion": "activity",
+    "accounts:slack:slack": "island",
+    "accounts:github:github": "activity",
+    # The older shape, kept so events already in the journal still resolve.
     "accounts:email": "island",
     "accounts:calendar": "island",
+    # The noisiest source on this machine by two orders of magnitude: 11,438 of
+    # 12,123 events, 94% of everything the mind has ever seen. It had no entry
+    # here, so it defaulted to `activity` -- which is *allowed and not silent*,
+    # which means every one of them bought an LLM call. That is where 95,186
+    # tokens went, and the budget they exhausted then silenced 22 of the 23
+    # real calendar events behind them.
+    #
+    # A sleep-state transition is a thing to record, not a thing to think
+    # about. `silent` still journals it; it just stops paying a model to agree.
+    "room:vision_sleep_state": "silent",
+    "room:vision_visitor_seen": "activity",
+    "room:presence_detected": "silent",
+    "room:presence_cleared": "silent",
+    "room:room_entry": "activity",
+    "room:device_offline": "activity",
     "schedule:reminder": "speak",
     "schedule:insistent_reminder": "speak",
     "vision:visitor_report": "speak",
@@ -124,6 +153,19 @@ class WorldState:
     present: bool = True
     tokens_today: int = 0
     last_surfaced: datetime | None = None
+    #: Whether the desktop says somebody is at the machine, from ActivityWatch.
+    #: None when it is not installed or did not answer.
+    #:
+    #: `present` comes from the room's presence sensor and *fails open* -- the
+    #: mind defaults to True and only lowers it if the room answers, so with the
+    #: room offline Marvi assumes somebody is there and may speak to an empty
+    #: room. The desktop knows better and cheaper: a machine that is not idle
+    #: has a person in front of it.
+    at_machine: bool | None = None
+    #: What they appear to be doing -- "in Code, browsing github.com". Not used
+    #: by any rule; carried so the deliberation and the decision record can say
+    #: what the moment looked like.
+    doing: str = ""
 
 
 def _quiet_now(settings: InitiativeSettings, now: datetime) -> bool:
@@ -165,6 +207,17 @@ def evaluate(
         return Verdict(
             False, "silent", "daily-budget", f"{world.tokens_today} tokens used today"
         )
+
+    # 3b. Presence, corrected by the desktop.
+    #
+    # The room's sensor is the better signal when it works and the mind
+    # defaults to "present" when it does not -- which is the wrong way round
+    # for a rule about whether to speak aloud. ActivityWatch answers a narrower
+    # question ("is somebody using this machine") reliably, so it is allowed to
+    # *add* presence, never to remove it: somebody can be in the room without
+    # touching the keyboard, and idle at the desk is not absent from the house.
+    if world.at_machine and not world.present:
+        world = replace(world, present=True)
 
     # 4. Never talk over a live conversation. The foreground owns the voice.
     if world.conversation_active and SURFACES.index(surface) >= SURFACES.index("island"):
