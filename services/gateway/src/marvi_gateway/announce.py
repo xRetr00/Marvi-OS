@@ -27,11 +27,62 @@ from . import paths
 logger = logging.getLogger(__name__)
 
 DEFAULT_VOICE = "alba"
+
+#: The voices the model ships with. Eight embeddings, named after Les Mis.
+BUILT_IN_VOICES = (
+    "alba", "azelma", "cosette", "eponine", "fantine", "javert", "jean", "marius",
+)
+
+#: The engine id cloned announcer voices are filed under, so they share the
+#: store, the validation and the UI already built for the TTS engines.
+ENGINE = "pocket"
 SPEAK_SAMPLE_RATE = 24_000
 MAX_PROACTIVE_CHARS = 400
 MAX_READ_ALOUD_CHARS = 12_000
 SYNTHESIS_CHUNK_CHARS = 400
 FRAME_MILLISECONDS = 20
+
+
+def voice_source(voice: str) -> str | Path:
+    """What to condition on: a built-in voice name, or a cloned recording.
+
+    Cloned announcer voices live in the same store as the cloned TTS voices --
+    `cloning`, under the `pocket` engine -- so they get the same format checks,
+    the same deletion, and the same UI. A clone is a WAV; a built-in is a name
+    the model resolves to its own embedding.
+    """
+    wanted = (voice or "").strip() or DEFAULT_VOICE
+    if wanted in BUILT_IN_VOICES:
+        return wanted
+    from . import cloning
+
+    recording = cloning.path(ENGINE, wanted)
+    if recording.is_file():
+        return recording
+    logger.warning(
+        "announcer voice %r is neither built in nor a recording; using %s",
+        wanted,
+        DEFAULT_VOICE,
+    )
+    return DEFAULT_VOICE
+
+
+def voices() -> list[dict[str, Any]]:
+    """Every voice the announcer can use, built in and cloned."""
+    from . import cloning
+
+    rows: list[dict[str, Any]] = [
+        {"id": name, "name": name.title(), "cloned": False} for name in BUILT_IN_VOICES
+    ]
+    rows.extend(
+        {"id": clone.id, "name": clone.name, "cloned": True, "seconds": clone.seconds}
+        for clone in cloning.saved(ENGINE)
+    )
+    return rows
+
+
+def selected_voice() -> str:
+    return os.environ.get("MARVI_ANNOUNCE_VOICE", "").strip() or DEFAULT_VOICE
 
 
 class AnnounceUnavailableError(Exception):
@@ -177,7 +228,17 @@ class Announcer:
             except ImportError:
                 pass
             self._model = TTSModel.load_model()
-            self._voice_state = self._model.get_state_for_audio_prompt(self.voice)
+            # A name, or a recording.
+            #
+            # `get_state_for_audio_prompt` takes either a `.safetensors`
+            # embedding -- which is what a built-in voice name resolves to --
+            # or an audio file, which is the cloning path and needs no separate
+            # API. What it does need is the model that can: the installer chose
+            # `kyutai/pocket-tts-without-voice-cloning` because it is ungated,
+            # and that variant is exactly what its name says.
+            self._voice_state = self._model.get_state_for_audio_prompt(
+                str(voice_source(self.voice))
+            )
         return self._model
 
     def synthesize(self, text: str) -> tuple[bytes, int]:

@@ -90,11 +90,22 @@ class CloneError(ValueError):
     """A recording that cannot become a voice, with the reason a person needs."""
 
 
+#: The announcer, which is not in the TTS catalog because it is not a
+#: conversational engine -- it renders one-shot proactive lines and Read Aloud
+#: on the CPU, cold, and is deliberately not kept warm.
+#:
+#: It clones the same way: PocketTTS conditions on either a built-in embedding
+#: or an audio file, so a recording is a voice with no extra API. Sharing this
+#: store means the announcer gets the format checks, the deletion and the UI
+#: that already exist rather than a second half of each.
+ANNOUNCER = "pocket"
+
+
 def engines() -> list[str]:
     """The engines that can speak in a cloned voice."""
     from .voices import catalog
 
-    return [item.id for item in catalog()[1] if item.cloning]
+    return [item.id for item in catalog()[1] if item.cloning] + [ANNOUNCER]
 
 
 def _index() -> dict[str, Any]:

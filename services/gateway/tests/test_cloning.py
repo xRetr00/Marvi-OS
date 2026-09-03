@@ -42,7 +42,15 @@ def recording(seconds: float, rate: int = 24_000, width: int = 2) -> bytes:
 
 
 def test_only_cloning_engines_are_offered() -> None:
-    assert cloning.engines() == ["cutetts-distill", "voxtream2"]
+    """The two conversational engines, plus the announcer.
+
+    PocketTTS is not in the TTS catalog -- it is not a conversational engine --
+    but it clones the same way: it conditions on either a built-in embedding or
+    an audio file, so a recording is a voice with no extra API. It shares this
+    store to get the format checks, the deletion and the UI rather than a
+    second half of each.
+    """
+    assert cloning.engines() == ["cutetts-distill", "voxtream2", cloning.ANNOUNCER]
 
 
 def test_kokoro_is_refused_by_name() -> None:
