@@ -238,11 +238,48 @@ def test_llm_tokens_count_against_the_daily_budget(journal) -> None:
 
 
 def test_budget_exhaustion_silences_later_events_in_the_same_day(journal) -> None:
-    for n in range(3):
-        journal.append("room", "alarm_started", f"Alarm {n}", trusted=True)
+    """Three different sources, because cooldown is per source and kind.
+
+    This used to append the same `room:alarm_started` three times, and it
+    passed for the wrong reason: the second event was capped to `activity` by
+    the cooldown rule and *still* bought a model call, which is what pushed the
+    total over the budget. That waste is now refused -- deliberation only runs
+    where it could change the outcome -- so exhausting the budget takes three
+    events that genuinely deliberate.
+
+    The waste was not hypothetical. On the owner's machine it was 85% of the
+    mind's entire token spend.
+    """
+    journal.append("room", "alarm_started", "Alarm", trusted=True)
+    journal.append("schedule", "reminder", "Reminder", trusted=True)
+    journal.append("room", "visitor_report", "Someone at the door", trusted=True)
     mind = Mind(journal, settings=InitiativeSettings(daily_token_budget=300),
                 deliberate=lambda e, v: ("island", "", 200))
     mind.tick(now=NOON)
 
     rules = [d["rule"] for d in mind.why()]
-    assert "daily-budget" in rules
+    assert "daily-budget" in rules, rules
+
+
+def test_the_quietest_visible_surface_is_not_worth_a_model_call(journal) -> None:
+    """An event the policy has already capped at `activity` cannot get louder.
+
+    The model may only make a decision quieter, so the loudest thing it can
+    propose for one of these is what is already going to happen -- and the only
+    other option is silence. Measured over 200 real decisions, 102,021 tokens
+    went on 122 such calls, 85% of them three room sensors that every time
+    ended silent, and the exhausted budget then silenced 22 of 23 real calendar
+    events behind them.
+    """
+    journal.append("room", "light_changed", "Light on", trusted=True)
+    calls: list[str] = []
+
+    def deliberate(event, verdict):
+        calls.append(event["kind"])
+        return ("activity", "", 900)
+
+    mind = Mind(journal, settings=InitiativeSettings(), deliberate=deliberate)
+    mind.tick(now=NOON)
+
+    assert calls == [], "a model was paid to confirm a floor it cannot move off"
+    assert [d["tokens"] for d in mind.why()] == [0]
