@@ -229,7 +229,7 @@ def test_the_gateway_selection_reaches_the_recogniser_builder(monkeypatch) -> No
     """The saved Kyutai choice must survive the desktop/Agent process boundary."""
     import httpx
 
-    from marvi_agent.parakeet_stt import chosen_engine
+    from marvi_agent.parakeet_stt import chosen_engine, chunk_seconds
     from marvi_agent.session import apply_speech_settings
 
     class Response:
@@ -262,7 +262,12 @@ def test_the_gateway_selection_reaches_the_recogniser_builder(monkeypatch) -> No
     apply_speech_settings()
 
     assert chosen_engine() == "kyutai-1b"
-    assert os.environ["MARVI_STT_CHUNK"] == "1.25"
+    # Under Parakeet's own name now. The chunk and the lookahead are how a
+    # non-streaming model is made to look streaming; Nemotron and Kyutai have
+    # never read either, so a general name promised a control that did nothing
+    # for two engines out of three.
+    assert os.environ["MARVI_PARAKEET_CHUNK"] == "1.25"
+    assert chunk_seconds() == 1.25, "the legacy name stopped being honoured"
 
 
 def test_the_left_context_is_the_one_that_was_measured() -> None:

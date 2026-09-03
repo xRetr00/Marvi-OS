@@ -191,11 +191,38 @@ DEFAULT_CHUNK = 2.0
 DEFAULT_LEFT_CONTEXT = 4.0
 
 
-def lookahead_seconds() -> float:
+#: Parakeet's own settings, named for it.
+#:
+#: These were `MARVI_STT_CHUNK` and `MARVI_STT_LOOKAHEAD`, which reads as
+#: "how the recogniser is tuned" and is true of exactly one of the three.
+#: Parakeet is not a streaming model: it is fed fixed chunks with a lookahead
+#: and re-read whole, and those two numbers are that arrangement. Nemotron is
+#: cache-aware streaming with a 320 ms feed; Kyutai consumes 80 ms Mimi frames
+#: and nothing else is a valid size. Neither has ever read these, so a general
+#: name promised a control that did nothing for two engines out of three --
+#: including in the Settings page, which offered it whatever was selected.
+#:
+#: The old names are still honoured. They are in `providers.env` on at least
+#: one machine, and a setting that silently stops being read is worse than a
+#: badly named one.
+CHUNK_SETTING = "MARVI_PARAKEET_CHUNK"
+LOOKAHEAD_SETTING = "MARVI_PARAKEET_LOOKAHEAD"
+LEGACY_CHUNK_SETTING = "MARVI_STT_CHUNK"
+LEGACY_LOOKAHEAD_SETTING = "MARVI_STT_LOOKAHEAD"
+
+
+def _tuning(name: str, legacy: str, fallback: float, low: float, high: float) -> float:
+    raw = os.environ.get(name, "").strip() or os.environ.get(legacy, "").strip()
     try:
-        return max(0.2, min(float(os.environ.get("MARVI_STT_LOOKAHEAD") or DEFAULT_LOOKAHEAD), 4.0))
+        return max(low, min(float(raw or fallback), high))
     except ValueError:
-        return DEFAULT_LOOKAHEAD
+        log.warning("stt: %s is not a number; using %s", name, fallback)
+        return fallback
+
+
+def lookahead_seconds() -> float:
+    """How much of the future Parakeet sees before committing a word."""
+    return _tuning(LOOKAHEAD_SETTING, LEGACY_LOOKAHEAD_SETTING, DEFAULT_LOOKAHEAD, 0.2, 4.0)
 
 
 def chunk_seconds() -> float:
@@ -206,10 +233,7 @@ def chunk_seconds() -> float:
     being worth the latency, and at four because past that the first word is
     slower than anybody will sit through.
     """
-    try:
-        return max(0.5, min(float(os.environ.get("MARVI_STT_CHUNK") or DEFAULT_CHUNK), 4.0))
-    except ValueError:
-        return DEFAULT_CHUNK
+    return _tuning(CHUNK_SETTING, LEGACY_CHUNK_SETTING, DEFAULT_CHUNK, 0.5, 4.0)
 
 
 def providers() -> list[str]:

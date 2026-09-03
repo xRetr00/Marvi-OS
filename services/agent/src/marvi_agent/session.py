@@ -70,8 +70,11 @@ def apply_speech_settings() -> None:
             # is built, which is why this has to happen here rather than after.
             ("MARVI_STT_ENGINE", "engine"),
             ("MARVI_STT_DEVICE", "device"),
-            ("MARVI_STT_CHUNK", "chunk"),
-            ("MARVI_STT_LOOKAHEAD", "lookahead"),
+            # Written under Parakeet's names: they are its arrangement, not a
+            # property of "the recogniser". The legacy names are still read by
+            # `parakeet_stt`, so a machine that has them keeps working.
+            ("MARVI_PARAKEET_CHUNK", "chunk"),
+            ("MARVI_PARAKEET_LOOKAHEAD", "lookahead"),
             ("MARVI_STT_LANGUAGE", "stt_language"),
             # The sentence itself, not the language code. Built once in the
             # Gateway and used verbatim, because the same rule written out in
@@ -90,8 +93,10 @@ def apply_speech_settings() -> None:
             "speech settings from the Gateway: %s on %s, %ss chunks, %ss lookahead, understands %s, speaks %s",
             os.environ.get("MARVI_STT_ENGINE", "parakeet-tdt"),
             os.environ.get("MARVI_STT_DEVICE", "cpu"),
-            os.environ.get("MARVI_STT_CHUNK", "2.0"),
-            os.environ.get("MARVI_STT_LOOKAHEAD", "2.0"),
+            os.environ.get("MARVI_PARAKEET_CHUNK", os.environ.get("MARVI_STT_CHUNK", "2.0")),
+            os.environ.get(
+                "MARVI_PARAKEET_LOOKAHEAD", os.environ.get("MARVI_STT_LOOKAHEAD", "2.0")
+            ),
             os.environ.get("MARVI_STT_LANGUAGE", "auto"),
             str(body.get("tts_language") or "en"),
         )

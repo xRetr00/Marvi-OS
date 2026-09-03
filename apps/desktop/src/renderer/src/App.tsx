@@ -5767,6 +5767,12 @@ function RecognitionSettings(): React.JSX.Element {
         }
         title="Recogniser"
       />
+      {/* Parakeet only. The chunk and the lookahead are how a non-streaming
+          model is made to look streaming; Nemotron feeds 320 ms blocks and
+          Kyutai consumes 80 ms Mimi frames, and neither has ever read either
+          setting. Offering the dial for them promised a control that did
+          nothing. */}
+      {(recognisers?.selected ?? 'parakeet-tdt') === 'parakeet-tdt' ? (
       <ControlRow
         action={
           <Picker
@@ -5784,6 +5790,7 @@ function RecognitionSettings(): React.JSX.Element {
         description="How long Marvi waits before putting a word on screen. It does not change how fast she answers — the end of a sentence is flushed the moment you stop."
         title="Subtitle speed"
       />
+      ) : null}
       <ControlRow
         action={
           <Picker
