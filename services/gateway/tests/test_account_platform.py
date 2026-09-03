@@ -1,4 +1,4 @@
-"""End-to-end account lifecycle, dynamic tools, native sync, and ARC triggers."""
+"""End-to-end account lifecycle, dynamic tools, native sync, and Cortex triggers."""
 
 from __future__ import annotations
 

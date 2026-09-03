@@ -226,7 +226,7 @@ import { $voiceLink, sayAsUser, startVoice, stopVoice } from './store/voice-sess
 const NAV_GROUPS = [
   { label: 'Core', items: ['Overview', 'Voice', 'Chat'] },
   { label: 'Context', items: ['Vision', 'Room', 'Activity'] },
-  { label: 'Cortex', items: ['Identity', 'Graph', 'Mind'] },
+  { label: 'Cortex', items: ['DMN', 'Graph', 'Mind'] },
   { label: 'Capabilities', items: ['Skills', 'Connectors', 'MCP', 'Plugins'] }
 ] as const
 
@@ -264,7 +264,7 @@ const NAV_CODES: Record<Page, string> = {
   Vision: 'VI',
   Room: 'RM',
   Activity: 'AC',
-  Identity: 'ID',
+  DMN: 'DM',
   Graph: 'GR',
   Mind: 'MI',
   Skills: 'SK',
@@ -280,7 +280,7 @@ const NAV_ICONS: Record<Page, AbstractIconName> = {
   Vision: 'vision',
   Room: 'room',
   Activity: 'activity',
-  Identity: 'identity',
+  DMN: 'identity',
   Graph: 'memory',
   Mind: 'mind',
   Skills: 'skills',
@@ -519,11 +519,11 @@ function MainSurface(): React.JSX.Element {
             separatorBefore: true
           }
         ]
-      case 'Identity':
+      case 'DMN':
       case 'Graph':
       case 'Mind':
         return [
-          { icon: Users, label: 'Open Identity', onSelect: () => navigate('Identity') },
+          { icon: Users, label: "Open Marvi's DMN", onSelect: () => navigate('DMN') },
           { icon: Database, label: 'Open Graph', onSelect: () => navigate('Graph') },
           { icon: Brain, label: 'Open Mind', onSelect: () => navigate('Mind') },
           {
@@ -807,7 +807,7 @@ function MainSurface(): React.JSX.Element {
                     <VoicePanel runtime={runtime} />
                   ) : page === 'Activity' ? (
                     <ActivityPanel />
-                  ) : page === 'Identity' ? (
+                  ) : page === 'DMN' ? (
                     <IdentityPanel />
                   ) : page === 'Graph' ? (
                     <MemoryPanel />
@@ -3243,8 +3243,8 @@ function IdentityPanel(): React.JSX.Element {
 
   return (
     <ControlPage
-      description="Edit Marvi's identity and your standing preferences."
-      title="Identity"
+      description="Compose Marvi's identity and your standing preferences from SOUL.md and USER.md."
+      title="Marvi's DMN"
     >
       <ControlSection
         action={
@@ -3254,7 +3254,7 @@ function IdentityPanel(): React.JSX.Element {
           </ControlButton>
         }
         icon={Sparkles}
-        title="Identity files"
+        title="DMN identity files"
       >
         {identity ? (
           <ControlRow
@@ -5244,7 +5244,7 @@ function PagePanel({ page }: { page: Page }): React.JSX.Element {
     Chat: '',
     Room: '',
     Activity: 'Local event and tool history.',
-    Identity: "Marvi's identity and your standing preferences.",
+    DMN: "Marvi's identity and your standing preferences.",
     Graph: 'What Marvi knows, and how it connects.',
     Mind: 'Autonomous decisions and initiative controls.',
     Vision: 'Local presence and gesture processing from the room camera.',

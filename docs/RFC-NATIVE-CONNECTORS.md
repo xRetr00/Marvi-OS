@@ -6,7 +6,7 @@
 
 **Owner:** Marvi OS
 
-**Relates to:** ADR-007, ADR-016, ADR-024, Phase 5, Accounts, ARC ingestion
+**Relates to:** ADR-007, ADR-016, ADR-024, Phase 5, Accounts, Cortex ingestion
 
 ## Summary
 
@@ -182,7 +182,7 @@ Accounts renderer
 - Structural containment of untrusted external content.
 - Gmail, Calendar, Slack, Notion, GitHub, and Drive normalization.
 - Per-connection cursor, fingerprint, last success/error, and item counts.
-- ARC journal and durable-memory ingestion.
+- Cortex journal and durable-memory ingestion.
 - Trigger identity checks, deduplication, and untrusted envelopes.
 
 ### Responsibilities Composio currently owns
@@ -278,7 +278,7 @@ is legitimate Marvi product policy.
 3. Upstream schemas and action changes must be versioned or canaried.
 4. High-value actions need real provider sandbox tests, not only mocks.
 5. The upstream license and commercial redistribution rights must be clear.
-6. A connector backend must be replaceable without rewriting Accounts, ARC,
+6. A connector backend must be replaceable without rewriting Accounts, Cortex,
    confirmation, or audit.
 
 ### Deployment requirements
@@ -577,7 +577,7 @@ Accounts UI
 ```
 
 The names are illustrative. The important constraint is that renderer, voice,
-ARC, and memory depend on a Marvi-owned connector interface rather than on
+Cortex and memory depend on a Marvi-owned connector interface rather than on
 Composio SDK types or action semantics.
 
 ### Proposed Gateway interface
@@ -689,7 +689,7 @@ The current preferred direction is:
 2. Make the user-facing capability “Marvi Connectors.”
 3. Introduce a narrow provider-neutral Gateway seam before expanding behavior.
 4. Keep Marvi's existing confirmation, audit, idempotency, untrusted-content,
-   memory, and ARC boundaries authoritative.
+   memory, and Cortex boundaries authoritative.
 5. Maintain reviewed policy metadata for important actions without forking
    their implementations.
 6. Fix the shared `default` identity and unpinned action versions.
@@ -718,7 +718,7 @@ these conditions:
   through the Composio action contract.
 
 Even then, the native provider should implement the same `ConnectorBackend`
-contract so Accounts, ARC, and the agent surface do not fork.
+contract so Accounts, Cortex, and the agent surface do not fork.
 
 ## Questions to answer before planning
 
@@ -803,7 +803,7 @@ This is research order, not an implementation phase commitment.
 - Specify typed connection, tool, execution, error, and result contracts.
 - Prove the existing Composio implementation can satisfy the seam without
   losing behavior.
-- Prove Accounts, auto-fetch, ARC triggers, and tool registration can depend on
+- Prove Accounts, auto-fetch, Cortex triggers, and tool registration can depend on
   the seam without a second authority.
 - Define backward compatibility for current routes and tool names.
 

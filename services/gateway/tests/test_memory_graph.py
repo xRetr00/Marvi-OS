@@ -201,7 +201,7 @@ def test_world_summary_includes_the_graph(memory) -> None:
     assert memory.world_summary()["graph"] == {"entities": 2, "relations": 1}
 
 
-# -- ARC renderer projection ------------------------------------------------
+# -- Cortex renderer projection ---------------------------------------------
 
 
 def test_tree_projection_groups_memories_by_provenance(memory) -> None:

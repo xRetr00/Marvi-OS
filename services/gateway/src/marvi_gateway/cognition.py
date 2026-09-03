@@ -1,6 +1,6 @@
-"""Shared identity harness and bounded read-only tools for ARC cognition.
+"""Shared identity harness and bounded read-only tools for Cortex cognition.
 
-Chat has a broad interactive tool loop. ARC needs a much smaller one: identity,
+Chat has a broad interactive tool loop. Cortex needs a much smaller one: identity,
 current time, a task brief, and only the reads that can resolve uncertainty.
 Skills, writes, commands, account actions, confirmations, and delegated agents
 are intentionally absent from this unattended path.

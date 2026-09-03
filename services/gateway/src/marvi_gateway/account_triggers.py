@@ -1,4 +1,4 @@
-"""Realtime Composio triggers entering ARC through one untrusted boundary."""
+"""Realtime Composio triggers entering Marvi Cortex through one untrusted boundary."""
 
 from __future__ import annotations
 

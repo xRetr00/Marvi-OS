@@ -1,4 +1,4 @@
-"""One-shot local speech for ARC, Room events, and Chat Read Aloud.
+"""One-shot local speech for Marvi Cortex, Room events, and Chat Read Aloud.
 
 This is deliberately not the LiveKit voice path. A proactive sentence and a
 finished Chat response need synthesis, cancellation, and the selected Windows

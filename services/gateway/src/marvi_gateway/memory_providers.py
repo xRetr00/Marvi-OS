@@ -2,7 +2,7 @@
 
 The protocol is intentionally smaller than :class:`MemoryStore`. Retrieval
 and extraction belong to the selected provider; embeddings never cross this
-boundary. ``MemoryRuntime`` preserves the older Gateway and ARC call sites
+boundary. ``MemoryRuntime`` preserves the older Gateway and Cortex call sites
 while routing durable facts through exactly one provider at a time.
 """
 

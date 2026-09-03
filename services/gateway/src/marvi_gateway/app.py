@@ -3176,7 +3176,7 @@ def create_app(
     async def memory_graph(
         mode: Literal["tree", "contacts"] = "tree", limit: int = 1000
     ) -> MemoryGraphPage:
-        """Read-only ARC graph projection for the desktop control center."""
+        """Read-only Cortex graph projection for the desktop control center."""
         if memory is None:
             return MemoryGraphPage(mode=mode, nodes=[], edges=[])
         return MemoryGraphPage(**memory.graph_export(mode, limit))

@@ -9182,7 +9182,7 @@ body {
   outline: 1px solid var(--ui-text-tertiary);
 }
 
-/* ARC memory graph -------------------------------------------------------
+/* Cortex memory graph ----------------------------------------------------
    The interaction model mirrors the pinned OpenHuman graph reference while
    the paint stays inside Marvi's monochrome + signal-blue UI contract. */
 

@@ -13,7 +13,7 @@ routing, tool policy, audit, and the future messaging connection.
 
 - Durable SQLite jobs supporting `30m` one-shots, `every 2h` intervals, ISO
   timestamps, local `HH:MM`, and five-field cron expressions.
-- Fixed reminder/ARC actions plus isolated agent jobs with a self-contained
+- Fixed reminder/Cortex actions plus isolated agent jobs with a self-contained
   prompt, per-job provider, model, reasoning effort, and exact tool allowlist.
 - Agent rounds use ProviderClient and the existing ToolRegistry dispatch. They
   do not create Chat transcript entries and cannot bypass Confirm/YOLO.

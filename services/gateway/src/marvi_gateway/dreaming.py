@@ -22,7 +22,7 @@ being supported. Three things it does that this now does too:
 
 ## The graph is the point
 
-Marvi has had `entities` and `relations` since the beginning, an ARC graph view
+Marvi has had `entities` and `relations` since the beginning, a Cortex graph view
 to render them, and `memory_link` as a tool. The graph on this machine held
 **zero entities and zero relations**, because filling it was left to a model
 choosing to call a tool mid-conversation, and no model ever did while it had
