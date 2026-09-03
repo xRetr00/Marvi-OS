@@ -30,6 +30,40 @@ logger = logging.getLogger(__name__)
 MAX_EVENTS_PER_TURN = 10
 
 
+#: The quietest visible surface. Nothing below this is worth a model call.
+QUIETEST_VISIBLE = "activity"
+
+
+def _worth_thinking_about(verdict: Any) -> bool:
+    """Whether deliberation could change this outcome, rather than confirm it.
+
+    An LLM may only make a decision *quieter* -- the policy ceiling is not
+    something a model gets to argue with. So for an event the policy has
+    already capped at `activity`, the loudest thing the model can propose is
+    what is already going to happen, and the only other option is silence.
+    Paying nine hundred tokens for that is the definition of spending the
+    budget on nothing.
+
+    Measured on the owner's machine, over 200 decisions: 102,021 tokens across
+    122 calls, of which
+
+        Awake                     31,954   31.3%
+        Unknown visitor seen      29,966   29.4%
+        Sleep state changed       24,798   24.3%
+
+    -- 85% spent on three room sensors, every one of them ending `silent`, and
+    the exhausted budget then silenced 22 of the 23 real calendar events behind
+    them. Two of those three are now capped `silent` outright; this is what
+    stops the third, and anything like it, from buying a model call to confirm
+    a floor it cannot move off.
+    """
+    from .policy import SURFACES
+
+    if verdict.surface == "silent":
+        return False
+    return SURFACES.index(verdict.surface) > SURFACES.index(QUIETEST_VISIBLE)
+
+
 class Mind:
     def __init__(
         self,
@@ -133,7 +167,7 @@ class Mind:
             # `detail` is diagnostic text about the rule. What Marvi would
             # actually say is separate, and only deliberation can phrase it.
             sentence = event["summary"]
-            if self.deliberate is not None and verdict.allow and verdict.surface != "silent":
+            if self.deliberate is not None and verdict.allow and _worth_thinking_about(verdict):
                 # An LLM may only make a decision quieter, never louder: the
                 # policy ceiling is not something a model gets to argue with.
                 proposed, proposed_detail, tokens = self.deliberate(event, verdict)
