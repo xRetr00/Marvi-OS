@@ -4,7 +4,7 @@
 
 mod common;
 
-use common::{FakeBuilder, init_repos};
+use common::{FakeBuilder, git_in, init_repos};
 use marvi_bootstrap_core::{Channel, UpdateConfig, check, run_update};
 
 fn config(local: &std::path::Path, state: &std::path::Path, builder: FakeBuilder) -> UpdateConfig {
@@ -118,18 +118,79 @@ fn failed_build_restores_the_previous_commit() {
 }
 
 #[test]
-fn dirty_tree_is_skipped_without_touching_the_checkout() {
+fn local_changes_are_set_aside_and_the_update_goes_on() {
+    // The dead end this replaces: status "skipped", message "Local changes
+    // present; update skipped to avoid discarding them", and no way out from
+    // inside the app. The window said "close and try again"; trying again did
+    // the same thing forever. The changes have to survive -- but blocking
+    // every future update is not how.
     let repos = init_repos();
     let state = repos._tmp.path().join("state");
     let before = repos.head(&repos.local);
     std::fs::write(repos.local.join("f.txt"), "local edit").unwrap();
+    let new_head = repos.commit("g.txt", "2", "c2");
 
     let mut cfg = config(&repos.local, &state, FakeBuilder::ok());
     let out = run_update(&mut cfg, &mut |_| {});
 
-    assert_eq!(out.status, "skipped");
-    assert!(out.message.contains("Local changes"));
-    assert_eq!(repos.head(&repos.local), before);
+    assert_eq!(out.status, "ok", "message: {}", out.message);
+    assert_ne!(
+        repos.head(&repos.local),
+        before,
+        "the update did not happen"
+    );
+    assert_eq!(repos.head(&repos.local), new_head);
+
+    // Set aside, not thrown away: the message names the file and prints the
+    // one command that puts it back.
+    assert!(out.message.contains("f.txt"), "message: {}", out.message);
+    assert!(
+        out.message.contains("git stash apply"),
+        "message: {}",
+        out.message
+    );
+
+    // And the edit is really recoverable, not merely described as such.
+    let stashed = git_in(&repos.local, &["stash", "list"]);
+    assert!(stashed.contains("marvi-updater"), "stash list: {stashed}");
+    git_in(&repos.local, &["stash", "apply", "stash@{0}"]);
+    assert_eq!(
+        std::fs::read_to_string(repos.local.join("f.txt")).unwrap(),
+        "local edit"
+    );
+}
+
+#[test]
+fn an_untracked_file_is_set_aside_too() {
+    // The shape this actually takes: a file copied into the install to test
+    // something. `git stash` without --include-untracked leaves it behind,
+    // the tree stays dirty, and the update fails on the next run instead.
+    let repos = init_repos();
+    let state = repos._tmp.path().join("state");
+    std::fs::write(repos.local.join("stray.txt"), "copied in by hand").unwrap();
+    repos.commit("g.txt", "2", "c2");
+
+    let mut cfg = config(&repos.local, &state, FakeBuilder::ok());
+    let out = run_update(&mut cfg, &mut |_| {});
+
+    assert_eq!(out.status, "ok", "message: {}", out.message);
+    assert!(!repos.local.join("stray.txt").exists(), "still in the way");
+    git_in(&repos.local, &["stash", "apply", "stash@{0}"]);
+    assert!(repos.local.join("stray.txt").exists(), "not recoverable");
+}
+
+#[test]
+fn a_clean_tree_says_nothing_about_stashes() {
+    // The common case must not grow a paragraph about git.
+    let repos = init_repos();
+    let state = repos._tmp.path().join("state");
+    repos.commit("g.txt", "2", "c2");
+
+    let mut cfg = config(&repos.local, &state, FakeBuilder::ok());
+    let out = run_update(&mut cfg, &mut |_| {});
+
+    assert_eq!(out.status, "ok", "message: {}", out.message);
+    assert_eq!(out.message, "Updated successfully.");
 }
 
 #[test]

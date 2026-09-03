@@ -79,6 +79,44 @@ pub fn is_dirty(dir: &Path) -> Result<bool, GitError> {
     Ok(!status.is_empty())
 }
 
+/// What is dirty, by path, so a message can name it instead of gesturing.
+///
+/// "Local changes present" is true and useless: it does not say which files,
+/// so it cannot say whether they matter, and the only way to find out is to
+/// open a terminal in a directory most people do not know they have.
+pub fn dirty_files(dir: &Path) -> Result<Vec<String>, GitError> {
+    let status = run(dir, &["status", "--porcelain"])?;
+    // Split on the status field rather than at a fixed column. Porcelain puts
+    // the path at index 3, but `run` trims its output, and trimming eats the
+    // leading space of `" M f.txt"` -- so column 3 of the first line lands
+    // mid-filename and reports `.txt`. Found by a test that asserted the
+    // actual name instead of merely that something was named.
+    Ok(status
+        .lines()
+        .filter_map(|line| line.trim_start().split_once(char::is_whitespace))
+        .map(|(_status, path)| path.trim().to_string())
+        .filter(|path| !path.is_empty())
+        .collect())
+}
+
+/// Put every local change somewhere safe and leave a clean tree behind.
+///
+/// Returns the stash commit, which is the whole point: a stash is not a
+/// discard. `git stash show -p <sha>` prints the changes and `git stash apply
+/// <sha>` puts them back, and both keep working after the update has moved
+/// the branch on, because the commit is reachable from the stash reflog
+/// regardless of what HEAD does afterwards.
+///
+/// `--include-untracked` because a half-finished copy into the install is
+/// untracked, and that is the shape this actually takes in practice.
+pub fn stash_everything(dir: &Path, label: &str) -> Result<String, GitError> {
+    run(
+        dir,
+        &["stash", "push", "--include-untracked", "--message", label],
+    )?;
+    run(dir, &["rev-parse", "stash@{0}"])
+}
+
 pub fn current_commit(dir: &Path) -> Result<String, GitError> {
     run(dir, &["rev-parse", "HEAD"])
 }

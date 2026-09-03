@@ -36,6 +36,13 @@ fn git(dir: &Path, args: &[&str]) -> String {
     String::from_utf8_lossy(&out.stdout).trim().to_string()
 }
 
+/// Run git in `dir` and return stdout, for tests that need to inspect the
+/// repository directly -- checking that a stash really holds what the message
+/// says it does, for instance.
+pub fn git_in(dir: &Path, args: &[&str]) -> String {
+    git(dir, args)
+}
+
 /// Create a remote repo with one commit, and a fresh clone of it.
 pub fn init_repos() -> TestRepos {
     let tmp = TempDir::new().unwrap();

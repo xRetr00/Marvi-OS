@@ -3,7 +3,8 @@
 //! Safety ordering (priority order):
 //!   1. Record the pre-update commit first; restore it on any failure.
 //!   2. Fail closed: if the desktop never exits, abort without touching the
-//!      checkout. Refuse a dirty tree rather than discard the user's edits.
+//!      checkout. Never discard the user's edits -- but never dead-end on them
+//!      either: a dirty tree is stashed, named, and the update goes on.
 //!   3. Snapshot the built runtime before rebuilding so a failed build cannot
 //!      leave the user with a half-written app.
 //!   4. Every path writes a result and (when the desktop actually exited)
@@ -118,22 +119,13 @@ pub fn run_update(cfg: &mut UpdateConfig, progress: &mut dyn FnMut(&str)) -> Upd
         finish(cfg, &out, true);
         return out;
     }
-    match git::is_dirty(&root) {
-        Ok(true) => {
-            let out = UpdateOutcome::new(
-                "skipped",
-                "Local changes present; update skipped to avoid discarding them.",
-            );
+    let stashed = match set_aside_local_changes(&root, progress) {
+        Ok(stashed) => stashed,
+        Err(out) => {
             finish(cfg, &out, true);
             return out;
         }
-        Ok(false) => {}
-        Err(e) => {
-            let out = UpdateOutcome::new("failed", format!("Could not inspect the checkout: {e}"));
-            finish(cfg, &out, true);
-            return out;
-        }
-    }
+    };
 
     // -- record the rollback point before touching anything ----------------
     let previous = match git::current_commit(&root) {
@@ -249,11 +241,99 @@ pub fn run_update(cfg: &mut UpdateConfig, progress: &mut dyn FnMut(&str)) -> Upd
         }
     }
 
-    let out = UpdateOutcome::new("ok", "Updated successfully.")
-        .with_range(&previous, &target)
-        .with_ref(target_ref);
+    let out = UpdateOutcome::new(
+        "ok",
+        match &stashed {
+            None => "Updated successfully.".to_string(),
+            Some(aside) => format!("Updated successfully. {}", aside.how_to_get_them_back()),
+        },
+    )
+    .with_range(&previous, &target)
+    .with_ref(target_ref);
     finish(cfg, &out, true);
     out
+}
+
+/// Local changes that were moved out of the way, and where they went.
+struct SetAside {
+    stash: String,
+    files: Vec<String>,
+}
+
+impl SetAside {
+    fn how_to_get_them_back(&self) -> String {
+        let named: Vec<&str> = self.files.iter().take(3).map(String::as_str).collect();
+        let rest = self.files.len().saturating_sub(named.len());
+        let listed = match rest {
+            0 => named.join(", "),
+            n => format!("{} and {n} more", named.join(", ")),
+        };
+        format!(
+            "Local changes ({listed}) were stashed as {} —              `git stash apply {}` in the install folder puts them back.",
+            short(&self.stash),
+            short(&self.stash),
+        )
+    }
+}
+
+/// Make the checkout clean without losing anything the user had in it.
+///
+/// This used to refuse outright: status "skipped", message "Local changes
+/// present; update skipped to avoid discarding them". The instinct is right --
+/// an updater must never throw away somebody's work -- but the result was a
+/// dead end. The window said "close and try again", trying again did exactly
+/// the same thing, and nothing inside the app could ever resolve it. The only
+/// way out was to know that the install is a git checkout, find it, and run
+/// git in it by hand. An installation that can only be repaired from a
+/// terminal is not really updatable.
+///
+/// Stashing is not discarding. The changes survive, they are named in the
+/// message, and the commit that holds them is printed so they can be applied
+/// back with one command. A stash also survives everything the update does
+/// afterwards, including a rollback, because it is reachable from the stash
+/// reflog rather than from the branch.
+///
+/// What actually lands here is debris: a file copied into the install to test
+/// something, a half-finished patch, an editor's stray write. The install root
+/// is a deployment target, not a workspace. Treating that debris as precious
+/// enough to block every future update -- and *only* precious enough to block,
+/// never to explain -- was the worst of both.
+fn set_aside_local_changes(
+    root: &Path,
+    progress: &mut dyn FnMut(&str),
+) -> Result<Option<SetAside>, UpdateOutcome> {
+    let files = match git::dirty_files(root) {
+        Ok(files) => files,
+        Err(e) => {
+            return Err(UpdateOutcome::new(
+                "failed",
+                format!("Could not inspect the checkout: {e}"),
+            ));
+        }
+    };
+    if files.is_empty() {
+        return Ok(None);
+    }
+    progress(&format!(
+        "{} local change(s) in the install; setting them aside",
+        files.len()
+    ));
+    match git::stash_everything(root, "marvi-updater: local changes set aside") {
+        Ok(stash) => {
+            progress(&format!("stashed as {}", short(&stash)));
+            Ok(Some(SetAside { stash, files }))
+        }
+        // Only now is skipping right: the changes could not be preserved, so
+        // going on would be the discard this whole path exists to prevent.
+        // The message names the files, which the old one never did.
+        Err(e) => Err(UpdateOutcome::new(
+            "skipped",
+            format!(
+                "Local changes in the install could not be set aside ({e}), so the update                  was skipped rather than risk discarding them. Affected: {}.",
+                files.join(", ")
+            ),
+        )),
+    }
 }
 
 /// Refresh native release assets without confusing the app's moving nightly ref
