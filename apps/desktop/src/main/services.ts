@@ -108,7 +108,14 @@ export interface ServiceSpec {
   match?: RegExp
 }
 
-class Service {
+/**
+ * One supervised child process, with the restart policy around it.
+ *
+ * Exported for the tests: the restart policy is the part of this file that has
+ * broken twice, and it cannot be exercised through `ServiceSupervisor` without
+ * a real port and a real `uv`.
+ */
+export class Service {
   state: ServiceState = 'stopped'
   detail = ''
   restarts = 0
@@ -222,6 +229,31 @@ class Service {
     })
 
     child.on('exit', (code, signal) => {
+      // Only the child this service is still holding.
+      //
+      // `start()` sweeps leftovers by name before spawning, and one of the
+      // processes matching that name is this service's own live child. Killing
+      // it is asynchronous, so its `exit` arrives *after* the replacement has
+      // been spawned and `this.child` reassigned -- at which point this
+      // handler used to null the reference to the process that is actually
+      // running and call `fail()`, which schedules another `start()`, which
+      // sweeps again.
+      //
+      // One settings change therefore became a restart storm. From a real
+      // afternoon, two `PUT /providers/settings` seconds apart:
+      //
+      //     10:38:03  starting worker
+      //     10:38:09  starting worker      <- 6s
+      //     10:38:13  starting worker      <- 4s
+      //     10:38:20  starting worker      <- 7s
+      //     10:38:33  starting worker      <- 13s
+      //     10:38:59  starting worker      <- 26s   (the backoff doubling)
+      //
+      // Seven worker starts, two registrations, and every one of them ran the
+      // speech prewarm again -- 40 to 50 seconds of CuteTTS, several at once,
+      // on one GPU. That is what "it re-warms the models every time" and "no
+      // agent joined" and a Gateway timing out on the first turn all were.
+      if (this.child !== child) return
       this.child = null
       if (this.stopping) {
         this.state = 'stopped'
