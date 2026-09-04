@@ -60,7 +60,7 @@ import {
 import { NativePetHost, petActionPage, petTaskCount, resolvePetHostPaths } from './pet-host'
 import { maintenancePowerShellArgs } from './maintenance-terminal'
 import { restartApplication, shutdownApplication } from './lifecycle-actions'
-import { requiresVoiceWorkerRestart } from './voice-settings'
+import { requiresVoiceWorkerRestart, restartWhenSettled } from './voice-settings'
 import {
   canUpdate,
   checkForUpdate,
@@ -2659,7 +2659,10 @@ function startApp(): void {
         })
         if (!response.ok) return null
         const page = normaliseProviderPage(await response.json())
-        if (page && requiresVoiceWorkerRestart(values)) supervisor?.retry('agent')
+        // Once the edits stop, not once per field. See `restartWhenSettled`.
+        if (page && requiresVoiceWorkerRestart(values)) {
+          restartWhenSettled(() => supervisor?.retry('agent'))
+        }
         return page
       } catch {
         return null
