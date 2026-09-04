@@ -2648,6 +2648,25 @@ function startApp(): void {
         return null
       }
     })
+    /** Tell the Gateway the worker is going away, so the UI stops offering JOIN. */
+    const markVoiceWorkerStarting = async (): Promise<void> => {
+      try {
+        await fetch(`${gateway()}/voice/agent`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            ready: false,
+            detail: 'restarting for a settings change'
+          }),
+          signal: AbortSignal.timeout(2_000)
+        })
+      } catch {
+        // Best effort. Failing to say it is not a reason not to restart: the
+        // worst case is the stale flag this exists to avoid, which is where
+        // things already were.
+      }
+    }
+
     ipcMain.handle('marvi:set-provider-settings', async (_event, values) => {
       if (typeof values !== 'object' || values === null) return null
       try {
@@ -2661,7 +2680,27 @@ function startApp(): void {
         const page = normaliseProviderPage(await response.json())
         // Once the edits stop, not once per field. See `restartWhenSettled`.
         if (page && requiresVoiceWorkerRestart(values)) {
-          restartWhenSettled(() => supervisor?.retry('agent'))
+          restartWhenSettled(() => {
+            // Say it before doing it.
+            //
+            // `agent_ready` on the Gateway never expires -- its own comment
+            // admits "a worker that registered and then died without saying so
+            // leaves this stale" -- and a worker killed for a restart is
+            // exactly that: it cannot report anything, so the Gateway goes on
+            // answering "voice: ready" for the thirty to fifty seconds the
+            // replacement spends loading models.
+            //
+            // Which is why JOIN stayed pressable. The button is already
+            // disabled while `warming`, and `warming` is that flag; nothing was
+            // wrong with the gate except that it was reading a stale answer.
+            // Pressing JOIN in that window opens a room no worker joins, and
+            // LiveKit does not dispatch again when one appears -- so the
+            // session sits there empty and the only way out is restarting
+            // Marvi, which is what made it look like changing the engine
+            // needed a restart.
+            void markVoiceWorkerStarting()
+            supervisor?.retry('agent')
+          })
         }
         return page
       } catch {

@@ -29,7 +29,13 @@ describe('voice setting lifecycle', () => {
     // one exact line.
     const main = readFileSync(join(__dirname, 'index.ts'), 'utf8')
     expect(main).toContain('if (page && requiresVoiceWorkerRestart(values)) {')
-    expect(main).toContain("restartWhenSettled(() => supervisor?.retry('agent'))")
+    expect(main).toContain('restartWhenSettled(() => {')
+    // And the Gateway hears about it before the worker is killed, or JOIN
+    // stays enabled against a flag that never expires.
+    expect(main).toContain('void markVoiceWorkerStarting()')
+    expect(main.indexOf('void markVoiceWorkerStarting()')).toBeLessThan(
+      main.indexOf("supervisor?.retry('agent')")
+    )
   })
 })
 
