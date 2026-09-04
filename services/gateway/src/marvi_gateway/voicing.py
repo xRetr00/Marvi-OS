@@ -111,7 +111,7 @@ def _lights(event: dict[str, Any], name: str, payload: dict[str, Any]) -> str:
     return _choose(
         (
             f"{_greeting(name)}I turned the lights on for you{warmth}.",
-            f"{_greeting(name)}lights are on{warmth} — let me know if that is too much.",
+            f"{_greeting(name)}lights are on{warmth}, let me know if that is too much.",
         ),
         event,
     )
@@ -131,7 +131,7 @@ def _visitor(event: dict[str, Any], name: str, away: bool | None) -> str:
     return _choose(
         (
             f"{_greeting(name)}someone just came in.",
-            f"{_greeting(name)}you have company — someone is in the room.",
+            f"{_greeting(name)}you have company, someone is in the room.",
         ),
         event,
     )
@@ -141,7 +141,7 @@ def _home(event: dict[str, Any], name: str) -> str:
     return _choose(
         (
             f"Welcome back{', ' + name if name else ''}. How was your day?",
-            f"Welcome home{', ' + name if name else ''} — good to have you back.",
+            f"Welcome home{', ' + name if name else ''}, good to have you back.",
             f"{_greeting(name)}I noticed you are home. How did it go?",
         ),
         event,
@@ -153,7 +153,7 @@ def _work(event: dict[str, Any], name: str, zone: str) -> str:
     return _choose(
         (
             f"{_greeting(name)}I see you made it to the {where}.",
-            f"{_greeting(name)}you are at the {where} — I will keep things quiet here.",
+            f"{_greeting(name)}you are at the {where}, and I will keep things quiet here.",
         ),
         event,
     )
@@ -163,7 +163,7 @@ def _left(event: dict[str, Any], name: str) -> str:
     return _choose(
         (
             f"{_greeting(name)}I noticed you headed out. I will watch the place.",
-            f"See you{', ' + name if name else ''} — I will keep an eye on things.",
+            f"See you{', ' + name if name else ''}, I will keep an eye on things.",
         ),
         event,
     )
@@ -173,7 +173,7 @@ def _trouble(event: dict[str, Any], name: str, what: str) -> str:
     return _choose(
         (
             f"{_greeting(name)}I noticed something wrong with my {what}.",
-            f"{_greeting(name)}I am having trouble with my {what} — I may be slower than usual.",
+            f"{_greeting(name)}I am having trouble with my {what}, so I may be slower than usual.",
             f"{_address(name)}my {what} is not behaving. I am still here, just limited.",
         ),
         event,
