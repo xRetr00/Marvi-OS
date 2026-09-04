@@ -1,269 +1,105 @@
 # Marvi OS
 
-![Marvi OS repository banner](assets/marvi-os-banner.png)
+![Marvi OS — Goddess of Wisdom, Voice & Vision](assets/marvi-os-banner.png)
 
-Marvi OS is a local-first, always-on Windows voice and vision assistant. Its
-primary interface is a compact Dynamic Island; its main window is a monochrome
-control center for settings, integrations, memory, activity, room state, and
-About. Version details and update actions are available from the status bar
-and About rather than a separate update page.
+<p align="center">
+  <strong>A private, always-present assistant for Windows.</strong><br>
+  Talk naturally. Stay in flow. Let Marvi remember the rest.
+</p>
 
-The repository banner is repository artwork only. It must never be embedded in
-the desktop application. The desktop icon source is
-[`assets/app-icon-source.png`](assets/app-icon-source.png).
+<p align="center">
+  <a href="https://github.com/xRetr00/Marvi-OS/releases/latest">Download Marvi OS</a>
+  ·
+  <a href="#meet-marvi">Meet Marvi</a>
+  ·
+  <a href="#your-space-your-rules">Privacy & control</a>
+  ·
+  <a href="LICENSE">MIT License</a>
+</p>
 
-## Status
+---
 
-Phases 2, 4, 5, 6, and 13 are complete. Phase 3 is in hardware acceptance,
-Phase 7 has the update handoff working and a packaged installer building, and
-Phase 8's vision ownership and contracts are complete with native camera
-calibration still pending. The
-native-Windows stack runs the current chunked Parakeet TDT ASR baseline through
-ONNX Runtime, Kokoro 82M by default, selectable isolated CuteTTS Distill,
-and VoXtream2 runtimes, an official LiveKit `AgentSession`, and an
-Electron LiveKit microphone/playout participant. The remaining Phase 3 gate is
-a real
-loudspeaker double-talk test plus the 60-minute duplex soak.
+## Meet Marvi
 
-Current implemented desktop surfaces:
+Marvi OS is a voice-first personal assistant that lives on your Windows desktop—not in another browser tab. Call her with a wake phrase, speak normally, interrupt whenever you need to, and return to what you were doing.
 
-- tray-owned application lifetime and control-center window;
-- an experimental Marvi desktop pet rendered by a supervised native Windows
-  helper, with state-driven animation, cursor gaze, a gray/blue/green/red
-  status line, refined hover Voice/Activity controls, display/side/40–100%
-  sizing, persistent drag placement, and Settings/tray visibility controls.
-  Visible pet pixels capture pointer input while transparent gaps remain
-  click-through. The measured helper uses 16.44 MiB private memory and no
-  additional Chromium renderer. Full evidence is recorded in
-  [`docs/phases/12-pet-companion.md`](docs/phases/12-pet-companion.md) pending a
-  keep/draft decision;
-- Lucide SDK-backed icon-led sidebar and controls, window-wide compact status
-  bar with neutral voice/context meters, status-dot health icons, compact
-  maintenance terminal actions, surface-specific right-click menus, guarded
-  full-product restart/shutdown controls, persistent haptics mute, overview,
-  and About build/update information;
-  no handwritten generic SVG icon paths remain;
-- Collapse wordmark + readable JetBrains Mono monochrome design system;
-- shared Provider, Chat, and Voice session telemetry for authoritative token
-  deltas, turns, latency, and elapsed time;
-- one Gateway model catalog behind Models, Chat, Voice, and auxiliary routing,
-  with provider-published per-model reasoning choices where available and a
-  documented packaged fallback for model APIs that omit capabilities; supported
-  disabled modes appear as Off rather than being hidden behind a generic
-  low/medium/high list;
-- Gateway-owned Chat threads and branches with per-thread model routing,
-  typed sources/files/images, local document extraction, Parakeet dictation,
-  safe GFM/math rendering, segmented provider-backed context usage, thumbnail
-  attachment tiles and image previews, validated generative widgets, read aloud
-  through the standalone PocketTTS announcer, and a dedicated
-  searchable conversation sidebar, compact human/assistant turn pairs, tool
-  disclosures with grouped category icons and per-call input/output details,
-  source rows, live timed thinking/reasoning/tool states, sticky
-  prompt anchors, and compact shell chrome adapted from an internal desktop;
-- compact divided control surfaces across every non-Voice/non-Chat page, a
-  tactile shared button language, an inset settings dialog with a persistent
-  navigation rail, dedicated STT, TTS, and Wake word destinations, expandable
-  Appearance pages for themes, fonts, windows, Island, and companion settings,
-  a Preferences destination, a collapsible branded sidebar, consistent control tooltips, and
-  audible desktop haptics;
-- passive `76×8` top-edge Island seed that expands for active voice states;
-- a tightly fitted, theme-aware Island host with restrained state transitions
-  and reduced-motion support;
-- a screen-edge orb notch that briefly discloses new Gateway state and expands
-  again on hover without stealing focus from the current application;
-- canonical rounded app icon rendered from purpose-sized assets in the desktop,
-  bootstrapper, tray, taskbar/package, shortcuts, sidebar, and About; external
-  connector and provider identities use offline TheSVG brand marks;
-- action, notification, error, and confirmation Island states with automatic
-  terminal collapse and stale-control cleanup when the Gateway is unavailable;
-- an idle Island that always recesses to its seed, with global YOLO and sensor
-  state kept in the control-center status surfaces instead;
-- Gateway-backed confirmation mode plus monitor/alignment placement controls.
-- pinned model downloads, integrity checks, synchronized engine-aware STT and
-  TTS/voice pickers, and repeatable RTX 3060 latency/VRAM evidence;
-- local LiveKit room credentials, hidden development lifecycle, WebRTC AEC,
-  streamed STT/TTS, local wake gating, and authoritative Island voice states;
-- a structured tool router with exact-argument, single-use confirmation tokens
-  that reject replay and argument mutation, plus an append-only local audit that
-  records YOLO executions identically to confirmed ones;
-- Gateway-owned cron jobs with durable one-shot,
-  interval, and cron schedules; per-job provider/model/reasoning and tool
-  controls; bounded agent execution through the existing audited tool router;
-  repeat limits, run history, local output, and a transport-neutral seam ready
-  for future messaging delivery;
-- spoken and Island approval resolving the same token, and a Smart Room sidecar
-  connection that degrades to stale reads without disturbing conversation;
-- filtered room event history plus Island micro-events that expand the seed
-  briefly and can never overwrite a live voice turn or steal focus;
-- built-in Composio Connect lifecycle (connect, reconnect, enable/disable, and
-  revoke), dynamic account-tool discovery behind per-toolkit read/write/admin
-  ceilings, and nonce-delimited untrusted reads; remote writes remain confirmed,
-  audited, and deduplicated;
-- one selected durable-memory provider—Marvi's local SQLite store (default),
-  pinned four-operation Mem0, or managed/self-hosted Honcho—with shared
-  observe, recall, inspect, forget, and clear behavior; externally sourced
-  entries retain an untrusted boundary and provider stores are never merged;
-- a knowledge graph, recall-based reinforcement, reflection that promotes
-  repeated episodes into durable facts, and a consolidation pass that forgets
-  only what was never useful, presented as **Marvi Cortex** with an Obsidian-style PixiJS +
-  d3-force local memory graph, provenance tree, explicit-connection view, and
-  shared Chat/Voice `memory_recall` tool; every LLM-assisted mind/reflection
-  call uses its Models → Auxiliary role with content-free route/latency/usage
-  diagnostics;
-- native Gmail, Google Calendar, Slack, Notion, GitHub, and Google Drive memory
-  providers with per-connection cursors, content-aware deduplication, visible
-  sync health, manual sync, and realtime Composio triggers entering Marvi Cortex as
-  untrusted events without blocking the voice path;
-- a content-free, durable usage ledger shared by Chat, Voice, background work,
-  and local models, with daily and hourly UTC activity matrices across Year,
-  Month, Week, Day, and rolling 24-hour views, plus optional reconciliation
-  against official provider account APIs and a playful offline book-scale comparison;
-- web search, fetch, and extract with an SSRF guard, plus file, terminal, and
-  process tools confined to an allowlisted workspace root, and MCP servers
-  routed through the Gateway so they inherit confirmation and audit;
-- browser automation where reading a page is free and clicking, typing, or
-  submitting asks first, page content is treated as untrusted, and downloads
-  are refused;
-- an event-driven mind that decides from a durable journal rather than a timer,
-  where quiet hours, presence, cooldown, a live conversation, and a daily budget
-  each downgrade or silence a proposal, and every decision records the rule
-  behind it — including the decisions to stay quiet;
-- proactive speech and Chat Read Aloud through a cancellable CPU PocketTTS
-  announcer that plays directly to the selected Windows output without opening
-  Voice; a content-free playback marker suppresses wake scoring so Marvi does
-  not wake herself;
-- an independently updated Smart Room sidecar as the sole camera/vision owner:
-  local face, gesture, posture, and visitor logic publishes bounded facts and
-  events through authenticated Gateway contracts; raw frames never enter Marvi
-  or Electron. Room exposes the
-  sidecar's complete power, brightness, white-temperature, RGB, and mode
-  controls, while Vision provides quality-gated owner enrollment and a compact,
-  paginated face-review queue;
-- a protected sleep mode where the only thing Marvi may do to a sleeping room is
-  switch a light off — enforced at the room boundary, and not overridable by
-  YOLO.
-- hidden-titlebar control center with renderer-painted page chrome, native
-  Windows controls, Electric Gaze local backdrop, translucency lever,
-  haptics with a persistent mute control, context-aware shell menus, guarded
-  restart/shutdown, connecting and boot-failure overlays, and a
-  neutral voice-level meter in the status bar (see `feat/desktop-shell-ui`).
-- tag-driven releases: `scripts/release.ps1` cuts `v<semver>` tags and the
-  `Release` workflow gates them. There is no per-release installer — the
-  bootstrap (`apps/updater`) clones the tag and builds it on the machine, so
-  the tag is the payload. Its Windows handoff avoids pinning build output,
-  presents real stages separately from optional live output, preserves failed-
-  update diagnostics on screen, and closes automatically only after verified
-  success. The desktop checks quietly and shows the exact available commits
-  before handoff. See `docs/INSTALLER.md`.
+Most of the time, Marvi is a quiet line at the edge of your screen. The Dynamic Island expands only when there is something worth hearing, approving, or acting on. A full control center is there when you want to chat, inspect memory, connect services, manage your room, or tune how Marvi behaves.
 
-## Developer start
+Marvi is designed to become more useful without becoming more intrusive. She learns your preferences, remembers what matters, notices meaningful changes, and understands that silence is often the right answer.
 
-```powershell
-npm install
-npm run icons
-npm run dev
-```
+## An assistant that feels present
 
-Before the first voice run, copy `services/agent/.env.example` to `.env`, add
-the OpenCode Go key, and run `marvi setup voice`. Accounts accepts the Composio
-project key directly in the control center, validates it before saving it in
-Marvi's local provider settings, and then creates hosted Connect Links;
-provider OAuth credentials remain in Composio and never enter Marvi OS.
-`COMPOSIO_API_KEY` remains supported for managed installs. Optional signed webhooks use
-`COMPOSIO_WEBHOOK_SECRET`; the local runtime otherwise consumes Composio's
-realtime trigger stream. See
-[`docs/VOICE-RUNTIME.md`](docs/VOICE-RUNTIME.md) for the native build and checks.
+### Talk without managing the conversation
 
-Gateway and agent dependencies are isolated in the root `uv` workspace. These
-commands are development tooling only; the shipped product has no CLI.
-`npm run icons` requires ImageMagick and regenerates all rounded desktop,
-bootstrap, renderer, taskbar/shortcut, and tray sizes from
-`assets/app-icon-source.png`. Small Windows frames are sharpened separately and
-generated icon files are committed.
+Start hands-free with your own wake phrase. Marvi listens and responds in real time, keeps hearing you while she speaks, and stops when you interrupt. Choose how she sounds, tune recognition for your language and hardware, or create a personal voice.
 
-## Build and release
+### Voice first. Chat when the work needs room.
 
-Local Windows packaging check (never publishes):
+Move naturally between spoken conversation and a rich typed workspace. Chat supports long-running threads, branching, files, images, dictation, sources, structured results, and read-aloud—without turning Marvi into a traditional chat app.
 
-```powershell
-.\scripts\build-desktop.ps1            # full: typecheck + tests + installer
-.\scripts\build-desktop.ps1 -SkipTests # faster iteration
-```
+### Memory you can actually see
 
-Diagnostic package artifacts land in `apps/desktop/dist/`. They are not release
-payloads; published releases contain the bootstrap and its checksum.
+Marvi Cortex turns useful moments into durable context: names, preferences, relationships, recurring patterns, and things you asked her not to forget. Explore those memories as a living graph, trace where each fact came from, correct what is wrong, import knowledge from another assistant, or erase it.
 
-Releases are tag-driven. From a clean `main`:
+### Awareness beyond the screen
 
-```powershell
-.\scripts\release.ps1                 # prerelease -> stable, then patch bumps
-.\scripts\release.ps1 -Bump minor     # or minor/major
-.\scripts\release.ps1 -Version 1.2.3  # explicit
-```
+With Smart Room connected, Marvi can understand presence, room conditions, devices, gestures, and familiar faces without sending raw camera footage into the assistant. Ask what is happening, control the room, or let meaningful events surface quietly through the Island.
 
-The script bumps `VERSION` (the single version source) plus both
-`package.json` mirrors and the bootstrap crate, commits, creates an SSH-signed
-annotated `v<version>` tag, verifies it against `.github/allowed_signers`, and
-pushes main plus the tag.
+### The services and tools you already use
 
-The `Release` workflow then runs every gate — desktop, gateway, agent and
-bootstrap tests — and finally `npm run build:unpack`, which is the exact build
-the updater performs on a user's machine. A tag that cannot be built is a tag
-that breaks every Dev-channel update, and the failure would land on someone
-else's computer rather than in the workflow.
+Connect accounts such as Gmail, Google Calendar, Slack, Notion, GitHub, and Google Drive. Add skills, plugins, and MCP tools to teach Marvi new kinds of work. Search the web, work with files, use a browser, run scheduled tasks, and bring your own model provider—local or cloud.
 
-It publishes `marvi-bootstrap.exe` and its checksum. An existing install
-updates itself from the tag and downloads nothing; the bootstrap is only for a
-first install. `workflow_dispatch` is a dry run: artifacts upload, no release
-is created.
+### Proactive, not noisy
 
-## Installing
+Marvi can notice an event, remember it, surface it later, or act when the moment is right. Quiet hours, presence, cooldowns, and daily limits keep background intelligence from becoming background chatter. Every autonomous decision has a visible reason.
 
-Download `marvi-bootstrap.exe` from the latest release and run it. It installs
-`uv` and Node, clones the tag, and builds it. Then:
+## Built around your day
 
-```powershell
-marvi status     # what is left to set up
-marvi setup      # install what is missing
-marvi doctor     # what is wrong, and what fixes it
-```
+- **Dynamic Island** — an ambient, glanceable surface for listening, speaking, notifications, and approvals.
+- **Control center** — one place for Voice, Chat, Vision, Room, Activity, Cortex, capabilities, and preferences.
+- **Desktop companion** — an optional lightweight character that mirrors Marvi's live state without getting in the way.
+- **Marvi Cortex** — inspectable memory, identity, relationships, reflections, and autonomous decisions.
+- **Connected world** — accounts, tools, skills, plugins, room devices, and schedules working through one assistant.
+- **Personal expression** — choose the theme, typography, window style, Island placement, speech recognition, and voice.
 
-## Foundation
+## Your space, your rules
 
-- LiveKit Agents and a locally managed LiveKit transport.
-- Continuous full-duplex capture/playout with local turn detection and WebRTC AEC.
-- A local service facade branded **Marvi Gateway**.
-- Local wake word, microphone, camera, presence, gesture detection, STT, and TTS.
-- OpenCode Go as the cloud LLM provider.
-- Composio SDK for connected accounts and actions.
-- `D:\smart-room-plugin` as an independent room sidecar.
-- Marvi Agent as an optional durable deep-work delegate.
+Always-on access should never mean giving up control.
 
-Marvi OS adopts upstream projects before writing custom infrastructure. See
-[`docs/UPSTREAM.md`](docs/UPSTREAM.md).
+Raw microphone and camera streams stay on your machine. Camera processing belongs to your local room system, and connected content is treated as information—not as an instruction Marvi is allowed to obey. When you choose a cloud model, only the text and context needed for that request are sent to that provider.
 
-## Documentation
+You decide how actions work:
 
-- [`AGENTS.md`](AGENTS.md) — mandatory rules for every coding agent.
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — process and authority boundaries.
-- [`docs/PLAN.md`](docs/PLAN.md) — phased delivery plan and acceptance gates.
-- [`docs/phases/`](docs/phases/README.md) — phase-by-phase status, evidence, and commits.
-- [`docs/IMPLEMENTATION-LOG.md`](docs/IMPLEMENTATION-LOG.md) — chronological work record.
-- [`docs/UI.md`](docs/UI.md) — Dynamic Island and main-window design contract.
-- [`docs/CHAT.md`](docs/CHAT.md) — Chat frontend contract and backend capability plan.
-- [`docs/VOICE-MODEL-EVALUATION.md`](docs/VOICE-MODEL-EVALUATION.md) — native voice bakeoff.
-- [`docs/VOICE-RUNTIME.md`](docs/VOICE-RUNTIME.md) — selected models, voices, setup, and diagnostics.
-- [`docs/research/MIND-CORTEX-SOURCES.md`](docs/research/MIND-CORTEX-SOURCES.md) — reviewed proactivity and memory research.
-- [`docs/REAL-AGENCY.md`](docs/REAL-AGENCY.md) — proactive mind and repository reuse contract.
-- [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md) — detected target hardware and toolchain.
-- [`docs/PROVIDERS.md`](docs/PROVIDERS.md) — model providers, API shapes, caching, and budget.
-- [`docs/UPSTREAM.md`](docs/UPSTREAM.md) — adopted repositories, licenses, and update policy.
-- [`docs/DECISIONS.md`](docs/DECISIONS.md) — durable architectural decisions.
-- [`docs/RFC-NATIVE-CONNECTORS.md`](docs/RFC-NATIVE-CONNECTORS.md) — draft research and open questions for a Claude-like Marvi Connectors and Plugins layer.
+- **Confirm mode** asks for approval before sensitive actions. Approval is tied to the exact action Marvi proposed.
+- **YOLO mode** removes approval prompts when you explicitly want full autonomy, while validation and local activity history remain active.
 
-## Version
+Marvi also gives you direct control over the folders tools may access, the services that can connect, what gets remembered, when proactive speech is allowed, and whether the microphone or camera is available. Credentials stay out of model conversations, and account sign-in happens through the provider's own authorization page.
 
-The current development version is stored in [`VERSION`](VERSION). Marvi OS
-uses SemVer for product releases and records the exact Git commit in every
-build. The update mechanism follows the repository-owned Windows handoff model;
-see the architecture document for the update contract.
+## Make Marvi yours
+
+Marvi's personality lives in a plain, editable soul file. Your standing preferences live separately, so you can shape who Marvi is without mixing that identity with everything she learns about you.
+
+Use the models you prefer. Keep thinking local, connect a hosted provider, or give different jobs to different models. Add capabilities over time without rebuilding your assistant around a single company or ecosystem.
+
+## Get Marvi OS
+
+Marvi OS is built for Windows and is under active development.
+
+1. Open the [latest release](https://github.com/xRetr00/Marvi-OS/releases/latest).
+2. Download and run `marvi-bootstrap.exe`.
+3. Follow the guided setup to choose your hardware, connect a model provider, and add the capabilities you want.
+
+You can begin with Chat and local tools using only a model provider. Voice, vision, browser automation, and additional capabilities can be added when you are ready. Downloads are verified and resumable, and failed updates preserve the last working installation.
+
+## The idea behind Marvi
+
+The best assistant is not the one demanding the most attention. It is the one that is there when needed, stays quiet when not, remembers the right things, and earns the trust required to act.
+
+Marvi OS is an attempt to build exactly that: one private, expressive presence for your conversations, computer, connected life, and physical space.
+
+---
+
+<p align="center">
+  <strong>Voice. Vision. Memory. Action.</strong><br>
+  Your computer should know how to help without getting in your way.
+</p>
