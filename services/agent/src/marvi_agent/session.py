@@ -28,7 +28,7 @@ from livekit.agents import (
 )
 from livekit.plugins import silero
 
-from . import delegated, observability, oncall, sidecars
+from . import delegated, greeting, observability, oncall, sidecars
 from .parakeet_stt import PARAKEET_ROOT, build_stt, chosen_engine
 from .runtime import AgentConfig, build_llm, build_local_turn_detector
 from .timing import TimedLLM
@@ -1722,6 +1722,20 @@ async def marvi_session(ctx: JobContext) -> None:
     # so the desktop holds Join rather than offering a second one that would
     # wait for a cold prewarm.
     await asyncio.to_thread(_pool_is_busy)
+
+    # Whether they started talking before Marvi got a word in. This is the
+    # whole wake-word case: somebody who said "Marvi" is already mid-sentence,
+    # and a greeting on top of that is an interruption, not a welcome. Rather
+    # than plumbing a "this was the wake word" flag from the desktop through
+    # LiveKit, she waits a beat and looks -- which also covers the person who
+    # simply starts talking the instant the orb goes green.
+    spoke_first = {"yes": False}
+
+    @session.on("user_state_changed")
+    def _beat_me_to_it(event: Any) -> None:
+        if getattr(event, "new_state", "") == "speaking":
+            spoke_first["yes"] = True
+
     await session.start(agent=voice_agent, room=ctx.room)
     # Both numbers, because they answer different questions. The first is what
     # LiveKit's connect cost; the second is what the person waited from the job
@@ -1740,6 +1754,26 @@ async def marvi_session(ctx: JobContext) -> None:
             "the steps logged above. See docs/VOICE-JOIN-LATENCY.md.",
             time.monotonic() - started,
         )
+
+    # She speaks first, unless speaking first would be talking over somebody.
+    #
+    # A call used to open on silence, both sides waiting for the other, which
+    # is a strange way to be met by something that has been sitting there all
+    # day. See `greeting` for the three cases where staying quiet is the warmer
+    # answer -- above all a rejoin, which is a conversation continuing rather
+    # than one starting.
+    with contextlib.suppress(Exception):
+        await asyncio.sleep(GREETING_PAUSE)
+        if not spoke_first["yes"]:
+            hello = greeting.opening(
+                greeting.name_from(greeting.APP_DATA / "USER.md"),
+                hour=datetime.now().astimezone().hour,
+                since_last_call=greeting.since_last_call(),
+                seed=int(time.time()),
+            )
+            if hello:
+                log.info("greeting: %s", hello)
+                session.say(hello)
 
     # How a conversation ends: the model decides, from what was said.
     #
@@ -1806,6 +1840,8 @@ async def marvi_session(ctx: JobContext) -> None:
         # `oncall.wait_until_free` and should start loading now, not after
         # whatever the rest of this shutdown takes.
         live.stop()
+        # So the next call can tell a rejoin from an arrival.
+        greeting.remember_this_call_ended()
         _remember_the_session()
         ctx.shutdown(reason=str(reason))
 
@@ -1870,6 +1906,14 @@ async def marvi_session(ctx: JobContext) -> None:
 #: middle of the range around 25s. Ten seconds is comfortably above a good run
 #: and well below the ones that make Marvi look broken.
 SLOW_PREWARM = 10.0
+
+#: How long to let the person speak first before greeting them.
+#:
+#: Somebody who woke Marvi by name is already talking, and greeting over them
+#: is the difference between attentive and irritating. Long enough for the VAD
+#: to have noticed a voice, short enough that a silent join is not left hanging
+#: while she decides whether to say hello.
+GREETING_PAUSE = 1.2
 
 #: Past this, a join is worth complaining about. A phone call connects in about
 #: two seconds and this is meant to feel like one; three leaves room for a
