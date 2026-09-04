@@ -180,6 +180,25 @@ def _trouble(event: dict[str, Any], name: str, what: str) -> str:
     )
 
 
+def _strain(event: dict[str, Any], name: str, doing: str, seconds: float) -> str:
+    """Something of hers took long enough that she should mention it.
+
+    The stance again: not "the gateway blocked for 10s" but what she was doing
+    and what it meant for the person waiting. `condition` produces these; the
+    one that started it all was ten seconds of loading the memory model on the
+    first turn of every call, which read from outside as the Gateway crashing.
+    """
+    slow = f" It took about {round(seconds)} seconds." if seconds >= 2 else ""
+    return _choose(
+        (
+            f"{_greeting(name)}sorry about the pause, I was {doing}.{slow}",
+            f"{_greeting(name)}that took a moment because I was {doing}.",
+            f"{_address(name)}I was {doing} just then, which is why I was slow.",
+        ),
+        event,
+    )
+
+
 #: What a component is called out loud. "gateway" is a word Marvi uses about
 #: herself; the rest are the names a person would recognise.
 PARTS = {
@@ -224,6 +243,13 @@ def spoken(
         return _work(event, name, str(_on(payload, "zone", "place") or ""))
     if kind in ("presence:left", "presence:away", "room:presence_cleared"):
         return _left(event, name)
+    if kind in ("system:slow", "system:strain"):
+        return _strain(
+            event,
+            name,
+            str(_on(payload, "doing") or "busy with something"),
+            float(_on(payload, "seconds") or 0.0),
+        )
     if kind in ("system:degraded", "system:component_failed", "room:device_offline"):
         component = str(_on(payload, "component", "name", "device") or "")
         return _trouble(event, name, PARTS.get(component, component or "connection"))
