@@ -42,7 +42,7 @@ def test_the_biggest_spender_is_first(ledger: UsageLedger) -> None:
     ledger.record("openrouter", Usage(input=10), model="zzz-small")
     ledger.record("openrouter", Usage(input=90_000), model="aaa-expensive")
 
-    assert [row["model"] for row in ledger.snapshot()["models"]][0] == "aaa-expensive"
+    assert ledger.snapshot()["models"][0]["model"] == "aaa-expensive"
 
 
 def test_a_model_is_broken_down_by_day(ledger: UsageLedger) -> None:
