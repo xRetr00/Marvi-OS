@@ -103,8 +103,6 @@ def test_the_same_event_sounds_the_same_and_different_ones_do_not() -> None:
     # evening does not sound like a recording.
     first = {"source": "room", "kind": "light_changed", "summary": "a", "payload": {"on": True}}
     again = {"source": "room", "kind": "light_changed", "summary": "a", "payload": {"on": True}}
-    other = {"source": "room", "kind": "light_changed", "summary": "b", "payload": {"on": True}}
-
     assert voicing.spoken(first, "Shereef") == voicing.spoken(again, "Shereef")
     seen = {voicing.spoken({**first, "summary": str(n)}, "S") for n in range(12)}
     assert len(seen) > 1, "every light change is phrased identically"

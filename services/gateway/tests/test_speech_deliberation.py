@@ -90,7 +90,12 @@ def test_room_welcome_reaches_the_same_standalone_announcer(journal) -> None:
 
     Mind(journal, announcer=announcer).tick(now=NOON)
 
-    assert announcer.said == ["Welcome home, Ada."]
+    # The routing is what this pins: a room welcome reaches the announcer.
+    # The words are `voicing`'s now -- the summary is written for a journal
+    # and reading one aloud is what made her sound like a dashboard -- so this
+    # asserts that something welcoming was said, not which phrasing won.
+    assert len(announcer.said) == 1
+    assert "Welcome" in announcer.said[0] or "you are home" in announcer.said[0]
 
 
 @pytest.mark.browser
