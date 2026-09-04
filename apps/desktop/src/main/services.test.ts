@@ -321,7 +321,9 @@ describe('a service asked to restart', () => {
         // is one the test caused.
         command: process.execPath,
         args: ['-e', 'setInterval(() => {}, 1000)'],
-        cwd: root
+        // Not `root`: on Windows a running child holds its working directory
+        // open, and `afterEach` cannot remove it while this one is alive.
+        cwd: tmpdir()
       },
       () => {}
     )

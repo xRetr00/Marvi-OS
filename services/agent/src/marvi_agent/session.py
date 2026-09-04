@@ -1662,7 +1662,12 @@ async def marvi_session(ctx: JobContext) -> None:
     # Direct voice inference bypasses ProviderClient for latency. LiveKit's
     # cumulative usage event is therefore reported back to the Gateway as
     # per-event deltas, so Usage still counts every voice turn exactly once.
-    observability.attach(session, provider=getattr(session.llm, "_provider", ""))
+    observability.attach(
+        session,
+        provider=getattr(session.llm, "_provider", ""),
+        # So voice spending is attributable in the ledger, not just countable.
+        model=str(getattr(session.llm, "model", "") or ""),
+    )
 
     @session.on("user_input_transcribed")
     def _heard_live(event: Any) -> None:

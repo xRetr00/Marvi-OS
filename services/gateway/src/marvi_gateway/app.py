@@ -415,6 +415,10 @@ class UsageRecord(BaseModel):
     output: int = 0
     cached_input: int = 0
     reasoning: int = 0
+    #: Which model answered. Optional, because an older voice worker does not
+    #: send it and losing the counters over a missing label would be worse than
+    #: an unattributed row.
+    model: str = ""
 
 
 class OAuthStart(BaseModel):
@@ -4014,6 +4018,7 @@ def create_app(
                 cached_input=max(0, record.cached_input),
                 reasoning=max(0, record.reasoning),
             ),
+            model=record.model,
         )
         return {"recorded": True}
 

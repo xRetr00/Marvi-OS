@@ -175,9 +175,14 @@ class ProviderClient:
 
     # -- accounting ----------------------------------------------------------
 
-    def record(self, name: str, usage: Usage) -> None:
+    def record(self, name: str, usage: Usage, model: str = "") -> None:
+        """Count one call against the provider, and against the model it named.
+
+        The model is what makes the ledger answerable. Without it "which model
+        is spending this" could only be reconstructed from `providers.log`.
+        """
         self._usage[name] = self._usage.get(name, Usage()) + usage
-        self.ledger.record(name, usage)
+        self.ledger.record(name, usage, model=model)
 
     def usage(self, name: str | None = None) -> Usage:
         if name:
@@ -390,7 +395,7 @@ class ProviderClient:
 
         usage = profile.read_usage(payload)
         tool_calls = profile.read_tool_calls(payload)
-        self.record(profile.name, usage)
+        self.record(profile.name, usage, model=str(model or ""))
         logger.info(
             "model call completed",
             extra={
@@ -563,7 +568,7 @@ class ProviderClient:
 
         # Recorded here rather than per chunk: a stream that was cut short still
         # cost whatever it produced, and this is the one place that knows.
-        self.record(profile.name, usage)
+        self.record(profile.name, usage, model=str(model or ""))
         logger.info(
             "model stream completed",
             extra={

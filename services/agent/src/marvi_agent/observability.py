@@ -90,8 +90,16 @@ def _llm_entries(usage: Any) -> list[Any]:
     return [row for row in (rows or []) if str(getattr(row, "type", "")) == "llm_usage"]
 
 
-def _report_usage(provider: str, usage: Any, previous: dict[str, int]) -> dict[str, int]:
-    """Send only the delta from LiveKit's cumulative session usage event."""
+def _report_usage(
+    provider: str, usage: Any, previous: dict[str, int], model: str = ""
+) -> dict[str, int]:
+    """Send only the delta from LiveKit's cumulative session usage event.
+
+    `model` goes with it. The voice worker calls the provider directly rather
+    than through the Gateway, so these counters are the *only* record of what
+    voice spent -- and without a model name the ledger could say how many
+    tokens went out but never which model answered.
+    """
     rows = _llm_entries(usage)
     if rows:
 
@@ -119,11 +127,15 @@ def _report_usage(provider: str, usage: Any, previous: dict[str, int]) -> dict[s
             import httpx
 
             base = os.environ.get("MARVI_GATEWAY_URL", "http://127.0.0.1:8765").rstrip("/")
-            httpx.post(f"{base}/usage", json={"provider": provider, **delta}, timeout=2.0)
+            httpx.post(
+                f"{base}/usage",
+                json={"provider": provider, "model": model, **delta},
+                timeout=2.0,
+            )
     return current
 
 
-def attach(session: AgentSession, provider: str = "") -> None:
+def attach(session: AgentSession, provider: str = "", model: str = "") -> None:
     last_usage: dict[str, int] = {}
     #: Per session, so a fault explained in one conversation is explained
     #: again in the next; the person there may be a different person.
@@ -245,7 +257,7 @@ def attach(session: AgentSession, provider: str = "") -> None:
         # what is in the log around a conversation.
         if _llm_entries(usage):
             log.info("usage: %s", usage)
-        last_usage = _report_usage(provider, usage, last_usage)
+        last_usage = _report_usage(provider, usage, last_usage, model)
 
 
 def _log_turn_metrics(role: str, report: Any) -> None:

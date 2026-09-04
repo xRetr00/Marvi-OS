@@ -62,7 +62,28 @@ class UsageLedger:
         temporary.write_text(json.dumps(value, separators=(",", ":")), encoding="utf-8")
         os.replace(temporary, self.path)
 
-    def record(self, provider: str, usage: Usage, at: datetime | None = None) -> None:
+    def record(
+        self,
+        provider: str,
+        usage: Usage,
+        at: datetime | None = None,
+        model: str = "",
+    ) -> None:
+        """Add one call to the ledger, by provider, by day, by hour, by model.
+
+        `model` was not kept, and the day it was needed the answer had to be
+        reconstructed from log files. An OpenRouter bill showed $3.03 against
+        Claude Sonnet 4.5 -- a model nothing in Marvi names and nobody had
+        chosen -- and the ledger could say only that Marvi had spent 34,688
+        input tokens that day across some provider. Enough to prove it was not
+        Marvi, by arithmetic, and not enough to say what it *was*.
+
+        Kept per model as well as per day, so the next version of that question
+        is answered by the Usage page instead of by a forensic read of
+        `providers.log`. Still only counters and dates: no prompts, no
+        responses, no keys. A model id is what was asked for, not what was
+        said.
+        """
         if usage.total <= 0 and usage.reasoning <= 0:
             return
         stamp = (at or datetime.now(UTC)).astimezone(UTC)
@@ -73,11 +94,19 @@ class UsageLedger:
             providers = value.setdefault("providers", {})
             daily = value.setdefault("daily", {})
             hourly = value.setdefault("hourly", {})
-            for target in (
+            models = value.setdefault("models", {})
+            targets = [
                 providers.setdefault(provider, _empty()),
                 daily.setdefault(day, _empty()),
                 hourly.setdefault(hour, _empty()),
-            ):
+            ]
+            if named := model.strip():
+                # Under the day as well as in total. "Which model" is nearly
+                # always asked as "which model, on the day the bill jumped".
+                by_model = models.setdefault(named, {"total": _empty(), "daily": {}})
+                targets.append(by_model.setdefault("total", _empty()))
+                targets.append(by_model.setdefault("daily", {}).setdefault(day, _empty()))
+            for target in targets:
                 current = _normalise(target)
                 current["input"] += usage.input
                 current["output"] += usage.output
@@ -106,6 +135,22 @@ class UsageLedger:
             for hour, raw in sorted((value.get("hourly") or {}).items())
             if isinstance(hour, str)
         ]
+        models = [
+            {
+                "model": name,
+                **_public((raw or {}).get("total") or {}),
+                "daily": [
+                    {"date": day, **_public(day_raw)}
+                    for day, day_raw in sorted(((raw or {}).get("daily") or {}).items())
+                    if isinstance(day, str)
+                ],
+            }
+            for name, raw in sorted((value.get("models") or {}).items())
+            if isinstance(name, str) and isinstance(raw, dict)
+        ]
+        # Most used first: the question is "what is spending this", and the
+        # answer is at the top rather than wherever the alphabet put it.
+        models.sort(key=lambda row: row["billable"], reverse=True)
         total = Usage()
         for raw in providers.values():
             total += Usage(
@@ -117,6 +162,7 @@ class UsageLedger:
         return {
             "totals": _public(total.__dict__),
             "providers": providers,
+            "models": models,
             "daily": daily,
             "hourly": hourly,
             "updated_at": value.get("updated_at"),
