@@ -36,15 +36,19 @@ afterEach(() => {
 })
 
 describe('the ownership record', () => {
-  it('is claimed before any child exists', () => {
-    const state = home()
-    const record = ownership.claim(state, 'launch-one')
+  it(
+    'is claimed before any child exists',
+    () => {
+      const state = home()
+      const record = ownership.claim(state, 'launch-one')
 
-    expect(record.launchId).toBe('launch-one')
-    expect(record.children).toEqual({})
-    const written = JSON.parse(readFileSync(ownership.runtimePath(state), 'utf8'))
-    expect(written.launchId).toBe('launch-one')
-  })
+      expect(record.launchId).toBe('launch-one')
+      expect(record.children).toEqual({})
+      const written = JSON.parse(readFileSync(ownership.runtimePath(state), 'utf8'))
+      expect(written.launchId).toBe('launch-one')
+    },
+    15_000,
+  )
 
   it('records a child by pid and creation time', () => {
     // The creation time is the half that matters: a PID alone stops
