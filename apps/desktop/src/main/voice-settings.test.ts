@@ -23,10 +23,13 @@ describe('voice setting lifecycle', () => {
   })
 
   it('restarts the Agent only after the Gateway accepts the save', () => {
+    // The guarantee is the ordering: a save the Gateway rejected must not tear
+    // down a working worker. The restart is scheduled rather than immediate
+    // now (see `restartWhenSettled`), so this reads the condition rather than
+    // one exact line.
     const main = readFileSync(join(__dirname, 'index.ts'), 'utf8')
-    expect(main).toContain(
-      "if (page && requiresVoiceWorkerRestart(values)) supervisor?.retry('agent')"
-    )
+    expect(main).toContain('if (page && requiresVoiceWorkerRestart(values)) {')
+    expect(main).toContain("restartWhenSettled(() => supervisor?.retry('agent'))")
   })
 })
 
