@@ -694,22 +694,6 @@ def faces(sidecar: RoomSidecar) -> dict[str, Any]:
     return {"ok": True, "owner": owner, "people": known, "pending": waiting}
 
 
-def vision_preview(sidecar: RoomSidecar) -> dict[str, Any]:
-    """Ask the sidecar for one compressed preview frame.
-
-    The vision runtime owns capture and encoding. The Gateway only normalises
-    its public RPC response so Electron never reaches the private socket.
-    """
-    try:
-        answer = sidecar.call("vision_preview", {"width": 720, "quality": 72})
-        preview = answer.get("preview") if isinstance(answer, dict) else None
-        if not isinstance(preview, dict):
-            return {"available": False, "error": "the room returned no preview"}
-        return preview
-    except (RoomUnavailableError, RoomRejectedError) as exc:
-        return {"available": False, "error": str(exc)}
-
-
 def unconfirmed(state: dict[str, Any]) -> str:
     """Why the light in this state should not be reported as fact, or "".
 
@@ -780,12 +764,9 @@ DUPLICATE_PLUGIN_TOOLS = frozenset(
 #: Marvi decides this, not the plugin: a plugin declaring its own writes
 #: harmless is exactly the claim that should not be taken at face value.
 #:
-#: The reads were always here; the writes joined them because confirmation is
-#: the wrong instrument for a room. It exists for actions that leave this
-#: machine and cannot be taken back -- a sent email, a deleted file. A light in
-#: your own room is local, reversible in one word, and yours. Asking before
-#: every switch made the assistant tiring without making anything safer, and by
-#: voice it turned "turn the light on" into a two-turn negotiation.
+#: Reversible room controls stay immediate. Face-library mutations are omitted:
+#: Confirm mode requires an explicit token before identities are stored or
+#: removed, while YOLO continues to bypass that prompt visibly.
 #:
 #: Every one is still audited. The record is the accountability; the prompt was
 #: only ever friction.
@@ -798,7 +779,6 @@ UNCONFIRMED_PLUGIN_TOOLS = frozenset(
         "smart_room_cancel_sleep",
         "smart_room_override",
         "smart_room_alarm",
-        "smart_room_vision_identity",
     }
 )
 

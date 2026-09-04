@@ -1478,3 +1478,16 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
 - Verified all 378 desktop tests, the production Electron build, TypeScript,
   ESLint with errors-only output, native-boundary tests, and rendered collapsed
   plus expanded notch states with no browser-console errors.
+
+## 2026-09-04 — repair face identity and remove camera preview transport
+
+- Removed the unimplemented `vision_preview` route and its Gateway, Electron,
+  preload, renderer, and type contracts. Vision now renders structured camera
+  facts only; raw frames never cross the Smart Room boundary.
+- Preserved owner status when adding samples, repaired the configured owner on
+  sidecar startup, exposed an explicit owner action, and made plugin-declared
+  failures become Gateway failures instead of false `executed` results.
+- Added configurable queue limits, low-quality face rejection, nearest-known
+  identity metadata, working bulk rejection, and bounded thumbnail cleanup.
+- Replaced the forty-card image wall with a six-at-a-time review list, local
+  decision controls, clear readiness state, pagination, and visible owner repair.

@@ -179,11 +179,11 @@ describe('shell layout', () => {
     expect(app).toContain('aria-label="Light white temperature"')
     expect(app).toContain('aria-label="Custom light color"')
     expect(app).toContain('title="Devices and presence"')
-    expect(app).toContain('className="vision-stage"')
-    expect(app).toContain('alt="Live Smart Room camera preview"')
+    expect(app).toContain('className="vision-signal-board"')
+    expect(app).not.toContain('getRoomVisionPreview')
     expect(app).toContain('title="Live perception"')
     expect(app).toContain('title="Face identity"')
-    expect(app).toContain('className="face-review-card"')
+    expect(app).toContain('className="face-review-item"')
     expect(css).toContain('container-name: room-page')
     expect(css).toContain('@container room-page (max-width: 720px)')
   })
@@ -195,15 +195,15 @@ describe('shell layout', () => {
     // the match threshold, and nothing on screen said who they were near.
     expect(app).toContain('`Looks like ${sighting.nearest.name}`')
     expect(app).toContain('value={visitorNames[sighting.id] ?? sighting.nearest?.name')
-    expect(app).toContain('Matches nobody Marvi knows')
+    expect(app).toContain("'new face'")
   })
 
   it('can mark a reviewed face as the owner, and empty the queue at once', () => {
     // Accepting through this card always stored an ordinary visitor, so the
     // one person the room exists for was never the owner: `owner_visible`
     // stayed false and the owner threshold never fired.
-    expect(app).toContain('This is me — the owner')
-    expect(app).toContain('owner: visitorOwners[id] ?? false')
+    expect(app).toContain('Set as owner')
+    expect(app).toContain("action: 'set_owner'")
     // Forty crops that should never have been queued is not forty decisions.
     expect(app).toContain('Reject all')
     expect(app).toContain("action: 'reject_all'")

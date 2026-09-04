@@ -5532,43 +5532,123 @@ body {
   font-size: 8px;
 }
 
-/* Camera and face-review flow. The preview is a bounded JPEG requested
- * only while Vision is mounted; the sidecar remains the inference owner. */
-.vision-preview-image {
-  position: absolute;
-  inset: 0 0 31px;
-  width: 100%;
-  height: calc(100% - 31px);
-  object-fit: cover;
+/* Camera facts stay local and structured. The UI deliberately presents
+ * perception state rather than transporting a duplicate camera preview. */
+.vision-signal-board {
+  display: grid;
+  min-height: 278px;
+  align-content: space-between;
+  padding: 16px;
+  border: 1px solid var(--ui-stroke-tertiary);
+  border-radius: 8px;
+  background:
+    linear-gradient(
+      color-mix(in srgb, var(--ui-stroke-tertiary) 42%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--ui-stroke-tertiary) 42%, transparent) 1px,
+      transparent 1px
+    ),
+    var(--ui-bg-raised);
+  background-size: 36px 36px;
 }
 
-.vision-preview-badge {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  z-index: 2;
-  display: inline-flex;
+.vision-signal-board > header,
+.vision-signal-board > header > div {
+  display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 7px;
-  border: 1px solid rgb(255 255 255 / 12%);
-  border-radius: 5px;
-  background: rgb(5 5 5 / 76%);
-  color: #dededb;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.vision-signal-board > header > div {
+  justify-content: flex-start;
+  color: var(--ui-text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.vision-signal-board > header svg {
+  width: 15px;
+  height: 15px;
+  color: var(--ui-accent);
+}
+
+.vision-signal-primary {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-block: 24px;
+}
+
+.vision-signal-primary > strong {
+  min-width: 64px;
+  color: var(--ui-text-emphasis);
+  font-size: 52px;
+  font-weight: 520;
+  line-height: 0.9;
+  text-align: center;
+}
+
+.vision-signal-primary > div {
+  display: grid;
+  gap: 4px;
+}
+
+.vision-signal-primary span,
+.vision-signal-primary b {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.vision-signal-primary span {
+  color: var(--ui-text-tertiary);
+}
+
+.vision-signal-primary b {
+  color: var(--ui-text-primary);
+}
+
+.vision-signal-facts {
+  display: grid;
+  margin: 0;
+  border-top: 1px solid var(--ui-stroke-tertiary);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.vision-signal-facts > div {
+  min-width: 0;
+  padding: 10px 9px 0;
+  border-right: 1px solid var(--ui-stroke-tertiary);
+}
+
+.vision-signal-facts > div:first-child {
+  padding-left: 0;
+}
+
+.vision-signal-facts > div:last-child {
+  border-right: 0;
+}
+
+.vision-signal-facts dt,
+.vision-signal-facts dd {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vision-signal-facts dt {
+  color: var(--ui-text-tertiary);
   font-size: 8px;
-  backdrop-filter: blur(8px);
 }
 
-.vision-preview-badge > span {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--ui-text-tertiary);
-}
-
-.vision-preview-badge > span.is-live {
-  background: var(--ui-accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent) 18%, transparent);
+.vision-signal-facts dd {
+  margin-top: 3px;
+  color: var(--ui-text-secondary);
+  font-size: 10px;
 }
 
 .face-identity-workspace {
@@ -5579,50 +5659,11 @@ body {
 }
 
 .face-enrollment-card {
-  display: grid;
-  overflow: hidden;
-  grid-template-columns: minmax(150px, 0.78fr) minmax(210px, 1fr);
+  display: flex;
+  min-height: 168px;
   border: 1px solid var(--ui-stroke-tertiary);
   border-radius: 9px;
   background: var(--ui-bg-raised);
-}
-
-.face-enrollment-preview {
-  position: relative;
-  display: grid;
-  min-height: 168px;
-  overflow: hidden;
-  place-items: center;
-  border-right: 1px solid var(--ui-stroke-tertiary);
-  background: var(--ui-bg);
-}
-
-.face-enrollment-preview img {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.face-enrollment-preview > svg {
-  width: 22px;
-  height: 22px;
-  color: var(--ui-text-tertiary);
-}
-
-.face-enrollment-preview > span {
-  position: absolute;
-  right: 8px;
-  bottom: 8px;
-  left: 8px;
-  padding: 4px 6px;
-  border: 1px solid rgb(255 255 255 / 10%);
-  border-radius: 4px;
-  background: rgb(5 5 5 / 76%);
-  color: #d5d5d1;
-  font-size: 7px;
-  text-align: center;
 }
 
 .face-enrollment-copy {
@@ -5632,6 +5673,36 @@ body {
   flex-direction: column;
   justify-content: center;
   padding: 15px;
+}
+
+.face-enrollment-readiness {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin: -2px 0 12px;
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+}
+
+.face-enrollment-readiness > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.face-enrollment-readiness i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ui-text-tertiary);
+}
+
+.face-enrollment-readiness .is-ready {
+  color: var(--ui-text-secondary);
+}
+
+.face-enrollment-readiness .is-ready i {
+  background: var(--ui-accent);
 }
 
 .face-kicker {
@@ -5699,7 +5770,7 @@ body {
 
 .face-known-row {
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) auto;
+  grid-template-columns: 28px minmax(0, 1fr) minmax(86px, auto);
   align-items: center;
   gap: 8px;
   padding-block: 9px;
@@ -5738,6 +5809,12 @@ body {
   font-size: 7px;
 }
 
+.face-known-actions {
+  display: grid !important;
+  justify-items: end;
+  gap: 5px !important;
+}
+
 .face-review-head {
   display: flex;
   align-items: flex-end;
@@ -5758,6 +5835,20 @@ body {
   color: var(--ui-text-tertiary);
   font-size: 8px;
   text-align: right;
+}
+
+.face-review-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.face-review-toolbar > span {
+  min-width: 36px;
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
 }
 
 /* The owner tick sits under the name box: enrolling somebody through this card
@@ -5803,24 +5894,25 @@ body {
   accent-color: var(--ui-accent);
 }
 
-.face-review-grid {
+.face-review-list {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 7px;
 }
 
-.face-review-card {
+.face-review-item {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
   min-width: 0;
   overflow: hidden;
   border: 1px solid var(--ui-stroke-tertiary);
-  border-radius: 9px;
-  background: var(--ui-bg-raised);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--ui-bg-raised) 78%, transparent);
   transition:
     transform 150ms cubic-bezier(0.22, 1, 0.36, 1),
     border-color 150ms ease;
 }
 
-.face-review-card:hover {
+.face-review-item:hover {
   transform: translateY(-1px);
   border-color: var(--ui-stroke-secondary);
 }
@@ -5828,7 +5920,7 @@ body {
 .face-review-preview {
   position: relative;
   display: grid;
-  aspect-ratio: 16 / 9;
+  min-height: 118px;
   place-items: center;
   overflow: hidden;
   background: var(--ui-bg);
@@ -5837,7 +5929,7 @@ body {
 .face-review-preview img {
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
 }
 
 .face-review-preview > svg {
@@ -5859,15 +5951,24 @@ body {
 
 .face-review-body {
   display: grid;
-  gap: 9px;
-  padding: 11px;
+  align-content: center;
+  gap: 8px;
+  padding: 12px 13px;
 }
 
-.face-review-body > div:first-child {
+.face-review-summary,
+.face-review-summary > div {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+
+.face-review-summary > div {
+  min-width: 0;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .face-review-body strong {
@@ -5880,9 +5981,16 @@ body {
   font-size: 7px;
 }
 
-.vision-review-actions {
+.face-review-decision {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(140px, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.face-review-actions {
+  display: grid;
+  grid-template-columns: minmax(110px, 1fr) auto;
   gap: 6px;
 }
 
@@ -5923,19 +6031,12 @@ body {
     padding: 11px;
   }
 
-  .room-mode-grid,
-  .face-review-grid {
+  .room-mode-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .face-enrollment-card {
-    grid-template-columns: 1fr;
-  }
-
-  .face-enrollment-preview {
-    min-height: 200px;
-    border-right: 0;
-    border-bottom: 1px solid var(--ui-stroke-tertiary);
+  .face-review-item {
+    grid-template-columns: 104px minmax(0, 1fr);
   }
 
   .face-review-head {
@@ -7047,90 +7148,8 @@ body {
   color: var(--ui-danger);
 }
 
-.vision-stage {
-  position: relative;
-  display: grid;
-  min-height: 278px;
-  overflow: hidden;
-  grid-template-rows: minmax(0, 1fr) auto;
-  border: 1px solid var(--ui-stroke-tertiary);
-  border-radius: 8px;
-  background:
-    linear-gradient(
-      color-mix(in srgb, var(--ui-stroke-tertiary) 55%, transparent) 1px,
-      transparent 1px
-    ),
-    linear-gradient(
-      90deg,
-      color-mix(in srgb, var(--ui-stroke-tertiary) 55%, transparent) 1px,
-      transparent 1px
-    ),
-    var(--ui-bg-raised);
-  background-size: 36px 36px;
-}
-
-.vision-stage::after {
-  position: absolute;
-  inset: 14px;
-  border: 1px solid color-mix(in srgb, var(--ui-stroke-tertiary) 55%, transparent);
-  content: '';
-  pointer-events: none;
-}
-
-.vision-stage-body {
-  z-index: 1;
-  display: flex;
-  max-width: 45ch;
-  align-self: center;
-  align-items: center;
-  flex-direction: column;
-  justify-self: center;
-  padding: 36px;
-  text-align: center;
-}
-
-.vision-stage-body > svg {
-  width: 22px;
-  height: 22px;
-  margin-bottom: 10px;
-  color: var(--ui-accent);
-  stroke-width: 1.5;
-}
-
-.vision-stage-body strong {
-  color: var(--ui-text-primary);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.vision-stage-body p {
-  margin: 7px 0 0;
-  color: var(--ui-text-tertiary);
-  font-size: 9px;
-  line-height: 1.55;
-}
-
-.vision-stage-status {
-  z-index: 1;
-  display: flex;
-  grid-row: 2;
-  align-self: end;
-  flex-wrap: wrap;
-  gap: 5px 14px;
-  padding: 8px 10px;
-  border-top: 1px solid var(--ui-stroke-tertiary);
-  background: var(--ui-bg-raised);
-  color: var(--ui-text-tertiary);
-  font-size: 8px;
-  text-transform: lowercase;
-}
-
 .vision-enrol-actions {
   grid-template-columns: minmax(110px, 1fr) auto !important;
-}
-
-.vision-review-actions {
-  grid-template-columns: minmax(90px, 1fr) auto auto !important;
 }
 
 .room-page .control-input {
@@ -7141,10 +7160,6 @@ body {
   .room-workspace-grid,
   .vision-workspace-grid {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .vision-stage {
-    min-height: 240px;
   }
 }
 
@@ -7163,8 +7178,14 @@ body {
   }
 
   .vision-enrol-actions,
-  .vision-review-actions {
+  .face-review-decision,
+  .face-review-actions {
     grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .face-review-toolbar {
+    width: 100%;
+    flex-wrap: wrap;
   }
 }
 

@@ -134,10 +134,11 @@ Current implemented desktop surfaces:
   not wake herself;
 - an independently updated Smart Room sidecar as the sole camera/vision owner:
   local face, gesture, posture, and visitor logic publishes bounded facts and
-  events plus an on-demand compressed preview through authenticated Gateway
-  contracts; the desktop has no direct plugin connection. Room exposes the
+  events through authenticated Gateway contracts; raw frames never enter Marvi
+  or Electron. Room exposes the
   sidecar's complete power, brightness, white-temperature, RGB, and mode
-  controls, while Vision provides preview-led owner enrollment and face review;
+  controls, while Vision provides quality-gated owner enrollment and a compact,
+  paginated face-review queue;
 - a protected sleep mode where the only thing Marvi may do to a sleeping room is
   switch a light off — enforced at the room boundary, and not overridable by
   YOLO.

@@ -3028,16 +3028,6 @@ function startApp(): void {
         return null
       }
     })
-    ipcMain.handle('marvi:get-room-vision-preview', async () => {
-      try {
-        const response = await fetch(`${gateway()}/room/vision/preview`, {
-          signal: AbortSignal.timeout(3_000)
-        })
-        return response.ok ? await response.json() : null
-      } catch {
-        return null
-      }
-    })
     ipcMain.handle('marvi:room-command', async (_event, tool, args) => {
       const allowed = [
         'room_set_light',

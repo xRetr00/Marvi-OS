@@ -71,10 +71,12 @@ removed. Gateway health now reports the camera facts published by Smart Room.
 
 ## Implemented verification
 
-Smart Room has deterministic tests for state round-tripping, face matching,
-unknown deduplication, bounded worker facts, gesture/posture events, and the
-no-frame description contract. Gateway tests cover plugin context, room-event
-allowlisting, degradation without the sidecar, and confirmation policy.
+Smart Room has deterministic tests for state round-tripping, owner preservation,
+face matching, nearest-match review data, quality gating, bounded unknown
+deduplication, thumbnail cleanup, structured gestures, and the no-frame
+description contract. Gateway tests cover plugin-result failures, plugin
+context, room-event allowlisting, degradation without the sidecar, and
+confirmation policy. No preview method exists in the RPC contract.
 
 ## Hardware work still required
 

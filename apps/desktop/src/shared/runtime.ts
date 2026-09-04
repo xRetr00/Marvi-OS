@@ -1251,12 +1251,3 @@ export interface FaceLibrary {
     nearest?: { name?: string; score?: number }
   }[]
 }
-
-/** A bounded, compressed frame produced by the Smart Room sidecar on demand. */
-export interface RoomVisionPreview {
-  available: boolean
-  captured_at?: string
-  error?: string
-  image?: string
-  vision?: Record<string, unknown>
-}

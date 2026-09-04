@@ -181,7 +181,6 @@ import type {
   SkillProposal,
   SkillsPage,
   StoreSkill,
-  RoomVisionPreview,
   AnnouncerVoices,
   VoiceClonePage,
   VoicePage,
@@ -1142,7 +1141,7 @@ function RoomPanel({
   const [library, setLibrary] = useState<FaceLibrary | null>(null)
   const [visitorNames, setVisitorNames] = useState<Record<number, string>>({})
   const [visitorOwners, setVisitorOwners] = useState<Record<number, boolean>>({})
-  const [visionPreview, setVisionPreview] = useState<RoomVisionPreview | null>(null)
+  const [reviewPage, setReviewPage] = useState(0)
   const [lightDraft, setLightDraft] = useState({
     brightness: 70,
     colorTemp: 3000,
@@ -1182,23 +1181,6 @@ function RoomPanel({
     }
   }, [])
 
-  useEffect(() => {
-    if (view !== 'vision') return
-    let disposed = false
-    const load = async (): Promise<void> => {
-      const next = await window.marvi?.getRoomVisionPreview()
-      if (!disposed && next) setVisionPreview(next)
-    }
-    void load()
-    // The preview stays responsive without turning the renderer into a
-    // camera owner: each tick asks the sidecar for one bounded JPEG.
-    const timer = setInterval(() => void load(), 500)
-    return () => {
-      disposed = true
-      clearInterval(timer)
-    }
-  }, [view])
-
   const [busy, setBusy] = useState('')
   const [pressed, setPressed] = useState('')
 
@@ -1233,6 +1215,17 @@ function RoomPanel({
     mqtt: libraries.paho_mqtt === false ? 'paho-mqtt' : ''
   }
 
+  const identityResult = (
+    answer: { status?: string; error?: string } | undefined,
+    success: string,
+    failure: string
+  ): string =>
+    answer?.status === 'executed'
+      ? success
+      : answer?.status === 'confirmation_required'
+        ? 'Waiting for confirmation in the Dynamic Island.'
+        : (answer?.error ?? failure)
+
   // The plugin has had `smart_room_vision_identity` all along and nothing in
   // the app ever called it, so the only way to teach the camera a face was to
   // ask out loud and hope. Enrolment reads several frames, so it takes a few
@@ -1248,9 +1241,7 @@ function RoomPanel({
         seconds: 5
       })
       setPressed(
-        answer?.status === 'executed'
-          ? `Enrolled ${name}. Stand in front of the camera if it did not take.`
-          : (answer?.error ?? 'The camera could not enrol that face.')
+        identityResult(answer, `Enrolled ${name}.`, 'The camera could not enrol that face.')
       )
       if (answer?.status === 'executed') setFaceName('')
       setLibrary((await window.marvi?.getFaceLibrary()) ?? null)
@@ -1277,15 +1268,35 @@ function RoomPanel({
       const answer = await window.marvi?.roomCommand('smart_room_vision_identity', {
         action,
         sighting_id: id,
-        ...(action === 'approve' ? { name: nameFor(id), owner: visitorOwners[id] ?? false } : {})
+        ...(action === 'approve'
+          ? {
+              name: nameFor(id),
+              owner:
+                visitorOwners[id] ??
+                (library?.pending ?? []).find((entry) => entry.id === id)?.nearest?.name ===
+                  library?.owner
+            }
+          : {})
       })
       setPressed(
-        answer?.status === 'executed'
-          ? action === 'approve'
-            ? `Named ${nameFor(id)}.`
-            : 'Rejected.'
-          : (answer?.error ?? 'The room refused that.')
+        identityResult(
+          answer,
+          action === 'approve' ? `Saved ${nameFor(id)}.` : 'Sighting rejected.',
+          'The room refused that.'
+        )
       )
+      if (answer?.status === 'executed') {
+        setVisitorNames((names) => {
+          const next = { ...names }
+          delete next[id]
+          return next
+        })
+        setVisitorOwners((owners) => {
+          const next = { ...owners }
+          delete next[id]
+          return next
+        })
+      }
       setLibrary((await window.marvi?.getFaceLibrary()) ?? null)
     } finally {
       setEnrolling(false)
@@ -1300,10 +1311,22 @@ function RoomPanel({
       const answer = await window.marvi?.roomCommand('smart_room_vision_identity', {
         action: 'reject_all'
       })
+      setPressed(identityResult(answer, 'Review queue cleared.', 'The room refused that.'))
+      setLibrary((await window.marvi?.getFaceLibrary()) ?? null)
+    } finally {
+      setEnrolling(false)
+    }
+  }
+
+  const setOwner = async (name: string): Promise<void> => {
+    setEnrolling(true)
+    try {
+      const answer = await window.marvi?.roomCommand('smart_room_vision_identity', {
+        action: 'set_owner',
+        name
+      })
       setPressed(
-        answer?.status === 'executed'
-          ? 'Review queue cleared.'
-          : (answer?.error ?? 'The room refused that.')
+        identityResult(answer, `${name} is now the owner.`, 'The owner could not be changed.')
       )
       setLibrary((await window.marvi?.getFaceLibrary()) ?? null)
     } finally {
@@ -1374,6 +1397,14 @@ function RoomPanel({
 
   const visionEvents = events.filter((event) =>
     /vision|camera|face|gesture|presence|sleep|person/i.test(`${event.type} ${event.summary}`)
+  )
+  const pendingFaces = library?.pending ?? []
+  const reviewPageSize = 6
+  const reviewPageCount = Math.max(1, Math.ceil(pendingFaces.length / reviewPageSize))
+  const safeReviewPage = Math.min(reviewPage, reviewPageCount - 1)
+  const visiblePendingFaces = pendingFaces.slice(
+    safeReviewPage * reviewPageSize,
+    (safeReviewPage + 1) * reviewPageSize
   )
   const lightKnown = Boolean(snapshot && !snapshot.caveat)
   const roomControlsDisabled = busy !== '' || !snapshot?.live
@@ -1678,35 +1709,46 @@ function RoomPanel({
       ) : (
         <>
           <div className="vision-workspace-grid">
-            <div className="vision-stage" aria-label="Local camera processing status">
-              {visionPreview?.available && visionPreview.image ? (
-                <img
-                  alt="Live Smart Room camera preview"
-                  className="vision-preview-image"
-                  src={visionPreview.image}
-                />
-              ) : (
-                <div className="vision-stage-body">
+            <section className="vision-signal-board" aria-label="Local camera processing status">
+              <header>
+                <div>
                   <Camera aria-hidden="true" />
-                  <strong>{camera === 'ONLINE' ? 'Waiting for a camera frame' : camera}</strong>
-                  <p>
-                    {visionPreview?.error ??
-                      'The preview appears here when the local vision service has a frame.'}
-                  </p>
+                  <span>Camera perception</span>
                 </div>
-              )}
-              <div className="vision-preview-badge">
-                <span className={camera === 'ONLINE' ? 'is-live' : ''} />
-                Local preview
+                <ControlPill tone={camera === 'ONLINE' ? 'ready' : 'warning'}>
+                  {camera.toLowerCase()}
+                </ControlPill>
+              </header>
+              <div className="vision-signal-primary">
+                <strong>{people}</strong>
+                <div>
+                  <span>{people === 1 ? 'person detected' : 'people detected'}</span>
+                  <b>{vision.owner_visible ? 'Owner recognised' : 'Owner not recognised'}</b>
+                </div>
               </div>
-              <div className="vision-stage-status">
-                <span>
-                  {people} {people === 1 ? 'person' : 'people'}
-                </span>
-                <span>{vision.owner_visible ? 'owner visible' : 'owner not visible'}</span>
-                <span>{gesture === 'NONE' ? 'no gesture' : gesture.toLowerCase()}</span>
-              </div>
-            </div>
+              <dl className="vision-signal-facts">
+                <div>
+                  <dt>Identity</dt>
+                  <dd>
+                    {Array.isArray(vision.identities) && vision.identities.length > 0
+                      ? vision.identities.join(', ')
+                      : 'No recognised identity'}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Last analysis</dt>
+                  <dd>
+                    {vision.last_inference_at
+                      ? String(vision.last_inference_at).slice(11, 19)
+                      : 'Waiting'}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Motion</dt>
+                  <dd>{String(vision.activity ?? 'unknown')}</dd>
+                </div>
+              </dl>
+            </section>
 
             <ControlSection icon={Eye} title="Live perception">
               {error ? (
@@ -1738,21 +1780,21 @@ function RoomPanel({
           >
             <div className="face-identity-workspace">
               <div className="face-enrollment-card">
-                <div className="face-enrollment-preview">
-                  {visionPreview?.available && visionPreview.image ? (
-                    <img alt="Current face enrollment preview" src={visionPreview.image} />
-                  ) : (
-                    <Camera aria-hidden="true" />
-                  )}
-                  <span>Live enrollment view</span>
-                </div>
                 <div className="face-enrollment-copy">
                   <span className="face-kicker">Enroll owner</span>
-                  <strong>Keep one face centered in the preview</strong>
+                  <strong>Stand alone in front of the room camera</strong>
                   <p>
-                    Marvi samples several frames locally. The reviewed embedding stays in the Smart
-                    Room sidecar.
+                    Marvi accepts only clear, centered face samples. Images and embeddings remain in
+                    the Smart Room sidecar.
                   </p>
+                  <div className="face-enrollment-readiness">
+                    <span className={camera === 'ONLINE' ? 'is-ready' : ''}>
+                      <i /> Camera {camera.toLowerCase()}
+                    </span>
+                    <span className={people === 1 ? 'is-ready' : ''}>
+                      <i /> {people === 1 ? 'One face ready' : `${people} faces detected`}
+                    </span>
+                  </div>
                   <div className="vision-enrol-actions">
                     <input
                       className="control-input"
@@ -1766,7 +1808,9 @@ function RoomPanel({
                     />
                     <ControlButton
                       className="is-primary"
-                      disabled={enrolling || !faceName.trim()}
+                      disabled={
+                        enrolling || !faceName.trim() || camera !== 'ONLINE' || people !== 1
+                      }
                       onClick={() => void enrol()}
                     >
                       {enrolling ? 'Sampling…' : 'Enroll current face'}
@@ -1794,7 +1838,19 @@ function RoomPanel({
                           <strong>{person.name}</strong>
                           <span>{person.owner ? 'Owner' : 'Known person'}</span>
                         </div>
-                        <output>{person.samples} samples</output>
+                        <div className="face-known-actions">
+                          <output>{person.samples} samples</output>
+                          {person.owner ? (
+                            <ControlPill tone="ready">owner</ControlPill>
+                          ) : (
+                            <ControlButton
+                              disabled={enrolling}
+                              onClick={() => void setOwner(person.name)}
+                            >
+                              Make owner
+                            </ControlButton>
+                          )}
+                        </div>
                       </div>
                     ))
                   )}
@@ -1809,79 +1865,91 @@ function RoomPanel({
                   <strong>{library?.pending.length ?? 0} awaiting review</strong>
                 </div>
                 <p>Name a sighting to teach Marvi, or reject it without storing an identity.</p>
-                {/* The queue is a backlog, not a list of decisions. When it has
-                    filled with crops that should never have been queued -- it
-                    held forty ears and hairlines -- clearing it one card at a
-                    time is forty clicks to undo a bug. */}
-                <ControlButton destructive disabled={enrolling} onClick={() => void rejectAll()}>
-                  Reject all
-                </ControlButton>
+                <div className="face-review-toolbar">
+                  <span>
+                    {safeReviewPage + 1} / {reviewPageCount}
+                  </span>
+                  <ControlButton
+                    disabled={enrolling || safeReviewPage === 0}
+                    onClick={() => setReviewPage((page) => Math.max(0, page - 1))}
+                  >
+                    Previous
+                  </ControlButton>
+                  <ControlButton
+                    disabled={enrolling || safeReviewPage >= reviewPageCount - 1}
+                    onClick={() => setReviewPage((page) => Math.min(reviewPageCount - 1, page + 1))}
+                  >
+                    Next
+                  </ControlButton>
+                  <ControlButton destructive disabled={enrolling} onClick={() => void rejectAll()}>
+                    Reject all
+                  </ControlButton>
+                </div>
               </div>
             ) : null}
-            <div className="face-review-grid">
-              {(library?.pending ?? []).map((sighting) => (
-                <article className="face-review-card" key={sighting.id}>
+            <div className="face-review-list">
+              {visiblePendingFaces.map((sighting, index) => (
+                <article className="face-review-item" key={sighting.id}>
                   <div className="face-review-preview">
                     {sighting.image ? (
                       <img alt="An unrecognised face awaiting review" src={sighting.image} />
                     ) : (
                       <Users aria-hidden="true" />
                     )}
-                    <span>
-                      {sighting.at ? String(sighting.at).slice(11, 19) : `#${sighting.id}`}
-                    </span>
+                    <span>{safeReviewPage * reviewPageSize + index + 1}</span>
                   </div>
                   <div className="face-review-body">
-                    {/* The card used to say "34% nearest match" and offer an
-                        empty box -- 34% of whom? The only action it invited
-                        was typing a name the library already held. When there
-                        is somebody to name, the card names them and the box
-                        starts filled; correcting a name is faster than
-                        recalling one. */}
-                    <div>
-                      <strong>
-                        {sighting.nearest?.name
-                          ? `Looks like ${sighting.nearest.name}`
-                          : 'Unknown face'}
-                      </strong>
-                      <span>
+                    <div className="face-review-summary">
+                      <div>
+                        <strong>
+                          {sighting.nearest?.name
+                            ? `Looks like ${sighting.nearest.name}`
+                            : 'Unknown face'}
+                        </strong>
+                        <span>
+                          {sighting.at
+                            ? String(sighting.at).slice(11, 19)
+                            : `Sighting #${sighting.id}`}
+                        </span>
+                      </div>
+                      <ControlPill tone={sighting.nearest?.name ? 'warning' : 'neutral'}>
                         {sighting.nearest?.name && typeof sighting.nearest.score === 'number'
                           ? `${Math.round(sighting.nearest.score * 100)}% match`
-                          : 'Matches nobody Marvi knows'}
-                      </span>
+                          : 'new face'}
+                      </ControlPill>
                     </div>
-                    <input
-                      className="control-input"
-                      disabled={enrolling}
-                      onChange={(event) =>
-                        setVisitorNames((names) => ({
-                          ...names,
-                          [sighting.id]: event.target.value
-                        }))
-                      }
-                      placeholder="Name"
-                      value={visitorNames[sighting.id] ?? sighting.nearest?.name ?? ''}
-                    />
-                    {/* Enrolling somebody through this card could never mark
-                        them the owner, so the one person the room exists for
-                        was stored as an ordinary visitor: `owner_visible`
-                        stayed false forever and the owner threshold never
-                        fired. */}
-                    <label className="face-review-owner">
+                    <div className="face-review-decision">
                       <input
-                        checked={visitorOwners[sighting.id] ?? false}
+                        aria-label={`Name sighting ${sighting.id}`}
+                        className="control-input"
                         disabled={enrolling}
                         onChange={(event) =>
-                          setVisitorOwners((owners) => ({
-                            ...owners,
-                            [sighting.id]: event.target.checked
+                          setVisitorNames((names) => ({
+                            ...names,
+                            [sighting.id]: event.target.value
                           }))
                         }
-                        type="checkbox"
+                        placeholder="Person name"
+                        value={visitorNames[sighting.id] ?? sighting.nearest?.name ?? ''}
                       />
-                      This is me — the owner
-                    </label>
-                    <div className="vision-review-actions">
+                      <label className="face-review-owner">
+                        <input
+                          checked={
+                            visitorOwners[sighting.id] ?? sighting.nearest?.name === library?.owner
+                          }
+                          disabled={enrolling}
+                          onChange={(event) =>
+                            setVisitorOwners((owners) => ({
+                              ...owners,
+                              [sighting.id]: event.target.checked
+                            }))
+                          }
+                          type="checkbox"
+                        />
+                        Set as owner
+                      </label>
+                    </div>
+                    <div className="face-review-actions">
                       <ControlButton
                         className="is-primary"
                         disabled={
@@ -1890,7 +1958,7 @@ function RoomPanel({
                         }
                         onClick={() => void review(sighting.id, 'approve')}
                       >
-                        Accept as person
+                        Save identity
                       </ControlButton>
                       <ControlButton
                         destructive

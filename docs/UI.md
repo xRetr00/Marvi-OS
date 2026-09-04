@@ -523,12 +523,13 @@ is unreachable, the view preserves its last known state and labels it stale.
 
 Vision owns presentation of camera state, identity review, and vision-specific
 history. The Smart Room sidecar remains the sole camera and inference owner.
-While the Vision page is mounted, the renderer requests one bounded 720 px JPEG
-preview every 500 ms through Gateway and Electron; frames are not queued,
-persisted, or fetched in the background. Derived presence, identity, sleep,
-activity, and gesture state remains separate from that presentation frame.
-Owner enrollment and pending face decisions use the same preview-led flow as
-that desktop and still travel through the normal Gateway tool boundary.
+The renderer receives structured presence, identity, sleep, activity, gesture,
+and freshness facts only; there is no camera-preview RPC or Electron transport.
+Owner enrollment is enabled only while one quality-gated face is available.
+Pending face crops remain sidecar-owned review artifacts and appear in a compact
+paginated queue with the nearest known identity, an explicit owner choice, and
+working single or bulk rejection. Every mutation still travels through the
+normal Gateway confirmation and audit boundary.
 
 Room's light editor follows that desktop's complete control flow: current power and
 brightness, on/off, a continuous brightness range, white temperature, custom

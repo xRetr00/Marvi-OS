@@ -23,7 +23,6 @@ from marvi_gateway.room import (
     faces,
     register_room_tools,
     unconfirmed,
-    vision_preview,
 )
 from marvi_gateway.runtime import RuntimeStore
 from marvi_gateway.tools import ToolRegistry
@@ -555,14 +554,6 @@ class FakeVision:
             return {"people": self._people, "owner": owner}
         if method == "vision_visitors":
             return {"visitors": self._visitors}
-        if method == "vision_preview":
-            return {
-                "success": True,
-                "preview": {
-                    "available": True,
-                    "image": "data:image/jpeg;base64,frame",
-                },
-            }
         raise AssertionError(method)
 
 
@@ -572,15 +563,6 @@ def test_the_owner_is_named_from_the_library() -> None:
     assert library["ok"] is True
     assert library["owner"] == "Shereef"
     assert library["people"][0]["samples"] == 8
-
-
-def test_vision_preview_uses_one_bounded_sidecar_frame() -> None:
-    preview = vision_preview(FakeVision())
-
-    assert preview == {
-        "available": True,
-        "image": "data:image/jpeg;base64,frame",
-    }
 
 
 def test_a_pending_sighting_carries_the_face_that_produced_it(tmp_path) -> None:

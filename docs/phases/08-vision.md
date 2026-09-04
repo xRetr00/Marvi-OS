@@ -21,12 +21,22 @@ boundary and privacy invariants.
   identity RPC operations, and structured room events.
 - Unknown-visitor deduplication and delayed visitor reporting through the room
   presence transition.
+- Quality gates keep partial, blurred, low-confidence, and undersized face
+  detections out of enrollment and the review queue.
+- The pending queue honors the configured retention limit, removes orphaned
+  crops, reports the nearest known identity, and supports single or bulk
+  rejection without leaving image files behind.
 - No raw frames or embeddings in Gateway, prompts, logs, or Electron IPC.
 - Gateway no longer installs/imports local vision models or owns a face store.
 - Read operations bypass confirmation; enrollment and identity mutations use
   Marvi confirmation policy (or YOLO when enabled).
 - Existing Gateway runtime/room-event pipeline feeds the Room page, Vision
-  status, status bar, and Dynamic Island. No renderer-to-plugin transport.
+  status, status bar, and Dynamic Island. The UI renders structured facts only;
+  it has no frame-preview RPC or renderer-to-plugin transport.
+- Owner assignment is explicit and stable when adding samples to an existing
+  identity. Plugin-declared failures propagate as failed Gateway tool results.
+- The Vision page uses a compact six-item paginated review list with clear
+  identity, nearest-match, owner, save, reject, and reject-all actions.
 - Deterministic fixture tests that do not require a camera or model download.
 
 ## Acceptance evidence
@@ -41,7 +51,7 @@ boundary and privacy invariants.
 | Privacy | descriptions contain facts only, never a frame |
 | Context | bounded plugin context, no raw media or event flood |
 | Gestures/posture | deterministic analyzer events; posture says resting, not definitive asleep |
-| UI | existing Gateway → Electron path only |
+| UI | structured Gateway → Electron facts only; no preview transport; compact paginated review list |
 | Failure behavior | disabled/unavailable vision degrades without stopping voice or room tools |
 
 ## Hardware acceptance still required

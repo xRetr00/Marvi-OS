@@ -677,8 +677,20 @@ def bridge_tools(
             if guard is not None:
                 # Before the plugin sees it. A guard raising is a refusal.
                 guard(_request.name, arguments)
-            # Plugin handlers take one dict, not keyword arguments.
-            return _request.handler(arguments)
+            # Plugin handlers take one dict, not keyword arguments. Their
+            # bridge returns JSON text, so a normal Python return does not mean
+            # the sidecar action succeeded. Promote an explicit plugin failure
+            # into the Gateway's authoritative failed status.
+            response = _request.handler(arguments)
+            payload: Any = response
+            if isinstance(response, str):
+                try:
+                    payload = json.loads(response)
+                except json.JSONDecodeError:
+                    payload = response
+            if isinstance(payload, dict) and payload.get("success") is False:
+                raise RuntimeError(str(payload.get("error") or f"{_request.name} failed"))
+            return response
 
         registry.register(
             ToolSpec(

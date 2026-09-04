@@ -1,7 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
   FaceLibrary,
-  RoomVisionPreview,
   AuxiliaryPage,
   AssistantState,
   AuditEvent,
@@ -151,8 +150,6 @@ const marvi = {
   getRoomHealth: (): Promise<Record<string, unknown> | null> =>
     ipcRenderer.invoke('marvi:get-room-health'),
   getFaceLibrary: (): Promise<FaceLibrary | null> => ipcRenderer.invoke('marvi:get-face-library'),
-  getRoomVisionPreview: (): Promise<RoomVisionPreview | null> =>
-    ipcRenderer.invoke('marvi:get-room-vision-preview'),
   roomCommand: (
     tool: string,
     args: Record<string, unknown>
@@ -362,8 +359,7 @@ const marvi = {
   getUpstreams: (model?: string): Promise<UpstreamPage | null> =>
     ipcRenderer.invoke('marvi:get-upstreams', model ?? ''),
   getVoices: (): Promise<VoicePage | null> => ipcRenderer.invoke('marvi:get-voices'),
-  getRecognisers: (): Promise<RecogniserPage | null> =>
-    ipcRenderer.invoke('marvi:get-recognisers'),
+  getRecognisers: (): Promise<RecogniserPage | null> => ipcRenderer.invoke('marvi:get-recognisers'),
   getAnnouncerVoices: (): Promise<AnnouncerVoices | null> =>
     ipcRenderer.invoke('marvi:get-announcer-voices'),
   getVoiceClones: (): Promise<VoiceClonePage | null> =>

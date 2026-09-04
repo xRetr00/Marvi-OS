@@ -2727,13 +2727,6 @@ def create_app(
             return {"ok": False, "detail": "no room sidecar", "people": [], "pending": []}
         return await anyio.to_thread.run_sync(lambda: room_module.faces(sidecar))
 
-    @app.get("/room/vision/preview")
-    async def read_vision_preview() -> dict[str, Any]:
-        """One bounded local preview frame; never a camera stream."""
-        if sidecar is None:
-            return {"available": False, "error": "no room sidecar"}
-        return await anyio.to_thread.run_sync(lambda: room_module.vision_preview(sidecar))
-
     @app.get("/plugins", response_model=PluginPage)
     async def read_plugins() -> PluginPage:
         return plugin_page()
