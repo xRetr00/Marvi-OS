@@ -38,7 +38,11 @@ boundary and privacy invariants.
   identity. Plugin-declared failures propagate as failed Gateway tool results.
 - The Vision page uses a compact six-item paginated review list with clear
   identity, nearest-match, owner, save, reject, and reject-all actions. Each
-  crop opens into a window-sized, uncropped inspection view.
+  card and window-sized inspection view preserves the review artifact's native
+  aspect ratio and the expanded view reports its source dimensions.
+- New review artifacts are native-resolution, bounded 4:3 context crops around
+  the detected face. They provide enough scene context to judge an identity
+  without allowing a full raw camera frame to cross the sidecar boundary.
 - Deterministic fixture tests that do not require a camera or model download.
 
 ## Acceptance evidence
@@ -53,7 +57,7 @@ boundary and privacy invariants.
 | Privacy | descriptions contain facts only, never a frame |
 | Context | bounded plugin context, no raw media or event flood |
 | Gestures/posture | deterministic analyzer events; posture says resting, not definitive asleep |
-| UI | structured Gateway → Electron facts only; no preview transport; compact paginated review list |
+| UI | structured Gateway → Electron facts only; no preview transport; compact review list with intrinsic-aspect inspection |
 | Failure behavior | disabled/unavailable vision degrades without stopping voice or room tools |
 
 ## Hardware acceptance still required

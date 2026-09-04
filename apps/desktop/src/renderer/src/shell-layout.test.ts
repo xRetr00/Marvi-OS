@@ -214,8 +214,16 @@ describe('shell layout', () => {
     expect(app).toContain('className="face-review-lightbox"')
     expect(app).toContain('dialog.showModal()')
     expect(app).toContain('onCancel={() => setExpandedSighting(null)}')
+    expect(app).toContain('event.currentTarget.naturalWidth')
+    expect(app).toContain('event.currentTarget.naturalHeight')
+    expect(app).toContain('source`')
     expect(css).toContain('.face-review-lightbox::backdrop')
-    expect(lastBlock('.face-review-lightbox-image img')).toContain('object-fit: contain')
+    expect(lastBlock('.face-review-preview img')).toContain('object-fit: contain')
+    const fullPreview = lastBlock('.face-review-lightbox-image img')
+    expect(fullPreview).toContain('width: auto')
+    expect(fullPreview).toContain('height: auto')
+    expect(fullPreview).toContain('max-width: 100%')
+    expect(fullPreview).toContain('max-height: 100%')
   })
 
   it('shows face model residency and keeps Room state fresh', () => {

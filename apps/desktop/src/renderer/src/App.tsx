@@ -1150,6 +1150,10 @@ function RoomPanel({
   const [expandedSighting, setExpandedSighting] = useState<FaceLibrary['pending'][number] | null>(
     null
   )
+  const [expandedImageSize, setExpandedImageSize] = useState<{
+    width: number
+    height: number
+  } | null>(null)
   const reviewDialogRef = useRef<HTMLDialogElement>(null)
   const [lightDraft, setLightDraft] = useState({
     brightness: 70,
@@ -1960,7 +1964,10 @@ function RoomPanel({
                     aria-label={`Open full preview for sighting ${sighting.id}`}
                     className="face-review-preview"
                     disabled={!sighting.image}
-                    onClick={() => setExpandedSighting(sighting)}
+                    onClick={() => {
+                      setExpandedImageSize(null)
+                      setExpandedSighting(sighting)
+                    }}
                     type="button"
                   >
                     {sighting.image ? (
@@ -2078,6 +2085,12 @@ function RoomPanel({
                   <div className="face-review-lightbox-image">
                     <img
                       alt={`Full preview of unrecognised face ${expandedSighting.id}`}
+                      onLoad={(event) =>
+                        setExpandedImageSize({
+                          width: event.currentTarget.naturalWidth,
+                          height: event.currentTarget.naturalHeight
+                        })
+                      }
                       src={expandedSighting.image}
                     />
                   </div>
@@ -2086,6 +2099,11 @@ function RoomPanel({
                       {expandedSighting.at
                         ? String(expandedSighting.at).replace('T', ' ').slice(0, 19)
                         : `Sighting #${expandedSighting.id}`}
+                    </span>
+                    <span>
+                      {expandedImageSize
+                        ? `${expandedImageSize.width} × ${expandedImageSize.height} source`
+                        : 'Reading source size…'}
                     </span>
                     <span>Esc or click outside to close</span>
                   </footer>

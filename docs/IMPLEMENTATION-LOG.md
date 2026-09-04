@@ -1516,3 +1516,13 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
 - Made Tuya reconnect with a fresh device object after circuit-breaker backoff,
   while the Room page re-reads state every four seconds and exposes a manual
   Refresh action with last-successful-read feedback.
+
+## 2026-09-04 — preserve face-review image geometry
+
+- Replaced crop-to-fill card rendering and forced full-viewport image dimensions
+  with intrinsic-aspect sizing in both face-review surfaces.
+- Added the stored image's natural pixel dimensions to the expanded preview so
+  operators can distinguish source resolution from display scaling.
+- Changed Smart Room's new review artifacts from tight face thumbnails to
+  bounded, native-resolution 4:3 context crops while keeping full raw camera
+  frames inside the sidecar.

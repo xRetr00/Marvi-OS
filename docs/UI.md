@@ -535,7 +535,10 @@ Pending face crops remain sidecar-owned review artifacts and appear in a compact
 paginated queue with the nearest known identity, an explicit owner choice, and
 working single or bulk rejection. Every mutation still travels through the
 normal Gateway confirmation and audit boundary.
-Selecting a review crop opens a window-sized, uncropped preview. Escape, the
+Review cards preserve the stored crop's native aspect ratio instead of filling
+and clipping their preview column. Selecting a review crop opens a window-sized
+inspection view whose image keeps its intrinsic dimensions and scales down only
+when necessary; the footer reports the source pixel dimensions. Escape, the
 close control, and clicking the backdrop dismiss it without losing the current
 review page or form state.
 
