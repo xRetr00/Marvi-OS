@@ -188,15 +188,24 @@ class Embedder:
                 if self._local is None:
                     from sentence_transformers import SentenceTransformer
 
+                    from .condition import doing
+
                     began = time.monotonic()
+                    # Also here, because warming is best effort and this is
+                    # still the path that blocks a first recall when it did
+                    # not happen.
+                    _naming = doing("loading the memory model")
+                    _naming.__enter__()
                     # CPU explicitly. The card is busy speaking, and an
                     # embedding model that competes with Kokoro for it would
                     # trade a fast recall for a stuttering voice.
                     self._local = SentenceTransformer(
                         installed() or model_name(), device="cpu"
                     )
+                    _naming.__exit__(None, None, None)
                     log.info(
-                        "embeddings: %s loaded on the CPU in %.1fs",
+                        "embeddings: %s loaded on the CPU in %.1fs "
+                        "(the first encode is the slow part; see `warm`)",
                         model_name(),
                         time.monotonic() - began,
                     )
@@ -249,8 +258,14 @@ def warm(embedder: Embedder) -> None:
     if source() != "local":
         return
     try:
+        from .condition import doing
+
         began = time.monotonic()
-        embedder.embed(["warm"], query=True)
+        # Named while it happens, so a health check landing in the middle of
+        # it gets "loading the memory model" instead of silence. See
+        # `condition`: this is the exact ten seconds that read as a crash.
+        with doing("loading the memory model"):
+            embedder.embed(["warm"], query=True)
         log.info("embeddings: warm in %.1fs, before anything asks", time.monotonic() - began)
     except Exception as exc:
         log.warning("embeddings: could not warm up (%s); the first recall will pay for it", exc)
