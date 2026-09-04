@@ -208,6 +208,7 @@ import { $heard, $spoken, subtitleTail } from './store/transcript'
 import { deviceStanding, deviceStory, deviceTone } from './room-devices'
 import { refresh, usePolled } from './hooks/usePolled'
 import { $voiceLink, sayAsUser, startVoice, stopVoice } from './store/voice-session'
+import { $voices, refreshVoices } from './store/voices'
 
 /**
  * The sidebar, grouped by what a page is *for*.
@@ -4012,23 +4013,26 @@ function RecogniserPicker({ compact = false }: { compact?: boolean } = {}): Reac
  * nothing here ever asked the Gateway a second time.
  */
 function VoicePicker({ compact = false }: { compact?: boolean } = {}): React.JSX.Element {
-  const [page, setPage] = useState<VoicePage | null>(null)
+  // Shared, not local.
+  //
+  // This component is rendered twice -- the Voice page's rig and Settings --
+  // and each copy used to hold its own `useState` and do its own fetch, so
+  // changing the voice in one left the other showing the old one. The two
+  // pickers disagreed about what Marvi was actually speaking with, which is a
+  // bad thing for the control that decides it to do. The recogniser picker has
+  // been on a shared store for the same reason; `$voices` is the other half.
+  const page = useStore($voices)
+  const setPage = (next: VoicePage | null): void => $voices.set(next)
   const [refreshing, setRefreshing] = useState(false)
 
   const reload = async (): Promise<void> => {
-    const next = await window.marvi?.getVoices()
-    setPage(next ?? null)
+    await refreshVoices()
   }
 
   useEffect(() => {
-    let gone = false
-    void (async () => {
-      const next = await window.marvi?.getVoices()
-      if (!gone) setPage(next ?? null)
-    })()
-    return () => {
-      gone = true
-    }
+    // Only when nothing has read it yet: a second picker mounting should show
+    // what the first already fetched rather than ask again.
+    if ($voices.get() === null) void refreshVoices()
   }, [])
 
   // An empty list used to mean "the multi-gigabyte voice download has not

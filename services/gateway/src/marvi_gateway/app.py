@@ -893,6 +893,22 @@ def _somewhere_else(sidecar: Any) -> bool | None:
         return None
 
 
+def gateway_detail(fallback: str = "") -> str:
+    """What the Gateway is doing, when that is the answer to "why is it slow".
+
+    `Gateway unavailable` is true of a crash, a restart, a busy loop and a
+    model loading, and those are four different situations for the person
+    reading it. When something is dragging, say what.
+    """
+    from . import condition
+
+    if busy := condition.dragging():
+        return f"busy: {busy}"
+    if (strain := condition.recent()) is not None:
+        return strain.sentence()
+    return fallback
+
+
 def voice_state(*, worker_ready: bool, detail: str, in_a_call: bool) -> ComponentStatus:
     """Voice, once LiveKit and the models are known to be in place.
 
