@@ -1,9 +1,13 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { requiresVoiceWorkerRestart } from './voice-settings'
+import {
+  cancelSettledRestart,
+  requiresVoiceWorkerRestart,
+  restartWhenSettled
+} from './voice-settings'
 
 describe('voice setting lifecycle', () => {
   it('restarts the worker for recogniser and synthesis changes', () => {
