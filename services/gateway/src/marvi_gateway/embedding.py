@@ -225,6 +225,37 @@ class Embedder:
         return [list(row.get("embedding") or []) for row in rows]
 
 
+def warm(embedder: Embedder) -> None:
+    """Load the local model now, off the request path.
+
+    It loads on first use, inside a lock, and encoding is CPU-bound -- so the
+    first memory recall of a conversation paid for both, synchronously, while
+    the Gateway was also answering everything else a joining call asks it for.
+    Long enough that the desktop's two-second report timed out and the status
+    bar said the Gateway was unavailable, on the first turn, every time:
+
+        13:45:34  could not report foreground voice session state
+        13:45:47  Loading SentenceTransformer model from ...
+        13:45:47  embeddings: BAAI/bge-small-en-v1.5 loaded on the CPU in 0.6s
+
+    Nothing is different afterwards, which is why later turns were fine and
+    this looked like a crash rather than a stall. Same lesson as the speech
+    models: load early, off the path somebody is waiting on.
+
+    Errors are swallowed. A model that cannot be warmed will fail the same way
+    it fails today, on the first recall, with the keyword fallback behind it --
+    and refusing to start the Gateway over it would be a far worse trade.
+    """
+    if source() != "local":
+        return
+    try:
+        began = time.monotonic()
+        embedder.embed(["warm"], query=True)
+        log.info("embeddings: warm in %.1fs, before anything asks", time.monotonic() - began)
+    except Exception as exc:
+        log.warning("embeddings: could not warm up (%s); the first recall will pay for it", exc)
+
+
 def describe() -> dict[str, Any]:
     """The setting, for the memory page."""
     return {

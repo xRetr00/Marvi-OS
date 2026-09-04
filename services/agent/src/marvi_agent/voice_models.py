@@ -354,6 +354,21 @@ class _SidecarEngine:
                 self.engine,
                 self.voice,
             )
+        else:
+            # And the ordinary case, said too.
+            #
+            # "Is it actually using my cloned voice" was unanswerable from the
+            # logs: the setting said one thing, the catalog silently said
+            # another, and nothing anywhere recorded which of them won. A line
+            # that names the engine, the voice, and where that voice came from
+            # turns that question into one `grep`.
+            recording = cloned_voice(self.engine, self.voice)
+            log.info(
+                "tts: %s speaking as %r (%s)",
+                self.engine,
+                self.voice,
+                f"your recording at {recording}" if recording else "a built-in voice",
+            )
         self._process: subprocess.Popen[str] | None = None
         self._speaking = threading.Lock()
         #: The thread cleaning up after a barge-in, if one is running.

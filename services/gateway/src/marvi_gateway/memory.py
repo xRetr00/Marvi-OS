@@ -687,6 +687,15 @@ class MemoryStore:
             from .embedding import Embedder
 
             self._embed = Embedder()
+            # Off the request path, now, rather than inside the first recall of
+            # the first conversation. See `embedding.warm`.
+            import threading
+
+            from .embedding import warm
+
+            threading.Thread(
+                target=warm, args=(self._embed,), name="marvi-embed-warm", daemon=True
+            ).start()
         return self._embed
 
     def index(self, memory_id: int, text: str) -> bool:
