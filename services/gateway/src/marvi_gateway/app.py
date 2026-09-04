@@ -403,6 +403,10 @@ class UsagePage(BaseModel):
 
     totals: dict[str, int]
     providers: list[dict[str, Any]]
+    #: What each model cost, most expensive first, each with its own daily
+    #: breakdown. Added after a bill named a model nobody had chosen and the
+    #: ledger could not say which one Marvi had used.
+    models: list[dict[str, Any]]
     daily: list[dict[str, Any]]
     hourly: list[dict[str, Any]]
     account: dict[str, dict[str, Any]]
@@ -3995,6 +3999,7 @@ def create_app(
         return UsagePage(
             totals=snapshot["totals"],
             providers=rows,
+            models=snapshot["models"],
             daily=snapshot["daily"],
             hourly=snapshot["hourly"],
             account=accounts,
