@@ -336,3 +336,36 @@ def test_recovery_runs_off_the_thread_that_noticed_the_interruption() -> None:
     made._settled()
     # And the next reply does wait, so it never finds a half-drained pipe.
     assert made._recovering is not None and not made._recovering.is_alive()
+
+
+def test_a_cloned_voice_reaches_the_sidecar(tmp_path, monkeypatch) -> None:
+    """The clone was thrown away before the engine ever asked for it.
+
+    `offered` is the *catalog* -- the voices that ship with the engine -- and a
+    cloned voice is by definition not in it, so
+    `voice if voice in offered else default_voice` silently swapped every clone
+    for the stock voice. Selecting it in Settings looked like it worked, the
+    WAV was on disk, the sidecar would have used it, and Marvi answered in the
+    bundled voice with nothing anywhere saying why.
+    """
+    from marvi_agent import voice_models
+
+    monkeypatch.setattr(voice_models, "APP_DATA", tmp_path)
+    engine = "voxtream2"
+    recording = tmp_path / "voices" / engine / "marvi-short.wav"
+    recording.parent.mkdir(parents=True, exist_ok=True)
+    recording.write_bytes(b"RIFF....WAVE")
+
+    assert voice_models.cloned_voice(engine, "marvi-short") == recording
+    assert voice_models.cloned_voice(engine, "never-recorded") is None
+    # A blank name is not a lookup; it is the absence of one.
+    assert voice_models.cloned_voice(engine, "") is None
+
+
+def test_a_voice_that_is_neither_still_falls_back(tmp_path, monkeypatch) -> None:
+    # The fallback is right for a name that names nothing: an engine cannot
+    # speak in a voice that does not exist. It was only ever wrong for clones.
+    from marvi_agent import voice_models
+
+    monkeypatch.setattr(voice_models, "APP_DATA", tmp_path)
+    assert voice_models.cloned_voice("voxtream2", "typo-here") is None

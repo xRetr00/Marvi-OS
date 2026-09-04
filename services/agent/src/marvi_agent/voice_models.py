@@ -299,6 +299,20 @@ def default_voice(engine: str) -> str:
     return str(_tts_catalog()[resolve_engine(engine)]["default_voice"])
 
 
+def cloned_voice(engine: str, voice: str) -> Path | None:
+    """A recording installed for this engine under this name, if there is one.
+
+    The same path the TTS sidecars resolve (`_cloned` in each host), read from
+    this side so the agent can tell a cloned voice from a typo. Kept here
+    rather than imported from a sidecar because those run in their own
+    environments and this process cannot import them.
+    """
+    if not voice:
+        return None
+    found = APP_DATA / "voices" / engine / f"{voice}.wav"
+    return found if found.is_file() else None
+
+
 class _SidecarEngine:
     """A persistent isolated upstream runtime speaking newline-delimited JSON.
 
@@ -314,7 +328,32 @@ class _SidecarEngine:
         self.engine = resolve_engine(engine)
         spec = _tts_catalog()[self.engine]
         offered = {str(item["id"]) for item in spec.get("voices", ())}
-        self.voice = voice if voice in offered else str(spec["default_voice"])
+        # A recorded voice counts as offered.
+        #
+        # This was `voice if voice in offered else default_voice`, and
+        # `offered` is the *catalog* -- the voices that ship with the engine.
+        # A cloned voice is by definition not in it, so every clone was
+        # silently swapped for the bundled default before the sidecar ever saw
+        # the name. Selecting it in Settings appeared to work, the file was on
+        # disk, the sidecar would have used it, and Marvi answered in the stock
+        # voice with nothing logged anywhere to say why.
+        #
+        # Checked the same way the sidecars check: a WAV under `voices/<engine>`
+        # named for the voice. Falling back is still right for a name that is
+        # neither -- a voice that does not exist has to become one that does --
+        # but a clone is not that.
+        self.voice = (
+            voice if (voice in offered or cloned_voice(self.engine, voice)) else str(spec["default_voice"])
+        )
+        if voice and self.voice != voice:
+            # Said out loud, because the silence is what made this take a week.
+            log.warning(
+                "tts: %r is not a voice %s has, and no recording of it is installed; "
+                "using %r instead",
+                voice,
+                self.engine,
+                self.voice,
+            )
         self._process: subprocess.Popen[str] | None = None
         self._speaking = threading.Lock()
         #: The thread cleaning up after a barge-in, if one is running.
