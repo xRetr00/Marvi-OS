@@ -178,12 +178,16 @@ def attach(session: AgentSession, provider: str = "", model: str = "") -> None:
             stopped.clear()
         log.info("stage: %s -> %s", getattr(event, "old_state", "?"), new)
 
+    #: Whether anything has been transcribed for the utterance in progress.
+    #: Read by the timeout below; see why there.
+    heard_something = [False]
+
     @session.on("user_input_transcribed")
     def _transcribed(event: Any) -> None:
         final = getattr(event, "is_final", True)
-        log.info(
-            "stt%s: %s", "" if final else " (partial)", _excerpt(getattr(event, "transcript", ""))
-        )
+        text = str(getattr(event, "transcript", "") or "")
+        heard_something[0] = False if final else (heard_something[0] or bool(text.strip()))
+        log.info("stt%s: %s", "" if final else " (partial)", _excerpt(text))
 
     @session.on("user_transcription_timeout")
     def _stt_timeout(_event: Any) -> None:
@@ -195,6 +199,29 @@ def attach(session: AgentSession, provider: str = "", model: str = "") -> None:
         # corrected and a refusal can be argued with, but silence is
         # indistinguishable from Marvi not listening, so the person repeats
         # themselves into nothing and eventually stops asking.
+        #
+        # Unless she is mid-sentence, which is not the same thing at all.
+        #
+        # The timeout is armed from the VAD's end of speech and the final
+        # transcript can land just after it. Apologising then is wrong twice
+        # over: she says she did not catch something she is holding a partial
+        # of, and -- because the recogniser sits out while she speaks -- the
+        # apology mutes the very recogniser that was about to finish. From a
+        # real first turn:
+        #
+        #     12:33:53,624  stt (partial): Amor, we are doing   <- she has it
+        #     12:33:55,181  stt: timed out waiting for a transcript
+        #     12:33:55,182  tts: speaking (say)                 <- the apology
+        #     12:33:56,903  stt: Amor, we are doing.            <- the real one
+        #     12:33:58,471  (3.5s of apology finishes playing)
+        #     12:34:03,110  the actual reply finally starts
+        #
+        # `transcript 5740ms behind`, nearly all of it spent apologising for a
+        # sentence she had already heard. A partial in hand means the words are
+        # coming; the right move is to wait for them.
+        if heard_something[0]:
+            log.info("stt: the transcript is late, not missing; waiting rather than apologising")
+            return
         log.warning("stt: timed out waiting for a transcript")
         with contextlib.suppress(Exception):
             from .session import MISHEARD
