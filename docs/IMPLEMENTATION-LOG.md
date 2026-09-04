@@ -1491,3 +1491,11 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   identity metadata, working bulk rejection, and bounded thumbnail cleanup.
 - Replaced the forty-card image wall with a six-at-a-time review list, local
   decision controls, clear readiness state, pagination, and visible owner repair.
+
+## 2026-09-04 — full-size face review preview
+
+- Made every available face-review crop keyboard-focusable and selectable.
+- Added a native modal preview that preserves the full crop with `contain`
+  sizing and supports Escape, close-button, and backdrop dismissal.
+- Kept review pagination and draft identity choices intact while inspecting a
+  crop.

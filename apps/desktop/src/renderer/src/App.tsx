@@ -47,6 +47,7 @@ import {
   Waves,
   Wifi,
   Wrench,
+  X,
   type LucideIcon
 } from 'lucide-react'
 
@@ -1142,6 +1143,10 @@ function RoomPanel({
   const [visitorNames, setVisitorNames] = useState<Record<number, string>>({})
   const [visitorOwners, setVisitorOwners] = useState<Record<number, boolean>>({})
   const [reviewPage, setReviewPage] = useState(0)
+  const [expandedSighting, setExpandedSighting] = useState<FaceLibrary['pending'][number] | null>(
+    null
+  )
+  const reviewDialogRef = useRef<HTMLDialogElement>(null)
   const [lightDraft, setLightDraft] = useState({
     brightness: 70,
     colorTemp: 3000,
@@ -1180,6 +1185,12 @@ function RoomPanel({
       clearInterval(timer)
     }
   }, [])
+
+  useEffect(() => {
+    const dialog = reviewDialogRef.current
+    if (!dialog || !expandedSighting || dialog.open) return
+    dialog.showModal()
+  }, [expandedSighting])
 
   const [busy, setBusy] = useState('')
   const [pressed, setPressed] = useState('')
@@ -1890,14 +1901,20 @@ function RoomPanel({
             <div className="face-review-list">
               {visiblePendingFaces.map((sighting, index) => (
                 <article className="face-review-item" key={sighting.id}>
-                  <div className="face-review-preview">
+                  <button
+                    aria-label={`Open full preview for sighting ${sighting.id}`}
+                    className="face-review-preview"
+                    disabled={!sighting.image}
+                    onClick={() => setExpandedSighting(sighting)}
+                    type="button"
+                  >
                     {sighting.image ? (
                       <img alt="An unrecognised face awaiting review" src={sighting.image} />
                     ) : (
                       <Users aria-hidden="true" />
                     )}
                     <span>{safeReviewPage * reviewPageSize + index + 1}</span>
-                  </div>
+                  </button>
                   <div className="face-review-body">
                     <div className="face-review-summary">
                       <div>
@@ -1972,6 +1989,54 @@ function RoomPanel({
                 </article>
               ))}
             </div>
+
+            {expandedSighting ? (
+              <dialog
+                aria-label={`Full face preview for sighting ${expandedSighting.id}`}
+                className="face-review-lightbox"
+                onCancel={() => setExpandedSighting(null)}
+                onClick={(event) => {
+                  if (event.target === event.currentTarget) setExpandedSighting(null)
+                }}
+                onClose={() => setExpandedSighting(null)}
+                ref={reviewDialogRef}
+              >
+                <div className="face-review-lightbox-frame">
+                  <header>
+                    <div>
+                      <span>Face review</span>
+                      <strong>
+                        {expandedSighting.nearest?.name
+                          ? `Looks like ${expandedSighting.nearest.name}`
+                          : `Sighting #${expandedSighting.id}`}
+                      </strong>
+                    </div>
+                    <button
+                      aria-label="Close full face preview"
+                      className="face-review-lightbox-close"
+                      onClick={() => setExpandedSighting(null)}
+                      type="button"
+                    >
+                      <X aria-hidden="true" />
+                    </button>
+                  </header>
+                  <div className="face-review-lightbox-image">
+                    <img
+                      alt={`Full preview of unrecognised face ${expandedSighting.id}`}
+                      src={expandedSighting.image}
+                    />
+                  </div>
+                  <footer>
+                    <span>
+                      {expandedSighting.at
+                        ? String(expandedSighting.at).replace('T', ' ').slice(0, 19)
+                        : `Sighting #${expandedSighting.id}`}
+                    </span>
+                    <span>Esc or click outside to close</span>
+                  </footer>
+                </div>
+              </dialog>
+            ) : null}
 
             {pressed ? (
               <ControlRow description={pressed} icon={Clock3} title="Last camera action" />

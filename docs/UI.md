@@ -530,6 +530,9 @@ Pending face crops remain sidecar-owned review artifacts and appear in a compact
 paginated queue with the nearest known identity, an explicit owner choice, and
 working single or bulk rejection. Every mutation still travels through the
 normal Gateway confirmation and audit boundary.
+Selecting a review crop opens a window-sized, uncropped preview. Escape, the
+close control, and clicking the backdrop dismiss it without losing the current
+review page or form state.
 
 Room's light editor follows that desktop's complete control flow: current power and
 brightness, on/off, a continuous brightness range, white temperature, custom

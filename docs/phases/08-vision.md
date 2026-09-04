@@ -36,7 +36,8 @@ boundary and privacy invariants.
 - Owner assignment is explicit and stable when adding samples to an existing
   identity. Plugin-declared failures propagate as failed Gateway tool results.
 - The Vision page uses a compact six-item paginated review list with clear
-  identity, nearest-match, owner, save, reject, and reject-all actions.
+  identity, nearest-match, owner, save, reject, and reject-all actions. Each
+  crop opens into a window-sized, uncropped inspection view.
 - Deterministic fixture tests that do not require a camera or model download.
 
 ## Acceptance evidence

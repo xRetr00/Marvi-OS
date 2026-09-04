@@ -209,6 +209,15 @@ describe('shell layout', () => {
     expect(app).toContain("action: 'reject_all'")
   })
 
+  it('opens each review crop in a full-size accessible preview', () => {
+    expect(app).toContain('Open full preview for sighting')
+    expect(app).toContain('className="face-review-lightbox"')
+    expect(app).toContain('dialog.showModal()')
+    expect(app).toContain('onCancel={() => setExpandedSighting(null)}')
+    expect(css).toContain('.face-review-lightbox::backdrop')
+    expect(lastBlock('.face-review-lightbox-image img')).toContain('object-fit: contain')
+  })
+
   it('keeps one window-wide status bar below both sidebars and page content', () => {
     expect(lastBlock('.app-shell')).toContain('34px minmax(0, 1fr) 24px')
     expect(app).toMatch(/<\/div>\s*\{statusbar}\s*\{settings \? \(/)
