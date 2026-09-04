@@ -64,9 +64,8 @@ def test_something_quick_is_not_worth_mentioning() -> None:
 
 
 def test_a_failure_is_remembered_however_fast_it_was() -> None:
-    with pytest.raises(RuntimeError):
-        with condition.doing("reaching the room"):
-            raise RuntimeError("connection refused")
+    with pytest.raises(RuntimeError), condition.doing("reaching the room"):
+        raise RuntimeError("connection refused")
 
     strain = condition.recent()
     assert strain is not None
@@ -76,9 +75,8 @@ def test_a_failure_is_remembered_however_fast_it_was() -> None:
 
 def test_the_exception_still_reaches_the_caller() -> None:
     # Naming what went wrong must never swallow it.
-    with pytest.raises(ValueError, match="nope"):
-        with condition.doing("something"):
-            raise ValueError("nope")
+    with pytest.raises(ValueError, match="nope"), condition.doing("something"):
+        raise ValueError("nope")
 
 
 def test_it_stops_apologising_for_old_news() -> None:
