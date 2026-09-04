@@ -43,6 +43,7 @@ from . import (
     toolsearch,
     upgrade,
     voiceactivity,
+    watchdog,
     worldnow,
 )
 from . import (
@@ -1180,6 +1181,14 @@ def create_app(
         # restart never leaves an orphaned scheduler ticking.
         # asyncio reports unretrieved task exceptions to a stderr nobody reads.
         install_asyncio_handler(asyncio.get_running_loop())
+        # Notice when the loop stops answering, whatever the cause.
+        #
+        # This is the general answer to "everything shows as Gateway
+        # unavailable": nothing had to be predicted or wrapped for ten seconds
+        # of embedding load to be reported as ten seconds of blocked loop. See
+        # `watchdog`.
+        stop_watching = asyncio.Event()
+        watching = asyncio.create_task(watchdog.watch_the_loop(stop_watching))
         # Die when the desktop does, however it goes. A clean quit already
         # stops us; what leaves a Gateway holding port 8765 overnight is the
         # desktop being killed, and then nothing runs the code that would have
@@ -1220,6 +1229,11 @@ def create_app(
         try:
             yield
         finally:
+            # The loop watcher first: it is the one thing that would otherwise
+            # go on logging about a Gateway that is already shutting down.
+            stop_watching.set()
+            with contextlib.suppress(Exception):
+                await watching
             dictation.close()
             one_shot.close()
             conversation.reset()
@@ -1246,6 +1260,10 @@ def create_app(
     # Reachable from outside, so a proposal can be placed and settled without a
     # model in the loop -- and so a test of what happens to a proposal tests
     # that, rather than the extraction that produced it.
+    # Every request, timed. No endpoint had to be nominated in advance: the
+    # slow one never is.
+    watchdog.slow_requests(app)
+
     app.state.rememberer = rememberer
     # Published for the same reason, and to let a test check that the scheduler
     # was handed a client it can actually call. That was wrong for the whole
@@ -2115,6 +2133,29 @@ def create_app(
             detail=str(update.get("detail") or ""),
         )
         return agent_ready.status()
+
+    @app.get("/voice/aside")
+    async def voice_aside() -> dict[str, str]:
+        """Anything the Gateway wants said in the call, or nothing.
+
+        The Gateway decides *whether* there is something worth mentioning and
+        *how to say it*; the voice worker only carries it. That split matters:
+        the agent has no way to know that a ten-second pause was an embedding
+        model loading, and the Gateway has no mouth inside a live call.
+
+        Asked at turn boundaries rather than pushed down a socket, because the
+        agent already talks to the Gateway between turns and a socket would be
+        a second lifetime to manage for a sentence a minute. Empty is the
+        normal answer, and each line is handed over exactly once -- see
+        `condition.worth_saying`, and the failure it avoids: being told about
+        the same pause at the start of every turn for two minutes.
+        """
+        from . import condition, voicing
+
+        name = ""
+        with contextlib.suppress(Exception):
+            name = voicing.name_of(identity.user_path().read_text(encoding="utf-8"))
+        return {"say": condition.worth_saying(name)}
 
     @app.get("/voice/wake")
     async def wake_status() -> dict[str, Any]:

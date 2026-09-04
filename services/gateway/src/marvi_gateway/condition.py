@@ -97,7 +97,7 @@ def doing(what: str) -> Iterator[None]:
     the specific answer: "loading the memory embedding model" is more use than
     "answering a recall".
     """
-    global _last
+    global _last, _spoken
     began = time.monotonic()
     with _lock:
         _doing.append((what, began))
@@ -116,6 +116,7 @@ def doing(what: str) -> Iterator[None]:
                     break
             if failed or spent >= WORTH_MENTIONING:
                 _last = Strain(doing=what, seconds=spent, at=time.time(), failed=failed)
+                _spoken = False
 
 
 def now() -> str:
@@ -151,12 +152,78 @@ def recent(now_at: float | None = None) -> Strain | None:
     return strain if moment - strain.at <= REMEMBERED_FOR else None
 
 
+#: Whether the last strain has already been said out loud.
+_spoken = False
+
+
+def worth_saying(name: str = "") -> str:
+    """A line about the last strain, once, or empty.
+
+    The Gateway decides whether there is anything to mention and how to say
+    it; whoever is carrying it just carries it. Marked as said on the way out,
+    because the failure this avoids is Marvi telling you about the same
+    ten-second pause at the start of every turn for the next two minutes.
+    """
+    global _spoken
+    with _lock:
+        strain, already = _last, _spoken
+    if strain is None or already:
+        return ""
+    from . import voicing
+
+    line = voicing.spoken(
+        {
+            "source": "system",
+            # A failure and a slow patch are different news and want different
+            # words: "which is why I was slow" is the wrong register for
+            # something that did not work at all.
+            "kind": "failed" if strain.failed else "slow",
+            "summary": strain.sentence(),
+            "at": strain.at,
+            "payload": {
+                "doing": strain.doing,
+                "seconds": strain.seconds,
+                "why": strain.failed,
+            },
+        },
+        name,
+    )
+    if not line:
+        return ""
+    with _lock:
+        _spoken = True
+    return line
+
+
 def forget() -> None:
     """Drop what is remembered. For tests, and after it has been said."""
-    global _last
+    global _last, _spoken
     with _lock:
         _last = None
+        _spoken = False
         _doing.clear()
+
+
+def note(what: str, seconds: float, failed: str = "", regardless: bool = False) -> None:
+    """Record something that already happened and took too long.
+
+    The counterpart to `doing`. `doing` is for the few places worth naming
+    from the inside; this is for instrumentation that watches everything from
+    the outside and does not know what it is looking at until afterwards. See
+    `watchdog`, which is the general answer -- wrapping suspects one at a time
+    only ever catches the ones already under suspicion.
+    """
+    global _last, _spoken
+    # `regardless` is for a caller whose own threshold has already decided.
+    # A blocked event loop is the case: `watchdog.BLOCKED` is a quarter of a
+    # second because the loop stopping at all is notable, and measuring it as
+    # overshoot from a one-second heartbeat under-reports a block that began
+    # mid-interval -- so a real stall can arrive here looking small.
+    if not failed and not regardless and seconds < WORTH_MENTIONING:
+        return
+    with _lock:
+        _last = Strain(doing=what, seconds=seconds, at=time.time(), failed=failed)
+        _spoken = False
 
 
 def as_dict() -> dict[str, Any]:

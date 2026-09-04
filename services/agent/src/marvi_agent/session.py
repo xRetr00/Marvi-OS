@@ -1705,6 +1705,19 @@ async def marvi_session(ctx: JobContext) -> None:
         # on the latency path and could only ever add. The Gateway takes the
         # turn, returns immediately, and works it out on a thread.
         _observe_turn(last_heard["text"], spoken)
+        # And anything the Gateway wants mentioned in the call.
+        #
+        # Between turns, never during one: this is Marvi explaining herself,
+        # and explaining yourself over the top of somebody is the opposite of
+        # the point. The Gateway decides whether there is anything and how to
+        # word it -- the agent cannot know that a ten-second pause was an
+        # embedding model -- and hands each line over exactly once.
+        async def _mention_gateway_news() -> None:
+            if aside := await gateway.aside():
+                log.info("the Gateway asked to mention: %s", aside)
+                session.say(aside)
+
+        asyncio.get_running_loop().create_task(_mention_gateway_news())
         # And kept here, so the end of the session has something to summarise.
         # A LiveKit session starts with an empty chat context and this process
         # dies with the call, so by the time the close handler runs there is no

@@ -887,6 +887,26 @@ class GatewayTools:
             log.info("%d tools from the Gateway, which names no core set", len(loaded))
         return loaded
 
+    async def aside(self) -> str:
+        """Anything the Gateway wants said in this call, or empty.
+
+        The Gateway owns both halves of the decision -- whether to mention it
+        and how to word it -- because it is the only one that knows what it was
+        doing. This just carries the sentence to a mouth.
+        """
+        client = self._client or httpx.AsyncClient(timeout=REQUEST_TIMEOUT)
+        try:
+            response = await client.get(f"{self._base_url}/voice/aside")
+            response.raise_for_status()
+            return str(response.json().get("say") or "")
+        except Exception:
+            # Never raises and never logs: this runs between every turn, and a
+            # Gateway too unwell to answer is the very case it reports.
+            return ""
+        finally:
+            if self._client is None:
+                await client.aclose()
+
     def defers(self) -> bool:
         """Whether any tool is behind `tool_search` rather than in the request.
 

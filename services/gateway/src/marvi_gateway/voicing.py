@@ -199,6 +199,26 @@ def _strain(event: dict[str, Any], name: str, doing: str, seconds: float) -> str
     )
 
 
+def _went_wrong(event: dict[str, Any], name: str, doing: str, why: str) -> str:
+    """Something she was doing failed, said as a verb rather than a noun.
+
+    `_trouble` reads a component name -- "my Gateway connection" -- and what
+    `condition` records is what she was *doing*: "reaching the room",
+    "loading the memory model". Feeding one into the other produced "something
+    wrong with my reaching the room", which is the sort of sentence that makes
+    a thing sound less alive rather than more.
+    """
+    because = f" {why}." if why and len(why) < 60 else ""
+    return _choose(
+        (
+            f"{_greeting(name)}I ran into a problem while {doing}.{because}",
+            f"{_address(name)}{doing} did not work just now.{because}",
+            f"{_greeting(name)}something went wrong while {doing}.{because}",
+        ),
+        event,
+    )
+
+
 #: What a component is called out loud. "gateway" is a word Marvi uses about
 #: herself; the rest are the names a person would recognise.
 PARTS = {
@@ -243,6 +263,13 @@ def spoken(
         return _work(event, name, str(_on(payload, "zone", "place") or ""))
     if kind in ("presence:left", "presence:away", "room:presence_cleared"):
         return _left(event, name)
+    if kind == "system:failed":
+        return _went_wrong(
+            event,
+            name,
+            str(_on(payload, "doing") or "something"),
+            str(_on(payload, "why") or ""),
+        )
     if kind in ("system:slow", "system:strain"):
         return _strain(
             event,

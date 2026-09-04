@@ -105,3 +105,60 @@ def test_nested_work_unwinds_in_any_order() -> None:
     assert condition.now() == "inner"
     inner.__exit__(None, None, None)
     assert condition.now() == ""
+
+
+def test_a_caller_with_its_own_threshold_is_believed() -> None:
+    """A blocked event loop is notable however short it measures.
+
+    `watchdog` measures a block as overshoot from a one-second heartbeat, so a
+    stall that began mid-interval arrives here looking smaller than it was --
+    a real 1.4s block reports as 0.6s. Its own threshold has already decided;
+    the general duration gate must not throw the finding away.
+    """
+    condition.note("busy with something on the main loop", 0.6, regardless=True)
+    strain = condition.recent()
+    assert strain is not None and "main loop" in strain.sentence()
+
+
+def test_the_general_gate_still_filters_ordinary_noise() -> None:
+    # Without it every request leaves a note and the interesting one is buried.
+    condition.note("answering /runtime", 0.01)
+    assert condition.recent() is None
+
+
+def test_a_line_is_handed_over_exactly_once() -> None:
+    """Otherwise Marvi mentions the same pause at the start of every turn.
+
+    The aside is collected at every turn boundary, so "is there anything to
+    say" is asked constantly. Saying it once is the whole difference between
+    an assistant explaining itself and one that will not let it go.
+    """
+    condition.note("loading the memory model", 10.7)
+
+    first = condition.worth_saying("Shereef")
+    assert "memory model" in first
+    assert condition.worth_saying("Shereef") == ""
+    assert condition.worth_saying("Shereef") == ""
+
+
+def test_something_new_is_worth_saying_again() -> None:
+    condition.note("loading the memory model", 10.7)
+    assert condition.worth_saying("Shereef")
+
+    condition.note("reaching the room", 3.0)
+    assert "reaching the room" in condition.worth_saying("Shereef")
+
+
+def test_a_failure_does_not_get_the_words_for_slowness() -> None:
+    # `condition` records what she was *doing* -- a verb phrase -- and the
+    # component wording produced "something wrong with my reaching the room".
+    condition.note("reaching the room", 0.1, failed="connection refused")
+    line = condition.worth_saying("Shereef")
+
+    assert "wrong with my reaching" not in line
+    assert "reaching the room" in line
+    assert "why I was slow" not in line
+
+
+def test_nothing_to_say_is_the_normal_answer() -> None:
+    assert condition.worth_saying("Shereef") == ""
