@@ -296,3 +296,57 @@ describe('a restart that would leave the old process running', () => {
     expect(swept).toEqual([])
   })
 })
+
+describe('a service asked to restart', () => {
+  /**
+   * The restart storm.
+   *
+   * `start()` sweeps leftovers by name before spawning, and one of the
+   * processes matching that name is the service's own live child. Killing it
+   * is asynchronous, so its `exit` arrives after the replacement has been
+   * spawned -- and the handler used to treat any exit as a crash, nulling the
+   * reference to the process actually running and scheduling another start.
+   *
+   * Two `PUT /providers/settings` seconds apart produced seven worker starts
+   * with the backoff doubling between them (6s, 4s, 7s, 13s, 26s), each one
+   * re-running a 40-50 second speech prewarm on the same GPU.
+   */
+  it('does not treat the superseded child as a crash', async () => {
+    const { Service } = await import('./services')
+
+    const service = new Service(
+      {
+        name: 'test',
+        // Long-lived, so nothing exits on its own and every exit in this test
+        // is one the test caused.
+        command: process.execPath,
+        args: ['-e', 'setInterval(() => {}, 1000)'],
+        cwd: root
+      },
+      () => {}
+    )
+
+    service.start()
+    const first = (service as unknown as { child: { pid: number; kill: () => void } }).child
+    expect(first).toBeTruthy()
+
+    // The restart a settings change asks for.
+    service.start()
+    const second = (service as unknown as { child: { pid: number } }).child
+    expect(second).toBeTruthy()
+    expect(second.pid).not.toBe(first.pid)
+
+    // Now the first child's exit lands, late, as it does in production.
+    first.kill()
+    await new Promise((resolve) => setTimeout(resolve, 300))
+
+    // The service is still holding the process that is actually running, and
+    // has not scheduled a restart on top of it.
+    const held = (service as unknown as { child: { pid: number } | null }).child
+    expect(held?.pid).toBe(second.pid)
+    expect(service.state).not.toBe('failed')
+    expect(service.restarts).toBe(0)
+
+    service.stop()
+  })
+})
