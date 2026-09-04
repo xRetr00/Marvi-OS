@@ -58,7 +58,7 @@ class FakeSidecar:
             }
         if method == "get_health":
             return {"success": True, "health": {"devices": {"tuya_bulb": {"online": True}}}}
-        if method in {"set_mode", "set_light"}:
+        if method in {"set_mode", "set_light", "refresh_devices"}:
             return {"success": True, "applied": request["params"]}
         return {"success": False, "error": f"unknown method: {method}"}
 
@@ -230,6 +230,24 @@ async def test_room_light_accepts_the_sidecars_rgb_contract(sidecar, tmp_path) -
 
     assert answer.json()["status"] == "executed"
     assert fake.requests[-1]["params"] == {"on": True, "rgb": [255, 140, 42]}
+
+
+@pytest.mark.asyncio
+async def test_room_refresh_forces_the_sidecar_device_probe(sidecar, tmp_path) -> None:
+    fake, client = sidecar
+    registry = ToolRegistry()
+    register_room_tools(registry, client)
+    app = create_app(
+        version="0.1.0-test",
+        runtime=RuntimeStore(audit_path=tmp_path / "audit.jsonl"),
+        tools=registry,
+    )
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://marvi.local") as http:
+        answer = await http.post("/tools/room_refresh", json={"arguments": {}})
+
+    assert answer.json()["status"] == "executed"
+    assert fake.requests[-1]["method"] == "refresh_devices"
 
 
 @pytest.mark.asyncio

@@ -526,6 +526,9 @@ def register_room_tools(registry, sidecar: RoomSidecar) -> None:
     def room_health() -> dict[str, Any]:
         return sidecar.call("get_health")
 
+    def room_refresh() -> dict[str, Any]:
+        return sidecar.call("refresh_devices")
+
     def room_set_mode(mode: str) -> dict[str, Any]:
         if mode not in ROOM_MODES:
             raise RoomRejectedError(f"invalid mode: {mode}")
@@ -595,6 +598,15 @@ def register_room_tools(registry, sidecar: RoomSidecar) -> None:
             arguments={},
             sensitive=False,
             handler=room_health,
+        )
+    )
+    registry.register(
+        ToolSpec(
+            name="room_refresh",
+            description="Reconnect room devices and immediately refresh their state",
+            arguments={},
+            sensitive=False,
+            handler=room_refresh,
         )
     )
     registry.register(

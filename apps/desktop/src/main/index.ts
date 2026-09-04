@@ -3032,6 +3032,7 @@ function startApp(): void {
       const allowed = [
         'room_set_light',
         'room_set_mode',
+        'room_refresh',
         'smart_room_cancel_sleep',
         'smart_room_vision_identity'
       ]

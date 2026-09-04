@@ -1133,6 +1133,10 @@ function RoomPanel({
   const [snapshot, setSnapshot] = useState<RoomSnapshot | null>(null)
   const [events, setEvents] = useState<RoomEvent[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
+  const [lastRoomRefresh, setLastRoomRefresh] = useState<string>('waiting')
+  const [busy, setBusy] = useState('')
+  const [pressed, setPressed] = useState('')
   // `configured` and the broker come from `room_health`; `room_state` has the
   // failure counters. Reading either from the other is what showed every
   // device as "not set up" and the broker as `?:?`.
@@ -1153,47 +1157,56 @@ function RoomPanel({
     color: '#ffffff'
   })
 
-  useEffect(() => {
-    let disposed = false
-    const load = async (): Promise<void> => {
-      const [response, history, live] = await Promise.all([
-        window.marvi?.getRoomState(),
-        window.marvi?.getRoomEvents(),
-        window.marvi?.getRoomHealth()
-      ])
-      if (disposed) return
-      if (history) setEvents(history)
-      setHealth((live ?? {}) as Record<string, unknown>)
-      if (!response || response.status !== 'executed' || !response.result) {
-        setSnapshot(null)
-        setError(response?.error ?? 'Marvi Gateway is unavailable')
-        return
-      }
-      const nextLight = readRecord(response.result.state, 'light')
-      setLightDraft({
-        brightness: Number(nextLight.brightness ?? 70),
-        colorTemp: Number(nextLight.color_temp ?? 3000),
-        color: rgbToHex(nextLight.rgb)
-      })
-      setSnapshot(response.result)
-      setError(null)
+  const loadRoom = useCallback(async (accept: () => boolean = () => true): Promise<void> => {
+    const [response, history, live] = await Promise.all([
+      window.marvi?.getRoomState(),
+      window.marvi?.getRoomEvents(),
+      window.marvi?.getRoomHealth()
+    ])
+    if (!accept()) return
+    if (history) setEvents(history)
+    setHealth((live ?? {}) as Record<string, unknown>)
+    if (!response || response.status !== 'executed' || !response.result) {
+      setSnapshot(null)
+      setError(response?.error ?? 'Marvi Gateway is unavailable')
+      return
     }
-    void load()
-    const timer = setInterval(() => void load(), 4_000)
+    const nextLight = readRecord(response.result.state, 'light')
+    setLightDraft({
+      brightness: Number(nextLight.brightness ?? 70),
+      colorTemp: Number(nextLight.color_temp ?? 3000),
+      color: rgbToHex(nextLight.rgb)
+    })
+    setSnapshot(response.result)
+    setError(null)
+    setLastRoomRefresh(new Date().toLocaleTimeString([], { hour12: false }))
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    let running = false
+    const refresh = async (): Promise<void> => {
+      if (!active || running) return
+      running = true
+      try {
+        await loadRoom(() => active)
+      } finally {
+        running = false
+      }
+    }
+    void refresh()
+    const timer = setInterval(() => void refresh(), 4_000)
     return () => {
-      disposed = true
+      active = false
       clearInterval(timer)
     }
-  }, [])
+  }, [loadRoom])
 
   useEffect(() => {
     const dialog = reviewDialogRef.current
     if (!dialog || !expandedSighting || dialog.open) return
     dialog.showModal()
   }, [expandedSighting])
-
-  const [busy, setBusy] = useState('')
-  const [pressed, setPressed] = useState('')
 
   useEffect(() => {
     let disposed = false
@@ -1236,6 +1249,22 @@ function RoomPanel({
       : answer?.status === 'confirmation_required'
         ? 'Waiting for confirmation in the Dynamic Island.'
         : (answer?.error ?? failure)
+
+  const refreshRoom = async (): Promise<void> => {
+    if (refreshing) return
+    setRefreshing(true)
+    try {
+      const answer = await window.marvi?.roomCommand('room_refresh', {})
+      await loadRoom()
+      setPressed(
+        answer?.status === 'executed'
+          ? 'Room devices refreshed.'
+          : (answer?.error ?? 'The room could not refresh its devices.')
+      )
+    } finally {
+      setRefreshing(false)
+    }
+  }
 
   // The plugin has had `smart_room_vision_identity` all along and nothing in
   // the app ever called it, so the only way to teach the camera a face was to
@@ -1405,6 +1434,9 @@ function RoomPanel({
     ['GESTURE', gesture],
     ['VISITORS', `${Number(vision.pending_visitors ?? 0)} PENDING`]
   ]
+  const faceModel = String(vision.face_model ?? 'buffalo_l')
+  const faceProvider = String(vision.face_provider ?? 'CPUExecutionProvider')
+  const faceModelLoaded = vision.face_model_loaded === true
 
   const visionEvents = events.filter((event) =>
     /vision|camera|face|gesture|presence|sleep|person/i.test(`${event.type} ${event.summary}`)
@@ -1444,7 +1476,18 @@ function RoomPanel({
             <span>{snapshot?.stale ? 'Last known state · live feed unavailable' : pageDetail}</span>
           </div>
         </div>
-        <ControlPill tone={stateTone(pageState)}>{pageState}</ControlPill>
+        <div className="room-runtime-actions">
+          {view === 'room' ? (
+            <>
+              <span className="room-auto-refresh">Auto · 4s · {lastRoomRefresh}</span>
+              <ControlButton disabled={refreshing} onClick={() => void refreshRoom()}>
+                <RefreshCw aria-hidden="true" className={refreshing ? 'is-spinning' : ''} />
+                {refreshing ? 'Refreshing' : 'Refresh'}
+              </ControlButton>
+            </>
+          ) : null}
+          <ControlPill tone={stateTone(pageState)}>{pageState}</ControlPill>
+        </div>
       </div>
 
       {view === 'room' ? (
@@ -1789,6 +1832,18 @@ function RoomPanel({
             icon={Users}
             title="Face identity"
           >
+            <ControlRow
+              action={
+                <ControlPill tone={faceModelLoaded ? 'ready' : 'danger'}>
+                  {faceModelLoaded ? 'loaded' : 'not loaded'}
+                </ControlPill>
+              }
+              description={`${faceModel} · ${faceProvider}${
+                !faceModelLoaded && vision.error ? ` · ${String(vision.error)}` : ''
+              }`}
+              icon={Brain}
+              title="Face recognition model"
+            />
             <div className="face-identity-workspace">
               <div className="face-enrollment-card">
                 <div className="face-enrollment-copy">

@@ -7224,6 +7224,20 @@ body {
   white-space: nowrap;
 }
 
+.room-runtime-actions {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 7px;
+}
+
+.room-auto-refresh {
+  color: var(--ui-text-tertiary);
+  font-size: 8px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .room-workspace-grid,
 .vision-workspace-grid {
   display: grid;
@@ -7315,6 +7329,15 @@ body {
 
   .room-runtime-copy span {
     white-space: normal;
+  }
+
+  .room-runtime-actions {
+    align-items: flex-end;
+    flex-direction: column-reverse;
+  }
+
+  .room-auto-refresh {
+    display: none;
   }
 
   .room-page .room-level-actions,
