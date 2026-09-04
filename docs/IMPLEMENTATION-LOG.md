@@ -1499,3 +1499,13 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   sizing and supports Escape, close-button, and backdrop dismissal.
 - Kept review pagination and draft identity choices intact while inspecting a
   crop.
+
+## 2026-09-04 — vision model health and room device recovery
+
+- Published the active InsightFace model, execution provider, and real loaded
+  state from the Smart Room vision worker into Marvi's structured Vision UI.
+- Added an audited, non-confirmed `room_refresh` adapter that asks the sidecar
+  to rebuild device connections and immediately poll current hardware state.
+- Made Tuya reconnect with a fresh device object after circuit-breaker backoff,
+  while the Room page re-reads state every four seconds and exposes a manual
+  Refresh action with last-successful-read feedback.

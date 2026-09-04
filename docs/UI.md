@@ -520,11 +520,16 @@ audited tools and local-action policy as voice requests; device authority and
 credentials remain in the sidecar. Device and MQTT health follow the live
 workspace, then recent notable room events appear newest first. When the sidecar
 is unreachable, the view preserves its last known state and labels it stale.
+The runtime header shows the four-second auto-refresh cadence and last successful
+read. Its Refresh action forces the sidecar to rebuild device connections and
+poll immediately, so a power-cycled light can recover without restarting Marvi.
 
 Vision owns presentation of camera state, identity review, and vision-specific
 history. The Smart Room sidecar remains the sole camera and inference owner.
 The renderer receives structured presence, identity, sleep, activity, gesture,
 and freshness facts only; there is no camera-preview RPC or Electron transport.
+Face identity names the active InsightFace model and execution provider and
+distinguishes loaded from unavailable model state.
 Owner enrollment is enabled only while one quality-gated face is available.
 Pending face crops remain sidecar-owned review artifacts and appear in a compact
 paginated queue with the nearest known identity, an explicit owner choice, and

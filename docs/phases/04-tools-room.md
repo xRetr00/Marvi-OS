@@ -36,8 +36,10 @@
   newline-delimited JSON-RPC on `127.0.0.1:17842`. Reads fall back to the
   sidecar's on-disk snapshot while it is unreachable; the auth token is re-read
   per call so a sidecar restart that rotates it needs no Gateway restart.
-- Room tool surface kept to four: `room_state`, `room_health` (reads, never
-  gated) and `room_set_mode`, `room_set_light` (sensitive).
+- Room tool surface includes `room_state`, `room_health`, and `room_refresh`
+  (reads/reconnect, never gated) plus `room_set_mode` and `room_set_light`.
+  Smart Room polls devices independently; refresh forces a clean reconnect and
+  immediate poll after a physical power cycle.
 - `marvi_agent.tools`: five voice-sized function tools including
   `approve_pending_action` / `deny_pending_action`, so spoken approval resolves
   the same token and the same arguments the Island resolves. Verified against

@@ -16,7 +16,8 @@ boundary and privacy invariants.
 
 - One native Windows camera capture/reconnect loop in Smart Room.
 - Local InsightFace owner/visitor recognition and MediaPipe gesture/posture
-  analysis, with plugin-owned model downloads and data.
+  analysis, with plugin-owned model downloads and data. Published state names
+  the face model/provider and reports whether it is loaded.
 - Versioned bounded `state.vision`, authenticated observation/description and
   identity RPC operations, and structured room events.
 - Unknown-visitor deduplication and delayed visitor reporting through the room

@@ -34,7 +34,8 @@ one reconnect policy, one source of truth, and one place for confirmations.
 - Unknown-visitor crops and their report lifecycle.
 - Person count, owner visibility, motion/activity, gestures, and conservative
   posture state.
-- Vision freshness, capabilities, errors, and structured room events.
+- Vision freshness, capabilities, model name/provider/load state, errors, and
+  structured room events.
 
 Only unknown visitors are persisted as sightings. Known faces remain live
 state, preventing an unbounded surveillance history and constant thumbnail
@@ -71,8 +72,8 @@ removed. Gateway health now reports the camera facts published by Smart Room.
 
 ## Implemented verification
 
-Smart Room has deterministic tests for state round-tripping, owner preservation,
-face matching, nearest-match review data, quality gating, bounded unknown
+Smart Room has deterministic tests for state and model-health round-tripping,
+owner preservation, face matching, nearest-match review data, quality gating, bounded unknown
 deduplication, thumbnail cleanup, structured gestures, and the no-frame
 description contract. Gateway tests cover plugin-result failures, plugin
 context, room-event allowlisting, degradation without the sidecar, and

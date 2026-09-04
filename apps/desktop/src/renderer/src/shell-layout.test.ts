@@ -218,6 +218,16 @@ describe('shell layout', () => {
     expect(lastBlock('.face-review-lightbox-image img')).toContain('object-fit: contain')
   })
 
+  it('shows face model residency and keeps Room state fresh', () => {
+    expect(app).toContain('title="Face recognition model"')
+    expect(app).toContain("vision.face_model ?? 'buffalo_l'")
+    expect(app).toContain("faceModelLoaded ? 'loaded' : 'not loaded'")
+    expect(app).toContain("roomCommand('room_refresh', {})")
+    expect(app).toContain('Auto · 4s · {lastRoomRefresh}')
+    expect(app).toContain('setInterval(() => void refresh(), 4_000)')
+    expect(css).toContain('.room-runtime-actions')
+  })
+
   it('keeps one window-wide status bar below both sidebars and page content', () => {
     expect(lastBlock('.app-shell')).toContain('34px minmax(0, 1fr) 24px')
     expect(app).toMatch(/<\/div>\s*\{statusbar}\s*\{settings \? \(/)
