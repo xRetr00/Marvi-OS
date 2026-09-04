@@ -10,6 +10,9 @@ work belongs in `docs/phases/`; architectural decisions belong in
   Windows filesystem test a 15-second budget. The signed `v0.7.1` workflow
   showed that parallel release-runner load can exhaust Vitest's global
   five-second default before this assertion finishes.
+- Corrected the Gateway recogniser-contract test's Agent source path and made
+  the temporary import path pytest-scoped. The initial signed `v0.7.5` gate
+  exposed the clean-runner-only import failure after all desktop checks passed.
 
 ## 2026-09-03 — Voice-page STT selection repair
 

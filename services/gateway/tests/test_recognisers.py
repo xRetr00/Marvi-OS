@@ -68,17 +68,17 @@ def test_a_known_choice_is_honoured(monkeypatch) -> None:
     assert recognisers.selected() == "nemotron-3.5"
 
 
-def test_the_catalog_matches_what_the_agent_can_actually_load() -> None:
+def test_the_catalog_matches_what_the_agent_can_actually_load(monkeypatch) -> None:
     """The two lists are in different services and drift silently.
 
     `parakeet_stt.ENGINES` is what the agent will build; this catalog is what
     the picker offers. An entry in one and not the other is either a recogniser
     nobody can choose or a choice that quietly does nothing.
     """
-    import sys
     from pathlib import Path
 
-    sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "agent/src"))
+    agent_src = Path(__file__).resolve().parents[2] / "agent" / "src"
+    monkeypatch.syspath_prepend(str(agent_src))
     from marvi_agent.parakeet_stt import ENGINES
 
     assert {item.id for item in recognisers.engines()} == set(ENGINES)
