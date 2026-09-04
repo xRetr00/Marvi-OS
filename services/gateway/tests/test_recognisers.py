@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import ast
+from pathlib import Path
+
 import pytest
 
 from marvi_gateway import recognisers
@@ -68,17 +71,22 @@ def test_a_known_choice_is_honoured(monkeypatch) -> None:
     assert recognisers.selected() == "nemotron-3.5"
 
 
-def test_the_catalog_matches_what_the_agent_can_actually_load(monkeypatch) -> None:
+def test_the_catalog_matches_what_the_agent_can_actually_load() -> None:
     """The two lists are in different services and drift silently.
 
     `parakeet_stt.ENGINES` is what the agent will build; this catalog is what
     the picker offers. An entry in one and not the other is either a recogniser
     nobody can choose or a choice that quietly does nothing.
     """
-    from pathlib import Path
-
     agent_src = Path(__file__).resolve().parents[2] / "agent" / "src"
-    monkeypatch.syspath_prepend(str(agent_src))
-    from marvi_agent.parakeet_stt import ENGINES
+    source = (agent_src / "marvi_agent" / "parakeet_stt.py").read_text(encoding="utf-8")
+    module = ast.parse(source)
+    assignment = next(
+        node
+        for node in module.body
+        if isinstance(node, ast.Assign)
+        and any(isinstance(target, ast.Name) and target.id == "ENGINES" for target in node.targets)
+    )
+    engines = ast.literal_eval(assignment.value)
 
-    assert {item.id for item in recognisers.engines()} == set(ENGINES)
+    assert {item.id for item in recognisers.engines()} == set(engines)
