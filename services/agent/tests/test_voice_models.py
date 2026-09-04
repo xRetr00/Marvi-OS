@@ -278,3 +278,61 @@ def test_the_warm_recogniser_is_reused_when_it_is_the_selected_one(monkeypatch) 
     assert (
         session_module._recogniser({"stt": warm, "stt_model": "parakeet-tdt-0.6b-v3"}) is warm
     )
+
+
+def test_a_barge_in_does_not_make_the_next_reply_reload_the_model(monkeypatch) -> None:
+    """Interrupting Marvi cost fifty seconds of silence.
+
+    `DRAIN_TIMEOUT` was one second, matched to `_STOP_GRACE` on the reasoning
+    that a longer drain would be wasted. But an abandoned reply has most of a
+    sentence left in it -- seconds of work at the ~1.8x this engine runs at --
+    so one second killed the sidecar on essentially every barge-in, and a
+    killed sidecar reloads: 37.7s to 43.9s for CuteTTS. The log has it in the
+    very next reply:
+
+        00:56:05  cutetts-distill did not finish after an interruption
+        00:57:04  tts: 10.1s of audio in 50.4s (0.20x real time;
+                  engine 0.20x, 0.0s waiting for the model)
+
+    Both halves are off the reply path now: the drain gets a budget that fits
+    a real sentence, and if the process does have to go, its replacement loads
+    while the person is speaking rather than while Marvi is trying to answer.
+    """
+    from marvi_agent.voice_models import _SidecarEngine
+
+    # Long enough for an abandoned sentence to finish. The failure was a
+    # number too small to ever succeed.
+    assert _SidecarEngine.DRAIN_TIMEOUT >= 10.0
+
+
+def test_recovery_runs_off_the_thread_that_noticed_the_interruption() -> None:
+    import threading
+
+    from marvi_agent.voice_models import _SidecarEngine
+
+    made = _SidecarEngine.__new__(_SidecarEngine)
+    made.engine = "test-engine"
+    made._recovering = None
+    made._recovering_lock = threading.Lock()
+    started = threading.Event()
+    release = threading.Event()
+    ran_on: list[int] = []
+
+    def slow_drain() -> bool:
+        ran_on.append(threading.get_ident())
+        started.set()
+        release.wait(5)
+        return True
+
+    made._drain = slow_drain  # type: ignore[method-assign]
+
+    here = threading.get_ident()
+    made._recover()
+    assert started.wait(5), "recovery never started"
+    # The caller is already back: the interruption path does not wait for it.
+    assert ran_on and ran_on[0] != here
+
+    release.set()
+    made._settled()
+    # And the next reply does wait, so it never finds a half-drained pipe.
+    assert made._recovering is not None and not made._recovering.is_alive()

@@ -172,6 +172,12 @@ class _Library:
 LANGUAGE_TAG = re.compile(r"\s*<[a-z]{2}(?:-[A-Za-z]{2,4})?>\s*")
 
 
+#: Blocks of silence to run through the model before any real audio. Enough
+#: for the decoder to have produced something and built its kernels; more is
+#: just prewarm time nobody gets back.
+WARMUP_BLOCKS = 3
+
+
 class NemotronSTT(stt.STT):
     """Streaming recognition through parakeet.cpp, one model shared by streams."""
 
@@ -194,7 +200,44 @@ class NemotronSTT(stt.STT):
         return "nvidia/parakeet.cpp"
 
     def prewarm(self) -> None:
-        self._build()
+        self._first_word_is_not_the_first_inference(self._build())
+
+    def _first_word_is_not_the_first_inference(self, library: _Library) -> None:
+        """Push a little silence through, so the opening turn does not pay.
+
+        Loading the model is not the same as having run it. The first real
+        call still builds CUDA kernels, and that lands on the first thing
+        anybody says -- which is the turn a person judges the whole thing by.
+        Measured on the first Nemotron turn of a session against every turn
+        after it:
+
+            00:15:57  turn: 9966ms from the user stopping to Marvi starting
+                      turn-taking: transcript 4979ms behind
+            00:16:20  turn:  714ms
+            00:16:29  turn:  655ms
+            00:17:08  turn:  115ms
+
+        Five of those ten seconds were the recogniser's first inference. The
+        rest of the pipeline is warmed here already -- the two TTS sidecars
+        each synthesise "Marvi is ready." while loading, and the Kyutai host
+        steps one frame of silence through its own model -- and this was the
+        one that was only constructed.
+
+        Failure is not fatal: a recogniser that cannot run silence will say so
+        on real audio, and refusing to prewarm over it would turn a slow first
+        turn into no voice at all.
+        """
+        with contextlib.suppress(Exception):
+            began = time.monotonic()
+            stream = library.begin()
+            try:
+                quiet = np.zeros(FEED_SAMPLES, dtype=np.float32)
+                for _ in range(WARMUP_BLOCKS):
+                    library.feed(stream, quiet)
+                library.finish(stream)
+            finally:
+                library.end(stream)
+            log.info("stt: nemotron warm in %.1fs", time.monotonic() - began)
 
     def _build(self) -> _Library:
         if self._library is not None:

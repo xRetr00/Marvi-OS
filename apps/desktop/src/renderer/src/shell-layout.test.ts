@@ -163,7 +163,10 @@ describe('shell layout', () => {
   })
 
   it('uses the same working recogniser picker on Voice and in Settings', () => {
-    expect(app.match(/<RecogniserPicker \/>/g)).toHaveLength(2)
+    // The Voice rig passes `compact` to drop the refresh button its tight
+    // dt/dd strip has no room for -- see `.voice-hud-rig` -- but it is still
+    // the one component doing the picking in both places.
+    expect(app.match(/<RecogniserPicker(?: compact)? \/>/g)).toHaveLength(2)
     expect(app).not.toContain("runtime.model?.stt || 'not installed'")
     expect(app).toContain('onChange={(next) => void chooseRecogniser(next)}')
   })

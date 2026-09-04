@@ -206,7 +206,7 @@ import {
 } from '../../main/pet-window'
 import { $heard, $spoken, subtitleTail } from './store/transcript'
 import { deviceStanding, deviceStory, deviceTone } from './room-devices'
-import { usePolled } from './hooks/usePolled'
+import { refresh, usePolled } from './hooks/usePolled'
 import { $voiceLink, sayAsUser, startVoice, stopVoice } from './store/voice-session'
 
 /**
@@ -3468,7 +3468,7 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
             <div>
               <dt>SPEECH IN</dt>
               <dd>
-                <RecogniserPicker />
+                <RecogniserPicker compact />
               </dd>
             </div>
             <div>
@@ -3477,7 +3477,7 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
               page where you hear it is the page to change it on. */}
               <dt>SPEECH OUT</dt>
               <dd>
-                <VoicePicker />
+                <VoicePicker compact />
               </dd>
             </div>
             <div>
@@ -3720,9 +3720,20 @@ function WakeSettings(): React.JSX.Element {
   )
 }
 
-/** The recogniser used by both the Voice rig and Speech recognition settings. */
-function RecogniserPicker(): React.JSX.Element {
+/**
+ * The recogniser used by both the Voice rig and Speech recognition settings.
+ *
+ * `compact` drops the refresh button for the rig readout, which is a
+ * dt/dd strip tuned to fit one picker trigger per row (see the `.voice-hud-rig`
+ * rules) -- a second control there does not have room to land. Settings is
+ * where the space and the need both are: the engine list only ever changes by
+ * installing something in Setup or the Agent restarting with a new one, and
+ * before this there was nothing on this page that asked the Gateway again
+ * short of restarting Marvi.
+ */
+function RecogniserPicker({ compact = false }: { compact?: boolean } = {}): React.JSX.Element {
   const page = useStore($recognisers)
+  const [refreshing, setRefreshing] = useState(false)
 
   useEffect(() => {
     void refreshRecognisers()
@@ -3752,6 +3763,21 @@ function RecogniserPicker(): React.JSX.Element {
         searchPlaceholder="Search STT engines…"
         empty="No STT engines available."
       />
+      {compact ? null : (
+        <UiTooltip label="Ask the Gateway which STT engines are installed, again">
+          <ControlButton
+            className="voice-choice-refresh"
+            disabled={refreshing}
+            onClick={() => {
+              setRefreshing(true)
+              void refreshRecognisers().finally(() => setRefreshing(false))
+            }}
+          >
+            <RefreshCw aria-hidden="true" className={refreshing ? 'is-spinning' : ''} />
+            {refreshing ? 'Refreshing' : 'Refresh'}
+          </ControlButton>
+        </UiTooltip>
+      )}
       {page?.missing ? (
         <span className="construction">
           THE SELECTED RECOGNISER IS NOT INSTALLED. MARVI FALLS BACK TO THE DEFAULT — INSTALL IT IN
@@ -3772,9 +3798,16 @@ function RecogniserPicker(): React.JSX.Element {
  * No preview, and that is a limitation rather than an omission. These are
  * speaker embeddings, not samples — there is no audio to play without running
  * the TTS engine, which lives in the Agent's process and its own environment.
+ *
+ * `compact` drops the refresh button for the rig readout beside the orb,
+ * which has room for one picker trigger per row and not a second control (see
+ * `.voice-hud-rig`). Settings is where it belongs: swapping the Agent's TTS
+ * engine used to mean this list was wrong until Marvi was restarted, because
+ * nothing here ever asked the Gateway a second time.
  */
-function VoicePicker(): React.JSX.Element {
+function VoicePicker({ compact = false }: { compact?: boolean } = {}): React.JSX.Element {
   const [page, setPage] = useState<VoicePage | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
 
   const reload = async (): Promise<void> => {
     const next = await window.marvi?.getVoices()
@@ -3862,6 +3895,21 @@ function VoicePicker(): React.JSX.Element {
         searchPlaceholder="Search voices…"
         empty="No voices available."
       />
+      {compact ? null : (
+        <UiTooltip label="Ask the Gateway which TTS engines and voices are installed, again">
+          <ControlButton
+            className="voice-choice-refresh"
+            disabled={refreshing}
+            onClick={() => {
+              setRefreshing(true)
+              void reload().finally(() => setRefreshing(false))
+            }}
+          >
+            <RefreshCw aria-hidden="true" className={refreshing ? 'is-spinning' : ''} />
+            {refreshing ? 'Refreshing' : 'Refresh'}
+          </ControlButton>
+        </UiTooltip>
+      )}
       {page?.missing ? (
         // Almost always a speaker name left over from the previous engine.
         // Saying "not installed" would send someone to the installer for a
@@ -4264,7 +4312,10 @@ function SchedulesPanel(): React.JSX.Element {
   }
 
   return (
-    <ControlPage description="Automated tasks that run now, later, or repeatedly." title="Cron jobs">
+    <ControlPage
+      description="Automated tasks that run now, later, or repeatedly."
+      title="Cron jobs"
+    >
       {error ? <p className="notice notice-warn">{error}</p> : null}
 
       <ControlSection icon={Clock3} title="New cron job">
@@ -5497,10 +5548,10 @@ function VoiceSynthesisPanel(): React.JSX.Element {
       <ControlSection icon={Radio} title="Announcer">
         <div>
           <p>
-            The voice Marvi speaks in when she starts the conversation — a reminder, something
-            she noticed, or Read Aloud in chat. It runs cold on the processor rather than
-            holding the graphics card, so it is a separate voice from the one in a call. Clone
-            your own recording here and the two can match.
+            The voice Marvi speaks in when she starts the conversation — a reminder, something she
+            noticed, or Read Aloud in chat. It runs cold on the processor rather than holding the
+            graphics card, so it is a separate voice from the one in a call. Clone your own
+            recording here and the two can match.
           </p>
         </div>
         <AnnouncerVoice />
@@ -5785,13 +5836,39 @@ function VoiceCloning(): React.JSX.Element {
 }
 
 function WakeWordPanel(): React.JSX.Element {
+  // Local rather than read off the wake status itself: the listener answering
+  // is not the same thing as the request having gone out, and a state that
+  // never advances if the Gateway hangs is a spinner that never stops.
+  const [refreshing, setRefreshing] = useState(false)
+
   return (
     <ControlPage
       className="settings-page"
       description="Set the local phrase that starts a hands-free voice session."
       title="Wake word"
     >
-      <ControlSection icon={Radio} title="Wake word">
+      <ControlSection
+        action={
+          <UiTooltip label="Ask the Gateway for the wake word status again">
+            <ControlButton
+              disabled={refreshing}
+              onClick={() => {
+                setRefreshing(true)
+                // Every WakeStatusItem and WakeIndicator mounted right now
+                // shares this feed and is told the same answer -- one request
+                // for the button that happened to be clicked, not one per
+                // subscriber.
+                void refresh('voice/wake').finally(() => setRefreshing(false))
+              }}
+            >
+              <RefreshCw aria-hidden="true" className={refreshing ? 'is-spinning' : ''} />
+              {refreshing ? 'Refreshing' : 'Refresh'}
+            </ControlButton>
+          </UiTooltip>
+        }
+        icon={Radio}
+        title="Wake word"
+      >
         <div>
           <p>
             A small process that starts at login and waits for her name. Saying &ldquo;Marvi&rdquo;
@@ -5906,23 +5983,23 @@ function RecognitionSettings(): React.JSX.Element {
           setting. Offering the dial for them promised a control that did
           nothing. */}
       {(recognisers?.selected ?? 'parakeet-tdt') === 'parakeet-tdt' ? (
-      <ControlRow
-        action={
-          <Picker
-            options={PACE}
-            value={pace}
-            onChange={(next) => {
-              const chosen = PACE.find((option) => option.value === next)
-              if (!chosen) return
-              setPace(next)
-              save({ MARVI_STT_LOOKAHEAD: chosen.lookahead, MARVI_STT_CHUNK: chosen.chunk })
-            }}
-            placeholder="Accurate"
-          />
-        }
-        description="How long Marvi waits before putting a word on screen. It does not change how fast she answers — the end of a sentence is flushed the moment you stop."
-        title="Subtitle speed"
-      />
+        <ControlRow
+          action={
+            <Picker
+              options={PACE}
+              value={pace}
+              onChange={(next) => {
+                const chosen = PACE.find((option) => option.value === next)
+                if (!chosen) return
+                setPace(next)
+                save({ MARVI_STT_LOOKAHEAD: chosen.lookahead, MARVI_STT_CHUNK: chosen.chunk })
+              }}
+              placeholder="Accurate"
+            />
+          }
+          description="How long Marvi waits before putting a word on screen. It does not change how fast she answers — the end of a sentence is flushed the moment you stop."
+          title="Subtitle speed"
+        />
       ) : null}
       <ControlRow
         action={

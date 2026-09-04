@@ -1,0 +1,5 @@
+load (what a killed sidecar costs): 32.1s
+  clone 44.8s        short:  4.0s of audio in  1.50s (2.67x), first chunk 328 ms
+  clone 20s          short:  4.0s of audio in  1.44s (2.78x), first chunk 250 ms
+  clone 10s          short:  2.1s of audio in  0.78s (2.66x), first chunk 188 ms
+  bundled ref        short:  1.9s of audio in  0.70s (2.73x), first chunk 140 ms

@@ -2905,6 +2905,14 @@ small,
   min-width: 260px;
 }
 
+/* `.voice-choice` stretches its children by default, which is right for the
+ * full-width picker triggers and the wake switch but would blow the refresh
+ * button out to match them -- a wide button with an icon and six characters
+ * of text on the left and nothing on the right reads as a mistake. */
+.voice-choice-refresh {
+  align-self: flex-start;
+}
+
 /* -- Conversation bar ------------------------------------------------------
  * Being in the room is a call, so it gets the controls a call has.
  */
@@ -6447,10 +6455,24 @@ body {
   border-top: 1px solid var(--ui-stroke-tertiary);
   color: var(--ui-text-tertiary);
 }
-.usage-token-tale svg { flex: none; margin-top: 1px; color: var(--ui-text-secondary); }
-.usage-token-tale p { margin: 0; font-family: var(--ui-font-serif); font-size: 12px; line-height: 1.45; }
-.usage-token-tale strong { color: var(--ui-text-primary); font-weight: 500; }
-.usage-token-tale span { color: var(--ui-text-tertiary); }
+.usage-token-tale svg {
+  flex: none;
+  margin-top: 1px;
+  color: var(--ui-text-secondary);
+}
+.usage-token-tale p {
+  margin: 0;
+  font-family: var(--ui-font-serif);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.usage-token-tale strong {
+  color: var(--ui-text-primary);
+  font-weight: 500;
+}
+.usage-token-tale span {
+  color: var(--ui-text-tertiary);
+}
 .usage-provider-list {
   display: grid;
 }
@@ -6867,6 +6889,13 @@ body {
 .control-button svg {
   width: 13px;
   height: 13px;
+}
+
+/* The Usage refresh button has set this class on its icon since before this
+ * file had a rule for it -- the request went out, nothing on screen said so.
+ * Reusing `update-spin` rather than a second keyframe doing the same turn. */
+.control-button svg.is-spinning {
+  animation: update-spin 700ms linear infinite;
 }
 
 .control-button:hover:not(:disabled),
@@ -10309,7 +10338,6 @@ html[data-appearance='claude-code-dark'] .control-row {
   }
 }
 
-
 /* --- The voice page's glass ------------------------------------------------
  *
  * One surface, used by every floating thing on this page: the two cards, the
@@ -10403,7 +10431,9 @@ html[data-appearance='claude-code-dark'] .control-row {
   color: var(--ui-text-tertiary);
   cursor: pointer;
   place-items: center;
-  transition: background 120ms ease, color 120ms ease;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
 }
 
 .voice-calendar-nav button:hover {
@@ -10444,7 +10474,9 @@ html[data-appearance='claude-code-dark'] .control-row {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   cursor: pointer;
-  transition: background 140ms ease, color 140ms ease;
+  transition:
+    background 140ms ease,
+    color 140ms ease;
 }
 
 .voice-calendar-grid button:hover {
@@ -10638,7 +10670,6 @@ html[data-appearance='claude-code-dark'] .control-row {
   backdrop-filter: blur(18px);
   box-shadow: 0 8px 26px rgb(0 0 0 / 28%);
 }
-
 
 /* --- the status, in the header --------------------------------------------
  *

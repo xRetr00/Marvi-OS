@@ -9,7 +9,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { onVisibilityChange, subscribe } from './usePolled'
+import { onVisibilityChange, refresh, refreshAll, subscribe } from './usePolled'
 
 afterEach(() => {
   vi.useRealTimers()
@@ -160,5 +160,89 @@ describe('a window nobody is looking at', () => {
     expect(calls()).toBe(asleep + 1)
     off()
     delete (globalThis as { document?: unknown }).document
+  })
+})
+
+describe('a button that means "ask again, now"', () => {
+  it('reads immediately rather than waiting out the interval', async () => {
+    vi.useFakeTimers()
+    const { read, calls } = counter()
+    const off = subscribe('models', read, 60_000, () => {})
+    await vi.advanceTimersByTimeAsync(0)
+    const before = calls()
+
+    // Nowhere near the next tick, and the calendar-style feeds this exists
+    // for are on intervals exactly this long -- the whole point is not to
+    // have to wait it out.
+    await refresh('models')
+    expect(calls()).toBe(before + 1)
+    off()
+  })
+
+  it('delivers the answer to every subscriber, not just the one that asked', async () => {
+    vi.useFakeTimers()
+    const { read } = counter()
+    const seenA: unknown[] = []
+    const seenB: unknown[] = []
+    const a = subscribe('providers', read, 60_000, (v) => seenA.push(v))
+    const b = subscribe('providers', read, 60_000, (v) => seenB.push(v))
+    await vi.advanceTimersByTimeAsync(0)
+    const before = seenA.length
+
+    await refresh('providers')
+    expect(seenA.length).toBe(before + 1)
+    expect(seenB.length).toBe(before + 1)
+    a()
+    b()
+  })
+
+  it('does not stack a second request behind one already out', async () => {
+    vi.useFakeTimers()
+    let started = 0
+    let release = (): void => {}
+    const read = async (): Promise<unknown> => {
+      started += 1
+      await new Promise<void>((resolve) => {
+        release = resolve
+      })
+      return { ok: true }
+    }
+    const off = subscribe('usage-refresh', read, 60_000, () => {})
+    await vi.advanceTimersByTimeAsync(0)
+    expect(started).toBe(1)
+
+    // Pressing the button while the Gateway is still owed an answer must not
+    // be how a slow Gateway becomes a Gateway sent two requests for the same
+    // thing.
+    const pending = refresh('usage-refresh')
+    expect(started).toBe(1)
+
+    release()
+    await pending
+    off()
+  })
+
+  it('is a no-op for a key nobody is subscribed to', async () => {
+    vi.useFakeTimers()
+    // Nothing ever subscribed to this key, so there is no feed in the
+    // registry at all -- refresh must not throw reaching for one.
+    await expect(refresh('nobody-listening')).resolves.toBeUndefined()
+  })
+
+  it('refreshAll reads every live feed at once', async () => {
+    vi.useFakeTimers()
+    const first = counter()
+    const second = counter()
+    const a = subscribe('feed-one', first.read, 60_000, () => {})
+    const b = subscribe('feed-two', second.read, 60_000, () => {})
+    await vi.advanceTimersByTimeAsync(0)
+    const beforeOne = first.calls()
+    const beforeTwo = second.calls()
+
+    await refreshAll()
+    expect(first.calls()).toBe(beforeOne + 1)
+    expect(second.calls()).toBe(beforeTwo + 1)
+    a()
+    b()
   })
 })

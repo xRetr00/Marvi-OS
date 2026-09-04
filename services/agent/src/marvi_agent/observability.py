@@ -41,6 +41,8 @@ import os
 import time
 from typing import TYPE_CHECKING, Any
 
+from . import troubles
+
 if TYPE_CHECKING:
     from livekit.agents.voice import AgentSession
 
@@ -123,6 +125,9 @@ def _report_usage(provider: str, usage: Any, previous: dict[str, int]) -> dict[s
 
 def attach(session: AgentSession, provider: str = "") -> None:
     last_usage: dict[str, int] = {}
+    #: Per session, so a fault explained in one conversation is explained
+    #: again in the next; the person there may be a different person.
+    narrator = troubles.Narrator()
     """Wire every pipeline stage to the log. Never raises.
 
     Handlers are deliberately defensive: this is diagnostics, and a bad
@@ -213,7 +218,19 @@ def attach(session: AgentSession, provider: str = "") -> None:
 
     @session.on("error")
     def _error(event: Any) -> None:
-        log.error("pipeline error: %s", getattr(event, "error", event))
+        fault = getattr(event, "error", event)
+        log.error("pipeline error: %s", fault)
+        # And out loud, when it is a fault a person can act on.
+        #
+        # This was logged and nothing else, so a rate-limited model, an
+        # unreachable Gateway and a recogniser that heard nothing were all the
+        # same thing from the outside: a pause, then nothing. See `troubles`,
+        # including why the line is written there and never taken from the
+        # error text.
+        with contextlib.suppress(Exception):
+            if line := narrator.speak_about(fault):
+                log.info("saying what went wrong: %s", line)
+                session.say(line)
 
     @session.on("close")
     def _close(event: Any) -> None:

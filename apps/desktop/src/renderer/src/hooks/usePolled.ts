@@ -136,6 +136,35 @@ export function onVisibilityChange(): void {
   }
 }
 
+/**
+ * Read `key` right now, ahead of its own interval, and tell every subscriber.
+ *
+ * `onVisibilityChange` already does this trick for a window coming back from
+ * hidden -- read once immediately rather than show what could be a whole
+ * interval stale. Nothing did the equivalent for a visible window: the
+ * calendar polls once a minute so a card sitting open does not hammer the
+ * Gateway for a month view that rarely changes, and STT/TTS engine choices
+ * were not on this registry at all, so changing one from a settings page
+ * across the app and coming back here meant waiting out the interval or
+ * restarting -- there was no button that meant "ask again, now."
+ *
+ * Goes through `pull`, so a refresh pressed while a read is already out does
+ * not stack a second request behind it -- it rides the one already in
+ * flight, same as a tick landing mid-request would. A no-op, resolving at
+ * once, for a key nobody currently subscribes to: there is no feed to read
+ * and nobody waiting on the answer.
+ */
+export function refresh(key: string): Promise<void> {
+  const feed = feeds.get(key)
+  return feed ? pull(feed) : Promise.resolve()
+}
+
+/** Every live feed, refreshed at once -- a single "sync now" that does not
+ * need to know which keys happen to be subscribed to right now. */
+export function refreshAll(): Promise<void[]> {
+  return Promise.all([...feeds.values()].map((feed) => pull(feed)))
+}
+
 if (typeof document !== 'undefined') {
   document.addEventListener('visibilitychange', onVisibilityChange)
 }

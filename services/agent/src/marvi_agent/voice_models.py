@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextlib
 import json
 import logging
 import os
@@ -316,6 +317,9 @@ class _SidecarEngine:
         self.voice = voice if voice in offered else str(spec["default_voice"])
         self._process: subprocess.Popen[str] | None = None
         self._speaking = threading.Lock()
+        #: The thread cleaning up after a barge-in, if one is running.
+        self._recovering: threading.Thread | None = None
+        self._recovering_lock = threading.Lock()
 
     @classmethod
     def shared(cls, engine: str, voice: str) -> _SidecarEngine:
@@ -413,6 +417,8 @@ class _SidecarEngine:
 
     def synthesize(self, text: str, stop: threading.Event) -> Iterator[bytes]:
         with self._speaking:
+            # Whatever the last barge-in left behind, finished first.
+            self._settled()
             self._start()
             process = self._process
             if process is None or process.stdin is None:
@@ -435,8 +441,7 @@ class _SidecarEngine:
                     # thrown away. That costs a few hundred milliseconds of GPU
                     # nobody hears, and leaves a warm process for the next
                     # sentence. Only a sidecar that will not finish gets killed.
-                    if not self._drain():
-                        self.close()
+                    self._recover()
                     break
                 message = self._read()
                 event = message.get("event")
@@ -449,9 +454,30 @@ class _SidecarEngine:
 
     #: How long to let an abandoned generation finish before giving up on it.
     #:
-    #: Matched to `_STOP_GRACE`: draining for longer than the caller will wait
-    #: means the process gets killed anyway, and the drain only cost the delay.
-    DRAIN_TIMEOUT = _STOP_GRACE
+    #: This was `_STOP_GRACE`, one second, on the reasoning that draining for
+    #: longer than the caller will wait means the process gets killed anyway.
+    #: The two quantities are unrelated, and one second is not the cost of
+    #: being wrong. A reply is abandoned mid-generation, so what is left to
+    #: drain is most of a sentence -- five seconds of audio at the ~1.8x this
+    #: engine runs at is nearly three seconds of work. One second of patience
+    #: therefore killed the sidecar on essentially every barge-in, and a
+    #: killed sidecar reloads its model: 37.7 s to 43.9 s for CuteTTS.
+    #:
+    #: The log has exactly that, in the reply after an interruption:
+    #:
+    #:     00:56:05  cutetts-distill did not finish after an interruption
+    #:     00:57:04  tts: 10.1s of audio in 50.4s (0.20x real time;
+    #:               engine 0.20x, 0.0s waiting for the model)
+    #:
+    #: Fifty seconds for ten seconds of speech, all of it the model loading
+    #: again inside the reply. The comment above `synthesize` already says the
+    #: right thing -- "interrupting an assistant is the most ordinary thing a
+    #: person does to one; it should not be the most expensive" -- and this
+    #: number was quietly undoing it.
+    #:
+    #: Fifteen seconds covers the longest reply this cap allows, and nothing
+    #: waits on it: see `_drain`, which now runs on its own thread.
+    DRAIN_TIMEOUT = 15.0
 
     def _drain(self) -> bool:
         """Read the rest of an abandoned response so the process stays usable.
@@ -474,6 +500,45 @@ class _SidecarEngine:
                 return True
         log.warning("%s did not finish after an interruption; restarting it", self.engine)
         return False
+
+    def _recover(self) -> None:
+        """Clean up after a barge-in without making the next reply pay for it.
+
+        Both halves of this used to happen inline, on the thread that noticed
+        the interruption, which is the thread the next sentence needs. So the
+        person barged in, said their piece, and then waited out whichever of
+        the two had been chosen for them -- a drain, or a whole model reload.
+
+        Neither is urgent. The audio is already stopped; all that is left is
+        to have a usable process by the time there is something to say. That
+        is what the next `synthesize` waits on, and by then the user has
+        spoken a sentence and the model has been reloading throughout it.
+        """
+        with self._recovering_lock:
+            if self._recovering is not None and self._recovering.is_alive():
+                return
+
+            def work() -> None:
+                if not self._drain():
+                    self.close()
+                    # Eagerly, not on next use. A reload that starts when the
+                    # person begins their next sentence is mostly done by the
+                    # time they finish it; one that starts when Marvi tries to
+                    # answer is fifty seconds of silence.
+                    with contextlib.suppress(Exception):
+                        self._start()
+
+            self._recovering = threading.Thread(
+                target=work, name=f"marvi-tts-recover-{self.engine}", daemon=True
+            )
+            self._recovering.start()
+
+    def _settled(self) -> None:
+        """Wait for any recovery to finish. Called before using the process."""
+        with self._recovering_lock:
+            recovering = self._recovering
+        if recovering is not None:
+            recovering.join()
 
     def close(self) -> None:
         process, self._process = self._process, None
