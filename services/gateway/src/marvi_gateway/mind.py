@@ -82,6 +82,8 @@ class Mind:
         settings: InitiativeSettings | None = None,
         deliberate: Any = None,
         announcer: Any = None,
+        identity: Any = None,
+        presence: Any = None,
     ) -> None:
         self.journal = journal
         self.memory = memory
@@ -92,6 +94,43 @@ class Mind:
         # Speaks proactive sentences. Left unset, `speak` still records a
         # decision but stays silent.
         self.announcer = announcer
+        # Who she is talking to, for the name in what she says. Left unset,
+        # every line still reads correctly -- see `voicing`.
+        self.identity = identity
+        # `presence() -> bool | None`: whether the person is somewhere other
+        # than home. Only "someone is in the room" depends on it, and only
+        # because that sentence means something else entirely when you are out.
+        self.presence = presence
+
+    # -- how it sounds -------------------------------------------------------
+
+    def _out_loud(self, event: dict[str, Any]) -> str:
+        """The spoken phrasing for this event, if `voicing` has one.
+
+        Defensive throughout: this exists to make Marvi sound human, and
+        failing to phrase something warmly must never stop it being said.
+        """
+        try:
+            from . import voicing
+
+            return voicing.spoken(event, self._name(), away=self._away())
+        except Exception:
+            return ""
+
+    def _name(self) -> str:
+        """What to call them, from `USER.md`. Empty reads fine everywhere."""
+        try:
+            from . import voicing
+
+            return voicing.name_of(self.identity.user_path().read_text(encoding="utf-8"))
+        except Exception:
+            return ""
+
+    def _away(self) -> bool | None:
+        try:
+            return self.presence() if self.presence is not None else None
+        except Exception:
+            return None
 
     # -- world ---------------------------------------------------------------
 
@@ -195,7 +234,14 @@ class Mind:
             surface, detail, tokens, provider = verdict.surface, verdict.detail, 0, "deterministic"
             # `detail` is diagnostic text about the rule. What Marvi would
             # actually say is separate, and only deliberation can phrase it.
-            sentence = event["summary"]
+            # What she would say, rather than what the journal recorded.
+            #
+            # `event["summary"]` is written to be read later -- `room:
+            # light_changed - light 80% (warm)` -- and an announcer reading
+            # that aloud is a dashboard with a speaker bolted on. `voicing`
+            # turns the ones it recognises into what a person would say, and
+            # returns empty for the rest, so nothing is lost by not knowing.
+            sentence = self._out_loud(event) or event["summary"]
             if not worth.worth_a_model and verdict.surface != "silent":
                 # Recorded, inspectable, and not thought about. The event still
                 # reaches the journal and the activity feed; what it stops

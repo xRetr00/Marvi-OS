@@ -878,6 +878,21 @@ def load_installed_plugins() -> list[plugins_module.LoadedPlugin]:
     return found
 
 
+def _somewhere_else(sidecar: Any) -> bool | None:
+    """Is the person away from home, as far as the room knows.
+
+    `None` rather than a guess: told that somebody is in the room, Marvi says
+    something reassuring or something alarming, and being wrong in the alarming
+    direction is the one that matters.
+    """
+    try:
+        location = ((sidecar.snapshot() or {}).get("location")) or {}
+        at_home = location.get("home")
+        return (not at_home) if at_home is not None else None
+    except Exception:
+        return None
+
+
 def voice_state(*, worker_ready: bool, detail: str, in_a_call: bool) -> ComponentStatus:
     """Voice, once LiveKit and the models are known to be in place.
 
@@ -1095,6 +1110,11 @@ def create_app(
                     harness=cognition,
                 ),
                 announcer=one_shot if announce_enabled() else None,
+                identity=identity,
+                # Whether they are out, so "someone is in the room" can be the
+                # warning it should be rather than a pleasantry. `None` when
+                # nothing knows, which keeps the pleasant reading.
+                presence=lambda: _somewhere_else(sidecar),
             ),
             journal,
             ingest=ingest,
