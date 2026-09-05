@@ -288,3 +288,39 @@ def describe() -> dict[str, Any]:
         "default_local_model": DEFAULT_LOCAL_MODEL,
         "default_provider_model": DEFAULT_PROVIDER_MODEL,
     }
+
+
+_shared: Embedder | None = None
+_shared_lock = threading.Lock()
+
+
+def shared() -> Embedder:
+    """The one embedder in this process, warmed once.
+
+    `MemoryStore` is built per thread on purpose -- SQLite connections have
+    thread affinity and sharing one caused native crashes. The embedder was
+    reached through the store and inherited that, which is wrong: it is a torch
+    model, it has no connection, and one per store meant one 130MB load per
+    store. Four in a two-minute log:
+
+        12:19:00  embeddings: warm in 12.0s, before anything asks
+        12:19:08  embeddings: warm in 0.2s, before anything asks
+        12:19:22  embeddings: warm in 0.2s, before anything asks
+        12:19:49  embeddings: warm in 0.2s, before anything asks
+
+    The later ones are cheap only because the files are in the page cache; the
+    first paid twelve seconds, and the event loop -- which loads and encodes
+    are CPU-bound Python, holding the GIL -- was blocked for 11.7s of it, in
+    the middle of answering /voice/activity. Exactly the stall this module's
+    `warm` was written to prevent, moved rather than removed.
+    """
+    global _shared
+    if _shared is None:
+        with _shared_lock:
+            if _shared is None:
+                embedder = Embedder()
+                threading.Thread(
+                    target=warm, args=(embedder,), name="marvi-embed-warm", daemon=True
+                ).start()
+                _shared = embedder
+    return _shared

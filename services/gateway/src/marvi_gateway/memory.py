@@ -684,18 +684,13 @@ class MemoryStore:
         tools, which have no business knowing.
         """
         if self._embed is None:
-            from .embedding import Embedder
+            # Process-wide, not per store. Stores are per thread because SQLite
+            # connections are; the embedding model is not, and one per store
+            # meant loading it again -- and blocking the loop again -- for
+            # every thread that touched memory. Warmed once, there.
+            from .embedding import shared
 
-            self._embed = Embedder()
-            # Off the request path, now, rather than inside the first recall of
-            # the first conversation. See `embedding.warm`.
-            import threading
-
-            from .embedding import warm
-
-            threading.Thread(
-                target=warm, args=(self._embed,), name="marvi-embed-warm", daemon=True
-            ).start()
+            self._embed = shared()
         return self._embed
 
     def index(self, memory_id: int, text: str) -> bool:

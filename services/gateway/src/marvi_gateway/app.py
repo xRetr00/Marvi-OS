@@ -1189,6 +1189,15 @@ def create_app(
         # `watchdog`.
         stop_watching = asyncio.Event()
         watching = asyncio.create_task(watchdog.watch_the_loop(stop_watching))
+        # Load the embedding model now, while nothing is waiting on it. It was
+        # already warmed on a thread, but only once something first *asked* for
+        # memory -- which is the first turn of a call, which is why the loop
+        # was blocked for 11.7s in the middle of answering /voice/activity.
+        # Started here, the twelve seconds happen against an idle Gateway.
+        from . import embedding
+
+        if embedding.source() == embedding.LOCAL:
+            embedding.shared()
         # Die when the desktop does, however it goes. A clean quit already
         # stops us; what leaves a Gateway holding port 8765 overnight is the
         # desktop being killed, and then nothing runs the code that would have
