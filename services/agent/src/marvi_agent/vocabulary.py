@@ -1,10 +1,7 @@
 """Putting the names back into a transcript that lost them.
 
 The recogniser gets ordinary English right and proper nouns wrong. Measured on
-this machine, both Parakeet models, Marvi's own voice reading the sentences:
-
-    NeuDocs  -> "new docs"      Marvi   -> "Marvey" / "Marvy"
-    Shereef  -> "Sheriff"       Düzce   -> "DUS" / "Doz"
+this machine, both Parakeet models, Marvi's own voice reading the sentences
 
 Neither model has these words. Nothing about the audio was unclear; the
 vocabulary simply does not contain them, and `onnx-asr` exposes no hook to put
@@ -64,6 +61,37 @@ LEAVE_ALONE = frozenset(
 #: is more, and each extra one multiplies the comparisons on a path with no
 #: time to spare.
 MAX_SPAN = 2
+
+#: Words a two-word name does not end in.
+#:
+#: A span's *ratio* cannot decide this. Measured against the one name that
+#: caused it, the good and bad cases interleave:
+#:
+#:     'new docs'   0.857   should correct
+#:     'nue docs'   0.857   should correct
+#:     'no docs'    0.769   should correct
+#:     'new ducks'  0.667   should correct
+#:     'need to'    0.615   must not
+#:
+#: Five hundredths between the last two, so a threshold placed between them is
+#: fitted to two examples and breaks on the third. The thing that actually
+#: separates them is grammar rather than spelling: "to" is a particle, and
+#: while an English name may begin with an ordinary word -- "new docs" is the
+#: case two-word spans exist for -- it does not *end* in a bare one. This cost
+#: a whole turn:
+#:
+#:     stt: 'need to' heard as a name; corrected to 'NeuDocs'
+#:     turn: user said "Yeah, this very something important you NeuDocs tell me."
+#:     turn: assistant said "I don't have anything from NeuDocs in my memory
+#:                           right now. What would you like me to know?"
+#:
+#: Deliberately small, and not `LEAVE_ALONE`: that list holds "work", "time"
+#: and "way", which end real names, and using it here would lose them.
+NOT_A_NAME_ENDING = frozenset(
+    ["a", "an", "and", "are", "as", "at", "be", "but", "by", "for", "from", "i", "in",
+     "is", "it", "my", "of", "on", "or", "so", "that", "the", "this", "to", "was",
+     "were", "with", "you", "your"]
+)
 
 
 def _key(text: str) -> str:
@@ -129,6 +157,10 @@ def _correct(text: str, names: list[str]) -> str:
             heard = "".join(parts[position] for position in range(chosen[0], chosen[-1] + 1))
             # One ordinary word, spelled correctly, is not a mistake to fix.
             if span == 1 and _key(heard) in LEAVE_ALONE:
+                continue
+            # And a span that ends in a bare grammatical word is a phrase, not
+            # a name -- however well it happens to score. See NOT_A_NAME_ENDING.
+            if span > 1 and _key(parts[chosen[-1]]) in NOT_A_NAME_ENDING:
                 continue
             name = _best(heard, keyed)
             if not name:
