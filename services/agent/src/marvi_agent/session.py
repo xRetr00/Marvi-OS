@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import atexit
 import contextlib
 import json
 import logging
@@ -732,6 +733,8 @@ def _observe_turn(user: str, assistant: str) -> None:
 _REPORTS: queue.Queue[Callable[[], None]] = queue.Queue(maxsize=64)
 _reporter_started = threading.Event()
 
+atexit.register(lambda: _finish_reporting() if _reporter_started.is_set() else None)
+
 
 def _reporting() -> None:
     while True:
@@ -756,11 +759,15 @@ def _in_background(work: Callable[[], None]) -> None:
 def _finish_reporting(seconds: float = 2.0) -> int:
     """Wait briefly for queued reports to go out. Returns how many did not.
 
-    Only at the end of a call. The worker is a daemon, so anything still
-    queued when the process exits is lost -- which is free for an interim
-    transcript and not free for `_observe_turn`, whose payload is a memory.
-    Ending a call right after Marvi finishes speaking is a completely ordinary
-    thing to do and would have dropped it.
+    Registered with `atexit`, not called at the end of a call.
+
+    The worker drains continuously and a warm process outlives the call it was
+    serving -- LiveKit hands it the next one -- so there is nothing to wait for
+    at session close, and waiting there would have blocked the event loop for
+    up to two seconds on the way out. The only moment a queued report is
+    genuinely at risk is the process exiting, because the worker is a daemon.
+    That is free to lose for an interim transcript and not free for
+    `_observe_turn`, whose payload is a memory.
     """
     until = time.monotonic() + seconds
     while not _REPORTS.empty() and time.monotonic() < until:
@@ -2001,9 +2008,6 @@ async def marvi_session(ctx: JobContext) -> None:
         # So the next call can tell a rejoin from an arrival.
         greeting.remember_this_call_ended()
         _remember_the_session()
-        # Anything still in flight, before the process goes. See
-        # `_finish_reporting`: the last turn's memory is usually in here.
-        _finish_reporting()
         ctx.shutdown(reason=str(reason))
 
     # `update_tools` is on the Agent, not the session -- checked against the

@@ -54,10 +54,9 @@ ALLOWED = {
     ("session.py", "marvi_session", "_remember_the_session"),
 }
 
-ROOTS = (
-    pathlib.Path(__file__).parents[3] / "agent" / "src",
-    pathlib.Path(__file__).parents[3] / "gateway" / "src",
-)
+#: `services/`, from `services/agent/tests/this_file.py`.
+_SERVICES = pathlib.Path(__file__).parents[2]
+ROOTS = (_SERVICES / "agent" / "src", _SERVICES / "gateway" / "src")
 
 
 def _name(node: ast.AST) -> str:
