@@ -340,8 +340,11 @@ the standalone installer copies itself there on a fresh install. The flow:
 3. The bootstrap waits for the app to exit (fails closed), verifies the
    checkout is clean, records the pre-update commit, then fetches the target
    (`origin/main` for nightly, the latest tag for release).
-4. It snapshots the built runtime, applies the target, runs `npm ci` +
-   `npm run build:unpack`, and smoke-tests the produced runtime.
+4. It snapshots the built runtime and applies the target. Dependencies are
+   reused only when a successful-install marker matches the lockfile, package
+   manifests, Node version, and npm version; otherwise it runs strict `npm ci`.
+   It then runs `npm run build:unpack` and smoke-tests the produced runtime. A
+   cached build failure invalidates the marker and retries once after `npm ci`.
 5. On success it writes a result marker and relaunches. On any failure it
    restores the previous commit and built runtime, then relaunches — a failed
    update always leaves the last working installation.

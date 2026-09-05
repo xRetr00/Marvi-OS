@@ -105,6 +105,12 @@ const MILESTONES: &[Milestone] = &[
         percent: 32,
     },
     Milestone {
+        prefix: "reusing installed dependencies (verified cache)",
+        stage_id: "dependencies",
+        title: "Dependencies ready",
+        percent: 32,
+    },
+    Milestone {
         prefix: "building (npm run build:unpack)",
         stage_id: "build",
         title: "Building desktop app",
@@ -452,6 +458,7 @@ mod tests {
         let line = "npm warn deprecated inflight@1.0.6";
         assert!(milestone_for(line).is_none());
         assert!(milestone_for("installing dependencies (npm ci)").is_some());
+        assert!(milestone_for("reusing installed dependencies (verified cache)").is_some());
     }
 
     #[test]

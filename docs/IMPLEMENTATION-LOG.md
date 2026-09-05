@@ -4,6 +4,19 @@ This is the chronological record of work that has actually happened. Planned
 work belongs in `docs/phases/`; architectural decisions belong in
 `docs/DECISIONS.md`.
 
+## 2026-09-05 — Updater dependency cache
+
+- Stopped unchanged updates from deleting and reinstalling the same 846 npm
+  packages. The bootstrap now reuses `node_modules` only after a prior
+  successful `npm ci` and an exact match on dependency inputs plus the active
+  Node and npm versions.
+- Kept strict recovery behavior: missing, corrupt, stale, failed, or
+  interrupted installs cannot produce a trusted marker, and a cached build
+  failure automatically retries once after a clean `npm ci`.
+- Added cache invalidation and failure regression tests and made the installer
+  UI report reuse as an explicit dependency stage instead of log-derived
+  progress.
+
 ## 2026-09-04 — Windows release-gate reliability
 
 - Preserved the ownership-before-child assertion while giving its synchronous
