@@ -89,7 +89,7 @@ Marvi OS is built for Windows and is under active development.
 2. Download and run `marvi-bootstrap.exe`.
 3. Follow the guided setup to choose your hardware, connect a model provider, and add the capabilities you want.
 
-You can begin with Chat and local tools using only a model provider. Voice, vision, browser automation, and additional capabilities can be added when you are ready. Downloads are verified and resumable, and failed updates preserve the last working installation.
+You can begin with Chat and local tools using only a model provider. Voice, vision, browser automation, and additional capabilities can be added when you are ready. Downloads are verified and resumable, unchanged dependencies are reused after a verified install, and failed updates preserve the last working installation.
 
 ## The idea behind Marvi
 
