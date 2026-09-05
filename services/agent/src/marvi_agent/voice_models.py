@@ -299,6 +299,45 @@ def default_voice(engine: str) -> str:
     return str(_tts_catalog()[resolve_engine(engine)]["default_voice"])
 
 
+def usable_voice(engine: str, voice: str) -> str:
+    """The voice this engine will actually speak in, given the one asked for.
+
+    One rule, in one place, because it existed in two and only one of them got
+    fixed. `offered` is the *catalog* -- what ships with the engine -- and a
+    cloned voice is by definition not in it, so `voice if voice in offered else
+    default` throws away every clone. That line was in `_SidecarEngine.shared`
+    as well as its `__init__`, twelve lines apart. Fixing the second one left
+    the first to do the substitution before the second ever ran, and the
+    result read as success everywhere:
+
+        12:44:17,372  tts: the Gateway chose voxtream2/'marvi-short'
+        12:44:17,375  tts: voxtream2 speaking as 'english-female' (a built-in voice)
+
+    Three milliseconds, no warning, because by then the name really was a
+    built-in one. Falling back is still right for a name that is neither in
+    the catalog nor on disk -- a voice that does not exist has to become one
+    that does -- but a clone is not that.
+    """
+    spec = _tts_catalog()[resolve_engine(engine)]
+    offered = {str(item["id"]) for item in spec.get("voices", ())}
+    if voice and (voice in offered or cloned_voice(engine, voice)):
+        return voice
+    fallback = str(spec["default_voice"])
+    if voice:
+        # Warned here rather than at the caller, because the caller that
+        # substitutes is not the one that logs: `shared` resolved the name and
+        # handed the result to `__init__`, which compared it against itself,
+        # found no difference, and reported success. The silence is what made
+        # this take a week.
+        log.warning(
+            "tts: %r is not a voice %s has, and no recording of it is installed; using %r instead",
+            voice,
+            resolve_engine(engine),
+            fallback,
+        )
+    return fallback
+
+
 def cloned_voice(engine: str, voice: str) -> Path | None:
     """A recording installed for this engine under this name, if there is one.
 
@@ -326,49 +365,18 @@ class _SidecarEngine:
 
     def __init__(self, engine: str, voice: str) -> None:
         self.engine = resolve_engine(engine)
-        spec = _tts_catalog()[self.engine]
-        offered = {str(item["id"]) for item in spec.get("voices", ())}
-        # A recorded voice counts as offered.
-        #
-        # This was `voice if voice in offered else default_voice`, and
-        # `offered` is the *catalog* -- the voices that ship with the engine.
-        # A cloned voice is by definition not in it, so every clone was
-        # silently swapped for the bundled default before the sidecar ever saw
-        # the name. Selecting it in Settings appeared to work, the file was on
-        # disk, the sidecar would have used it, and Marvi answered in the stock
-        # voice with nothing logged anywhere to say why.
-        #
-        # Checked the same way the sidecars check: a WAV under `voices/<engine>`
-        # named for the voice. Falling back is still right for a name that is
-        # neither -- a voice that does not exist has to become one that does --
-        # but a clone is not that.
-        self.voice = (
-            voice if (voice in offered or cloned_voice(self.engine, voice)) else str(spec["default_voice"])
+        self.voice = usable_voice(self.engine, voice)
+        # Said every time, not only when something went wrong. "Is it actually
+        # using my cloned voice" was unanswerable from the logs: the setting
+        # said one thing, the catalog silently said another, and nothing
+        # anywhere recorded which of them won.
+        recording = cloned_voice(self.engine, self.voice)
+        log.info(
+            "tts: %s speaking as %r (%s)",
+            self.engine,
+            self.voice,
+            f"your recording at {recording}" if recording else "a built-in voice",
         )
-        if voice and self.voice != voice:
-            # Said out loud, because the silence is what made this take a week.
-            log.warning(
-                "tts: %r is not a voice %s has, and no recording of it is installed; "
-                "using %r instead",
-                voice,
-                self.engine,
-                self.voice,
-            )
-        else:
-            # And the ordinary case, said too.
-            #
-            # "Is it actually using my cloned voice" was unanswerable from the
-            # logs: the setting said one thing, the catalog silently said
-            # another, and nothing anywhere recorded which of them won. A line
-            # that names the engine, the voice, and where that voice came from
-            # turns that question into one `grep`.
-            recording = cloned_voice(self.engine, self.voice)
-            log.info(
-                "tts: %s speaking as %r (%s)",
-                self.engine,
-                self.voice,
-                f"your recording at {recording}" if recording else "a built-in voice",
-            )
         self._process: subprocess.Popen[str] | None = None
         self._speaking = threading.Lock()
         #: The thread cleaning up after a barge-in, if one is running.
@@ -378,9 +386,8 @@ class _SidecarEngine:
     @classmethod
     def shared(cls, engine: str, voice: str) -> _SidecarEngine:
         selected = resolve_engine(engine)
-        spec = _tts_catalog()[selected]
-        offered = {str(item["id"]) for item in spec.get("voices", ())}
-        selected_voice = voice if voice in offered else str(spec["default_voice"])
+        # A clone counts. This is where they were being lost. See `usable_voice`.
+        selected_voice = usable_voice(selected, voice)
         key = (selected, selected_voice, 0)
         with _ENGINE_LOCK:
             # Every other sidecar goes, and that is the whole point of the

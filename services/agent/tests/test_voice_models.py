@@ -362,6 +362,40 @@ def test_a_cloned_voice_reaches_the_sidecar(tmp_path, monkeypatch) -> None:
     assert voice_models.cloned_voice(engine, "") is None
 
 
+def test_a_clone_survives_the_whole_way_to_the_sidecar(tmp_path, monkeypatch) -> None:
+    """The test above checked the ingredient and missed the meal.
+
+    `cloned_voice` was correct and asserted; the substitution happened in
+    `_SidecarEngine.shared`, which never consulted it. So the clone was gone
+    before the engine that had been fixed to accept it was ever built, and the
+    log read as a clean success:
+
+        tts: the Gateway chose voxtream2/'marvi-short'
+        tts: voxtream2 speaking as 'english-female' (a built-in voice)
+
+    This asserts the name that comes out the far end, which is the only thing
+    the user can hear.
+    """
+    from marvi_agent import voice_models
+
+    monkeypatch.setattr(voice_models, "APP_DATA", tmp_path)
+    engine = "voxtream2"
+    recording = tmp_path / "voices" / engine / "marvi-short.wav"
+    recording.parent.mkdir(parents=True, exist_ok=True)
+    recording.write_bytes(b"RIFF....WAVE")
+
+    assert voice_models.usable_voice(engine, "marvi-short") == "marvi-short"
+
+    got: list[str] = []
+    monkeypatch.setattr(voice_models._SidecarEngine, "__init__",
+                        lambda self, engine, voice: got.append(voice))
+    monkeypatch.setattr(voice_models.sidecars, "track", lambda _engine: None)
+    monkeypatch.setattr(voice_models, "_SIDECARS", {})
+
+    voice_models._SidecarEngine.shared(engine, "marvi-short")
+    assert got == ["marvi-short"], f"the clone became {got}"
+
+
 def test_a_voice_that_is_neither_still_falls_back(tmp_path, monkeypatch) -> None:
     # The fallback is right for a name that names nothing: an engine cannot
     # speak in a voice that does not exist. It was only ever wrong for clones.
