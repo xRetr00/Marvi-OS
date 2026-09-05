@@ -186,9 +186,28 @@ class Embedder:
                 # Checked again inside the lock: the thread that waited here
                 # wants the model the first one built, not a second copy.
                 if self._local is None:
-                    from sentence_transformers import SentenceTransformer
-
                     from .condition import doing
+
+                    # Timed separately, and it is the larger half. The log had
+                    # ten seconds of complete silence here:
+                    #
+                    #     12:18:49  standing brief rebuilt from 187 memories
+                    #     12:18:59  Loading SentenceTransformer model from ...
+                    #     12:18:59  embeddings: ... loaded on the CPU in 0.5s
+                    #
+                    # and the only line anywhere reported the 0.5s. The other
+                    # ten are torch arriving from disk -- a couple of hundred
+                    # megabytes of DLL, which on Windows does not yield -- and
+                    # nothing said so, so the stall got attributed to whatever
+                    # request happened to be in flight.
+                    with doing("loading the memory model"):
+                        importing = time.monotonic()
+                        from sentence_transformers import SentenceTransformer
+
+                        log.info(
+                            "embeddings: sentence-transformers imported in %.1fs",
+                            time.monotonic() - importing,
+                        )
 
                     began = time.monotonic()
                     # Also here, because warming is best effort and this is

@@ -173,6 +173,17 @@ def configured_tts() -> tuple[str, str]:
             )
             return "kokoro", default_voice("kokoro")
         voice = str(body.get("selected") or "")
+        # Said on the way out even when nothing went wrong. Three runs were
+        # spent inferring which of four exits had taken the voice, from the
+        # absence of a warning -- which is not evidence, it is the lack of any.
+        # One line here and the log answers it outright.
+        log.info(
+            "tts: the Gateway chose %s/%r (missing=%r, engine_missing=%r)",
+            engine,
+            voice,
+            body.get("missing"),
+            body.get("engine_missing"),
+        )
         if voice and not body.get("missing"):
             return engine, voice
         log.warning(
