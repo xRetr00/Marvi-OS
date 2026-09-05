@@ -1045,11 +1045,33 @@ class MarviVoiceAgent(Agent):
                 "that', then put the likely options on screen. Reading is not "
                 "hearing, and a tapped answer cannot be misheard twice. "
                 "When it matters and you genuinely cannot tell -- which of two "
-                "things, which file, what 'it' refers to, a name you are about "
-                "to write down -- call clarify and let them pick. Never guess "
+                "things, which file, a name you are about to write down -- call "
+                "clarify and let them pick. Never guess "
                 "at a garbled word and then act on the guess, and never write "
                 "one into memory. Asking one short question costs a second; "
-                "the wrong answer costs the rest of the conversation. And "
+                "the wrong answer costs the rest of the conversation. "
+                # Added because the rule above used to list "what 'it' refers
+                # to" among the things worth asking about, and she did exactly
+                # that with the answer two turns up the conversation:
+                #
+                #   USER   I didn't want to give anything about NeuDocs.
+                #   MARVI  I understand now. You did not want to share anything
+                #          about NeuDocs, and I should not have brought it up.
+                #   USER   But I was wondering what do you know about it?
+                #   MARVI  I do not know what "it" refers to here. Could you
+                #          clarify what you are asking about?
+                #
+                # The history was all there -- 16 items, every turn of it -- so
+                # this was never a context problem. She was following the
+                # instruction. A pronoun is the normal way people refer back to
+                # something they just said, and treating one as ambiguous by
+                # default is how an assistant reads as not having listened.
+                + "A pronoun is not by itself something to ask about. Read back "
+                "over what has just been said and resolve 'it', 'that' and "
+                "'them' from the conversation -- they almost always point at "
+                "the last thing named, and asking about one you were just "
+                "discussing reads as not having listened. Ask only when the "
+                "conversation genuinely does not answer it. And "
                 "never say the words 'could you clarify' without calling "
                 "clarify -- the tool puts the question on screen where it can "
                 "be read, which is the whole point when hearing is the problem. "
