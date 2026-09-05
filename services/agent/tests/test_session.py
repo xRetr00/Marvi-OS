@@ -435,3 +435,55 @@ def test_the_persona_does_not_promise_to_write_memory() -> None:
     said = MarviVoiceAgent(tools=None).instructions.lower()
 
     assert "memory writes itself after the turn" in said
+
+
+def test_reporting_never_makes_a_turn_wait(monkeypatch) -> None:
+    """Telemetry used to run on the loop carrying the audio.
+
+    `user_input_transcribed` fires on every interim result and each one made a
+    blocking `httpx.post` with a 1.5s timeout, straight from an async callback:
+    56 synchronous round trips across five turns of one real session. Three of
+    them can precede a reply, so a Gateway that was slow to answer made the
+    *turn* slow -- which is what happened during the eleven-second embedding
+    load on the first turn of a call.
+    """
+    import queue as _queue
+    import threading
+    import time
+
+    from marvi_agent import session
+
+    released = threading.Event()
+    sent: list[dict] = []
+
+    class _Slow:
+        @staticmethod
+        def post(url, json=None, timeout=None):  # noqa: ANN001, A002
+            released.wait(5)
+            sent.append(json)
+
+    monkeypatch.setitem(__import__("sys").modules, "httpx", _Slow)
+
+    began = time.monotonic()
+    session._report_transcript(heard="hello")
+    session._observe_turn("hello", "hi there")
+    spent = time.monotonic() - began
+
+    assert spent < 0.1, f"the caller waited {spent:.2f}s on telemetry"
+
+    released.set()
+    # And it does actually get sent, rather than being dropped on the floor.
+    for _ in range(50):
+        if len(sent) == 2:
+            break
+        time.sleep(0.05)
+    assert len(sent) == 2, f"only {len(sent)} of 2 reports were sent"
+
+
+def test_a_stalled_gateway_does_not_grow_the_queue_forever(monkeypatch) -> None:
+    # A bounded queue is the point: reports that have piled up behind a Gateway
+    # that is not answering are reports nobody wants any more, and an interim
+    # transcript is superseded by the next one a moment later.
+    from marvi_agent import session
+
+    assert session._REPORTS.maxsize > 0

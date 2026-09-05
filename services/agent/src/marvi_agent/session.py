@@ -5,6 +5,7 @@ import contextlib
 import json
 import logging
 import os
+import queue
 import re
 import threading
 import time
@@ -621,8 +622,11 @@ def _report_shape(turn_ctx: Any) -> None:
     import contextlib
 
     with contextlib.suppress(Exception):
-        import httpx
-
+        # Measured here, sent elsewhere. The measuring has to happen on the
+        # caller's thread -- `turn_ctx` is live and the loop is about to add to
+        # it, so reading it from a worker would report a different turn's shape
+        # or race the mutation. It is a walk over a list in memory and costs
+        # nothing; the HTTP call is the part that was costing a turn.
         parts = []
         characters = 0
         for item in getattr(turn_ctx, "items", []):
@@ -631,11 +635,17 @@ def _report_shape(turn_ctx: Any) -> None:
                 size = len(str(getattr(item, "content", "")))
                 characters += size
                 parts.append(f"{role}:{size}")
-        httpx.post(
-            f"{gateway_url()}/observations/shape",
-            json={"parts": parts},
-            timeout=REPORT_TIMEOUT,
-        )
+
+        def send() -> None:
+            import httpx
+
+            httpx.post(
+                f"{gateway_url()}/observations/shape",
+                json={"parts": parts},
+                timeout=REPORT_TIMEOUT,
+            )
+
+        _in_background(send)
         # And the same measurement, for the Voice page's meter.
         #
         # Estimated from characters rather than counted, and that is the honest
@@ -653,22 +663,28 @@ def _report_context(tokens: int) -> None:
     The window comes from the same place the model does, so a meter cannot
     disagree with the provider about how much room there is.
     """
-    import contextlib
+    turns = len(_said) + 1
 
-    with contextlib.suppress(Exception):
+    def send() -> None:
         import httpx
 
         from .runtime import AgentConfig
 
+        # Two round trips on the first call, not one: the window is fetched
+        # from the Gateway as well. Both used to happen on the event loop, in
+        # the middle of a turn, which is how a meter nobody was waiting on
+        # became something a reply waited for.
         window = getattr(_report_context, "_window", 0)
         if not window:
             window = AgentConfig.from_gateway().context
             _report_context._window = window  # type: ignore[attr-defined]
         httpx.post(
             f"{gateway_url()}/voice/activity",
-            json={"used": tokens, "window": window, "turns": len(_said) + 1},
+            json={"used": tokens, "window": window, "turns": turns},
             timeout=REPORT_TIMEOUT,
         )
+
+    _in_background(send)
 
 
 def _observe_turn(user: str, assistant: str) -> None:
@@ -679,11 +695,10 @@ def _observe_turn(user: str, assistant: str) -> None:
     to find out -- which is exactly what a `memory_remember` tool call in the
     middle of the turn was making it do.
     """
-    import contextlib
-
     if not (user.strip() or assistant.strip()):
         return
-    with contextlib.suppress(Exception):
+
+    def send() -> None:
         import httpx
 
         httpx.post(
@@ -692,6 +707,69 @@ def _observe_turn(user: str, assistant: str) -> None:
             timeout=REPORT_TIMEOUT,
         )
 
+    # Fire and forget for real. The docstring has said this since it was
+    # written; the code awaited a round trip on the event loop.
+    _in_background(send)
+
+
+#: Reports that leave the process and that nothing is waiting for.
+#:
+#: Every one of these was a blocking `httpx` call made straight from an async
+#: callback -- so it ran on the agent's event loop, the one carrying your
+#: audio, with a 1.5s timeout on it. `user_input_transcribed` fires on every
+#: interim result, which made it 56 synchronous round trips across five turns
+#: in one real session, about eleven per turn, none of which anything read.
+#:
+#: A slow Gateway therefore became a slow *turn*: three of these can precede a
+#: reply, so up to 4.5 seconds of a turn could be spent waiting on telemetry.
+#: That is the mechanism behind "the first turn is slow" -- during the eleven
+#: second embedding load, they all timed out, one after another.
+#:
+#: One thread, so the Voice page still sees "heard" before "spoken"; bounded,
+#: because telemetry that has queued up behind a stalled Gateway is telemetry
+#: nobody wants any more. Dropping an interim transcript is free -- another
+#: arrives in a moment and supersedes it.
+_REPORTS: queue.Queue[Callable[[], None]] = queue.Queue(maxsize=64)
+_reporter_started = threading.Event()
+
+
+def _reporting() -> None:
+    while True:
+        work = _REPORTS.get()
+        with contextlib.suppress(Exception):
+            work()
+
+
+def _in_background(work: Callable[[], None]) -> None:
+    """Send this, eventually, and never make a turn wait for it."""
+    if not _reporter_started.is_set():
+        _reporter_started.set()
+        threading.Thread(target=_reporting, name="marvi-reports", daemon=True).start()
+    try:
+        _REPORTS.put_nowait(work)
+    except queue.Full:
+        # Said out loud rather than swallowed, because a queue that is full
+        # means the Gateway is not answering, and that is worth knowing.
+        log.warning("reports are backing up; dropping one (the Gateway is slow to answer)")
+
+
+def _finish_reporting(seconds: float = 2.0) -> int:
+    """Wait briefly for queued reports to go out. Returns how many did not.
+
+    Only at the end of a call. The worker is a daemon, so anything still
+    queued when the process exits is lost -- which is free for an interim
+    transcript and not free for `_observe_turn`, whose payload is a memory.
+    Ending a call right after Marvi finishes speaking is a completely ordinary
+    thing to do and would have dropped it.
+    """
+    until = time.monotonic() + seconds
+    while not _REPORTS.empty() and time.monotonic() < until:
+        time.sleep(0.02)
+    left = _REPORTS.qsize()
+    if left:
+        log.warning("%d report(s) never reached the Gateway before the call ended", left)
+    return left
+
 
 def _report_transcript(*, heard: str = "", spoken: str = "") -> None:
     """Send what was heard or said to the Gateway, for the Voice page.
@@ -699,9 +777,7 @@ def _report_transcript(*, heard: str = "", spoken: str = "") -> None:
     Nothing was ever posted here, which is why the live transcript on the Voice
     page has always been empty -- the endpoint existed and had no caller.
     """
-    import contextlib
-
-    with contextlib.suppress(Exception):
+    def send() -> None:
         import httpx
 
         httpx.post(
@@ -709,6 +785,8 @@ def _report_transcript(*, heard: str = "", spoken: str = "") -> None:
             json={"heard": heard, "spoken": spoken},
             timeout=REPORT_TIMEOUT,
         )
+
+    _in_background(send)
 
 
 load_dotenv(Path(__file__).parents[2] / ".env")
@@ -1901,6 +1979,9 @@ async def marvi_session(ctx: JobContext) -> None:
         # So the next call can tell a rejoin from an arrival.
         greeting.remember_this_call_ended()
         _remember_the_session()
+        # Anything still in flight, before the process goes. See
+        # `_finish_reporting`: the last turn's memory is usually in here.
+        _finish_reporting()
         ctx.shutdown(reason=str(reason))
 
     # `update_tools` is on the Agent, not the session -- checked against the
