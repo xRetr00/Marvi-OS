@@ -92,7 +92,17 @@ def slow_requests(app: Any) -> None:
         began = time.monotonic()
         path = getattr(getattr(request, "url", None), "path", "?")
         try:
-            response = await call_next(request)
+            # Named while it runs, not only timed afterwards, so the loop
+            # watcher can say *what* was blocking rather than "something on the
+            # main loop". That vaguer sentence is what reached the user:
+            #
+            #     MARVI  Hey, that took a moment because I was busy with
+            #            something on the main loop.
+            #
+            # where "I was answering /memory/recall just then" is the same
+            # fact and actually tells them something.
+            with condition.doing(f"answering {path}"):
+                response = await call_next(request)
         except Exception as exc:
             spent = time.monotonic() - began
             log.warning(

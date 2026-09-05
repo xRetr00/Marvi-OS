@@ -155,19 +155,53 @@ def recent(now_at: float | None = None) -> Strain | None:
 #: Whether the last strain has already been said out loud.
 _spoken = False
 
+#: How bad a pause has to be before it is worth interrupting a conversation.
+#:
+#: Not the same bar as `WORTH_MENTIONING`, and getting that wrong is the whole
+#: lesson here. A second of lag is worth *recording* -- it explains a health
+#: check that timed out, and it belongs in the log. It is nowhere near worth
+#: *saying*, and shipping it as a spoken line produced exactly what anybody
+#: would predict:
+#:
+#:     MARVI  I was answering /memory/recall just then, which is why I was slow.
+#:     MARVI  Hey, that took a moment because I was busy with something on the
+#:            main loop.
+#:
+#: on turn after turn, for half-second pauses nobody had noticed until she
+#: mentioned them. A voice call blocks the loop constantly and briefly; that is
+#: what a voice call is. Five seconds is long enough that the person was
+#: already wondering, which is the only situation where explaining is a
+#: kindness rather than an interruption.
+WORTH_INTERRUPTING = 5.0
+
+#: And not more often than this, whatever happens. Two pauses in a minute is
+#: an assistant having a bad minute; two apologies is an assistant making it
+#: everybody's problem.
+NOT_AGAIN_WITHIN = 600.0
+
+_last_said_at = 0.0
+
 
 def worth_saying(name: str = "") -> str:
-    """A line about the last strain, once, or empty.
+    """A line about the last strain, once, and only if it was bad enough.
 
     The Gateway decides whether there is anything to mention and how to say
-    it; whoever is carrying it just carries it. Marked as said on the way out,
-    because the failure this avoids is Marvi telling you about the same
-    ten-second pause at the start of every turn for the next two minutes.
+    it; whoever is carrying it just carries it.
+
+    Three gates, and every one of them was learned by shipping without it:
+    said once (or she repeats it every turn), only if it was bad enough (or
+    she narrates every half-second of a normal call), and not again for a
+    while (or a rough patch becomes a monologue).
     """
-    global _spoken
+    global _spoken, _last_said_at
     with _lock:
-        strain, already = _last, _spoken
+        strain, already, said_at = _last, _spoken, _last_said_at
     if strain is None or already:
+        return ""
+    # A failure is worth saying however quick it was; being slow is not.
+    if not strain.failed and strain.seconds < WORTH_INTERRUPTING:
+        return ""
+    if said_at and time.monotonic() - said_at < NOT_AGAIN_WITHIN:
         return ""
     from . import voicing
 
@@ -192,15 +226,17 @@ def worth_saying(name: str = "") -> str:
         return ""
     with _lock:
         _spoken = True
+        _last_said_at = time.monotonic()
     return line
 
 
 def forget() -> None:
     """Drop what is remembered. For tests, and after it has been said."""
-    global _last, _spoken
+    global _last, _spoken, _last_said_at
     with _lock:
         _last = None
         _spoken = False
+        _last_said_at = 0.0
         _doing.clear()
 
 

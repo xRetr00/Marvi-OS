@@ -149,22 +149,56 @@ def configured_voice() -> str:
 
 
 def configured_tts() -> tuple[str, str]:
-    """The selected engine and a voice that belongs to that engine."""
-    import contextlib
+    """The selected engine and a voice that belongs to that engine.
 
-    with contextlib.suppress(Exception):
+    Every fallback here says so.
+
+    There are four ways out of this function and three of them quietly
+    substitute a different voice than the one chosen in Settings. All three
+    were silent, so "cloning is not working" produced no evidence anywhere:
+    the picker said `Marvi Short`, the Gateway agreed, and the engine was
+    handed `cute-reference` with nothing in between to say who changed it.
+
+    A voice that is not the one asked for is worth a line, every time.
+    """
+    try:
         import httpx
 
         body = httpx.get(f"{gateway_url()}/voices", timeout=REPORT_TIMEOUT).json()
         engine = resolve_engine(str(body.get("selected_engine") or ""))
         if body.get("engine_missing"):
+            log.warning(
+                "tts: the Gateway says %r is not installed; falling back to kokoro",
+                engine,
+            )
             return "kokoro", default_voice("kokoro")
         voice = str(body.get("selected") or "")
         if voice and not body.get("missing"):
             return engine, voice
+        log.warning(
+            "tts: the Gateway offers no usable voice for %s (selected=%r, "
+            "missing=%r); falling back to %r",
+            engine,
+            voice,
+            body.get("missing"),
+            default_voice(engine),
+        )
         return engine, default_voice(engine)
-    engine = resolve_engine(os.environ.get("MARVI_TTS_ENGINE", "kokoro"))
-    return engine, os.environ.get("MARVI_TTS_VOICE", "") or default_voice(engine)
+    except Exception as exc:
+        # The Gateway is the source of truth and it did not answer. This is the
+        # one that mattered: it happens exactly when the Gateway is busy, which
+        # is exactly when a call is starting, so the voice quietly reverted at
+        # the moment nobody was watching the log.
+        engine = resolve_engine(os.environ.get("MARVI_TTS_ENGINE", "kokoro"))
+        from_env = os.environ.get("MARVI_TTS_VOICE", "").strip()
+        log.warning(
+            "tts: could not ask the Gateway which voice to use (%s); "
+            "using %s/%r from this process's own settings",
+            exc,
+            engine,
+            from_env or default_voice(engine),
+        )
+        return engine, from_env or default_voice(engine)
 
 
 #: Turns that carry nothing to look up.

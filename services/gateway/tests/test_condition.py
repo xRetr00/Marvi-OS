@@ -141,11 +141,19 @@ def test_a_line_is_handed_over_exactly_once() -> None:
     assert condition.worth_saying("Shereef") == ""
 
 
-def test_something_new_is_worth_saying_again() -> None:
+def test_something_new_is_worth_saying_once_the_quiet_window_passes(monkeypatch) -> None:
+    """Superseded by `NOT_AGAIN_WITHIN`, and deliberately.
+
+    This used to assert that a second strain was immediately worth saying.
+    That is how a rough patch becomes a monologue, so a new strain now waits
+    out the quiet window like anything else -- but it must not be silenced
+    forever, which is what this pins.
+    """
     condition.note("loading the memory model", 10.7)
     assert condition.worth_saying("Shereef")
 
-    condition.note("reaching the room", 3.0)
+    monkeypatch.setattr(condition, "NOT_AGAIN_WITHIN", 0.0)
+    condition.note("reaching the room", 11.0)
     assert "reaching the room" in condition.worth_saying("Shereef")
 
 
@@ -161,4 +169,44 @@ def test_a_failure_does_not_get_the_words_for_slowness() -> None:
 
 
 def test_nothing_to_say_is_the_normal_answer() -> None:
+    assert condition.worth_saying("Shereef") == ""
+
+
+def test_an_ordinary_pause_is_not_worth_interrupting_for() -> None:
+    """The regression that made Marvi apologise on every single turn.
+
+    A voice call blocks the loop constantly and briefly -- that is what a voice
+    call is. Recording a second of lag is right; saying it out loud produced
+
+        MARVI  I was answering /memory/recall just then, which is why I was slow.
+        MARVI  Hey, that took a moment because I was busy with something on the
+               main loop.
+
+    turn after turn, for pauses nobody had noticed until she mentioned them.
+    """
+    for seconds in (0.4, 1.2, 3.0):
+        condition.forget()
+        condition.note("busy with something on the main loop", seconds, regardless=True)
+        assert condition.worth_saying("Shereef") == "", f"{seconds}s should stay quiet"
+
+
+def test_a_pause_long_enough_to_notice_is_explained() -> None:
+    # The 12.3-second block that was really there. By then the person has
+    # already wondered, and explaining is a kindness rather than an intrusion.
+    condition.note("busy with something on the main loop", 12.3, regardless=True)
+    assert condition.worth_saying("Shereef")
+
+
+def test_a_failure_is_worth_saying_however_quick() -> None:
+    # Being slow and being broken are different news.
+    condition.note("reaching the room", 0.1, failed="connection refused")
+    assert condition.worth_saying("Shereef")
+
+
+def test_she_does_not_make_a_rough_patch_everybody_is_problem() -> None:
+    condition.note("loading the memory model", 12.0)
+    assert condition.worth_saying("Shereef")
+
+    # A second bad pause soon after is real, and saying so again is not.
+    condition.note("answering /memory/recall", 11.0)
     assert condition.worth_saying("Shereef") == ""
