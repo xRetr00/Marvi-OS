@@ -447,7 +447,6 @@ def test_reporting_never_makes_a_turn_wait(monkeypatch) -> None:
     *turn* slow -- which is what happened during the eleven-second embedding
     load on the first turn of a call.
     """
-    import queue as _queue
     import threading
     import time
 
@@ -458,7 +457,7 @@ def test_reporting_never_makes_a_turn_wait(monkeypatch) -> None:
 
     class _Slow:
         @staticmethod
-        def post(url, json=None, timeout=None):  # noqa: ANN001, A002
+        def post(url, json=None, timeout=None):
             released.wait(5)
             sent.append(json)
 
