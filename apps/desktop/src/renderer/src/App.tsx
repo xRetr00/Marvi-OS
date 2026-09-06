@@ -231,8 +231,8 @@ import { $voices, refreshVoices } from './store/voices'
 const NAV_GROUPS = [
   { label: 'Core', items: ['Overview', 'Voice', 'Chat'] },
   { label: 'Context', items: ['Vision', 'Room', 'Activity'] },
-  { label: 'Cortex', items: ['DMN', 'Graph', 'Mind', 'Schedules'] },
-  { label: 'Capabilities', items: ['Skills', 'Connectors', 'MCP', 'Plugins'] }
+  { label: 'Cortex', items: ['DMN', 'Graph', 'Mind'] },
+  { label: 'Capabilities', items: ['Skills', 'Cronjobs', 'Connectors', 'MCP', 'Plugins'] }
 ] as const
 
 /** Behind the gear: the things you set up. */
@@ -272,8 +272,8 @@ const NAV_CODES: Record<Page, string> = {
   DMN: 'DM',
   Graph: 'GR',
   Mind: 'MI',
-  Schedules: 'SC',
   Skills: 'SK',
+  Cronjobs: 'CJ',
   Connectors: 'CN',
   MCP: 'MC',
   Plugins: 'PL'
@@ -289,8 +289,8 @@ const NAV_ICONS: Record<Page, AbstractIconName> = {
   DMN: 'identity',
   Graph: 'memory',
   Mind: 'mind',
-  Schedules: 'schedules',
   Skills: 'skills',
+  Cronjobs: 'schedules',
   Connectors: 'connectors',
   MCP: 'mcp',
   Plugins: 'plugins'
@@ -819,8 +819,8 @@ function MainSurface(): React.JSX.Element {
                     <MemoryPanel />
                   ) : page === 'Mind' ? (
                     <MindPage />
-                  ) : page === 'Schedules' ? (
-                    <SchedulesPanel />
+                  ) : page === 'Cronjobs' ? (
+                    <CronjobsPage />
                   ) : page === 'Skills' ? (
                     <SkillsPanel />
                   ) : page === 'Connectors' ? (
@@ -5314,7 +5314,7 @@ function PagePanel({ page }: { page: Page }): React.JSX.Element {
     Chat: '',
     Room: '',
     Activity: 'Local event and tool history.',
-    Schedules: '',
+    Cronjobs: '',
     DMN: "Marvi's identity and your standing preferences.",
     Graph: 'What Marvi knows, and how it connects.',
     Mind: 'Autonomous decisions and initiative controls.',

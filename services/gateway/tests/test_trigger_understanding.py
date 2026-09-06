@@ -47,6 +47,9 @@ class _Memory:
 
 
 class _Sync:
+    """Only what `ingest` reaches for. `cognition = None` means the gatekeeper
+    is skipped, so these tests exercise the filing, not the model."""
+
     registry = default_registry()
     cognition = None
     speaking_to = "Shereef"
@@ -55,6 +58,10 @@ class _Sync:
         @staticmethod
         def mark_seen(*_args, **_kwargs):
             return None
+
+    @staticmethod
+    def sync_connection(*_args, **_kwargs):
+        return {"ingested": []}
 
 
 @pytest.fixture
@@ -67,6 +74,7 @@ def pushed() -> tuple[_Journal, _Memory]:
     ingest.sync = _Sync()
     ingest.received = 0
     ingest.last_event_at = None
+    ingest.last_error = ""
     ingest.ingest(
         {
             "toolkit_slug": "gmail",
@@ -123,6 +131,7 @@ def test_an_unreadable_payload_still_reaches_the_journal() -> None:
     ingest.journal, ingest.memory, ingest.sync = journal, memory, _Sync()
     ingest.received = 0
     ingest.last_event_at = None
+    ingest.last_error = ""
 
     ingest.ingest({"toolkit_slug": "gmail", "trigger_slug": "X", "id": "e2", "payload": {"odd": 1}})
 
