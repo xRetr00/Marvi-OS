@@ -14,6 +14,7 @@ from marvi_gateway.journal import DEDUPE_WINDOW_SECONDS, EventJournal
 from marvi_gateway.memory import MemoryStore
 from marvi_gateway.mind import Mind
 from marvi_gateway.policy import (
+    SURFACES,
     InitiativeSettings,
     WorldState,
     evaluate,
@@ -93,8 +94,18 @@ def test_untrusted_content_can_inform_but_never_propose() -> None:
 
     verdict = evaluate(email(trusted=False), world(), settings, wanted="propose")
 
-    # An email may reach the Island; it may never be the reason Marvi acts.
-    assert verdict.surface in ("island", "activity")
+    # An email may now be read out; it may still never be the reason Marvi
+    # acts. The cap used to be `island`, which is one rung tighter than this
+    # test's own name argues for and meant mail could not be mentioned at all
+    # -- the whole "email arrives and Marvi says nothing" symptom. `propose`
+    # is the surface where an event becomes a reason to *do* something, and
+    # that is the one worth denying to text a stranger wrote.
+    #
+    # The other half of the trade lives in `mind`: an untrusted event is
+    # phrased by a template in `voicing`, never by a model that has read it.
+    # See test_untrusted_may_be_spoken.py.
+    assert SURFACES.index(verdict.surface) < SURFACES.index("propose")
+    assert verdict.surface == "speak"
     assert verdict.surface != "propose"
 
 

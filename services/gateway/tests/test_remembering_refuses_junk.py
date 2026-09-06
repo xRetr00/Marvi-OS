@@ -18,10 +18,10 @@ class _Store:
     def __init__(self) -> None:
         self.kept: list[tuple[str, str]] = []
 
-    def remember(self, subject, body, kind="semantic", **_):  # noqa: ANN001
+    def remember(self, subject, body, kind="semantic", **_):
         self.kept.append((subject, body))
 
-    def forget(self, _id):  # noqa: ANN001
+    def forget(self, _id):
         return True
 
 
