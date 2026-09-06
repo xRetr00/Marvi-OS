@@ -125,6 +125,13 @@ class InitiativeSettings:
     """Everything the user can turn down. Defaults are deliberately quiet."""
 
     paused: bool = False
+    #: Whether there are quiet hours at all.
+    #:
+    #: Turning them off was possible only by accident -- setting start and end
+    #: to the same hour makes the window empty -- which is not a setting, it is
+    #: a trick. Somebody who works nights, or who simply wants to be told
+    #: things at two in the morning, should be able to say so.
+    quiet_enabled: bool = True
     quiet_start: int = DEFAULT_QUIET_START
     quiet_end: int = DEFAULT_QUIET_END
     cooldown_seconds: int = DEFAULT_COOLDOWN_SECONDS
@@ -141,6 +148,8 @@ class InitiativeSettings:
         return cls(
             paused=os.environ.get("MARVI_INITIATIVE", "").strip().lower()
             in ("0", "off", "false", "paused"),
+            quiet_enabled=os.environ.get("MARVI_QUIET_ENABLED", "1").strip().lower()
+            not in ("0", "off", "false", "no"),
             quiet_start=_int_env("MARVI_QUIET_START", DEFAULT_QUIET_START, 0, 23),
             quiet_end=_int_env("MARVI_QUIET_END", DEFAULT_QUIET_END, 0, 23),
             cooldown_seconds=_int_env(
@@ -156,6 +165,7 @@ class InitiativeSettings:
     def as_dict(self) -> dict[str, Any]:
         return {
             "paused": self.paused,
+            "quiet_enabled": self.quiet_enabled,
             "quiet_start": self.quiet_start,
             "quiet_end": self.quiet_end,
             "cooldown_seconds": self.cooldown_seconds,
@@ -189,6 +199,8 @@ class WorldState:
 
 
 def _quiet_now(settings: InitiativeSettings, now: datetime) -> bool:
+    if not settings.quiet_enabled:
+        return False
     start, end = settings.quiet_start, settings.quiet_end
     hour = now.astimezone().hour
     # Quiet hours normally wrap midnight.
