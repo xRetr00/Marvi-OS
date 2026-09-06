@@ -30,7 +30,7 @@ from livekit.agents import (
 )
 from livekit.plugins import silero
 
-from . import delegated, greeting, observability, oncall, sidecars
+from . import alone, delegated, greeting, observability, oncall, sidecars
 from .parakeet_stt import PARAKEET_ROOT, build_stt, chosen_engine
 from .runtime import AgentConfig, build_llm, build_local_turn_detector
 from .timing import TimedLLM
@@ -1423,6 +1423,24 @@ STAND_DOWN_POLL = 30.0
 STAND_DOWN_LIMIT = 4 * 60 * 60.0
 
 
+def _somebody_in_the_room() -> bool | None:
+    """Whether anybody is there, from the Gateway's fused reading.
+
+    `None` when nothing can say, and the caller treats that as "assume they
+    are": ending a call because a sensor went quiet is the same failure as
+    never ending one, pointed the other way.
+    """
+    import contextlib
+
+    with contextlib.suppress(Exception):
+        import httpx
+
+        body = httpx.get(f"{gateway_url()}/room/presence", timeout=REPORT_TIMEOUT).json()
+        if "present" in body:
+            return bool(body["present"])
+    return None
+
+
 def _gpu_is_spoken_for() -> tuple[bool, str]:
     """Whether the Gateway says something else should have the card."""
     import contextlib
@@ -1885,8 +1903,14 @@ async def marvi_session(ctx: JobContext) -> None:
     # that one" means nothing without the question it answered.
     last_heard = {"text": ""}
 
+    # Notices when nobody is talking any more and leaves. See `alone`: two
+    # sessions in one day ran 305 and 137 minutes with the microphone open,
+    # because nothing ended a call that nobody ended by hand.
+    quiet = alone.Alone(present=_somebody_in_the_room)
+
     @session.on("user_input_transcribed")
     def _keep_heard(event: Any) -> None:
+        quiet.heard()
         if getattr(event, "is_final", False):
             last_heard["text"] = _heard_correctly(getattr(event, "transcript", "") or "")
 
@@ -1897,6 +1921,8 @@ async def marvi_session(ctx: JobContext) -> None:
         item = getattr(event, "item", None)
         if getattr(item, "role", "") != "assistant":
             return
+        # A long answer she is still delivering is not an idle call.
+        quiet.spoke()
         spoken = getattr(item, "text_content", "") or ""
         _report_transcript(spoken=spoken)
         # Handed over rather than decided here. Marvi used to choose what to
@@ -1949,6 +1975,24 @@ async def marvi_session(ctx: JobContext) -> None:
             spoke_first["yes"] = True
 
     await session.start(agent=voice_agent, room=ctx.room)
+
+    async def leave(why: str) -> None:
+        """End a call nobody is in, saying so unless there is nobody to hear.
+
+        Through `session.generate_reply` rather than `say`, so the farewell is
+        one more turn of the conversation and rides the same speech handle the
+        model's own goodbye would -- and then the session closes when it is
+        done, the same way `end_conversation` closes it.
+        """
+        line = alone.farewell_for(why)
+        if not line:
+            session.shutdown()
+            return
+        handle = session.say(line)
+        with contextlib.suppress(Exception):
+            handle.add_done_callback(lambda _: session.shutdown())
+
+    asyncio.get_running_loop().create_task(quiet.watch(leave))
     # Both numbers, because they answer different questions. The first is what
     # LiveKit's connect cost; the second is what the person waited from the job
     # arriving to Marvi listening, which is the one they can feel.

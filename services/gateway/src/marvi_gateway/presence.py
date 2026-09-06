@@ -126,10 +126,34 @@ class Reading:
 
 
 def _age(value: Any, now: float) -> float | None:
-    """Seconds since a timestamp the sidecar reported, or None."""
+    """Seconds since a timestamp the sidecar reported, or None.
+
+    Epoch numbers *and* ISO strings, because the sidecar sends both and this
+    only ever read the first. Every timestamp in the room state arrives as
+    `"2026-08-24T21:46:54.084802+00:00"`, so every one of them came back None
+    -- and a None age is never stale, which quietly turned off the whole
+    staleness rule for all four signals.
+
+    The cost was not theoretical. OwnTracks publishes a `transition` only when
+    you cross a boundary, so a missed one leaves the last edge standing: the
+    live room state said `home: true` from a geofence event **thirteen days
+    old**, and presence weighed it as a current reading, because 180 seconds
+    can only expire an age that was measured.
+    """
+    if isinstance(value, bool):
+        return None
     if isinstance(value, int | float) and value > 0:
-        # Epoch seconds; anything else is not a timestamp we understand.
+        # Epoch seconds; a smaller number is not a timestamp we understand.
         return max(0.0, now - float(value)) if value > 1_000_000_000 else None
+    if isinstance(value, str) and value.strip():
+        from contextlib import suppress
+        from datetime import UTC, datetime
+
+        with suppress(ValueError):
+            moment = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+            if moment.tzinfo is None:
+                moment = moment.replace(tzinfo=UTC)
+            return max(0.0, now - moment.timestamp())
     return None
 
 
