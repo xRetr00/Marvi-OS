@@ -249,3 +249,15 @@ def test_a_beating_listener_is_running(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(wake, "listener_state_path", lambda: state)
 
     assert wake.listener()["running"] is True
+
+
+def test_auto_restart_defaults_on_and_can_be_disabled(monkeypatch) -> None:
+    from marvi_gateway import wake
+
+    monkeypatch.delenv(wake.AUTO_RESTART_SETTING, raising=False)
+    assert wake.status()["auto_restart"] is True
+
+    monkeypatch.setenv(wake.AUTO_RESTART_SETTING, "off")
+    status = wake.status()
+    assert status["auto_restart"] is False
+    assert status["auto_restart_setting"] == wake.AUTO_RESTART_SETTING

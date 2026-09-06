@@ -33,6 +33,7 @@ log = get_logger("wake")
 #: the Agent runs in a different Python environment; the test below fails if
 #: the two drift.
 DEFAULT_THRESHOLD = 0.5
+AUTO_RESTART_SETTING = "MARVI_WAKE_AUTO_RESTART"
 
 #: How long a detection stays "recent" for the UI. Long enough to be seen,
 #: short enough that it does not still be claiming she was called a minute ago.
@@ -199,6 +200,8 @@ def status() -> dict[str, Any]:
         "confidence": _confidence,
         "setting": "MARVI_WAKE_WORD",
         "threshold_setting": "MARVI_WAKE_THRESHOLD",
+        "auto_restart": _flag(AUTO_RESTART_SETTING, True),
+        "auto_restart_setting": AUTO_RESTART_SETTING,
         "device": os.environ.get(DEVICE_SETTING, ""),
         "device_setting": DEVICE_SETTING,
         "devices": microphones(),
