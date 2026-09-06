@@ -36,6 +36,9 @@ import React, { useEffect, useMemo, useState } from 'react'
 
 import type { Feeder, InitiativeStatus, MindDecision, WaitingItem } from '../../../shared/runtime'
 
+/** Every hour, for the quiet-hours pickers. */
+const HOURS = Array.from({ length: 24 }, (_, hour) => hour)
+
 /** The surfaces, quietest first. Mirrors `policy.SURFACES` exactly. */
 const LADDER = ['silent', 'remember', 'activity', 'island', 'speak', 'propose'] as const
 
@@ -245,6 +248,13 @@ export function MindPage(): React.JSX.Element {
     }
   }, [reload])
 
+  /** One knob at a time, and the answer is the new status. */
+  const setQuiet = async (patch: Record<string, number | boolean>): Promise<void> => {
+    const next = await window.marvi?.setMindSettings(patch)
+    if (next) setStatus(next)
+    else setReload((n) => n + 1)
+  }
+
   const toggle = async (): Promise<void> => {
     setBusy(true)
     await window.marvi?.setInitiative(!(status?.paused ?? false))
@@ -308,6 +318,58 @@ export function MindPage(): React.JSX.Element {
           <p className="mind-block-sub">
             Every event is checked against these in order. The closed one is the reason.
           </p>
+          {/* Quiet hours, reachable.
+              The Gateway has accepted these since they were written and
+              nothing in the app ever sent them, so the one gate that closes on
+              a schedule was a constant somebody would have had to edit an env
+              file to change -- and could only switch off by setting its two
+              ends to the same hour, which is a trick rather than a setting. */}
+          <div className="mind-quiet">
+            <label className="mind-quiet-on">
+              <input
+                checked={Boolean(status?.settings?.quiet_enabled ?? true)}
+                onChange={(event) => void setQuiet({ quiet_enabled: event.target.checked })}
+                type="checkbox"
+              />
+              <span>Quiet hours</span>
+            </label>
+            <div className={status?.settings?.quiet_enabled === false ? 'is-off' : ''}>
+              <label>
+                <span>from</span>
+                <select
+                  disabled={status?.settings?.quiet_enabled === false}
+                  onChange={(event) => void setQuiet({ quiet_start: Number(event.target.value) })}
+                  value={Number(status?.settings?.quiet_start ?? 23)}
+                >
+                  {HOURS.map((hour) => (
+                    <option key={hour} value={hour}>
+                      {String(hour).padStart(2, '0')}:00
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>until</span>
+                <select
+                  disabled={status?.settings?.quiet_enabled === false}
+                  onChange={(event) => void setQuiet({ quiet_end: Number(event.target.value) })}
+                  value={Number(status?.settings?.quiet_end ?? 8)}
+                >
+                  {HOURS.map((hour) => (
+                    <option key={hour} value={hour}>
+                      {String(hour).padStart(2, '0')}:00
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <p>
+              {status?.settings?.quiet_enabled === false
+                ? 'Off — she may speak at any hour.'
+                : 'She still notices things; she writes them down instead of saying them.'}
+            </p>
+          </div>
+
           <ul className="mind-gates">
             {GATES.map((gate) => {
               const shut = quiet.includes(gate.id)

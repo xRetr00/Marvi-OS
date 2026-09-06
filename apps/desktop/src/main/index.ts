@@ -1607,6 +1607,23 @@ function startApp(): void {
         return null
       }
     })
+    // Quiet hours and the rest of the mind's knobs. The Gateway has accepted
+    // these since they were written and nothing in the app ever sent them, so
+    // "quiet hours" was a constant with a settings endpoint behind it.
+    ipcMain.handle('marvi:set-mind-settings', async (_event, patch) => {
+      if (!patch || typeof patch !== 'object') return null
+      try {
+        const response = await fetch(`${gateway()}/initiative`, {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(patch),
+          signal: AbortSignal.timeout(3_000)
+        })
+        return response.ok ? await response.json() : null
+      } catch {
+        return null
+      }
+    })
     ipcMain.handle('marvi:set-initiative', async (_event, paused) => {
       if (typeof paused !== 'boolean') return null
       try {

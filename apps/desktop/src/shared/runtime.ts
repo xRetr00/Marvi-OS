@@ -282,13 +282,29 @@ export interface ResourceState {
   app: string
 }
 
+/** The mind's knobs. Every one of them changes how often Marvi speaks, so
+ *  every one of them belongs somewhere a person can reach. */
+export interface MindSettingsPatch {
+  paused?: boolean
+  /** Whether there are quiet hours at all. Off was previously only reachable
+   *  by setting start and end to the same hour, which is a trick, not a
+   *  setting. */
+  quiet_enabled?: boolean
+  quiet_start?: number
+  quiet_end?: number
+  cooldown_seconds?: number
+  daily_token_budget?: number
+  speak_when_away?: boolean
+}
+
 export interface InitiativeStatus {
   paused: boolean
   running: boolean
   pending_events: number
   last_runs: Record<string, string>
   last_errors: Record<string, string>
-  settings: Record<string, number>
+  /** Booleans as well as numbers now: `quiet_enabled` lives here. */
+  settings: Record<string, number | boolean>
   /** Why she would not speak right now, or empty if she would. The question
    *  everybody actually opens the Mind page with. */
   quiet_because?: string

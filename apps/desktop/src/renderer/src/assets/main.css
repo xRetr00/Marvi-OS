@@ -13109,3 +13109,71 @@ html[data-appearance='claude-code-dark'] .control-row {
   min-width: 0;
   padding-right: 2px;
 }
+
+/* -- Quiet hours ------------------------------------------------------------
+   The one gate that closes on a schedule, and the only one that used to be
+   unreachable: the Gateway accepted these settings and nothing in the app
+   ever sent them. */
+
+.mind-quiet {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 14px;
+  padding: 11px 12px;
+  border: 1px solid var(--ui-border-subtle);
+  border-radius: 7px;
+}
+
+.mind-quiet-on {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ui-text-emphasis);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.mind-quiet > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.mind-quiet > div.is-off {
+  opacity: 0.45;
+}
+
+.mind-quiet label:not(.mind-quiet-on) {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+}
+
+.mind-quiet select {
+  padding: 4px 7px;
+  border: 1px solid var(--ui-border-subtle);
+  border-radius: 5px;
+  background: var(--ui-bg-tertiary);
+  color: var(--ui-text-primary);
+  font-family: var(--ui-font-mono);
+  font-size: 10px;
+}
+
+.mind-quiet select:focus {
+  border-color: var(--ui-accent);
+  outline: none;
+}
+
+.mind-quiet select:disabled {
+  cursor: default;
+}
+
+.mind-quiet p {
+  margin: 0;
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+  line-height: 1.5;
+}
