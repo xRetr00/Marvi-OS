@@ -87,6 +87,11 @@ def _address(name: str) -> str:
     return f"{name}, " if name else ""
 
 
+def _trailing(name: str) -> str:
+    """The name later in the sentence, where "User, " would not fit."""
+    return f", {name}" if name else ""
+
+
 def _on(payload: dict[str, Any], *names: str) -> Any:
     for key in names:
         if key in payload:
@@ -231,6 +236,79 @@ PARTS = {
 }
 
 
+#: How much of somebody else's words Marvi will read out in one go.
+#:
+#: A subject line is written by whoever sent it, which for email means anyone
+#: at all. Speaking it is safe in a way that *reasoning* about it is not --
+#: these renderers are templates, so the worst a hostile subject can do is make
+#: her read out something odd, not make her do something odd. That property
+#: only holds while no model stands between the text and the speaker, which is
+#: why `mind` refuses to let deliberation phrase an untrusted event.
+FROM_A_STRANGER = 80
+
+
+def _plain(value: Any, limit: int = FROM_A_STRANGER) -> str:
+    """One short line of someone else's text, with the shape taken out.
+
+    Newlines and runs of whitespace collapse: a subject line containing them is
+    either careless or deliberate, and neither is worth reading aloud.
+    """
+    text = re.sub(r"\s+", " ", str(value or "")).strip()
+    if len(text) <= limit:
+        return text
+    return text[:limit].rstrip(" ,;:-") + "..."
+
+
+def _mail(event: dict[str, Any], name: str, payload: dict[str, Any]) -> str:
+    """New email, as a person would mention it."""
+    sender = _plain(_on(payload, "from", "sender", "from_email", "fromEmail"), 40)
+    # The ingest writes "Email: <subject>" as the summary, so the subject is
+    # recoverable even when the payload is thin.
+    subject = _plain(
+        _on(payload, "subject", "title") or str(event.get("summary", "")).partition(": ")[2]
+    )
+    if sender and subject:
+        return _choose((
+            f"{_address(name)}mail from {sender} - {subject}.",
+            f"Something came in from {sender}{_trailing(name)} - {subject}.",
+            f"{sender} sent you something{_trailing(name)}: {subject}.",
+        ), event)
+    if subject:
+        return _choose((
+            f"{_address(name)}new mail: {subject}.",
+            f"You have mail{_trailing(name)} - {subject}.",
+        ), event)
+    return ""
+
+
+def _appointment(event: dict[str, Any], name: str, payload: dict[str, Any]) -> str:
+    what = _plain(
+        _on(payload, "summary", "title", "subject")
+        or str(event.get("summary", "")).partition(": ")[2]
+    )
+    when = _plain(_on(payload, "start", "start_time", "startTime"), 40)
+    if not what:
+        return ""
+    if when:
+        return _choose((
+            f"{_address(name)}{what}, {when}.",
+            f"On the calendar{_trailing(name)}: {what}, {when}.",
+        ), event)
+    return f"{_address(name)}{what} is on the calendar."
+
+
+def _repository(event: dict[str, Any], name: str, payload: dict[str, Any]) -> str:
+    title = _plain(
+        _on(payload, "title", "subject") or str(event.get("summary", "")).partition(": ")[2]
+    )
+    where = _plain(_on(payload, "repository", "repo", "repo_name"), 50)
+    if not title:
+        return ""
+    if where:
+        return f"{_address(name)}{where} - {title}."
+    return f"{_address(name)}on GitHub: {title}."
+
+
 def spoken(
     event: dict[str, Any],
     name: str = "",
@@ -247,6 +325,13 @@ def spoken(
     payload = event.get("payload")
     payload = payload if isinstance(payload, dict) else {}
 
+    # Somebody else's words, spoken from a template and never from a model.
+    if kind in ("accounts:gmail:gmail", "accounts:email"):
+        return _mail(event, name, payload)
+    if kind in ("accounts:googlecalendar:googlecalendar", "accounts:calendar"):
+        return _appointment(event, name, payload)
+    if kind == "accounts:github:github":
+        return _repository(event, name, payload)
     if kind in ("room:light_changed", "room:lights_changed"):
         return _lights(event, name, payload)
     if kind in (
