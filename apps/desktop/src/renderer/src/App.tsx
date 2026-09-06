@@ -9,7 +9,6 @@ import {
   BookOpen,
   Bug,
   Brain,
-  CalendarDays,
   Camera,
   CheckCircle2,
   Clock3,
@@ -104,9 +103,9 @@ import { McpPanel } from './components/mcp/McpPanel'
 import { CapabilityPluginsPanel } from './components/capabilities/CapabilityPluginsPanel'
 import { ActivityPage } from './components/activity-page'
 import { MemoryHealth } from './components/memory-health'
+import { CronjobsPage } from './components/cronjobs-page'
 import { MindPage } from './components/mind-page'
 import { OverviewMind } from './components/overview-mind'
-import { ScheduleCards } from './components/schedule-cards'
 import {
   filterInstalledSkills,
   filterStoreSkills,
@@ -178,7 +177,6 @@ import type {
   ProviderRow,
   RoomEvent,
   RuntimeStatus,
-  SchedulePage,
   ServiceReport,
   SkillReview,
   SkillProposal,
@@ -4373,237 +4371,6 @@ function microphoneLabel(devices: MediaDeviceInfo[]): string {
   const preferred = devices.find((device) => device.deviceId === 'default') ?? devices[0]
   const name = (preferred.label || 'unnamed input').replace(/^Default\s*-\s*/i, '')
   return name.length > 28 ? `${name.slice(0, 27)}…` : name
-}
-
-function SchedulesPanel(): React.JSX.Element {
-  const [page, setPage] = useState<SchedulePage | null>(null)
-  const [name, setName] = useState('')
-  const [when, setWhen] = useState('')
-  const [message, setMessage] = useState('')
-  const [insist, setInsist] = useState(false)
-  const [mode, setMode] = useState<'action' | 'agent'>('action')
-  const [prompt, setPrompt] = useState('')
-  const [provider, setProvider] = useState('')
-  const [model, setModel] = useState('')
-  const [effort, setEffort] = useState('')
-  const [toolNames, setToolNames] = useState<string[]>([])
-  const [delivery, setDelivery] = useState('local')
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    let disposed = false
-    void (async () => {
-      const next = await window.marvi?.getSchedules()
-      if (!disposed && next) setPage(next)
-    })()
-    return () => {
-      disposed = true
-    }
-  }, [])
-
-  const add = async (): Promise<void> => {
-    setError('')
-    const next = await window.marvi?.addSchedule({
-      name,
-      when,
-      message,
-      insist,
-      mode,
-      prompt,
-      provider,
-      model,
-      effort,
-      tool_names: toolNames,
-      delivery
-    })
-    if (!next) {
-      setError('Marvi would not accept that. Check the time.')
-      return
-    }
-    setPage(next)
-    setName('')
-    setWhen('')
-    setMessage('')
-    setInsist(false)
-    setPrompt('')
-    setProvider('')
-    setModel('')
-    setEffort('')
-    setToolNames([])
-  }
-
-  const act = async (
-    id: number,
-    action: 'remove' | 'enable' | 'disable' | 'run'
-  ): Promise<void> => {
-    const next = await window.marvi?.scheduleAction(id, action)
-    if (next) setPage(next)
-  }
-
-  return (
-    <ControlPage
-      description="Things Marvi runs on a timer -- a reminder, a check, or a whole task she works through on her own."
-      title="Cron jobs"
-    >
-      {error ? <p className="notice notice-warn">{error}</p> : null}
-
-      <ControlSection icon={Clock3} title="New cron job">
-        <div className="schedule-form">
-          <label>
-            <span>Name</span>
-            <input
-              value={name}
-              placeholder="wake up"
-              onChange={(event) => setName(event.target.value)}
-            />
-          </label>
-          <label>
-            <span>When</span>
-            <input
-              value={when}
-              placeholder="07:30, 60 (minutes), or a cron expression"
-              onChange={(event) => setWhen(event.target.value)}
-            />
-          </label>
-          <label>
-            <span>Message</span>
-            <input
-              value={message}
-              placeholder="Time to get up"
-              onChange={(event) => setMessage(event.target.value)}
-            />
-          </label>
-          <label>
-            <span>Job type</span>
-            <select
-              value={mode}
-              onChange={(event) => setMode(event.target.value as 'action' | 'agent')}
-            >
-              <option value="action">Reminder / Cortex action</option>
-              <option value="agent">Agent task with tools</option>
-            </select>
-          </label>
-          {mode === 'agent' ? (
-            <>
-              <label className="schedule-wide">
-                <span>Task</span>
-                <textarea
-                  value={prompt}
-                  placeholder="A self-contained instruction for this cron job"
-                  rows={4}
-                  onChange={(event) => setPrompt(event.target.value)}
-                />
-              </label>
-              <label>
-                <span>Provider</span>
-                <input
-                  value={provider}
-                  placeholder="Auto"
-                  onChange={(event) => setProvider(event.target.value)}
-                />
-              </label>
-              <label>
-                <span>Model</span>
-                <input
-                  value={model}
-                  placeholder="Auto auxiliary model"
-                  onChange={(event) => setModel(event.target.value)}
-                />
-              </label>
-              <label>
-                <span>Reasoning</span>
-                <select value={effort} onChange={(event) => setEffort(event.target.value)}>
-                  {(page?.efforts ?? ['', 'low', 'medium', 'high']).map((item) => (
-                    <option key={item || 'auto'} value={item}>
-                      {item || 'Auto'}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span>Delivery</span>
-                <select value={delivery} onChange={(event) => setDelivery(event.target.value)}>
-                  {(
-                    page?.delivery_targets ?? [
-                      { id: 'local', name: 'Local (save only)', available: true }
-                    ]
-                  ).map((target) => (
-                    <option key={target.id} value={target.id} disabled={!target.available}>
-                      {target.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <fieldset className="schedule-tools schedule-wide">
-                <legend>Tools</legend>
-                <small>No selection gives the job the current full catalogue.</small>
-                <div>
-                  {(page?.tools ?? []).map((tool) => (
-                    <label key={tool}>
-                      <input
-                        type="checkbox"
-                        checked={toolNames.includes(tool)}
-                        onChange={(event) =>
-                          setToolNames((current) =>
-                            event.target.checked
-                              ? [...current, tool]
-                              : current.filter((item) => item !== tool)
-                          )
-                        }
-                      />
-                      <span>{tool}</span>
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-            </>
-          ) : null}
-          <label className="schedule-insist">
-            <input
-              type="checkbox"
-              checked={insist}
-              onChange={(event) => setInsist(event.target.checked)}
-            />
-            <span>
-              Speak anyway
-              {/* The opt-in. Off by default because an hourly check firing out
-                loud at 3am is what quiet hours exists to prevent. */}
-              <small>Ignore quiet hours and sleep mode. For an alarm you mean.</small>
-            </span>
-          </label>
-          <button
-            className="phase"
-            type="button"
-            disabled={!name || !when || (mode === 'agent' && !prompt.trim())}
-            onClick={() => void add()}
-          >
-            Create cron job
-          </button>
-        </div>
-      </ControlSection>
-
-      <ControlSection icon={CalendarDays} title="Cron jobs">
-        {!page ? (
-          <ProcessingCard
-            compact
-            detail="Reading the local cron job registry."
-            title="Loading cron jobs"
-          />
-        ) : null}
-        {/* Cards rather than rows: paused, failed and never-run are three
-            different states and used to render as three identical grey lines.
-            See `schedule-cards`. */}
-        <ScheduleCards onAct={(id, action) => void act(id, action)} rows={page?.schedules ?? []} />
-
-        {page && page.schedules.length === 0 ? (
-          <ControlEmpty
-            description="Create one above when you want a task to run later or repeatedly."
-            title="No cron jobs"
-          />
-        ) : null}
-      </ControlSection>
-    </ControlPage>
-  )
 }
 
 function PluginsPanel(): React.JSX.Element {

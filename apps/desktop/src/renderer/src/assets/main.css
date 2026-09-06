@@ -12272,3 +12272,381 @@ html[data-appearance='claude-code-dark'] .control-row {
   font-size: 9px;
   line-height: 1.5;
 }
+
+/* -- Cronjobs ---------------------------------------------------------------
+   The two kinds of job are explained as cards you choose between rather than
+   two radio buttons labelled with database field names, and an agent job can
+   be pinned to its own provider and model: a nightly summary and a
+   five-minute inbox check should not be the same one. */
+
+.cron-page {
+  width: min(1000px, 100%);
+  min-height: 100%;
+  margin: 0 auto;
+  padding: clamp(22px, 4vw, 48px) clamp(18px, 4vw, 44px) 72px;
+  color: var(--ui-text-primary);
+}
+
+.cron-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.cron-head h2 {
+  margin: 0;
+  color: var(--ui-text-emphasis);
+  font-family: var(--ui-font-display);
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+}
+
+.cron-head p {
+  max-width: 62ch;
+  margin: 5px 0 0;
+  color: var(--ui-text-tertiary);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.cron-new {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--ui-border-subtle);
+  border-radius: 6px;
+  background: var(--ui-bg-tertiary);
+  color: var(--ui-text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 10px;
+}
+
+.cron-new:hover {
+  border-color: var(--ui-accent);
+  color: var(--ui-accent);
+}
+
+.cron-new > svg {
+  width: 12px;
+  height: 12px;
+}
+
+.cron-warn {
+  margin: 0 0 16px;
+  padding: 9px 12px;
+  border: 1px solid color-mix(in srgb, var(--ui-danger) 30%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--ui-danger) 6%, transparent);
+  color: var(--ui-danger);
+  font-size: 10px;
+}
+
+.cron-form {
+  margin-bottom: 26px;
+  padding: 16px;
+  border: 1px solid var(--ui-border-subtle);
+  border-radius: 8px;
+}
+
+/* Two cards, each saying what the kind is, what it costs and one example. */
+.cron-kinds {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  margin-bottom: 18px;
+}
+
+.cron-kind {
+  display: grid;
+  gap: 5px;
+  padding: 12px 14px;
+  border: 1px solid var(--ui-border-subtle);
+  border-radius: 7px;
+  background: none;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+
+.cron-kind:hover {
+  border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent);
+}
+
+.cron-kind.is-on {
+  border-color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent) 6%, transparent);
+}
+
+.cron-kind-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.cron-kind-head > svg {
+  width: 13px;
+  height: 13px;
+  color: var(--ui-text-tertiary);
+}
+
+.cron-kind.is-on .cron-kind-head > svg {
+  color: var(--ui-accent);
+}
+
+.cron-kind-head strong {
+  color: var(--ui-text-emphasis);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.cron-kind-what {
+  color: var(--ui-text-secondary);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.cron-kind-costs {
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+}
+
+.cron-kind-eg {
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+  font-style: italic;
+  opacity: 0.85;
+}
+
+.cron-field {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.cron-field > span {
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+}
+
+.cron-field input,
+.cron-field select,
+.cron-field textarea,
+.cron-model select {
+  padding: 7px 9px;
+  border: 1px solid var(--ui-border-subtle);
+  border-radius: 5px;
+  background: var(--ui-bg-tertiary);
+  color: var(--ui-text-primary);
+  font-family: inherit;
+  font-size: 11px;
+}
+
+.cron-field textarea {
+  resize: vertical;
+  line-height: 1.55;
+}
+
+.cron-field input:focus,
+.cron-field select:focus,
+.cron-field textarea:focus,
+.cron-model select:focus {
+  border-color: var(--ui-accent);
+  outline: none;
+}
+
+.cron-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: -6px 0 14px;
+}
+
+.cron-suggestions button {
+  padding: 3px 8px;
+  border: 1px solid var(--ui-border-subtle);
+  border-radius: 4px;
+  background: none;
+  color: var(--ui-text-tertiary);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 9px;
+}
+
+.cron-suggestions button:hover {
+  border-color: var(--ui-accent);
+  color: var(--ui-accent);
+}
+
+.cron-model {
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--ui-border-subtle);
+  border-radius: 7px;
+}
+
+.cron-model legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px;
+  color: var(--ui-text-secondary);
+  font-size: 10px;
+}
+
+.cron-model legend > svg {
+  width: 11px;
+  height: 11px;
+  color: var(--ui-text-tertiary);
+}
+
+.cron-model p {
+  margin: 0 0 10px;
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+}
+
+.cron-model-row {
+  display: grid;
+  gap: 9px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.cron-model-row label {
+  display: grid;
+  gap: 4px;
+}
+
+.cron-model-row label > span {
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+}
+
+.cron-model select:disabled {
+  opacity: 0.5;
+}
+
+.cron-more {
+  margin-bottom: 12px;
+}
+
+.cron-more summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ui-text-tertiary);
+  cursor: pointer;
+  font-size: 10px;
+  list-style: none;
+}
+
+.cron-more summary::-webkit-details-marker {
+  display: none;
+}
+
+.cron-more summary > svg {
+  width: 11px;
+  height: 11px;
+  transition: transform 130ms ease;
+}
+
+.cron-more[open] summary > svg {
+  transform: rotate(180deg);
+}
+
+.cron-more > *:not(summary) {
+  margin-top: 10px;
+}
+
+.cron-tools-note {
+  margin: 8px 0 6px;
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+}
+
+.cron-tools {
+  display: flex;
+  max-height: 132px;
+  flex-wrap: wrap;
+  gap: 4px;
+  overflow-y: auto;
+}
+
+.cron-tools button {
+  padding: 2px 7px;
+  border: 1px solid var(--ui-border-subtle);
+  border-radius: 4px;
+  background: none;
+  color: var(--ui-text-tertiary);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 8px;
+}
+
+.cron-tools button.is-on {
+  border-color: var(--ui-accent);
+  color: var(--ui-accent);
+}
+
+.cron-insist {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.cron-insist input {
+  margin-top: 2px;
+}
+
+.cron-insist span {
+  display: grid;
+  gap: 2px;
+  color: var(--ui-text-secondary);
+  font-size: 10px;
+}
+
+.cron-insist small {
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.cron-error {
+  margin: 0 0 12px;
+  color: var(--ui-danger);
+  font-size: 10px;
+}
+
+.cron-create {
+  padding: 7px 16px;
+  border: 1px solid var(--ui-accent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--ui-accent) 12%, transparent);
+  color: var(--ui-accent);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 10px;
+}
+
+.cron-create:disabled {
+  border-color: var(--ui-border-subtle);
+  background: none;
+  color: var(--ui-text-tertiary);
+  cursor: default;
+}
+
+.cron-empty {
+  margin: 0;
+  padding: 18px;
+  border: 1px dashed var(--ui-border-subtle);
+  border-radius: 7px;
+  color: var(--ui-text-tertiary);
+  font-size: 10px;
+  line-height: 1.55;
+}
