@@ -1542,7 +1542,23 @@ def create_app(
                     "room",
                     str(event.get("type", "event")),
                     str(event.get("summary", "room event")),
-                    {"id": event.get("id")},
+                    # The event's own fields, not just its id.
+                    #
+                    # The id alone is enough to say *that* something happened
+                    # and nothing about what, so everything the sidecar worked
+                    # out -- who it decided was in the room, why it decided
+                    # that, the photographs it took -- was dropped on the floor
+                    # here, and `voicing` could only ever produce a generic
+                    # line. A named set rather than the whole row, because a
+                    # journal payload is read on every mind tick.
+                    {
+                        key: event[key]
+                        for key in (
+                            "id", "classification", "identity_reason", "owner_phone_home",
+                            "entry_at", "photos", "lit", "entries", "component", "device",
+                        )
+                        if key in event
+                    },
                     trusted=True,
                 )
         return fresh[-1] if fresh else None

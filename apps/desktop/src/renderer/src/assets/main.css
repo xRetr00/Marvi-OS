@@ -13177,3 +13177,187 @@ html[data-appearance='claude-code-dark'] .control-row {
   font-size: 9px;
   line-height: 1.5;
 }
+
+/* -- Visitor photographs ----------------------------------------------------
+   The end of a chain that starts with a phone somewhere else and a person in
+   the room. Times are rendered where the machine is: the sidecar records UTC
+   with an offset, which is correct and reads as a broken clock. */
+
+.vis-backdrop {
+  position: fixed;
+  z-index: 60;
+  display: grid;
+  padding: clamp(16px, 4vh, 48px);
+  background: rgb(0 0 0 / 62%);
+  inset: 0;
+  place-items: center;
+  backdrop-filter: blur(3px);
+}
+
+.vis-modal {
+  display: grid;
+  width: min(760px, 100%);
+  max-height: 100%;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--ui-border-subtle);
+  border-radius: 10px;
+  background: var(--ui-bg-secondary, #17181a);
+  box-shadow: var(--shadow-nous);
+}
+
+.vis-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.vis-head h2 {
+  margin: 0;
+  color: var(--ui-text-emphasis);
+  font-family: var(--ui-font-display);
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.vis-head p {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 0;
+  color: var(--ui-text-tertiary);
+  font-size: 10px;
+}
+
+.vis-head p > svg {
+  width: 11px;
+  height: 11px;
+}
+
+.vis-head button {
+  padding: 4px;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  color: var(--ui-text-tertiary);
+  cursor: pointer;
+}
+
+.vis-head button:hover {
+  color: var(--ui-text-primary);
+}
+
+.vis-head button > svg {
+  width: 15px;
+  height: 15px;
+}
+
+.vis-why {
+  margin: 0;
+  padding: 8px 11px;
+  border-radius: 6px;
+  background: var(--ui-bg-tertiary);
+  color: var(--ui-text-secondary);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.vis-frame {
+  position: relative;
+  display: grid;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #000;
+  place-items: center;
+}
+
+.vis-frame img {
+  display: block;
+  width: 100%;
+  max-height: min(58vh, 520px);
+  object-fit: contain;
+}
+
+.vis-step {
+  position: absolute;
+  top: 50%;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 55%);
+  color: #fff;
+  cursor: pointer;
+  place-items: center;
+  transform: translateY(-50%);
+}
+
+.vis-step.is-back {
+  left: 8px;
+}
+
+.vis-step.is-next {
+  right: 8px;
+}
+
+.vis-step:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+.vis-step > svg {
+  width: 15px;
+  height: 15px;
+}
+
+.vis-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.vis-stamp {
+  color: var(--ui-text-tertiary);
+  font-family: var(--ui-font-mono);
+  font-size: 9px;
+}
+
+.vis-dots {
+  display: flex;
+  gap: 5px;
+}
+
+.vis-dots button {
+  width: 7px;
+  height: 7px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--ui-border-subtle);
+  cursor: pointer;
+}
+
+.vis-dots button.is-on {
+  background: var(--ui-accent);
+}
+
+.vis-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 20px;
+  border: 1px dashed var(--ui-border-subtle);
+  border-radius: 7px;
+  color: var(--ui-text-tertiary);
+  font-size: 10px;
+}
+
+.vis-empty > svg {
+  width: 13px;
+  height: 13px;
+}
