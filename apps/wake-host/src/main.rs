@@ -67,14 +67,27 @@ fn app_command() -> PathBuf {
     }
     if let Ok(root) = std::env::var("MARVI_INSTALL_ROOT") {
         if !root.trim().is_empty() {
-            return PathBuf::from(root.trim()).join("Marvi.exe");
+            return PathBuf::from(root.trim())
+                .join("apps/desktop/dist/win-unpacked/Marvi-OS.exe");
         }
     }
-    // Installed beside this listener, which is where the packager puts both.
-    std::env::current_exe()
+    // Installed under `resources/wake-host`, three levels below the desktop
+    // executable. A login-started listener has no MARVI_APP_COMMAND from
+    // Electron, so this fallback is the normal hands-free launch path. It used
+    // to climb only to `resources` and use the old `Marvi.exe` name, making a
+    // successful detection look like a listener crash because nothing opened.
+    let installed = std::env::current_exe()
         .ok()
-        .and_then(|exe| exe.parent().and_then(|d| d.parent()).map(|d| d.join("Marvi.exe")))
-        .unwrap_or_else(|| PathBuf::from("Marvi.exe"))
+        .and_then(|exe| {
+            exe.parent()
+                .and_then(|d| d.parent())
+                .and_then(|d| d.parent())
+                .map(|d| d.join("Marvi-OS.exe"))
+        });
+    match installed {
+        Some(path) if path.is_file() => path,
+        _ => PathBuf::from("Marvi-OS.exe"),
+    }
 }
 
 fn join(confidence: f32) {
