@@ -1002,6 +1002,7 @@ def create_app(
     ingest: AccountIngest | None = None
     journal: EventJournal | None = None
     initiative: Initiative | None = None
+    focus: Any = None
     account_triggers: AccountTriggerIngest | None = None
     mcp: McpBridge | None = None
     loaded_plugins: list[plugins_module.LoadedPlugin] = []
@@ -1113,6 +1114,11 @@ def create_app(
         activity = ActivityWatch()
         if activity.available():
             register_activity_tools(tool_registry, activity)
+        # Watches the foreground app: stands Marvi down off the GPU while a
+        # game is running, and says so. See `focus`.
+        from .focus import Focus
+
+        focus = Focus(activity if activity.available() else None)
         journal = EventJournal()
         account_triggers = AccountTriggerIngest(accounts, memory, journal, ingest)
         initiative = Initiative(
@@ -1204,6 +1210,7 @@ def create_app(
         # stopped anything.
         parent.watch()
         if initiative is not None:
+            initiative.focus = focus
             initiative.start()
         if account_triggers is not None and accounts is not None and accounts.available():
             account_triggers.start()
@@ -1278,6 +1285,7 @@ def create_app(
     # was handed a client it can actually call. That was wrong for the whole
     # first day the after-turn worker existed.
     app.state.initiative = initiative if tools is None else None
+    app.state.focus = focus
 
     def accounts_status() -> ComponentStatus:
         if accounts is None or not accounts.available():
@@ -1593,6 +1601,18 @@ def create_app(
         except Exception as exc:
             return {"connected": False, "events": [], "reason": str(exc)[:160]}
         return {"connected": True, "events": calendarview.upcoming(payload, limit)}
+
+    @app.get("/resources")
+    async def resources() -> dict[str, Any]:
+        """Whether something else should have the GPU right now.
+
+        Asked by the agent before it prewarms: loading a speech model during a
+        game costs frames and adds heat for nobody's benefit, because nobody is
+        talking to her while she is playing. See `focus`.
+        """
+        if focus is None:
+            return {"low_resource": False, "because": "", "app": ""}
+        return focus.as_dict()
 
     @app.post("/voice/session-state")
     async def voice_session_state(update: VoiceSessionState) -> dict[str, bool]:

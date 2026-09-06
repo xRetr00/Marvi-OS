@@ -1346,6 +1346,10 @@ def prewarm(proc: JobProcess) -> None:
         return now
 
     step = started
+    # Before anything touches the card. A game has it, and taking a slice back
+    # to warm a voice nobody is going to use costs frames and adds heat for
+    # nothing. Same instinct as `oncall.wait_until_free`, different reason.
+    _wait_while_the_gpu_is_spoken_for()
     apply_speech_settings()
     step = mark("settings", step)
     _load_vocabulary()
@@ -1407,6 +1411,49 @@ def prewarm(proc: JobProcess) -> None:
     # this function.
     _state["warm"] = True
     _announce_ready()
+
+
+#: How long to wait between asking whether the game has finished.
+STAND_DOWN_POLL = 30.0
+
+#: And how long to stand down for at the outside. A Gateway that answers
+#: "low resource" forever -- because the watcher wedged, or an app was
+#: mis-classified as a game and never closed -- must not mean an agent that
+#: never prewarms again. After this it loads anyway and says so.
+STAND_DOWN_LIMIT = 4 * 60 * 60.0
+
+
+def _gpu_is_spoken_for() -> tuple[bool, str]:
+    """Whether the Gateway says something else should have the card."""
+    import contextlib
+
+    with contextlib.suppress(Exception):
+        import httpx
+
+        body = httpx.get(f"{gateway_url()}/resources", timeout=REPORT_TIMEOUT).json()
+        return bool(body.get("low_resource")), str(body.get("because") or "")
+    # The Gateway not answering is not a reason to stand down. Prewarming is
+    # the normal case and this is an optimisation on top of it.
+    return False, ""
+
+
+def _wait_while_the_gpu_is_spoken_for() -> None:
+    """Hold off prewarming while a game is running. Never longer than the cap."""
+    busy, because = _gpu_is_spoken_for()
+    if not busy:
+        return
+    log.info("prewarm: %s has the GPU; waiting rather than taking a slice", because or "something")
+    began = time.monotonic()
+    while busy and time.monotonic() - began < STAND_DOWN_LIMIT:
+        time.sleep(STAND_DOWN_POLL)
+        busy, because = _gpu_is_spoken_for()
+    waited = time.monotonic() - began
+    if busy:
+        log.warning(
+            "prewarm: still standing down after %.0f minutes; loading anyway", waited / 60
+        )
+    else:
+        log.info("prewarm: the GPU is free again after %.0f minutes", waited / 60)
 
 
 def _pool_is_busy() -> None:

@@ -328,6 +328,30 @@ def _repository(event: dict[str, Any], name: str, payload: dict[str, Any]) -> st
     return f"{_address(name)}on GitHub: {title}."
 
 
+def _stepping_aside(event: dict[str, Any], name: str, payload: dict[str, Any]) -> str:
+    """Handing the machine over, and saying so.
+
+    Doing this silently is indistinguishable from doing nothing at all, which
+    is the difference between a computer that reports and one that notices.
+    Warm, short, and once -- it lands while the game is loading, which is
+    exactly the moment there is nothing else to listen to.
+    """
+    what = str(_on(payload, "name", "app") or "that")
+    if event.get("kind") == "heavy_app_started":
+        return _choose((
+            f"{_address(name)}I have put myself in low-resource mode so you can "
+            f"enjoy {what}. Go and beat some asses.",
+            f"{what} is up - I am standing down off the GPU{_trailing(name)}. Have fun.",
+            f"Card is all yours{_trailing(name)}. Low-resource mode until {what} is done.",
+            f"{_address(name)}stepping aside for {what}. Go get them.",
+        ), event)
+    return _choose((
+        f"{_address(name)}back to normal now that {what} is done. How did it go?",
+        f"{what} is closed - I am back up to full{_trailing(name)}.",
+        f"Right{_trailing(name)}, I have got the card back. Good session?",
+    ), event)
+
+
 def _machine(event: dict[str, Any], name: str, payload: dict[str, Any]) -> str:
     """The machine about itself, said the way a person would mention it."""
     kind = str(event.get("kind", ""))
@@ -379,6 +403,8 @@ def spoken(
         return _appointment(event, name, payload)
     if kind == "accounts:github:github":
         return _repository(event, name, payload)
+    if str(event.get("source", "")) == "focus":
+        return _stepping_aside(event, name, payload)
     if str(event.get("source", "")) == "machine":
         return _machine(event, name, payload)
     if kind in ("room:light_changed", "room:lights_changed"):

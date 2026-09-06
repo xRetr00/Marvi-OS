@@ -71,6 +71,10 @@ SURFACE_CEILING: dict[str, str] = {
     # The machine about itself. First-party, so there is no stranger's text in
     # any of it -- what is left is only the question of whether it is worth
     # interrupting for, and a disk about to fail a write is.
+    # Stepping off the GPU for a game. Said out loud on purpose: doing it
+    # silently is the same as not doing it, from where the person is sitting.
+    "focus:heavy_app_started": "speak",
+    "focus:heavy_app_ended": "speak",
     "machine:disk_critical": "speak",
     "machine:disk_low": "island",
     "machine:battery_critical": "speak",

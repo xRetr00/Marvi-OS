@@ -31,6 +31,10 @@ MIND_MINUTES = 2
 #: no network beyond one DNS lookup -- and a disk filling up is worth knowing
 #: about before the thing that needed the space fails.
 MACHINE_MINUTES = 5
+#: How often the foreground app is checked. Shorter than the machine watch:
+#: standing off the GPU is only useful if it happens while the game is still
+#: loading, and `focus.SETTLED_LOOKS` means two of these before it acts.
+FOCUS_MINUTES = 1
 REFLECT_HOURS = 6
 #: Slower than reflection on purpose. Reflection is a GROUP BY; this is a model
 #: reading eighty memories, and there is nothing to conclude from a morning.
@@ -58,6 +62,9 @@ class Initiative:
         #: Built on first use, because it holds the last reading and a fresh
         #: one would report every threshold again on every restart.
         self._machine: Any = None
+        #: Watches the foreground app and holds the resource mode. Shared with
+        #: the route the agent asks before it takes the GPU.
+        self.focus: Any = None
         self.memory = memory
         self.memory_summarise = memory_summarise
         # The model that dreams. None is normal -- no auxiliary configured
@@ -157,6 +164,17 @@ class Initiative:
                 kind = "calendar" if subject.startswith("Event:") else "email"
                 self.journal.append("accounts", kind, subject, {"id": subject}, trusted=False)
         return result
+
+    def run_focus(self) -> dict[str, Any]:
+        """Notice a game starting or finishing. See `focus`."""
+        if self.journal is None or self.focus is None:
+            return {"noticed": 0}
+        changes = self.focus.look()
+        for change in changes:
+            self.journal.append(
+                "focus", change.kind, change.summary, change.payload, trusted=True
+            )
+        return {"noticed": len(changes)}
 
     def run_machine(self) -> dict[str, Any]:
         """Let the machine notice its own condition. See `machine`.
@@ -381,6 +399,10 @@ class Initiative:
         scheduler.add_job(
             self._guard("ingest", self.run_ingest), "interval",
             minutes=INGEST_MINUTES, id="ingest", max_instances=1, coalesce=True,
+        )
+        scheduler.add_job(
+            self._guard("focus", self.run_focus), "interval",
+            minutes=FOCUS_MINUTES, id="focus", max_instances=1, coalesce=True,
         )
         scheduler.add_job(
             self._guard("machine", self.run_machine), "interval",

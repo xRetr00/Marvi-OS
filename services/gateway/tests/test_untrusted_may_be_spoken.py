@@ -52,7 +52,10 @@ def test_untrusted_still_cannot_reach_propose() -> None:
 def test_the_spoken_line_comes_from_a_template() -> None:
     line = voicing.spoken(_mail(), "Shereef")
     assert "Invoice for August" in line
-    assert "ahmed@example.com" in line
+    # The name off the address line, not the envelope: reading
+    # "ahmed at example dot com" aloud is a mail client with a speaker.
+    assert "ahmed" in line
+    assert "@" not in line, f"read an address out loud: {line}"
 
 
 def test_a_hostile_subject_is_read_as_words_not_followed() -> None:
