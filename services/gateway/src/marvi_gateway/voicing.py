@@ -123,6 +123,51 @@ def _lights(event: dict[str, Any], name: str, payload: dict[str, Any]) -> str:
 
 
 def _visitor(event: dict[str, Any], name: str, away: bool | None) -> str:
+    # What the room decided, and *why*, rather than a single "away" flag.
+    #
+    # The sidecar now weighs the camera, the phone's battery and how old each
+    # reading is, and comes back with a verdict and a reason. Ignoring both and
+    # branching on "are they out" threw all of it away -- so a phone that had
+    # gone flat and a stranger walking in produced the same sentence, which is
+    # the difference between an assistant that understood the situation and one
+    # that read a boolean.
+    payload = event.get("payload")
+    payload = payload if isinstance(payload, dict) else {}
+    verdict = str(payload.get("classification") or "").strip().lower()
+    why = str(payload.get("identity_reason") or "")
+
+    if verdict == "unidentified":
+        if "battery" in why:
+            return _choose(
+                (
+                    f"{_greeting(name)}I think that is you. Your phone has gone quiet -- "
+                    "it was nearly flat -- so I cannot be certain.",
+                    f"{_address(name)}someone came in and I believe it is you, but your "
+                    "phone died so I cannot check.",
+                ),
+                event,
+            )
+        return _choose(
+            (
+                f"{_address(name)}someone is in the room and I cannot tell who. "
+                "Could you check your phone?",
+                f"{_greeting(name)}somebody just came in. Nothing can see well enough "
+                "to say who -- is that you?",
+            ),
+            event,
+        )
+
+    if verdict == "unknown_visitor":
+        return _choose(
+            (
+                f"{_address(name)}there is someone in the room, and it is not you. "
+                "I am taking pictures.",
+                f"{_address(name)}somebody walked in while your phone is elsewhere. "
+                "I have got photographs.",
+            ),
+            event,
+        )
+
     if away:
         # The one case where this stops being pleasant and starts being the
         # reason the feature exists.

@@ -159,7 +159,18 @@ def listener() -> dict[str, Any]:
         "started_at": state.get("started_at"),
         "heartbeat": beat,
         "heard_at": heard_at,
+        # The live score, which is whatever the microphone is hearing now.
         "confidence": state.get("confidence", 0.0),
+        # And the score *at the firing*, which is a different number and the
+        # only one worth tuning against. `confidence` is overwritten on every
+        # hop, so by the time anybody reads this file it holds the silence
+        # since -- 0.0058 next to a `heard_at` from a real "Hey Marvi".
+        "heard_confidence": state.get("heard_confidence"),
+        "heard_total": state.get("heard_total", 0),
+        # Newest first. A run of firings scoring just over the line, minutes
+        # apart, in a room the presence sensors call empty, is what a false
+        # arm looks like -- and it cannot be seen from one number.
+        "recent": state.get("recent", []),
         "error": state.get("error", ""),
         # What it can actually open, and which one it opens by default. See
         # `microphones()`.
@@ -198,6 +209,9 @@ def status() -> dict[str, Any]:
         "heard_seconds_ago": age,
         "recently_heard": age is not None and age <= RECENT_SECONDS,
         "confidence": _confidence,
+        "heard_confidence": live.get("heard_confidence"),
+        "heard_total": live.get("heard_total", 0),
+        "recent": live.get("recent", []),
         "setting": "MARVI_WAKE_WORD",
         "threshold_setting": "MARVI_WAKE_THRESHOLD",
         "auto_restart": _flag(AUTO_RESTART_SETTING, True),
