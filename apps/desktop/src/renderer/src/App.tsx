@@ -105,6 +105,7 @@ import { ActivityPage } from './components/activity-page'
 import { MemoryHealth } from './components/memory-health'
 import { CronjobsPage } from './components/cronjobs-page'
 import { MindPage } from './components/mind-page'
+import { VisitorPhotos, type VisitorSighting } from './components/visitor-photos'
 import { OverviewPage } from './components/overview-page'
 import {
   filterInstalledSkills,
@@ -855,6 +856,10 @@ function MainSurface(): React.JSX.Element {
 
         <ConnectingOverlay />
         <BootFailureOverlay />
+        {/* Whoever was in the room. At shell level rather than on the Room
+            page, because "somebody came in while you were out" is not news you
+            should have to navigate to. */}
+        <VisitorWatch />
       </div>
     </ShellContextMenu>
   )
@@ -6529,6 +6534,66 @@ function AboutPanel({
       </ControlSection>
     </ControlPage>
   )
+}
+
+/**
+ * Watches for a visitor burst and shows the pictures.
+ *
+ * The sidecar photographs an unrecognised person three times and journals the
+ * paths, and until now that was where it stopped -- the whole chain worked and
+ * nobody ever saw the photographs. Polled rather than pushed because the room
+ * events already arrive on a poll, and one more channel for a rare event is
+ * not worth the second connection.
+ */
+function VisitorWatch(): React.JSX.Element | null {
+  const [sighting, setSighting] = useState<VisitorSighting | null>(null)
+  // Ids already shown, so closing it does not reopen on the next poll.
+  const seen = useRef<Set<number>>(new Set())
+  // Set inside the effect: reading the clock during render is impure, and
+  // this only needs to be the moment the watch actually starts.
+  const started = useRef<number>(0)
+
+  useEffect(() => {
+    let gone = false
+    started.current = Date.now()
+    const look = async (): Promise<void> => {
+      const events = await window.marvi?.getRoomEvents()
+      if (gone || !events) return
+      for (const event of events) {
+        const row = event as unknown as Record<string, unknown>
+        if (row.type !== 'visitor_photos') continue
+        const id = Number(row.id ?? 0)
+        if (seen.current.has(id)) continue
+        // Only what happened since this window opened. Reopening the app
+        // should not replay last week's visitors as though they just arrived.
+        if (new Date(String(row.at)).getTime() < started.current) {
+          seen.current.add(id)
+          continue
+        }
+        seen.current.add(id)
+        setSighting({
+          id,
+          at: String(row.entry_at ?? row.at),
+          classification: row.classification as string | undefined,
+          identity_reason: row.identity_reason as string | undefined,
+          lit: row.lit as boolean | undefined,
+          photos: (row.photos ?? []) as VisitorSighting['photos']
+        })
+        return
+      }
+    }
+    void look()
+    const timer = setInterval(() => {
+      if (!document.hidden) void look()
+    }, 5_000)
+    return () => {
+      gone = true
+      clearInterval(timer)
+    }
+  }, [])
+
+  if (!sighting) return null
+  return <VisitorPhotos onClose={() => setSighting(null)} sighting={sighting} />
 }
 
 function IslandSurface(): React.JSX.Element {
