@@ -82,14 +82,25 @@ export function CronjobsPage(): React.JSX.Element {
   }, [])
 
   useEffect(() => {
-    void refresh()
-    // The provider list comes from the same place the auxiliary roles use, so
-    // a job can be pinned to anything Marvi could already talk to.
+    // Both awaited inside one async body rather than called straight from the
+    // effect: a `setState` reached synchronously from an effect cascades a
+    // render, and `refresh()` can resolve that fast from a warm Gateway.
+    let gone = false
     void (async () => {
-      const aux = await window.marvi?.getAuxiliary()
+      const [jobs, aux] = await Promise.all([
+        window.marvi?.getSchedules(),
+        // The provider list comes from where the auxiliary roles get theirs,
+        // so a job can be pinned to anything Marvi could already talk to.
+        window.marvi?.getAuxiliary()
+      ])
+      if (gone) return
+      if (jobs) setPage(jobs)
       if (aux) setProviders(aux.providers)
     })()
-  }, [refresh])
+    return () => {
+      gone = true
+    }
+  }, [])
 
   /** Models for one provider, fetched once. Listing them reaches its API. */
   const loadModels = useCallback(
