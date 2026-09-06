@@ -19,6 +19,17 @@ use serde::Serialize;
 /// applies. A listener that stops writing is one that died.
 pub const HEARTBEAT: std::time::Duration = std::time::Duration::from_secs(5);
 
+/// One firing, kept so true and false ones can be told apart afterwards.
+#[derive(Serialize, Default, Clone)]
+pub struct Detection {
+    pub at: f64,
+    pub confidence: f32,
+}
+
+/// How many firings to remember. Enough to see a pattern over an evening,
+/// small enough that the state file stays a state file.
+pub const RECENT_DETECTIONS: usize = 30;
+
 #[derive(Serialize, Default)]
 pub struct State {
     pub pid: u32,
@@ -39,6 +50,21 @@ pub struct State {
     /// already here -- so a rate falls out of the two without this needing to
     /// know anything about calendars or where the person is.
     pub heard_total: u32,
+    /// The score at the moment it fired, and the ones before it.
+    ///
+    /// `confidence` is overwritten on every hop, so by the time anybody reads
+    /// the file it holds the score of the silence since -- 0.0058 while the
+    /// detection that wrote `heard_at` had scored something entirely
+    /// different. That made the one question worth asking unanswerable: what
+    /// does a real "Hey Marvi" score, and what does the thing that fired in an
+    /// empty room score? Without both numbers a threshold is a guess.
+    ///
+    /// Newest first, capped at `RECENT_DETECTIONS`, so a pattern is visible
+    /// without keeping a log.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub heard_confidence: Option<f32>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub recent: Vec<Detection>,
     pub confidence: f32,
     #[serde(skip_serializing_if = "str::is_empty")]
     pub error: String,

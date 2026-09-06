@@ -305,8 +305,14 @@ fn listen(quit: &dyn Fn() -> bool) -> Result<(), Box<dyn std::error::Error>> {
                     let ready = last_fired.is_none_or(|at| at.elapsed() >= DEBOUNCE);
                     if score >= limit && ready {
                         last_fired = Some(Instant::now());
-                        report.heard_at = Some(state::now());
+                        let at = state::now();
+                        report.heard_at = Some(at);
                         report.heard_total += 1;
+                        // The score *at the firing*, before the next hop
+                        // overwrites `confidence` with the silence after it.
+                        report.heard_confidence = Some(score);
+                        report.recent.insert(0, state::Detection { at, confidence: score });
+                        report.recent.truncate(state::RECENT_DETECTIONS);
                         report.heartbeat = state::now();
                         report.write();
                         join(score);
