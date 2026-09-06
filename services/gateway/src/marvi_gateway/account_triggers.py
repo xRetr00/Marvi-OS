@@ -78,6 +78,41 @@ class AccountTriggerIngest:
                 return value
         return None
 
+    def _understand(self, toolkit: str, payload: Any) -> Any:
+        """The pushed payload as the same `MemoryItem` a poll would produce.
+
+        None when this toolkit has no provider, when the payload is not shaped
+        like one of its records, or when the gatekeeper decides it is not worth
+        keeping -- and in every one of those cases the caller falls back to the
+        old behaviour rather than dropping the event.
+        """
+        provider = self.sync.registry.get(toolkit)
+        if provider is None or not isinstance(payload, dict):
+            return None
+        try:
+            item = provider.normalize(payload)
+        except Exception as exc:
+            log.info("could not read a pushed %s event (%s)", toolkit, str(exc)[:120])
+            return None
+        if item is None:
+            return None
+        cognition = getattr(self.sync, "cognition", None)
+        if cognition is None:
+            return item
+        try:
+            from . import gatekeeping
+
+            kept = gatekeeping.worth_keeping(
+                cognition, [item], getattr(self.sync, "speaking_to", "")
+            )
+        except Exception as exc:
+            log.info("gatekeeper unavailable for a pushed event (%s); keeping it", str(exc)[:120])
+            return item
+        # An empty list is the gatekeeper saying this is not worth keeping --
+        # a newsletter arriving by push is still a newsletter. The event is
+        # still journalled, just without a summary, so it shows and stays quiet.
+        return kept[0] if kept else item
+
     def ingest(self, raw: Any) -> dict[str, Any]:
         event = _as_dict(raw)
         if not isinstance(event, dict):
@@ -112,12 +147,30 @@ class AccountTriggerIngest:
             },
         )
         envelope = wrap_external(f"composio:trigger:{toolkit}:{trigger}", payload).model_dump()
-        summary = f"{toolkit}: {trigger.replace('_', ' ').lower()}"
         source = f"composio:trigger:{toolkit}:{event_id}"
+
+        # Understood the same way a polled item is.
+        #
+        # This path had its own everything: a summary made out of the trigger
+        # slug ("gmail: gmail new gmail message"), a memory body that was the
+        # raw JSON, and a journal `kind` of "trigger" -- so the policy looked
+        # up `accounts:gmail:trigger`, found nothing, and fell through to the
+        # default. A real email arrived by push and was filed as `activity`
+        # while the same email arriving by poll was spoken:
+        #
+        #   06:35  gmail: gmail new gmail message      activity   ceiling activity
+        #   05:43  Email: 3 Mailboxes Deleted          speak      Your three Neudocs
+        #                                                         mailboxes were deleted...
+        #
+        # Push and poll are two ways of finding out about the same thing. They
+        # should not be two ways of understanding it.
+        understood = self._understand(toolkit, payload)
+        summary = understood.subject if understood else f"{toolkit}: {trigger.replace('_', ' ').lower()}"
 
         journal_id = self.journal.append(
             f"accounts:{toolkit}",
-            "trigger",
+            # The kind the polled path uses, so one ceiling entry covers both.
+            toolkit if understood else "trigger",
             summary,
             {
                 "id": event_id,
@@ -126,13 +179,26 @@ class AccountTriggerIngest:
                 "trigger": trigger,
                 "connection_id": connection_id,
                 "external": envelope,
+                **(
+                    {
+                        "subject": understood.subject,
+                        **({"says": understood.says} if understood.says else {}),
+                        **({"from": understood.entities[0]} if understood.entities else {}),
+                        **({"body": understood.body[:600]} if not understood.says else {}),
+                    }
+                    if understood
+                    else {}
+                ),
             },
             trusted=False,
         )
         if journal_id is not None:
             self.memory.remember_external(
                 summary,
-                json.dumps(payload, ensure_ascii=False, default=str)[:8_000],
+                # The normalised body, not the raw JSON. Dumping a provider's
+                # payload into long-term memory is the thing `gatekeeping`
+                # exists to stop, and this path was doing it.
+                (understood.body if understood else json.dumps(payload, ensure_ascii=False, default=str))[:8_000],
                 source=source,
             )
             if connection_id:
