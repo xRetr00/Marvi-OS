@@ -228,7 +228,7 @@ import { $voices, refreshVoices } from './store/voices'
 const NAV_GROUPS = [
   { label: 'Core', items: ['Overview', 'Voice', 'Chat'] },
   { label: 'Context', items: ['Vision', 'Room', 'Activity'] },
-  { label: 'Cortex', items: ['DMN', 'Graph', 'Mind'] },
+  { label: 'Cortex', items: ['DMN', 'Graph', 'Mind', 'Schedules'] },
   { label: 'Capabilities', items: ['Skills', 'Connectors', 'MCP', 'Plugins'] }
 ] as const
 
@@ -249,7 +249,7 @@ const SETTINGS_GROUPS = [
   },
   {
     gapBefore: true,
-    items: ['Voice', 'Workspace', 'Appearance', 'Preferences', 'Cron jobs', 'About']
+    items: ['Voice', 'Workspace', 'Appearance', 'Preferences', 'About']
   }
 ] as const
 
@@ -269,6 +269,7 @@ const NAV_CODES: Record<Page, string> = {
   DMN: 'DM',
   Graph: 'GR',
   Mind: 'MI',
+  Schedules: 'SC',
   Skills: 'SK',
   Connectors: 'CN',
   MCP: 'MC',
@@ -285,6 +286,7 @@ const NAV_ICONS: Record<Page, AbstractIconName> = {
   DMN: 'identity',
   Graph: 'memory',
   Mind: 'mind',
+  Schedules: 'schedules',
   Skills: 'skills',
   Connectors: 'connectors',
   MCP: 'mcp',
@@ -309,7 +311,6 @@ const SETTINGS_ICONS: Record<SettingsPage | 'Voice' | 'Appearance', AbstractIcon
   'Dynamic Island': 'preferences',
   'Desktop companion': 'preferences',
   Preferences: 'preferences',
-  'Cron jobs': 'schedules',
   About: 'about'
 }
 
@@ -815,6 +816,8 @@ function MainSurface(): React.JSX.Element {
                     <MemoryPanel />
                   ) : page === 'Mind' ? (
                     <MindPage />
+                  ) : page === 'Schedules' ? (
+                    <SchedulesPanel />
                   ) : page === 'Skills' ? (
                     <SkillsPanel />
                   ) : page === 'Connectors' ? (
@@ -5418,6 +5421,7 @@ function PagePanel({ page }: { page: Page }): React.JSX.Element {
     Chat: '',
     Room: '',
     Activity: 'Local event and tool history.',
+    Schedules: '',
     DMN: "Marvi's identity and your standing preferences.",
     Graph: 'What Marvi knows, and how it connects.',
     Mind: 'Autonomous decisions and initiative controls.',
@@ -5624,8 +5628,6 @@ function SettingsShell({
               <AppearancePanel section="companion" />
             ) : page === 'Preferences' ? (
               <PreferencesPanel runtime={runtime} />
-            ) : page === 'Cron jobs' ? (
-              <SchedulesPanel />
             ) : (
               <AboutPanel fallbackVersion={version} runtime={runtime} />
             )}
