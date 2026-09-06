@@ -226,6 +226,29 @@ def evaluate(
     if not event.get("trusted", False) and SURFACES.index(ceiling) > SURFACES.index("speak"):
         ceiling = "speak"
 
+    # 2b. She only says out loud what she actually read.
+    #
+    #     Shereef, mail from LinkedIn Job Alerts - Cybersecurity Engineer at ...
+    #     Shereef, mail from Cloudflare - See Fei-Fei Li live at Connect.
+    #
+    #     Icemail will delete your three Google mailboxes today unless you pay.
+    #
+    # The first two are notifications and the third is an assistant, and the
+    # difference is entirely whether `gatekeeping` read the body and worked out
+    # what it meant. That gate *fails open* on purpose -- a model being rate
+    # limited must never mean a week of missing correspondence -- so on a bad
+    # afternoon everything arrives unjudged. Unjudged is fine to show and wrong
+    # to announce: it is precisely the ten-envelopes-in-a-row case.
+    #
+    # So the raised ceiling is conditional on there being something to say.
+    # Nothing is lost when it fails: the mail still reaches the Island and the
+    # activity feed, exactly as it did before any of this.
+    if str(event.get("source", "")).startswith("accounts:"):
+        payload = event.get("payload")
+        read_it = isinstance(payload, dict) and str(payload.get("says") or "").strip()
+        if not read_it and SURFACES.index(ceiling) > SURFACES.index("island"):
+            ceiling = "island"
+
     surface = _cap(wanted, ceiling)
 
     # 3. Budget: a day has a thinking limit, and exceeding it is not an

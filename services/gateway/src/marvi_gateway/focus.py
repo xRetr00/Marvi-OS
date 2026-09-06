@@ -21,17 +21,29 @@ and a line as it happens is what makes the difference legible:
     Hey Shereef, I've put myself in low-resource mode so you can enjoy FC26.
     Go beat some asses.
 
-## Why a list rather than a detector
+## Why not a list of app names
 
-Detecting "is this a game" properly means per-process GPU counters, which on
-Windows means either a driver API or WMI, and both cost more than the answer is
-worth on a five-minute timer. A name list is embarrassing and it works: the set
-of things somebody plays is small, changes rarely, and the person can add to it
-without a release. `MARVI_HEAVY_APPS` extends it.
+Because that was the first attempt and it was wrong in the way that matters.
+`steam`, `epicgames` and `battle.net` were on it, and those are *stores*: they
+sit in the tray from login to shutdown using no GPU at all. Marvi would have
+stood down off the card permanently, on a machine where no game was running,
+and the only symptom would have been that she never prewarmed again.
 
-Being wrong is cheap in both directions. A false positive means Marvi does not
-prewarm for a few minutes and says something friendly. A false negative means
-today's behaviour.
+The name was never the question. "Is something using the card" is the
+question, and Windows answers it directly:
+
+* `SHQueryUserNotificationState` says whether a fullscreen app is in the
+  foreground -- 2 (`QUNS_BUSY`) or 3 (`QUNS_RUNNING_D3D_FULL_SCREEN`). Epic in
+  the tray is neither. It needs polling, because Windows sends no notification
+  when a fullscreen app starts or stops, and polling is what this already does.
+* `nvidia-smi` says what percentage of the GPU is actually in use.
+
+Both together: a fullscreen window *and* real load on the card. A launcher
+fails the first test, an idle desktop fails both, and a game nobody has ever
+heard of passes both -- which a list could never do.
+
+The names survive only as labels, so she can say "FC 26" instead of "FC26.exe",
+and as a fallback on a machine with no NVIDIA telemetry to read.
 """
 
 from __future__ import annotations
@@ -50,16 +62,30 @@ log = get_logger("mind")
 #: the window title, case-insensitively, as substrings -- `fc2` would match
 #: half of Steam, so these are deliberately whole-ish words.
 HEAVY_APPS: tuple[str, ...] = (
-    # Named first because it is the one actually played here.
-    "fc26", "fc25", "fifa",
-    "steam", "epicgames", "battle.net", "riotclient", "leagueoflegends",
-    "valorant", "csgo", "cs2", "dota2", "gta", "rdr2", "cyberpunk",
-    "eldenring", "minecraft", "roblox", "fortnite", "apex", "warzone",
-    "callofduty", "pubg", "rocketleague", "forza", "assassin",
+    "fc26", "fc25", "fifa", "leagueoflegends", "valorant", "csgo", "cs2",
+    "dota2", "gta", "rdr2", "cyberpunk", "eldenring", "minecraft", "roblox",
+    "fortnite", "apex", "warzone", "callofduty", "pubg", "rocketleague",
+    "forza", "assassin",
     # Not games, and they want the card just as much.
-    "blender", "davinci", "premiere", "aftereffects", "obs64", "handbrake",
+    "blender", "davinci", "premiere", "aftereffects", "handbrake",
     "unrealeditor", "unity",
 )
+
+#: Deliberately absent: steam, epicgames, battle.net, riotclient.
+#:
+#: They were on the list and they are the bug. A store sits in the tray from
+#: login to shutdown using no GPU, so matching on its name meant standing down
+#: off the card forever on a machine where nothing was being played -- and the
+#: only symptom would have been Marvi never prewarming again.
+
+#: Fullscreen states from `SHQueryUserNotificationState`: a fullscreen app is
+#: in the foreground (2) or a Direct3D one specifically (3).
+FULLSCREEN_STATES = (2, 3)
+
+#: How much of the GPU counts as "in use by something else". A game pegs the
+#: card; a fullscreen video sits far below this; a desktop idles near zero.
+#: Measured here at 11% with nothing running.
+GPU_BUSY_PERCENT = 40.0
 
 #: Extra names from the environment, comma separated. The list above cannot
 #: know what somebody installed yesterday.
@@ -83,12 +109,49 @@ def _name_of(window: dict[str, Any] | None) -> str:
     return re.sub(r"\.exe$", "", app, flags=re.IGNORECASE)
 
 
-def is_heavy(window: dict[str, Any] | None) -> str:
-    """The name of the demanding thing in this window, or empty.
+def fullscreen_now() -> bool:
+    """Whether a fullscreen app has the foreground, as Windows sees it.
 
-    Checks the executable and the title, because a launcher often runs the game
-    as a child process and keeps its own name in the window.
+    False on anything that is not Windows, and False when the call fails --
+    the safe direction, because the consequence of a false positive here is
+    Marvi standing down off the GPU when nothing needs it.
     """
+    try:
+        import ctypes
+
+        state = ctypes.c_int()
+        if ctypes.windll.shell32.SHQueryUserNotificationState(ctypes.byref(state)) != 0:
+            return False
+        return state.value in FULLSCREEN_STATES
+    except Exception:
+        return False
+
+
+def gpu_in_use() -> float | None:
+    """Percent of the GPU in use, or None when nothing can say.
+
+    `nvidia-smi` is a subprocess, so this is only called once a fullscreen app
+    has already been seen -- a few times an hour rather than every minute.
+    """
+    import subprocess
+
+    try:
+        out = subprocess.run(
+            ["nvidia-smi", "--query-gpu=utilization.gpu", "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=8, check=True,
+        ).stdout
+    except Exception:
+        return None
+    for line in out.splitlines():
+        try:
+            return float(line.strip())
+        except ValueError:
+            continue
+    return None
+
+
+def named_heavy(window: dict[str, Any] | None) -> str:
+    """Whether this window's name is on the list. A label, not a decision."""
     if not window:
         return ""
     app = _name_of(window)
@@ -97,6 +160,27 @@ def is_heavy(window: dict[str, Any] | None) -> str:
         if needle in haystack:
             return app or needle
     return ""
+
+
+def is_heavy(window: dict[str, Any] | None) -> str:
+    """The name of the thing that has the machine, or empty.
+
+    Fullscreen *and* real load on the card. Either alone is not enough: a
+    launcher in the tray is neither, a fullscreen video is the first without
+    the second, and a compile is the second without the first -- and none of
+    those is a reason to stop being able to speak.
+    """
+    if not window or not fullscreen_now():
+        return ""
+    app = _name_of(window)
+    busy = gpu_in_use()
+    if busy is None:
+        # No telemetry to read. Fall back to the name, which is all the older
+        # version ever had -- but only for something already fullscreen.
+        return named_heavy(window)
+    if busy < GPU_BUSY_PERCENT:
+        return ""
+    return app or named_heavy(window) or "something"
 
 
 #: A friendlier name than the executable, where the difference matters.

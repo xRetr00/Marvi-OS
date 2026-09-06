@@ -148,6 +148,15 @@ class MemoryItem:
     entities: tuple[str, ...] = ()
     relation: str = "appears in"
     cursor: str = ""
+    #: What this actually means for the person, in one sentence, or "".
+    #:
+    #: Written by the gatekeeper, which is already reading every incoming item
+    #: with a model to decide whether to keep it. Announcing "mail from Tiya -
+    #: Icemail: Icemail #6558" names the envelope and discards the point; that
+    #: mail said three mailboxes were deactivated over an unpaid renewal. This
+    #: is the sentence Marvi says instead.
+    says: str = ""
+
     #: What recurring thing this is an occurrence of, or "".
     #:
     #: A yearly birthday produced 23 separate episodic memories dated 2002 to
@@ -620,7 +629,15 @@ def default_registry() -> MemoryProviderRegistry:
             "gmail", "Gmail", _fetch_one(
                 GMAIL_FETCH,
                 lambda cursor: {
-                    "max_results": MAX_PER_POLL, "verbose": False,
+                    # Verbose, because the body is the point.
+                    #
+                    # With `verbose: False` Composio returns a ~200 character
+                    # preview and an empty `messageText`, so the gatekeeper --
+                    # which reads these to decide what is worth keeping and
+                    # what each one means -- was judging subject lines. The
+                    # Icemail message announcing three deactivated mailboxes
+                    # arrived as "Icemail #6558" and nothing else.
+                    "max_results": MAX_PER_POLL, "verbose": True,
                     # Seconds, converted from the milliseconds Gmail reports,
                     # and omitted entirely when the stored cursor is not a
                     # time. See `_epoch_seconds`.
@@ -878,6 +895,8 @@ class AccountIngest:
                     # and every email became "you have mail" -- true, and not
                     # what anybody wants to hear.
                     **({"from": item.entities[0]} if item.entities else {}),
+                    # And what it means, when the gatekeeper worked it out.
+                    **({"says": item.says} if item.says else {}),
                 }
             )
         self.store.finish(toolkit, connection_id, cursor=next_cursor, count=len(ingested))

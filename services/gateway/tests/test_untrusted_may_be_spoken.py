@@ -22,7 +22,13 @@ def _mail(**over):
     event = {
         "source": "accounts:gmail", "kind": "gmail", "trusted": False,
         "summary": "Email: Invoice for August",
-        "payload": {"from": "ahmed@example.com", "subject": "Invoice for August"},
+        "payload": {
+            "from": "ahmed@example.com",
+            "subject": "Invoice for August",
+            # What the gatekeeper made of it. Without this she does not say it
+            # out loud at all -- see test_unread_mail_is_not_announced.
+            "says": "Ahmed invoiced you for August; it is due on the 14th.",
+        },
         "at": 0.0,
     }
     event.update(over)
@@ -43,6 +49,26 @@ def test_an_email_can_now_be_spoken() -> None:
     assert _verdict(_mail()).surface == "speak"
 
 
+def test_unread_mail_is_not_announced() -> None:
+    """She says out loud only what she actually read.
+
+    `gatekeeping` fails open on purpose -- a rate-limited model must never mean
+    a week of missing correspondence -- so on a bad afternoon every message
+    arrives unjudged, with no summary. Unjudged is fine to show and wrong to
+    announce, and announcing it is ten of these in a row:
+
+        Shereef, mail from LinkedIn Job Alerts - Cybersecurity Engineer at ...
+        Shereef, mail from Cloudflare - See Fei-Fei Li live at Connect.
+
+    Observed exactly that way against a real inbox while OpenRouter was
+    cooling down.
+    """
+    unread = _mail()
+    unread["payload"] = {k: v for k, v in unread["payload"].items() if k != "says"}
+    verdict = _verdict(unread)
+    assert verdict.surface == "island", "announced mail nobody had read"
+
+
 def test_untrusted_still_cannot_reach_propose() -> None:
     """The line that actually matters. `propose` is Marvi acting on it."""
     verdict = _verdict(_mail(), wanted="propose")
@@ -51,7 +77,8 @@ def test_untrusted_still_cannot_reach_propose() -> None:
 
 def test_the_spoken_line_comes_from_a_template() -> None:
     line = voicing.spoken(_mail(), "Shereef")
-    assert "Invoice for August" in line
+    # What it means, not the subject line it arrived under.
+    assert "due on the 14th" in line
     # The name off the address line, not the envelope: reading
     # "ahmed at example dot com" aloud is a mail client with a speaker.
     assert "ahmed" in line

@@ -277,9 +277,35 @@ def _who_from(raw: str) -> str:
     return _plain(text.strip().strip('"'), 40)
 
 
+#: A summary is somebody's mail put into Marvi's words, so it is allowed more
+#: room than a raw subject line -- but it is still read aloud.
+SUMMARY_LIMIT = 180
+
+
 def _mail(event: dict[str, Any], name: str, payload: dict[str, Any]) -> str:
-    """New email, as a person would mention it."""
+    """New email, as a person would mention it.
+
+    What it *means* when the gatekeeper worked that out, and the envelope only
+    when it did not. Announcing the envelope is a notification:
+
+        mail from Tiya - Icemail - Icemail #6558.
+
+    which names the sender, names the subject, and tells you nothing. The same
+    mail said three Google mailboxes were deactivated over an unpaid renewal
+    and that deletion was being held off. That is the sentence worth saying,
+    and the gatekeeper is already reading every one of these to decide whether
+    to keep it -- so it costs nothing to ask what it means while it is there.
+    """
     sender = _who_from(_on(payload, "from", "sender", "from_email", "fromEmail"))
+    if says := _plain(_on(payload, "says"), SUMMARY_LIMIT):
+        # Marvi's own words about somebody else's mail. Still attributed, so
+        # the person always knows where a claim came from.
+        return _choose((
+            # Never `f"{name}, {says}"` -- the summary is a sentence and starts
+            # with a capital, so that reads as "Shereef, Your three mailboxes".
+            says + (f" That is from {sender}{_trailing(name)}." if sender else ""),
+            (f"From {sender}{_trailing(name)}: " if sender else f"{_address(name)}") + says,
+        ), event)
     # The ingest files these as "Email: <subject>", which is right for a
     # memory and wrong out loud -- "new mail: Email: your invoice" is how a
     # dashboard talks.

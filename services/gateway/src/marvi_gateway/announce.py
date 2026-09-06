@@ -19,6 +19,7 @@ import logging
 import os
 import threading
 import time
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -28,10 +29,53 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_VOICE = "alba"
 
-#: The voices the model ships with. Eight embeddings, named after Les Mis.
-BUILT_IN_VOICES = (
+#: The voices the model ships with, as a last resort.
+#:
+#: This used to be the whole list and it was wrong: it named the eight Les
+#: Misérables voices and pocket-tts ships eighteen, so the ten others -- anna,
+#: charles, estelle, eve, george, jane, mary, michael, paul, vera -- were
+#: rejected as "not a built-in voice" and silently replaced with alba. Asking
+#: for `jane` got you alba and a warning nobody was reading.
+FALLBACK_VOICES = (
     "alba", "azelma", "cosette", "eponine", "fantine", "javert", "jean", "marius",
 )
+
+
+@lru_cache(maxsize=1)
+def built_in_voices() -> tuple[str, ...]:
+    """Every voice the installed model knows, asked of the model itself.
+
+    Read from the package rather than copied into this file, because a copied
+    list is a list that goes stale on the next upgrade -- which is exactly what
+    happened. `FALLBACK_VOICES` covers the model not being importable.
+    """
+    try:
+        import inspect
+        import re
+
+        from pocket_tts.utils import utils
+
+        found = re.findall(
+            r'"([a-z]{2,16})":\s*"hf://kyutai/tts-voices', inspect.getsource(utils)
+        )
+        if found:
+            return tuple(sorted(set(found)))
+    except Exception:  # pragma: no cover - depends on the installed package
+        logger.info("could not read the voice list from pocket-tts; using the known eight")
+    return FALLBACK_VOICES
+
+
+class _Voices:
+    """`voice in BUILT_IN_VOICES` without importing the model at import time."""
+
+    def __contains__(self, name: object) -> bool:
+        return str(name) in built_in_voices()
+
+    def __iter__(self):
+        return iter(built_in_voices())
+
+
+BUILT_IN_VOICES = _Voices()
 
 #: The engine id cloned announcer voices are filed under, so they share the
 #: store, the validation and the UI already built for the TTS engines.
@@ -88,7 +132,7 @@ def voice_source(voice: str) -> str | Path:
         "announcer voice %r is neither a built-in (%s) nor a recording under "
         "voices/%s; using %s",
         wanted,
-        ", ".join(sorted(BUILT_IN_VOICES)),
+        ", ".join(built_in_voices()),
         ENGINE,
         DEFAULT_VOICE,
     )
