@@ -27,6 +27,18 @@ pub struct State {
     pub heartbeat: f64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub heard_at: Option<f64>,
+    /// How many times it has fired since this listener started.
+    ///
+    /// `heard_at` alone is the *last* detection, which cannot answer the only
+    /// question anybody asks about a wake word: is it going off when nobody
+    /// said its name. One timestamp reads identically whether it triggered
+    /// once this morning or forty times since lunch, and "I think it is false
+    /// arming" was unanswerable because of it.
+    ///
+    /// Counted since start rather than per day, because `started_at` is
+    /// already here -- so a rate falls out of the two without this needing to
+    /// know anything about calendars or where the person is.
+    pub heard_total: u32,
     pub confidence: f32,
     #[serde(skip_serializing_if = "str::is_empty")]
     pub error: String,

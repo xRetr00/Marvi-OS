@@ -306,6 +306,7 @@ fn listen(quit: &dyn Fn() -> bool) -> Result<(), Box<dyn std::error::Error>> {
                     if score >= limit && ready {
                         last_fired = Some(Instant::now());
                         report.heard_at = Some(state::now());
+                        report.heard_total += 1;
                         report.heartbeat = state::now();
                         report.write();
                         join(score);
