@@ -103,6 +103,7 @@ import { ServiceLogo } from './lib/serviceLogos'
 import { McpPanel } from './components/mcp/McpPanel'
 import { CapabilityPluginsPanel } from './components/capabilities/CapabilityPluginsPanel'
 import { ActivityPage } from './components/activity-page'
+import { MemoryHealth } from './components/memory-health'
 import { MindPage } from './components/mind-page'
 import {
   filterInstalledSkills,
@@ -2523,24 +2524,10 @@ function MemoryPanel(): React.JSX.Element {
         icon={Database}
         title="Local store"
       >
-        <ControlRow action={<span className="control-value">{page.total}</span>} title="Entries" />
-        <ControlRow
-          action={
-            <span className="control-value">
-              {(page.summary.facts ?? []).join(' · ') || 'None'}
-            </span>
-          }
-          title="Known facts"
-        />
-        <ControlRow
-          action={
-            <span className="control-value">
-              {page.summary.graph?.entities ?? 0} / {page.summary.graph?.relations ?? 0}
-            </span>
-          }
-          description="Entities / explicit relationships"
-          title="Knowledge graph"
-        />
+        {/* Three counters said how much was in there and nothing about what.
+            See `MemoryHealth`: the same store read by source is where 55
+            conversation transcripts masquerading as facts became visible. */}
+        <MemoryHealth page={page} />
       </ControlSection>
 
       <MemoryList entries={page.entries} />

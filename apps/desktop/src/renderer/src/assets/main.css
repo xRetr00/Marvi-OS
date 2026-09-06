@@ -11798,3 +11798,188 @@ html[data-appearance='claude-code-dark'] .control-row {
     display: none;
   }
 }
+
+/* -- Memory health ----------------------------------------------------------
+   By source, because that is the axis the difference shows up on: a flat list
+   of 199 memories looks fine, and the same 199 split by where they came from
+   shows 55 written during conversations that are not facts at all. */
+
+.mem-health {
+  margin: 26px 0 30px;
+}
+
+.mem-health h3 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 3px;
+  color: var(--ui-text-emphasis);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.mem-health h3 > svg {
+  width: 13px;
+  height: 13px;
+  color: var(--ui-text-tertiary);
+}
+
+.mem-health-sub {
+  margin: 0 0 14px;
+  color: var(--ui-text-tertiary);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.mem-sources {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mem-sources li {
+  display: grid;
+  align-items: center;
+  gap: 10px;
+  grid-template-columns: 92px minmax(80px, 1fr) 34px minmax(0, 1.1fr);
+  padding: 5px 0;
+}
+
+.mem-source-name {
+  overflow: hidden;
+  color: var(--ui-text-secondary);
+  font-family: var(--ui-font-mono);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mem-source-bar {
+  position: relative;
+  display: block;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--ui-bg-tertiary);
+}
+
+.mem-source-bar i {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--ui-accent) 45%, transparent);
+}
+
+/* Sitting on top of the total, so the proportion is the point. */
+.mem-source-bar i.is-narrating {
+  background: var(--ui-danger);
+}
+
+.mem-source-count {
+  color: var(--ui-text-secondary);
+  font-family: var(--ui-font-mono);
+  font-size: 10px;
+  text-align: right;
+}
+
+.mem-source-means {
+  overflow: hidden;
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mem-warning {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--ui-danger) 30%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--ui-danger) 6%, transparent);
+}
+
+.mem-warning > svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  margin-top: 1px;
+  color: var(--ui-danger);
+}
+
+.mem-warning strong {
+  display: block;
+  color: var(--ui-text-emphasis);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.mem-warning p {
+  margin: 3px 0 8px;
+  color: var(--ui-text-tertiary);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.mem-warning ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mem-warning ul li {
+  display: grid;
+  gap: 1px;
+  padding: 4px 0;
+  border-top: 1px solid color-mix(in srgb, var(--ui-danger) 14%, transparent);
+}
+
+.mem-warning ul li span {
+  color: var(--ui-text-secondary);
+  font-size: 10px;
+}
+
+.mem-warning ul li em {
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+  font-style: normal;
+}
+
+.mem-warning small {
+  display: block;
+  margin-top: 6px;
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+}
+
+.mem-facts {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--ui-border-subtle);
+  border-radius: 6px;
+  color: var(--ui-text-tertiary);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.mem-facts > svg {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  margin-top: 1px;
+}
+
+@media (max-width: 720px) {
+  .mem-sources li {
+    grid-template-columns: 76px 1fr 30px;
+  }
+
+  .mem-source-means {
+    display: none;
+  }
+}
