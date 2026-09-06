@@ -879,6 +879,31 @@ def load_installed_plugins() -> list[plugins_module.LoadedPlugin]:
     return found
 
 
+def _really_present(sidecar: Any) -> bool:
+    """Whether anybody is there to hear this, from every signal that has a view.
+
+    Falls back to the raw sensor, and then to True, because the failure that
+    matters here is going silent: an assistant that says nothing because a
+    sensor is down is indistinguishable from one that is broken.
+    """
+    from . import presence
+
+    try:
+        state = (sidecar.state() or {}).get("state") or {}
+    except Exception:
+        state = {}
+    if state:
+        with contextlib.suppress(Exception):
+            # No client: a model call on every mind tick is exactly the cost
+            # `presence` warns about. Without one it answers by arithmetic,
+            # which is the path that decides almost every case anyway.
+            return bool(presence.read(state).present)
+    try:
+        return bool(((sidecar.snapshot() or {}).get("presence") or {}).get("detected", True))
+    except Exception:
+        return True
+
+
 def _somewhere_else(sidecar: Any) -> bool | None:
     """Is the person away from home, as far as the room knows.
 
@@ -1157,9 +1182,17 @@ def create_app(
             activity=activity if activity.available() else None,
             room_state=(
                 lambda: {
-                    "present": bool(
-                        ((sidecar.snapshot() or {}).get("presence") or {}).get("detected", True)
-                    ),
+                    # The fused reading, not the raw mmWave bit.
+                    #
+                    # `presence` weighs four sources that routinely disagree --
+                    # mmWave, the camera, OwnTracks and Bluetooth -- and asks a
+                    # model only when they conflict. All of that was reachable
+                    # at `GET /room/presence` and through a tool, and the one
+                    # decision it exists for, whether Marvi should speak into
+                    # the room, read `snapshot().presence.detected` instead. So
+                    # OwnTracks saying the phone is at the bakery never reached
+                    # the question "is anybody there to hear this".
+                    "present": _really_present(sidecar),
                     "conversation_active": conversation.active(),
                 }
             )

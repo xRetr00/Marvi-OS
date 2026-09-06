@@ -170,7 +170,7 @@ def test_the_mind_actually_holds_what_it_cannot_say(room) -> None:
     class _Journal:
         """Only what `Mind.tick` actually reaches for."""
 
-        def pending(self, limit=20):  # noqa: ANN001, ARG002
+        def pending(self, limit=20):
             return [dict(said, id=1)]
 
         def tokens_since(self, _when):
@@ -238,7 +238,7 @@ def test_a_cooldown_is_waited_out_not_walked_into(room) -> None:
 
 def _journal_of(events=None):
     class _Journal:
-        def pending(self, limit=20):  # noqa: ANN001, ARG002
+        def pending(self, limit=20):
             return list(events or [])
 
         def tokens_since(self, _when):
