@@ -93,6 +93,7 @@ from .providers.usage import collect_accounts
 from .room import RoomSidecar, RoomUnavailableError, register_room_tools, sleep_guard
 from .runtime import (
     ANNOUNCING,
+    HOLD_ANNOUNCEMENT_SECONDS,
     ArgumentsMutatedError,
     AuditPage,
     ComponentStatus,
@@ -1029,22 +1030,43 @@ def create_app(
     # disabled. MARVI_ANNOUNCE governs initiative, not a button the user pressed.
     one_shot = announcer_service or Announcer()
 
-    def _announcing(on: bool) -> None:
-        """Show the island that this line was her idea, not an answer.
+    #: The timer that will clear a held announcement, so a second one cancels
+    #: the first rather than being wiped by it a moment later.
+    clearing: list[threading.Timer] = []
+
+    def _announcing(on: bool, text: str = "") -> None:
+        """Show the island that this line was her idea, and leave it up.
 
         `speaking` is her half of a conversation the user started; this is the
         announcer. They used to look identical, which meant the only way to
         tell whether you had been asked something was to listen to the words.
+
+        It stays up for `HOLD_ANNOUNCEMENT_SECONDS` after she stops, because
+        the announcement is over in four seconds and is the one thing on screen
+        nobody asked for: you look up because you heard your name, and by then
+        it has gone.
         """
+        while clearing:
+            clearing.pop().cancel()
         if on:
-            runtime_store.assistant = runtime_store.assistant.model_copy(update=ANNOUNCING)
-        elif runtime_store.assistant.phase == "announcing":
+            runtime_store.assistant = runtime_store.assistant.model_copy(
+                update={**ANNOUNCING, "detail": text[:400] or "Unprompted"}
+            )
+            return
+
+        def release() -> None:
             # Only if it is still ours: a call starting mid-announcement has
             # already moved the phase on, and stamping "ready" over it would
             # blank a live session.
-            runtime_store.assistant = runtime_store.assistant.model_copy(
-                update={"phase": "ready", "caption": "Say Marvi", "detail": None}
-            )
+            if runtime_store.assistant.phase == "announcing":
+                runtime_store.assistant = runtime_store.assistant.model_copy(
+                    update={"phase": "ready", "caption": "Say Marvi", "detail": None}
+                )
+
+        timer = threading.Timer(HOLD_ANNOUNCEMENT_SECONDS, release)
+        timer.daemon = True
+        timer.start()
+        clearing.append(timer)
 
     one_shot.on_air = _announcing
     sidecar: RoomSidecar | None = None

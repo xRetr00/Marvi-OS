@@ -23,6 +23,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 
 import type { ModelCard, NewSchedule, SchedulePage } from '../../../shared/runtime'
 import { ScheduleCards } from './schedule-cards'
+import { WhenPicker } from './when-picker'
 
 /** What each kind of job is, in the words somebody choosing would need. */
 const KINDS = [
@@ -42,15 +43,6 @@ const KINDS = [
     costs: 'Costs a model call every run, and can do anything its tools allow.',
     example: 'Every morning, check my inbox and calendar and tell me what actually needs me today.'
   }
-]
-
-/** Times that cover most of what people schedule, so nobody has to learn cron. */
-const WHEN_SUGGESTIONS = [
-  { label: 'every 30 minutes', value: 'every 30 minutes' },
-  { label: 'hourly', value: 'every 60 minutes' },
-  { label: 'each morning', value: 'every day at 08:00' },
-  { label: 'weekdays 09:00', value: 'every weekday at 09:00' },
-  { label: 'tomorrow 18:00', value: 'tomorrow at 18:00' }
 ]
 
 export function CronjobsPage(): React.JSX.Element {
@@ -212,25 +204,12 @@ export function CronjobsPage(): React.JSX.Element {
             />
           </label>
 
-          <label className="cron-field">
+          <div className="cron-field">
             <span>When</span>
-            <input
-              onChange={(event) => setWhen(event.target.value)}
-              placeholder="every day at 08:00"
-              type="text"
-              value={when}
-            />
-          </label>
-          <div className="cron-suggestions">
-            {WHEN_SUGGESTIONS.map((suggestion) => (
-              <button
-                key={suggestion.value}
-                onClick={() => setWhen(suggestion.value)}
-                type="button"
-              >
-                {suggestion.label}
-              </button>
-            ))}
+            {/* A picker rather than a text box with a grammar behind it. See
+                `when-picker`: the obvious thing to type was rejected, and so
+                was every example this form used to offer. */}
+            <WhenPicker onChange={setWhen} value={when} />
           </div>
 
           {mode === 'action' ? (

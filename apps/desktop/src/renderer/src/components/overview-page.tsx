@@ -45,6 +45,31 @@ const DEVICE_WORDS: Record<DeviceState, string> = {
   unknown: 'unknown'
 }
 
+/**
+ * A component's status, in words rather than in its own vocabulary.
+ *
+ * These strings are written for a log: "sidecar connected on 127.0.0.1:7842",
+ * "local facade online". On a tile they are worse than useless -- the part
+ * that carries the meaning is the first word and the part that gets truncated
+ * is everything after it, so the tile read `sidecar connected on 127.0....`
+ * and told you nothing you could not see from the dot beside it.
+ *
+ * The mapping is deliberately shallow. Anything unrecognised is passed through
+ * whole, because inventing a friendlier phrase for a status this does not know
+ * would be inventing a fact.
+ */
+function plainly(detail: string | undefined, fallback: string): string {
+  const text = (detail ?? '').trim()
+  if (!text) return fallback
+  if (/^sidecar connected/i.test(text)) return 'connected'
+  if (/^local facade online/i.test(text)) return 'running here'
+  if (/^livekit up/i.test(text)) return 'ready'
+  // "Smart Room camera online, 2 visible, Shereef" -> "camera on, 2 visible".
+  const camera = /^smart room camera online,\s*(.+?)(?:,\s*[^,]*)?$/i.exec(text)
+  if (camera) return `camera on, ${camera[1]}`
+  return text
+}
+
 function Hop({ label, tone }: { label: string; tone: Tone }): React.JSX.Element {
   return (
     <span className={`ovp-hop tone-${tone}`}>
@@ -192,15 +217,46 @@ export function OverviewPage({
         </h3>
         <div className="ovp-tiles">
           {[
-            { label: 'Room', value: runtime.components.room?.detail ?? 'Offline' },
-            { label: 'Vision', value: runtime.components.vision?.detail ?? 'Offline' },
-            { label: 'Accounts', value: runtime.components.accounts?.detail ?? 'Not connected' },
-            { label: 'Microphone', value: DEVICE_WORDS[device('microphone')] },
-            { label: 'Camera', value: DEVICE_WORDS[device('camera')] }
+            {
+              label: 'Room',
+              value: plainly(runtime.components.room?.detail, 'offline'),
+              raw: runtime.components.room?.detail,
+              tone: toneOf(runtime.components.room?.state)
+            },
+            {
+              label: 'Vision',
+              value: plainly(runtime.components.vision?.detail, 'offline'),
+              raw: runtime.components.vision?.detail,
+              tone: toneOf(runtime.components.vision?.state)
+            },
+            {
+              label: 'Accounts',
+              value: plainly(runtime.components.accounts?.detail, 'none connected'),
+              raw: runtime.components.accounts?.detail,
+              tone: toneOf(runtime.components.accounts?.state)
+            },
+            {
+              label: 'Microphone',
+              value: DEVICE_WORDS[device('microphone')],
+              raw: undefined,
+              tone: device('microphone') === 'on' ? ('ready' as Tone) : ('neutral' as Tone)
+            },
+            {
+              label: 'Camera',
+              value: DEVICE_WORDS[device('camera')],
+              raw: undefined,
+              tone: device('camera') === 'on' ? ('ready' as Tone) : ('neutral' as Tone)
+            }
           ].map((tile) => (
-            <div className="ovp-tile" key={tile.label}>
-              <span>{tile.label}</span>
-              <strong title={tile.value}>{tile.value}</strong>
+            <div className={`ovp-tile tone-${tile.tone}`} key={tile.label}>
+              <span>
+                <i aria-hidden="true" />
+                {tile.label}
+              </span>
+              {/* The exact wording stays reachable on hover: shortening it for
+                  reading should not mean losing the address when something is
+                  wrong with it. */}
+              <strong title={tile.raw ?? tile.value}>{tile.value}</strong>
             </div>
           ))}
         </div>
@@ -220,7 +276,9 @@ export function OverviewPage({
             <li className={`tone-${toneOf(service?.state)}`} key={label}>
               <i aria-hidden="true" />
               <span>{label}</span>
-              <small>{service?.detail ?? 'no status received'}</small>
+              <small title={service?.detail ?? ''}>
+                {plainly(service?.detail, 'no status received')}
+              </small>
             </li>
           ))}
         </ul>

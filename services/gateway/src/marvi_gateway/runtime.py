@@ -94,6 +94,15 @@ class RoomEvent(BaseModel):
 #: by the shell; this one originates here, so the words do too.
 ANNOUNCING = {"phase": "announcing", "caption": "Marvi has something", "detail": "Unprompted"}
 
+#: How long the island keeps an announcement up after she stops talking.
+#:
+#: An announcement is over in four seconds and is the one thing on screen
+#: nobody asked for, so it is also the one thing most likely to be missed --
+#: you look up because you heard your name, and by then it has gone. Long
+#: enough to read twice, short enough that it is not still there when you next
+#: glance at the machine.
+HOLD_ANNOUNCEMENT_SECONDS = 35.0
+
 
 class AssistantState(BaseModel):
     phase: AssistantPhase = "ready"

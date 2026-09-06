@@ -396,9 +396,9 @@ class Announcer:
             logger.info("announcement cancellation requested")
             return True
 
-    #: Set while an unprompted line is playing, so the island can show it.
-    #: Assigned by whoever owns the runtime state; unset here, nothing changes
-    #: and the announcement is exactly what it was.
+    #: Called `(on, text)` around an unprompted line, so the island can show
+    #: what she said. Assigned by whoever owns the runtime state; unset here,
+    #: nothing changes and the announcement is exactly what it was.
     on_air: Any = None
 
     def speak(self, text: str, purpose: str = "proactive") -> dict[str, Any]:
@@ -421,7 +421,7 @@ class Announcer:
         # pressed, and captioning that "Marvi has something" would be a lie.
         if self.on_air is not None and purpose == "proactive":
             with suppress(Exception):
-                self.on_air(True)
+                self.on_air(True, spoken)
         logger.info(
             "announcement started",
             extra={
@@ -457,7 +457,7 @@ class Announcer:
             # not leave the island claiming she is still talking.
             if self.on_air is not None and purpose == "proactive":
                 with suppress(Exception):
-                    self.on_air(False)
+                    self.on_air(False, spoken)
 
         logger.info(
             "announcement played",

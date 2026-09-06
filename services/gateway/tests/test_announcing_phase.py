@@ -8,7 +8,12 @@ to tell whether you had been asked something was to listen to the words.
 from __future__ import annotations
 
 from marvi_gateway.announce import Announcer
-from marvi_gateway.runtime import ANNOUNCING, AssistantPhase, RuntimeStore
+from marvi_gateway.runtime import (
+    ANNOUNCING,
+    HOLD_ANNOUNCEMENT_SECONDS,
+    AssistantPhase,
+    RuntimeStore,
+)
 
 
 def test_announcing_is_a_phase_the_shell_knows() -> None:
@@ -16,13 +21,18 @@ def test_announcing_is_a_phase_the_shell_knows() -> None:
     assert ANNOUNCING["phase"] == "announcing"
 
 
+said: list[str] = []
+
+
 def _wired() -> tuple[Announcer, RuntimeStore, list[bool]]:
     store = RuntimeStore()
+    said.clear()
     seen: list[bool] = []
     announcer = Announcer()
 
-    def on_air(on: bool) -> None:
+    def on_air(on: bool, text: str = "") -> None:
         seen.append(on)
+        said.append(text)
         if on:
             store.assistant = store.assistant.model_copy(update=ANNOUNCING)
         elif store.assistant.phase == "announcing":
@@ -60,3 +70,25 @@ def test_nothing_to_say_never_raises_the_flag() -> None:
     announcer, _store, seen = _wired()
     assert announcer.speak("   ")["played"] is False
     assert seen == []
+
+
+def test_the_island_is_told_what_she_said(monkeypatch) -> None:
+    """So it can show the words, not just that words happened.
+
+    An announcement is over in four seconds and is the one thing on screen
+    nobody asked for: you look up because you heard your name, and by then it
+    has gone.
+    """
+    announcer, _store, _seen = _wired()
+    monkeypatch.setattr(Announcer, "_play", lambda *_a, **_k: 1.0, raising=False)
+    monkeypatch.setattr(Announcer, "_render", lambda *_a, **_k: b"", raising=False)
+
+    announcer.speak("Hey Shereef, new email just came in from Icemail.")
+
+    assert said[0].startswith("Hey Shereef"), f"the island was told {said[0]!r}"
+
+
+def test_it_is_held_long_enough_to_read() -> None:
+    # Long enough to read twice, short enough that it is not still there when
+    # you next glance at the machine.
+    assert 25.0 <= HOLD_ANNOUNCEMENT_SECONDS <= 60.0

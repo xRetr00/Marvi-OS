@@ -302,21 +302,32 @@ def _mail(event: dict[str, Any], name: str, payload: dict[str, Any]) -> str:
     to keep it -- so it costs nothing to ask what it means while it is there.
     """
     sender = _who_from(_on(payload, "from", "sender", "from_email", "fromEmail"))
-    if says := _plain(_on(payload, "says"), SUMMARY_LIMIT):
-        # Marvi's own words about somebody else's mail. Still attributed, so
-        # the person always knows where a claim came from.
-        return _choose((
-            # Never `f"{name}, {says}"` -- the summary is a sentence and starts
-            # with a capital, so that reads as "Shereef, Your three mailboxes".
-            says + (f" That is from {sender}{_trailing(name)}." if sender else ""),
-            (f"From {sender}{_trailing(name)}: " if sender else f"{_address(name)}") + says,
-        ), event)
-    # The ingest files these as "Email: <subject>", which is right for a
-    # memory and wrong out loud -- "new mail: Email: your invoice" is how a
-    # dashboard talks.
+    # The ingest files these as "Email: <subject>", which is right for a memory
+    # and wrong out loud -- "new mail: Email: your invoice" is how a dashboard
+    # talks. Only used when the gatekeeper produced nothing to say.
     subject = _plain(
         str(_on(payload, "subject", "title") or event.get("summary", "")).removeprefix("Email: ")
     )
+    if says := _plain(_on(payload, "says"), SUMMARY_LIMIT):
+        # An announcement, not a headline.
+        #
+        # This used to be one clause -- "Your three mailboxes are deactivated.
+        # That is from Tiya" -- fired and gone before anybody had worked out
+        # what was being talked about. Somebody speaking to you across a room
+        # opens by saying who they are talking to and what kind of thing this
+        # is, *then* the thing, because the first second is spent realising
+        # you are being spoken to at all.
+        opening = _choose(
+            (
+                f"{_greeting(name)}new email just came in",
+                f"{_greeting(name)}you have a new email",
+                f"{_address(name)}there is a new email",
+            ),
+            event,
+        )
+        whose = f" from {sender}" if sender else ""
+        return f"{opening}{whose}. {says}"
+
     if sender and subject:
         return _choose((
             f"{_address(name)}mail from {sender} - {subject}.",

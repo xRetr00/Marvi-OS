@@ -6542,7 +6542,14 @@ function IslandSurface(): React.JSX.Element {
   const interactionMode = islandInteractionMode(voice)
   const presentationKey = islandPresentationKey(voice)
   const confirmationExpanded = voice.phase === 'confirmation' && Boolean(voice.confirmation)
-  const expanded = confirmationExpanded || (hasOrb && (autoExpanded || hoverExpanded))
+  // An announcement stays open for as long as the Gateway holds the phase.
+  //
+  // Everything else collapses after `ISLAND_AUTO_EXPAND_MS` because it is a
+  // glance -- "Listening", "Speaking". An announcement is two sentences
+  // somebody looked up to read *after* hearing their name, and 1.8 seconds is
+  // less time than it takes to find the island on the screen.
+  const announcing = voice.phase === 'announcing'
+  const expanded = confirmationExpanded || announcing || (hasOrb && (autoExpanded || hoverExpanded))
 
   useEffect(() => {
     void window.marvi?.getRuntime().then(applyRuntimeState)
@@ -6559,15 +6566,16 @@ function IslandSurface(): React.JSX.Element {
       setHoverExpanded(false)
       setAutoExpanded(hasOrb)
     }, 0)
-    const collapseTimer = hasOrb
-      ? window.setTimeout(() => setAutoExpanded(false), ISLAND_AUTO_EXPAND_MS)
-      : undefined
+    const collapseTimer =
+      hasOrb && !announcing
+        ? window.setTimeout(() => setAutoExpanded(false), ISLAND_AUTO_EXPAND_MS)
+        : undefined
 
     return () => {
       window.clearTimeout(revealTimer)
       if (collapseTimer !== undefined) window.clearTimeout(collapseTimer)
     }
-  }, [hasOrb, presentationKey])
+  }, [hasOrb, announcing, presentationKey])
 
   useEffect(() => {
     const element = measureRef.current

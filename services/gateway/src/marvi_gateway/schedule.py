@@ -257,9 +257,14 @@ def parse_when(value: str, now: datetime | None = None) -> tuple[str, str, str |
         expression = f"{minute} {hour} * * *"
         _validate_cron(expression)
         return "cron", expression, None
-    if len(text.split()) == 5:
+    # Five *cron-shaped* fields, not five words. "whenever you feel like it"
+    # is five words, and reporting it as `Invalid month name "like"` sends
+    # somebody looking for a month they never mentioned instead of telling
+    # them what would have worked.
+    fields = text.split()
+    if len(fields) == 5 and all(re.fullmatch(r"[\d*/,\-]+", field) for field in fields):
         _validate_cron(text)
-        return "cron", text, None
+        return "cron", text, next_fire("cron", text, current)
     try:
         run_at = datetime.fromisoformat(text.replace("Z", "+00:00"))
     except ValueError as exc:
