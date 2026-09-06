@@ -18,7 +18,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -168,6 +168,20 @@ class EventJournal:
                 "SELECT COUNT(*) n FROM events WHERE processed_at IS NULL"
             ).fetchone()["n"]
         )
+
+    def counts_by_source(self, days: int = 7) -> dict[str, int]:
+        """How many events each source has produced lately.
+
+        For the Mind page, which otherwise cannot distinguish "the room has
+        nothing to report" from "the room stopped reporting three weeks ago".
+        A feeder that quietly stopped is invisible, and that is most of what
+        "the Mind is not minding" turned out to mean.
+        """
+        since = (datetime.now(UTC) - timedelta(days=max(1, days))).isoformat()
+        rows = self._db.execute(
+            "SELECT source, COUNT(*) n FROM events WHERE at >= ? GROUP BY source", (since,)
+        ).fetchall()
+        return {str(row["source"]): int(row["n"]) for row in rows}
 
     def mark_processed(self, event_id: int, decision_id: int | None = None) -> None:
         self._db.execute(

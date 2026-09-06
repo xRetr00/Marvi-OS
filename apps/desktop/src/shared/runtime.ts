@@ -246,6 +246,27 @@ export interface MindDecision {
   cost: number
 }
 
+/** Something worth saying that could not be said yet. See `pending.py`. */
+export interface WaitingItem {
+  summary: string
+  /** The policy rule that held it back: `quiet-hours`, `unread`, ... */
+  reason: string
+  /** The same thing in words: "you were out". Empty when there is none. */
+  because: string
+  waited_seconds: number
+}
+
+/** Something that can put an event in front of the mind. */
+export interface Feeder {
+  id: string
+  label: string
+  /** Whether it is connected at all, as opposed to merely quiet. */
+  wired: boolean
+  /** Events it has produced in the last week. Zero on a wired feeder is the
+   *  interesting case: connected, and silently not feeding. */
+  events: number
+}
+
 export interface InitiativeStatus {
   paused: boolean
   running: boolean
@@ -253,6 +274,11 @@ export interface InitiativeStatus {
   last_runs: Record<string, string>
   last_errors: Record<string, string>
   settings: Record<string, number>
+  /** Why she would not speak right now, or empty if she would. The question
+   *  everybody actually opens the Mind page with. */
+  quiet_because?: string
+  waiting?: WaitingItem[]
+  feeders?: Feeder[]
 }
 
 export type UpdateChannel = 'release' | 'nightly'

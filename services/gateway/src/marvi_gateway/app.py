@@ -367,6 +367,13 @@ class InitiativeStatus(BaseModel):
     last_runs: dict[str, str]
     last_errors: dict[str, str]
     settings: dict[str, Any]
+    #: Why she would not speak right now, or empty if she would. The question
+    #: everybody actually opens the Mind page with.
+    quiet_because: str = ""
+    #: What is held until it can be said. See `pending`.
+    waiting: list[dict[str, Any]] = []
+    #: What can put something in front of her, and whether it is doing so.
+    feeders: list[dict[str, Any]] = []
 
 
 class ProviderRow(BaseModel):

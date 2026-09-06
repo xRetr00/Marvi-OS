@@ -120,7 +120,79 @@ class Initiative:
             "last_runs": dict(self.last_runs),
             "last_errors": dict(self.last_errors),
             "settings": self.mind.settings.as_dict(),
+            # What the page actually needs to answer "why is she quiet".
+            #
+            # Pause, running and a pending count say whether the machinery is
+            # turning. They do not say whether Marvi *would* speak, which is
+            # the only question anybody opens this page with -- and the answer
+            # is usually a perfectly ordinary reason nothing was surfacing it.
+            "quiet_because": self._quiet_because(),
+            "waiting": self.mind.waiting.waiting() if self.mind.waiting else [],
+            "feeders": self._feeders(),
         }
+
+    def _quiet_because(self) -> str:
+        """The reason she would not speak right now, or empty if she would."""
+        from datetime import datetime as _dt
+
+        from .policy import _quiet_now, day_start
+
+        if self.paused:
+            return "initiative is switched off"
+        settings = self.mind.settings
+        if _quiet_now(settings, _dt.now(UTC)):
+            return f"quiet hours, until {settings.quiet_end:02d}:00"
+        world = self._world_now()
+        if world.get("conversation_active"):
+            return "you are in a call"
+        if not world.get("present", True):
+            return "nobody seems to be here"
+        if self.focus is not None and getattr(self.focus, "low_resource", False):
+            return f"{self.focus.because} is running"
+        spent = self.journal.tokens_since(day_start(datetime.now(UTC)))
+        if spent >= settings.daily_token_budget:
+            return f"the day's thinking budget is spent ({spent:,} tokens)"
+        return ""
+
+    def _world_now(self) -> dict[str, Any]:
+        if self.room_state is None:
+            return {}
+        try:
+            return dict(self.room_state() or {})
+        except Exception:
+            return {}
+
+    def _feeders(self) -> list[dict[str, Any]]:
+        """Everything that can put something in front of the mind, and whether
+        it is actually doing so.
+
+        A feeder that quietly stopped feeding is invisible: the page shows the
+        mind turning happily on nothing at all, which is what "Mind is not
+        minding" looked like from the outside for weeks.
+        """
+        counts = {}
+        try:
+            counts = dict(self.journal.counts_by_source() or {})
+        except Exception:
+            counts = {}
+        rows = [
+            ("room", "Room and vision", self.room_state is not None),
+            ("machine", "This machine", self._machine is not None),
+            ("focus", "What you are doing", self.focus is not None),
+            ("accounts", "Connected accounts", self.ingest is not None),
+            ("schedule", "Your schedules", True),
+        ]
+        return [
+            {
+                "id": key,
+                "label": label,
+                "wired": bool(wired),
+                # Prefixes, because accounts are journalled as
+                # `accounts:gmail` and the row is about accounts as a whole.
+                "events": sum(n for source, n in counts.items() if source.startswith(key)),
+            }
+            for key, label, wired in rows
+        ]
 
     # -- jobs ----------------------------------------------------------------
 
