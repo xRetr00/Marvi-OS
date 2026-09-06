@@ -109,6 +109,8 @@ let petBounds: RectangleLike | null = null
 let petRestartTimer: NodeJS.Timeout | null = null
 let tray: Tray | null = null
 let gatewayPoll: NodeJS.Timeout | null = null
+let wakeWatchdog: NodeJS.Timeout | null = null
+let wakeWatchdogBusy = false
 let petCursorPoll: NodeJS.Timeout | null = null
 let supervisor: ServiceSupervisor | null = null
 let serviceReports: ServiceReport[] = []
@@ -848,6 +850,50 @@ async function wakeAutostart(
   }
 }
 
+const WAKE_STALE_MS = 15_000
+
+function wakeAutoRestartEnabled(): boolean {
+  try {
+    const text = readFileSync(join(stateDir(), 'providers.env'), 'utf8')
+    const line = text
+      .split(/\r?\n/)
+      .find((entry) => entry.trim().startsWith('MARVI_WAKE_AUTO_RESTART='))
+    if (!line) return true
+    const value = line.slice(line.indexOf('=') + 1).trim().toLowerCase()
+    return !['0', 'false', 'no', 'off'].includes(value)
+  } catch {
+    return true
+  }
+}
+
+function wakeListenerFresh(now = Date.now()): boolean {
+  try {
+    const state = JSON.parse(
+      readFileSync(join(stateDir(), 'state', 'wake.json'), 'utf8')
+    ) as Record<string, unknown>
+    const heartbeat = Number(state['heartbeat']) * 1000
+    return Boolean(state['running']) && Number.isFinite(heartbeat) && now - heartbeat <= WAKE_STALE_MS
+  } catch {
+    return false
+  }
+}
+
+async function reconcileWakeListener(): Promise<void> {
+  if (isQuitting || wakeWatchdogBusy || !wakeAutoRestartEnabled() || wakeListenerFresh()) return
+  wakeWatchdogBusy = true
+  try {
+    const registration = await wakeAutostart('status')
+    if (registration.autostart && !wakeListenerFresh()) await wakeAutostart('ensure')
+  } finally {
+    wakeWatchdogBusy = false
+  }
+}
+
+function startWakeWatchdog(): void {
+  void reconcileWakeListener()
+  wakeWatchdog = setInterval(() => void reconcileWakeListener(), 10_000)
+}
+
 type RendererSurface = 'main' | 'island'
 
 function rendererUrl(surface: RendererSurface): string {
@@ -1280,7 +1326,7 @@ function startApp(): void {
     // back, and do the same after any unexpected whole-process exit. The Run
     // key remains the user's authority: an intentionally disabled listener is
     // never started here.
-    void wakeAutostart('ensure')
+    startWakeWatchdog()
 
     ipcMain.handle('marvi:get-version', () => app.getVersion())
     ipcMain.handle('marvi:get-build-info', () => ({
@@ -3215,6 +3261,8 @@ app.on('before-quit', () => {
   isQuitting = true
   if (gatewayPoll) clearInterval(gatewayPoll)
   gatewayPoll = null
+  if (wakeWatchdog) clearInterval(wakeWatchdog)
+  wakeWatchdog = null
   if (petCursorPoll) clearInterval(petCursorPoll)
   petCursorPoll = null
   if (petRestartTimer) clearTimeout(petRestartTimer)

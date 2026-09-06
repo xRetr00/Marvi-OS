@@ -12,7 +12,14 @@ describe('wake host lifecycle', () => {
   })
 
   it('restores an enabled listener after an updater relaunch', () => {
-    expect(main).toContain("void wakeAutostart('ensure')")
+    expect(main).toContain('startWakeWatchdog()')
+    expect(main).toContain("await wakeAutostart('ensure')")
     expect(main).toContain("if (stdout.trim() !== 'on') return fallback")
+  })
+
+  it('gates crash recovery on the user setting and a stale heartbeat', () => {
+    expect(main).toContain('!wakeAutoRestartEnabled() || wakeListenerFresh()')
+    expect(main).toContain('MARVI_WAKE_AUTO_RESTART=')
+    expect(main).toContain('now - heartbeat <= WAKE_STALE_MS')
   })
 })
