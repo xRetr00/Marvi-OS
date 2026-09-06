@@ -102,6 +102,7 @@ import { ConnectorsPanel } from './components/connectors/ConnectorsPanel'
 import { ServiceLogo } from './lib/serviceLogos'
 import { McpPanel } from './components/mcp/McpPanel'
 import { CapabilityPluginsPanel } from './components/capabilities/CapabilityPluginsPanel'
+import { ActivityPage } from './components/activity-page'
 import { MindPage } from './components/mind-page'
 import {
   filterInstalledSkills,
@@ -157,7 +158,6 @@ import {
 import { getHapticsMuted, haptic, setHapticsMuted } from './lib/haptics'
 import type {
   FaceLibrary,
-  AuditEvent,
   DeviceState,
   IdentityStatus,
   MemoryPage,
@@ -809,7 +809,7 @@ function MainSurface(): React.JSX.Element {
                   ) : page === 'Voice' ? (
                     <VoicePanel runtime={runtime} />
                   ) : page === 'Activity' ? (
-                    <ActivityPanel />
+                    <ActivityPage />
                   ) : page === 'DMN' ? (
                     <IdentityPanel />
                   ) : page === 'Graph' ? (
@@ -5361,54 +5361,6 @@ function SkillsPanel(): React.JSX.Element {
           )}
         </ControlSection>
       ) : null}
-    </ControlPage>
-  )
-}
-
-function ActivityPanel(): React.JSX.Element {
-  const [events, setEvents] = useState<AuditEvent[]>([])
-
-  useEffect(() => {
-    let disposed = false
-    const load = async (): Promise<void> => {
-      const next = await window.marvi?.getAudit()
-      if (!disposed && next) setEvents(next)
-    }
-    void load()
-    const timer = setInterval(() => void load(), 3_000)
-    return () => {
-      disposed = true
-      clearInterval(timer)
-    }
-  }, [])
-
-  return (
-    <ControlPage
-      description="Local history of tool requests, approvals, and results."
-      title="Activity"
-    >
-      <ControlSection icon={History} title="Tool activity">
-        {events.length === 0 ? (
-          <ControlEmpty
-            description="Tool requests and their outcomes will appear here. Nothing is uploaded."
-            icon={Clock3}
-            title="No activity yet"
-          />
-        ) : (
-          events.map((event, index) => (
-            <ControlRow
-              action={
-                <ControlPill tone={event.event === 'failed' ? 'danger' : 'neutral'}>
-                  {event.event}
-                </ControlPill>
-              }
-              description={`${event.at.slice(11, 19)} · ${event.mode}${Object.keys(event.arguments).length > 0 ? ` · ${JSON.stringify(event.arguments)}` : ''}${event.detail ? ` · ${event.detail}` : ''}`}
-              key={`${event.at}-${index}`}
-              title={event.tool.replaceAll('_', ' ')}
-            />
-          ))
-        )}
-      </ControlSection>
     </ControlPage>
   )
 }
