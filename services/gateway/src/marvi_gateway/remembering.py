@@ -227,11 +227,11 @@ def _parse(text: str) -> list[dict[str, Any]]:
 #: choice already made for credentials: the store does not trust the
 #: instruction, it checks. A rule the model ignores is not a rule.
 NARRATES_THE_EXCHANGE = re.compile(
-    r"the (?:user|assistant) (?:said|asked|replied|responded|confirmed|mentioned"
-    r"|stated|indicated|greeted|told)"
-    r"|the assistant"
-    r"|(?:which|this) indicates"
-    r"|marvi (?:interpreted|responded|replied|said)",
+    r"\bthe (?:user|assistant) (?:said|asked|replied|responded|confirmed|mentioned"
+    r"|stated|indicated|greeted|told)\b"
+    r"|\bthe assistant\b"
+    r"|\b(?:which|this) indicates\b"
+    r"|\bmarvi (?:interpreted|responded|replied|said)\b",
     re.IGNORECASE,
 )
 
