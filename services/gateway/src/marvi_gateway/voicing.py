@@ -309,6 +309,34 @@ def _repository(event: dict[str, Any], name: str, payload: dict[str, Any]) -> st
     return f"{_address(name)}on GitHub: {title}."
 
 
+def _machine(event: dict[str, Any], name: str, payload: dict[str, Any]) -> str:
+    """The machine about itself, said the way a person would mention it."""
+    kind = str(event.get("kind", ""))
+    drive = str(_on(payload, "drive") or "")
+    free = _on(payload, "free_gb")
+    percent = _on(payload, "percent")
+    if kind == "disk_critical":
+        return f"{_address(name)}the {drive} drive is nearly full - {free}GB left."
+    if kind == "disk_low":
+        return _choose((
+            f"{_address(name)}the {drive} drive is getting full, {free}GB left.",
+            f"Heads up{_trailing(name)} - {drive} is down to {free}GB.",
+        ), event)
+    if kind == "battery_critical":
+        return f"{_address(name)}the battery is at {percent}%. Worth plugging in."
+    if kind == "battery_low":
+        return f"{_address(name)}battery is down to {percent}%."
+    if kind == "power_unplugged":
+        return f"You are on battery now{_trailing(name)}, {percent}%."
+    if kind == "memory_tight":
+        return f"{_address(name)}memory is at {percent}% - something may have run away."
+    if kind == "network_lost":
+        return f"{_address(name)}the network just went."
+    if kind == "network_back":
+        return f"Network is back{_trailing(name)}."
+    return ""
+
+
 def spoken(
     event: dict[str, Any],
     name: str = "",
@@ -332,6 +360,8 @@ def spoken(
         return _appointment(event, name, payload)
     if kind == "accounts:github:github":
         return _repository(event, name, payload)
+    if str(event.get("source", "")) == "machine":
+        return _machine(event, name, payload)
     if kind in ("room:light_changed", "room:lights_changed"):
         return _lights(event, name, payload)
     if kind in (

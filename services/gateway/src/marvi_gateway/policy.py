@@ -68,6 +68,18 @@ SURFACE_CEILING: dict[str, str] = {
     "accounts:googlecalendar:googlecalendar": "speak",
     "accounts:github:github": "speak",
     "accounts:slack:slack": "island",
+    # The machine about itself. First-party, so there is no stranger's text in
+    # any of it -- what is left is only the question of whether it is worth
+    # interrupting for, and a disk about to fail a write is.
+    "machine:disk_critical": "speak",
+    "machine:disk_low": "island",
+    "machine:battery_critical": "speak",
+    "machine:battery_low": "island",
+    "machine:power_unplugged": "activity",
+    "machine:power_plugged": "activity",
+    "machine:memory_tight": "island",
+    "machine:network_lost": "speak",
+    "machine:network_back": "activity",
     "accounts:notion:notion": "activity",
     # The older shape, kept so events already in the journal still resolve.
     "accounts:email": "island",

@@ -27,6 +27,10 @@ logger = logging.getLogger(__name__)
 STARTUP_GRACE = 90.0
 INGEST_MINUTES = 10
 MIND_MINUTES = 2
+#: How often the machine looks at itself. Cheap enough to do often -- no model,
+#: no network beyond one DNS lookup -- and a disk filling up is worth knowing
+#: about before the thing that needed the space fails.
+MACHINE_MINUTES = 5
 REFLECT_HOURS = 6
 #: Slower than reflection on purpose. Reflection is a GROUP BY; this is a model
 #: reading eighty memories, and there is nothing to conclude from a morning.
@@ -51,6 +55,9 @@ class Initiative:
         self.mind = mind
         self.journal = journal
         self.ingest = ingest
+        #: Built on first use, because it holds the last reading and a fresh
+        #: one would report every threshold again on every restart.
+        self._machine: Any = None
         self.memory = memory
         self.memory_summarise = memory_summarise
         # The model that dreams. None is normal -- no auxiliary configured
@@ -150,6 +157,26 @@ class Initiative:
                 kind = "calendar" if subject.startswith("Event:") else "email"
                 self.journal.append("accounts", kind, subject, {"id": subject}, trusted=False)
         return result
+
+    def run_machine(self) -> dict[str, Any]:
+        """Let the machine notice its own condition. See `machine`.
+
+        Trusted, unlike everything else that arrives from outside: nobody but
+        this process wrote these numbers, so there is no stranger's text in
+        them and no reason to hold them at arm's length.
+        """
+        if self.journal is None:
+            return {"noticed": 0}
+        if self._machine is None:
+            from .machine import Machine
+
+            self._machine = Machine()
+        readings = self._machine.look()
+        for reading in readings:
+            self.journal.append(
+                "machine", reading.kind, reading.summary, reading.payload, trusted=True
+            )
+        return {"noticed": len(readings)}
 
     def run_mind(self) -> dict[str, Any]:
         present, conversation = True, False
@@ -354,6 +381,10 @@ class Initiative:
         scheduler.add_job(
             self._guard("ingest", self.run_ingest), "interval",
             minutes=INGEST_MINUTES, id="ingest", max_instances=1, coalesce=True,
+        )
+        scheduler.add_job(
+            self._guard("machine", self.run_machine), "interval",
+            minutes=MACHINE_MINUTES, id="machine", max_instances=1, coalesce=True,
         )
         scheduler.add_job(
             self._guard("mind", self.run_mind), "interval",
