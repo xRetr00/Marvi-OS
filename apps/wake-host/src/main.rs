@@ -59,6 +59,14 @@ fn models_dir() -> PathBuf {
 /// `--wake` rather than a bespoke channel: it is the same argument either way,
 /// and Electron's single-instance lock decides which of the two it means —
 /// start her, or tell the running one to join.
+fn packaged_app_command(listener: &Path) -> Option<PathBuf> {
+    listener
+        .parent()?
+        .parent()?
+        .parent()
+        .map(|dir| dir.join("Marvi-OS.exe"))
+}
+
 fn app_command() -> PathBuf {
     if let Ok(explicit) = std::env::var("MARVI_APP_COMMAND") {
         if !explicit.trim().is_empty() {
@@ -67,8 +75,7 @@ fn app_command() -> PathBuf {
     }
     if let Ok(root) = std::env::var("MARVI_INSTALL_ROOT") {
         if !root.trim().is_empty() {
-            return PathBuf::from(root.trim())
-                .join("apps/desktop/dist/win-unpacked/Marvi-OS.exe");
+            return PathBuf::from(root.trim()).join("apps/desktop/dist/win-unpacked/Marvi-OS.exe");
         }
     }
     // Installed under `resources/wake-host`, three levels below the desktop
@@ -78,21 +85,36 @@ fn app_command() -> PathBuf {
     // successful detection look like a listener crash because nothing opened.
     let installed = std::env::current_exe()
         .ok()
-        .and_then(|exe| {
-            exe.parent()
-                .and_then(|d| d.parent())
-                .and_then(|d| d.parent())
-                .map(|d| d.join("Marvi-OS.exe"))
-        });
+        .and_then(|exe| packaged_app_command(&exe));
     match installed {
         Some(path) if path.is_file() => path,
         _ => PathBuf::from("Marvi-OS.exe"),
     }
 }
 
+#[cfg(test)]
+mod app_command_tests {
+    use super::packaged_app_command;
+    use std::path::Path;
+
+    #[test]
+    fn a_packaged_listener_finds_the_current_desktop_executable() {
+        let listener = Path::new(
+            r"C:\Marvi\apps\desktop\dist\win-unpacked\resources\wake-host\marvi-wake-host.exe",
+        );
+        assert_eq!(
+            packaged_app_command(listener).unwrap(),
+            Path::new(r"C:\Marvi\apps\desktop\dist\win-unpacked\Marvi-OS.exe")
+        );
+    }
+}
+
 fn join(confidence: f32) {
     let command = app_command();
-    eprintln!("wake word heard ({confidence:.2}); starting {}", command.display());
+    eprintln!(
+        "wake word heard ({confidence:.2}); starting {}",
+        command.display()
+    );
     let mut launch = std::process::Command::new(&command);
     launch.arg("--wake");
     #[cfg(windows)]
@@ -329,7 +351,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // the current state and the registry is the only thing that knows.
             Some("status") => println!("{}", if autostart::registered() { "on" } else { "off" }),
             Some("on") => println!("{}", if autostart::set(true) { "on" } else { "failed" }),
-            _ => println!("{}", if autostart::set(false) { "off" } else { "failed" }),
+            _ => println!(
+                "{}",
+                if autostart::set(false) {
+                    "off"
+                } else {
+                    "failed"
+                }
+            ),
         }
         return Ok(());
     }
@@ -387,8 +416,7 @@ mod tray {
         let centre = (SIZE as f32 - 1.0) / 2.0;
         for y in 0..SIZE {
             for x in 0..SIZE {
-                let distance =
-                    ((x as f32 - centre).powi(2) + (y as f32 - centre).powi(2)).sqrt();
+                let distance = ((x as f32 - centre).powi(2) + (y as f32 - centre).powi(2)).sqrt();
                 // Antialiased edges, because a hard-edged circle at this size
                 // reads as a polygon in the tray.
                 let outer = (14.0 - distance).clamp(0.0, 1.0);
@@ -513,7 +541,9 @@ mod tray {
             while let Ok(event) = receiver.try_recv() {
                 if event.id == quit_id {
                     QUIT.store(true, Ordering::Relaxed);
-                } else if event.id == default_id || device_items.iter().any(|(i, _)| *i.id() == event.id) {
+                } else if event.id == default_id
+                    || device_items.iter().any(|(i, _)| *i.id() == event.id)
+                {
                     let picked = if event.id == default_id {
                         String::new()
                     } else {

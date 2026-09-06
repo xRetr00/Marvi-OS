@@ -12,7 +12,9 @@ use marvi_wake_host::takeover;
 static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
 
 fn with_state(body: impl FnOnce()) {
-    let _guard = ONE_AT_A_TIME.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let _guard = ONE_AT_A_TIME
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let home = std::env::temp_dir().join(format!("marvi-takeover-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&home);
     unsafe { std::env::set_var("MARVI_HOME", &home) };
@@ -39,7 +41,13 @@ fn a_control_center_stop_request_is_consumable() {
 #[test]
 fn a_live_listener_is_the_one_to_stop() {
     with_state(|| {
-        State { pid: 4242, running: true, heartbeat: state::now(), ..Default::default() }.write();
+        State {
+            pid: 4242,
+            running: true,
+            heartbeat: state::now(),
+            ..Default::default()
+        }
+        .write();
         assert_eq!(takeover::predecessor(), Some(4242));
     });
 }
@@ -63,7 +71,13 @@ fn a_stale_file_names_a_pid_windows_has_since_reused() {
 #[test]
 fn a_listener_that_said_it_stopped_is_not_stopped_again() {
     with_state(|| {
-        State { pid: 4242, running: false, heartbeat: state::now(), ..Default::default() }.write();
+        State {
+            pid: 4242,
+            running: false,
+            heartbeat: state::now(),
+            ..Default::default()
+        }
+        .write();
         assert_eq!(takeover::predecessor(), None);
     });
 }

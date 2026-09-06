@@ -57,7 +57,11 @@ pub struct InstallOutcome {
 }
 
 /// The target ref to clone for a channel.
-fn target_ref(channel: Channel, repo: &str, cwd: &Path) -> Result<(String, Option<String>), String> {
+fn target_ref(
+    channel: Channel,
+    repo: &str,
+    cwd: &Path,
+) -> Result<(String, Option<String>), String> {
     match channel {
         Channel::Nightly => Ok(("main".to_string(), None)),
         Channel::Release => {
@@ -109,7 +113,10 @@ pub fn install(cfg: &mut InstallConfig, progress: &mut dyn FnMut(&str)) -> Insta
                     desktop_pid: None,
                     relaunch_exe: cfg.relaunch_exe.clone(),
                     no_relaunch: cfg.relaunch_exe.is_none(),
-                    builder: std::mem::replace(&mut cfg.builder, Box::new(crate::builder::NpmBuildRunner::default())),
+                    builder: std::mem::replace(
+                        &mut cfg.builder,
+                        Box::new(crate::builder::NpmBuildRunner::default()),
+                    ),
                     provision_toolchain: cfg.provision_toolchain,
                 };
                 let out = crate::update::run_update(&mut update, progress);
@@ -168,7 +175,9 @@ pub fn install(cfg: &mut InstallConfig, progress: &mut dyn FnMut(&str)) -> Insta
         match git::verify_tag(&staging, tag) {
             Ok(SignatureStatus::Invalid(detail)) => {
                 cleanup(&staging);
-                return fail(format!("release tag {tag} has an invalid signature: {detail}"));
+                return fail(format!(
+                    "release tag {tag} has an invalid signature: {detail}"
+                ));
             }
             Ok(SignatureStatus::Unsigned) => {
                 progress(&format!("warning: release tag {tag} is unsigned"));
@@ -203,12 +212,7 @@ pub fn install(cfg: &mut InstallConfig, progress: &mut dyn FnMut(&str)) -> Insta
     // says what happened, because a step that fails in silence is what made
     // the previous release impossible to diagnose.
     if cfg.provision_toolchain {
-        crate::handoff::record_gpu_choice(
-            &cfg.install_root,
-            &cfg.state_dir,
-            cfg.use_gpu,
-            progress,
-        );
+        crate::handoff::record_gpu_choice(&cfg.install_root, &cfg.state_dir, cfg.use_gpu, progress);
         if let Err(e) =
             crate::handoff::install_essentials(&cfg.install_root, &cfg.state_dir, progress)
         {
@@ -219,7 +223,9 @@ pub fn install(cfg: &mut InstallConfig, progress: &mut dyn FnMut(&str)) -> Insta
         if let Err(e) =
             crate::handoff::install_cli_shim(&cfg.install_root, &cfg.state_dir, progress)
         {
-            progress(&format!("warning: the marvi command was not installed ({e})"));
+            progress(&format!(
+                "warning: the marvi command was not installed ({e})"
+            ));
         }
         if let Err(e) = crate::handoff::create_shortcuts(&cfg.install_root, progress) {
             progress(&format!("warning: no shortcut was created ({e})"));
@@ -236,7 +242,9 @@ pub fn install(cfg: &mut InstallConfig, progress: &mut dyn FnMut(&str)) -> Insta
     if let Some(tag) = to.as_deref() {
         if let Err(error) = crate::selfupdate::fetch_voice_runtime(&cfg.install_root, tag, progress)
         {
-            progress(&format!("warning: could not fetch the voice runtime: {error}"));
+            progress(&format!(
+                "warning: could not fetch the voice runtime: {error}"
+            ));
         }
     }
 
@@ -301,7 +309,11 @@ pub(crate) fn build_with_toolchain(
 /// Best-effort: if it cannot be cleared, the build is still attempted and
 /// electron-builder's own error is the honest one to report.
 fn clear_build_output(root: &Path, progress: &mut dyn FnMut(&str)) {
-    let unpacked = root.join("apps").join("desktop").join("dist").join("win-unpacked");
+    let unpacked = root
+        .join("apps")
+        .join("desktop")
+        .join("dist")
+        .join("win-unpacked");
     if !unpacked.exists() {
         return;
     }

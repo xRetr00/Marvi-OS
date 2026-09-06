@@ -70,15 +70,27 @@ mod tests {
     #[test]
     fn a_single_fast_failure_is_worth_retrying() {
         let mut backoff = Backoff::new();
-        assert_eq!(backoff.delay(Duration::from_millis(50)), Duration::from_secs(1));
+        assert_eq!(
+            backoff.delay(Duration::from_millis(50)),
+            Duration::from_secs(1)
+        );
     }
 
     #[test]
     fn repeated_fast_failures_back_off_without_giving_up() {
         let mut backoff = Backoff::new();
-        assert_eq!(backoff.delay(Duration::from_millis(50)), Duration::from_secs(1));
-        assert_eq!(backoff.delay(Duration::from_millis(50)), Duration::from_secs(2));
-        assert_eq!(backoff.delay(Duration::from_millis(50)), Duration::from_secs(4));
+        assert_eq!(
+            backoff.delay(Duration::from_millis(50)),
+            Duration::from_secs(1)
+        );
+        assert_eq!(
+            backoff.delay(Duration::from_millis(50)),
+            Duration::from_secs(2)
+        );
+        assert_eq!(
+            backoff.delay(Duration::from_millis(50)),
+            Duration::from_secs(4)
+        );
         for _ in 0..20 {
             assert!(backoff.delay(Duration::from_millis(50)) <= MAX_DELAY);
         }
@@ -87,12 +99,24 @@ mod tests {
     #[test]
     fn a_long_run_resets_the_count() {
         let mut backoff = Backoff::new();
-        assert_eq!(backoff.delay(Duration::from_millis(50)), Duration::from_secs(1));
-        assert_eq!(backoff.delay(Duration::from_millis(50)), Duration::from_secs(2));
+        assert_eq!(
+            backoff.delay(Duration::from_millis(50)),
+            Duration::from_secs(1)
+        );
+        assert_eq!(
+            backoff.delay(Duration::from_millis(50)),
+            Duration::from_secs(2)
+        );
         // Ran fine for a while before this failure -- back to a clean slate,
         // not one strike away from giving up.
         assert_eq!(backoff.delay(Duration::from_secs(30)), Duration::ZERO);
-        assert_eq!(backoff.delay(Duration::from_millis(50)), Duration::from_secs(1));
-        assert_eq!(backoff.delay(Duration::from_millis(50)), Duration::from_secs(2));
+        assert_eq!(
+            backoff.delay(Duration::from_millis(50)),
+            Duration::from_secs(1)
+        );
+        assert_eq!(
+            backoff.delay(Duration::from_millis(50)),
+            Duration::from_secs(2)
+        );
     }
 }
