@@ -72,9 +72,24 @@ def voice_source(voice: str) -> str | Path:
     recording = cloning.path(ENGINE, wanted)
     if recording.is_file():
         return recording
+
+    # Deliberately not falling back to the voice calls use.
+    #
+    # These are two settings for one question and it is tempting to make one
+    # answer the other, but the owner wants them different on purpose: the
+    # cloned voice on one engine, a built-in on another, chosen per engine
+    # because each renders a voice differently. A "helpful" cross-engine
+    # borrow would quietly override that.
+    #
+    # What was actually wrong was a name: the setting said `marvi` and no
+    # recording of that name existed, so this warned and used the default --
+    # correctly, and in a line nobody read. It now says which names it tried.
     logger.warning(
-        "announcer voice %r is neither built in nor a recording; using %s",
+        "announcer voice %r is neither a built-in (%s) nor a recording under "
+        "voices/%s; using %s",
         wanted,
+        ", ".join(sorted(BUILT_IN_VOICES)),
+        ENGINE,
         DEFAULT_VOICE,
     )
     return DEFAULT_VOICE

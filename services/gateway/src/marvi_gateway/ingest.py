@@ -90,7 +90,17 @@ def _epoch_seconds(cursor: str) -> str:
     Returning "" for a value like that drops the poisoned cursor and the next
     poll starts fresh.
     """
+    if not cursor:
+        return ""
     if not cursor.isdigit():
+        # An ISO stamp, which is what Composio actually returns for Gmail.
+        # `after:` takes epoch seconds or YYYY/MM/DD; seconds is exact.
+        from contextlib import suppress
+        from datetime import datetime
+
+        with suppress(ValueError):
+            moment = datetime.fromisoformat(cursor.replace("Z", "+00:00"))
+            return str(int(moment.timestamp()))
         return ""
     if len(cursor) == 13:
         return str(int(cursor) // 1000)
@@ -620,7 +630,13 @@ def default_registry() -> MemoryProviderRegistry:
                         else {}
                     ),
                 },
-                ("messages", "items"), ("internalDate", "date", "timestamp"),
+                # `messageTimestamp` first: Composio normalises Gmail's
+                # `internalDate` into an ISO string under that name, so the
+                # three names here matched nothing and the cursor could never
+                # advance. Verified against a real fetch -- the record carries
+                # messageId, messageTimestamp, sender, subject, preview.
+                ("messages", "items"),
+                ("messageTimestamp", "internalDate", "date", "timestamp"),
                 # Resume from the newest message's timestamp, never from a page
                 # token: a token is a position inside one result set and says
                 # nothing about where the next poll should begin.
@@ -857,6 +873,11 @@ class AccountIngest:
                     "provider_id": item.provider_id,
                     "toolkit": toolkit,
                     "subject": item.subject,
+                    # Who it is from, so the announcement can say so. Without
+                    # this the payload reaching `voicing` held only a subject
+                    # and every email became "you have mail" -- true, and not
+                    # what anybody wants to hear.
+                    **({"from": item.entities[0]} if item.entities else {}),
                 }
             )
         self.store.finish(toolkit, connection_id, cursor=next_cursor, count=len(ingested))

@@ -259,13 +259,32 @@ def _plain(value: Any, limit: int = FROM_A_STRANGER) -> str:
     return text[:limit].rstrip(" ,;:-") + "..."
 
 
+def _who_from(raw: str) -> str:
+    """The name off an address line, as a person would say it.
+
+    Senders arrive as `Parallel Web Systems <hello@updates.parallel.ai>`, and
+    reading that out in full is the difference between an assistant and a
+    mail client with a speaker. The display name if there is one, otherwise
+    the part before the @ -- never the whole envelope.
+    """
+    text = str(raw or "").strip()
+    if "<" in text:
+        text = text.partition("<")[0].strip().strip('"')
+    if not text and "@" in str(raw):
+        text = str(raw).partition("<")[2].partition("@")[0]
+    elif "@" in text:
+        text = text.partition("@")[0]
+    return _plain(text.strip().strip('"'), 40)
+
+
 def _mail(event: dict[str, Any], name: str, payload: dict[str, Any]) -> str:
     """New email, as a person would mention it."""
-    sender = _plain(_on(payload, "from", "sender", "from_email", "fromEmail"), 40)
-    # The ingest writes "Email: <subject>" as the summary, so the subject is
-    # recoverable even when the payload is thin.
+    sender = _who_from(_on(payload, "from", "sender", "from_email", "fromEmail"))
+    # The ingest files these as "Email: <subject>", which is right for a
+    # memory and wrong out loud -- "new mail: Email: your invoice" is how a
+    # dashboard talks.
     subject = _plain(
-        _on(payload, "subject", "title") or str(event.get("summary", "")).partition(": ")[2]
+        str(_on(payload, "subject", "title") or event.get("summary", "")).removeprefix("Email: ")
     )
     if sender and subject:
         return _choose((
