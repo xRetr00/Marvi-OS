@@ -19,6 +19,7 @@ import logging
 import os
 import threading
 import time
+from contextlib import suppress
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -395,6 +396,11 @@ class Announcer:
             logger.info("announcement cancellation requested")
             return True
 
+    #: Set while an unprompted line is playing, so the island can show it.
+    #: Assigned by whoever owns the runtime state; unset here, nothing changes
+    #: and the announcement is exactly what it was.
+    on_air: Any = None
+
     def speak(self, text: str, purpose: str = "proactive") -> dict[str, Any]:
         """Replace current one-shot speech, synthesize, and play to completion."""
         limit = MAX_READ_ALOUD_CHARS if purpose == "read_aloud" else MAX_PROACTIVE_CHARS
@@ -411,6 +417,11 @@ class Announcer:
 
         started = time.perf_counter()
         seconds = 0.0
+        # Only for a line nobody asked for. A Read Aloud is something the user
+        # pressed, and captioning that "Marvi has something" would be a lie.
+        if self.on_air is not None and purpose == "proactive":
+            with suppress(Exception):
+                self.on_air(True)
         logger.info(
             "announcement started",
             extra={
@@ -442,6 +453,11 @@ class Announcer:
             with self._state:
                 if self._current is cancelled:
                     self._current = None
+            # In `finally`, because an announcement that fails half way must
+            # not leave the island claiming she is still talking.
+            if self.on_air is not None and purpose == "proactive":
+                with suppress(Exception):
+                    self.on_air(False)
 
         logger.info(
             "announcement played",

@@ -20,6 +20,11 @@ AssistantPhase = Literal[
     "listening",
     "thinking",
     "speaking",
+    # Speaking on her own initiative rather than answering. The shell draws
+    # this differently on purpose -- see `announcing` in the desktop's phase
+    # tables -- because "she is replying to you" and "she has decided to tell
+    # you something" are different events and used to look identical.
+    "announcing",
     "action",
     "notification",
     "confirmation",
@@ -83,6 +88,11 @@ class RoomEvent(BaseModel):
     at: str
     type: str
     summary: str
+
+
+#: Captions for a phase the Gateway sets itself. Everything else is captioned
+#: by the shell; this one originates here, so the words do too.
+ANNOUNCING = {"phase": "announcing", "caption": "Marvi has something", "detail": "Unprompted"}
 
 
 class AssistantState(BaseModel):

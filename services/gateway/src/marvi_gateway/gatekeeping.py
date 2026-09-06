@@ -123,6 +123,19 @@ SYSTEM_PROMPT = (
     "even funny for something ordinary or good, plain and direct for "
     "anything urgent, money-related, or bad. Never make a joke about "
     "something going wrong for them.\n"
+    "\n"
+    # Examples, because the adjectives alone did not move it.
+    #
+    # Told to be "warm and even funny" and given nothing to copy, the model
+    # wrote correct, flat sentences -- the same lesson `remembering` learned
+    # one file over, where "durably true" became four examples for exactly
+    # this reason. The third example is the one that matters: it shows the
+    # register dropping the moment the news is bad.
+    '  shipping confirmation -> "Your Keychron turns up Tuesday."\n'
+    '  a friend asking a favour -> "Ahmed is two players short for eight '
+    'o''clock football. Fancy it?"\n'
+    '  a declined card -> "Your card was declined and the service stops '
+    'in 24 hours."\n'
 )
 
 

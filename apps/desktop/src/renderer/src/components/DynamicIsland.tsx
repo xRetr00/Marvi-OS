@@ -129,6 +129,7 @@ const ISLAND_PHASE_LABEL: Record<VoiceState['phase'], string> = {
   listening: 'LISTEN',
   thinking: 'THINK',
   speaking: 'SPEAK',
+  announcing: 'MARVI',
   action: 'WORKING',
   notification: 'NOTICE',
   confirmation: 'CONFIRM',

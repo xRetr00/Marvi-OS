@@ -11,6 +11,10 @@ export const PHASE_ORB: Record<AssistantPhase, OrbState> = {
   listening: 'listening',
   thinking: 'searching',
   speaking: 'composing',
+  // Not `composing`. Answering and volunteering should not look identical --
+  // the whole point of a separate phase is that you can tell which is
+  // happening from across the room, before any words arrive.
+  announcing: 'weaving',
   action: 'working',
   notification: 'weaving',
   confirmation: 'solving',
@@ -23,6 +27,9 @@ export const PHASE_ACCENT: Record<AssistantPhase, string> = {
   listening: 'var(--ui-accent)',
   thinking: 'var(--ui-accent)',
   speaking: 'var(--ui-accent)',
+  // Her own colour, used nowhere else, so an unprompted line is recognisable
+  // as one at a glance.
+  announcing: 'var(--ui-announce)',
   action: 'var(--ui-accent)',
   notification: 'var(--ui-accent)',
   confirmation: 'var(--ui-accent)',

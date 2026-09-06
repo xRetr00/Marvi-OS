@@ -22,6 +22,8 @@ const PHASE_COPY: Record<AssistantPhase, { caption: string; detail: string | nul
   // is not happening. It should be brief enough to barely register.
   thinking: { caption: 'One moment', detail: null },
   speaking: { caption: 'Speaking', detail: 'Talk to interrupt' },
+  // Her own initiative, so the caption says whose idea it was.
+  announcing: { caption: 'Marvi has something', detail: 'Unprompted' },
   action: { caption: 'Turning on the room light', detail: 'Smart Room' },
   notification: { caption: 'New message from Alex', detail: 'World context' },
   confirmation: { caption: 'Confirm action', detail: 'Send the drafted reply?' },

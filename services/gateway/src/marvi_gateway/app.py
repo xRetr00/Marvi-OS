@@ -1027,6 +1027,25 @@ def create_app(
     # Explicit Read Aloud is available even when unprompted announcements are
     # disabled. MARVI_ANNOUNCE governs initiative, not a button the user pressed.
     one_shot = announcer_service or Announcer()
+
+    def _announcing(on: bool) -> None:
+        """Show the island that this line was her idea, not an answer.
+
+        `speaking` is her half of a conversation the user started; this is the
+        announcer. They used to look identical, which meant the only way to
+        tell whether you had been asked something was to listen to the words.
+        """
+        if on:
+            runtime_store.assistant = runtime_store.assistant.model_copy(update=ANNOUNCING)
+        elif runtime_store.assistant.phase == "announcing":
+            # Only if it is still ours: a call starting mid-announcement has
+            # already moved the phase on, and stamping "ready" over it would
+            # blank a live session.
+            runtime_store.assistant = runtime_store.assistant.model_copy(
+                update={"phase": "ready", "caption": "Say Marvi", "detail": None}
+            )
+
+    one_shot.on_air = _announcing
     sidecar: RoomSidecar | None = None
     accounts: ComposioAccounts | None = None
     memory: MemoryRuntime | None = None

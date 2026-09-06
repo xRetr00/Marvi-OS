@@ -4,6 +4,13 @@ export const ASSISTANT_PHASES = [
   'listening',
   'thinking',
   'speaking',
+  /** Marvi speaking on her own initiative rather than answering.
+   *
+   *  Distinct from `speaking`, which is her half of a conversation you
+   *  started. This is the announcer: nobody asked, she has decided something
+   *  is worth saying, and the island should look different enough that you
+   *  know which of the two is happening without listening to the words. */
+  'announcing',
   'action',
   'notification',
   'confirmation',
