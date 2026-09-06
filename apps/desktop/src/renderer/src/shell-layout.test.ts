@@ -25,6 +25,7 @@ const titleBar = readFileSync(join(__dirname, 'components/TitleBar.tsx'), 'utf8'
 const preload = readFileSync(join(__dirname, '../../preload/index.ts'), 'utf8')
 const contextMenu = readFileSync(join(__dirname, 'components/ui/shell-context-menu.tsx'), 'utf8')
 const controlSurface = readFileSync(join(__dirname, 'components/control-surface.tsx'), 'utf8')
+const overview = readFileSync(join(__dirname, 'components/overview-page.tsx'), 'utf8')
 
 /** The rule block for a selector, so a moved property still fails the test. */
 function block(selector: string): string {
@@ -90,12 +91,15 @@ describe('shell layout', () => {
     expect(app).not.toContain('about-provenance')
   })
 
-  it('organises Overview as an authoritative brief with compact divided sections', () => {
-    expect(app).toContain('aria-label="Current state"')
-    expect(app).toContain('className="overview-runtime-facts"')
-    expect(app).toContain('title="Voice route"')
-    expect(app).toContain('title="Systems"')
-    expect(app).toContain('title="Context"')
+  it('opens the Overview with how she is, not with a list of processes', () => {
+    // The question people open this page with is "is she alright, and is she
+    // going to say anything" -- not "are the services up". Those come apart
+    // constantly: every service green and nothing reaching anybody.
+    expect(overview).toContain('className={`ovp-hero tone-${toneOf(runtime.state)}`}')
+    expect(overview).toContain('Listening for anything worth saying')
+    expect(overview).toContain('quiet_because')
+    // Systems come last and small, after the answer.
+    expect(overview.indexOf('ovp-hero')).toBeLessThan(overview.indexOf('ovp-systems'))
     expect(controlSurface).toContain('className="control-row"')
     expect(lastBlock('.control-page')).toContain('width: min(880px, 100%)')
   })
@@ -273,13 +277,16 @@ describe('shell layout', () => {
     expect(app).toContain('role="meter"')
   })
 
-  it('organizes Overview as a runtime brief, route, and balanced operational workspace', () => {
-    expect(app).toContain('className={`overview-runtime tone-${runtimeTone}`}')
-    expect(app).toContain('className="overview-runtime-facts"')
-    expect(app).toContain('className="overview-workspace"')
-    expect(app).toContain('className="overview-system-list"')
-    expect(app).toContain('className="overview-context-list"')
-    expect(lastBlock('.overview-workspace')).toContain('grid-template-columns: minmax(0, 1.35fr)')
+  it('draws both paths, answering and noticing', () => {
+    // The old page drew the first and had no idea the second existed, which
+    // is exactly the half that was broken all week.
+    expect(overview).toContain('When you talk to her')
+    expect(overview).toContain('When nobody does')
+    expect(overview).toContain('connected but silent')
+    expect(lastBlock('.ovp-paths')).toContain('grid-template-columns')
+    // And the Overview is a page of its own now, not 155 lines of App.tsx.
+    expect(app).not.toContain('function Overview({')
+    expect(app).toContain('<OverviewPage')
   })
 
   it('moves maintenance commands into compact sidebar terminal actions', () => {

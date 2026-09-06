@@ -28,7 +28,7 @@ import type { VoiceState } from '../store/voice-state'
 
 type Tone = 'neutral' | 'ready' | 'warning' | 'danger'
 
-export function toneOf(state: string | undefined): Tone {
+function toneOf(state: string | undefined): Tone {
   if (state === 'ready' || state === 'connected' || state === 'active' || state === 'running') {
     return 'ready'
   }
