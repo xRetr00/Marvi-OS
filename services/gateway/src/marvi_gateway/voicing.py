@@ -213,7 +213,12 @@ def _went_wrong(event: dict[str, Any], name: str, doing: str, why: str) -> str:
     wrong with my reaching the room", which is the sort of sentence that makes
     a thing sound less alive rather than more.
     """
-    because = f" {why}." if why and len(why) < 60 else ""
+    # Capitalised, because it follows a full stop. `condition` stores the
+    # reason as a fragment ("rate limited for a few minutes") and reading
+    # "went wrong while thinking. rate limited for..." aloud lands as one
+    # run-on sentence rather than two.
+    reason = why.strip()
+    because = f" {reason[0].upper()}{reason[1:]}." if reason and len(reason) < 70 else ""
     return _choose(
         (
             f"{_greeting(name)}I ran into a problem while {doing}.{because}",

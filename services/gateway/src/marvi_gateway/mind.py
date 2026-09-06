@@ -120,6 +120,10 @@ class Mind:
         #: Reads a held item that arrived while no model would answer.
         #: `(subject, body) -> one sentence`. See `gatekeeping.what_it_says`.
         self.read_late: Any = None
+        #: Seconds until a model will answer; 0 when one will now. Consulted
+        #: before `read_late`, so a cooldown is *waited out* rather than walked
+        #: into every couple of minutes. See `ProviderClient.soonest_available`.
+        self.models_resting: Any = None
         # Who she is talking to, for the name in what she says. Left unset,
         # every line still reads correctly -- see `voicing`.
         self.identity = identity
@@ -208,6 +212,17 @@ class Mind:
             # item was kept, never summarised, and has been waiting for a
             # working model rather than for a better moment.
             payload = event.get("payload")
+            # Deferred, not attempted. Walking into a known cooldown produces
+            # the same refusal on every tick and teaches nothing; the item is
+            # already safe in the waiting room and five minutes is nothing.
+            if self.models_resting is not None and (resting := self.models_resting()) > 0:
+                logger.info(
+                    "not reading held items for another %.0fs; a model is cooling down",
+                    resting,
+                    extra={"marvi_resting_seconds": round(resting)},
+                )
+                return False
+
             unread = (
                 self.read_late is not None
                 and isinstance(payload, dict)

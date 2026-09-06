@@ -70,6 +70,12 @@ class Initiative:
                 mind.read_late = lambda subject, body: what_it_says(
                     auxiliary_client, subject, body
                 )
+                # So a cooldown is waited out rather than walked into. The
+                # harness wraps a `ProviderClient`; reach through to it, and
+                # leave the hook unset if this one does not.
+                inner = getattr(auxiliary_client, "client", auxiliary_client)
+                if hasattr(inner, "soonest_available"):
+                    mind.models_resting = inner.soonest_available
         self.journal = journal
         self.ingest = ingest
         #: Built on first use, because it holds the last reading and a fresh

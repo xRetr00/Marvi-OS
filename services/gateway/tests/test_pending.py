@@ -22,6 +22,9 @@ from marvi_gateway.pending import EXPIRES_AFTER, MOST_HELD, WaitingRoom
 
 def _mail(identifier: str = "m1", says: str = "Your mailboxes are being deleted today."):
     return {
+        # `id` because a held event goes back through the mind exactly as a
+        # fresh one does, and that path marks it processed by id.
+        "id": 1,
         "source": "accounts:gmail", "kind": "gmail", "trusted": False,
         "summary": "Email: Icemail #6558",
         "payload": {"id": identifier, "from": "Tiya - Icemail", "says": says},
@@ -194,3 +197,63 @@ def test_the_mind_actually_holds_what_it_cannot_say(room) -> None:
     assert [w["because"] for w in room.waiting()] == ["we were talking"], (
         "the mind dropped something it should have held"
     )
+
+
+def test_a_cooldown_is_waited_out_not_walked_into(room) -> None:
+    """The 300-second refusal, handled instead of hit.
+
+        provider openrouter cooling down 300s: rate limited or window exhausted
+
+    The cooldown was always tracked and nothing consulted it, so anything
+    wanting a model met the same refusal every couple of minutes -- and the
+    thing waiting was the summary of a mail saying three mailboxes would be
+    deleted that day.
+    """
+    from datetime import UTC, datetime
+
+    from marvi_gateway.mind import Mind
+
+    unread = _mail(says="")
+    unread["payload"].pop("says")
+    unread["payload"]["body"] = "Your mailboxes will be deleted today."
+    room.hold(unread, "unread")
+
+    tried: list[str] = []
+    mind = Mind(_journal_of())
+    mind.waiting = room
+    mind.read_late = lambda subject, _body: tried.append(subject) or "read it"
+
+    # Cooling down: nothing is attempted and nothing is lost.
+    mind.models_resting = lambda: 240.0
+    mind.tick(now=datetime(2026, 9, 6, 12, 0, tzinfo=UTC))
+    assert tried == [], "asked a model that had said it was cooling down"
+    assert len(room.waiting()) == 1, "dropped it instead of holding it"
+
+    # Cleared: read now, and released.
+    mind.models_resting = lambda: 0.0
+    mind.tick(now=datetime(2026, 9, 6, 12, 5, tzinfo=UTC))
+    assert tried, "never went back for it once a model was free"
+    assert room.waiting() == []
+
+
+def _journal_of(events=None):
+    class _Journal:
+        def pending(self, limit=20):  # noqa: ANN001, ARG002
+            return list(events or [])
+
+        def tokens_since(self, _when):
+            return 0
+
+        def last_surfaced(self, _source, _kind):
+            return None
+
+        def seen_recently(self, *_args, **_kwargs):
+            return 0
+
+        def record_decision(self, *_args, **_kwargs):
+            return 1
+
+        def mark_processed(self, *_args, **_kwargs):
+            return None
+
+    return _Journal()

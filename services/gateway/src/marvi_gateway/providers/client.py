@@ -20,6 +20,7 @@ serves the background mind, which has nobody waiting on a first token.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 import time
@@ -161,6 +162,49 @@ class ProviderClient:
         seconds = max(1.0, min(float(seconds), MAX_COOLDOWN_SECONDS))
         self._cooldowns[name] = _Cooldown(time.monotonic() + seconds, reason)
         logger.warning("provider %s cooling down %.0fs: %s", name, seconds, reason)
+        # Recorded where Marvi can find it, so this is something she knows
+        # about herself rather than an error she keeps walking into. See
+        # `condition`: she would rather say "one of my models is rate limited
+        # for a few minutes" than go quiet and be thought broken.
+        with contextlib.suppress(Exception):
+            from ..condition import note
+
+            minutes = max(1, round(seconds / 60))
+            note(
+                "thinking",
+                seconds,
+                # Said the way a person would: "one of my models" rather than a
+                # provider slug, and a plural that agrees with itself.
+                failed=(
+                    "one of my models is rate limited for about "
+                    f"{minutes} minute{'' if minutes == 1 else 's'}"
+                ),
+            )
+
+    def soonest_available(self) -> float:
+        """Seconds until any configured provider will answer; 0 if one will now.
+
+        Asked before work that can wait, so it is *deferred* rather than
+        attempted and failed. The cooldown was always tracked and nothing ever
+        consulted it, so anything wanting a model walked into the same refusal
+        every couple of minutes:
+
+            provider openrouter cooling down 300s: rate limited or window
+            exhausted
+
+        Five minutes is nothing to wait and everything to lose, and the thing
+        waiting was the summary of a mail saying three mailboxes would be
+        deleted that day.
+        """
+        resting: list[float] = []
+        for profile in configured_profiles():
+            remaining = self.resting(profile.name)
+            if remaining <= 0:
+                return 0.0
+            resting.append(remaining)
+        # Nothing configured is not "available in a moment"; it is a different
+        # problem, and reporting 0 lets the caller find that out for itself.
+        return min(resting) if resting else 0.0
 
     def clear_cooldown(self, name: str) -> None:
         """Let a provider be tried again now — used when its settings change."""

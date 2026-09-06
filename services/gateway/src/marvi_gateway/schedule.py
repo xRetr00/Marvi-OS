@@ -114,6 +114,40 @@ def _validate_cron(expression: str) -> None:
         raise ScheduleError(f"{expression!r} is not a valid cron schedule: {exc}") from exc
 
 
+def next_fire(kind: str, expression: str, now: datetime | None = None) -> str | None:
+    """When a repeating schedule runs next, or None if it cannot be worked out.
+
+    Only `once` schedules ever had a `next_run`: cron and interval jobs stored
+    `None`, so the schedules page could show a crontab and never the time it
+    would next fire -- for the two kinds where a person cannot read it off the
+    expression themselves. "* * * * *" is legible; "0 6 */2 * 1-5" is not.
+
+    Uses the same trigger classes `Scheduler.start` registers with, rather than
+    a second parser, because two implementations of "when does this cron next
+    run" is one more than anybody wants to keep in step.
+    """
+    moment = now or datetime.now(UTC)
+    try:
+        if kind == "cron":
+            from apscheduler.triggers.cron import CronTrigger
+
+            trigger = CronTrigger.from_crontab(expression, timezone=_local_timezone())
+        elif kind == "interval":
+            from apscheduler.triggers.interval import IntervalTrigger
+
+            trigger = IntervalTrigger(minutes=int(expression), timezone=_local_timezone())
+        else:
+            return None
+        # APScheduler wants an aware time in the trigger's own zone.
+        found = trigger.get_next_fire_time(None, moment.astimezone(_local_timezone()))
+    except Exception:
+        # An expression this cannot read is an expression `Scheduler.start`
+        # cannot read either, and that path already reports it. A missing
+        # next-run time is not worth failing a schedule over.
+        return None
+    return found.isoformat() if found else None
+
+
 def parse_when(value: str, now: datetime | None = None) -> tuple[str, str, str | None]:
     """Return ``(kind, expression, next_run)`` for supported schedule input."""
     text = (value or "").strip()
@@ -245,7 +279,7 @@ class ScheduleStore:
             kind, expression, next_run = parse_when(when, now=now)
         else:
             kind, expression = (kind or "").strip(), (expression or "").strip()
-            next_run = expression if kind == "once" else None
+            next_run = expression if kind == "once" else next_fire(kind, expression, now)
             if kind == "interval":
                 try:
                     valid_interval = int(expression) >= MINIMUM_INTERVAL_MINUTES
@@ -321,6 +355,10 @@ class ScheduleStore:
             parse_when(str(when)) if when is not None
             else (current.kind, current.expression, current.next_run)
         )
+        # An edit that changes the expression changes when it next runs, and a
+        # stored time from the old expression would simply be wrong.
+        if when is None and kind in ("cron", "interval"):
+            next_run = next_fire(kind, expression)
         mode, effort = str(body["mode"]), str(body["effort"])
         if mode == "agent" and not str(body["prompt"]).strip():
             raise ScheduleError("an agent cron job needs a self-contained prompt")
@@ -399,6 +437,18 @@ class ScheduleStore:
             ).fetchone()
             if repeat and repeat["repeat_count"] is not None and int(repeat["completed_runs"]) >= int(repeat["repeat_count"]):
                 self._db.execute("UPDATE schedules SET enabled=0, next_run=NULL WHERE id=?", (schedule_id,))
+            else:
+                # Advance it, or the page shows a time that has already been
+                # and gone -- which is worse than showing nothing, because it
+                # reads as a job that failed to fire.
+                job = self._db.execute(
+                    "SELECT kind, expression FROM schedules WHERE id=?", (schedule_id,)
+                ).fetchone()
+                if job and job["kind"] in ("cron", "interval"):
+                    self._db.execute(
+                        "UPDATE schedules SET next_run=? WHERE id=?",
+                        (next_fire(str(job["kind"]), str(job["expression"])), schedule_id),
+                    )
             self._db.commit()
 
     def token_report(self, days: int = 7) -> dict[str, Any]:
