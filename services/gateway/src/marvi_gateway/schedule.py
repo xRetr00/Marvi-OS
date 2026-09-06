@@ -148,6 +148,77 @@ def next_fire(kind: str, expression: str, now: datetime | None = None) -> str | 
     return found.isoformat() if found else None
 
 
+#: Day names to the cron day-of-week field, plus the two collective ones.
+_DAYS: dict[str, str] = {
+    "sunday": "0", "monday": "1", "tuesday": "2", "wednesday": "3",
+    "thursday": "4", "friday": "5", "saturday": "6",
+    "sun": "0", "mon": "1", "tue": "2", "wed": "3", "thu": "4", "fri": "5", "sat": "6",
+    "weekday": "1-5", "weekdays": "1-5",
+    "weekend": "0,6", "weekends": "0,6",
+    "day": "*",
+}
+
+#: "every day at 18:00", "every weekday at 9am", "each morning at 07:30".
+_REPEATING = re.compile(
+    r"^(?:every|each)\s+(?P<day>[a-z]+)\s+(?:at\s+)?(?P<time>\d{1,2}(?::\d{2})?\s*(?:am|pm)?)$"
+)
+
+#: "tomorrow at 18:00", "today at 9pm", "at 07:30".
+_ONE_OFF = re.compile(
+    r"^(?:(?P<when>today|tomorrow)\s+)?(?:at\s+)(?P<time>\d{1,2}(?::\d{2})?\s*(?:am|pm)?)$"
+)
+
+
+def _clock(text: str) -> tuple[int, int] | None:
+    """`(hour, minute)` from "18:00", "9am", "9", "7.30pm" -- or None."""
+    match = re.fullmatch(r"(\d{1,2})(?::(\d{2}))?\s*(am|pm)?", text.strip())
+    if not match:
+        return None
+    hour, minute = int(match.group(1)), int(match.group(2) or 0)
+    suffix = match.group(3)
+    if suffix == "pm" and hour < 12:
+        hour += 12
+    if suffix == "am" and hour == 12:
+        hour = 0
+    if hour > 23 or minute > 59:
+        return None
+    return hour, minute
+
+
+def _phrased(text: str, current: datetime) -> tuple[str, str, str | None] | None:
+    """A schedule written the way a person writes one, or None.
+
+    Deliberately a small set of shapes rather than a date library: everything
+    here maps onto a crontab or one timestamp, and anything it cannot read
+    still reaches the error message listing the forms that work.
+    """
+    if repeating := _REPEATING.match(text):
+        day = _DAYS.get(repeating.group("day"))
+        clock = _clock(repeating.group("time"))
+        if day is None or clock is None:
+            return None
+        hour, minute = clock
+        expression = f"{minute} {hour} * * {day}"
+        _validate_cron(expression)
+        return "cron", expression, next_fire("cron", expression, current)
+
+    if one_off := _ONE_OFF.match(text):
+        clock = _clock(one_off.group("time"))
+        if clock is None:
+            return None
+        hour, minute = clock
+        run_at = current.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if one_off.group("when") == "tomorrow" or (
+            one_off.group("when") != "today" and run_at <= current
+        ):
+            # "at 07:30" said in the afternoon means tomorrow morning, which is
+            # what a person means and what a scheduler that fired immediately
+            # would not do.
+            run_at += timedelta(days=1)
+        return "once", run_at.isoformat(), run_at.isoformat()
+    return None
+
+
 def parse_when(value: str, now: datetime | None = None) -> tuple[str, str, str | None]:
     """Return ``(kind, expression, next_run)`` for supported schedule input."""
     text = (value or "").strip()
@@ -171,6 +242,14 @@ def parse_when(value: str, now: datetime | None = None) -> tuple[str, str, str |
         if minutes < MINIMUM_INTERVAL_MINUTES:
             raise ScheduleError(f"the shortest interval is {MINIMUM_INTERVAL_MINUTES} minutes")
         return "interval", str(minutes), (current + timedelta(minutes=minutes)).isoformat()
+    # The way people actually write a time.
+    #
+    # The parser accepted `30m`, `every 2h`, `07:30`, ISO and raw cron -- and
+    # "every day at 18:00", which is what somebody types when nobody has told
+    # them the grammar, was an error. So was every suggestion the new job form
+    # offered, which is worse: a form whose own examples it rejects.
+    if phrased := _phrased(text.lower(), current):
+        return phrased
     if re.fullmatch(r"\d{1,2}:\d{2}", text):
         hour, minute = (int(part) for part in text.split(":"))
         if hour > 23 or minute > 59:
@@ -185,8 +264,8 @@ def parse_when(value: str, now: datetime | None = None) -> tuple[str, str, str |
         run_at = datetime.fromisoformat(text.replace("Z", "+00:00"))
     except ValueError as exc:
         raise ScheduleError(
-            "use a duration (30m), interval (every 2h), local time (07:30), "
-            "ISO timestamp, or five-field cron expression"
+            "try 'every day at 18:00', 'every weekday at 9am', 'tomorrow at 20:30', "
+            "'every 30 minutes', a plain time like 07:30, or a cron expression"
         ) from exc
     if run_at.tzinfo is None:
         run_at = run_at.replace(tzinfo=_local_timezone())
