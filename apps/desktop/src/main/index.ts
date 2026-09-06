@@ -859,7 +859,10 @@ function wakeAutoRestartEnabled(): boolean {
       .split(/\r?\n/)
       .find((entry) => entry.trim().startsWith('MARVI_WAKE_AUTO_RESTART='))
     if (!line) return true
-    const value = line.slice(line.indexOf('=') + 1).trim().toLowerCase()
+    const value = line
+      .slice(line.indexOf('=') + 1)
+      .trim()
+      .toLowerCase()
     return !['0', 'false', 'no', 'off'].includes(value)
   } catch {
     return true
@@ -872,7 +875,9 @@ function wakeListenerFresh(now = Date.now()): boolean {
       readFileSync(join(stateDir(), 'state', 'wake.json'), 'utf8')
     ) as Record<string, unknown>
     const heartbeat = Number(state['heartbeat']) * 1000
-    return Boolean(state['running']) && Number.isFinite(heartbeat) && now - heartbeat <= WAKE_STALE_MS
+    return (
+      Boolean(state['running']) && Number.isFinite(heartbeat) && now - heartbeat <= WAKE_STALE_MS
+    )
   } catch {
     return false
   }
