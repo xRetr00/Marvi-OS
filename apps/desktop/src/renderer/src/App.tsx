@@ -105,6 +105,7 @@ import { CapabilityPluginsPanel } from './components/capabilities/CapabilityPlug
 import { ActivityPage } from './components/activity-page'
 import { MemoryHealth } from './components/memory-health'
 import { MindPage } from './components/mind-page'
+import { ScheduleCards } from './components/schedule-cards'
 import {
   filterInstalledSkills,
   filterStoreSkills,
@@ -4434,7 +4435,7 @@ function SchedulesPanel(): React.JSX.Element {
 
   return (
     <ControlPage
-      description="Automated tasks that run now, later, or repeatedly."
+      description="Things Marvi runs on a timer -- a reminder, a check, or a whole task she works through on her own."
       title="Cron jobs"
     >
       {error ? <p className="notice notice-warn">{error}</p> : null}
@@ -4582,64 +4583,10 @@ function SchedulesPanel(): React.JSX.Element {
             title="Loading cron jobs"
           />
         ) : null}
-        <div className="service-list">
-          {(page?.schedules ?? []).map((row) => (
-            <div className="service-row" key={row.id}>
-              <span className="service-name">{row.name}</span>
-              <span
-                className={`service-state state-${
-                  row.last_error ? 'error' : row.enabled ? 'ready' : 'pending'
-                }`}
-              >
-                {row.last_error ? 'Failed' : row.enabled ? 'On' : 'Off'}
-                {row.insist ? ' · insists' : ''}
-              </span>
-              <small>
-                {row.kind === 'interval' ? `every ${row.expression} minutes` : row.expression} /{' '}
-                {row.mode === 'agent' ? 'agent task' : row.action}
-              </small>
-              {row.mode === 'agent' ? (
-                <small>
-                  {row.provider || 'auto provider'} / {row.model || 'auto model'} /{' '}
-                  {row.effort || 'auto reasoning'}
-                  {' · '}
-                  {row.tool_names.length ? `${row.tool_names.length} tools` : 'all tools'}
-                  {' · '}
-                  {row.delivery}
-                </small>
-              ) : null}
-              {row.prompt ? <small>{row.prompt}</small> : null}
-              {row.message ? <small>{row.message}</small> : null}
-              {row.last_error ? (
-                <small className="provider-cooldown">{row.last_error}</small>
-              ) : row.last_run ? (
-                <small>last run {row.last_run}</small>
-              ) : null}
-              {row.last_output ? (
-                <small className="schedule-output">{row.last_output}</small>
-              ) : null}
-              <div className="provider-actions">
-                <button className="phase" type="button" onClick={() => void act(row.id, 'run')}>
-                  Run now
-                </button>
-                <button
-                  className="phase"
-                  type="button"
-                  onClick={() => void act(row.id, row.enabled ? 'disable' : 'enable')}
-                >
-                  {row.enabled ? 'Pause' : 'Resume'}
-                </button>
-                <button
-                  className="phase danger"
-                  type="button"
-                  onClick={() => void act(row.id, 'remove')}
-                >
-                  Remove
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+        {/* Cards rather than rows: paused, failed and never-run are three
+            different states and used to render as three identical grey lines.
+            See `schedule-cards`. */}
+        <ScheduleCards onAct={(id, action) => void act(id, action)} rows={page?.schedules ?? []} />
 
         {page && page.schedules.length === 0 ? (
           <ControlEmpty

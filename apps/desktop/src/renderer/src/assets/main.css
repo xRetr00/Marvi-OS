@@ -11983,3 +11983,196 @@ html[data-appearance='claude-code-dark'] .control-row {
     display: none;
   }
 }
+
+/* -- Cron jobs --------------------------------------------------------------
+   Ordered by what happens next, because that is why anybody opens the page.
+   Paused, failed and never-run are three states that used to render as three
+   identical grey rows. */
+
+.sched-list {
+  display: grid;
+  gap: 10px;
+}
+
+.sched-next {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 4px;
+  padding: 9px 12px;
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 24%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--ui-accent) 6%, transparent);
+  color: var(--ui-text-secondary);
+  font-size: 10px;
+}
+
+.sched-next > svg {
+  width: 12px;
+  height: 12px;
+  color: var(--ui-accent);
+}
+
+.sched-next strong {
+  color: var(--ui-text-emphasis);
+  font-weight: 600;
+}
+
+.sched-card {
+  padding: 12px 14px;
+  border: 1px solid var(--ui-border-subtle);
+  border-left: 2px solid color-mix(in srgb, var(--ui-accent) 45%, transparent);
+  border-radius: 7px;
+}
+
+.sched-card.is-paused {
+  border-left-color: var(--ui-border-subtle);
+  opacity: 0.72;
+}
+
+.sched-card.is-failed {
+  border-left-color: var(--ui-danger);
+}
+
+.sched-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 7px;
+}
+
+.sched-name {
+  color: var(--ui-text-emphasis);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.sched-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+}
+
+.sched-state > svg {
+  width: 10px;
+  height: 10px;
+}
+
+.sched-state.is-on {
+  color: color-mix(in srgb, var(--ui-accent) 78%, var(--ui-text-primary));
+}
+
+.sched-state.is-failed {
+  color: var(--ui-danger);
+}
+
+.sched-when {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 6px;
+  color: var(--ui-text-secondary);
+  font-size: 10px;
+}
+
+.sched-when > svg {
+  width: 11px;
+  height: 11px;
+  color: var(--ui-text-tertiary);
+}
+
+.sched-eta {
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--ui-bg-tertiary);
+  color: var(--ui-text-tertiary);
+  font-family: var(--ui-font-mono);
+  font-size: 9px;
+}
+
+.sched-insist {
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, #c79b58 14%, transparent);
+  color: #c79b58;
+  font-size: 8px;
+}
+
+.sched-does {
+  margin: 0 0 5px;
+  color: var(--ui-text-secondary);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.sched-how,
+.sched-outcome {
+  margin: 0 0 3px;
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+}
+
+.sched-outcome.is-bad {
+  color: var(--ui-danger);
+}
+
+.sched-outcome.is-quiet {
+  font-style: italic;
+  opacity: 0.8;
+}
+
+.sched-output {
+  max-height: 120px;
+  margin: 6px 0;
+  padding: 8px 10px;
+  overflow: auto;
+  border-radius: 5px;
+  background: var(--ui-bg-tertiary);
+  color: var(--ui-text-tertiary);
+  font-family: var(--ui-font-mono);
+  font-size: 9px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.sched-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.sched-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid var(--ui-border-subtle);
+  border-radius: 5px;
+  background: none;
+  color: var(--ui-text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 9px;
+  transition:
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.sched-actions button > svg {
+  width: 10px;
+  height: 10px;
+}
+
+.sched-actions button:hover {
+  border-color: var(--ui-accent);
+  color: var(--ui-accent);
+}
+
+.sched-actions button.is-danger:hover {
+  border-color: var(--ui-danger);
+  color: var(--ui-danger);
+}
