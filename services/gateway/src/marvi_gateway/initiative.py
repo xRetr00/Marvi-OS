@@ -55,8 +55,13 @@ class Initiative:
         auxiliary_client: Any = None,
         room_state: Any = None,
         activity: Any = None,
+        waiting: Any = None,
     ) -> None:
         self.mind = mind
+        # Handed to the mind rather than held here: it is the mind that
+        # decides something cannot be said yet, and the mind that asks again.
+        if waiting is not None:
+            mind.waiting = waiting
         self.journal = journal
         self.ingest = ingest
         #: Built on first use, because it holds the last reading and a fresh

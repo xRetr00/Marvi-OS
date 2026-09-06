@@ -24,7 +24,7 @@ from typing import Any
 
 from . import salience
 from .journal import EventJournal
-from .policy import InitiativeSettings, Verdict, WorldState, day_start, evaluate
+from .policy import SURFACES, InitiativeSettings, Verdict, WorldState, day_start, evaluate
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +114,9 @@ class Mind:
         # Speaks proactive sentences. Left unset, `speak` still records a
         # decision but stays silent.
         self.announcer = announcer
+        #: Where things go that were worth saying and could not be said yet.
+        #: Left unset, nothing is held and the old behaviour returns exactly.
+        self.waiting: Any = None
         # Who she is talking to, for the name in what she says. Left unset,
         # every line still reads correctly -- see `voicing`.
         self.identity = identity
@@ -178,6 +181,38 @@ class Mind:
 
     # -- the turn ------------------------------------------------------------
 
+    def _waited_for(
+        self,
+        moment: datetime,
+        conversation_active: bool,
+        present: bool,
+        at_machine: bool | None,
+        doing: str,
+    ) -> list[dict[str, Any]]:
+        """Events from the waiting room that may be spoken now.
+
+        The policy decides, exactly as it did the first time -- this only asks
+        it again against a world that has moved on. `_released` marks them so a
+        second refusal does not put them straight back in the room.
+        """
+        if self.waiting is None:
+            return []
+        world = self.world(moment, conversation_active, present, at_machine, doing)
+
+        def may_speak(event: dict[str, Any]) -> bool:
+            verdict = evaluate(event, world, self.settings, wanted="speak")
+            return SURFACES.index(verdict.surface) >= SURFACES.index("speak")
+
+        freed = []
+        for held in self.waiting.release(may_speak):
+            event = dict(held.event)
+            event["_released"] = True
+            # Carried so `voicing` can explain the delay: six hours late is
+            # alarming, "while you were out" is an assistant that waited.
+            event["_waited_because"] = held.explained()
+            freed.append(event)
+        return freed
+
     def tick(
         self,
         now: datetime | None = None,
@@ -187,7 +222,16 @@ class Mind:
         doing: str = "",
     ) -> dict[str, Any]:
         moment = now or datetime.now(UTC)
-        pending = self.journal.pending(limit=MAX_EVENTS_PER_TURN)
+
+        # Anything held back earlier, offered again first.
+        #
+        # Every rule that stops her speaking is a rule about *now* -- in a
+        # call, out of the house, the middle of the night, a rate-limited
+        # model -- and none of them is a reason to never say it. See
+        # `pending`: the mailbox-deletion mail arrived at 03:10, was
+        # downgraded for quiet hours, and was never mentioned again.
+        pending = list(self._waited_for(moment, conversation_active, present, at_machine, doing))
+        pending += self.journal.pending(limit=MAX_EVENTS_PER_TURN)
         if not pending:
             # The cheap, normal case: nothing happened, nothing to answer for.
             logger.debug("mind tick idle", extra={"marvi_pending": 0})
@@ -216,6 +260,14 @@ class Mind:
             )
             wanted = self._wanted_surface(event)
             verdict = evaluate(event, world, self.settings, wanted=wanted)
+            # Worth saying, and not sayable yet. Held rather than dropped.
+            if (
+                self.waiting is not None
+                and SURFACES.index(wanted) >= SURFACES.index("speak")
+                and SURFACES.index(verdict.surface) < SURFACES.index("speak")
+                and not event.get("_released")
+            ):
+                self.waiting.hold(event, verdict.reason)
             # How much this is worth, before anything is paid to find out.
             #
             # The first stage of the Amygdala in PLAN.md: deterministic

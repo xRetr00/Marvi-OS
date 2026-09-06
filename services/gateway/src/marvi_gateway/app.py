@@ -1121,6 +1121,12 @@ def create_app(
         focus = Focus(activity if activity.available() else None)
         journal = EventJournal()
         account_triggers = AccountTriggerIngest(accounts, memory, journal, ingest)
+        from .paths import root as _state_root
+        from .pending import WaitingRoom
+
+        # On disk: the commonest reason to be holding something is that nobody
+        # is home, and the second commonest is that the machine is off.
+        waiting_room = WaitingRoom(_state_root() / "state" / "waiting.json")
         initiative = Initiative(
             Mind(
                 journal,
@@ -1140,6 +1146,7 @@ def create_app(
                 presence=lambda: _somewhere_else(sidecar),
             ),
             journal,
+            waiting=waiting_room,
             ingest=ingest,
             memory=memory,
             memory_summarise=memory_summarise,

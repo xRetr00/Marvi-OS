@@ -422,6 +422,13 @@ def spoken(
     payload = event.get("payload")
     payload = payload if isinstance(payload, dict) else {}
 
+    # Something held back and now being said. The delay is only strange when
+    # it goes unexplained: "your mailboxes are being deleted" six hours late
+    # is alarming, "while you were out, ..." is somebody who waited for you.
+    if waited := str(event.get("_waited_because") or ""):
+        line = spoken({**event, "_waited_because": ""}, name, away=away)
+        return f"While {waited} - {line[0].lower() + line[1:]}" if line else ""
+
     # Somebody else's words, spoken from a template and never from a model.
     if kind in ("accounts:gmail:gmail", "accounts:email"):
         return _mail(event, name, payload)
