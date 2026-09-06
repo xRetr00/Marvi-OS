@@ -792,7 +792,7 @@ function wakeHostPath(): string {
  * here has to tell it, and an update that moves it re-registers on next launch.
  */
 async function wakeAutostart(
-  action: 'enable' | 'disable' | 'status',
+  action: 'enable' | 'disable' | 'status' | 'ensure',
   device = ''
 ): Promise<{ autostart: boolean; running: boolean }> {
   const fallback = { autostart: false, running: false }
@@ -807,9 +807,25 @@ async function wakeAutostart(
       const on = stdout.trim() === 'on'
       return { autostart: on, running: on }
     }
-    const on = action === 'enable'
-    await execFileAsync(listener, ['--autostart', on ? 'on' : 'off'], { windowsHide: true })
-    if (on) {
+    if (action === 'ensure') {
+      const { stdout } = await execFileAsync(listener, ['--autostart', 'status'], {
+        windowsHide: true
+      })
+      if (stdout.trim() !== 'on') return fallback
+    } else {
+      const on = action === 'enable'
+      await execFileAsync(listener, ['--autostart', on ? 'on' : 'off'], { windowsHide: true })
+      // Removing a login entry does not stop the process which already owns
+      // the microphone. The listener observes this local stop request in its
+      // tray loop and exits cleanly.
+      await execFileAsync(listener, ['--stop'], { windowsHide: true })
+      if (!on) return { autostart: false, running: false }
+      // Give the existing listener one message-pump beat to release its named
+      // mutex before the replacement starts. This also makes START IT a real
+      // restart after a microphone or binary update.
+      await new Promise((resolve) => setTimeout(resolve, 300))
+    }
+    if (action === 'enable' || action === 'ensure') {
       // Started now as well as at next login, so enabling it in Settings does
       // something you can hear rather than something you have to reboot for.
       // The chosen microphone rides in the environment: the listener re-reads
@@ -826,7 +842,7 @@ async function wakeAutostart(
       })
       child.unref()
     }
-    return { autostart: on, running: on }
+    return { autostart: true, running: true }
   } catch {
     return fallback
   }
@@ -1259,6 +1275,12 @@ function startApp(): void {
     )
 
     startVoiceStack()
+    // The updater must stop the detached listener before replacing the build
+    // directory. Restore it from the newly packaged binary when Marvi comes
+    // back, and do the same after any unexpected whole-process exit. The Run
+    // key remains the user's authority: an intentionally disabled listener is
+    // never started here.
+    void wakeAutostart('ensure')
 
     ipcMain.handle('marvi:get-version', () => app.getVersion())
     ipcMain.handle('marvi:get-build-info', () => ({
@@ -2407,6 +2429,10 @@ function startApp(): void {
           modelPresent: Boolean(body.model_present),
           armed: Boolean(body.armed),
           threshold: Number(body.threshold ?? 0.5),
+          autoRestart: body.auto_restart === undefined ? true : Boolean(body.auto_restart),
+          autoRestartSetting: String(
+            body.auto_restart_setting ?? 'MARVI_WAKE_AUTO_RESTART'
+          ),
           heardSecondsAgo:
             body.heard_seconds_ago === null || body.heard_seconds_ago === undefined
               ? null

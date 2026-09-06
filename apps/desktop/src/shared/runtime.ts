@@ -625,6 +625,10 @@ export interface WakeStatus {
    * answering every turn rather than deaf, so those differ. */
   armed: boolean
   threshold: number
+  /** Restart a stopped listener with bounded backoff. Defaults on; users can
+   * turn it off when they deliberately want a failed listener to stay down. */
+  autoRestart: boolean
+  autoRestartSetting: string
   heardSecondsAgo: number | null
   recentlyHeard: boolean
   confidence: number

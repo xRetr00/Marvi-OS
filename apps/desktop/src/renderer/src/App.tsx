@@ -3830,6 +3830,7 @@ function WakeSettings(): React.JSX.Element {
   // poll. Turning it on shells out to the registry and can take a moment.
   const [busy, setBusy] = useState(false)
   const [pending, setPending] = useState<boolean | null>(null)
+  const [restartPending, setRestartPending] = useState<boolean | null>(null)
 
   if (!wake) return <span className="construction">UNAVAILABLE</span>
 
@@ -3838,6 +3839,7 @@ function WakeSettings(): React.JSX.Element {
   }
 
   const on = pending ?? wake.listener.autostart
+  const autoRestart = restartPending ?? wake.autoRestart
   const toggle = async (want?: boolean): Promise<void> => {
     const target = want ?? !on
     setBusy(true)
@@ -3884,6 +3886,34 @@ function WakeSettings(): React.JSX.Element {
             value={String(wake.threshold)}
             onChange={(next) => set({ [wake.thresholdSetting]: next })}
             placeholder="Balanced"
+          />
+          <ControlRow
+            action={
+              <button
+                aria-checked={autoRestart}
+                className={autoRestart ? 'mode-switch active' : 'mode-switch'}
+                onClick={() => {
+                  const target = !autoRestart
+                  setRestartPending(target)
+                  void window.marvi
+                    ?.setProviderSettings({
+                      [wake.autoRestartSetting]: target ? 'on' : 'off'
+                    })
+                    .then(() => refresh('voice/wake'))
+                }}
+                role="switch"
+                type="button"
+              >
+                {autoRestart ? 'AUTO RESTART ON' : 'AUTO RESTART OFF'}
+              </button>
+            }
+            description={
+              autoRestart
+                ? 'If the microphone or detector stops, the wake-word host keeps retrying with a bounded delay.'
+                : 'A stopped listener stays stopped. Use Start it or turn Wake Word off and on when you want it back.'
+            }
+            icon={RefreshCw}
+            title="Restart after a crash"
           />
           {!wake.listener.running && wake.listener.everRan ? (
             <ControlRow
