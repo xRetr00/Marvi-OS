@@ -102,6 +102,7 @@ import { ConnectorsPanel } from './components/connectors/ConnectorsPanel'
 import { ServiceLogo } from './lib/serviceLogos'
 import { McpPanel } from './components/mcp/McpPanel'
 import { CapabilityPluginsPanel } from './components/capabilities/CapabilityPluginsPanel'
+import { MindPage } from './components/mind-page'
 import {
   filterInstalledSkills,
   filterStoreSkills,
@@ -159,7 +160,6 @@ import type {
   AuditEvent,
   DeviceState,
   IdentityStatus,
-  InitiativeStatus,
   MemoryPage,
   MemoryEntry,
   MemoryImportPreview,
@@ -169,7 +169,6 @@ import type {
   MemoryGraphMode,
   MemoryGraphNode,
   MemoryGraphPage,
-  MindDecision,
   ModelPage,
   PluginPage,
   ProviderPage,
@@ -815,7 +814,7 @@ function MainSurface(): React.JSX.Element {
                   ) : page === 'Graph' ? (
                     <MemoryPanel />
                   ) : page === 'Mind' ? (
-                    <MindPanel />
+                    <MindPage />
                   ) : page === 'Skills' ? (
                     <SkillsPanel />
                   ) : page === 'Connectors' ? (
@@ -2148,114 +2147,6 @@ function RoomPanel({
   )
 }
 
-function MindPanel(): React.JSX.Element {
-  const [status, setStatus] = useState<InitiativeStatus | null>(null)
-  const [decisions, setDecisions] = useState<MindDecision[]>([])
-  const [reload, setReload] = useState(0)
-
-  useEffect(() => {
-    let disposed = false
-    const load = async (): Promise<void> => {
-      const [next, log] = await Promise.all([
-        window.marvi?.getInitiative(),
-        window.marvi?.getDecisions()
-      ])
-      if (disposed) return
-      if (next) setStatus(next)
-      if (log) setDecisions(log.decisions)
-    }
-    void load()
-    const timer = setInterval(() => void load(), 5_000)
-    return () => {
-      disposed = true
-      clearInterval(timer)
-    }
-  }, [reload])
-
-  const toggle = async (): Promise<void> => {
-    await window.marvi?.setInitiative(!(status?.paused ?? false))
-    setReload((n) => n + 1)
-  }
-
-  return (
-    <ControlPage
-      description="Marvi Cortex's observe → reflect → commit cycle and the reasoning record behind every autonomous decision."
-      title="Marvi Cortex Mind"
-    >
-      <ControlSection
-        action={
-          <ControlButton onClick={() => void toggle()}>
-            {status?.paused ? <Play aria-hidden="true" /> : <Pause aria-hidden="true" />}
-            {status?.paused ? 'Resume' : 'Pause'}
-          </ControlButton>
-        }
-        icon={Brain}
-        title="Subconscious"
-      >
-        <ControlRow
-          action={
-            <ControlPill tone={status?.paused ? 'neutral' : 'ready'}>
-              {status?.paused ? 'Paused' : 'Active'}
-            </ControlPill>
-          }
-          title="Cortex cycle"
-        />
-        <ControlRow
-          action={
-            <ControlPill tone={status?.running ? 'ready' : 'neutral'}>
-              {status?.running ? 'Running' : 'Stopped'}
-            </ControlPill>
-          }
-          title="Schedule"
-        />
-        <ControlRow
-          action={<span className="control-value">{status?.pending_events ?? 0}</span>}
-          title="Pending events"
-        />
-        {Object.entries(status?.last_errors ?? {}).map(([job, error]) => (
-          <ControlRow
-            action={<ControlPill tone="danger">Error</ControlPill>}
-            description={error.slice(0, 120)}
-            key={job}
-            title={job.replaceAll('_', ' ')}
-          />
-        ))}
-      </ControlSection>
-
-      <ControlSection icon={History} title="Decision history">
-        {decisions.length === 0 ? (
-          <ControlEmpty
-            description="Decisions appear here when an event reaches the initiative policy."
-            icon={Sparkles}
-            title="No decisions yet"
-          />
-        ) : (
-          decisions.map((decision) => (
-            <ControlRow
-              action={
-                <ControlPill tone={decision.surface === 'silent' ? 'neutral' : 'accent'}>
-                  {decision.surface}
-                </ControlPill>
-              }
-              description={`${decision.at.slice(11, 19)} · ${decision.rule}${decision.detail ? ` · ${decision.detail}` : ''} · ${decision.provider} · ${decision.latency_ms.toFixed(1)} ms`}
-              key={decision.id}
-              title={decision.trigger.replaceAll('_', ' ')}
-            />
-          ))
-        )}
-      </ControlSection>
-    </ControlPage>
-  )
-}
-
-/**
- * How memory is written, and how it will be searched.
- *
- * Two settings, because two different things have to be configured for memory
- * to work at all and the answer to "why did she not remember that" is usually
- * one of them being unset. The role decides what is kept from a turn; the
- * embedding decides whether recall can match meaning rather than words.
- */
 function MemorySettingsSection({
   which = 'recall'
 }: {

@@ -34,7 +34,7 @@ import {
 } from 'lucide-react'
 import React, { useEffect, useMemo, useState } from 'react'
 
-import type { Feeder, InitiativeStatus, MindDecision, WaitingItem } from '@shared/runtime'
+import type { Feeder, InitiativeStatus, MindDecision, WaitingItem } from '../../../shared/runtime'
 
 /** The surfaces, quietest first. Mirrors `policy.SURFACES` exactly. */
 const LADDER = ['silent', 'remember', 'activity', 'island', 'speak', 'propose'] as const
@@ -150,7 +150,9 @@ function MindDiagram({
               fill="none"
             />
             <circle
-              className={feeder.wired ? (silent ? 'mind-dot is-silent' : 'mind-dot') : 'mind-dot is-off'}
+              className={
+                feeder.wired ? (silent ? 'mind-dot is-silent' : 'mind-dot') : 'mind-dot is-off'
+              }
               cx="144"
               cy={y}
               r="3"
@@ -197,7 +199,9 @@ function MindDiagram({
         return (
           <g key={surface}>
             <rect
-              className={surface === 'speak' || surface === 'propose' ? 'mind-bar is-loud' : 'mind-bar'}
+              className={
+                surface === 'speak' || surface === 'propose' ? 'mind-bar is-loud' : 'mind-bar'
+              }
               height="14"
               rx="3"
               width={width}
@@ -264,13 +268,14 @@ export function MindPage(): React.JSX.Element {
             this page is live.
           </p>
         </div>
-        <button
-          className="mind-toggle"
-          disabled={busy}
-          onClick={() => void toggle()}
-          type="button"
-        >
-          {busy ? <Loader aria-hidden="true" className="is-spinning" /> : paused ? <Play aria-hidden="true" /> : <Pause aria-hidden="true" />}
+        <button className="mind-toggle" disabled={busy} onClick={() => void toggle()} type="button">
+          {busy ? (
+            <Loader aria-hidden="true" className="is-spinning" />
+          ) : paused ? (
+            <Play aria-hidden="true" />
+          ) : (
+            <Pause aria-hidden="true" />
+          )}
           {paused ? 'Resume' : 'Pause'}
         </button>
       </header>
@@ -279,9 +284,7 @@ export function MindPage(): React.JSX.Element {
       <div className={quiet ? 'mind-state is-quiet' : 'mind-state'}>
         <span className="mind-state-dot" />
         <strong>{quiet ? 'Quiet' : 'Listening'}</strong>
-        <span className="mind-state-why">
-          {quiet || 'nothing is holding her back right now'}
-        </span>
+        <span className="mind-state-why">{quiet || 'nothing is holding her back right now'}</span>
         <span className="mind-state-meta">
           {status?.running ? 'scheduler running' : 'scheduler stopped'} ·{' '}
           {status?.pending_events ?? 0} unread events
@@ -355,14 +358,15 @@ export function MindPage(): React.JSX.Element {
             const Icon = FEEDER_ICON[feeder.id] ?? Activity
             const silent = feeder.wired && feeder.events === 0
             return (
-              <li
-                className={!feeder.wired ? 'is-off' : silent ? 'is-silent' : ''}
-                key={feeder.id}
-              >
+              <li className={!feeder.wired ? 'is-off' : silent ? 'is-silent' : ''} key={feeder.id}>
                 <Icon aria-hidden="true" />
                 <span className="mind-feeder-name">{feeder.label}</span>
                 <span className="mind-feeder-count">
-                  {!feeder.wired ? 'not connected' : silent ? 'nothing this week' : `${feeder.events}`}
+                  {!feeder.wired
+                    ? 'not connected'
+                    : silent
+                      ? 'nothing this week'
+                      : `${feeder.events}`}
                 </span>
               </li>
             )
@@ -377,7 +381,7 @@ export function MindPage(): React.JSX.Element {
             {errors.map(([job, error]) => (
               <li key={job}>
                 <span className="mind-error-job">{job.replaceAll('_', ' ')}</span>
-                <span className="mind-error-detail">{error.slice(0, 200)}</span>
+                <span className="mind-error-detail">{String(error).slice(0, 200)}</span>
               </li>
             ))}
           </ul>
@@ -388,9 +392,7 @@ export function MindPage(): React.JSX.Element {
         <h3>
           <History aria-hidden="true" /> Decisions
         </h3>
-        <p className="mind-block-sub">
-          Where each event stopped, and what it cost to decide.
-        </p>
+        <p className="mind-block-sub">Where each event stopped, and what it cost to decide.</p>
         {decisions.length === 0 ? (
           <p className="mind-empty">Nothing has reached the policy yet.</p>
         ) : (
