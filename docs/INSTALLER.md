@@ -173,8 +173,15 @@ So the release contract is:
 1. Tag `v*` on the repository. The Release channel finds it.
 2. The updater clones or fast-forwards to it.
 3. The toolchain is re-checked and updated if the release needs a newer one.
-4. `npm ci` and `npm run build:unpack`, then the smoke test.
+4. `npm ci` and `npm run build:unpack`, then the smoke test. The smoke test
+   requires the packaged wake-host executable and wake model, so an update
+   cannot activate a desktop build that silently omitted either one.
 5. On failure, the previous commit is restored.
+
+The updater stops the detached wake-word host because its executable lives
+inside the build directory being replaced. On the first launch of the updated
+desktop, the login registration is reconciled and the listener is restarted
+from the newly packaged binary. A user-disabled registration is left off.
 
 Developers cut releases through the signed release console. With no arguments
 it asks for the target version; `-Version` supplies it for command-line use.

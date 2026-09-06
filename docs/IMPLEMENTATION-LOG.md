@@ -4,6 +4,24 @@ This is the chronological record of work that has actually happened. Planned
 work belongs in `docs/phases/`; architectural decisions belong in
 `docs/DECISIONS.md`.
 
+## 2026-09-06 — Wake-word crash recovery and update handoff
+
+- Replaced the native listener's permanent three-failure cutoff with indefinite
+  exponential retry capped at 30 seconds, while preserving a user-controlled
+  `MARVI_WAKE_AUTO_RESTART` off switch in Settings.
+- Made the main Wake Word switch stop the process already holding the
+  microphone, not only remove its next-login registry entry. Explicit starts
+  clear the consumed stop marker and restart the listener immediately.
+- Corrected the login-started listener's hands-free launch fallback to climb
+  out of `resources/wake-host` and target the packaged `Marvi-OS.exe`; it had
+  resolved inside `resources` using the obsolete `Marvi.exe` name.
+- Reconciled enabled wake-word registration when the desktop launches, so the
+  updater can stop the old packaged binary, replace it, and relaunch the new
+  listener automatically without overriding a user-disabled listener.
+- Strengthened the bootstrap smoke gate to require the packaged wake-host
+  executable and `marvi.onnx`, with native backoff/stop, Gateway contract, and
+  updater packaging regression coverage.
+
 ## 2026-09-05 — Updater dependency cache
 
 - Stopped unchanged updates from deleting and reinstalling the same 846 npm

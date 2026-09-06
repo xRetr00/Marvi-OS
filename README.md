@@ -73,7 +73,7 @@ You decide how actions work:
 - **Confirm mode** asks for approval before sensitive actions. Approval is tied to the exact action Marvi proposed.
 - **YOLO mode** removes approval prompts when you explicitly want full autonomy, while validation and local activity history remain active.
 
-Marvi also gives you direct control over the folders tools may access, the services that can connect, what gets remembered, when proactive speech is allowed, and whether the microphone or camera is available. Credentials stay out of model conversations, and account sign-in happens through the provider's own authorization page.
+Marvi also gives you direct control over the folders tools may access, the services that can connect, what gets remembered, when proactive speech is allowed, and whether the microphone or camera is available. Wake-word recovery is visible and user-controlled: it retries a crashed listener by default, while Settings can turn recovery off or stop the listener completely. Credentials stay out of model conversations, and account sign-in happens through the provider's own authorization page.
 
 ## Make Marvi yours
 

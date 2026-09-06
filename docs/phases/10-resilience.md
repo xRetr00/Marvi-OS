@@ -195,6 +195,14 @@ the next launch reports it once and clears it. The last five are kept, because
 one crash is an incident and five is a pattern. Chained onto the existing
 excepthook so the full traceback still reaches the log.
 
+**Step 10 — wake-word recovery. Done.** The native wake host no longer gives up
+permanently after three fast microphone or detector failures. It retries with
+an exponential delay capped at 30 seconds, reads the user-controlled recovery
+setting between attempts, and accepts a cross-process stop request so turning
+Wake Word off actually releases the microphone. Desktop startup reconciles an
+enabled listener after the updater has replaced its binary, while the updater
+smoke gate refuses a package missing the wake executable or model.
+
 ## Acceptance evidence
 
 - Each of the three original failures — `uv` missing, port taken, broken imports
@@ -212,6 +220,9 @@ excepthook so the full traceback still reaches the log.
   restarting recovers without restarting the app.
 - Killing the room sidecar degrades room tools only. Voice keeps working.
 - An external write is never retried automatically, proven by a test.
+- A repeatedly failing wake listener keeps retrying with a bounded delay, and
+  disabling automatic restart leaves it stopped.
+- An updated package is rejected if its wake executable or model is absent.
 - Copy diagnostics produces a block containing nothing secret.
 
 ## What is not done

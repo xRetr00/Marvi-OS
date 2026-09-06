@@ -638,6 +638,8 @@ Settings include:
 - an Appearance page for the control center, Island, and desktop companion;
 - startup and Island placement;
 - microphone, camera, wake word, presence, and gesture controls;
+- a separate wake-word crash-restart switch, defaulting on, plus an off action
+  that stops the currently running listener as well as its next-login start;
 - voice models and residency profile;
 - OpenCode Go key/model selection;
 - Marvi's own bundled plugins (e.g. Smart Room) — third-party plugins live at
