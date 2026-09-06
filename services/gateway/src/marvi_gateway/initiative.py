@@ -62,6 +62,14 @@ class Initiative:
         # decides something cannot be said yet, and the mind that asks again.
         if waiting is not None:
             mind.waiting = waiting
+            # The same model the gatekeeper uses on the way in, for the items
+            # that arrived while it was unavailable.
+            if auxiliary_client is not None:
+                from .gatekeeping import what_it_says
+
+                mind.read_late = lambda subject, body: what_it_says(
+                    auxiliary_client, subject, body
+                )
         self.journal = journal
         self.ingest = ingest
         #: Built on first use, because it holds the last reading and a fresh

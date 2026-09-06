@@ -117,6 +117,9 @@ class Mind:
         #: Where things go that were worth saying and could not be said yet.
         #: Left unset, nothing is held and the old behaviour returns exactly.
         self.waiting: Any = None
+        #: Reads a held item that arrived while no model would answer.
+        #: `(subject, body) -> one sentence`. See `gatekeeping.what_it_says`.
+        self.read_late: Any = None
         # Who she is talking to, for the name in what she says. Left unset,
         # every line still reads correctly -- see `voicing`.
         self.identity = identity
@@ -200,6 +203,24 @@ class Mind:
         world = self.world(moment, conversation_active, present, at_machine, doing)
 
         def may_speak(event: dict[str, Any]) -> bool:
+            # Held because no model would read it, and a model might now.
+            # This is the whole "the rate limit has cleared, say it" case: the
+            # item was kept, never summarised, and has been waiting for a
+            # working model rather than for a better moment.
+            payload = event.get("payload")
+            unread = (
+                self.read_late is not None
+                and isinstance(payload, dict)
+                and not str(payload.get("says") or "").strip()
+                and bool(payload.get("body"))
+            )
+            if unread and (
+                says := self.read_late(str(payload.get("subject", "")), str(payload["body"]))
+            ):
+                payload["says"] = says
+                logger.info(
+                    "read something that arrived while no model would answer: %r", says[:100]
+                )
             verdict = evaluate(event, world, self.settings, wanted="speak")
             return SURFACES.index(verdict.surface) >= SURFACES.index("speak")
 
@@ -267,7 +288,7 @@ class Mind:
                 and SURFACES.index(verdict.surface) < SURFACES.index("speak")
                 and not event.get("_released")
             ):
-                self.waiting.hold(event, verdict.reason)
+                self.waiting.hold(event, verdict.rule)
             # How much this is worth, before anything is paid to find out.
             #
             # The first stage of the Amygdala in PLAN.md: deterministic
@@ -275,8 +296,6 @@ class Mind:
             # whole signal -- a sensor that has flipped forty times this hour is
             # not news the forty-first time -- and nothing here reads the
             # event's text, so wording cannot argue its way past it.
-            from .policy import SURFACES
-
             worth = salience.assess(
                 self.journal.seen_recently(
                     event["source"],
@@ -329,8 +348,6 @@ class Mind:
                 # An LLM may only make a decision quieter, never louder: the
                 # policy ceiling is not something a model gets to argue with.
                 proposed, proposed_detail, tokens = self.deliberate(event, verdict)
-                from .policy import SURFACES
-
                 if SURFACES.index(proposed) <= SURFACES.index(verdict.surface):
                     surface, detail = proposed, proposed_detail
                     # A model may choose how loud, never what is said, when the

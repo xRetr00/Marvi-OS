@@ -113,3 +113,84 @@ def test_the_delay_is_explained_rather_than_hidden() -> None:
 def test_nothing_is_explained_when_nothing_was_delayed() -> None:
     line = voicing.spoken(_mail(), "Shereef")
     assert not line.startswith("While")
+
+
+def test_something_unread_waits_for_a_model_not_a_moment(room) -> None:
+    """"The rate limit has cleared, say it."
+
+    `gatekeeping` fails open when no model will answer, so the item is kept and
+    never summarised -- and `policy` will not announce mail nobody read. That
+    is not a reason to lose it: it is the most temporary blocker of all. It
+    waits for a working model rather than for a better moment.
+    """
+    unread = _mail(says="")
+    unread["payload"].pop("says")
+    unread["payload"]["body"] = "Your mailboxes will be permanently deleted today."
+
+    assert room.hold(unread, "unread") is True
+    assert [w["because"] for w in room.waiting()] == ["I could not read it at the time"]
+
+
+def test_the_policy_calls_unread_mail_unread() -> None:
+    """So the waiting room can tell it apart from an ordinary allow."""
+    from datetime import UTC, datetime
+
+    from marvi_gateway.policy import InitiativeSettings, WorldState, evaluate
+
+    world = WorldState(now=datetime(2026, 9, 6, 12, 0, tzinfo=UTC), present=True)
+    unread = _mail()
+    unread["payload"].pop("says")
+
+    verdict = evaluate(unread, world, InitiativeSettings(), wanted="speak")
+    assert verdict.rule == "unread"
+    assert verdict.surface == "island", "announced something nobody had read"
+
+    # And the same mail, once something has read it.
+    verdict = evaluate(_mail(), world, InitiativeSettings(), wanted="speak")
+    assert verdict.surface == "speak"
+
+
+def test_the_mind_actually_holds_what_it_cannot_say(room) -> None:
+    """Exercises `Mind.tick` itself, not just the room.
+
+    Written because it did not exist: the holding call read `verdict.reason`
+    and the field is `verdict.rule`, so the first thing Marvi ever tried to
+    hold would have raised. Every test passed, because nothing drove the mind
+    with a waiting room attached.
+    """
+    from datetime import UTC, datetime
+
+    from marvi_gateway.mind import Mind
+
+    said = _mail()
+
+    class _Journal:
+        """Only what `Mind.tick` actually reaches for."""
+
+        def pending(self, limit=20):  # noqa: ANN001, ARG002
+            return [dict(said, id=1)]
+
+        def tokens_since(self, _when):
+            return 0
+
+        def last_surfaced(self, _source, _kind):
+            return None
+
+        def seen_recently(self, *_args, **_kwargs):
+            return 0
+
+        def record_decision(self, *_args, **_kwargs):
+            return 1
+
+        def mark_processed(self, *_args, **_kwargs):
+            return None
+
+    mind = Mind(_Journal())
+    mind.waiting = room
+
+    # Mid-call: the foreground owns the voice, so this cannot be said now.
+    mind.tick(now=datetime(2026, 9, 6, 12, 0, tzinfo=UTC), conversation_active=True)
+
+    assert [w["because"] for w in room.waiting()] == ["we were talking"], (
+        "the mind dropped something it should have held"
+    )

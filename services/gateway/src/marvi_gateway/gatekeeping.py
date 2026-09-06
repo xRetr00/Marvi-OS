@@ -166,6 +166,40 @@ def _summarise(item: Any) -> str:
     return f"{subject} | {body}"[:PREVIEW]
 
 
+@dataclasses.dataclass(frozen=True)
+class _Item:
+    """Just enough of a `MemoryItem` for `_summarise` to read."""
+
+    subject: str
+    body: str
+
+
+def what_it_says(client: Any, subject: str, body: str) -> str:
+    """One sentence about a single item, for something read late.
+
+    The batch path above is the normal one -- twenty at a time, on the way in.
+    This is for an item that arrived while no model would answer: it was kept
+    (the gate fails open), it was never summarised, and it has been sitting in
+    `pending` ever since waiting for exactly this call.
+    """
+    if client is None or not (subject or body).strip():
+        return ""
+    try:
+        answer = distil.ask(
+            client,
+            "memory",
+            SYSTEM_PROMPT,
+            # The same shape the batch judge sees, so one prompt serves both.
+            "[0] " + _summarise(_Item(subject, body)),
+            MAX_OUTPUT_TOKENS,
+            tools=False,
+        )
+    except Exception as exc:
+        log.info("could not read a held item (%s); it stays held", str(exc)[:120])
+        return ""
+    return _parse(answer, 1).get(0, "")
+
+
 def worth_keeping(client: Any, items: list[Any]) -> list[Any]:
     """The items a connector fetched that memory should hold.
 

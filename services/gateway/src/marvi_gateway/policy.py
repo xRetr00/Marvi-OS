@@ -243,11 +243,12 @@ def evaluate(
     # So the raised ceiling is conditional on there being something to say.
     # Nothing is lost when it fails: the mail still reaches the Island and the
     # activity feed, exactly as it did before any of this.
+    unread = False
     if str(event.get("source", "")).startswith("accounts:"):
         payload = event.get("payload")
         read_it = isinstance(payload, dict) and str(payload.get("says") or "").strip()
         if not read_it and SURFACES.index(ceiling) > SURFACES.index("island"):
-            ceiling = "island"
+            ceiling, unread = "island", True
 
     surface = _cap(wanted, ceiling)
 
@@ -313,6 +314,11 @@ def evaluate(
     if speaking and not insistent and not world.present and not rules.speak_when_away:
         return Verdict(True, _cap("island", ceiling), "nobody-present", "downgraded from speech")
 
+    if unread:
+        # Named rather than lumped in with "allowed", so `pending` can hold it
+        # and try again once a model is available. A rate limit is the most
+        # temporary reason of all to not say something.
+        return Verdict(True, surface, "unread", "no summary yet; a model was unavailable")
     return Verdict(True, surface, "allowed", f"ceiling {ceiling}")
 
 

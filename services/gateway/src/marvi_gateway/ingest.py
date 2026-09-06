@@ -897,6 +897,12 @@ class AccountIngest:
                     **({"from": item.entities[0]} if item.entities else {}),
                     # And what it means, when the gatekeeper worked it out.
                     **({"says": item.says} if item.says else {}),
+                    # Enough of it to be read *later* if it could not be read
+                    # now. The gatekeeper fails open when a model is rate
+                    # limited, and without this the only way to find out what
+                    # an unjudged item said would be to fetch it again -- which
+                    # cannot happen, because it has already been marked seen.
+                    **({"body": item.body[:600]} if not item.says and item.body else {}),
                 }
             )
         self.store.finish(toolkit, connection_id, cursor=next_cursor, count=len(ingested))
