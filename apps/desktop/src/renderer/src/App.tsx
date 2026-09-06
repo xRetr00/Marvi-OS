@@ -105,7 +105,7 @@ import { ActivityPage } from './components/activity-page'
 import { MemoryHealth } from './components/memory-health'
 import { CronjobsPage } from './components/cronjobs-page'
 import { MindPage } from './components/mind-page'
-import { OverviewMind } from './components/overview-mind'
+import { OverviewPage } from './components/overview-page'
 import {
   filterInstalledSkills,
   filterStoreSkills,
@@ -802,7 +802,12 @@ function MainSurface(): React.JSX.Element {
                 own tracks and no page has to manage window overflow. */}
                 <div className="page-scroll">
                   {page === 'Overview' ? (
-                    <Overview onOpenMind={() => navigate('Mind')} runtime={runtime} voice={voice} />
+                    <OverviewPage
+                      device={(which) => deviceState(runtime, which)}
+                      onOpenMind={() => navigate('Mind')}
+                      runtime={runtime}
+                      voice={voice}
+                    />
                   ) : page === 'Room' ? (
                     <RoomPanel runtime={runtime} view="room" />
                   ) : page === 'Vision' ? (
@@ -915,162 +920,6 @@ function VoiceLevelMeter({ level }: { level: number }): React.JSX.Element {
         {blocks}
       </span>
     </UiTooltip>
-  )
-}
-
-function Overview({
-  runtime,
-  voice,
-  onOpenMind
-}: {
-  runtime: RuntimeStatus
-  voice: VoiceState
-  onOpenMind: () => void
-}): React.JSX.Element {
-  const services = [
-    { label: 'Marvi Gateway', service: runtime.components.gateway, icon: 'overview' },
-    { label: 'LiveKit', service: runtime.components.livekit, icon: 'activity' },
-    { label: 'Voice', service: runtime.components.voice, icon: 'voice' },
-    { label: 'Smart Room', service: runtime.components.room, icon: 'room' },
-    { label: 'Accounts', service: runtime.components.accounts, icon: 'accounts' }
-  ] as const
-
-  const path = [
-    {
-      label: 'Microphone',
-      icon: 'voice',
-      state: deviceState(runtime, 'microphone') === 'on' ? 'ready' : 'offline'
-    },
-    { label: 'LiveKit', icon: 'activity', state: runtime.components.livekit?.state },
-    { label: 'Gateway', icon: 'overview', state: runtime.components.gateway?.state },
-    { label: 'Voice', icon: 'voice', state: runtime.components.voice?.state }
-  ] as const
-
-  const context = [
-    { label: 'Room', value: runtime.components.room?.detail ?? 'Offline', icon: 'room' },
-    { label: 'Vision', value: runtime.components.vision?.detail ?? 'Offline', icon: 'vision' },
-    {
-      label: 'Accounts',
-      value: runtime.components.accounts?.detail ?? 'Not connected',
-      icon: 'accounts'
-    },
-    {
-      label: 'Microphone',
-      value: DEVICE_COPY[deviceState(runtime, 'microphone')],
-      icon: 'voice'
-    },
-    { label: 'Camera', value: DEVICE_COPY[deviceState(runtime, 'camera')], icon: 'vision' }
-  ] as const
-  const readyServices = services.filter(
-    ({ service }) => stateTone(service?.state) === 'ready'
-  ).length
-  const runtimeTone = stateTone(runtime.state)
-
-  return (
-    <ControlPage
-      className="overview-control-page"
-      description="Local assistant health, active session state, and connected context."
-      title="Overview"
-    >
-      {/* Whether she would say anything, above whether the processes are up.
-          Those come apart constantly. See `overview-mind`. */}
-      <OverviewMind onOpen={onOpenMind} />
-
-      <section className={`overview-runtime tone-${runtimeTone}`} aria-label="Current state">
-        <div className="overview-runtime-main">
-          <span className="overview-runtime-kicker">
-            <i aria-hidden="true" />
-            {runtime.state} / {voice.phase}
-          </span>
-          <div className="overview-runtime-title">
-            <Sparkles aria-hidden="true" />
-            <div>
-              <h3>{voice.caption}</h3>
-              <p>{voice.detail ?? 'Standing by for voice, context, or scheduled work.'}</p>
-            </div>
-          </div>
-        </div>
-        <dl className="overview-runtime-facts">
-          <div>
-            <dt>Systems</dt>
-            <dd>
-              {readyServices}/{services.length} ready
-            </dd>
-          </div>
-          <div>
-            <dt>Model route</dt>
-            <dd>{runtime.model.llm || 'Automatic'}</dd>
-          </div>
-          <div>
-            <dt>Approval</dt>
-            <dd>{voice.yolo ? 'YOLO' : 'Confirm'}</dd>
-          </div>
-        </dl>
-      </section>
-
-      <ControlSection
-        description="The local path used by every spoken turn."
-        icon={Route}
-        title="Voice route"
-      >
-        <div className="control-route" aria-label="Voice route">
-          {path.map(({ label, icon, state }, index) => (
-            <div className="control-route-step" key={label}>
-              <span className="overview-route-mark">
-                <AbstractIcon name={icon} size={16} />
-                <i className={`tone-${stateTone(state)}`} aria-hidden="true" />
-              </span>
-              <span>{label}</span>
-              {index < path.length - 1 ? (
-                <span aria-hidden="true" className="control-route-arrow">
-                  ›
-                </span>
-              ) : null}
-            </div>
-          ))}
-        </div>
-      </ControlSection>
-
-      <div className="overview-workspace">
-        <ControlSection
-          action={<span className="overview-section-count">{readyServices} ready</span>}
-          className="overview-systems"
-          icon={Server}
-          title="Systems"
-        >
-          <div className="overview-system-list">
-            {services.map(({ label, service, icon }) => {
-              const tone = stateTone(service?.state)
-              return (
-                <div className="overview-system-row" key={label}>
-                  <AbstractIcon name={icon} size={15} />
-                  <div>
-                    <strong>{label}</strong>
-                    <span>{service?.detail ?? 'No status received'}</span>
-                  </div>
-                  <span className={`overview-state tone-${tone}`}>
-                    <i aria-hidden="true" />
-                    {service?.state ?? 'offline'}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-        </ControlSection>
-
-        <ControlSection className="overview-context" icon={Box} title="Context">
-          <div className="overview-context-list">
-            {context.map(({ label, value, icon }) => (
-              <div className="overview-context-row" key={label}>
-                <AbstractIcon name={icon} size={14} />
-                <span>{label}</span>
-                <strong title={value}>{value}</strong>
-              </div>
-            ))}
-          </div>
-        </ControlSection>
-      </div>
-    </ControlPage>
   )
 }
 

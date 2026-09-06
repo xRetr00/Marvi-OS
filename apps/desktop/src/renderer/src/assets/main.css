@@ -12650,3 +12650,309 @@ html[data-appearance='claude-code-dark'] .control-row {
   font-size: 10px;
   line-height: 1.55;
 }
+
+/* -- Overview ---------------------------------------------------------------
+   Two paths, not one. Answering (microphone to voice) and noticing (feeders to
+   announcer). The old page drew the first and had no idea the second existed,
+   which is exactly the half that was broken. */
+
+.ovp-page {
+  width: min(980px, 100%);
+  min-height: 100%;
+  margin: 0 auto;
+  padding: clamp(22px, 4vw, 48px) clamp(18px, 4vw, 44px) 72px;
+  color: var(--ui-text-primary);
+}
+
+.ovp-hero {
+  padding: 16px 18px;
+  border: 1px solid var(--ui-border-subtle);
+  border-radius: 9px;
+  background: var(--ui-bg-tertiary);
+}
+
+.ovp-hero.tone-ready {
+  border-color: color-mix(in srgb, var(--ui-accent) 26%, transparent);
+  background: color-mix(in srgb, var(--ui-accent) 5%, transparent);
+}
+
+.ovp-hero.tone-danger {
+  border-color: color-mix(in srgb, var(--ui-danger) 32%, transparent);
+  background: color-mix(in srgb, var(--ui-danger) 5%, transparent);
+}
+
+.ovp-hero-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+}
+
+.ovp-hero-main > svg {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  margin-top: 2px;
+  color: var(--ui-accent);
+}
+
+.ovp-hero-main h2 {
+  margin: 0;
+  color: var(--ui-text-emphasis);
+  font-family: var(--ui-font-display);
+  font-size: 19px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+}
+
+.ovp-hero-main p {
+  margin: 3px 0 0;
+  color: var(--ui-text-tertiary);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.ovp-hero-mind {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  margin-top: 13px;
+  padding: 8px 0 0;
+  border: none;
+  border-top: 1px solid var(--ui-border-subtle);
+  background: none;
+  color: var(--ui-text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 10px;
+  text-align: left;
+}
+
+.ovp-hero-mind:hover {
+  color: var(--ui-accent);
+}
+
+.ovp-mind-dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--ui-accent);
+  animation: mind-pulse 2.4s ease-in-out infinite;
+}
+
+.ovp-mind-dot.is-quiet {
+  background: var(--ui-text-tertiary);
+  animation: none;
+}
+
+.ovp-trouble {
+  margin: 12px 0 0;
+  padding: 9px 12px;
+  border: 1px solid color-mix(in srgb, var(--ui-danger) 30%, transparent);
+  border-radius: 6px;
+  color: var(--ui-danger);
+  font-size: 10px;
+}
+
+.ovp-paths {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  margin-top: 22px;
+}
+
+.ovp-path {
+  padding: 13px 15px;
+  border: 1px solid var(--ui-border-subtle);
+  border-radius: 8px;
+}
+
+.ovp-path h3,
+.ovp-context h3,
+.ovp-systems h3 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 11px;
+  color: var(--ui-text-emphasis);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.ovp-path h3 > svg,
+.ovp-context h3 > svg,
+.ovp-systems h3 > svg {
+  width: 12px;
+  height: 12px;
+  color: var(--ui-text-tertiary);
+}
+
+.ovp-flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Chevrons drawn between hops rather than added as markup, so the flow reads
+   as one thing and wraps without leaving an arrow stranded at a line end. */
+.ovp-hop {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  background: var(--ui-bg-tertiary);
+  color: var(--ui-text-secondary);
+  font-size: 9px;
+}
+
+.ovp-hop + .ovp-hop::before {
+  content: '›';
+  margin-right: 3px;
+  color: var(--ui-text-tertiary);
+}
+
+.ovp-hop i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ui-text-tertiary);
+}
+
+.ovp-hop.tone-ready i {
+  background: color-mix(in srgb, var(--ui-accent) 80%, transparent);
+}
+
+.ovp-hop.tone-warning i {
+  background: #c79b58;
+}
+
+.ovp-hop.tone-danger i {
+  background: var(--ui-danger);
+}
+
+.ovp-path-note {
+  margin: 10px 0 0;
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.ovp-waiting,
+.ovp-resources {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 12px 0 0;
+  padding: 9px 12px;
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 22%, transparent);
+  border-radius: 6px;
+  color: var(--ui-text-secondary);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.ovp-waiting > svg,
+.ovp-resources > svg {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  margin-top: 1px;
+  color: var(--ui-accent);
+}
+
+.ovp-context {
+  margin-top: 26px;
+}
+
+.ovp-tiles {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.ovp-tile {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border: 1px solid var(--ui-border-subtle);
+  border-radius: 6px;
+}
+
+.ovp-tile span {
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+}
+
+.ovp-tile strong {
+  overflow: hidden;
+  color: var(--ui-text-secondary);
+  font-size: 10px;
+  font-weight: 550;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ovp-systems {
+  margin-top: 26px;
+}
+
+.ovp-systems h3 span {
+  margin-left: auto;
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+  font-weight: 400;
+}
+
+.ovp-systems ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ovp-systems li {
+  display: grid;
+  align-items: center;
+  gap: 9px;
+  grid-template-columns: 6px 72px minmax(0, 1fr);
+  padding: 6px 0;
+  border-top: 1px solid var(--ui-border-subtle);
+}
+
+.ovp-systems li:first-child {
+  border-top: none;
+}
+
+.ovp-systems li i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ui-text-tertiary);
+}
+
+.ovp-systems li.tone-ready i {
+  background: color-mix(in srgb, var(--ui-accent) 75%, transparent);
+}
+
+.ovp-systems li.tone-warning i {
+  background: #c79b58;
+}
+
+.ovp-systems li.tone-danger i {
+  background: var(--ui-danger);
+}
+
+.ovp-systems li span {
+  color: var(--ui-text-secondary);
+  font-size: 10px;
+}
+
+.ovp-systems li small {
+  overflow: hidden;
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

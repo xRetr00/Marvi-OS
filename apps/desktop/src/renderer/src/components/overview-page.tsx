@@ -126,8 +126,8 @@ export function OverviewPage({
 
       {unwell.length > 0 && (
         <p className="ovp-trouble">
-          {unwell.map(({ label }) => label).join(', ')}{' '}
-          {unwell.length === 1 ? 'is' : 'are'} not answering.
+          {unwell.map(({ label }) => label).join(', ')} {unwell.length === 1 ? 'is' : 'are'} not
+          answering.
         </p>
       )}
 
@@ -145,7 +145,8 @@ export function OverviewPage({
             <Hop label="Voice" tone={toneOf(runtime.components.voice?.state)} />
           </div>
           <p className="ovp-path-note">
-            {runtime.model.llm || 'Automatic model'} · {voice.yolo ? 'acts without asking' : 'asks first'}
+            {runtime.model.llm || 'Automatic model'} ·{' '}
+            {voice.yolo ? 'acts without asking' : 'asks first'}
           </p>
         </section>
 
@@ -159,10 +160,7 @@ export function OverviewPage({
               tone={mute.length ? 'warning' : feeders.length ? 'ready' : 'neutral'}
             />
             <Hop label="Mind" tone={mind?.running ? (quiet ? 'warning' : 'ready') : 'danger'} />
-            <Hop
-              label="Announcer"
-              tone={quiet ? 'neutral' : 'ready'}
-            />
+            <Hop label="Announcer" tone={quiet ? 'neutral' : 'ready'} />
           </div>
           <p className="ovp-path-note">
             {mute.length
@@ -213,7 +211,9 @@ export function OverviewPage({
       <section className="ovp-systems">
         <h3>
           <Server aria-hidden="true" /> Systems
-          <span>{ready} of {services.length} ready</span>
+          <span>
+            {ready} of {services.length} ready
+          </span>
         </h3>
         <ul>
           {services.map(({ label, service }) => (
