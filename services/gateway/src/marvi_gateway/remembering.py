@@ -201,6 +201,41 @@ def _parse(text: str) -> list[dict[str, Any]]:
     return [item for item in parsed if isinstance(item, dict)] if isinstance(parsed, list) else []
 
 
+#: A memory that describes the conversation instead of the world.
+#:
+#: The prompt already forbids this, in those words -- "Never store the
+#: assistant's own words, pleasantries, or the fact that a conversation
+#: happened. 'The user said hello' is not a memory." -- and the model wrote
+#: these anyway, 55 of them:
+#:
+#:   User's greeting and status | The user said 'Yeah, I was wondering I was
+#:                                going on.' which Marvi interpreted as a
+#:                                greeting or status update.
+#:   User checking on assistant | The user confirmed they were checking on the
+#:                                assistant's status.
+#:   User's farewell ...        | The user said 'Thank you, no singles. You can
+#:                                end up in.' and the assistant responded with
+#:                                'Goodnight, Shereef.'
+#:
+#: Every one built out of a misheard sentence, and every one of them then
+#: coming back on recall as though it bore on the turn. Compare what the same
+#: store holds from the dreaming pass, which is what a memory should look like:
+#: "Shereef uses Home Assistant for home automation and has a RGBCW lightbulb
+#: (entity_id light.rgbcw_lightbulb) in their room."
+#:
+#: So it is refused here rather than asked for politely, which is the same
+#: choice already made for credentials: the store does not trust the
+#: instruction, it checks. A rule the model ignores is not a rule.
+NARRATES_THE_EXCHANGE = re.compile(
+    r"the (?:user|assistant) (?:said|asked|replied|responded|confirmed|mentioned"
+    r"|stated|indicated|greeted|told)"
+    r"|the assistant"
+    r"|(?:which|this) indicates"
+    r"|marvi (?:interpreted|responded|replied|said)",
+    re.IGNORECASE,
+)
+
+
 def apply(store: Any, operations: list[dict[str, Any]]) -> dict[str, Any]:
     """Carry out what the model decided. Returns what was done, by operation.
 
@@ -211,9 +246,39 @@ def apply(store: Any, operations: list[dict[str, Any]]) -> dict[str, Any]:
     done: dict[str, Any] = {"add": 0, "update": 0, "delete": 0, "ignored": 0, "noted": []}
     for operation in operations:
         name = str(operation.get("op") or "").strip().lower()
-        body = str(operation.get("body") or "").strip()
-        subject = str(operation.get("subject") or "").strip()
+        # `str()` on whatever arrived is how two memories came to have a Python
+        # dict repr for a body:
+        #
+        #     subject: User shared a link
+        #     body:    {'id': 'User shared a link'}
+        #
+        # The model answered with an object where a sentence belongs and
+        # `str(dict)` took it without complaint, so the store held a row that
+        # can never be recalled usefully and reads as corruption. A body that
+        # is not a string is not a body.
+        raw_body, raw_subject = operation.get("body"), operation.get("subject")
+        if (raw_body is not None and not isinstance(raw_body, str)) or (
+            raw_subject is not None and not isinstance(raw_subject, str)
+        ):
+            log.warning(
+                "a proposed memory had a %s where text belongs; dropped",
+                type(raw_body if not isinstance(raw_body, str) else raw_subject).__name__,
+            )
+            done["ignored"] += 1
+            continue
+        body = (raw_body or "").strip()
+        subject = (raw_subject or "").strip()
         kind = "episodic" if str(operation.get("kind")) == "episodic" else "semantic"
+        if body and NARRATES_THE_EXCHANGE.search(body):
+            # Loudly. The whole reason this went unnoticed for 55 memories is
+            # that nothing anywhere said a word about them.
+            log.warning(
+                "a proposed memory described the conversation rather than a fact; "
+                "dropped: %r",
+                f"{subject}: {body}"[:160],
+            )
+            done["ignored"] += 1
+            continue
         try:
             if name == "add" and body and subject:
                 store.remember(subject, body, kind=kind)

@@ -72,9 +72,47 @@ def _pick(row: dict[str, Any], *paths: str) -> Any:
     return None
 
 
-def _cursor(payload: Any, records: list[dict[str, Any]], *record_paths: str) -> str:
+def _epoch_seconds(cursor: str) -> str:
+    """Seconds since the epoch, from a cursor that may not be a time at all.
+
+    Gmail reports `internalDate` in **milliseconds** and its `after:` search
+    operator reads **seconds**, so the two have to be converted between rather
+    than passed through. Empty for anything that is not plausibly a time, which
+    is how this broke and how it now repairs itself: the stored Gmail cursor
+    was `09137571825892649257` -- a *page token*, which Gmail writes as a long
+    run of digits -- and `cursor.isdigit()` sent it into the timestamp branch:
+
+        query: after:09137571825892649257
+
+    A date some fifty thousand years out, matching nothing, on every poll
+    forever. `fetched=0` for gmail in every sync in the log, and the cursor
+    could never advance past it because advancing needs a record to advance to.
+    Returning "" for a value like that drops the poisoned cursor and the next
+    poll starts fresh.
+    """
+    if not cursor.isdigit():
+        return ""
+    if len(cursor) == 13:
+        return str(int(cursor) // 1000)
+    return cursor if len(cursor) == 10 else ""
+
+
+def _cursor(
+    payload: Any,
+    records: list[dict[str, Any]],
+    *record_paths: str,
+    page_tokens: bool = True,
+) -> str:
+    """The cursor to resume from next poll.
+
+    `page_tokens=False` for a source whose page token is not a resume point.
+    A page token means "the rest of *this* result set" and is meaningless on
+    the next poll, an hour later, against a query that has moved on -- and
+    preferring it over the newest record's timestamp is what left Gmail
+    resuming from a token instead of from a moment.
+    """
     data = _data(payload)
-    if isinstance(data, dict):
+    if page_tokens and isinstance(data, dict):
         for key in ("next_cursor", "nextCursor", "next_page_token", "nextPageToken"):
             if data.get(key):
                 return str(data[key])
@@ -348,11 +386,13 @@ def _fetch_one(
     args: Callable[[str], dict[str, Any]],
     names: tuple[str, ...],
     cursor_paths: tuple[str, ...],
+    *,
+    page_tokens: bool = True,
 ) -> Fetch:
     def fetch(accounts: ComposioAccounts, connection_id: str, cursor: str):
         payload = _execute(accounts, action, args(cursor), connection_id)
         records = _find_list(_data(payload), names)[:MAX_PER_POLL]
-        return records, _cursor(payload, records, *cursor_paths) or cursor
+        return records, _cursor(payload, records, *cursor_paths, page_tokens=page_tokens) or cursor
 
     return fetch
 
@@ -571,10 +611,20 @@ def default_registry() -> MemoryProviderRegistry:
                 GMAIL_FETCH,
                 lambda cursor: {
                     "max_results": MAX_PER_POLL, "verbose": False,
-                    **({"query": f"after:{cursor}"} if cursor.isdigit() else {}),
-                    **({"page_token": cursor} if cursor and not cursor.isdigit() else {}),
+                    # Seconds, converted from the milliseconds Gmail reports,
+                    # and omitted entirely when the stored cursor is not a
+                    # time. See `_epoch_seconds`.
+                    **(
+                        {"query": f"after:{since}"}
+                        if (since := _epoch_seconds(cursor))
+                        else {}
+                    ),
                 },
                 ("messages", "items"), ("internalDate", "date", "timestamp"),
+                # Resume from the newest message's timestamp, never from a page
+                # token: a token is a position inside one result set and says
+                # nothing about where the next poll should begin.
+                page_tokens=False,
             ), _normalise_email,
         )
     )
@@ -767,23 +817,29 @@ class AccountIngest:
 
         ingested: list[str] = []
         events: list[dict[str, str]] = []
-        skipped = 0
         # Judged together, before anything is written. This replaced a regex
         # over sender addresses that scored 8 of 11 on real mail and lost three
         # things worth keeping -- an exam result, a dentist appointment and a
         # rent bill, all from `noreply` senders, all dropped for the shape of
         # the envelope rather than what was inside. The model scored 11 of 11
         # on the same set and kept no junk. It fails open: see `gatekeeping`.
+        # Counted apart, because they are different news and one number for
+        # both said nothing. `ingested=0 skipped=10` reads as "the gatekeeper
+        # is eating everything" and was in fact "these are the same ten items
+        # as last hour" -- and for Gmail the truthful answer was a third thing
+        # again, `fetched=0`, which no amount of staring at `skipped` reveals.
+        unchanged = 0
         candidates = []
         for record in records[:MAX_PER_POLL]:
             item = provider.normalize(record)
             if item is None or not self.store.changed(toolkit, connection_id, item):
-                skipped += 1
+                unchanged += 1
                 continue
             candidates.append(item)
         before = len(candidates)
         candidates = gatekeeping.worth_keeping(self.cognition, candidates)
-        skipped += before - len(candidates)
+        rejected = before - len(candidates)
+        skipped = unchanged + rejected
         for item in candidates:
             # The series, so occurrences of one recurring event collapse to one
             # memory instead of one per occurrence. See `MemoryItem.series`.
@@ -812,6 +868,8 @@ class AccountIngest:
                 "marvi_fetched": len(records),
                 "marvi_ingested": len(ingested),
                 "marvi_skipped": skipped,
+                "marvi_unchanged": unchanged,
+                "marvi_rejected": rejected,
                 "marvi_has_next_cursor": bool(next_cursor),
                 "marvi_latency_ms": round((time.perf_counter() - started) * 1000, 2),
             },
