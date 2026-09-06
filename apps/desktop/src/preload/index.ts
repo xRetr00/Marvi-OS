@@ -16,6 +16,7 @@ import type {
   HardwareAnswer,
   IdentityStatus,
   InitiativeStatus,
+  ResourceState,
   McpRegistryPage,
   McpServerRow,
   McpServersPage,
@@ -156,6 +157,7 @@ const marvi = {
   ): Promise<{ status: string; error?: string; token?: string | null }> =>
     ipcRenderer.invoke('marvi:room-command', tool, args),
   getInitiative: (): Promise<InitiativeStatus | null> => ipcRenderer.invoke('marvi:get-initiative'),
+  getResources: (): Promise<ResourceState | null> => ipcRenderer.invoke('marvi:get-resources'),
   setInitiative: (paused: boolean): Promise<InitiativeStatus | null> =>
     ipcRenderer.invoke('marvi:set-initiative', paused),
   getDecisions: (): Promise<{ decisions: MindDecision[]; events: unknown[] }> =>

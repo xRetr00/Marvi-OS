@@ -12176,3 +12176,99 @@ html[data-appearance='claude-code-dark'] .control-row {
   border-color: var(--ui-danger);
   color: var(--ui-danger);
 }
+
+/* -- Overview: her state of mind --------------------------------------------
+   The Overview answered "are the services up", which is a question about
+   processes. This is the one about her, and they come apart constantly:
+   every service green and nothing reaching anybody. */
+
+.ov-mind {
+  margin: 0 0 22px;
+  padding: 12px 14px;
+  border: 1px solid var(--ui-border-subtle);
+  border-radius: 8px;
+}
+
+.ov-mind-head {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 9px;
+  padding: 0 0 8px;
+  border: none;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+
+.ov-mind-head > svg {
+  width: 14px;
+  height: 14px;
+  color: var(--ui-text-tertiary);
+}
+
+.ov-mind-state {
+  color: color-mix(in srgb, var(--ui-accent) 80%, var(--ui-text-primary));
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.ov-mind-state.is-quiet {
+  color: var(--ui-text-tertiary);
+}
+
+.ov-mind-why {
+  overflow: hidden;
+  color: var(--ui-text-secondary);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ov-mind-open {
+  margin-left: auto;
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+}
+
+.ov-mind-head:hover .ov-mind-open {
+  color: var(--ui-accent);
+}
+
+.ov-mind-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  padding-top: 8px;
+  border-top: 1px solid var(--ui-border-subtle);
+}
+
+.ov-mind-facts span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+}
+
+.ov-mind-facts span > svg {
+  width: 11px;
+  height: 11px;
+}
+
+.ov-mind-facts span.is-live {
+  color: color-mix(in srgb, var(--ui-accent) 78%, var(--ui-text-primary));
+}
+
+.ov-mind-facts span.is-warn {
+  color: #c79b58;
+}
+
+.ov-mind-waiting {
+  margin: 8px 0 0;
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+  line-height: 1.5;
+}

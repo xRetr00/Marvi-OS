@@ -105,6 +105,7 @@ import { CapabilityPluginsPanel } from './components/capabilities/CapabilityPlug
 import { ActivityPage } from './components/activity-page'
 import { MemoryHealth } from './components/memory-health'
 import { MindPage } from './components/mind-page'
+import { OverviewMind } from './components/overview-mind'
 import { ScheduleCards } from './components/schedule-cards'
 import {
   filterInstalledSkills,
@@ -803,7 +804,7 @@ function MainSurface(): React.JSX.Element {
                 own tracks and no page has to manage window overflow. */}
                 <div className="page-scroll">
                   {page === 'Overview' ? (
-                    <Overview runtime={runtime} voice={voice} />
+                    <Overview onOpenMind={() => navigate('Mind')} runtime={runtime} voice={voice} />
                   ) : page === 'Room' ? (
                     <RoomPanel runtime={runtime} view="room" />
                   ) : page === 'Vision' ? (
@@ -921,10 +922,12 @@ function VoiceLevelMeter({ level }: { level: number }): React.JSX.Element {
 
 function Overview({
   runtime,
-  voice
+  voice,
+  onOpenMind
 }: {
   runtime: RuntimeStatus
   voice: VoiceState
+  onOpenMind: () => void
 }): React.JSX.Element {
   const services = [
     { label: 'Marvi Gateway', service: runtime.components.gateway, icon: 'overview' },
@@ -971,6 +974,10 @@ function Overview({
       description="Local assistant health, active session state, and connected context."
       title="Overview"
     >
+      {/* Whether she would say anything, above whether the processes are up.
+          Those come apart constantly. See `overview-mind`. */}
+      <OverviewMind onOpen={onOpenMind} />
+
       <section className={`overview-runtime tone-${runtimeTone}`} aria-label="Current state">
         <div className="overview-runtime-main">
           <span className="overview-runtime-kicker">

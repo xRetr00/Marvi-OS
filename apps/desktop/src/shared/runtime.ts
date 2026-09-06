@@ -274,6 +274,14 @@ export interface Feeder {
   events: number
 }
 
+/** Whether something else should have the GPU. See `focus.py`. */
+export interface ResourceState {
+  low_resource: boolean
+  /** What has it, said the way she would say it: "FC 26". */
+  because: string
+  app: string
+}
+
 export interface InitiativeStatus {
   paused: boolean
   running: boolean
