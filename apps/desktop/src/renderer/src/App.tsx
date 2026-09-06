@@ -134,7 +134,7 @@ const DEVICE_COPY: Record<DeviceState, string> = {
   off: 'OFF',
   unknown: 'UNKNOWN'
 }
-import { $runtimeState, $voiceState, applyRuntimeState, type VoiceState } from './store/voice-state'
+import { $runtimeState, $voiceState, applyRuntimeState } from './store/voice-state'
 import {
   $backgroundMode,
   setBackgroundMode,
