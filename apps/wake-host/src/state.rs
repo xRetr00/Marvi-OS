@@ -74,6 +74,32 @@ pub fn path() -> PathBuf {
     root.join("state").join("wake.json")
 }
 
+/// A small cross-process stop request used by the control center.
+///
+/// Removing the Run-key entry only affects the next login. The listener that
+/// already owns the microphone needs a separate, deliberate stop signal, and
+/// a file keeps that signal local without opening a network or renderer IPC
+/// surface.
+pub fn stop_path() -> PathBuf {
+    path().with_file_name("wake.stop")
+}
+
+pub fn request_stop() -> bool {
+    let target = stop_path();
+    if let Some(parent) = target.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    std::fs::write(target, std::process::id().to_string()).is_ok()
+}
+
+pub fn clear_stop_request() {
+    let _ = std::fs::remove_file(stop_path());
+}
+
+pub fn stop_requested() -> bool {
+    stop_path().is_file()
+}
+
 impl State {
     /// Never fails loudly. A listener that is working must not stop because
     /// the file describing it could not be written.

@@ -29,6 +29,17 @@ use marvi_wake_host::state::{self, State, HEARTBEAT};
 /// window for its whole length and fires four times.
 const DEBOUNCE: Duration = Duration::from_secs(4);
 const DEFAULT_THRESHOLD: f32 = 0.5;
+const AUTO_RESTART_SETTING: &str = "MARVI_WAKE_AUTO_RESTART";
+
+fn auto_restart_enabled() -> bool {
+    !matches!(
+        marvi_wake_host::settings::get(AUTO_RESTART_SETTING)
+            .trim()
+            .to_ascii_lowercase()
+            .as_str(),
+        "0" | "false" | "no" | "off"
+    )
+}
 
 fn models_dir() -> PathBuf {
     // Beside the executable when installed, in the crate while developing. The
@@ -309,6 +320,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         return Ok(());
     }
+    if arguments.iter().any(|a| a == "--stop") {
+        marvi_wake_host::state::request_stop();
+        return Ok(());
+    }
     if arguments.iter().any(|a| a == "--microphones") {
         for name in audio::microphones() {
             println!("{name}");
@@ -326,6 +341,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if marvi_wake_host::takeover::take() {
         eprintln!("stopped the listener that was running before this one");
     }
+
+    // A stop request belongs to the listener that observed it. A later,
+    // explicit start must not inherit an old marker and immediately exit.
+    marvi_wake_host::state::clear_stop_request();
 
     tray::run(listen)
 }
@@ -428,15 +447,20 @@ mod tray {
 
         // The listener runs on its own thread; this one pumps messages, which
         // on Windows is what keeps a tray icon alive at all. `worker` is
-        // `None` only once the backoff below has given up on it -- the icon
-        // and Quit still work, but nothing tries to relisten until the next
-        // login or an explicit toggle in Settings.
+        // `None` while a delayed retry is pending, or while the user-selected
+        // auto-restart setting is off. The tray remains responsive either way.
         let mut worker = Some(spawn_worker(listen));
         let mut worker_started = std::time::Instant::now();
         let mut backoff = marvi_wake_host::restart::Backoff::new();
+        let mut restart_at: Option<std::time::Instant> = None;
 
         let receiver = MenuEvent::receiver();
         while !QUIT.load(Ordering::Relaxed) {
+            if marvi_wake_host::state::stop_requested() {
+                marvi_wake_host::state::clear_stop_request();
+                QUIT.store(true, Ordering::Relaxed);
+                continue;
+            }
             // `listen` does not normally return early -- see `Reporting` and
             // the per-hop error handling in `main.rs` -- but this is the net
             // under that net: whatever still ends the thread (a panic inside
@@ -446,16 +470,23 @@ mod tray {
             // to be listening.
             if let Some(handle) = &worker {
                 if handle.is_finished() && !QUIT.load(Ordering::Relaxed) {
-                    if backoff.should_restart(worker_started.elapsed()) {
-                        eprintln!("listener thread ended; restarting it");
-                        worker = Some(spawn_worker(listen));
-                        worker_started = std::time::Instant::now();
+                    let delay = backoff.delay(worker_started.elapsed());
+                    worker = None;
+                    if super::auto_restart_enabled() {
+                        eprintln!("listener thread ended; restarting in {}s", delay.as_secs());
+                        restart_at = Some(std::time::Instant::now() + delay);
                     } else {
-                        eprintln!(
-                            "listener thread keeps ending immediately; giving up on restarting it"
-                        );
-                        worker = None;
+                        eprintln!("listener thread ended; automatic restart is off");
+                        restart_at = None;
                     }
+                }
+            }
+            if worker.is_none() && super::auto_restart_enabled() {
+                let ready = restart_at.is_none_or(|at| std::time::Instant::now() >= at);
+                if ready {
+                    worker = Some(spawn_worker(listen));
+                    worker_started = std::time::Instant::now();
+                    restart_at = None;
                 }
             }
             let mut message: MSG = unsafe { std::mem::zeroed() };

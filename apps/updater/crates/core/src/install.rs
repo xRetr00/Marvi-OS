@@ -328,12 +328,51 @@ fn clear_build_output(root: &Path, progress: &mut dyn FnMut(&str)) {
 
 /// Smoke test: the Electron runtime entrypoint must exist.
 pub(crate) fn smoke_ok(root: &Path) -> bool {
+    let unpacked = root.join("apps/desktop/dist/win-unpacked");
+    if unpacked.exists() {
+        // The wake listener is part of the application runtime, not an
+        // optional source artifact. Refuse activation (and roll back an
+        // update) if electron-builder omitted either the new executable or
+        // its model; otherwise an update can succeed while leaving the old,
+        // killed listener unavailable after relaunch.
+        return unpacked.join("Marvi-OS.exe").is_file()
+            && unpacked
+                .join("resources/wake-host/marvi-wake-host.exe")
+                .is_file()
+            && unpacked
+                .join("resources/wake-host/models/marvi.onnx")
+                .is_file();
+    }
+    // Unit-test build runners produce the Electron entrypoint without running
+    // electron-builder. Real install/update builds always take the branch
+    // above because `npm run build:unpack` creates win-unpacked.
     root.join("apps/desktop/out/main/index.js").is_file()
-        || root
-            .join("apps/desktop/dist/win-unpacked")
-            .read_dir()
-            .map(|mut d| d.next().is_some())
-            .unwrap_or(false)
+}
+
+#[cfg(test)]
+mod smoke_tests {
+    use super::smoke_ok;
+
+    #[test]
+    fn a_packaged_update_must_include_the_wake_runtime() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let unpacked = tmp.path().join("apps/desktop/dist/win-unpacked");
+        std::fs::create_dir_all(unpacked.join("resources/wake-host/models")).unwrap();
+        std::fs::write(unpacked.join("Marvi-OS.exe"), b"desktop").unwrap();
+
+        assert!(!smoke_ok(tmp.path()));
+        std::fs::write(
+            unpacked.join("resources/wake-host/marvi-wake-host.exe"),
+            b"listener",
+        )
+        .unwrap();
+        std::fs::write(
+            unpacked.join("resources/wake-host/models/marvi.onnx"),
+            b"model",
+        )
+        .unwrap();
+        assert!(smoke_ok(tmp.path()));
+    }
 }
 
 /// The install root, from the packaged executable inside it.

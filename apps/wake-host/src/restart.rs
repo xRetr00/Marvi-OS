@@ -23,11 +23,10 @@ use std::time::Duration;
 /// evidence the thing that killed it is still there, not a one-off.
 const FAST: Duration = Duration::from_secs(2);
 
-/// Fast restarts in a row before giving up. Enough to ride out a transient
-/// hiccup (a WASAPI device in the middle of being unplugged, one bad ONNX
-/// allocation), not so many that a genuinely broken install spins the CPU
-/// relaunching a thread that will only die again.
-const GIVE_UP_AFTER: u32 = 3;
+/// Maximum delay between attempts. A microphone can be absent for hours and
+/// return later; giving up permanently turns a recoverable device change into
+/// a listener that stays dead until the next login.
+const MAX_DELAY: Duration = Duration::from_secs(30);
 
 /// Tracks consecutive fast failures and decides whether the next one is worth
 /// trying again for.
@@ -42,18 +41,25 @@ impl Backoff {
     }
 
     /// Call once when the worker thread has just ended, with how long it had
-    /// been running. Returns whether to start it again.
+    /// been running. Returns how long to wait before starting it again.
     ///
     /// A run that lasted a while resets the count -- it was doing its job for
     /// a real stretch of time, so whatever ended it is treated as new trouble,
     /// not a continuation of the last one.
-    pub fn should_restart(&mut self, ran_for: Duration) -> bool {
+    pub fn delay(&mut self, ran_for: Duration) -> Duration {
         if ran_for < FAST {
-            self.fast_failures += 1;
+            self.fast_failures = self.fast_failures.saturating_add(1);
         } else {
             self.fast_failures = 0;
         }
-        self.fast_failures < GIVE_UP_AFTER
+        if self.fast_failures == 0 {
+            return Duration::ZERO;
+        }
+        let seconds = 1u64
+            .checked_shl(self.fast_failures.saturating_sub(1).min(5))
+            .unwrap_or(MAX_DELAY.as_secs())
+            .min(MAX_DELAY.as_secs());
+        Duration::from_secs(seconds)
     }
 }
 
@@ -64,41 +70,29 @@ mod tests {
     #[test]
     fn a_single_fast_failure_is_worth_retrying() {
         let mut backoff = Backoff::new();
-        assert!(backoff.should_restart(Duration::from_millis(50)));
+        assert_eq!(backoff.delay(Duration::from_millis(50)), Duration::from_secs(1));
     }
 
     #[test]
-    fn three_fast_failures_in_a_row_give_up() {
+    fn repeated_fast_failures_back_off_without_giving_up() {
         let mut backoff = Backoff::new();
-        assert!(backoff.should_restart(Duration::from_millis(50)));
-        assert!(backoff.should_restart(Duration::from_millis(50)));
-        // The third is the one that trips it: two retries already granted,
-        // and a third failure this fast says the next attempt will not fare
-        // any better.
-        assert!(!backoff.should_restart(Duration::from_millis(50)));
+        assert_eq!(backoff.delay(Duration::from_millis(50)), Duration::from_secs(1));
+        assert_eq!(backoff.delay(Duration::from_millis(50)), Duration::from_secs(2));
+        assert_eq!(backoff.delay(Duration::from_millis(50)), Duration::from_secs(4));
+        for _ in 0..20 {
+            assert!(backoff.delay(Duration::from_millis(50)) <= MAX_DELAY);
+        }
     }
 
     #[test]
     fn a_long_run_resets_the_count() {
         let mut backoff = Backoff::new();
-        assert!(backoff.should_restart(Duration::from_millis(50)));
-        assert!(backoff.should_restart(Duration::from_millis(50)));
+        assert_eq!(backoff.delay(Duration::from_millis(50)), Duration::from_secs(1));
+        assert_eq!(backoff.delay(Duration::from_millis(50)), Duration::from_secs(2));
         // Ran fine for a while before this failure -- back to a clean slate,
         // not one strike away from giving up.
-        assert!(backoff.should_restart(Duration::from_secs(30)));
-        assert!(backoff.should_restart(Duration::from_millis(50)));
-        assert!(backoff.should_restart(Duration::from_millis(50)));
-    }
-
-    #[test]
-    fn giving_up_is_not_forever_reported() {
-        // Once tripped, it stays tripped until a run lasts long enough to
-        // prove things are working again -- it must not silently start
-        // retrying on the very next fast failure.
-        let mut backoff = Backoff::new();
-        for _ in 0..GIVE_UP_AFTER {
-            backoff.should_restart(Duration::from_millis(10));
-        }
-        assert!(!backoff.should_restart(Duration::from_millis(10)));
+        assert_eq!(backoff.delay(Duration::from_secs(30)), Duration::ZERO);
+        assert_eq!(backoff.delay(Duration::from_millis(50)), Duration::from_secs(1));
+        assert_eq!(backoff.delay(Duration::from_millis(50)), Duration::from_secs(2));
     }
 }

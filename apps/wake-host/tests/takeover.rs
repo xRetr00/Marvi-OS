@@ -26,6 +26,17 @@ fn no_file_means_nobody_was_listening() {
 }
 
 #[test]
+fn a_control_center_stop_request_is_consumable() {
+    with_state(|| {
+        assert!(!state::stop_requested());
+        assert!(state::request_stop());
+        assert!(state::stop_requested());
+        state::clear_stop_request();
+        assert!(!state::stop_requested());
+    });
+}
+
+#[test]
 fn a_live_listener_is_the_one_to_stop() {
     with_state(|| {
         State { pid: 4242, running: true, heartbeat: state::now(), ..Default::default() }.write();
