@@ -16,46 +16,7 @@ import { AlertTriangle, Ban, CalendarDays, Check, Play, Timer, Trash2 } from 'lu
 import React from 'react'
 
 import type { ScheduleRow } from '../../../shared/runtime'
-
-/** `0 6 * * 1-5` is not a sentence. This is the closest short one. */
-export function saysWhen(row: ScheduleRow): string {
-  if (row.kind === 'interval') {
-    const minutes = Number(row.expression)
-    if (!Number.isFinite(minutes)) return `every ${row.expression} minutes`
-    if (minutes % 60 === 0 && minutes >= 60) {
-      const hours = minutes / 60
-      return hours === 1 ? 'hourly' : `every ${hours} hours`
-    }
-    return `every ${minutes} minutes`
-  }
-  if (row.kind === 'once') return `once, at ${row.expression.slice(0, 16).replace('T', ' ')}`
-
-  // The handful of crontabs worth naming. Anything else keeps its expression,
-  // which is honest -- inventing English for `*/7 3-5 * * 2` would be worse
-  // than showing the thing the person typed.
-  const known: Record<string, string> = {
-    '* * * * *': 'every minute',
-    '0 * * * *': 'hourly, on the hour',
-    '0 0 * * *': 'daily at midnight',
-    '0 9 * * *': 'daily at 09:00',
-    '0 6 * * 1-5': 'weekday mornings at 06:00',
-    '0 0 * * 0': 'weekly on Sunday'
-  }
-  return known[row.expression.trim()] ?? row.expression
-}
-
-/** "in 4 minutes", "in 2 days", or "now" -- never a bare ISO stamp. */
-export function untilNext(next: string | null): string {
-  if (!next) return ''
-  const at = new Date(next).getTime()
-  if (Number.isNaN(at)) return ''
-  const seconds = Math.round((at - Date.now()) / 1000)
-  if (seconds <= 0) return 'due'
-  if (seconds < 90) return `in ${seconds}s`
-  if (seconds < 5400) return `in ${Math.round(seconds / 60)}m`
-  if (seconds < 172800) return `in ${Math.round(seconds / 3600)}h`
-  return `in ${Math.round(seconds / 86400)}d`
-}
+import { saysWhen, untilNext } from './schedule-time'
 
 type Act = 'remove' | 'enable' | 'disable' | 'run'
 
