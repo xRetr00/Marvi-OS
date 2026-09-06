@@ -68,7 +68,7 @@ class Initiative:
                 from .gatekeeping import what_it_says
 
                 mind.read_late = lambda subject, body: what_it_says(
-                    auxiliary_client, subject, body
+                    auxiliary_client, subject, body, mind._name()
                 )
                 # So a cooldown is waited out rather than walked into. The
                 # harness wraps a `ProviderClient`; reach through to it, and

@@ -106,6 +106,23 @@ SYSTEM_PROMPT = (
     "\n"
     "The test is whether the assistant would look foolish not knowing this "
     "next week. A newsletter fails it however interesting the subject sounds."
+    "\n"
+    # Said out loud by an assistant, not printed by a mail client.
+    #
+    # `says` used to be specified as a flat statement of fact and read as
+    # one -- correct, and the voice of a notification. It is the only part
+    # of an announcement Marvi writes herself, so it is the only place the
+    # warmth can come from; the template around it can attribute a sender
+    # and nothing more.
+    #
+    # The tone rule is the important half. Nobody wants a joke about their
+    # mailboxes being deleted today, and an assistant that is cheerful
+    # about bad news is worse than one that is flat about everything.
+    "Say it the way you would say it to them out loud, warmly and briefly, "
+    "in your own voice. You may use their name. Match the news: light and "
+    "even funny for something ordinary or good, plain and direct for "
+    "anything urgent, money-related, or bad. Never make a joke about "
+    "something going wrong for them.\n"
 )
 
 
@@ -174,7 +191,7 @@ class _Item:
     body: str
 
 
-def what_it_says(client: Any, subject: str, body: str) -> str:
+def what_it_says(client: Any, subject: str, body: str, name: str = "") -> str:
     """One sentence about a single item, for something read late.
 
     The batch path above is the normal one -- twenty at a time, on the way in.
@@ -190,7 +207,7 @@ def what_it_says(client: Any, subject: str, body: str) -> str:
             "memory",
             SYSTEM_PROMPT,
             # The same shape the batch judge sees, so one prompt serves both.
-            "[0] " + _summarise(_Item(subject, body)),
+            _who(name) + "[0] " + _summarise(_Item(subject, body)),
             MAX_OUTPUT_TOKENS,
             tools=False,
         )
@@ -200,7 +217,18 @@ def what_it_says(client: Any, subject: str, body: str) -> str:
     return _parse(answer, 1).get(0, "")
 
 
-def worth_keeping(client: Any, items: list[Any]) -> list[Any]:
+def _who(name: str) -> str:
+    """The line that puts the person into the request.
+
+    Telling a model it *may* use somebody's name while never telling it the
+    name is the sort of instruction that reads fine and does nothing.
+    """
+    if not name.strip():
+        return ""
+    return f"The person you are writing for is called {name}.\n\n"
+
+
+def worth_keeping(client: Any, items: list[Any], name: str = "") -> list[Any]:
     """The items a connector fetched that memory should hold.
 
     Fails open: returns everything when there is no model or the call fails.
@@ -214,7 +242,8 @@ def worth_keeping(client: Any, items: list[Any]) -> list[Any]:
         listed = "\n".join(f"[{index}] {_summarise(item)}" for index, item in enumerate(batch))
         try:
             answer = distil.ask(
-                client, "memory", SYSTEM_PROMPT, listed, MAX_OUTPUT_TOKENS, tools=False
+                client, "memory", SYSTEM_PROMPT, _who(name) + listed, MAX_OUTPUT_TOKENS,
+                tools=False,
             )
         except Exception as exc:
             log.info("gatekeeper unavailable (%s); keeping all %d items", exc, len(batch))

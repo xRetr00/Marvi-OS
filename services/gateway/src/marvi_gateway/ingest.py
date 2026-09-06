@@ -757,6 +757,9 @@ class AccountIngest:
         #: because a Gateway with no auxiliary model still has to ingest; with
         #: none, `gatekeeping` keeps everything rather than nothing.
         self.cognition = cognition
+        #: Who the announcements are for, so a summary can use their name.
+        #: Left empty the lines are still correct, just less warm.
+        self.speaking_to: str = ""
 
     # Compatibility helpers retained as useful provider-level contracts.
     normalise_email = staticmethod(lambda row: _item_dict(_normalise_email(row)))
@@ -870,7 +873,7 @@ class AccountIngest:
                 continue
             candidates.append(item)
         before = len(candidates)
-        candidates = gatekeeping.worth_keeping(self.cognition, candidates)
+        candidates = gatekeeping.worth_keeping(self.cognition, candidates, self.speaking_to)
         rejected = before - len(candidates)
         skipped = unchanged + rejected
         for item in candidates:

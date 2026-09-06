@@ -1115,6 +1115,14 @@ def create_app(
         # this function than the ingest is. Without it `gatekeeping` keeps
         # everything, which is the safe direction but not the useful one.
         ingest.cognition = cognition
+        # So a summary can say "Shereef" rather than "the user". Read once at
+        # startup: it changes about as often as the person does.
+        with contextlib.suppress(Exception):
+            from . import voicing as _voicing
+
+            ingest.speaking_to = _voicing.name_of(
+                identity.user_path().read_text(encoding="utf-8")
+            )
 
         def memory_summarise(groups: list[dict[str, Any]]) -> list[tuple[str, str]]:
             return distil.summarise_memories(cognition, groups)
