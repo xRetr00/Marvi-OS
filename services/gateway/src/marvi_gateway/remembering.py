@@ -227,9 +227,18 @@ def _parse(text: str) -> list[dict[str, Any]]:
 #: choice already made for credentials: the store does not trust the
 #: instruction, it checks. A rule the model ignores is not a rule.
 NARRATES_THE_EXCHANGE = re.compile(
-    r"\bthe (?:user|assistant) (?:said|asked|replied|responded|confirmed|mentioned"
-    r"|stated|indicated|greeted|told)\b"
-    r"|\bthe assistant\b"
+    # A speech verb, not merely the word "assistant". Written the broad way
+    # first, and a dry run over the real store showed what that costs:
+    #
+    #   "The backend infrastructure of the assistant system is named Hermes"
+    #   "Gmail requires re-authentication, and the assistant cannot check email"
+    #
+    # Both real facts, both about the assistant rather than about something it
+    # said, and both would have been thrown away. What makes a row worthless is
+    # that it narrates the exchange -- somebody saying something -- so that is
+    # what this matches and nothing wider.
+    r"\bthe (?:user|assistant) (?:said|asked|replied|responded|confirmed"
+    r"|mentioned|stated|indicated|greeted|told)\b"
     r"|\b(?:which|this) indicates\b"
     r"|\bmarvi (?:interpreted|responded|replied|said)\b",
     re.IGNORECASE,
