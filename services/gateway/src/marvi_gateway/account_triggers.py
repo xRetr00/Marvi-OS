@@ -16,6 +16,39 @@ from .untrusted import wrap_external
 log = get_logger("memory")
 
 
+def _rows_of(page: Any) -> list[Any]:
+    """The list inside a paged SDK response, whatever it decided to call it."""
+    body = _as_dict(page)
+    if isinstance(body, list):
+        return body
+    if isinstance(body, dict):
+        for key in ("items", "data", "results", "triggers"):
+            found = body.get(key)
+            if isinstance(found, list):
+                return found
+    return []
+
+
+#: The one trigger worth enabling per toolkit, and what it needs configured.
+#:
+#: The listener has been subscribing to the delivery stream since it was
+#: written -- "Composio trigger stream connected", seven times in one real log
+#: -- and nothing anywhere ever *created* a trigger instance. A subscription
+#: with no trigger behind it is a correctly-connected socket that is silent
+#: forever, which is exactly how it behaved: `received=0`, always, while the
+#: ten-minute poll did the work badly.
+#:
+#: One per toolkit rather than everything on offer. Gmail alone publishes
+#: several, and subscribing to all of them is how the mind's token budget gets
+#: spent on label changes.
+WANTED_TRIGGERS: dict[str, tuple[str, dict[str, Any]]] = {
+    "gmail": ("GMAIL_NEW_GMAIL_MESSAGE", {"interval": 1, "labelIds": "INBOX"}),
+    "googlecalendar": ("GOOGLECALENDAR_NEW_EVENT_TRIGGER", {}),
+    "github": ("GITHUB_COMMIT_EVENT", {}),
+    "slack": ("SLACK_RECEIVE_MESSAGE", {}),
+}
+
+
 class AccountTriggerIngest:
     """Own the local realtime subscription and signed-webhook ingestion path."""
 
@@ -204,6 +237,80 @@ class AccountTriggerIngest:
                 wait = min(self.RETRY_MAX, wait * 2)
                 continue
 
+    def _already_active(self) -> set[tuple[str, str]]:
+        """`(connection id, trigger slug)` for everything already enabled."""
+        active: set[tuple[str, str]] = set()
+        with suppress(Exception):
+            page = self._sdk_triggers().list_active(limit=100)
+            for row in _rows_of(page):
+                item = _as_dict(row)
+                connection = str(
+                    item.get("connectedAccountId")
+                    or item.get("connected_account_id")
+                    or item.get("connectionId")
+                    or ""
+                )
+                slug = str(item.get("triggerName") or item.get("slug") or "").upper()
+                if connection and slug:
+                    active.add((connection, slug))
+        return active
+
+    def _sdk_triggers(self) -> Any:
+        return self.accounts._sdk().triggers
+
+    def enable(self) -> dict[str, Any]:
+        """Make sure every connected account has its trigger. Never raises.
+
+        Idempotent by design: it reads what is already active first, and
+        creating a trigger that exists is a no-op anyway. Called at startup, so
+        a connection added yesterday starts delivering today without anybody
+        pressing anything.
+        """
+        enabled: list[str] = []
+        failed: list[str] = []
+        try:
+            connections = [row for row in self.accounts.connections() if row.get("connected")]
+        except Exception as exc:
+            log.warning("could not list connections to enable triggers: %s", exc)
+            return {"enabled": [], "failed": [], "error": str(exc)[:200]}
+
+        active = self._already_active()
+        for row in connections:
+            toolkit = str(row.get("toolkit", "")).lower()
+            connection_id = str(row.get("id", ""))
+            wanted = WANTED_TRIGGERS.get(toolkit)
+            if not wanted or not connection_id:
+                continue
+            slug, config = wanted
+            if (connection_id, slug) in active:
+                log.info("trigger already live | %s -> %s", toolkit, slug)
+                continue
+            try:
+                self._sdk_triggers().create(
+                    slug, connected_account_id=connection_id, trigger_config=dict(config)
+                )
+            except Exception as exc:
+                # Named, with the slug, because the usual cause is a slug this
+                # table has wrong -- and "triggers did not work" is not enough
+                # to find that. See `WANTED_TRIGGERS`.
+                log.warning(
+                    "could not enable %s for %s: %s", slug, toolkit, str(exc)[:200],
+                    extra={"marvi_toolkit": toolkit, "marvi_trigger": slug},
+                )
+                failed.append(f"{toolkit}:{slug}")
+                continue
+            log.info(
+                "trigger enabled | %s -> %s", toolkit, slug,
+                extra={"marvi_toolkit": toolkit, "marvi_trigger": slug},
+            )
+            enabled.append(f"{toolkit}:{slug}")
+        log.info(
+            "account triggers ready | %d enabled, %d already live, %d failed",
+            len(enabled), len(active), len(failed),
+            extra={"marvi_enabled": len(enabled), "marvi_failed": len(failed)},
+        )
+        return {"enabled": enabled, "failed": failed}
+
     def start(self) -> bool:
         if self._thread and self._thread.is_alive():
             return False
@@ -213,6 +320,11 @@ class AccountTriggerIngest:
         )
         self._thread.start()
         log.info("Composio trigger listener started")
+        # After the listener, so nothing is delivered into a stream nobody is
+        # reading yet.
+        threading.Thread(
+            target=self.enable, name="marvi-trigger-enable", daemon=True
+        ).start()
         return True
 
     def stop(self) -> None:
