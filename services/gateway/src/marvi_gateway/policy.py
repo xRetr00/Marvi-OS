@@ -60,11 +60,15 @@ SURFACE_CEILING: dict[str, str] = {
     # could never match anything. The intent ("email and calendar are worth a
     # glance") has been dead configuration for as long as accounts have been
     # ingested this way, and both fell through to the default instead.
-    "accounts:gmail:gmail": "island",
-    "accounts:googlecalendar:googlecalendar": "island",
-    "accounts:notion:notion": "activity",
+    # Mail, appointments and mentions are the three things worth being told
+    # about out loud; `voicing` has a template for each. Everything below is
+    # still filtered by salience, repetition, quiet hours and the budget before
+    # any of it is heard.
+    "accounts:gmail:gmail": "speak",
+    "accounts:googlecalendar:googlecalendar": "speak",
+    "accounts:github:github": "speak",
     "accounts:slack:slack": "island",
-    "accounts:github:github": "activity",
+    "accounts:notion:notion": "activity",
     # The older shape, kept so events already in the journal still resolve.
     "accounts:email": "island",
     "accounts:calendar": "island",
@@ -193,11 +197,18 @@ def evaluate(
     if rules.paused:
         return Verdict(False, "silent", "initiative-paused", "initiative is switched off")
 
-    # 2. Untrusted content may inform, never command. It can be remembered and
-    #    shown, but it can never be the reason Marvi proposes an action.
+    # 2. Untrusted content may inform, never command.
+    #
+    #    The cap used to be `island`, one rung tighter than that sentence
+    #    argues for: `propose` is where an event becomes the reason to *do*
+    #    something, and that is the surface worth denying to text a stranger
+    #    wrote. `speak` only reads it out. Capping at `island` meant an email
+    #    could never be mentioned at all -- which, with `mind` refusing to let
+    #    a model phrase an untrusted event, is a restriction that bought no
+    #    safety and cost the whole feature.
     ceiling = rules.surface_ceiling.get(f"{event.get('source')}:{event.get('kind')}", "activity")
-    if not event.get("trusted", False) and SURFACES.index(ceiling) > SURFACES.index("island"):
-        ceiling = "island"
+    if not event.get("trusted", False) and SURFACES.index(ceiling) > SURFACES.index("speak"):
+        ceiling = "speak"
 
     surface = _cap(wanted, ceiling)
 

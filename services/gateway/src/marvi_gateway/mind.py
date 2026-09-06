@@ -74,6 +74,26 @@ def _worth_thinking_about(verdict: Any) -> bool:
     return SURFACES.index(verdict.surface) > SURFACES.index(QUIETEST_VISIBLE)
 
 
+def _readable(payload: Any) -> str:
+    """A payload as a sentence, rather than as a Python repr.
+
+    A dict becomes "from: ahmed@example.com; subject: Invoice", which a keyword
+    search can match and a person can read. `str(dict)` becomes
+    `{'id': 'User shared a link'}`, which neither can.
+    """
+    if isinstance(payload, dict):
+        parts = [
+            f"{key}: {value}"
+            for key, value in payload.items()
+            if value not in (None, "", [], {}) and not isinstance(value, dict | list)
+        ]
+        if parts:
+            return "; ".join(parts)
+    if isinstance(payload, str):
+        return payload
+    return str(payload) if payload else ""
+
+
 class Mind:
     def __init__(
         self,
@@ -261,7 +281,19 @@ class Mind:
 
                 if SURFACES.index(proposed) <= SURFACES.index(verdict.surface):
                     surface, detail = proposed, proposed_detail
-                    if proposed_detail:
+                    # A model may choose how loud, never what is said, when the
+                    # event came from outside.
+                    #
+                    # This is the whole reason an email can now be spoken at
+                    # all. The template in `voicing` fills fields, so the worst
+                    # a hostile subject line achieves is Marvi reading out
+                    # something odd. A model that has *read* that subject line
+                    # and is writing the sentence is a different proposition
+                    # entirely -- there the text is an instruction, and the
+                    # thing it instructs is the sentence Marvi says out loud.
+                    # Deliberation still runs and can still quieten this event;
+                    # it just does not get to put words in her mouth.
+                    if proposed_detail and event["trusted"]:
                         sentence = proposed_detail
                 resolved_provider = str(getattr(self.deliberate, "last_provider", "") or "llm")
                 resolved_model = str(getattr(self.deliberate, "last_model", "") or "")
@@ -270,7 +302,16 @@ class Mind:
                 )
 
             if surface == "remember" and self.memory is not None:
-                body = str(event["payload"])[:2000]
+                # Rendered, not `str(dict)`. This is where two memories in the
+                # real store came to have a Python dict repr for a body:
+                #
+                #     subject: User shared a link
+                #     body:    {'id': 'User shared a link'}
+                #
+                # `initiative.run_ingest` journals `{"id": subject}` as the
+                # payload, `str()` took it without complaint, and the store
+                # kept a row that no search will ever match usefully.
+                body = _readable(event["payload"])[:2000]
                 if event["trusted"]:
                     self.memory.remember(event["summary"], body, kind="episodic")
                 else:
