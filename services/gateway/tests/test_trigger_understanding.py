@@ -33,7 +33,7 @@ class _Journal:
     def __init__(self) -> None:
         self.rows: list[tuple[str, str, str, dict]] = []
 
-    def append(self, source, kind, summary, payload, trusted=False):  # noqa: ANN001, ARG002
+    def append(self, source, kind, summary, payload, trusted=False):
         self.rows.append((source, kind, summary, payload))
         return len(self.rows)
 
@@ -42,7 +42,7 @@ class _Memory:
     def __init__(self) -> None:
         self.written: list[tuple[str, str]] = []
 
-    def remember_external(self, subject, body, source=""):  # noqa: ANN001, ARG002
+    def remember_external(self, subject, body, source=""):
         self.written.append((subject, body))
 
 
