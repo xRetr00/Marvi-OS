@@ -2430,9 +2430,7 @@ function startApp(): void {
           armed: Boolean(body.armed),
           threshold: Number(body.threshold ?? 0.5),
           autoRestart: body.auto_restart === undefined ? true : Boolean(body.auto_restart),
-          autoRestartSetting: String(
-            body.auto_restart_setting ?? 'MARVI_WAKE_AUTO_RESTART'
-          ),
+          autoRestartSetting: String(body.auto_restart_setting ?? 'MARVI_WAKE_AUTO_RESTART'),
           heardSecondsAgo:
             body.heard_seconds_ago === null || body.heard_seconds_ago === undefined
               ? null
