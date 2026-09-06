@@ -201,7 +201,9 @@ an exponential delay capped at 30 seconds, reads the user-controlled recovery
 setting between attempts, and accepts a cross-process stop request so turning
 Wake Word off actually releases the microphone. Desktop startup reconciles an
 enabled listener after the updater has replaced its binary, while the updater
-smoke gate refuses a package missing the wake executable or model.
+smoke gate refuses a package missing the wake executable or model. A ten-second
+Electron-main heartbeat watchdog also restores a registered listener after a
+whole native process crash; it is gated by the same persisted recovery switch.
 
 ## Acceptance evidence
 

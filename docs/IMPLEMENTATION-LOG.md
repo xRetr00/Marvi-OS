@@ -18,6 +18,9 @@ work belongs in `docs/phases/`; architectural decisions belong in
 - Reconciled enabled wake-word registration when the desktop launches, so the
   updater can stop the old packaged binary, replace it, and relaunch the new
   listener automatically without overriding a user-disabled listener.
+- Added an Electron-main heartbeat watchdog for a whole wake-host process
+  crash. It checks the listener every ten seconds, relaunches only a registered
+  stale listener, and obeys the same persisted auto-restart switch.
 - Strengthened the bootstrap smoke gate to require the packaged wake-host
   executable and `marvi.onnx`, with native backoff/stop, Gateway contract, and
   updater packaging regression coverage.
