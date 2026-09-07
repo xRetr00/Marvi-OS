@@ -254,6 +254,15 @@ class Focus:
         """Notice a demanding app arriving or leaving. Empty most of the time."""
         if self.activity is None:
             return []
+        # Already standing down: the only question left is whether the
+        # fullscreen app has gone, and that is a ctypes call costing nothing.
+        #
+        # `nvidia-smi` is a process spawn that takes a driver lock -- measured
+        # here at 46-118ms -- and asking it every minute for the whole length
+        # of a match is sixty driver stalls an hour inside the game it exists
+        # to protect.
+        if self._heavy and fullscreen_now():
+            return []
         try:
             window = self.activity.current_window()
         except Exception as exc:

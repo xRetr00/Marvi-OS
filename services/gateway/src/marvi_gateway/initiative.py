@@ -62,6 +62,10 @@ class Initiative:
         # decides something cannot be said yet, and the mind that asks again.
         if waiting is not None:
             mind.waiting = waiting
+            # So the mind can decline to cold-load the voice mid-game.
+            mind.busy_with = lambda: (
+                getattr(self.focus, "because", "") if self.focus is not None else ""
+            )
             # The same model the gatekeeper uses on the way in, for the items
             # that arrived while it was unavailable.
             if auxiliary_client is not None:

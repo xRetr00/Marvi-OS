@@ -125,6 +125,9 @@ class Mind:
         #: Where things go that were worth saying and could not be said yet.
         #: Left unset, nothing is held and the old behaviour returns exactly.
         self.waiting: Any = None
+        #: `() -> str` -- what has the machine, when something does. Left
+        #: unset, nothing is ever held for it.
+        self.busy_with: Any = lambda: ""
         #: Reads a held item that arrived while no model would answer.
         #: `(subject, body) -> one sentence`. See `gatekeeping.what_it_says`.
         self.read_late: Any = None
@@ -491,6 +494,24 @@ class Mind:
             said_started = time.perf_counter()
 
             spoken = ""
+            # Never load the voice for the first time while a game has the
+            # machine. Warming happens at startup, so this is the case where
+            # that failed or the model was evicted -- and a 140-second cold
+            # load is the one thing guaranteed to ruin what she is standing
+            # aside for. Held instead, and said when the game is over.
+            if (
+                surface == "speak"
+                and self.announcer is not None
+                and getattr(self.announcer, "cold", False)
+                and self.busy_with()
+                and self.waiting is not None
+            ):
+                logger.info(
+                    "not loading the voice while %s has the machine; holding it",
+                    self.busy_with(),
+                )
+                self.waiting.hold(event, "resources")
+                surface = "island"
             if surface == "speak" and self.announcer is not None:
                 outcome = self.announcer.speak(sentence)
                 if outcome.get("played"):
