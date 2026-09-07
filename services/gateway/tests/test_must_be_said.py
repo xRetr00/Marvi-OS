@@ -60,7 +60,11 @@ def test_a_model_may_not_silence_a_welcome() -> None:
 
     mind = Mind(_journal(WELCOME))
     mind.deliberate = deliberate
-    mind.announcer = type("A", (), {"speak": lambda _s, text: said.append(text) or {"played": True}})()
+    mind.announcer = type(
+        "A",
+        (),
+        {"speak": lambda _s, text, **_context: said.append(text) or {"played": True}},
+    )()
 
     mind.tick(now=datetime(2026, 9, 7, 12, 0, tzinfo=UTC))
 
@@ -77,7 +81,11 @@ def test_a_model_may_still_reword_it() -> None:
 
     mind = Mind(_journal(WELCOME))
     mind.deliberate = deliberate
-    mind.announcer = type("A", (), {"speak": lambda _s, text: said.append(text) or {"played": True}})()
+    mind.announcer = type(
+        "A",
+        (),
+        {"speak": lambda _s, text, **_context: said.append(text) or {"played": True}},
+    )()
 
     mind.tick(now=datetime(2026, 9, 7, 12, 0, tzinfo=UTC))
     assert said == ["Hey, welcome back."]
@@ -90,7 +98,11 @@ def test_an_ordinary_event_can_still_be_silenced() -> None:
 
     mind = Mind(_journal(light))
     mind.deliberate = lambda _e, _v: ("silent", "not worth interrupting", 90)
-    mind.announcer = type("A", (), {"speak": lambda _s, text: said.append(text) or {"played": True}})()
+    mind.announcer = type(
+        "A",
+        (),
+        {"speak": lambda _s, text, **_context: said.append(text) or {"played": True}},
+    )()
 
     mind.tick(now=datetime(2026, 9, 7, 12, 0, tzinfo=UTC))
     assert said == []
@@ -121,7 +133,11 @@ def test_the_veto_text_is_never_spoken() -> None:
 
     mind = Mind(_journal(game))
     mind.deliberate = lambda _e, _v: ("silent", "not worth interrupting", 200)
-    mind.announcer = type("A", (), {"speak": lambda _s, t: said.append(t) or {"played": True}})()
+    mind.announcer = type(
+        "A",
+        (),
+        {"speak": lambda _s, text, **_context: said.append(text) or {"played": True}},
+    )()
 
     mind.tick(now=datetime(2026, 9, 7, 12, 0, tzinfo=UTC))
 
