@@ -23,7 +23,7 @@
 
 Marvi OS is a voice-first personal assistant that lives on your Windows desktop—not in another browser tab. Call her with a wake phrase, speak normally, interrupt whenever you need to, and return to what you were doing.
 
-Most of the time, Marvi is a quiet line at the edge of your screen. The Dynamic Island expands only when there is something worth hearing, approving, or acting on. A full control center is there when you want to chat, inspect memory, connect services, manage your room, or tune how Marvi behaves.
+Most of the time, Marvi is a quiet floating capsule near the top of your screen. The Dynamic Island expands only when there is something worth hearing, approving, or acting on. A full control center is there when you want to chat, inspect memory, connect services, manage your room, or tune how Marvi behaves.
 
 Marvi is designed to become more useful without becoming more intrusive. She learns your preferences, remembers what matters, notices meaningful changes, and understands that silence is often the right answer.
 

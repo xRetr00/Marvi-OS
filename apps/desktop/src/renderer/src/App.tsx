@@ -6680,7 +6680,7 @@ function IslandSurface(): React.JSX.Element {
       <div className="island-measure" ref={measureRef}>
         <AnimatePresence initial={false} mode="popLayout">
           <motion.div
-            animate={{ opacity: 1, scale: 1, y: 0 }}
+            animate={{ opacity: 1, scale: 1 }}
             className="island-transition-shell"
             exit={
               reduceMotion
@@ -6688,11 +6688,10 @@ function IslandSurface(): React.JSX.Element {
                 : {
                     opacity: 0,
                     scale: 0.985,
-                    y: -3,
                     transition: { duration: ISLAND_EXIT_SECONDS, ease: [0.4, 0, 1, 1] }
                   }
             }
-            initial={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.97, y: -5 }}
+            initial={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.97 }}
             key={`${presentationKey}:${expanded ? 'expanded' : 'collapsed'}`}
             transition={
               reduceMotion

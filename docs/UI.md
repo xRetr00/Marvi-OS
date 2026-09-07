@@ -207,22 +207,24 @@ embeddings are never presented as a Marvi embedding setting.
 
 ## Dynamic Island
 
-The Island is a screen-edge notch, not a detached floating pill. Its top edge
-is flush with the selected display's work area and its body grows downward.
-Orb-driven states collapse to the live orb and progressively disclose their
-copy on hover.
+The Island is a detached, fully rounded capsule, never a screen-edge notch.
+Its native host sits 10 logical pixels below the selected display's work area
+in every state. Orb-driven states retain a concise status beside the orb and
+disclose their detail on hover. Idle is a quiet capsule without a pulsing line.
+This follows Apple's compact-to-expanded hierarchy, adapted to desktop hover:
+https://developer.apple.com/documentation/ActivityKit/displaying-live-data-with-live-activities
 
 Target sizes at 100% scaling:
 
 | State                  |           Size | Content                                                   |
 | ---------------------- | -------------: | --------------------------------------------------------- |
-| sleep                  |         `76×8` | recessed seed; only the short light line is visible       |
-| collapsed orb state    |        `38×30` | authoritative live orb only                               |
+| sleep                  |        `88×28` | quiet themed capsule; no animation or visible copy        |
+| collapsed orb state    |       `104×32` | authoritative live orb and concise status                 |
 | listening expanded     |       `210×38` | `LISTEN`, live waveform and concise state copy             |
 | thinking expanded      |       `230×40` | `THINK`, low-cost ASCII pulse and concise state copy       |
 | speaking expanded      |       `250×42` | `SPEAK`, output waveform and interrupt hint                |
 | announcement on-air    |   up to `352×92` | exact sentence, source/time label, active internal signal |
-| announcement retained  |        `38×30` | themed weaving orb; hover recalls the exact sentence       |
+| announcement retained  |       `104×32` | themed weaving orb and source; hover recalls the sentence |
 | action expanded        |       `280×46` | tool orb, short verb, progress                             |
 | notification expanded  | up to `320×64` | one concise world/room event                               |
 | error expanded         |       `280×46` | quiet offline/error state and recovery detail              |
@@ -234,9 +236,8 @@ Rules:
 - Approval, denial, expiry, and mode-change results remain visible for three
   seconds, then return to the passive state. A Gateway outage removes stale
   confirmation controls immediately and shows the non-interactive error state.
-- In passive sleep, remove the seed body completely and leave only its short
-  light line at the work-area edge. Do not leave the ready pill, label, or
-  waveform visible until wake/activity begins.
+- In passive sleep, keep the detached capsule still. Do not show a ready label,
+  simulated camera cutouts, waveform, or continuous attention-seeking animation.
 - Never show a full transcript.
 - Never animate merely to hide latency.
 - Coalesce audio-level rendering to a bounded frame rate.
@@ -248,13 +249,13 @@ Rules:
   Their authoritative state remains available in the control center.
 - Background events may animate the Island but may not focus the main window.
 - A newly entered ordinary orb state discloses its copy for 1.8 seconds, then
-  collapses to the `38×30` orb notch. Hovering that notch expands the same state
+  collapses to the `104×32` orb capsule. Hovering that capsule expands the same state
   again; leaving returns it to the orb. Hover capture never makes the window
   focusable and never activates the current application.
 - Proactive speech rides an announcement channel beside the live voice phase.
   It expands to at most `352×92` while audio is on air. When playback ends, the
   assistant returns to `ready`; the exact sentence remains expanded for 10
-  seconds, then becomes a `38×30` weaving orb that can be recalled on hover
+  seconds, then becomes a `104×32` orb capsule that can be recalled on hover
   until the Gateway's 35-second retention expires. A live call or confirmation
   always outranks the retained announcement.
 - Announcement copy uses the exact spoken sentence as its primary line and a
@@ -264,7 +265,7 @@ Rules:
 - The native host follows measured content plus a two-pixel transparent edge
   inset. It never reserves a larger invisible stage. Resize only at
   content/state boundaries; never animate native window bounds per frame.
-- State changes use one restrained compositor-only fade/vertical settle on the
+- State changes use one restrained compositor-only fade/centered scale on the
   rendered content. Native bounds do not participate in the animation, exits
   are quicker than entrances, and reduced-motion users get an immediate swap.
 - The Island reads the selected appearance and font live from the shared

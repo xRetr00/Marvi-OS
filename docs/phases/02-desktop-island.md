@@ -8,17 +8,21 @@ surface and its native-window behavior can be proven without the voice engine.
 
 ## Delivered
 
+September 7 capsule refinement: focused tests and typechecks passed; renderer
+inspection confirmed the rounded compact capsule. Native visual acceptance of
+the new top gap and compositor transparency is pending a working Electron
+runtime. Earlier native evidence below describes the previous geometry.
+
 - Electron Vite React/TypeScript scaffold, tray lifetime, main window, sidebar,
   content area, status bar, and page shells.
 - App icon used at runtime; repository banner excluded from runtime UI.
 - Marvi-derived visual rules: flat hierarchy, one-pixel hairlines, restrained
   blue signal, Collapse branding, and JetBrains Mono system text.
-- Recessed Marvi-style sleep seed: `76×8` transparent body at the top edge so
-  only its short light line remains visible.
-- A top-attached `38×30` orb notch for active states that briefly expands on
+- Quiet `88×28` idle capsule, detached 10 logical pixels below the work area.
+- A fully rounded `104×32` orb/status capsule for active states that briefly expands on
   state entry and expands again on hover; confirmations remain fully disclosed.
 - A separate proactive-announcement channel: up to `352×92` while speech is on
-  air, a ten-second readable hold after playback, then the same `38×30` orb with
+  air, a ten-second readable hold after playback, then the same `104×32` capsule with
   hover recall until the Gateway expires it. Live voice and confirmations win.
 - A tightly fitted native host that follows measured content with a two-pixel
   transparent edge inset; bounds are validated in Electron before use.
@@ -38,13 +42,13 @@ surface and its native-window behavior can be proven without the voice engine.
 - Exact-token Island approvals and denials; pointer/focus is enabled only while
   an actionable confirmation is visible. Settled and expired prompts collapse
   automatically, Gateway loss removes stale controls, and every idle mode
-  returns to the line-only seed.
+  returns to the quiet idle capsule.
 - Theme- and font-synchronized presentation across renderer processes, with
   compositor-only state entrances/exits, reduced-motion behavior, and a quieter
   persistent offline treatment.
 - Three native pointer policies: click-through sleep, non-focusable hover
   capture for orb states, and focusable confirmation controls. Expanded states
-  remain flush with the screen edge rather than floating below it.
+  retain the same top gap and rounded corners instead of becoming a notch.
 - Announcement metadata includes a stable identity, event source, creation time,
   active/retained state, and expiry. Its exact sentence is visually primary;
   the internal signal and weaving orb inherit the selected theme accent.

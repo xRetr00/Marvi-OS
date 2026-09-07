@@ -4,6 +4,27 @@ This is the chronological record of work that has actually happened. Planned
 work belongs in `docs/phases/`; architectural decisions belong in
 `docs/DECISIONS.md`.
 
+## 2026-09-07 — Floating Dynamic Island refinement
+
+- Replaced the top-attached notch with a fully rounded, theme-synchronized
+  capsule after reviewing Apple's current Dynamic Island interaction guidance.
+  Idle is still and compact (`88×28`); active states keep an orb and short
+  status (`104×32`). Native placement preserves a 10-pixel work-area gap on
+  every display and expanded state. No camera hardware is simulated.
+- Removed the seed-line pulse and vertical drop motion. Detail disclosure uses
+  a centered scale/fade, with reduced-motion support and no per-frame native
+  window resizing. Confirmation retains readable rounded-panel geometry.
+- Kept the proactive Announcer channel, exact spoken copy, theme accent,
+  post-playback hold, and hover recall; added no sensitive-content classifier.
+- Acceptance: 25 focused component/placement tests and both desktop TypeScript
+  checks passed. Browser inspection confirmed the compact surface is `104×32`,
+  fully rounded with a complete border. Native Windows visual acceptance is
+  pending: the local Electron runtime is unavailable. Renderer screenshots
+  cannot prove native transparency or the physical work-area gap.
+- Final desktop suite: 430 passed, one ownership-process timeout; its isolated
+  rerun passed all eight tests. Changed-component lint and `git diff --check`
+  passed. Changes remain uncommitted pending native visual acceptance.
+
 ## 2026-09-07 — Terminal update handoff
 
 - Added `marvi update`, with a read-only `--check` form and an explicit `--yes`

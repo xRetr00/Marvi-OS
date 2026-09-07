@@ -31,19 +31,25 @@ describe('islandWindowBounds', () => {
   it('centers the tightly fitted transparent host around the measured content', () => {
     expect(
       islandWindowBounds({ x: 100, y: 40, width: 1200, height: 800 }, { width: 150, height: 30 })
-    ).toEqual({ x: 623, y: 40, width: 154, height: 34 })
+    ).toEqual({ x: 623, y: 50, width: 154, height: 34 })
   })
 
-  it('anchors the recessed seed directly to the work-area edge', () => {
+  it('leaves desktop space above the idle capsule', () => {
     expect(
       islandWindowBounds({ x: 100, y: 40, width: 1200, height: 800 }, ISLAND_SEED_CONTENT_SIZE)
-    ).toEqual({ x: 660, y: 40, width: 80, height: 12 })
+    ).toEqual({ x: 654, y: 50, width: 92, height: 32 })
   })
 
-  it('keeps compact orb states attached to the same top edge', () => {
+  it('keeps compact activity detached at the same height', () => {
     expect(
-      islandWindowBounds({ x: 100, y: 40, width: 1200, height: 800 }, { width: 38, height: 30 })
-    ).toEqual({ x: 679, y: 40, width: 42, height: 34 })
+      islandWindowBounds({ x: 100, y: 40, width: 1200, height: 800 }, { width: 104, height: 32 })
+    ).toEqual({ x: 646, y: 50, width: 108, height: 36 })
+  })
+
+  it('preserves the gap on an offset display when expanded', () => {
+    expect(
+      islandWindowBounds({ x: -1920, y: -1080, width: 1920, height: 1080 }, ISLAND_MAX_CONTENT_SIZE)
+    ).toEqual({ x: -1142, y: -1070, width: 364, height: 96 })
   })
 
   it('supports explicit left and right placement', () => {

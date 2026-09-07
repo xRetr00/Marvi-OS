@@ -1,9 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 
-import {
-  DynamicIsland
-} from './DynamicIsland'
+import { DynamicIsland } from './DynamicIsland'
 import {
   ANNOUNCEMENT_GLANCE_MS,
   ISLAND_AUTO_EXPAND_MS,
@@ -48,9 +46,9 @@ describe('DynamicIsland', () => {
 
   it('lets retained announcements reclaim idle, but never live, voice state', () => {
     const retained = { ...ANNOUNCEMENT, active: false }
-    expect(
-      islandDisplayState({ ...DEFAULT_ASSISTANT_STATE, announcement: retained }).phase
-    ).toBe('announcing')
+    expect(islandDisplayState({ ...DEFAULT_ASSISTANT_STATE, announcement: retained }).phase).toBe(
+      'announcing'
+    )
     expect(
       islandDisplayState({
         ...DEFAULT_ASSISTANT_STATE,
@@ -106,16 +104,17 @@ describe('DynamicIsland', () => {
         caption: 'Listening'
       })
     ).toBe('hover')
-    expect(
-      islandInteractionMode({ ...DEFAULT_ASSISTANT_STATE, roomEvent: ROOM_EVENT })
-    ).toBe('hover')
+    expect(islandInteractionMode({ ...DEFAULT_ASSISTANT_STATE, roomEvent: ROOM_EVENT })).toBe(
+      'hover'
+    )
   })
 
-  it('recesses ready into the line-only seed on the native surface', () => {
+  it('rests in a quiet idle capsule without an animated seed line', () => {
     const html = renderToStaticMarkup(<DynamicIsland state={DEFAULT_ASSISTANT_STATE} />)
 
     expect(html).toContain('island-seed')
-    expect(html).toContain('island-seed-line')
+    expect(html).not.toContain('island-seed-line')
+    expect(html).toContain('Marvi OS ready')
     expect(html).not.toContain('Say Marvi')
   })
 
@@ -131,7 +130,7 @@ describe('DynamicIsland', () => {
     expect(html).toContain('LISTEN')
   })
 
-  it('collapses an orb state to the notch without removing its accessible status', () => {
+  it('collapses to an orb capsule with a concise visible and accessible status', () => {
     const html = renderToStaticMarkup(
       <DynamicIsland
         expanded={false}
@@ -144,6 +143,8 @@ describe('DynamicIsland', () => {
     expect(html).toContain('aria-label="SPEAK: Speaking"')
     expect(html).toContain('island-orb')
     expect(html).not.toContain('<strong>Speaking</strong>')
+    expect(html).toContain('island-compact-label')
+    expect(html).toContain('>SPEAK</small>')
   })
 
   it('presents a persistent outage as a quiet current state', () => {
@@ -254,13 +255,13 @@ describe('DynamicIsland', () => {
     expect(html).toContain('DENY')
   })
 
-  it('recesses into the same idle seed while YOLO is enabled', () => {
+  it('uses the same idle capsule while YOLO is enabled', () => {
     const html = renderToStaticMarkup(
       <DynamicIsland state={{ ...DEFAULT_ASSISTANT_STATE, yolo: true }} />
     )
 
     expect(html).toContain('island-seed')
-    expect(html).toContain('island-seed-line')
+    expect(html).not.toContain('island-seed-line')
     expect(html).not.toContain('YOLO')
     expect(html).not.toContain('Say Marvi')
   })

@@ -16,8 +16,9 @@ export interface IslandPlacement {
 // Two pixels are enough to preserve the hairline edge without leaving a
 // noticeable transparent capture stage around the always-on-top surface.
 export const ISLAND_WINDOW_INSET = 2
-export const ISLAND_MIN_CONTENT_SIZE: IslandContentSize = { width: 38, height: 8 }
-export const ISLAND_SEED_CONTENT_SIZE: IslandContentSize = { width: 76, height: 8 }
+export const ISLAND_MIN_CONTENT_SIZE: IslandContentSize = { width: 88, height: 28 }
+export const ISLAND_SEED_CONTENT_SIZE: IslandContentSize = { width: 88, height: 28 }
+export const ISLAND_TOP_GAP = 10
 export const ISLAND_MAX_CONTENT_SIZE: IslandContentSize = { width: 360, height: 92 }
 
 export function normalizeIslandInteractionMode(value: unknown): IslandInteractionMode {
@@ -59,9 +60,8 @@ export function islandWindowBounds(
 
   return {
     x: Math.round(xByAlignment[alignment]),
-    // Every presentation grows from the work-area edge like a physical notch.
-    // No detached six-pixel gap remains above active states.
-    y: Math.round(workArea.y),
+    // The capsule stays detached in every state; expansion never becomes a notch.
+    y: Math.round(workArea.y + ISLAND_TOP_GAP),
     width,
     height
   }

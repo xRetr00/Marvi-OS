@@ -811,32 +811,16 @@ nav {
 }
 .island-transition-shell {
   display: inline-flex;
-  transform-origin: 50% 0;
+  transform-origin: 50% 50%;
   will-change: transform, opacity;
 }
 .dynamic-island.island-seed {
   display: grid;
-  width: 76px;
-  height: 8px;
+  width: 88px;
+  height: 28px;
   padding: 0;
   place-items: center;
-  border: 0;
-  border-radius: 0 0 8px 8px;
-  background: transparent;
-  box-shadow: none;
-}
-.island-seed-line {
-  width: 34px;
-  height: 2px;
-  border-radius: 999px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    color-mix(in srgb, var(--ui-accent) 92%, white),
-    rgb(255 255 255 / 92%),
-    transparent
-  );
-  animation: seed-breathe 3.2s ease-in-out infinite;
+  grid-template-columns: 1fr;
 }
 .sr-only {
   position: absolute;
@@ -852,17 +836,16 @@ nav {
 .dynamic-island {
   position: relative;
   display: grid;
-  grid-template-columns: 20px;
+  grid-template-columns: 20px minmax(0, 1fr);
   align-items: center;
   justify-content: center;
-  gap: 0;
-  width: 38px;
-  height: 30px;
-  padding: 4px 8px 5px;
+  gap: 8px;
+  width: 104px;
+  height: 32px;
+  padding: 5px 12px;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--ui-stroke-primary) 72%, transparent);
-  border-top: 0;
-  border-radius: 0 0 19px 19px;
+  border-radius: 999px;
   background: linear-gradient(
     180deg,
     color-mix(in srgb, var(--ui-bg-raised) 94%, var(--ui-text-primary) 6%) 0%,
@@ -881,10 +864,16 @@ nav {
   justify-content: initial;
   gap: 8px;
   padding: 6px 12px 6px 8px;
-  border-radius: 0 0 22px 22px;
+  border-radius: 22px;
 }
-.dynamic-island.is-collapsed .island-orb {
-  transform: translateY(-1px);
+.island-compact-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 8px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--ui-text-secondary);
 }
 .dynamic-island.island-compact {
   width: 250px;
@@ -983,6 +972,7 @@ nav {
 }
 .dynamic-island.island-confirmation {
   display: flex;
+  border-radius: 22px;
   width: 360px;
   height: 92px;
   padding: 11px 13px 11px 16px;
@@ -1075,17 +1065,6 @@ nav {
   50% {
     opacity: 0.35;
     transform: scale(0.8);
-  }
-}
-@keyframes seed-breathe {
-  0%,
-  100% {
-    opacity: 0.58;
-    transform: scaleX(0.78);
-  }
-  50% {
-    opacity: 0.96;
-    transform: scaleX(1);
   }
 }
 
@@ -10995,11 +10974,6 @@ html[data-appearance='claude-code-dark'] .control-row {
     will-change: auto;
   }
 
-  .island-seed-line {
-    animation: none;
-    opacity: 0.82;
-    transform: none;
-  }
 }
 
 .voice-status .voice-hud-phase {
@@ -11546,7 +11520,7 @@ html[data-appearance='claude-code-dark'] .control-row {
   color: var(--ui-text-emphasis);
 }
 
-/* The signal stays inside the tightly measured native notch. An outer glow is
+/* The signal stays inside the tightly measured native capsule. An outer glow is
    clipped by both the component and the BrowserWindow and would require a
    transparent pointer-capture stage around an always-on-top surface. */
 .dynamic-island[data-phase='announcing'][data-announcement-active='true']::after {
