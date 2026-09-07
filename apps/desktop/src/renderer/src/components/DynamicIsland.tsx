@@ -105,6 +105,7 @@ export function DynamicIsland({
     <div
       aria-label={`${label}: ${caption}${detail ? `. ${detail}` : ''}`}
       className={`dynamic-island island-${state.phase} ${expanded ? 'is-expanded' : 'is-collapsed'}`}
+      data-announcement-active={announcement?.active ?? undefined}
       data-expanded={expanded}
       data-phase={state.phase}
       role="status"

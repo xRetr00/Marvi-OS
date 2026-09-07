@@ -11,8 +11,6 @@
   --ui-stroke-secondary: #222427;
   --ui-stroke-tertiary: #17181a;
   --ui-accent: #147ec1;
-  --ui-announce: #8f7ae6;
-  --ui-announce-soft: rgb(143 122 230 / 15%);
   --ui-accent-soft: rgb(20 126 193 / 14%);
   --ui-danger: #d85b5b;
   --shadow-nous: 0 1px 1px rgb(0 0 0 / 46%), 0 10px 28px rgb(0 0 0 / 36%);
@@ -32,8 +30,6 @@ html[data-appearance='anthropic-dark'] {
   --ui-stroke-secondary: #39342d;
   --ui-stroke-tertiary: #2d2923;
   --ui-accent: #d97757;
-  --ui-announce: #b08bd6;
-  --ui-announce-soft: rgb(176 139 214 / 16%);
   --ui-accent-soft: rgb(217 119 87 / 15%);
   --ui-danger: #e06c75;
   --shadow-nous: 0 1px 1px rgb(0 0 0 / 38%), 0 18px 48px rgb(0 0 0 / 34%);
@@ -53,8 +49,6 @@ html[data-appearance='claude-code-dark'] {
   --ui-stroke-secondary: #34332f;
   --ui-stroke-tertiary: #292824;
   --ui-accent: #e08a68;
-  --ui-announce: #bb96dd;
-  --ui-announce-soft: rgb(187 150 221 / 14%);
   --ui-accent-soft: rgb(224 138 104 / 13%);
   --ui-danger: #e06c75;
   --shadow-nous: 0 1px 0 rgb(255 255 255 / 3%), 0 12px 32px rgb(0 0 0 / 44%);
@@ -11532,50 +11526,56 @@ html[data-appearance='claude-code-dark'] .control-row {
    words arrive. */
 
 .dynamic-island[data-phase='announcing'] {
-  border-color: color-mix(in srgb, var(--ui-announce) 42%, transparent);
+  --island-announcement-accent: color-mix(
+    in srgb,
+    var(--ui-accent) 78%,
+    var(--ui-text-emphasis)
+  );
+  border-color: color-mix(in srgb, var(--island-announcement-accent) 42%, transparent);
   box-shadow:
     var(--shadow-nous),
-    0 0 0 1px color-mix(in srgb, var(--ui-announce) 20%, transparent),
-    0 0 28px -6px color-mix(in srgb, var(--ui-announce) 38%, transparent);
+    inset 0 0 12px color-mix(in srgb, var(--island-announcement-accent) 12%, transparent);
 }
 
 .dynamic-island[data-phase='announcing'] .island-copy small {
-  color: var(--ui-announce);
+  color: var(--island-announcement-accent);
   letter-spacing: 0.14em;
 }
 
 .dynamic-island[data-phase='announcing'] .island-copy strong {
-  color: color-mix(in srgb, var(--ui-announce) 70%, var(--ui-text-emphasis));
+  color: var(--ui-text-emphasis);
 }
 
-/* Outward rather than the inward breath `listening` uses: she is pushing
-   something towards you, not waiting for something from you. */
-.dynamic-island[data-phase='announcing']::after {
+/* The signal stays inside the tightly measured native notch. An outer glow is
+   clipped by both the component and the BrowserWindow and would require a
+   transparent pointer-capture stage around an always-on-top surface. */
+.dynamic-island[data-phase='announcing'][data-announcement-active='true']::after {
   content: '';
   position: absolute;
-  inset: -1px;
+  inset: 3px;
   border-radius: inherit;
-  border: 1px solid color-mix(in srgb, var(--ui-announce) 45%, transparent);
+  border: 1px solid color-mix(in srgb, var(--island-announcement-accent) 42%, transparent);
+  animation: island-announce 2.2s cubic-bezier(0.16, 1, 0.3, 1) infinite;
   pointer-events: none;
-  animation: island-announce 2.6s cubic-bezier(0.16, 1, 0.3, 1) infinite;
 }
 
 @keyframes island-announce {
   0% {
-    opacity: 0.75;
-    transform: scale(1);
+    opacity: 0.2;
+    transform: scale(0.94);
   }
   70%,
   100% {
-    opacity: 0;
-    transform: scale(1.06);
+    opacity: 0.72;
+    transform: scale(1);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .dynamic-island[data-phase='announcing']::after {
+  .dynamic-island[data-phase='announcing'][data-announcement-active='true']::after {
     animation: none;
     opacity: 0.4;
+    transform: none;
   }
 }
 
@@ -13324,26 +13324,27 @@ html[data-appearance='claude-code-dark'] .control-row {
   opacity: 0.9;
 }
 
-/* An announcement is meant to be read, not glimpsed.
-
-   The detail slot is a few small words for "Talk to interrupt"; an
-   announcement is two sentences somebody looked up to read after hearing
-   their name. It gets room, wraps, and stays for `HOLD_ANNOUNCEMENT_SECONDS`
-   after she stops talking. */
-
-.dynamic-island[data-phase='announcing'] {
-  max-width: min(560px, 78vw);
+/* During speech and the short post-speech glance, the exact sentence is the
+   primary information. The native content contract tops out at 360px, so this
+   stays within it rather than declaring a width Electron can never display. */
+.dynamic-island.is-expanded[data-phase='announcing'] {
+  width: 352px;
+  min-height: 64px;
+  height: auto;
+  max-height: 92px;
+  padding: 9px 14px 10px 9px;
 }
 
-.dynamic-island[data-phase='announcing'] .island-copy span {
+.dynamic-island[data-phase='announcing'] .island-copy strong {
   display: -webkit-box;
   overflow: hidden;
-  color: var(--ui-text-secondary);
   font-size: 11px;
-  line-height: 1.5;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1.42;
   white-space: normal;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 4;
+  -webkit-line-clamp: 3;
 }
 
 .dynamic-island[data-phase='announcing'] .island-copy {
