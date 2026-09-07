@@ -404,11 +404,34 @@ class ProviderClient:
 
     @staticmethod
     def _retry_after(response: Any) -> float:
-        header = (response.headers or {}).get("retry-after") if response is not None else None
+        """How long a 429 actually wants, from whichever header carries it.
+
+        OpenRouter answers 429 from two places and they say so differently.
+        An upstream provider's limit comes back with `Retry-After`; the
+        platform's own limit comes back with `X-RateLimit-Reset`, a
+        millisecond timestamp, and no `Retry-After` at all -- so this read
+        nothing, fell through to five minutes, and rested a provider that
+        wanted eight seconds.
+
+        Five minutes of silence for an eight second limit is most of what
+        "Marvi went quiet again" has been.
+        """
+        headers = (response.headers or {}) if response is not None else {}
         try:
-            return float(header)
+            return max(1.0, float(headers.get("retry-after")))
         except (TypeError, ValueError):
-            return DEFAULT_COOLDOWN_SECONDS
+            pass
+        # A reset stamp, in milliseconds since the epoch. Some gateways send
+        # seconds instead; anything under a second's worth of digits is one.
+        try:
+            reset = float(headers.get("x-ratelimit-reset"))
+            now = time.time()
+            seconds = (reset / 1000.0 if reset > 1e11 else reset) - now
+            if 0 < seconds <= MAX_COOLDOWN_SECONDS:
+                return max(1.0, seconds)
+        except (TypeError, ValueError):
+            pass
+        return DEFAULT_COOLDOWN_SECONDS
 
     def call(
         self,

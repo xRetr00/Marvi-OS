@@ -811,46 +811,56 @@ def _timed_llm() -> TimedLLM:
     calls the provider itself. The Gateway path reuses the same wrapper with a
     different label, which is what makes the two comparable at all.
     """
-    config = _config_when_one_is_available()
+    config = AgentConfig.from_gateway()
     return TimedLLM(build_llm(config), path="direct", provider=config.provider, model=config.model)
 
 
 #: How long to keep asking when every provider is resting, and how often.
 #:
-#: A dropped connection rests fifteen seconds now, and a job that arrives
-#: inside that window used to die outright:
+#: A dropped connection rests fifteen seconds now, and a job that arrived
+#: inside that window died outright:
 #:
 #:     07:41:45  openrouter cooling down 300s: [WinError 10054]
 #:     07:42:29  ProviderUnavailableError -> unhandled exception, job dead
 #:
 #: The user pressed Join and got a session with nobody in it. Waiting twenty
-#: seconds and connecting is a better answer than failing in under one, and
-#: for a genuine outage it still fails -- just with the reason attached.
+#: seconds and connecting beats failing in under one, and a genuine outage
+#: still fails -- just with the reason attached.
 WAIT_FOR_A_MODEL = 20.0
 ASK_AGAIN_EVERY = 2.0
 
 
-def _config_when_one_is_available() -> Any:
-    """The provider config, giving a resting provider a moment to come back.
+async def wait_for_a_model() -> str:
+    """Give a resting provider a moment. Returns why it gave up, or empty.
 
-    Only a short wait, and only for this: a session that cannot start is the
-    most visible failure Marvi has, and most of what stops one starting is a
-    cooldown measured in seconds.
+    Awaited rather than slept through, and this is not a style preference.
+    `build_session` runs on the job's event loop, and the last thing to block
+    it there killed every session at sixteen seconds -- the TTS model was
+    loading inline, so nothing answered LiveKit's connect handshake. A twenty
+    second `time.sleep` in the same place would be the same bug with a
+    different cause.
     """
     from .runtime import ProviderUnavailableError
 
     began = time.monotonic()
+    said = ""
     while True:
         try:
-            return AgentConfig.from_gateway()
+            await asyncio.to_thread(AgentConfig.from_gateway)
+            if said:
+                log.info("a model is available again after %.0fs", time.monotonic() - began)
+            return ""
         except ProviderUnavailableError as exc:
+            said = str(exc)
             if time.monotonic() - began >= WAIT_FOR_A_MODEL:
-                # The Gateway's own reason travels with it, so the log and
-                # anything above says which kind of nothing this was.
-                log.warning("no model after %.0fs: %s", WAIT_FOR_A_MODEL, exc)
-                raise
-            log.info("waiting for a model to come back: %s", exc)
-            time.sleep(ASK_AGAIN_EVERY)
+                log.warning("no model after %.0fs: %s", WAIT_FOR_A_MODEL, said)
+                return said
+            log.info("waiting for a model to come back: %s", said)
+            await asyncio.sleep(ASK_AGAIN_EVERY)
+        except Exception:
+            # Anything else is not a cooldown, and `build_session` will raise
+            # it properly in a moment with its own handling.
+            return ""
 
 
 def situation() -> str:
@@ -1990,6 +2000,10 @@ async def marvi_session(ctx: JobContext) -> None:
             "models load now, on the join. See docs/VOICE-JOIN-LATENCY.md."
         )
 
+    # Before the session is built, because building it asks for the provider
+    # and a cooldown measured in seconds should not cost a whole join.
+    if excuse := await wait_for_a_model():
+        log.warning("starting the session anyway; the model may refuse: %s", excuse)
     session, warm = build_session(ctx.proc)
     log.info("session built in %.1fs", time.monotonic() - started)
 
