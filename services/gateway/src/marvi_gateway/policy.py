@@ -179,6 +179,14 @@ class InitiativeSettings:
     #: a trick. Somebody who works nights, or who simply wants to be told
     #: things at two in the morning, should be able to say so.
     quiet_enabled: bool = True
+    #: Whether the journal drops a repeated event for six hours.
+    #:
+    #: On is right nearly always -- a mailbox re-reporting the same message
+    #: every poll is one event, not forty. It is wrong exactly when a repeat
+    #: is the news: the same game opened twice, the same reminder run twice.
+    #: Those are fixed where they happen; this is for the ones nobody has hit
+    #: yet, because the failure mode is silence and silence is not findable.
+    dedupe_events: bool = True
     quiet_start: int = DEFAULT_QUIET_START
     quiet_end: int = DEFAULT_QUIET_END
     cooldown_seconds: int = DEFAULT_COOLDOWN_SECONDS
@@ -197,6 +205,8 @@ class InitiativeSettings:
             in ("0", "off", "false", "paused"),
             quiet_enabled=os.environ.get("MARVI_QUIET_ENABLED", "1").strip().lower()
             not in ("0", "off", "false", "no"),
+            dedupe_events=os.environ.get("MARVI_DEDUPE_EVENTS", "1").strip().lower()
+            not in ("0", "off", "false", "no"),
             quiet_start=_int_env("MARVI_QUIET_START", DEFAULT_QUIET_START, 0, 23),
             quiet_end=_int_env("MARVI_QUIET_END", DEFAULT_QUIET_END, 0, 23),
             cooldown_seconds=_int_env(
@@ -213,6 +223,7 @@ class InitiativeSettings:
         return {
             "paused": self.paused,
             "quiet_enabled": self.quiet_enabled,
+            "dedupe_events": self.dedupe_events,
             "quiet_start": self.quiet_start,
             "quiet_end": self.quiet_end,
             "cooldown_seconds": self.cooldown_seconds,

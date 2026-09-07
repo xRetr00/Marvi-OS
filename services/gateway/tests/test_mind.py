@@ -351,3 +351,39 @@ def test_the_voice_is_never_warmed_under_pytest() -> None:
     # Would raise AttributeError if it got as far as loading anything: this
     # instance has no `_model`, no config, nothing.
     assert quiet.warm() is False
+
+
+def test_ignoring_repeats_can_be_switched_off(tmp_path, monkeypatch) -> None:
+    """Reachable, for the same reason quiet hours are.
+
+    The six-hour window is right nearly always and wrong exactly when the
+    repeat is the news. Two were found by hand -- a second FC 26 launch, and
+    seven of eight presses of Run Now on one reminder -- and both were
+    invisible from outside, because the event simply did not exist and every
+    button still answered 200. A failure whose symptom is silence needs a
+    switch, not another special case.
+    """
+    from datetime import UTC, datetime, timedelta
+
+    from marvi_gateway.journal import EventJournal
+
+    journal = EventJournal(tmp_path / "j.db")
+    at = datetime(2026, 9, 7, 12, 0, tzinfo=UTC)
+    args = ("gmail", "message", "Hello Shereef", {"id": "abc"})
+
+    monkeypatch.setenv("MARVI_DEDUPE_EVENTS", "1")
+    assert journal.append(*args, now=at) is not None
+    assert journal.append(*args, now=at + timedelta(minutes=5)) is None
+
+    monkeypatch.setenv("MARVI_DEDUPE_EVENTS", "0")
+    assert journal.append(*args, now=at + timedelta(minutes=10)) is not None, (
+        "switched off, a repeat is news again"
+    )
+
+    # And the setting is one the control center can read back.
+    from marvi_gateway.policy import InitiativeSettings
+
+    assert InitiativeSettings.from_env().dedupe_events is False
+    monkeypatch.setenv("MARVI_DEDUPE_EVENTS", "1")
+    assert InitiativeSettings.from_env().dedupe_events is True
+    assert "dedupe_events" in InitiativeSettings.from_env().as_dict()

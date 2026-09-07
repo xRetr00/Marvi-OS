@@ -359,6 +359,8 @@ class InitiativeUpdate(BaseModel):
     # changes how often Marvi speaks, so none of them belongs in a constant.
     paused: bool | None = None
     quiet_enabled: bool | None = None
+    #: Whether repeated events are dropped for six hours. See `journal`.
+    dedupe_events: bool | None = None
     quiet_start: int | None = Field(default=None, ge=0, le=23)
     quiet_end: int | None = Field(default=None, ge=0, le=23)
     cooldown_seconds: int | None = Field(default=None, ge=0, le=86_400)
@@ -3810,6 +3812,7 @@ def create_app(
             changed["paused"] = update.paused
         for field_name in (
             "quiet_enabled",
+            "dedupe_events",
             "quiet_start",
             "quiet_end",
             "cooldown_seconds",

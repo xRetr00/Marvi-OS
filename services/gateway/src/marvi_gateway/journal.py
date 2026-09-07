@@ -24,6 +24,28 @@ from typing import Any
 
 DEDUPE_WINDOW_SECONDS = 6 * 60 * 60
 
+
+def deduping() -> bool:
+    """Whether repeats are dropped at all. Off by setting, like quiet hours.
+
+    The window is right for a poll that re-reports the same email every cycle
+    and wrong often enough to be worth a switch: it swallowed a second FC 26
+    launch two hours after the first, and seven of eight presses of Run Now on
+    the same reminder. Both of those are fixed at the call site, and neither
+    was findable from outside -- the event simply did not exist, and every
+    button still answered 200.
+
+    So it is reachable. Somebody who would rather hear a thing twice than miss
+    it once should be able to say so, and the failure this guards against is
+    noise, which is recoverable, while the failure it causes is silence, which
+    is not.
+    """
+    import os
+
+    return os.environ.get("MARVI_DEDUPE_EVENTS", "1").strip().lower() not in (
+        "0", "off", "false", "no",
+    )
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS events (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -127,7 +149,7 @@ class EventJournal:
                 age = (moment - datetime.fromisoformat(recent["at"])).total_seconds()
             except ValueError:
                 age = 0.0
-            if dedupe and age < DEDUPE_WINDOW_SECONDS:
+            if dedupe and deduping() and age < DEDUPE_WINDOW_SECONDS:
                 return None
 
         cursor = self._db.execute(

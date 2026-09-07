@@ -370,6 +370,32 @@ export function MindPage(): React.JSX.Element {
             </p>
           </div>
 
+          {/* Repeats, reachable for the same reason quiet hours are.
+              The journal drops an event whose source, kind, summary and
+              payload match one from the last six hours. That is right nearly
+              always -- a mailbox re-reporting the same message every poll is
+              one event, not forty -- and wrong exactly when the repeat *is*
+              the news. It swallowed a second FC 26 launch two hours after the
+              first, and seven of eight presses of Run Now on one reminder.
+              Both are fixed where they happen; this is for the ones nobody
+              has hit yet, because the failure is silence and silence is not
+              findable from outside. */}
+          <div className="mind-quiet">
+            <label className="mind-quiet-on">
+              <input
+                checked={Boolean(status?.settings?.dedupe_events ?? true)}
+                onChange={(event) => void setQuiet({ dedupe_events: event.target.checked })}
+                type="checkbox"
+              />
+              <span>Ignore repeats</span>
+            </label>
+            <p>
+              {status?.settings?.dedupe_events === false
+                ? 'Off — she treats every event as news, even one she has already had. Noisier, and nothing is lost.'
+                : 'The same event twice within six hours counts once. Switch this off if you would rather hear a thing twice than miss it.'}
+            </p>
+          </div>
+
           <ul className="mind-gates">
             {GATES.map((gate) => {
               const shut = quiet.includes(gate.id)

@@ -91,14 +91,34 @@ def apply_speech_settings() -> None:
         ):
             if value := str(body.get(key) or "").strip():
                 os.environ[name] = value
+        # Chunk and lookahead only where they mean something.
+        #
+        # This printed them for every engine, so a Nemotron session logged
+        #
+        #     nemotron-3.5 on cuda, 2.0s chunks, 0.8s lookahead
+        #
+        # while Nemotron is a streaming recogniser that reads neither. The
+        # numbers were real -- they are Parakeet's, sitting in the environment
+        # -- and describing the wrong engine. A log that reports a setting the
+        # running code does not consult is worse than one that omits it: it
+        # gets believed, and the delay in that session was explained with it.
+        engine = os.environ.get("MARVI_STT_ENGINE", "parakeet-tdt")
+        paced = engine.startswith("parakeet")
+        pace = (
+            ", {}s chunks, {}s lookahead".format(
+                os.environ.get("MARVI_PARAKEET_CHUNK", os.environ.get("MARVI_STT_CHUNK", "2.0")),
+                os.environ.get(
+                    "MARVI_PARAKEET_LOOKAHEAD", os.environ.get("MARVI_STT_LOOKAHEAD", "2.0")
+                ),
+            )
+            if paced
+            else ", streaming"
+        )
         log.info(
-            "speech settings from the Gateway: %s on %s, %ss chunks, %ss lookahead, understands %s, speaks %s",
-            os.environ.get("MARVI_STT_ENGINE", "parakeet-tdt"),
+            "speech settings from the Gateway: %s on %s%s, understands %s, speaks %s",
+            engine,
             os.environ.get("MARVI_STT_DEVICE", "cpu"),
-            os.environ.get("MARVI_PARAKEET_CHUNK", os.environ.get("MARVI_STT_CHUNK", "2.0")),
-            os.environ.get(
-                "MARVI_PARAKEET_LOOKAHEAD", os.environ.get("MARVI_STT_LOOKAHEAD", "2.0")
-            ),
+            pace,
             os.environ.get("MARVI_STT_LANGUAGE", "auto"),
             str(body.get("tts_language") or "en"),
         )
@@ -876,8 +896,9 @@ def situation() -> str:
     return (
         f"Right now it is {now:%A %d %B %Y, %H:%M} ({zone}). "
         "Your training data ends well before this, so do not answer from memory "
-        "about anything that changes with time. Use a tool, or say you do not "
-        "know."
+        "about anything that changes with time. Use a web search tool you can always use it, or say you do not "
+        "know only when you didn't find anything releated you should search first before saying you don't know but"
+        " never say you don't know without searching first and never ever fabricate information you are the user's personal assistant trust is everything."
     )
 
 
@@ -1082,7 +1103,7 @@ class MarviVoiceAgent(Agent):
                 "fact or tell you something new, take it in and answer -- do "
                 "not say you will save, update or note it. Use remember or "
                 "forget only when they ask you to, in so many words. "
-                + "You are reading a transcript of speech, not typing. Words "
+                + "You are reading a transcript of speech, not typing. Words may"
                 "arrive wrong -- names especially, and anything technical: "
                 "'New Ducks' was NeuDocs, 'new dogs' was the same word again. "
                 "When what you heard does not fit what you know, the "
@@ -1101,7 +1122,7 @@ class MarviVoiceAgent(Agent):
                 "hearing, and a tapped answer cannot be misheard twice. "
                 "When it matters and you genuinely cannot tell -- which of two "
                 "things, which file, a name you are about to write down -- call "
-                "clarify and let them pick. Never guess "
+                "clarify tool and let them pick. Never guess "
                 "at a garbled word and then act on the guess, and never write "
                 "one into memory. Asking one short question costs a second; "
                 "the wrong answer costs the rest of the conversation. "

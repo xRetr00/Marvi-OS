@@ -361,6 +361,8 @@ export interface MindSettingsPatch {
    *  by setting start and end to the same hour, which is a trick, not a
    *  setting. */
   quiet_enabled?: boolean
+  /** Whether a repeated event counts once. See `journal.deduping`. */
+  dedupe_events?: boolean
   quiet_start?: number
   quiet_end?: number
   cooldown_seconds?: number
