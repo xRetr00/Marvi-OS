@@ -12,7 +12,7 @@
  * and one that is paused are three different states and used to be one grey
  * row each.
  */
-import { AlertTriangle, Ban, CalendarDays, Check, Play, Timer, Trash2 } from 'lucide-react'
+import { AlertTriangle, Ban, CalendarDays, Check, Pencil, Play, Timer, Trash2 } from 'lucide-react'
 import React from 'react'
 
 import type { ScheduleRow } from '../../../shared/runtime'
@@ -22,10 +22,14 @@ type Act = 'remove' | 'enable' | 'disable' | 'run'
 
 export function ScheduleCards({
   rows,
-  onAct
+  onAct,
+  onEdit,
+  busy
 }: {
   rows: ScheduleRow[]
   onAct: (id: number, action: Act) => void
+  onEdit: (row: ScheduleRow) => void
+  busy?: { id: number; action: Act } | null
 }): React.JSX.Element {
   // Soonest first, paused last: the page is about what happens next.
   const ordered = [...rows].sort((a, b) => {
@@ -107,16 +111,26 @@ export function ScheduleCards({
             {row.last_output && <pre className="sched-output">{row.last_output}</pre>}
 
             <div className="sched-actions">
-              <button onClick={() => onAct(row.id, 'run')} type="button">
-                <Play aria-hidden="true" /> Run now
+              <button disabled={busy?.id === row.id} onClick={() => onAct(row.id, 'run')} type="button">
+                <Play aria-hidden="true" />
+                {busy?.id === row.id && busy.action === 'run' ? 'Running…' : 'Run now'}
+              </button>
+              <button disabled={busy?.id === row.id} onClick={() => onEdit(row)} type="button">
+                <Pencil aria-hidden="true" /> Edit
               </button>
               <button
+                disabled={busy?.id === row.id}
                 onClick={() => onAct(row.id, row.enabled ? 'disable' : 'enable')}
                 type="button"
               >
                 {row.enabled ? 'Pause' : 'Resume'}
               </button>
-              <button className="is-danger" onClick={() => onAct(row.id, 'remove')} type="button">
+              <button
+                className="is-danger"
+                disabled={busy?.id === row.id}
+                onClick={() => onAct(row.id, 'remove')}
+                type="button"
+              >
                 <Trash2 aria-hidden="true" /> Remove
               </button>
             </div>
