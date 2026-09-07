@@ -390,9 +390,15 @@ class Accountant:
             lines = self.path.read_text(encoding="utf-8").splitlines()[-MOST_KEPT:]
         except Exception:
             return
+        fields = {name for name in Reading.__dataclass_fields__}
         for line in lines:
             try:
                 raw = json.loads(line)
+                # `plain` adds `marvi_ram_mb` and `marvi_vram_mb` for whoever
+                # is reading the file, and `Reading(**raw)` refuses keys it has
+                # no field for -- so every line failed to parse and the ledger
+                # silently came back empty after every restart.
+                raw = {name: value for name, value in raw.items() if name in fields}
                 raw["doing"] = Doing(**raw.get("doing", {}))
                 raw["processes"] = [Process(**one) for one in raw.get("processes", [])]
                 self._recent.append(Reading(**raw))
