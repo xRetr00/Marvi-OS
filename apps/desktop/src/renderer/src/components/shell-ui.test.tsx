@@ -38,7 +38,9 @@ describe('TitleBar', () => {
     expect(html).not.toContain('aria-label="Minimize"')
     expect(html).not.toContain('aria-label="Maximize"')
     expect(html).not.toContain('aria-label="Close"')
-    expect(html.match(/<svg/g)).toHaveLength(4)
+    // Five: haptics, restart, shutdown, settings, and the low-resource gauge.
+    expect(html.match(/<svg/g)).toHaveLength(5)
+    expect(html).toContain('aria-label="Low-resource mode"')
     expect(html).toContain('aria-label="Mute haptics"')
     expect(html).toContain('aria-label="Restart Marvi and all services"')
     expect(html).toContain('aria-label="Shut down Marvi and all services"')
