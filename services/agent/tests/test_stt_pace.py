@@ -120,7 +120,6 @@ def test_the_pace_is_only_reported_for_the_engine_that_has_one(monkeypatch, capl
         with caplog.at_level(logging.INFO):
             agent_session.apply_speech_settings()
         said = chr(10).join(record.getMessage() for record in caplog.records)
-".join(record.getMessage() for record in caplog.records)
         assert expect in said, f"{ENGINE}: expected {expect!r} in {said!r}"
         assert forbid not in said, f"{ENGINE}: {forbid!r} should not appear"
 
