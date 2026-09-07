@@ -381,6 +381,34 @@ def installed(directory: Path | None = None) -> list[Skill]:
     return [by_name[name] for name in sorted(by_name)]
 
 
+#: How much of a description reaches the prompt. One sentence, capped.
+#:
+#: The docstring below has always said "roughly a hundred tokens advertised
+#: against several thousand loaded", and the descriptions grew until that was
+#: no longer true: eleven skills at an average of 403 characters, 5,001 in all,
+#: which was 30% of everything the model read on every turn -- five times the
+#: size of the entire conversation.
+#:
+#: What grew was the second half. Each description had become
+#:
+#:     <what it is>. Use when <a paragraph>. Not for <another paragraph>.
+#:
+#: and the routing guidance is the part that does not belong here. Deciding
+#: whether to open a skill needs to know what it is; deciding how to use it is
+#: what `skill_read` is for, and that is a tool call away.
+ADVERTISED_CHARS = 130
+
+
+def _one_line(description: str) -> str:
+    """The first sentence of a description, for the prompt."""
+    said = " ".join(str(description or "").split())
+    first = said.split(". ")[0].rstrip(".")
+    if len(first) > ADVERTISED_CHARS:
+        # A first sentence longer than the cap is cut at a word, not a letter.
+        first = first[:ADVERTISED_CHARS].rsplit(" ", 1)[0]
+    return f"{first}." if first else said[:ADVERTISED_CHARS]
+
+
 def advertise(available: list[Skill] | None = None) -> str:
     """Stage one of progressive disclosure: what exists, not how to do it.
 
@@ -400,7 +428,7 @@ def advertise(available: list[Skill] | None = None) -> str:
     rows = [skill for skill in rows if skill.applies()]
     if not rows:
         return ""
-    lines = [f"- {skill.name}: {skill.description}" for skill in rows]
+    lines = [f"- {skill.name}: {_one_line(skill.description)}" for skill in rows]
     nl = chr(10)
     return (
         "# Skills you can use"

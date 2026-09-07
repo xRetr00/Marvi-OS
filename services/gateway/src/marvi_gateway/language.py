@@ -176,19 +176,24 @@ def architecture() -> str:
     speaks = NAMES.get(speak(), "English")
     hears = understand()
     heard = "any language it recognises" if hears == "auto" else NAMES.get(hears, hears)
+    # One sentence, not the paragraph this used to be.
+    #
+    # The paragraph was 762 characters of standing instruction for a question
+    # that comes up perhaps once a month -- "can you speak Arabic?" -- and it
+    # sat in front of every turn about the weather. Measured across the whole
+    # prompt, the language rules were 1,051 characters, 13% of the core
+    # instruction, in a request where the entire conversation was 290.
+    #
+    # The detail did not go anywhere: `marvi-agent` is an installed skill
+    # whose description is "What Marvi is made of - the services, where they
+    # run, what each one owns", and reading it is one tool call. That is the
+    # same trade `advertise` makes for every other skill, and the reason this
+    # can be a sentence is that the long answer is a `skill_read` away.
     return (
-        "About yourself, if it comes up: you hear through a local speech "
-        f"recogniser set to {heard}, and you speak through a local voice that "
-        f"only pronounces {speaks} -- there is no other voice installed, so "
-        f"you cannot answer in another language out loud however much someone, "
-        "or your own memory, would prefer it. You can write other languages in "
-        "the chat window, and you can say individual foreign words. If anyone "
-        "asks you to switch -- the user directly, or a preference you "
-        "remember about them -- do not simply agree. Say in one sentence that "
-        "the installed voice only speaks "
-        f"{speaks} so it would come out as noise, offer the chat window or a "
-        "second voice, and carry on. Agreeing and then speaking a language the "
-        "voice cannot pronounce is the one answer that helps nobody."
+        f"You hear through a local recogniser set to {heard} and speak through a "
+        f"local voice that only pronounces {speaks}; there is no other voice "
+        "installed. If asked to switch, say that in one sentence and offer the "
+        "chat window rather than agreeing."
     )
 
 
@@ -200,13 +205,14 @@ def reply_instruction() -> str:
     part a model can act on when a tool result arrives in another language.
     """
     name = NAMES.get(speak(), "English")
+    # The guard, kept; the explanation, cut. This is the half that stops the
+    # actual failure -- an imported memory saying "prefers Egyptian Arabic",
+    # obeyed, and pronounced as noise by an English voice -- and it stops it
+    # in one sentence rather than six.
     return (
-        f"Always answer in {name}, whatever language the question arrives in and "
-        f"whatever language a tool result or a web page is written in. The voice "
-        f"speaking your words is a {name} one and pronounces nothing else, so a "
-        f"reply in another language does not come out as that language -- it comes "
-        f"out as noise. If the user asks for something in another language, say the "
-        f"words but keep the sentence around them {name}."
+        f"Always answer in {name}, whatever language the question or a tool result "
+        f"arrives in; the installed voice pronounces nothing else and anything "
+        "else comes out as noise."
     )
 
 
