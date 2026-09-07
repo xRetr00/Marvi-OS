@@ -1103,7 +1103,7 @@ class MarviVoiceAgent(Agent):
                 "fact or tell you something new, take it in and answer -- do "
                 "not say you will save, update or note it. Use remember or "
                 "forget only when they ask you to, in so many words. "
-                + "You are reading a transcript of speech, not typing. Words may"
+                + "You are reading a transcript of speech, not typing. Words may "
                 "arrive wrong -- names especially, and anything technical: "
                 "'New Ducks' was NeuDocs, 'new dogs' was the same word again. "
                 "When what you heard does not fit what you know, the "
