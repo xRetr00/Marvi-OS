@@ -28,7 +28,9 @@ routing, tool policy, audit, and the future messaging connection.
   can expose destinations and deliver results without changing cron execution.
 - The desktop Cron jobs page exposes agent/fixed mode, model controls, tool
   selection, delivery selection, route details, latest output/error, run-now,
-  pause/resume, and removal.
+  pause/resume, removal, full editing, and review-before-save starter templates.
+- Run now remains available while a job is paused, keeps its timer paused, and
+  uses a long-running desktop request boundary suitable for agent work.
 
 ## Upstream boundary
 

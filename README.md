@@ -59,7 +59,7 @@ Marvi can notice an event, remember it, surface it later, or act when the moment
 - **Control center** — one place for Voice, Chat, Vision, Room, Activity, Cortex, capabilities, and preferences, with visible model health and self-refreshing room devices.
 - **Desktop companion** — an optional lightweight character that mirrors Marvi's live state without getting in the way.
 - **Marvi Cortex** — inspectable memory, identity, relationships, reflections, and autonomous decisions.
-- **Connected world** — accounts, tools, skills, plugins, room devices, and schedules working through one assistant.
+- **Connected world** — accounts, tools, skills, plugins, room devices, and editable scheduled jobs working through one assistant.
 - **Personal expression** — choose the theme, typography, window style, Island placement, speech recognition, and voice.
 
 ## Your space, your rules

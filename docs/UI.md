@@ -560,6 +560,14 @@ tool, the lifecycle event, the time, the active mode, and the exact arguments.
 YOLO executions appear identically to confirmed ones — the mode is a column, not
 a reason to hide a record. Nothing on this view is sent anywhere.
 
+Cronjobs presents the next scheduled job first and distinguishes active, paused,
+and failed jobs. Existing jobs can be reopened in the same editor used to create
+them, including schedule, action/brief, model, tools, delivery, and quiet-hours
+behavior. Run now is an explicit one-off execution and therefore still runs a
+paused job without resuming its timer. The page includes a compact set of local,
+editable templates for common reminders, briefings, reviews, and reflection;
+choosing a template never creates a job until the user reviews and saves it.
+
 ## Capabilities views
 
 The sidebar's fourth group, Capabilities, holds the things Marvi can be
