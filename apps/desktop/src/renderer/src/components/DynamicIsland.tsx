@@ -4,6 +4,7 @@ import type { VoiceState } from '../store/voice-state'
 import { $appearanceStyle } from '../store/appearance'
 import { Orb } from '../orb/Orb'
 import { accentFor, orbStateFor } from '../orb/phase'
+import { announcementSourceLabel } from './island-presentation'
 
 export function DynamicIsland({
   state,
@@ -93,11 +94,16 @@ export function DynamicIsland({
   }
 
   const reactive = state.phase === 'listening' || state.phase === 'speaking'
-  const label = ISLAND_PHASE_LABEL[state.phase]
+  const announcement = state.phase === 'announcing' ? state.announcement : null
+  const label = announcement
+    ? `${announcementSourceLabel(announcement.source)} · NOW`
+    : ISLAND_PHASE_LABEL[state.phase]
+  const caption = announcement?.text ?? state.caption
+  const detail = announcement ? null : state.detail
 
   return (
     <div
-      aria-label={`${label}: ${state.caption}${state.detail ? `. ${state.detail}` : ''}`}
+      aria-label={`${label}: ${caption}${detail ? `. ${detail}` : ''}`}
       className={`dynamic-island island-${state.phase} ${expanded ? 'is-expanded' : 'is-collapsed'}`}
       data-expanded={expanded}
       data-phase={state.phase}
@@ -115,8 +121,8 @@ export function DynamicIsland({
       {expanded ? (
         <div className="island-copy">
           <small>{label}</small>
-          <strong>{state.caption}</strong>
-          {state.detail ? <span>{state.detail}</span> : null}
+          <strong>{caption}</strong>
+          {detail ? <span>{detail}</span> : null}
         </div>
       ) : null}
     </div>

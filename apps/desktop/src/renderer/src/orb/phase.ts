@@ -27,9 +27,9 @@ export const PHASE_ACCENT: Record<AssistantPhase, string> = {
   listening: 'var(--ui-accent)',
   thinking: 'var(--ui-accent)',
   speaking: 'var(--ui-accent)',
-  // Her own colour, used nowhere else, so an unprompted line is recognisable
-  // as one at a glance.
-  announcing: 'var(--ui-announce)',
+  // The weaving motion distinguishes initiative; the hue still belongs to the
+  // selected theme rather than introducing an unrelated global purple.
+  announcing: 'var(--ui-accent)',
   action: 'var(--ui-accent)',
   notification: 'var(--ui-accent)',
   confirmation: 'var(--ui-accent)',

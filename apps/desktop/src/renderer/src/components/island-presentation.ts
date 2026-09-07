@@ -4,6 +4,7 @@ export const ISLAND_ENTER_SECONDS = 0.2
 export const ISLAND_EXIT_SECONDS = 0.13
 export const ISLAND_REDUCED_MOTION_SECONDS = 0.01
 export const ISLAND_AUTO_EXPAND_MS = 1800
+export const ANNOUNCEMENT_GLANCE_MS = 10_000
 
 export function islandHasOrb(state: VoiceState): boolean {
   if (state.phase === 'confirmation') return false
@@ -18,9 +19,24 @@ export function islandInteractionMode(
 }
 
 export function islandPresentationKey(state: VoiceState): string {
+  if (state.phase === 'announcing' && state.announcement) {
+    return `announcement:${state.announcement.id}:${state.announcement.active ? 'active' : 'held'}`
+  }
   if (state.phase === 'confirmation') {
     return `confirmation:${state.confirmation?.token ?? 'empty'}`
   }
   if (state.phase === 'ready' && state.roomEvent) return `room-event:${state.roomEvent.id}`
   return state.phase
+}
+
+export function announcementSourceLabel(source: string): string {
+  const normalized = source.trim().toLowerCase()
+  if (!normalized || normalized === 'marvi') return 'MARVI'
+  if (normalized.includes('reminder') || normalized.startsWith('schedule')) return 'REMINDER'
+  if (normalized.includes('calendar')) return 'CALENDAR'
+  if (normalized.includes('mail')) return 'MAIL'
+  if (normalized.startsWith('room')) return 'ROOM'
+  if (normalized.startsWith('vision')) return 'VISION'
+  const tail = normalized.split(':').at(-1) ?? normalized
+  return tail.replaceAll('_', ' ').slice(0, 14).toUpperCase()
 }
