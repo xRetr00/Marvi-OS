@@ -31,6 +31,10 @@ MIND_MINUTES = 2
 #: no network beyond one DNS lookup -- and a disk filling up is worth knowing
 #: about before the thing that needed the space fails.
 MACHINE_MINUTES = 5
+#: How often a resource reading is taken. Thirty seconds: the readings that
+#: matter are taken on phase changes rather than on this timer, so this only
+#: has to be often enough to draw a line between them.
+ACCOUNTING_SECONDS = 30
 #: How often the foreground app is checked. Shorter than the machine watch:
 #: standing off the GPU is only useful if it happens while the game is still
 #: loading, and `focus.SETTLED_LOOKS` means two of these before it acts.
@@ -99,6 +103,9 @@ class Initiative:
         #: `(easy: bool) -> None` -- tell the room to stand down for a game.
         #: Left unset, the room simply carries on as it always did.
         self.pace_the_room: Any = None
+        #: `accounting.Accountant`, when one is wired. Left unset, nothing is
+        #: recorded and everything else behaves exactly as it did.
+        self.books: Any = None
         # Desktop activity. None is normal -- ActivityWatch is optional, and
         # the mind decides without it exactly as it did before.
         self.activity = activity
@@ -293,6 +300,16 @@ class Initiative:
                 self.pace_the_room(easy)
             except Exception as exc:
                 logger.info("could not pace the room (%s)", str(exc)[:160])
+        if changes and self.books is not None:
+            # The single most useful reading in the file: what she was holding
+            # at the moment a match began, and what she had let go of a minute
+            # later. Taken here rather than on the timer because a thirty
+            # second tick walks straight past both.
+            self.books.told(
+                low_resource=changes[-1].kind == "heavy_app_started",
+                busy_with=str(changes[-1].payload.get("name", "")),
+                moment="game" if changes[-1].kind == "heavy_app_started" else "",
+            )
         for change in changes:
             # `Focus.look` only speaks on a transition -- it holds a candidate
             # still for two looks and returns nothing while the state is
@@ -303,6 +320,13 @@ class Initiative:
                 trusted=True, dedupe=False,
             )
         return {"noticed": len(changes)}
+
+    def run_accounting(self) -> dict[str, Any]:
+        """Take a reading. See `accounting`."""
+        if self.books is None:
+            return {"read": 0}
+        self.books.look()
+        return {"read": 1}
 
     def run_quiet_feeds(self) -> dict[str, Any]:
         """Notice a source that has stopped talking. See `quiet_feeds`.
@@ -579,6 +603,10 @@ class Initiative:
         scheduler.add_job(
             self._guard("machine", self.run_machine), "interval",
             minutes=MACHINE_MINUTES, id="machine", max_instances=1, coalesce=True,
+        )
+        scheduler.add_job(
+            self._guard("accounting", self.run_accounting), "interval",
+            seconds=ACCOUNTING_SECONDS, id="accounting", max_instances=1, coalesce=True,
         )
         scheduler.add_job(
             self._guard("quiet_feeds", self.run_quiet_feeds), "interval",

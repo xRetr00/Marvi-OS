@@ -1050,6 +1050,7 @@ def create_app(
         """
         while clearing:
             clearing.pop().cancel()
+        books.told(phase="announcing" if on else "ready")
         if on:
             runtime_store.assistant = runtime_store.assistant.model_copy(
                 update={**ANNOUNCING, "detail": text[:400] or "Unprompted"}
@@ -1071,6 +1072,16 @@ def create_app(
         clearing.append(timer)
 
     one_shot.on_air = _announcing
+
+    # What she costs, and what she was doing at the time. See `accounting`:
+    # every number needed to explain the game stutter existed the whole time
+    # and nothing was writing any of it down.
+    from .accounting import Accountant
+    from .accounting import plain as _plain_reading
+
+    books = Accountant(paths.root() / "resources.jsonl")
+    books.told(moment="starting")
+
     sidecar: RoomSidecar | None = None
     accounts: ComposioAccounts | None = None
     memory: MemoryRuntime | None = None
@@ -1316,8 +1327,10 @@ def create_app(
         # desktop being killed, and then nothing runs the code that would have
         # stopped anything.
         parent.watch()
+        books.told(moment="")
         if initiative is not None:
             initiative.focus = focus
+            initiative.books = books
             if sidecar is not None:
                 room = sidecar
                 initiative.pace_the_room = lambda easy: room.call(
@@ -1357,6 +1370,11 @@ def create_app(
         try:
             yield
         finally:
+            # Before anything is torn down, so the last line in the ledger says
+            # what she was holding when she went -- which is the line somebody
+            # goes looking for after a machine locks up.
+            with contextlib.suppress(Exception):
+                books.told(moment="closing")
             # The loop watcher first: it is the one thing that would otherwise
             # go on logging about a Gateway that is already shutting down.
             stop_watching.set()
@@ -1742,6 +1760,20 @@ def create_app(
             return {"low_resource": False, "because": "", "app": ""}
         return focus.as_dict()
 
+    @app.get("/resources/now")
+    async def resources_now() -> dict[str, Any]:
+        """A reading taken this second, per process, including video memory.
+
+        The expensive one. Reading per-process video memory means a PowerShell
+        performance counter, so this is the button, not the timer.
+        """
+        return _plain_reading(await run_in_threadpool(books.look, True))
+
+    @app.get("/resources/history")
+    async def resources_history(limit: int = 240) -> dict[str, Any]:
+        """What she has cost, and what she was doing each time."""
+        return {"readings": books.history(limit), "summary": books.summary()}
+
     @app.post("/resources")
     async def hold_resources(request: Request) -> dict[str, Any]:
         """Turn low-resource mode on or off by hand.
@@ -1755,6 +1787,7 @@ def create_app(
             return {"low_resource": False, "because": "", "app": ""}
         body = await request.json()
         state = focus.hold(bool(body.get("low_resource")))
+        books.told(low_resource=state["low_resource"], busy_with=state.get("because", ""))
         # The room is told directly. It is paced on focus *transitions*, and a
         # hand-held mode is not one -- so without this the camera would carry
         # on at full rate through exactly the thing the switch was pressed for.
@@ -1767,6 +1800,7 @@ def create_app(
 
     @app.post("/voice/session-state")
     async def voice_session_state(update: VoiceSessionState) -> dict[str, bool]:
+        books.told(in_call=bool(update.active), phase="listening" if update.active else "ready")
         active = conversation.report(update.active)
         get_logger("mind").info(
             "foreground voice session state changed",
@@ -2308,6 +2342,10 @@ def create_app(
         """
         from . import agent_ready
 
+        books.told(
+            voice_ready=bool(update.get("ready")),
+            moment="warming" if not update.get("ready") else "",
+        )
         agent_ready.set(
             bool(update.get("ready")),
             detail=str(update.get("detail") or ""),
