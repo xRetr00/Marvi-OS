@@ -13669,3 +13669,386 @@ html[data-appearance='claude-code-dark'] .control-row {
 .mind-feeders li {
   flex-wrap: wrap;
 }
+
+/* ===== Resources: what she costs, and what she was doing =====
+   Built around the split rather than the total. "3.2 GB of video memory" is a
+   fact; "3.2 GB of video memory while idle" is a bug report, and the phase
+   label is the whole difference. */
+
+.res-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 20px 22px 32px;
+  overflow-y: auto;
+  height: 100%;
+}
+
+.res-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.res-head h1 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--ui-text-primary);
+}
+
+.res-head p {
+  margin: 4px 0 0;
+  font-size: 11.5px;
+  color: var(--ui-text-secondary);
+}
+
+.res-take {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ui-text-primary);
+  font-size: 11.5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.res-take:hover:not(:disabled) {
+  background: var(--ui-stroke-tertiary);
+}
+
+.res-take:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.res-take svg {
+  width: 13px;
+  height: 13px;
+}
+
+.res-take .is-spinning {
+  animation: res-spin 900ms linear infinite;
+}
+
+@keyframes res-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* What she is doing, stated once and coloured, so the rest of the page has a
+   subject. */
+.res-now {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 14px;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-left: 3px solid var(--res-idle);
+  border-radius: 10px;
+  background: var(--ui-surface-raised, var(--ui-surface));
+}
+
+.res-now.is-call {
+  border-left-color: var(--res-call);
+}
+.res-now.is-talking {
+  border-left-color: var(--res-talking);
+}
+.res-now.is-warming {
+  border-left-color: var(--res-warming);
+}
+.res-now.is-game {
+  border-left-color: var(--res-game);
+}
+.res-now.is-closing {
+  border-left-color: var(--res-closing);
+}
+
+.res-doing {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ui-text-primary);
+}
+
+.res-when {
+  font-size: 11px;
+  color: var(--ui-text-secondary);
+}
+
+.res-bands {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+}
+
+.res-band {
+  padding: 13px 14px;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 11px;
+  background: var(--ui-surface-raised, var(--ui-surface));
+}
+
+.res-band.is-warn {
+  border-color: color-mix(in srgb, var(--ui-danger, #f87171) 45%, transparent);
+}
+
+.res-band header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ui-text-secondary);
+}
+
+.res-band header svg {
+  width: 13px;
+  height: 13px;
+}
+
+.res-band strong {
+  display: block;
+  margin: 8px 0 9px;
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-text-primary);
+}
+
+.res-meter {
+  height: 4px;
+  border-radius: 3px;
+  background: var(--ui-stroke-tertiary);
+  overflow: hidden;
+}
+
+.res-meter span {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--ui-accent, #7dd3fc);
+  transition: width 300ms ease;
+}
+
+.res-band.is-warn .res-meter span {
+  background: var(--ui-danger, #f87171);
+}
+
+.res-band p {
+  margin: 8px 0 0;
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--ui-text-secondary);
+}
+
+.res-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.res-block h2 {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ui-text-secondary);
+}
+
+/* Wide tables scroll inside themselves; the page never scrolls sideways. */
+.res-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 11px;
+}
+
+.res-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.res-table th {
+  padding: 9px 12px;
+  text-align: left;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ui-text-secondary);
+  border-bottom: 1px solid var(--ui-stroke-secondary);
+  white-space: nowrap;
+}
+
+.res-table td {
+  padding: 9px 12px;
+  color: var(--ui-text-primary);
+  border-bottom: 1px solid var(--ui-stroke-tertiary);
+  white-space: nowrap;
+}
+
+.res-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.res-table td.is-heavy {
+  color: var(--res-game);
+  font-weight: 600;
+}
+
+.res-role {
+  display: block;
+  font-weight: 600;
+}
+
+.res-pid,
+.res-share {
+  margin-left: 6px;
+  font-size: 10px;
+  color: var(--ui-text-secondary);
+}
+
+.res-pid {
+  display: block;
+  margin: 2px 0 0;
+}
+
+.res-timeline {
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 96px;
+  padding: 8px 10px;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 11px;
+  background: var(--ui-surface-raised, var(--ui-surface));
+  overflow-x: auto;
+}
+
+.res-tick {
+  flex: 1 0 3px;
+  min-width: 3px;
+  border-radius: 2px 2px 0 0;
+  background: var(--res-idle);
+}
+
+.res-tick.is-call {
+  background: var(--res-call);
+}
+.res-tick.is-talking {
+  background: var(--res-talking);
+}
+.res-tick.is-warming {
+  background: var(--res-warming);
+}
+.res-tick.is-game {
+  background: var(--res-game);
+}
+.res-tick.is-closing {
+  background: var(--res-closing);
+}
+
+.res-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 10.5px;
+  color: var(--ui-text-secondary);
+}
+
+.res-key li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.res-key i {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: var(--res-idle);
+}
+
+.res-key i.is-call {
+  background: var(--res-call);
+}
+.res-key i.is-talking {
+  background: var(--res-talking);
+}
+.res-key i.is-warming {
+  background: var(--res-warming);
+}
+.res-key i.is-game {
+  background: var(--res-game);
+}
+.res-key i.is-closing {
+  background: var(--res-closing);
+}
+
+.res-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--ui-text-secondary);
+}
+
+.res-note svg {
+  flex: 0 0 auto;
+  width: 13px;
+  height: 13px;
+  margin-top: 1px;
+}
+
+.res-empty {
+  margin: 40px auto;
+  max-width: 380px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--ui-text-secondary);
+}
+
+/* One colour per kind of moment. Defined on bare :root so neither theme block
+   is the only definition, then adjusted for dark. */
+:root {
+  --res-idle: #94a3b8;
+  --res-call: #38bdf8;
+  --res-talking: #a78bfa;
+  --res-warming: #fbbf24;
+  --res-game: #fb7185;
+  --res-closing: #64748b;
+}
+
+:root:not([data-theme='light']) {
+  --res-idle: #64748b;
+  --res-call: #7dd3fc;
+  --res-talking: #c4b5fd;
+  --res-warming: #fcd34d;
+  --res-game: #fda4af;
+  --res-closing: #475569;
+}
+
+:root[data-theme='dark'] {
+  --res-idle: #64748b;
+  --res-call: #7dd3fc;
+  --res-talking: #c4b5fd;
+  --res-warming: #fcd34d;
+  --res-game: #fda4af;
+  --res-closing: #475569;
+}

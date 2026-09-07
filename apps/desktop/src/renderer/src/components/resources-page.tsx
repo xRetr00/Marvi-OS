@@ -187,9 +187,7 @@ function Holding({ latest }: { latest: ResourceReading }): React.JSX.Element {
           detail={`the machine as a whole is at ${Math.round(latest.cpu_percent)}%`}
           icon={<Cpu aria-hidden="true" />}
           label="Processor"
-          share={
-            latest.processes.reduce((sum, one) => sum + one.cpu_percent, 0) / 100 / 8
-          }
+          share={latest.processes.reduce((sum, one) => sum + one.cpu_percent, 0) / 100 / 8}
           value={`${Math.round(latest.processes.reduce((sum, one) => sum + one.cpu_percent, 0))}%`}
         />
         <Band
@@ -367,15 +365,15 @@ function ByDoing({ phases }: { phases: ResourcePhase[] }): React.JSX.Element {
       </div>
       <p className="res-note">
         <Activity aria-hidden="true" />
-        Readings are taken every thirty seconds, and immediately whenever what she is doing
-        changes — a call starting, a model loading, a game taking the machine. Those are the
-        ones worth reading.
+        Readings are taken every thirty seconds, and immediately whenever what she is doing changes
+        — a call starting, a model loading, a game taking the machine. Those are the ones worth
+        reading.
       </p>
       <p className="res-note">
         <Gauge aria-hidden="true" />
-        Video memory is only measured when a reading goes looking for it, which costs a
-        Windows performance counter. Press <strong>Read now</strong> for a current figure; a
-        dash means that reading did not ask, never that the answer was zero.
+        Video memory is only measured when a reading goes looking for it, which costs a Windows
+        performance counter. Press <strong>Read now</strong> for a current figure; a dash means that
+        reading did not ask, never that the answer was zero.
       </p>
     </section>
   )
