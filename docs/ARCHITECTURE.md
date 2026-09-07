@@ -1,9 +1,12 @@
 # Architecture
 
-Browser/computer-use follow-on: the [Phase 14 review](phases/14-browser-computer-use.md)
-documents current limitations and proposed local tool-server ownership. It is
-planned, not implemented. In particular, the browser currently checks only its
-initial open URL; it does not enforce a complete browser network boundary.
+The [browser architecture review](BROWSER-ARCHITECTURE-REVIEW.md) documents the
+current singleton headless page, dispatch/timeout paths and missing lifecycle
+contracts. The [browser-only Phase 14 plan](phases/14-browser-computer-use.md)
+proposes a visible persistent browser, user handoff and private login, with
+Browser Use/Harness evaluated first. Electron retains process ownership;
+Gateway owns tasks, profiles' metadata, policy and observations. This is planned,
+not implemented. Computer-use architecture is reviewed only after browser delivery.
 
 ## Outcome
 

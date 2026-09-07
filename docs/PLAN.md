@@ -222,10 +222,16 @@ Full plan in `phases/10-resilience.md`; identity in `IDENTITY.md`.
 
 Full plan in `phases/11-setup.md`.
 
-## Phase 14 — agent browser and computer use (planned)
+## Phase 14 — visible persistent agent browser (planned)
 
-First reconcile browser network/confirmation claims with implementation and
-AGENTS.md. Evaluate a persistent local Playwright MCP browser behind Gateway,
-then Windows-MCP for desktop interaction. Reuse existing file, terminal,
-process, and screen tools. Ship only after real process, takeover, cancellation,
-and target-hardware checks. See the [review and acceptance plan](phases/14-browser-computer-use.md).
+The [architecture review](BROWSER-ARCHITECTURE-REVIEW.md) precedes the
+[browser delivery plan](phases/14-browser-computer-use.md). Deliver a visible
+browser with durable profiles, tabs, acknowledged user/private-login handoff,
+resume and verified file workflows. Evaluate Browser Use/Harness first, reusing
+the existing Chromium infrastructure and Gateway authority.
+
+Order: driver/contract proof; durable workspace; private input; reliable browser
+actions/files; voice/Island integration; hardware qualification and migration.
+The plan defines acceptance tests and explicitly unresolved driver boundaries.
+After browser delivery, review computer use separately with cua-driver and other
+maintained candidates. The earlier Windows-MCP-first direction is superseded.

@@ -1,5 +1,21 @@
 # Implementation Log
 
+## 2026-09-07 — browser architecture review and replacement delivery plan
+
+- Completed a fresh static review before planning: browser/session lifecycle,
+  Gateway dispatch, timeouts, setup, model observations, audit, and desktop seams.
+- Replaced the earlier combined plan with six browser-only milestones centered
+  on a visible workspace, saved profiles, private login, takeover and resume.
+- Evaluated Hermes's browser experience and Browser Use/Harness documentation
+  and source; recorded isolated-environment requirements and unproven execution,
+  observation and cancellation boundaries. No driver installed or selected as
+  production-ready.
+- Deferred computer-use planning until browser delivery; cua-driver and other
+  maintained alternatives will be reviewed then, without preselecting Windows-MCP.
+- Updated architecture, UI, decision, upstream, plan/index and README references.
+  Validation: document-link/status checks and git diff --check. Runtime/hardware
+  tests were not run for this documentation-only milestone.
+
 ## 2026-09-07 — browser and computer-use planning review
 
 - Reviewed current Chromium tools, MCP bridge, confirmation dispatch, screen

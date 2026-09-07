@@ -97,9 +97,11 @@ nightly channel without applying it.
 
 ## The idea behind Marvi
 
-Planned next: a persistent agent browser with tabs and user takeover, followed
-by Windows application control. These extensions are not yet shipped; see the
-[browser and computer-use review and plan](docs/phases/14-browser-computer-use.md).
+Planned next: a visible agent browser with saved profiles, tabs, private login
+handoff and pause/resume. This is not yet shipped. Read the
+[current architecture review](docs/BROWSER-ARCHITECTURE-REVIEW.md) and
+[browser delivery plan](docs/phases/14-browser-computer-use.md). Computer use
+will be reviewed separately after browser delivery.
 
 The best assistant is not the one demanding the most attention. It is the one that is there when needed, stays quiet when not, remembers the right things, and earns the trust required to act.
 

@@ -306,37 +306,36 @@ longer tracked as a memory or mind candidate. Reconsider it only as a foreground
 LLM, and only if cloud-hosted conversation memory becomes something the product
 wants — which today contradicts the local-first contract.
 
-## ADR-017 — The browser is a tool, not an autonomous agent
+## ADR-017 — Browser execution stays behind Gateway
 
-**2026-09-07 review correction:** The historical decision below describes the
-current fixed browser flags, but AGENTS.md is authoritative: Confirm mode must
-let the LLM request confirmation. Reconcile dispatch/tests before extending the
-browser. Also, only the initial `open` URL is checked today; the statement below
-about every navigation is not an implemented guarantee. Untrusted envelopes
-provide provenance, not proof of prompt-injection resistance. The
-[Phase 14 plan](phases/14-browser-computer-use.md) tracks these prerequisites and
-the proposed persistent browser/desktop tool servers; adoption remains planned.
+**Current implementation, reviewed 2026-09-07:** one Playwright Chromium page,
+headless by default, enabled with `MARVI_BROWSER`. Reads are ungated; click/type
+use fixed sensitive flags. Downloads are refused and dialogs dismissed. Only
+the initial open URL is validated; the former claim that every navigation is
+SSRF-guarded was inaccurate. Untrusted envelopes supply provenance, not proof
+of resistance to prompt injection.
 
-**Decision:** browsing is a Playwright-backed session behind the same Gateway
-policy as every other tool. Navigating, reading, listing links, and going back
-are ungated; clicking, typing, and submitting are sensitive and confirmed.
-Downloads and dialogs are refused outright rather than confirmed. The session
-is off unless `MARVI_BROWSER` enables it, and every navigation passes the same
-SSRF guard as `web_fetch`.
+**Required correction:** AGENTS.md is authoritative: the LLM decides when to
+request confirmation; Gateway validates a token for the requested action. YOLO
+bypasses action confirmation. The current fixed browser flags must be reconciled
+in Phase 14, with both HTTP and in-process dispatch tests.
 
-**Reason:** a page is the sharpest injection surface Marvi has, because the
-agent both reads attacker-authored text *and* holds the controls on the same
-surface. Enveloping page content stops the text from becoming instructions;
-gating the controls stops a page from talking Marvi into pressing something.
-Reading stays free so ordinary research is not a confirmation storm.
+**Planned replacement:** a visible native browser workspace, persistent managed
+profiles, tabs, explicit user/private-input handoff and resume. Browser Use/
+Harness is the first driver evaluation; existing Playwright remains the launch
+baseline and fallback. No second autonomous planner or renderer-owned policy.
+Electron supervises processes; Gateway owns task/session state and execution.
 
-Playwright rather than an anti-detect stack such as Camoufox: the cached
-Chromium is already on the machine, and evading bot detection is not a
-behaviour this product should acquire by default.
+Raw Python/JS/CDP execution is not assumed to honor pause, private input or
+exact-action confirmation. Qualify those boundaries before enabling that
+capability; do not substitute a blanket code approval for per-action semantics.
+The [architecture review](BROWSER-ARCHITECTURE-REVIEW.md) and
+[browser-only Phase 14](phases/14-browser-computer-use.md) define the intended
+contract and migration, including explicit dialogs and controlled downloads.
 
-**Deferred:** computer use, multi-tab sessions, and a browsing DSL. The agent
-composes existing steps; a script language can wait until a real workflow
-cannot be expressed without one.
+Computer use is deferred until browser delivery, followed by its own review of
+cua-driver and maintained alternatives. Neither Windows-MCP nor a desktop driver
+is selected by this decision. The prior combined Phase 14 plan is superseded.
 
 ## ADR-015 — External content is contained structurally, not by filtering
 

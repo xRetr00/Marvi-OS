@@ -1,9 +1,12 @@
 # UI Contract
 
-Planned browser/computer controls are specified in
-[Phase 14](phases/14-browser-computer-use.md): compact task status and explicit
-Stop/Take over/Resume actions, with passive background events. These controls
-are not implemented; existing visual and focus rules remain authoritative.
+Planned browser workspace controls are specified in
+[Phase 14](phases/14-browser-computer-use.md): a native visible browser, saved
+profile selection, Browser control view, and Pause/Take over/Private input/
+Resume/Stop. Credentials are entered directly in the website after an acknowledged
+private-input barrier. No new transcript is introduced. These are not implemented.
+The phase explicitly extends the current confirmation-only Island interaction
+rule to bounded browser handoff controls; passive background focus rules remain.
 
 ## Visual identity
 

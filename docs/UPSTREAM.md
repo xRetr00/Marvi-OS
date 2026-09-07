@@ -133,20 +133,31 @@ Marvi-owned adapter.
 
 ## Update procedure
 
-### Browser/computer-use candidates (reviewed 2026-09-07, not adopted)
+### Browser candidates (reviewed 2026-09-07, not adopted)
 
-The [Phase 14 review](phases/14-browser-computer-use.md) recommends evaluating
-[Playwright MCP](https://github.com/microsoft/playwright-mcp) (Apache-2.0) and
-[Windows-MCP](https://github.com/CursorTouch/Windows-MCP) (MIT) unchanged behind
-Gateway adapters. No source was copied and no dependency was added. Version
-pins are intentionally pending the compatibility spike; neither is a production
-dependency. Before adoption, record exact release/commit, dependency licenses,
-managed runtime/browser artifacts, adapter boundary, and update procedure here.
-Use pinned upgrades with real stdio, browser/desktop, cancellation, and recovery
-tests; never deploy the moving `latest` commands shown in upstream quickstarts.
+The [architecture review](BROWSER-ARCHITECTURE-REVIEW.md) precedes the replacement
+[browser-only Phase 14 plan](phases/14-browser-computer-use.md). The following
+revisions were observed with git ls-remote during research; they are reproducible
+candidate references, not installed or qualified production versions.
 
-The review also compares Browser Use, agent-browser, pywinauto, FlaUI, and UFO;
-they remain research candidates, not installed dependencies or approved forks.
+| Source | License | Observed revision | Proposed boundary and update method |
+|---|---|---|---|
+| [Browser Use](https://github.com/browser-use/browser-use) | MIT | `e25ab65e699af3031a1f2d348526de2844be0e89` | First driver evaluation, unchanged CLI in isolated environment; pin qualified release/artifacts before installation, rerun browser/privacy/confirmation boundaries on upgrade. |
+| [Browser Harness](https://github.com/browser-use/browser-harness) | MIT | `eba1021c78dc8c1a4e78f98155396c4fa979b7f0` | Evaluate maintained execution/helper surface, no second CDP implementation; review API changes and rerun session, cancellation and observation tests. |
+| [Hermes Agent](https://github.com/NousResearch/hermes-agent) | MIT | `a7198a8855ad98681114ff5138eb01fe132a62e7` | Product/documentation reference only; no code copied. Recheck visible-browser/profile behavior when revising the design. |
+| [Playwright MCP](https://github.com/microsoft/playwright-mcp) | Apache-2.0 | No new pin; fallback evaluation only | Existing Playwright remains the launcher baseline. If MCP is adopted, record a qualified exact pin and rerun the same workspace/handoff gates. |
+
+Observed manifests: Browser Use 0.13.10 and Browser Harness 0.1.13. Their MCP
+dependencies target 2.1.1, unlike Gateway's `mcp>=1.9,<2`; isolate the driver and
+verify protocol interoperability instead of upgrading Gateway implicitly.
+Before adoption, record hashes, resolved transitive licenses, runtime/browser
+artifacts, any modifications, telemetry settings and rollback procedure here.
+Never use moving `latest` installs in production.
+
+Computer-use selection is deferred until browser acceptance. A future review
+will compare [cua-driver](https://github.com/trycua/cua) and maintained alternatives;
+the earlier Windows-MCP-first recommendation is superseded. No desktop driver
+or Browser Use package was installed by this documentation change.
 
 For each upstream dependency:
 
