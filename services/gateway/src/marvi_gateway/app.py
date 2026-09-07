@@ -1302,6 +1302,14 @@ def create_app(
 
         if embedding.source() == embedding.LOCAL:
             embedding.shared()
+        # And the voice, for the same reason and a worse symptom: the first
+        # announcement after a start cost 140 seconds of CPU loading a 438MB
+        # model, and the first thing worth announcing turned out to be that a
+        # game had begun. See `Announcer.warm`.
+        if announce_enabled():
+            threading.Thread(
+                target=one_shot.warm, name="marvi-voice-warm", daemon=True
+            ).start()
         # Die when the desktop does, however it goes. A clean quit already
         # stops us; what leaves a Gateway holding port 8765 overnight is the
         # desktop being killed, and then nothing runs the code that would have

@@ -292,6 +292,38 @@ class Announcer:
         self._state = threading.Lock()
         self._current: threading.Event | None = None
 
+    def warm(self) -> bool:
+        """Load the voice now, so the first thing she says is not a cold start.
+
+        Measured, twice, on the same twenty-two character line:
+
+            03:19:03 started -> 03:21:24 played   latency 140,615ms
+            03:24:59 started -> 03:25:02 played   latency   3,330ms
+
+        Two and a half minutes against three seconds, and the difference is
+        entirely a 438MB model arriving from disk. It happened at the exact
+        moment a game was loading -- because the first thing worth announcing
+        in days was that a game had started -- so Marvi stood off the GPU and
+        then spent two minutes of CPU saying so. The machine was unusable for
+        the whole of it.
+
+        Loaded at startup instead, on a thread, where two minutes costs
+        nobody anything.
+        """
+        try:
+            self._ensure_model()
+        except Exception as exc:
+            # Best effort. A voice that cannot warm fails the same way it
+            # fails today: on the first announcement, with the fallback.
+            logger.info("could not warm the announcer voice (%s)", str(exc)[:160])
+            return False
+        return True
+
+    @property
+    def cold(self) -> bool:
+        """Whether saying something would mean loading the model first."""
+        return self._model is None
+
     def _ensure_model(self) -> Any:
         if self._model is None:
             cache = pocket_cache_dir()
