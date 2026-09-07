@@ -31,7 +31,7 @@ Marvi is designed to become more useful without becoming more intrusive. She lea
 
 ### Talk without managing the conversation
 
-Start hands-free with your own wake phrase. Marvi listens and responds in real time, keeps hearing you while she speaks, and stops when you interrupt. Choose how she sounds, tune recognition for your language and hardware, or create a personal voice.
+Start hands-free with your own wake phrase. Marvi listens and responds in real time, keeps hearing you while she speaks, and stops when you interrupt. The background wake listener opens no console window; its tray M is blue while listening, green when it hears Marvi, and red if the listener needs attention. Choose how she sounds, tune recognition for your language and hardware, or create a personal voice.
 
 ### Voice first. Chat when the work needs room.
 

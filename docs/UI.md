@@ -38,6 +38,13 @@ scanlines, blur, chromatic aberration, or noise that reduces legibility.
   bootstrapper, sidebar brand, and About view. Package/taskbar assets use a
   consistent safe area, the tray uses a tighter 16–32 px treatment, and the
   renderer uses its own 256 px PNG.
+- The separate always-on wake host uses a purpose-rasterized letter M in its
+  notification-area icon: status blue (`#147EC1`) while listening, success
+  green (`#4DAA72`) for six seconds after the correct wake word is detected,
+  and danger red (`#D85B5B`) when its listener is stopped or reports an error.
+  Its tooltip names the same state and error detail; color is never the only
+  signal. Windows login startup is fully windowless and must not flash or retain
+  a console window.
 - External services use local inline marks from `@thesvg/react` wherever a
   service identity is shown. TheSVG is a brand library, so every generic
   navigation, status, window, and action glyph comes from the pinned Lucide SDK

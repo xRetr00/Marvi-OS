@@ -204,6 +204,10 @@ enabled listener after the updater has replaced its binary, while the updater
 smoke gate refuses a package missing the wake executable or model. A ten-second
 Electron-main heartbeat watchdog also restores a registered listener after a
 whole native process crash; it is gated by the same persisted recovery switch.
+The listener is a Windows GUI-subsystem executable, so login startup never
+creates a console window. Its tray M is blue while listening, briefly green
+after a valid wake, and red for stopped/error state, with matching text
+tooltips. A recovered inference clears its prior transient error indication.
 
 ## Acceptance evidence
 
@@ -225,6 +229,9 @@ whole native process crash; it is gated by the same persisted recovery switch.
 - A repeatedly failing wake listener keeps retrying with a bounded delay, and
   disabling automatic restart leaves it stopped.
 - An updated package is rejected if its wake executable or model is absent.
+- The release wake executable declares Windows GUI subsystem 2, and tray tests
+  prove its blue/listening, green/heard, and red/error M states without the old
+  yellow-ring pixels.
 - Copy diagnostics produces a block containing nothing secret.
 
 ## What is not done

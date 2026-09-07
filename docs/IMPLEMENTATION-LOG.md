@@ -4,6 +4,22 @@ This is the chronological record of work that has actually happened. Planned
 work belongs in `docs/phases/`; architectural decisions belong in
 `docs/DECISIONS.md`.
 
+## 2026-09-07 — Windowless wake host and semantic tray state
+
+- Built the native wake host as a Windows GUI-subsystem executable in every
+  profile, so direct Windows login startup cannot create or retain a console
+  window. The release PE header reports subsystem 2, and the redirected
+  `--autostart status` command still exits successfully with its expected
+  output.
+- Replaced the wake host's yellow ring with a purpose-rasterized letter M:
+  Marvi blue while listening, green for six seconds after a valid “Marvi”
+  detection, and red while the listener is stopped or reporting an error.
+  Matching tooltips keep every state understandable without color.
+- Clear transient detector errors after the next successful inference instead
+  of leaving the tray red over a recovered listener. Added native regression
+  coverage for every icon color, removal of the old yellow, tooltip text, and
+  error-over-detection state precedence.
+
 ## 2026-09-06 — Wake-word crash recovery and update handoff
 
 - Replaced the native listener's permanent three-failure cutoff with indefinite
