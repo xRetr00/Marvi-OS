@@ -20,7 +20,7 @@ import {
   type LucideIcon
 } from 'lucide-react'
 import { UiTooltip } from './ui/tooltip'
-import type { ResourceState } from '@shared/runtime'
+import type { ResourceState } from '../../../shared/runtime'
 
 interface TitleBarProps {
   /** Current nav page, shown in the title text. */
