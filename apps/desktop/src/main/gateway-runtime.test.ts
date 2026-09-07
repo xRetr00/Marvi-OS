@@ -77,6 +77,34 @@ describe('normalizeRuntimeStatus', () => {
     })
   })
 
+  it('maps a retained announcement without replacing the live phase', () => {
+    const normalized = normalizeRuntimeStatus({
+      ...valid,
+      assistant: {
+        ...valid.assistant,
+        phase: 'listening',
+        announcement: {
+          id: 'announcement-1',
+          text: 'The reminder is due.',
+          source: 'schedule:reminder',
+          at: '2026-09-07T06:00:00Z',
+          active: false,
+          expires_at: '2026-09-07T06:00:35Z'
+        }
+      }
+    })
+
+    expect(normalized?.assistant.phase).toBe('listening')
+    expect(normalized?.assistant.announcement).toEqual({
+      id: 'announcement-1',
+      text: 'The reminder is due.',
+      source: 'schedule:reminder',
+      at: '2026-09-07T06:00:00Z',
+      active: false,
+      expiresAt: '2026-09-07T06:00:35Z'
+    })
+  })
+
   it('rejects a malformed room event rather than rendering junk', () => {
     expect(
       normalizeRuntimeStatus({
@@ -134,6 +162,26 @@ describe('reconcileRuntimeStatus', () => {
     expect(reconcileRuntimeStatus(current, gateway).assistant).toMatchObject({
       phase: 'confirmation',
       confirmation
+    })
+  })
+
+  it('reconciles the announcement channel while retaining a local live phase', () => {
+    const current = runtime({ phase: 'listening', caption: 'Listening' })
+    const gateway = runtime({
+      phase: 'ready',
+      announcement: {
+        id: 'announcement-2',
+        text: 'Your parcel arrives today.',
+        source: 'accounts:gmail',
+        at: '2026-09-07T06:01:00Z',
+        active: false,
+        expires_at: null
+      }
+    })
+
+    expect(reconcileRuntimeStatus(current, gateway).assistant).toMatchObject({
+      phase: 'listening',
+      announcement: { id: 'announcement-2', active: false }
     })
   })
 
