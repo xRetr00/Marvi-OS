@@ -81,6 +81,8 @@ class Initiative:
         #: Built on first use, because it holds the last reading and a fresh
         #: one would report every threshold again on every restart.
         self._machine: Any = None
+        #: Notices a feeder that has stopped talking. See `quiet_feeds`.
+        self._quiet_feeds: Any = None
         #: Watches the foreground app and holds the resource mode. Shared with
         #: the route the agent asks before it takes the GPU.
         self.focus: Any = None
@@ -171,10 +173,22 @@ class Initiative:
         minding" looked like from the outside for weeks.
         """
         counts = {}
+        recent: dict[str, list[str]] = {}
         try:
             counts = dict(self.journal.counts_by_source() or {})
+            # What those events actually were.
+            #
+            # "This machine: 2" is a number with nothing behind it, and the
+            # page could not answer the obvious next question. Two summaries
+            # per feeder is enough to recognise them and small enough to ride
+            # the status poll.
+            for row in self.journal.recent(limit=120):
+                key = str(row.get("source") or "")
+                bucket = key.split(":")[0]
+                if len(recent.setdefault(bucket, [])) < 3:
+                    recent[bucket].append(str(row.get("summary") or "")[:120])
         except Exception:
-            counts = {}
+            counts = counts or {}
         rows = [
             ("room", "Room and vision", self.room_state is not None),
             ("machine", "This machine", self._machine is not None),
@@ -190,6 +204,7 @@ class Initiative:
                 # Prefixes, because accounts are journalled as
                 # `accounts:gmail` and the row is about accounts as a whole.
                 "events": sum(n for source, n in counts.items() if source.startswith(key)),
+                "examples": recent.get(key, []),
             }
             for key, label, wired in rows
         ]
@@ -266,6 +281,43 @@ class Initiative:
                 "focus", change.kind, change.summary, change.payload, trusted=True
             )
         return {"noticed": len(changes)}
+
+    def run_quiet_feeds(self) -> dict[str, Any]:
+        """Notice a source that has stopped talking. See `quiet_feeds`.
+
+        Rides the machine watch's interval rather than its own: this fires on
+        the *absence* of events, so there is nothing to be prompt about.
+        """
+        if self.journal is None or self.room_state is None:
+            return {"quiet": 0}
+        if self._quiet_feeds is None:
+            from .quiet_feeds import Watcher
+
+            self._quiet_feeds = Watcher()
+        try:
+            from . import presence, quiet_feeds
+
+            state = (self.room_state() or {}).get("state") or {}
+            if not state:
+                # No room to read. Not the same as a quiet room, and warning
+                # about four silent feeds because the sidecar is down would be
+                # four ways of saying one thing.
+                return {"quiet": 0}
+            ages = quiet_feeds.ages_from(presence.signals(state))
+        except Exception as exc:
+            logger.info("could not check for quiet feeds (%s)", str(exc)[:160])
+            return {"quiet": 0}
+
+        found = self._quiet_feeds.look(ages)
+        for gone in found:
+            self.journal.append(
+                "system",
+                "feed_quiet",
+                gone.sentence(),
+                {"feed": gone.feed.id, "silent_seconds": round(gone.silent_for)},
+                trusted=True,
+            )
+        return {"quiet": len(found)}
 
     def run_machine(self) -> dict[str, Any]:
         """Let the machine notice its own condition. See `machine`.
@@ -498,6 +550,10 @@ class Initiative:
         scheduler.add_job(
             self._guard("machine", self.run_machine), "interval",
             minutes=MACHINE_MINUTES, id="machine", max_instances=1, coalesce=True,
+        )
+        scheduler.add_job(
+            self._guard("quiet_feeds", self.run_quiet_feeds), "interval",
+            minutes=MACHINE_MINUTES, id="quiet_feeds", max_instances=1, coalesce=True,
         )
         scheduler.add_job(
             self._guard("mind", self.run_mind), "interval",

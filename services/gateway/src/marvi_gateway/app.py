@@ -3701,6 +3701,36 @@ def create_app(
         runtime_store.audit("initiative", "mind", changed)
         return InitiativeStatus(**initiative.status())
 
+    @app.post("/mind/waiting/say")
+    async def say_waiting_now(body: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Say a held item now, because the person asked.
+
+        The waiting room holds things until the reason they could not be said
+        has passed, and that is right nearly always -- but "nearly" is why this
+        exists. A summary waiting on a rate-limited model can sit there while
+        the person is looking straight at it, and the only thing standing
+        between them and it is a machine's estimate of a good moment.
+
+        Their asking outranks that estimate. It does not outrank the mute
+        switch: with initiative paused, this still says nothing, because that
+        one was a decision rather than a delay.
+        """
+        if initiative is None or initiative.mind.waiting is None:
+            return {"said": "", "waiting": 0, "error": "the mind is not running"}
+        if initiative.paused:
+            return {
+                "said": "",
+                "waiting": len(initiative.mind.waiting.waiting()),
+                "error": "initiative is switched off",
+            }
+        wanted = str((body or {}).get("summary") or "")
+        said = initiative.mind.say_waiting(wanted)
+        return {
+            "said": said,
+            "waiting": len(initiative.mind.waiting.waiting()),
+            "error": "" if said else "nothing was waiting",
+        }
+
     @app.get("/mind/decisions", response_model=DecisionPage)
     async def mind_decisions(limit: int = 50) -> DecisionPage:
         if journal is None:

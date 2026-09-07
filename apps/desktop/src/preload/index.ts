@@ -17,6 +17,7 @@ import type {
   IdentityStatus,
   InitiativeStatus,
   MindSettingsPatch,
+  SaidWaiting,
   ResourceState,
   McpRegistryPage,
   McpServerRow,
@@ -163,6 +164,8 @@ const marvi = {
     ipcRenderer.invoke('marvi:set-initiative', paused),
   setMindSettings: (patch: MindSettingsPatch): Promise<InitiativeStatus | null> =>
     ipcRenderer.invoke('marvi:set-mind-settings', patch),
+  sayWaiting: (summary: string): Promise<SaidWaiting | null> =>
+    ipcRenderer.invoke('marvi:say-waiting', summary),
   getDecisions: (): Promise<{ decisions: MindDecision[]; events: unknown[] }> =>
     ipcRenderer.invoke('marvi:get-decisions'),
   getUpdateStatus: (): Promise<UpdateStatus> => ipcRenderer.invoke('marvi:get-update-status'),

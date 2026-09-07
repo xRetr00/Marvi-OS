@@ -16,6 +16,7 @@ import type {
   IdentityStatus,
   InitiativeStatus,
   MindSettingsPatch,
+  SaidWaiting,
   ResourceState,
   McpRegistryPage,
   McpServerRow,
@@ -107,6 +108,7 @@ export interface MarviDesktopApi {
   getResources: () => Promise<ResourceState | null>
   setInitiative: (paused: boolean) => Promise<InitiativeStatus | null>
   setMindSettings: (patch: MindSettingsPatch) => Promise<InitiativeStatus | null>
+  sayWaiting: (summary: string) => Promise<SaidWaiting | null>
   getDecisions: () => Promise<{ decisions: MindDecision[]; events: unknown[] }>
   getUpdateStatus: () => Promise<UpdateStatus>
   consumeUpdateResult: () => Promise<UpdateResult | null>

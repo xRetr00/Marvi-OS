@@ -430,6 +430,16 @@ export function MindPage(): React.JSX.Element {
                       ? 'nothing this week'
                       : `${feeder.events}`}
                 </span>
+                {/* What those events were. "This machine: 2" is a number with
+                    nothing behind it, and the page could not answer the
+                    obvious next question. */}
+                {(feeder.examples ?? []).length > 0 && (
+                  <ul className="mind-feeder-examples">
+                    {(feeder.examples ?? []).map((example) => (
+                      <li key={example}>{example}</li>
+                    ))}
+                  </ul>
+                )}
               </li>
             )
           })}

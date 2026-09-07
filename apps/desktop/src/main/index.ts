@@ -1610,6 +1610,21 @@ function startApp(): void {
     // Quiet hours and the rest of the mind's knobs. The Gateway has accepted
     // these since they were written and nothing in the app ever sent them, so
     // "quiet hours" was a constant with a settings endpoint behind it.
+    // Say a held line now, because the person asked. See `pending`: the
+    // waiting room is right nearly always, and "nearly" is why this exists.
+    ipcMain.handle('marvi:say-waiting', async (_event, summary) => {
+      try {
+        const response = await fetch(`${gateway()}/mind/waiting/say`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ summary: typeof summary === 'string' ? summary : '' }),
+          signal: AbortSignal.timeout(20_000)
+        })
+        return response.ok ? await response.json() : null
+      } catch {
+        return null
+      }
+    })
     ipcMain.handle('marvi:set-mind-settings', async (_event, patch) => {
       if (!patch || typeof patch !== 'object') return null
       try {

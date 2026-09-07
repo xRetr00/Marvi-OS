@@ -497,6 +497,12 @@ def spoken(
         return _appointment(event, name, payload)
     if kind == "accounts:github:github":
         return _repository(event, name, payload)
+    if kind == "system:feed_quiet":
+        # The summary is already the sentence -- `quiet_feeds` writes it as one
+        # because the actionable half is the hint ("check Tailscale"), and a
+        # template here could only take that away.
+        said = str(event.get("summary") or "")
+        return f"{_address(name)}{said[0].lower()}{said[1:]}" if said else ""
     if str(event.get("source", "")) == "focus":
         return _stepping_aside(event, name, payload)
     if str(event.get("source", "")) == "machine":

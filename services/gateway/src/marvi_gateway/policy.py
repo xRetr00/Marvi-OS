@@ -33,6 +33,40 @@ def _int_env(name: str, fallback: int, low: int, high: int) -> int:
 # The least intrusive surface that is still useful, most quiet first.
 SURFACES = ("silent", "remember", "activity", "island", "speak", "propose")
 
+#: Events a model may reword but may not silence.
+#:
+#: Deliberation exists to stop Marvi narrating every light change, and it is
+#: right about almost everything. It is not right about these, because these
+#: are the moments the feature exists for -- and it silenced one:
+#:
+#:     23:11:34  Welcome. Shereef isn't here right now.   silent
+#:               not worth interrupting                   openrouter 1583ms
+#:
+#: A welcome that is not said is not a quiet welcome, it is a missing one. The
+#: ceiling table is a person's decision about what matters; a model's job here
+#: is phrasing and the marginal calls, not vetoing the decision itself.
+MUST_BE_SAID: frozenset[str] = frozenset({
+    "room:room_welcome",
+    "room:visitor_report",
+    "room:visitor_photos",
+    "room:room_presence_unverified",
+    "room:alarm_started",
+    "room:alarm_requested",
+    "schedule:reminder",
+    "schedule:insistent_reminder",
+    "machine:disk_critical",
+    "system:feed_quiet",
+    "machine:battery_critical",
+    "focus:heavy_app_started",
+    "focus:heavy_app_ended",
+})
+
+
+def must_be_said(event: dict[str, Any]) -> bool:
+    """Whether deliberation is allowed to silence this one."""
+    return f"{event.get('source')}:{event.get('kind')}" in MUST_BE_SAID
+
+
 DEFAULT_COOLDOWN_SECONDS = 15 * 60
 # Denominated in tokens, not money. Every provider reports tokens in the same
 # way; a plan reports no spend at all, and a local model has no price. A budget
@@ -75,6 +109,11 @@ SURFACE_CEILING: dict[str, str] = {
     # silently is the same as not doing it, from where the person is sitting.
     "focus:heavy_app_started": "speak",
     "focus:heavy_app_ended": "speak",
+    # A source that has gone quiet. Worth saying because the failure shape is
+    # silence: nothing turns red, and the last reading stands there looking
+    # current. Thirteen days of "Phone: HOME" from a stale geofence is what
+    # not saying it costs.
+    "system:feed_quiet": "speak",
     "machine:disk_critical": "speak",
     "machine:disk_low": "island",
     "machine:battery_critical": "speak",

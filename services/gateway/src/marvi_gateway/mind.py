@@ -24,7 +24,15 @@ from typing import Any
 
 from . import salience
 from .journal import EventJournal
-from .policy import SURFACES, InitiativeSettings, Verdict, WorldState, day_start, evaluate
+from .policy import (
+    SURFACES,
+    InitiativeSettings,
+    Verdict,
+    WorldState,
+    day_start,
+    evaluate,
+    must_be_said,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -188,6 +196,39 @@ class Mind:
 
     # -- the turn ------------------------------------------------------------
 
+    def say_waiting(self, summary: str = "") -> str:
+        """Say one held item out loud now. Returns what was said, or "".
+
+        Bypasses the timing rules deliberately -- the person asked, and their
+        asking is better evidence that this is a good moment than any estimate
+        of one. Everything else still applies: it is still phrased by
+        `voicing`, and an untrusted event is still phrased by a template.
+        """
+        if self.waiting is None or self.announcer is None:
+            return ""
+        wanted = summary.strip().lower()
+
+        def mine(event: dict[str, Any]) -> bool:
+            if not wanted:
+                return True
+            return wanted in str(event.get("summary", "")).lower()
+
+        freed = self.waiting.release(mine)
+        if not freed:
+            return ""
+        held = freed[0]
+        event = dict(held.event)
+        event["_waited_because"] = held.explained()
+        line = self._out_loud(event) or event.get("summary", "")
+        if not line:
+            return ""
+        outcome = self.announcer.speak(str(line))
+        logger.info(
+            "said a held item because it was asked for: %r", str(line)[:100],
+            extra={"marvi_played": bool(outcome.get("played"))},
+        )
+        return str(line) if outcome.get("played") else ""
+
     def _waited_for(
         self,
         moment: datetime,
@@ -348,7 +389,15 @@ class Mind:
             # turns the ones it recognises into what a person would say, and
             # returns empty for the rest, so nothing is lost by not knowing.
             sentence = self._out_loud(event) or event["summary"]
-            if not worth.worth_a_model and verdict.surface != "silent":
+            if (
+                not worth.worth_a_model
+                and verdict.surface != "silent"
+                # The same exception as below: repetition is a good reason not
+                # to spend a model call and a bad reason not to say hello. A
+                # welcome is repetitive by nature -- it happens every time you
+                # walk in -- which is exactly what this gate is built to damp.
+                and not must_be_said(event)
+            ):
                 # Recorded, inspectable, and not thought about. The event still
                 # reaches the journal and the activity feed; what it stops
                 # buying is a model call to confirm what arithmetic already
@@ -363,6 +412,17 @@ class Mind:
                 # An LLM may only make a decision quieter, never louder: the
                 # policy ceiling is not something a model gets to argue with.
                 proposed, proposed_detail, tokens = self.deliberate(event, verdict)
+                # ...and it may not silence the handful of things that are the
+                # reason the feature exists. See `policy.MUST_BE_SAID`: a
+                # welcome that is not said is not a quiet welcome, it is a
+                # missing one, and one was silenced as "not worth interrupting".
+                if proposed == "silent" and must_be_said(event):
+                    logger.info(
+                        "deliberation wanted silence on %s; saying it anyway",
+                        f"{event.get('source')}:{event.get('kind')}",
+                        extra={"marvi_event_id": event.get("id", "")},
+                    )
+                    proposed = verdict.surface
                 if SURFACES.index(proposed) <= SURFACES.index(verdict.surface):
                     surface, detail = proposed, proposed_detail
                     # A model may choose how loud, never what is said, when the

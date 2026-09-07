@@ -267,6 +267,8 @@ export interface WaitingItem {
 export interface Feeder {
   id: string
   label: string
+  /** A few of the events it produced, so a count is not the whole answer. */
+  examples?: string[]
   /** Whether it is connected at all, as opposed to merely quiet. */
   wired: boolean
   /** Events it has produced in the last week. Zero on a wired feeder is the
@@ -295,6 +297,14 @@ export interface MindSettingsPatch {
   cooldown_seconds?: number
   daily_token_budget?: number
   speak_when_away?: boolean
+}
+
+/** The answer to asking her to say a held line now. */
+export interface SaidWaiting {
+  /** What she said, or empty when nothing was waiting or she is muted. */
+  said: string
+  waiting: number
+  error: string
 }
 
 export interface InitiativeStatus {

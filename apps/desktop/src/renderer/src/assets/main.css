@@ -13361,3 +13361,70 @@ html[data-appearance='claude-code-dark'] .control-row {
   width: 13px;
   height: 13px;
 }
+
+/* -- Saying a held line, and what a feeder actually saw --------------------- */
+
+.mind-waiting li {
+  position: relative;
+}
+
+.mind-say-now {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  justify-self: start;
+  margin-top: 4px;
+  padding: 3px 8px;
+  border: 1px solid var(--ui-border-subtle);
+  border-radius: 5px;
+  background: none;
+  color: var(--ui-text-tertiary);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 9px;
+}
+
+.mind-say-now:hover:not(:disabled) {
+  border-color: var(--ui-accent);
+  color: var(--ui-accent);
+}
+
+.mind-say-now:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.mind-say-now > svg {
+  width: 10px;
+  height: 10px;
+}
+
+.mind-said-nothing {
+  margin: 8px 0 0;
+  color: #c79b58;
+  font-size: 9px;
+}
+
+/* A count with nothing behind it could not answer the obvious next question. */
+.mind-feeder-examples {
+  grid-column: 1 / -1;
+  width: 100%;
+  margin: 6px 0 0;
+  padding: 6px 0 0;
+  border-top: 1px solid var(--ui-border-subtle);
+  list-style: none;
+}
+
+.mind-feeder-examples li {
+  overflow: hidden;
+  padding: 1px 0;
+  border: none;
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mind-feeders li {
+  flex-wrap: wrap;
+}
