@@ -16,10 +16,10 @@ def test_only_marvis_own_processes_are_counted() -> None:
     from marvi_gateway.accounting import _role
 
     assert _role("claude.exe --type=renderer --standalone-wake", "claude.exe") == ""
-    assert _role("...\wake-host\marvi-wake-host.exe", "marvi-wake-host.exe") == "wake-word"
+    assert _role(r"...\wake-host\marvi-wake-host.exe", "marvi-wake-host.exe") == "wake-word"
     # A common module name only counts from inside the install.
     assert _role("python -m runtime.app", "python.exe") == ""
-    assert _role("...\Marvi-OS\install\python.exe -m runtime.app", "python.exe") == "room"
+    assert _role(r"...\Marvi-OS\install\python.exe -m runtime.app", "python.exe") == "room"
     assert _role("uvicorn marvi_gateway.app:app", "python.exe") == "gateway"
     assert _role("python -m marvi_agent.session start", "python.exe") == "agent"
     assert _role("python -m marvi_tts_voxtream.host", "python.exe") == "tts-voxtream"
