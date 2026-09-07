@@ -6,6 +6,18 @@ export const ISLAND_REDUCED_MOTION_SECONDS = 0.01
 export const ISLAND_AUTO_EXPAND_MS = 1800
 export const ANNOUNCEMENT_GLANCE_MS = 10_000
 
+export function islandDisplayState(state: VoiceState): VoiceState {
+  if (!state.announcement || (state.phase !== 'ready' && state.phase !== 'announcing')) {
+    return state
+  }
+  return {
+    ...state,
+    phase: 'announcing',
+    caption: state.announcement.text,
+    detail: null
+  }
+}
+
 export function islandHasOrb(state: VoiceState): boolean {
   if (state.phase === 'confirmation') return false
   return state.phase !== 'ready' || Boolean(state.roomEvent)

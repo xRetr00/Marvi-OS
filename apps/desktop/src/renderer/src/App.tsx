@@ -67,6 +67,7 @@ import {
   ISLAND_ENTER_SECONDS,
   ISLAND_EXIT_SECONDS,
   ISLAND_REDUCED_MOTION_SECONDS,
+  islandDisplayState,
   islandHasOrb,
   islandInteractionMode,
   islandPresentationKey
@@ -6612,16 +6613,7 @@ function IslandSurface(): React.JSX.Element {
   const [hoverExpanded, setHoverExpanded] = useState(false)
   // A retained announcement rides beside the live phase. It may reclaim the
   // idle Island, but never covers an active call or confirmation.
-  const showAnnouncement =
-    Boolean(voice.announcement) && (voice.phase === 'ready' || voice.phase === 'announcing')
-  const islandState: VoiceState = showAnnouncement
-    ? {
-        ...voice,
-        phase: 'announcing',
-        caption: voice.announcement?.text ?? voice.caption,
-        detail: null
-      }
-    : voice
+  const islandState = islandDisplayState(voice)
   const hasOrb = islandHasOrb(islandState)
   const interactionMode = islandInteractionMode(islandState)
   const presentationKey = islandPresentationKey(islandState)
