@@ -1411,6 +1411,102 @@ def prewarm(proc: JobProcess) -> None:
     # this function.
     _state["warm"] = True
     _announce_ready()
+    _stand_aside_for_games(proc)
+
+
+#: Whether the watcher below is already running in this process.
+_STANDING_ASIDE = threading.Event()
+
+
+def _let_the_game_have_the_card(proc: JobProcess) -> None:
+    """Give the speech models' VRAM back. They reload when the game is over.
+
+    Measured on this machine, idle, nobody having spoken to Marvi:
+
+        marvi_agent.session      3,179 MB
+        marvi_tts_voxtream.host  1,859 MB
+                                 -------
+                                 5,038 MB of a 12 GB card
+
+    That is why FC 26 was fine in the lobby and stuttered the moment a match
+    loaded. The menus fit in the seven gigabytes left over; a stadium does
+    not, and once the game asks for more than the card has, the driver starts
+    moving textures across PCIe every frame.
+
+    Nothing released any of it. `low_resource` deferred *prewarm*, which only
+    helps when the game starts before Marvi does -- and Marvi is always-on, so
+    by the time a game launches the models have been resident for hours.
+
+    The job path rebuilds whatever it does not find (`build_session` falls
+    back to `build_tts`, `_recogniser` to `build_stt`, and loads its own VAD),
+    so releasing costs a slow first call, not a broken one.
+    """
+    from . import voice_models
+
+    listener = proc.userdata.pop("stt", None)
+    proc.userdata.pop("stt_model", None)
+    if listener is not None:
+        with contextlib.suppress(Exception):
+            listener.release()
+    proc.userdata.pop("tts", None)
+    proc.userdata.pop("tts_engine", None)
+    proc.userdata.pop("tts_voice", None)
+    proc.userdata.pop("vad", None)
+    closed = voice_models.release_sidecars()
+    # Explicitly, because the point of this is the VRAM and not the objects.
+    # `release()` drops the last reference to an ONNX session and refcounting
+    # usually frees it there and then -- usually, and a cycle anywhere in the
+    # graph turns "usually" into "at the next collection", which during a match
+    # is too late to be the difference between fitting on the card and not.
+    import gc
+
+    gc.collect()
+    log.info("gave the GPU back: recogniser released, %d TTS sidecar(s) closed", closed)
+
+
+def should_give_the_card_back(warm: bool, busy: bool) -> bool:
+    """Whether this process should release its models right now.
+
+    Both, and the `warm` half is the safety one. `_pool_is_busy` clears it in
+    the process a call has taken, so an unset `warm` means either somebody is
+    speaking through these models or they are already released -- and unloading
+    a recogniser mid-sentence is a worse outage than the one this prevents.
+    """
+    return warm and busy
+
+
+def _stand_aside_for_games(proc: JobProcess) -> None:
+    """Watch for a game taking the machine, and get out of its VRAM.
+
+    Only from the idle warm process. `_pool_is_busy` clears `warm` in the
+    process that a call has taken, so this never unloads a model somebody is
+    speaking through.
+    """
+    if _STANDING_ASIDE.is_set():
+        return
+    _STANDING_ASIDE.set()
+
+    # Not `watch`: `quiet.watch` is an async coroutine awaited from
+    # `marvi_session`, and a blocking local of the same name makes the
+    # loop-blocking scan read one as the other. Two different things called
+    # the same thing in one module is the confusion, not the test.
+    def keep_an_eye_on_the_card() -> None:
+        while True:
+            time.sleep(STAND_DOWN_POLL)
+            busy, because = _gpu_is_spoken_for() if _state["warm"] else (False, "")
+            if not should_give_the_card_back(bool(_state["warm"]), busy):
+                continue
+            log.info("%s wants the card; releasing the speech models", because or "something")
+            _let_the_game_have_the_card(proc)
+            _state["warm"] = False
+            _report_ready(False, f"{because or 'a game'} has the GPU")
+            # Blocks until the game is gone, then loads again -- and sets
+            # `warm` and announces on its way out.
+            prewarm(proc)
+
+    threading.Thread(
+        target=keep_an_eye_on_the_card, name="marvi-stand-aside", daemon=True
+    ).start()
 
 
 #: How long to wait between asking whether the game has finished.

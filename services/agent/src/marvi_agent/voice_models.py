@@ -637,6 +637,27 @@ class SidecarTTS(KokoroTTS):
         return [str(item["id"]) for item in _tts_catalog()[self.engine_id].get("voices", ())]
 
 
+def release_sidecars() -> int:
+    """Close every TTS sidecar and forget it. Returns how many went.
+
+    A sidecar is a separate process holding a model in VRAM -- voxtream was
+    measured at 1,859 MB of a 12 GB card, resident from launch to shutdown
+    whether or not anybody had spoken to Marvi that day. `shared()` reclaims
+    the ones it replaces; nothing reclaimed the one in use, because being in
+    use is not the same as being needed.
+
+    Forgotten as well as closed, so the next `shared()` builds a fresh one
+    rather than handing back a handle to a process that has been killed.
+    """
+    with _ENGINE_LOCK:
+        held = list(_SIDECARS.values())
+        _SIDECARS.clear()
+    for engine in held:
+        with contextlib.suppress(Exception):
+            engine.close()
+    return len(held)
+
+
 def build_tts(engine: str = "kokoro", voice: str = "") -> KokoroTTS | SidecarTTS:
     selected = resolve_engine(engine)
     wanted_voice = voice or default_voice(selected)

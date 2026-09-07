@@ -486,3 +486,66 @@ def test_a_stalled_gateway_does_not_grow_the_queue_forever(monkeypatch) -> None:
     from marvi_agent import session
 
     assert session._REPORTS.maxsize > 0
+
+
+def test_a_game_gets_the_vram_back(monkeypatch) -> None:
+    """Standing down used to mean "do not load", never "let go".
+
+    Measured on the running machine, idle, nobody having spoken to Marvi:
+
+        marvi_agent.session      3,179 MB VRAM   1,005 MB RAM
+        marvi_tts_voxtream.host  1,859 MB VRAM   2,298 MB RAM
+
+    Five gigabytes of a 12 GB card, held from launch to shutdown. FC 26's
+    menus fit in what was left and a match did not, which is exactly the
+    lobby-fine / match-stutters split that was reported.
+
+    `low_resource` only ever deferred *prewarm*, so it helped in the one case
+    that never happens -- the game starting before Marvi -- and did nothing in
+    the case that always does.
+    """
+    from marvi_agent import session as agent_session
+
+    released: list[str] = []
+
+    class Listener:
+        model = "parakeet"
+
+        def release(self) -> None:
+            released.append("stt")
+
+    class Proc:
+        userdata = {
+            "stt": Listener(),
+            "stt_model": "parakeet",
+            "tts": object(),
+            "tts_engine": "voxtream2",
+            "tts_voice": "english-female",
+            "vad": object(),
+        }
+
+    monkeypatch.setattr(
+        "marvi_agent.voice_models.release_sidecars", lambda: released.append("tts") or 1
+    )
+
+    agent_session._let_the_game_have_the_card(Proc())
+
+    assert released == ["stt", "tts"]
+    # Nothing left holding the card, and nothing left that `build_session`
+    # would mistake for a warm model it can reuse.
+    assert Proc.userdata == {}
+
+
+def test_a_call_in_progress_keeps_its_models() -> None:
+    """The watcher must never unload a model somebody is speaking through.
+
+    `_pool_is_busy` clears `warm` in the process a call has taken, so `warm`
+    separates the idle prewarmed process from a working one. A game wanting
+    the card is not a reason to cut somebody off mid-sentence.
+    """
+    from marvi_agent.session import should_give_the_card_back
+
+    assert should_give_the_card_back(warm=True, busy=True)
+    assert not should_give_the_card_back(warm=False, busy=True), "a call is using these"
+    assert not should_give_the_card_back(warm=True, busy=False)
+    assert not should_give_the_card_back(warm=False, busy=False)
