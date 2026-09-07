@@ -6,9 +6,10 @@
  * interactive child opts out with no-drag. Double-click on the drag region
  * toggles maximize, matching Windows shell expectations.
  */
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { haptic } from '../lib/haptics'
 import {
+  Gauge,
   PanelLeftClose,
   PanelLeftOpen,
   Power,
@@ -19,6 +20,7 @@ import {
   type LucideIcon
 } from 'lucide-react'
 import { UiTooltip } from './ui/tooltip'
+import type { ResourceState } from '@shared/runtime'
 
 interface TitleBarProps {
   /** Current nav page, shown in the title text. */
@@ -72,6 +74,7 @@ export function TitleBar({
       </div>
       <div className="titlebar-spacer" />
       <div className="titlebar-controls no-drag">
+        <LowResourceButton />
         <UiTooltip label={hapticsMuted ? 'Unmute haptics' : 'Mute haptics'} side="bottom">
           <button
             aria-label={hapticsMuted ? 'Unmute haptics' : 'Mute haptics'}
@@ -154,5 +157,125 @@ function GuardedLifecycleButton({
         <Icon aria-hidden="true" />
       </button>
     </UiTooltip>
+  )
+}
+
+
+/**
+ * Low-resource mode, and a switch for the times it cannot see the reason.
+ *
+ * Marvi turns this on herself when a fullscreen window appears or the card
+ * goes under load, which catches games and misses everything else -- a long
+ * export, a compile, a model training in a terminal window. Rather than grow
+ * a list of applications she is supposed to recognise, this says it directly.
+ *
+ * The hand switch adds to the automatic one, it does not override it: while a
+ * game is actually detected the mode stays on whatever this says, because a
+ * switch that silently stops working is worse than one that explains itself.
+ */
+function LowResourceButton(): React.JSX.Element {
+  const [state, setState] = useState<ResourceState | null>(null)
+  const [explaining, setExplaining] = useState(false)
+  const [working, setWorking] = useState(false)
+  const card = useRef<HTMLDivElement>(null)
+
+  const read = useCallback(async () => {
+    setState((await window.marvi?.getResources()) ?? null)
+  }, [])
+
+  useEffect(() => {
+    void read()
+    // Ten seconds: this changes when a game opens, not continuously, and the
+    // agent's own poll is thirty. A title bar that repaints every second is
+    // something a person notices out of the corner of their eye.
+    const timer = window.setInterval(() => void read(), 10_000)
+    return () => window.clearInterval(timer)
+  }, [read])
+
+  useEffect(() => {
+    if (!explaining) return
+    const away = (event: MouseEvent): void => {
+      if (!card.current?.contains(event.target as Node)) setExplaining(false)
+    }
+    const escape = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setExplaining(false)
+    }
+    window.addEventListener('mousedown', away)
+    window.addEventListener('keydown', escape)
+    return () => {
+      window.removeEventListener('mousedown', away)
+      window.removeEventListener('keydown', escape)
+    }
+  }, [explaining])
+
+  const on = Boolean(state?.low_resource)
+  const automatic = Boolean(state?.automatic)
+  const byHand = Boolean(state?.by_hand)
+
+  const toggle = async (): Promise<void> => {
+    setWorking(true)
+    haptic(byHand ? 'selection' : 'warning')
+    const next = await window.marvi?.holdResources(!byHand)
+    if (next) setState(next)
+    setWorking(false)
+  }
+
+  return (
+    <div className="titlebar-lowres" ref={card}>
+      <UiTooltip
+        label={on ? `Standing aside for ${state?.because || 'something'}` : 'Low-resource mode'}
+        side="bottom"
+      >
+        <button
+          aria-expanded={explaining}
+          aria-label="Low-resource mode"
+          aria-pressed={on}
+          className={`titlebar-control lowres${on ? ' is-on' : ''}`}
+          onClick={() => {
+            haptic('tap')
+            setExplaining((open) => !open)
+          }}
+          type="button"
+        >
+          <Gauge aria-hidden="true" />
+        </button>
+      </UiTooltip>
+
+      {explaining ? (
+        <div className="lowres-card" role="dialog" aria-label="Low-resource mode">
+          <header>
+            <h3>Low-resource mode</h3>
+            <span className={`lowres-pill${on ? ' is-on' : ''}`}>{on ? 'On' : 'Off'}</span>
+          </header>
+          <p>
+            Marvi gets out of the way of whatever else is using this machine. She hands back
+            the speech models she is holding on the graphics card, slows the room camera right
+            down, and stops thinking out loud unless it matters.
+          </p>
+          <p className="lowres-note">
+            She still talks. Announcements keep working, so you hear anything worth hearing
+            while you are busy.
+          </p>
+          <p className="lowres-why">
+            {automatic
+              ? `On automatically — ${state?.because} has the machine. It goes off on its own when that closes.`
+              : byHand
+                ? 'On because you asked. Turn it off when you are done.'
+                : 'Off. She turns it on herself for a game; switch it on here for anything she would not recognise — an export, a compile, a model training.'}
+          </p>
+          <button
+            className="lowres-switch"
+            disabled={working}
+            onClick={() => void toggle()}
+            type="button"
+          >
+            {byHand ? 'Turn it off' : 'Turn it on'}
+          </button>
+          {automatic && !byHand ? (
+            <p className="lowres-foot">A game has it on regardless; this adds to that.</p>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
   )
 }

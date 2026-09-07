@@ -1585,6 +1585,21 @@ function startApp(): void {
     // Whether something else should have the GPU right now -- a game, usually.
     // See `focus.py`: the agent asks this before it prewarms, and the Overview
     // says so, because standing down silently is the same as not standing down.
+    ipcMain.handle('marvi:hold-resources', async (_event, on: boolean) => {
+      try {
+        const response = await fetch(`${gateway()}/resources`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ low_resource: Boolean(on) }),
+          signal: AbortSignal.timeout(5_000)
+        })
+        if (!response.ok) return null
+        return await response.json()
+      } catch {
+        return null
+      }
+    })
+
     ipcMain.handle('marvi:get-resources', async () => {
       try {
         const response = await fetch(`${gateway()}/resources`, {

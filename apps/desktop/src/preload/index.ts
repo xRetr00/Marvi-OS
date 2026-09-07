@@ -160,6 +160,8 @@ const marvi = {
     ipcRenderer.invoke('marvi:room-command', tool, args),
   getInitiative: (): Promise<InitiativeStatus | null> => ipcRenderer.invoke('marvi:get-initiative'),
   getResources: (): Promise<ResourceState | null> => ipcRenderer.invoke('marvi:get-resources'),
+  holdResources: (on: boolean): Promise<ResourceState | null> =>
+    ipcRenderer.invoke('marvi:hold-resources', on),
   setInitiative: (paused: boolean): Promise<InitiativeStatus | null> =>
     ipcRenderer.invoke('marvi:set-initiative', paused),
   setMindSettings: (patch: MindSettingsPatch): Promise<InitiativeStatus | null> =>

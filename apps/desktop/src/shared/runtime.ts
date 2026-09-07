@@ -286,6 +286,10 @@ export interface ResourceState {
   /** What has it, said the way she would say it: "FC 26". */
   because: string
   app: string
+  /** Held on from the title bar, for something Marvi cannot recognise. */
+  by_hand?: boolean
+  /** The watcher has it on regardless -- so the hand switch cannot clear it. */
+  automatic?: boolean
 }
 
 /** The mind's knobs. Every one of them changes how often Marvi speaks, so

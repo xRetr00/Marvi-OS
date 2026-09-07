@@ -106,6 +106,7 @@ export interface MarviDesktopApi {
   ) => Promise<{ status: string; error?: string; token?: string | null }>
   getInitiative: () => Promise<InitiativeStatus | null>
   getResources: () => Promise<ResourceState | null>
+  holdResources: (on: boolean) => Promise<ResourceState | null>
   setInitiative: (paused: boolean) => Promise<InitiativeStatus | null>
   setMindSettings: (patch: MindSettingsPatch) => Promise<InitiativeStatus | null>
   sayWaiting: (summary: string) => Promise<SaidWaiting | null>
