@@ -55,6 +55,9 @@ SUPERSEDE_SIMILARITY = 0.7
 #: share almost every word and mean the opposite.
 MIN_WORDS_TO_SUPERSEDE = 4
 
+#: Below this, an identical body is a coincidence rather than a duplicate.
+IDENTICAL_ENOUGH_CHARS = 12
+
 #: How far back to look. Recent facts are the ones being corrected; a scan of
 #: the whole store on every write is a table scan on the hot path.
 SUPERSEDE_SCAN = 50
@@ -422,6 +425,28 @@ class MemoryStore:
         # that stays current rather than thirty that pile up.
         if series and (previous := self._same_series(series)):
             return self._replace(previous, subject, body, kind, source, trusted, series)
+        # Word-for-word the same sentence is the same memory, whatever else
+        # differs. This runs before every other test because every other test
+        # had a reason to let one of these through:
+        #
+        #     349 episodic  Friday match            The user is participating in a Friday match...
+        #     352 episodic  Shereef's Friday match  The user is participating in a Friday match...
+        #     239 semantic  Shereef's keyboard      Got a Logitech keyboard.
+        #     354 semantic  Shereef's keyboard      Got a Logitech keyboard.
+        #
+        # The first pair is episodic, and `_supersedes` deliberately leaves
+        # episodic memories alone -- two moments are not a contradiction. The
+        # second is three significant words, below the floor that stops "likes
+        # tea" replacing "likes coffee". Both reasons are right in general and
+        # neither survives the bodies being identical: what happened is that
+        # the model wrote the fact, then wrote it again eight seconds later
+        # having renamed the subject from "User's X" to "Shereef's X".
+        #
+        # Nothing is lost by merging, because there is nothing in one that is
+        # not in the other. The newer subject wins, which is the one the model
+        # settled on.
+        if previous := self._same_words(body):
+            return self._replace(previous, subject, body, kind, source, trusted, series)
         if kind == "semantic" and (previous := self._supersedes(body, source, trusted)):
             return self._replace(previous, subject, body, kind, source, trusted)
         cursor = self._db.execute(
@@ -463,6 +488,29 @@ class MemoryStore:
             (series,),
         ).fetchone()
         return int(row["id"]) if row else None
+
+    def _same_words(self, body: str) -> int | None:
+        """An existing memory whose body is this one, character for character.
+
+        Source and trust are not consulted. An imported fact and a learned one
+        have different provenance and the same sentence -- and holding both
+        means recall returns the sentence twice, which is the only thing the
+        reader actually notices.
+        """
+        wanted = " ".join(body.split()).casefold()
+        if len(wanted) < IDENTICAL_ENOUGH_CHARS:
+            # "Yes." matching "yes" is not a duplicate fact, it is two things
+            # too short to have been worth storing.
+            return None
+        # Compared in Python rather than SQL because "the same sentence" means
+        # after collapsing whitespace, and expressing that as nested `replace`
+        # calls gets it subtly wrong in exactly the cases it exists for.
+        for row in self._db.execute(
+            "SELECT id, body FROM memories ORDER BY id DESC LIMIT ?", (SUPERSEDE_SCAN,)
+        ):
+            if " ".join((row["body"] or "").split()).casefold() == wanted:
+                return int(row["id"])
+        return None
 
     def _supersedes(self, body: str, source: str, trusted: bool) -> int | None:
         """The id of the fact this one corrects, or None if it is new.
@@ -937,6 +985,36 @@ class MemoryStore:
                     continue
                 found.append(entry)
                 seen.add(entry["id"])
+        # A memory that restates the question outranks every memory that
+        # answers it, because it is phrased like the question:
+        #
+        #     Q: do you know what game I play?
+        #     356  0.7233  "The user is asking about things related to a game,
+        #                   but the specific game is not yet known."
+        #     185  0.5913  "The user plays EA Sports FC 26 on PC using a PS5
+        #                   controller."
+        #
+        # She read her own note saying she did not know, and said she did not
+        # know -- with the answer sitting four places below it, under the same
+        # subject. Then `reinforce` strengthened the note for winning, so it
+        # won harder next time.
+        #
+        # `remembering` refuses to write these now, but a store keeps what it
+        # was given for as long as it exists, and the next phrasing the model
+        # invents will not be in that pattern either. So recall refuses to
+        # return them as well: a fact about the conversation is never the
+        # answer to a question asked in it.
+        from .remembering import NARRATES_THE_EXCHANGE
+
+        answers = [
+            entry for entry in found if not NARRATES_THE_EXCHANGE.search(entry.get("body") or "")
+        ]
+        if len(answers) != len(found):
+            log.info(
+                "ignored %d recalled memor(y/ies) that described the conversation",
+                len(found) - len(answers),
+            )
+            found = answers
         if not found:
             return []
         self.reinforce([entry["id"] for entry in found])
