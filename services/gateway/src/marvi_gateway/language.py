@@ -189,12 +189,24 @@ def architecture() -> str:
     # run, what each one owns", and reading it is one tool call. That is the
     # same trade `advertise` makes for every other skill, and the reason this
     # can be a sentence is that the long answer is a `skill_read` away.
-    return (
-        f"You hear through a local recogniser set to {heard} and speak through a "
-        f"local voice that only pronounces {speaks}; there is no other voice "
-        "installed. If asked to switch, say that in one sentence and offer the "
-        "chat window rather than agreeing."
-    )
+    # One line. The rest is a `skill_read` away.
+    #
+    # This was 762 characters explaining what to say when somebody asks her to
+    # speak another language -- a question that comes up perhaps once a month,
+    # sitting in front of every turn about the weather. The compressed version
+    # was still 259, and still carried its own instructions about how to
+    # decline.
+    #
+    # What survives is the fact, because a fact she cannot look up mid-sentence
+    # has to be resident: there is one voice and it speaks one language. What
+    # to *do* about it is behaviour, and behaviour that is needed once a month
+    # belongs where the other once-a-month behaviour lives: the `marvi-agent`
+    # skill, under "The voice, and why you cannot switch language", one tool
+    # call away. That section was written when this line was cut -- the
+    # behaviour was not documented anywhere else, and moving it out of the
+    # prompt without moving it into a skill would simply have lost it.
+    del heard
+    return f"Your voice speaks only {speaks}; there is no other installed."
 
 
 def reply_instruction() -> str:
