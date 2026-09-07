@@ -39,6 +39,12 @@ JUNK = [
     ("User's sleep mode request",
      "The user asked to activate a sleep mood, and the assistant confirmed it "
      "was already done."),
+    # The progressive form, which the past tense alone missed. This was kept
+    # as a memory: a note that says it does not know the thing it is about is
+    # a transcript of a moment of confusion, not a fact about the world.
+    ("Shereef's games",
+     "The user is asking about things related to a game, but the specific "
+     "game is not yet known."),
     ("User asking about something new",
      "The user said 'Yes, I was asking about the new new new' which indicates "
      "they were inquiring about something new."),
@@ -56,6 +62,10 @@ REAL = [
      "Marvi runs as four local processes: Desktop, Gateway, Agent and Sidecar."),
     ("The user's keyboard", "The user owns a Keychron K2 keyboard."),
     ("The user's schedule", "The user starts work at 4am on Fridays."),
+    # Present tense about the world, which the progressive-form rule must not
+    # eat: "is participating" is a fact, "is asking" is not.
+    ("Shereef's Friday match",
+     "The user is participating in a Friday match, likely football."),
     # A dry run over the real store caught these with a broader pattern. Both
     # are facts *about* the assistant rather than narration of something it
     # said, and losing them is the cost of matching the word "assistant"

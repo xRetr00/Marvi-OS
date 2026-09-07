@@ -239,6 +239,17 @@ NARRATES_THE_EXCHANGE = re.compile(
     # what this matches and nothing wider.
     r"\bthe (?:user|assistant) (?:said|asked|replied|responded|confirmed"
     r"|mentioned|stated|indicated|greeted|told)\b"
+    # The progressive forms, which the past tense alone missed. This one got
+    # through and was kept as a memory:
+    #
+    #   Shereef's games | "The user is asking about things related to a game,
+    #                     but the specific game is not yet known."
+    #
+    # A note that says it does not know the thing it is about is not a fact
+    # about the world; it is a transcript of a moment of confusion.
+    r"|\bthe (?:user|assistant) (?:is|was|has been) (?:asking|telling|saying"
+    r"|talking|referring|wondering|inquiring)\b"
+    r"|\b(?:is |are )?not (?:yet )?(?:known|clear|specified|determined)\b"
     r"|\b(?:which|this) indicates\b"
     r"|\bmarvi (?:interpreted|responded|replied|said)\b",
     re.IGNORECASE,

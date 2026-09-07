@@ -250,6 +250,10 @@ export interface MindDecision {
   detail: string
   provider: string
   latency_ms: number
+  /** Time spent *saying* it, kept apart from time spent deciding: a slow
+   *  voice used to read as slow thinking, and reported 142 seconds against a
+   *  deliberation that took 1.5. */
+  said_ms?: number
   cost: number
 }
 

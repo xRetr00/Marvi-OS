@@ -494,6 +494,9 @@ export function MindPage(): React.JSX.Element {
                     ? 'no model'
                     : decision.provider.split('/')[0]}{' '}
                   · {decision.latency_ms.toFixed(0)}ms
+                  {decision.said_ms && decision.said_ms > 500
+                    ? ` · spoke ${(decision.said_ms / 1000).toFixed(1)}s`
+                    : ''}
                 </span>
               </li>
             ))}

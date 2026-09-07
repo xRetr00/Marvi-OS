@@ -478,6 +478,18 @@ class Mind:
                         event["summary"], body, source=event["source"]
                     )
 
+            # Deciding is over; saying it is a different cost.
+            #
+            # `latency` used to span the whole loop body, so it included the
+            # announcer playing the audio -- and reported 142 seconds against
+            # "FC 26 started" on a page whose column reads "what it cost to
+            # decide". The deliberation had taken 1.5 seconds; the other 141
+            # were a text-to-speech run competing with the game she was
+            # standing aside for, which is a real problem and a completely
+            # different one.
+            decided_in = (time.perf_counter() - started) * 1000
+            said_started = time.perf_counter()
+
             spoken = ""
             if surface == "speak" and self.announcer is not None:
                 outcome = self.announcer.speak(sentence)
@@ -489,7 +501,8 @@ class Mind:
                     surface = "island"
                     detail = f"{detail} (speech unavailable)".strip()
 
-            latency = (time.perf_counter() - started) * 1000
+            latency = decided_in
+            said_in = (time.perf_counter() - said_started) * 1000
             decision_id = self.journal.record_decision(
                 trigger=event["summary"],
                 surface=surface,
@@ -515,6 +528,7 @@ class Mind:
                     "marvi_provider": provider,
                     "marvi_tokens": tokens,
                     "marvi_latency_ms": round(latency, 2),
+                    "marvi_said_ms": round(said_in, 2),
                 },
             )
 
@@ -525,6 +539,8 @@ class Mind:
                 "rule": verdict.rule,
                 "detail": detail,
                 "latency_ms": round(latency, 2),
+                # Kept apart so a slow voice never reads as slow thinking.
+                "said_ms": round(said_in, 2),
             }
             decisions.append(record)
             if surface not in ("silent", "remember"):
