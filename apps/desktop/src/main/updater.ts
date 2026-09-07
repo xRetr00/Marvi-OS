@@ -28,6 +28,12 @@ const MARKER_FILE = '.marvi-update-in-progress'
 const RESULT_FILE = '.marvi-update-result.json'
 const CHANNEL_FILE = '.marvi-update-channel'
 const BOOTSTRAP_EXE = 'marvi-bootstrap.exe'
+export const UPDATE_FLAG = '--update'
+
+/** A packaged launch can be a terminal request routed through Electron. */
+export function requestsUpdate(argv: readonly string[]): boolean {
+  return argv.includes(UPDATE_FLAG)
+}
 
 /** Maximum age (ms) after which an in-progress marker is considered stale. */
 const STALE_AFTER_MS = 2 * 60 * 60 * 1000

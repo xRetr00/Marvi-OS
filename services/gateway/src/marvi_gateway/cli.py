@@ -625,6 +625,64 @@ def cmd_crashes(_args: argparse.Namespace) -> int:
     return 0
 
 
+# -- application updates --------------------------------------------------------
+
+
+def cmd_update(args: argparse.Namespace) -> int:
+    """Check and hand off to the same updater used by the main window."""
+    from . import updates
+
+    root = repo_root()
+    bootstrap = updates.bootstrap_path()
+    desktop = updates.desktop_path(root)
+    if bootstrap is None or desktop is None or not (root / ".git").exists():
+        print(
+            "This installation cannot self-update. The packaged desktop, bootstrap, "
+            "and git checkout are all required.",
+            file=sys.stderr,
+        )
+        return 1
+
+    selected_channel = updates.channel()
+    print(f"Checking the {selected_channel} channel ...")
+    result = updates.check(bootstrap, root, selected_channel)
+    if result.get("error"):
+        print(f"Update check failed: {result['error']}", file=sys.stderr)
+        return 1
+
+    current = str(result.get("current") or "")[:8]
+    target = str(result.get("target") or "")[:8]
+    target_ref = str(result.get("targetRef") or target or "latest")
+    if result.get("upToDate"):
+        print(f"Marvi is up to date ({target_ref}, {current}).")
+        return 0
+    if not result.get("available"):
+        print("No applicable update was found.", file=sys.stderr)
+        return 1
+
+    behind = int(result.get("behindBy") or 0)
+    print(f"Update available: {current or 'current'} -> {target_ref} ({target or 'unknown'})")
+    if behind:
+        print(f"  {behind} commit{'s' if behind != 1 else ''}")
+    for commit in list(result.get("commits") or [])[:5]:
+        if isinstance(commit, dict):
+            print(f"  {str(commit.get('sha') or '')[:8]}  {commit.get('summary') or ''}")
+    if args.check:
+        return 0
+
+    print("\nMarvi will close, apply the update in the bootstrap window, then reopen.")
+    if not args.yes and not _confirm("Update now?"):
+        print("Update cancelled.")
+        return 0
+    try:
+        updates.launch(desktop, root)
+    except OSError as exc:
+        print(f"Could not start the update: {exc}", file=sys.stderr)
+        return 1
+    print("Update started. Progress will appear in the Marvi Bootstrap window.")
+    return 0
+
+
 # -- entry point ------------------------------------------------------------------
 
 
@@ -722,6 +780,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     crashes = sub.add_parser("crashes", help="unclean exits Marvi recorded")
     crashes.set_defaults(handler=cmd_crashes)
+
+    update_cmd = sub.add_parser("update", help="check and apply a Marvi OS update")
+    update_cmd.add_argument("--check", action="store_true", help="check without applying")
+    update_cmd.add_argument("--yes", "-y", action="store_true", help="do not ask before applying")
+    update_cmd.set_defaults(handler=cmd_update)
 
     return parser
 

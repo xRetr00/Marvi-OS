@@ -67,6 +67,7 @@ import {
   consumeUpdateResult,
   getUpdateChannel,
   resolveBootstrap,
+  requestsUpdate,
   setUpdateChannel,
   startUpdate,
   updateInProgress,
@@ -1278,6 +1279,27 @@ const WAKE_FLAG = '--wake'
  *  once it is ready. A join cannot be requested before there is a window. */
 let launchedByWake = process.argv.includes(WAKE_FLAG)
 
+/** Start the repository-owned bootstrap and make quitting part of the handoff. */
+function requestApplicationUpdate(): boolean {
+  const root = findRepoRoot()
+  if (!root) return false
+  const updateDir = updateStateDir(process.env['LOCALAPPDATA'])
+  const started = startUpdate(
+    {
+      installRoot: root,
+      channel: getUpdateChannel(updateDir),
+      desktopPid: process.pid,
+      relaunchExe: process.execPath
+    },
+    resolveBootstrap(updateDir)
+  )
+  if (started) {
+    isQuitting = true
+    setTimeout(() => app.quit(), 250)
+  }
+  return started
+}
+
 function requestWakeJoin(): void {
   showMainWindow()
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -1291,6 +1313,10 @@ if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
   app.on('second-instance', (_event, argv) => {
+    if (requestsUpdate(argv)) {
+      requestApplicationUpdate()
+      return
+    }
     if (argv.includes(WAKE_FLAG)) {
       requestWakeJoin()
       return
@@ -1307,6 +1333,10 @@ if (!app.requestSingleInstanceLock()) {
 function startApp(): void {
   app.whenReady().then(() => {
     app.setAppUserModelId('ai.neuretro.marvi-os')
+    // `marvi update` launches the packaged executable with this private flag.
+    // Hand off before starting services or creating windows when Marvi was
+    // closed; an existing instance reaches the branch above instead.
+    if (requestsUpdate(process.argv) && requestApplicationUpdate()) return
     petPreferences = loadPetPreferences()
 
     // Marvi's own pages may use the microphone; nothing else may, and no page
@@ -1561,26 +1591,7 @@ function startApp(): void {
       return checkForUpdate(root, channel, bootstrap)
     })
     ipcMain.handle('marvi:start-update', () => {
-      const root = findRepoRoot()
-      if (!root) return false
-      const stateDir = updateStateDir(process.env['LOCALAPPDATA'])
-      const bootstrap = resolveBootstrap(stateDir)
-      const started = startUpdate(
-        {
-          installRoot: root,
-          channel: getUpdateChannel(stateDir),
-          desktopPid: process.pid,
-          relaunchExe: process.execPath
-        },
-        bootstrap
-      )
-      if (started) {
-        // The bootstrap waits for this process to exit before touching the
-        // checkout, so quitting is part of the handoff, not a side effect.
-        isQuitting = true
-        setTimeout(() => app.quit(), 250)
-      }
-      return started
+      return requestApplicationUpdate()
     })
     // Whether something else should have the GPU right now -- a game, usually.
     // See `focus.py`: the agent asks this before it prewarms, and the Overview

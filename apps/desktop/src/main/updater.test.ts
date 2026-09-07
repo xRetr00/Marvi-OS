@@ -8,11 +8,19 @@ import {
   consumeUpdateResult,
   getUpdateChannel,
   handoffCommand,
+  requestsUpdate,
   setUpdateChannel,
   startUpdate,
   updateInProgress,
   updateStateDir
 } from './updater'
+
+describe('terminal update launch intent', () => {
+  it('recognises only the explicit update flag', () => {
+    expect(requestsUpdate(['Marvi-OS.exe', '--update'])).toBe(true)
+    expect(requestsUpdate(['Marvi-OS.exe', '--wake'])).toBe(false)
+  })
+})
 
 function workspace(): string {
   return mkdtempSync(join(tmpdir(), 'marvi-update-'))
