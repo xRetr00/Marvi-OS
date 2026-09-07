@@ -1,3 +1,5 @@
+#![cfg_attr(windows, windows_subsystem = "windows")]
+
 //! Marvi's wake word, as a program rather than a Python process.
 //!
 //! It had been `pythonw.exe -m marvi_agent.wake_daemon`: a windowless
@@ -301,6 +303,10 @@ fn listen(quit: &dyn Fn() -> bool) -> Result<(), Box<dyn std::error::Error>> {
             let hop: Vec<i16> = pending.drain(..HOP_SAMPLES).collect();
             match detector.push(&hop) {
                 Ok(Some(score)) => {
+                    // A later successful inference proves a transient error
+                    // has cleared. Leaving the old text in wake.json would
+                    // leave the tray M red forever over a healthy listener.
+                    report.error.clear();
                     report.confidence = score;
                     let ready = last_fired.is_none_or(|at| at.elapsed() >= DEBOUNCE);
                     if score >= limit && ready {
@@ -319,7 +325,9 @@ fn listen(quit: &dyn Fn() -> bool) -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 // Not "heard nothing" -- "cannot say yet". See `Detector::push`.
-                Ok(None) => {}
+                Ok(None) => {
+                    report.error.clear();
+                }
                 Err(error) => {
                     // A single bad hop -- transient ONNX Runtime trouble, not
                     // a structural failure -- must not end wake-word detection
@@ -414,25 +422,101 @@ mod tray {
 
     static QUIT: AtomicBool = AtomicBool::new(false);
 
-    /// Marvi's mark, drawn rather than loaded: one file fewer to ship and to
-    /// lose. A filled ring on transparent, which is what the orb reads as at
-    /// sixteen pixels.
-    fn icon() -> Option<Icon> {
-        const SIZE: u32 = 32;
-        let mut rgba = Vec::with_capacity((SIZE * SIZE * 4) as usize);
-        let centre = (SIZE as f32 - 1.0) / 2.0;
-        for y in 0..SIZE {
-            for x in 0..SIZE {
-                let distance = ((x as f32 - centre).powi(2) + (y as f32 - centre).powi(2)).sqrt();
-                // Antialiased edges, because a hard-edged circle at this size
-                // reads as a polygon in the tray.
-                let outer = (14.0 - distance).clamp(0.0, 1.0);
-                let inner = (distance - 8.0).clamp(0.0, 1.0);
-                let alpha = (outer * inner * 255.0) as u8;
-                rgba.extend_from_slice(&[0xE8, 0x8C, 0x3A, alpha]);
+    const HEARD_GREEN_FOR: std::time::Duration = std::time::Duration::from_secs(6);
+
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    enum TrayState {
+        Listening,
+        Armed,
+        Error,
+    }
+
+    impl TrayState {
+        fn rgb(self) -> [u8; 3] {
+            match self {
+                // Marvi's restrained status blue, success green, and danger
+                // red. Color is paired with the tooltip below, never the only
+                // indication of state.
+                Self::Listening => [0x14, 0x7E, 0xC1],
+                Self::Armed => [0x4D, 0xAA, 0x72],
+                Self::Error => [0xD8, 0x5B, 0x5B],
             }
         }
-        Icon::from_rgba(rgba, SIZE, SIZE).ok()
+
+        fn tooltip(self, detail: &str) -> String {
+            match self {
+                Self::Listening => "Marvi wake word — listening".into(),
+                Self::Armed => "Marvi wake word — heard “Marvi”".into(),
+                Self::Error if !detail.trim().is_empty() => {
+                    format!("Marvi wake word — error: {}", detail.trim())
+                }
+                Self::Error => "Marvi wake word — error; restarting".into(),
+            }
+        }
+    }
+
+    fn visual_state(worker_running: bool, report: Option<&marvi_wake_host::state::State>) -> TrayState {
+        if !worker_running || report.is_some_and(|state| !state.error.trim().is_empty()) {
+            return TrayState::Error;
+        }
+        let recently_heard = report
+            .and_then(|state| state.heard_at)
+            .is_some_and(|at| {
+                let age = marvi_wake_host::state::now() - at;
+                age >= 0.0 && age <= HEARD_GREEN_FOR.as_secs_f64()
+            });
+        if recently_heard {
+            TrayState::Armed
+        } else {
+            TrayState::Listening
+        }
+    }
+
+    fn distance_to_segment(px: f32, py: f32, ax: f32, ay: f32, bx: f32, by: f32) -> f32 {
+        let dx = bx - ax;
+        let dy = by - ay;
+        let length_squared = dx * dx + dy * dy;
+        let t = if length_squared == 0.0 {
+            0.0
+        } else {
+            (((px - ax) * dx + (py - ay) * dy) / length_squared).clamp(0.0, 1.0)
+        };
+        ((px - (ax + t * dx)).powi(2) + (py - (ay + t * dy)).powi(2)).sqrt()
+    }
+
+    fn icon_rgba(state: TrayState) -> Vec<u8> {
+        const SIZE: u32 = 32;
+        const STROKE_RADIUS: f32 = 2.35;
+        const EDGE: f32 = 1.0;
+        let color = state.rgb();
+        let strokes = [
+            (6.5, 26.0, 6.5, 6.0),
+            (6.5, 6.0, 16.0, 18.0),
+            (16.0, 18.0, 25.5, 6.0),
+            (25.5, 6.0, 25.5, 26.0),
+        ];
+        let mut rgba = Vec::with_capacity((SIZE * SIZE * 4) as usize);
+        for y in 0..SIZE {
+            for x in 0..SIZE {
+                let px = x as f32 + 0.5;
+                let py = y as f32 + 0.5;
+                let distance = strokes
+                    .iter()
+                    .map(|&(ax, ay, bx, by)| distance_to_segment(px, py, ax, ay, bx, by))
+                    .fold(f32::INFINITY, f32::min);
+                let alpha = ((STROKE_RADIUS + EDGE - distance).clamp(0.0, EDGE) * 255.0) as u8;
+                rgba.extend_from_slice(&[color[0], color[1], color[2], alpha]);
+            }
+        }
+        rgba
+    }
+
+    /// A purpose-drawn M stays readable after Windows scales the 32 px tray
+    /// asset down to 16 px. It is generated locally and changes color with the
+    /// listener state; no asset or font can go missing at login.
+    fn icon(state: TrayState) -> Option<Icon> {
+        const SIZE: u32 = 32;
+        Icon::from_rgba(icon_rgba(state), SIZE, SIZE).ok()
     }
 
     pub fn run(
@@ -473,10 +557,11 @@ mod tray {
         menu.append(&autostart_item)?;
         menu.append(&quit_item)?;
 
-        let _tray = TrayIconBuilder::new()
-            .with_tooltip("Marvi — listening for her name")
+        let initial_state = TrayState::Listening;
+        let tray = TrayIconBuilder::new()
+            .with_tooltip(initial_state.tooltip(""))
             .with_menu(Box::new(menu))
-            .with_icon(icon().ok_or("could not build the tray icon")?)
+            .with_icon(icon(initial_state).ok_or("could not build the tray icon")?)
             .build()?;
 
         let quit_id = quit_item.id().clone();
@@ -501,6 +586,8 @@ mod tray {
         let mut worker_started = std::time::Instant::now();
         let mut backoff = marvi_wake_host::restart::Backoff::new();
         let mut restart_at: Option<std::time::Instant> = None;
+        let mut shown_state = initial_state;
+        let mut visual_poll = std::time::Instant::now() - std::time::Duration::from_secs(1);
 
         let receiver = MenuEvent::receiver();
         while !QUIT.load(Ordering::Relaxed) {
@@ -535,6 +622,18 @@ mod tray {
                     worker = Some(spawn_worker(listen));
                     worker_started = std::time::Instant::now();
                     restart_at = None;
+                }
+            }
+            if visual_poll.elapsed() >= std::time::Duration::from_millis(500) {
+                visual_poll = std::time::Instant::now();
+                let report = marvi_wake_host::state::read();
+                let next = visual_state(worker.is_some(), report.as_ref());
+                if next != shown_state {
+                    tray.set_icon(icon(next));
+                    tray.set_tooltip(Some(next.tooltip(
+                        report.as_ref().map(|state| state.error.as_str()).unwrap_or(""),
+                    )))?;
+                    shown_state = next;
                 }
             }
             let mut message: MSG = unsafe { std::mem::zeroed() };
@@ -588,6 +687,37 @@ mod tray {
             let _ = handle.join();
         }
         Ok(())
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn the_tray_mark_is_an_m_in_semantic_colors() {
+            for (state, color) in [
+                (TrayState::Listening, [0x14, 0x7E, 0xC1]),
+                (TrayState::Armed, [0x4D, 0xAA, 0x72]),
+                (TrayState::Error, [0xD8, 0x5B, 0x5B]),
+            ] {
+                let pixels = icon_rgba(state);
+                assert_eq!(pixels.len(), 32 * 32 * 4);
+                assert!(pixels.chunks_exact(4).any(|pixel| {
+                    pixel[0..3] == color && pixel[3] == 255
+                }));
+                // The old yellow ring must not survive in any state.
+                assert!(!pixels.chunks_exact(4).any(|pixel| {
+                    pixel[0..3] == [0xE8, 0x8C, 0x3A] && pixel[3] != 0
+                }));
+            }
+        }
+
+        #[test]
+        fn visual_state_has_text_equivalents_for_color() {
+            assert!(TrayState::Listening.tooltip("").contains("listening"));
+            assert!(TrayState::Armed.tooltip("").contains("heard"));
+            assert!(TrayState::Error.tooltip("microphone stopped").contains("microphone stopped"));
+        }
     }
 }
 

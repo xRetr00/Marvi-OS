@@ -13,14 +13,14 @@
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// Written this often, comfortably inside the staleness window the Gateway
 /// applies. A listener that stops writing is one that died.
 pub const HEARTBEAT: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// One firing, kept so true and false ones can be told apart afterwards.
-#[derive(Serialize, Default, Clone)]
+#[derive(Deserialize, Serialize, Default, Clone)]
 pub struct Detection {
     pub at: f64,
     pub confidence: f32,
@@ -30,7 +30,7 @@ pub struct Detection {
 /// small enough that the state file stays a state file.
 pub const RECENT_DETECTIONS: usize = 30;
 
-#[derive(Serialize, Default)]
+#[derive(Deserialize, Serialize, Default)]
 pub struct State {
     pub pid: u32,
     pub running: bool,
@@ -136,6 +136,11 @@ pub fn clear_stop_request() {
 
 pub fn stop_requested() -> bool {
     stop_path().is_file()
+}
+
+pub fn read() -> Option<State> {
+    let text = std::fs::read_to_string(path()).ok()?;
+    serde_json::from_str(&text).ok()
 }
 
 impl State {
