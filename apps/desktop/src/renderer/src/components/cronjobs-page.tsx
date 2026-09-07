@@ -18,11 +18,12 @@
  * fetched the same way `auxiliary-settings` fetches them -- on demand, when a
  * provider is chosen, because listing models reaches the provider's API.
  */
-import { Bot, ChevronDown, Cpu, Plus, Terminal, X } from 'lucide-react'
+import { Bot, ChevronDown, Cpu, LayoutTemplate, Plus, Terminal, X } from 'lucide-react'
 import React, { useCallback, useEffect, useState } from 'react'
 
-import type { ModelCard, NewSchedule, SchedulePage } from '../../../shared/runtime'
+import type { ModelCard, NewSchedule, SchedulePage, ScheduleRow } from '../../../shared/runtime'
 import { ScheduleCards } from './schedule-cards'
+import { editableWhen, SCHEDULE_TEMPLATES, type ScheduleTemplate } from './schedule-templates'
 import { WhenPicker } from './when-picker'
 
 /** What each kind of job is, in the words somebody choosing would need. */
@@ -48,8 +49,14 @@ const KINDS = [
 export function CronjobsPage(): React.JSX.Element {
   const [page, setPage] = useState<SchedulePage | null>(null)
   const [open, setOpen] = useState(false)
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [formKey, setFormKey] = useState(0)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [actionBusy, setActionBusy] = useState<{
+    id: number
+    action: 'remove' | 'enable' | 'disable' | 'run'
+  } | null>(null)
 
   const [name, setName] = useState('')
   const [when, setWhen] = useState('')
@@ -113,12 +120,79 @@ export function CronjobsPage(): React.JSX.Element {
     id: number,
     choice: 'remove' | 'enable' | 'disable' | 'run'
   ): Promise<void> => {
-    const next = await window.marvi?.scheduleAction(id, choice)
-    if (next) setPage(next)
-    else void refresh()
+    setError('')
+    setActionBusy({ id, action: choice })
+    try {
+      const next = await window.marvi?.scheduleAction(id, choice)
+      if (next) setPage(next)
+      else {
+        setError(choice === 'run' ? 'The job could not be started. Check Gateway status and try again.' : 'That change was not saved.')
+        void refresh()
+      }
+    } finally {
+      setActionBusy(null)
+    }
   }
 
-  const create = async (): Promise<void> => {
+  const resetForm = (body: NewSchedule = { name: '', when: '', mode: 'action' }): void => {
+    setName(body.name)
+    setWhen(body.when)
+    setMode(body.mode ?? 'action')
+    setMessage(body.message ?? '')
+    setAction(body.action ?? '')
+    setPrompt(body.prompt ?? '')
+    setInsist(body.insist ?? false)
+    setProvider(body.provider ?? '')
+    setModel(body.model ?? '')
+    setEffort(body.effort ?? '')
+    setDelivery(body.delivery ?? 'local')
+    setToolNames(body.tool_names ?? [])
+    setFormKey((current) => current + 1)
+  }
+
+  const openNew = (): void => {
+    setError('')
+    setEditingId(null)
+    resetForm()
+    setOpen(true)
+  }
+
+  const useTemplate = (template: ScheduleTemplate): void => {
+    setError('')
+    setEditingId(null)
+    resetForm(template.schedule)
+    setOpen(true)
+  }
+
+  const edit = (row: ScheduleRow): void => {
+    setError('')
+    setEditingId(row.id)
+    resetForm({
+      name: row.name,
+      when: editableWhen(row),
+      mode: row.mode,
+      message: row.message,
+      action: row.action,
+      prompt: row.prompt,
+      insist: row.insist,
+      provider: row.provider,
+      model: row.model,
+      effort: row.effort,
+      delivery: row.delivery,
+      tool_names: row.tool_names,
+      repeat_count: row.repeat_count
+    })
+    if (row.provider) void loadModels(row.provider)
+    setOpen(true)
+  }
+
+  const closeForm = (): void => {
+    setOpen(false)
+    setEditingId(null)
+    setError('')
+  }
+
+  const save = async (): Promise<void> => {
     setError('')
     setBusy(true)
     const body: NewSchedule = {
@@ -129,19 +203,18 @@ export function CronjobsPage(): React.JSX.Element {
       ...(mode === 'action' ? { message, action: action || undefined } : { prompt }),
       ...(mode === 'agent' ? { provider, model, effort, tool_names: toolNames, delivery } : {})
     }
-    const next = await window.marvi?.addSchedule(body)
+    const next = editingId
+      ? await window.marvi?.updateSchedule(editingId, body)
+      : await window.marvi?.addSchedule(body)
     setBusy(false)
     if (!next) {
-      setError('Marvi would not accept that. Check the time — "every day at 08:00" works.')
+      setError(
+        `Marvi would not ${editingId ? 'save those changes' : 'accept that'}. Check the time — "every day at 08:00" works.`
+      )
       return
     }
     setPage(next)
-    setOpen(false)
-    setName('')
-    setWhen('')
-    setMessage('')
-    setPrompt('')
-    setInsist(false)
+    closeForm()
   }
 
   const ready = Boolean(name && when && (mode === 'action' ? true : prompt.trim()))
@@ -157,7 +230,7 @@ export function CronjobsPage(): React.JSX.Element {
             whole task she reads and works through on her own.
           </p>
         </div>
-        <button className="cron-new" onClick={() => setOpen(!open)} type="button">
+        <button className="cron-new" onClick={open ? closeForm : openNew} type="button">
           {open ? <X aria-hidden="true" /> : <Plus aria-hidden="true" />}
           {open ? 'Cancel' : 'New job'}
         </button>
@@ -167,8 +240,33 @@ export function CronjobsPage(): React.JSX.Element {
         <p className="cron-warn">The scheduler is not running, so nothing here will fire.</p>
       )}
 
+      <section aria-label="Cron job templates" className="cron-templates">
+        <div className="cron-templates-head">
+          <LayoutTemplate aria-hidden="true" />
+          <div>
+            <h3>Start from a template</h3>
+            <p>Pick one, adjust the details, then save it as your own job.</p>
+          </div>
+        </div>
+        <div className="cron-template-list">
+          {SCHEDULE_TEMPLATES.map((template) => (
+            <button key={template.id} onClick={() => useTemplate(template)} type="button">
+              <span>
+                <strong>{template.label}</strong>
+                <small>{template.schedule.mode === 'agent' ? 'AGENT' : 'FIXED'}</small>
+              </span>
+              <em>{template.description}</em>
+            </button>
+          ))}
+        </div>
+      </section>
+
       {open && (
         <section className="cron-form">
+          <div className="cron-form-head">
+            <span>{editingId ? 'EDIT JOB' : 'NEW JOB'}</span>
+            <strong>{editingId ? name || 'Untitled job' : 'Review before saving'}</strong>
+          </div>
           {/* The explanation the old form never gave. Choosing wrong is not
               obvious until the job runs and does nothing like what you meant. */}
           <div className="cron-kinds">
@@ -209,7 +307,7 @@ export function CronjobsPage(): React.JSX.Element {
             {/* A picker rather than a text box with a grammar behind it. See
                 `when-picker`: the obvious thing to type was rejected, and so
                 was every example this form used to offer. */}
-            <WhenPicker onChange={setWhen} value={when} />
+            <WhenPicker key={formKey} onChange={setWhen} value={when} />
           </div>
 
           {mode === 'action' ? (
@@ -373,10 +471,10 @@ export function CronjobsPage(): React.JSX.Element {
           <button
             className="cron-create"
             disabled={!ready || busy}
-            onClick={() => void create()}
+            onClick={() => void save()}
             type="button"
           >
-            {busy ? 'Creating…' : 'Create job'}
+            {busy ? (editingId ? 'Saving…' : 'Creating…') : editingId ? 'Save changes' : 'Create job'}
           </button>
         </section>
       )}
@@ -387,7 +485,12 @@ export function CronjobsPage(): React.JSX.Element {
           on her own.
         </p>
       ) : (
-        <ScheduleCards onAct={(id, choice) => void act(id, choice)} rows={jobs} />
+        <ScheduleCards
+          busy={actionBusy}
+          onAct={(id, choice) => void act(id, choice)}
+          onEdit={edit}
+          rows={jobs}
+        />
       )}
     </div>
   )

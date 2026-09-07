@@ -1954,10 +1954,18 @@ function startApp(): void {
         body: JSON.stringify(body)
       })
     )
+    ipcMain.handle('marvi:update-schedule', (_event, id, body) =>
+      gatewayJson(`/schedules/${encodeURIComponent(String(id))}`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ updates: body })
+      })
+    )
     ipcMain.handle('marvi:schedule-action', (_event, id, action) =>
       gatewayJson(
         `/schedules/${encodeURIComponent(String(id))}/${encodeURIComponent(String(action))}`,
-        { method: 'POST' }
+        { method: 'POST' },
+        action === 'run' ? 10 * 60_000 : 10_000
       )
     )
     ipcMain.handle('marvi:get-plugins', () => gatewayJson('/plugins'))

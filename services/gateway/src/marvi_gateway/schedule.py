@@ -668,7 +668,9 @@ class Scheduler:
             job = self.store.get(schedule_id)
         except ScheduleError as exc:
             return {"ok": False, "detail": str(exc)}
-        if not job.enabled:
+        # Pausing controls automatic dispatch, not the explicit Run now action.
+        # The dashboard and model tool are both user-initiated manual runs.
+        if not job.enabled and source == "schedule":
             return {"ok": True, "detail": "disabled", "skipped": True}
         with self._claim_lock:
             if schedule_id in self._running:

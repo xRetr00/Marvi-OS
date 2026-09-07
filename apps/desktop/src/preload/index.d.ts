@@ -35,6 +35,7 @@ import type {
   UsagePage,
   RoomEvent,
   RuntimeStatus,
+  NewSchedule,
   SchedulePage,
   ServiceReport,
   SetupPage,
@@ -208,6 +209,7 @@ export interface MarviDesktopApi {
     delivery?: string
     repeat_count?: number | null
   }) => Promise<SchedulePage | null>
+  updateSchedule: (id: number, body: NewSchedule) => Promise<SchedulePage | null>
   scheduleAction: (
     id: number,
     action: 'remove' | 'enable' | 'disable' | 'run'

@@ -36,6 +36,7 @@ import type {
   UsagePage,
   RoomEvent,
   RuntimeStatus,
+  NewSchedule,
   SchedulePage,
   ServiceReport,
   SetupPage,
@@ -309,6 +310,8 @@ const marvi = {
     delivery?: string
     repeat_count?: number | null
   }): Promise<SchedulePage | null> => ipcRenderer.invoke('marvi:add-schedule', body),
+  updateSchedule: (id: number, body: NewSchedule): Promise<SchedulePage | null> =>
+    ipcRenderer.invoke('marvi:update-schedule', id, body),
   scheduleAction: (
     id: number,
     action: 'remove' | 'enable' | 'disable' | 'run'

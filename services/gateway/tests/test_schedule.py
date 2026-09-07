@@ -117,6 +117,25 @@ def test_a_disabled_schedule_does_not_fire(store, tmp_path) -> None:
         journal.close()
 
 
+def test_run_now_fires_a_paused_schedule_without_resuming_it(store, tmp_path) -> None:
+    """Pause stops the timer; it must not disable the explicit Run now control."""
+    from marvi_gateway.journal import EventJournal
+
+    journal = EventJournal(tmp_path / "journal.sqlite3")
+    made = store.add("paused reminder", "remind", "cron", "0 7 * * *", "Run me once")
+    store.set_enabled(made.id, False)
+
+    try:
+        outcome = Scheduler(store, journal=journal).fire(made.id, source="dashboard")
+
+        assert outcome["ok"] is True
+        assert outcome.get("skipped") is not True
+        assert store.get(made.id).enabled is False
+        assert journal.recent(limit=10)[0]["summary"] == "Run me once"
+    finally:
+        journal.close()
+
+
 def test_a_failing_schedule_is_recorded_against_itself_not_raised(store) -> None:
     made = store.add("needs a journal", "remind", "cron", "0 7 * * *")
     # No journal wired: the failure belongs to this schedule, and the scheduler

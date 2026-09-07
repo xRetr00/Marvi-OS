@@ -56,7 +56,9 @@ export function WhenPicker({
   const [time, setTime] = useState('09:00')
   const [day, setDay] = useState('monday')
   const [minutes, setMinutes] = useState(30)
-  const [typing, setTyping] = useState(false)
+  // Existing jobs and templates arrive with a complete expression. Preserve
+  // it on mount instead of replacing it with the default daily picker value.
+  const [typing, setTyping] = useState(Boolean(value))
 
   // The picker owns the field while it is being used, and lets go the moment
   // somebody types something of their own -- a cron expression, usually.

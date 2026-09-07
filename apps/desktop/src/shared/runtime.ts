@@ -1155,6 +1155,9 @@ export interface NewSchedule {
   repeat_count?: number | null
 }
 
+/** The editable schedule fields accepted by the Gateway update endpoint. */
+export type ScheduleUpdate = NewSchedule
+
 /**
  * Which model does which job.
  *

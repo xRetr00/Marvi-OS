@@ -280,6 +280,22 @@ def output_devices() -> list[dict[str, object]]:
     ]
 
 
+#: Below this much free memory, loading a 438MB model plus torch is how a
+#: Gateway dies rather than how it gets a voice. Measured against the machine
+#: this runs on: 16GB total, 3.6GB free with Marvi idle.
+ROOM_TO_LOAD_BYTES = 1_500_000_000
+
+
+def _room_to_load() -> bool | None:
+    """Whether there is memory to spare. `None` when it cannot be told."""
+    try:
+        import psutil
+
+        return int(psutil.virtual_memory().available) >= ROOM_TO_LOAD_BYTES
+    except Exception:
+        return None
+
+
 class Announcer:
     """Shared, cancellable PocketTTS synthesis and local playback service."""
 
@@ -309,7 +325,28 @@ class Announcer:
 
         Loaded at startup instead, on a thread, where two minutes costs
         nobody anything.
+
+        Refused in two cases, both learned the hard way.
+
+        Under pytest, because every `create_app` fixture entered the lifespan
+        and warmed -- sixty-odd loads of a 438MB model in one run, on a machine
+        with three gigabytes free, and torch allocating a `Linear` under that
+        pressure took the whole process down with an access violation. A test
+        suite has nothing to announce.
+
+        And when the machine genuinely has no room. There is no catching this
+        one: an access violation inside a native allocator kills the process,
+        `try` or no `try`, so the only defence is not starting. The model then
+        loads on first use as it always did, and `mind` warms it in the
+        background the first time it holds something for a cold voice.
         """
+        import sys
+
+        if "pytest" in sys.modules:
+            return False
+        if _room_to_load() is False:
+            logger.info("not warming the announcer voice; the machine is short of memory")
+            return False
         try:
             self._ensure_model()
         except Exception as exc:
