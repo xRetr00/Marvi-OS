@@ -896,9 +896,9 @@ def situation() -> str:
     return (
         f"Right now it is {now:%A %d %B %Y, %H:%M} ({zone}). "
         "Your training data ends well before this, so do not answer from memory "
-        "about anything that changes with time. Use a web search tool you can always use it, or say you do not "
-        "know only when you didn't find anything releated you should search first before saying you don't know but"
-        " never say you don't know without searching first and never ever fabricate information you are the user's personal assistant trust is everything."
+        "about anything that changes with time: search first, and only say you "
+        "do not know once a search has come back with nothing. Never invent an "
+        "answer to avoid saying it."
     )
 
 
