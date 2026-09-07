@@ -423,8 +423,22 @@ class Mind:
                         extra={"marvi_event_id": event.get("id", "")},
                     )
                     proposed = verdict.surface
+                    # And its words go with its verdict.
+                    #
+                    # `proposed_detail` is the model's *reason for wanting
+                    # silence*, not a line to deliver. Keeping it and then
+                    # speaking anyway is how this reached the room:
+                    #
+                    #     00:19:01  FC 26 started  speak  "not worth interrupting"
+                    #
+                    # Marvi read the veto out loud. Cleared, so the sentence
+                    # falls back to the template `voicing` already wrote.
+                    proposed_detail = ""
                 if SURFACES.index(proposed) <= SURFACES.index(verdict.surface):
-                    surface, detail = proposed, proposed_detail
+                    surface = proposed
+                    # Only overwrite the reason when there is one. An empty
+                    # detail means "no opinion", not "no reason".
+                    detail = proposed_detail or verdict.detail
                     # A model may choose how loud, never what is said, when the
                     # event came from outside.
                     #

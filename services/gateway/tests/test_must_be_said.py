@@ -101,3 +101,30 @@ def test_every_entry_is_a_source_and_kind_pair(kind) -> None:
     source, _, name = kind.partition(":")
     assert source and name, f"{kind!r} is not source:kind"
     assert must_be_said({"source": source, "kind": name})
+
+
+def test_the_veto_text_is_never_spoken() -> None:
+    """What reached the room, from the owner's own decision log:
+
+        00:19:01  FC 26 started  speak  "not worth interrupting"
+
+    `proposed_detail` is the model's reason for wanting silence, not a line to
+    deliver. Overriding the verdict and keeping its words made Marvi read the
+    veto out loud.
+    """
+    said: list[str] = []
+    game = {
+        "source": "focus", "kind": "heavy_app_started", "trusted": True,
+        "summary": "FC 26 started",
+        "payload": {"app": "FC26", "name": "FC 26"}, "at": 0.0,
+    }
+
+    mind = Mind(_journal(game))
+    mind.deliberate = lambda _e, _v: ("silent", "not worth interrupting", 200)
+    mind.announcer = type("A", (), {"speak": lambda _s, t: said.append(t) or {"played": True}})()
+
+    mind.tick(now=datetime(2026, 9, 7, 12, 0, tzinfo=UTC))
+
+    assert said, "the game-mode line was silenced"
+    assert "not worth interrupting" not in said[0], f"read the veto aloud: {said[0]!r}"
+    assert "FC 26" in said[0], f"lost the template line: {said[0]!r}"

@@ -330,9 +330,16 @@ class Initiative:
             return {"noticed": 0}
         if self._machine is None:
             from .machine import Machine
+            from .paths import root as _state_root
 
-            self._machine = Machine()
-        readings = self._machine.look()
+            # On disk, so a restart does not re-announce a disk that is still
+            # as full as it was five minutes ago.
+            self._machine = Machine(_state_root() / "state" / "machine.json")
+        # What has the machine, if anything. Memory pressure during a game is
+        # the game, and saying so is complaining about the thing she just
+        # stood aside for.
+        busy = getattr(self.focus, "because", "") if self.focus is not None else ""
+        readings = self._machine.look(busy_with=busy)
         for reading in readings:
             self.journal.append(
                 "machine", reading.kind, reading.summary, reading.payload, trusted=True
