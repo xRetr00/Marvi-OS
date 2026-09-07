@@ -164,7 +164,7 @@ class Mind:
         try:
             from . import voicing
 
-            return voicing.name_of(self.identity.user_path().read_text(encoding="utf-8"))
+            return voicing.name_of(self.identity.user_path.read_text(encoding="utf-8"))
         except Exception:
             return ""
 

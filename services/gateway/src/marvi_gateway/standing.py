@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import threading
 import time
 from pathlib import Path
@@ -100,6 +101,83 @@ SYSTEM_PROMPT = (
     "heading, no closing line. Just the brief."
 )
 
+#: Appended when the user's name is known, which it nearly always is.
+#:
+#: It was not being told, and it invented one. The brief that went into every
+#: turn for half a day opened:
+#:
+#:     Brady Vine is building Marvi, a voice-first local AI assistant, under
+#:     the codename Marvey.
+#:
+#: There is no Brady Vine. The notes say Shereef, in a memory whose whole body
+#: is "The user's name is Shereef", and the model wrote a name anyway --
+#: asserted as fact, in front of every sentence she spoke.
+NAME_RULE = (
+    chr(10) * 2 + "The person is called {name}. Use that name and no other. Never "
+    "introduce a name that is not in the notes below."
+)
+
+#: A brief is what is true in six months. These say otherwise.
+#:
+#: The prompt asks for exactly this and was ignored -- the live brief carried
+#: "The Agent voice engine keeps restarting and the Sidecar process is
+#: currently down", four hours after both were fixed, and Marvi recited it
+#: back as current when asked what was wrong with her. Asking is not enough
+#: when the cost of a slip is a standing falsehood.
+TRANSIENT = re.compile(
+    r"\b(currently|right now|at the moment|keeps? (?:restarting|failing|crashing)|"
+    r"is (?:down|offline|broken|failing)|are (?:down|offline)|"
+    r"needs? (?:re-?authentication|re-?authorization)|cannot check|is on at|"
+    r"at \d+ percent)\b",
+    re.I,
+)
+
+
+def _sentences(text: str) -> list[str]:
+    """Split on sentence ends, keeping the punctuation."""
+    return [part.strip() for part in re.split(r"(?<=[.!?])\s+", text) if part.strip()]
+
+
+def settled(text: str, name: str = "") -> str:
+    """The part of a brief worth carrying into every turn.
+
+    Three things went wrong at once in the live brief and each needed its own
+    answer: a name nobody has, a paragraph of this morning's system state, and
+    a hard cut at `MAX_CHARS` that left the last sentence as "Shereef is lik".
+
+    Returns "" when the brief is about somebody else -- there is no repairing
+    that one, and the previous brief, stale but about the right person, is
+    better than a current one about a stranger.
+    """
+    kept = []
+    for sentence in _sentences(text):
+        if TRANSIENT.search(sentence):
+            log.info("standing brief: dropped a sentence about right now")
+            continue
+        kept.append(sentence)
+    if name:
+        # Only the opening sentence, which is the one that says whose brief
+        # this is. A later mention of a friend or a colleague is legitimate.
+        opening = kept[0] if kept else ""
+        others = [
+            found
+            for found in re.findall(r"\b[A-Z][a-z]+(?: [A-Z][a-z]+)+\b", opening)
+            if name.lower() not in found.lower()
+        ]
+        if others:
+            log.warning(
+                "standing brief names %s and not %s; keeping the previous one",
+                others[0], name,
+            )
+            return ""
+    # Whole sentences only, up to the cap.
+    out = ""
+    for sentence in kept:
+        if len(out) + len(sentence) + 1 > MAX_CHARS:
+            break
+        out = f"{out} {sentence}".strip()
+    return out
+
 
 def enabled() -> bool:
     return os.environ.get(SETTING, "on").strip().lower() not in ("0", "false", "no", "off")
@@ -159,14 +237,39 @@ def compose(store: Any, client: Any) -> str:
     if not lines:
         return ""
     try:
+        name = known_name()
         said = distil.ask(
-            client, "memory", SYSTEM_PROMPT, "\n".join(lines)[:6000], 400, tools=False
+            client,
+            "memory",
+            SYSTEM_PROMPT + (NAME_RULE.format(name=name) if name else ""),
+            chr(10).join(lines)[:6000],
+            400,
+            tools=False,
         )
     except Exception as exc:
         log.info("standing brief unavailable (%s)", exc)
         return ""
-    text = " ".join((said or "").split("\n\n")[0].split()) if said else ""
-    return said.strip()[:MAX_CHARS] if said and text else ""
+    if not said or not said.strip():
+        return ""
+    # Checked, not trusted. The prompt asks for all of this and the model
+    # wrote "Brady Vine is building Marvi" anyway, together with a
+    # paragraph of that morning's system state -- and both stood in front
+    # of every sentence Marvi spoke for half a day. See `settled`.
+    return settled(said.strip(), name)
+
+
+def known_name() -> str:
+    """The user's name, from the file that holds it. Empty when unknown."""
+    import contextlib
+
+    with contextlib.suppress(Exception):
+        from . import voicing
+        from .identity import IdentityFiles
+
+        return str(
+            voicing.name_of(IdentityFiles().user_path.read_text(encoding="utf-8")) or ""
+        )
+    return ""
 
 
 def refresh(store: Any, client: Any) -> str:

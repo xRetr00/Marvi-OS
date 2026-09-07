@@ -1212,7 +1212,7 @@ def create_app(
             from . import voicing as _voicing
 
             ingest.speaking_to = _voicing.name_of(
-                identity.user_path().read_text(encoding="utf-8")
+                identity.user_path.read_text(encoding="utf-8")
             )
 
         def memory_summarise(groups: list[dict[str, Any]]) -> list[tuple[str, str]]:
@@ -2429,7 +2429,7 @@ def create_app(
 
         name = ""
         with contextlib.suppress(Exception):
-            name = voicing.name_of(identity.user_path().read_text(encoding="utf-8"))
+            name = voicing.name_of(identity.user_path.read_text(encoding="utf-8"))
         return {"say": condition.worth_saying(name)}
 
     @app.get("/voice/wake")
