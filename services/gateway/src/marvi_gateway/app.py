@@ -20,6 +20,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from livekit import api
 from pydantic import BaseModel, Field
+from starlette.concurrency import run_in_threadpool
 
 from . import (
     auxiliary,
@@ -1317,6 +1318,11 @@ def create_app(
         parent.watch()
         if initiative is not None:
             initiative.focus = focus
+            if sidecar is not None:
+                room = sidecar
+                initiative.pace_the_room = lambda easy: room.call(
+                    "set_low_power", {"low_power": bool(easy)}
+                )
             initiative.start()
         if account_triggers is not None and accounts is not None and accounts.available():
             account_triggers.start()
@@ -1735,6 +1741,29 @@ def create_app(
         if focus is None:
             return {"low_resource": False, "because": "", "app": ""}
         return focus.as_dict()
+
+    @app.post("/resources")
+    async def hold_resources(request: Request) -> dict[str, Any]:
+        """Turn low-resource mode on or off by hand.
+
+        `is_heavy` recognises a fullscreen window or a card under load, which
+        catches games and misses a long export, a compile, or a model being
+        trained in a terminal. Rather than grow a list of things Marvi cannot
+        see, this lets it be said.
+        """
+        if focus is None:
+            return {"low_resource": False, "because": "", "app": ""}
+        body = await request.json()
+        state = focus.hold(bool(body.get("low_resource")))
+        # The room is told directly. It is paced on focus *transitions*, and a
+        # hand-held mode is not one -- so without this the camera would carry
+        # on at full rate through exactly the thing the switch was pressed for.
+        if initiative is not None and getattr(initiative, "pace_the_room", None) is not None:
+            try:
+                await run_in_threadpool(initiative.pace_the_room, state["low_resource"])
+            except Exception as exc:
+                get_logger("mind").info("could not pace the room (%s)", str(exc)[:160])
+        return state
 
     @app.post("/voice/session-state")
     async def voice_session_state(update: VoiceSessionState) -> dict[str, bool]:

@@ -17,6 +17,7 @@ Two properties `REAL-AGENCY.md` insists on and this module enforces:
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -507,11 +508,22 @@ class Mind:
                 and self.waiting is not None
             ):
                 logger.info(
-                    "not loading the voice while %s has the machine; holding it",
+                    "not loading the voice while %s has the machine; holding it "
+                    "and warming in the background",
                     self.busy_with(),
                 )
                 self.waiting.hold(event, "resources")
                 surface = "island"
+                # Warmed anyway, on a thread, so this is a delay and not a
+                # silence. The announcer is the one thing that must still work
+                # during a game -- it is how you learn she noticed the game at
+                # all, and it is where anything that matters while you are
+                # playing has to come out. It is 438MB on the CPU: light
+                # enough to hold, and only ever cold because a restart landed
+                # mid-match. Held here, said on the next tick.
+                threading.Thread(
+                    target=self.announcer.warm, name="marvi-warm-voice", daemon=True
+                ).start()
             if surface == "speak" and self.announcer is not None:
                 outcome = self.announcer.speak(sentence)
                 if outcome.get("played"):

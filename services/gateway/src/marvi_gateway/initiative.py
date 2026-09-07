@@ -96,6 +96,9 @@ class Initiative:
         # means the deterministic passes still run and this one does not.
         self.auxiliary_client = auxiliary_client
         self.room_state = room_state
+        #: `(easy: bool) -> None` -- tell the room to stand down for a game.
+        #: Left unset, the room simply carries on as it always did.
+        self.pace_the_room: Any = None
         # Desktop activity. None is normal -- ActivityWatch is optional, and
         # the mind decides without it exactly as it did before.
         self.activity = activity
@@ -280,9 +283,24 @@ class Initiative:
         if self.journal is None or self.focus is None:
             return {"noticed": 0}
         changes = self.focus.look()
+        if changes and self.pace_the_room is not None:
+            # The room is the only part of Marvi that works hard when nobody
+            # is asking it anything -- a capture loop with no delay in it and
+            # MediaPipe on every frame it keeps -- so it is the part that has
+            # to be told a game started. Everything else here waits on a timer.
+            easy = changes[-1].kind == "heavy_app_started"
+            try:
+                self.pace_the_room(easy)
+            except Exception as exc:
+                logger.info("could not pace the room (%s)", str(exc)[:160])
         for change in changes:
+            # `Focus.look` only speaks on a transition -- it holds a candidate
+            # still for two looks and returns nothing while the state is
+            # unchanged -- so the journal's own repetition guard has nothing
+            # left to catch here and only ever swallows a real second launch.
             self.journal.append(
-                "focus", change.kind, change.summary, change.payload, trusted=True
+                "focus", change.kind, change.summary, change.payload,
+                trusted=True, dedupe=False,
             )
         return {"noticed": len(changes)}
 

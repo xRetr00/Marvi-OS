@@ -225,6 +225,11 @@ class Focus:
         self._heavy: str = ""
         self._candidate: str = ""
         self._looks: int = 0
+        #: Held on by hand. `is_heavy` recognises a fullscreen window or a card
+        #: under load, which covers games and misses everything else -- a long
+        #: export, a compile, a model being trained in a terminal. Rather than
+        #: guess at a longer list of things Marvi cannot see, let it be said.
+        self._by_hand: bool = False
 
     # -- what everything else asks -------------------------------------------
 
@@ -232,20 +237,41 @@ class Focus:
     def low_resource(self) -> bool:
         """Whether something else should have the GPU right now."""
         with self._lock:
-            return bool(self._heavy)
+            return bool(self._heavy) or self._by_hand
 
     @property
     def because(self) -> str:
         with self._lock:
-            return pretty(self._heavy) if self._heavy else ""
+            if self._heavy:
+                return pretty(self._heavy)
+            return "you asked" if self._by_hand else ""
+
+    def hold(self, on: bool) -> dict[str, Any]:
+        """Turn low-resource mode on or off by hand.
+
+        The manual hold does not fight the automatic one: while a game is
+        detected the mode is on whatever this says, and turning the hold off
+        during a match takes effect when the match ends. Anything else would
+        be a switch that silently stops working.
+        """
+        with self._lock:
+            self._by_hand = bool(on)
+        log.info("low-resource mode held %s by hand", "on" if on else "off")
+        return self.as_dict()
 
     def as_dict(self) -> dict[str, Any]:
         with self._lock:
             heavy = self._heavy
+            by_hand = self._by_hand
         return {
-            "low_resource": bool(heavy),
-            "because": pretty(heavy) if heavy else "",
+            "low_resource": bool(heavy) or by_hand,
+            "because": pretty(heavy) if heavy else ("you asked" if by_hand else ""),
             "app": heavy,
+            #: Whether it is on by hand, and whether the automatic watcher has
+            #: it on regardless -- the UI needs both to say why it cannot be
+            #: switched off mid-match.
+            "by_hand": by_hand,
+            "automatic": bool(heavy),
         }
 
     # -- the scheduled look --------------------------------------------------

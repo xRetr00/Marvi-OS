@@ -294,3 +294,40 @@ def test_the_quietest_visible_surface_is_not_worth_a_model_call(journal) -> None
 
     assert calls == [], "a model was paid to confirm a floor it cannot move off"
     assert [d["tokens"] for d in mind.why()] == [0]
+
+
+def test_opening_the_same_game_twice_is_two_events(tmp_path) -> None:
+    """The second launch was swallowed as a repeat and she said nothing.
+
+        03:19  FC 26 started   -> event 12635, announced
+        03:23  FC 26 finished  -> event 12637, announced
+        05:36  FC 26 started   -> dropped, inside the six-hour window
+
+    The journal fingerprints on the sentence, and "FC 26 started" is the same
+    sentence both times. It is not the same fact: the game closed in between.
+    """
+    from datetime import UTC, datetime, timedelta
+
+    from marvi_gateway.journal import EventJournal
+
+    journal = EventJournal(tmp_path / "j.db")
+    began = datetime(2026, 9, 7, 3, 19, tzinfo=UTC)
+    payload = {"app": "FC26", "name": "FC 26"}
+
+    first = journal.append("focus", "heavy_app_started", "FC 26 started", payload,
+                           trusted=True, dedupe=False, now=began)
+    again = journal.append("focus", "heavy_app_started", "FC 26 started", payload,
+                           trusted=True, dedupe=False, now=began + timedelta(hours=2, minutes=17))
+
+    assert first is not None
+    assert again is not None, "a second launch two hours later is not a repeat"
+    assert again != first
+
+    # And the guard still works where it was meant to: a poll re-reporting the
+    # same mail every cycle stays one event.
+    mail = {"id": "abc"}
+    kept = journal.append("gmail", "message", "Hello Shereef", mail, now=began)
+    repeat = journal.append("gmail", "message", "Hello Shereef", mail,
+                            now=began + timedelta(minutes=5))
+    assert kept is not None
+    assert repeat is None

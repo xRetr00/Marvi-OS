@@ -98,8 +98,23 @@ class EventJournal:
         payload: dict[str, Any] | None = None,
         trusted: bool = False,
         now: datetime | None = None,
+        dedupe: bool = True,
     ) -> int | None:
-        """Record an event. Returns None when it is a duplicate."""
+        """Record an event. Returns None when it is a duplicate.
+
+        `dedupe=False` for a source that is already edge-triggered, where the
+        same words twice are two different facts. The six-hour window is right
+        for a poll that re-reports the same email every cycle and wrong for a
+        transition:
+
+            03:19  FC 26 started   -> event 12635, announced
+            03:23  FC 26 finished  -> event 12637, announced
+            05:36  FC 26 started   -> dropped as a duplicate of 12635
+
+        Two hours and seventeen minutes apart, with the game having closed in
+        between, and she said nothing the second time -- because "FC 26
+        started" is the same sentence and the fingerprint is the sentence.
+        """
         body = payload or {}
         mark = fingerprint(source, kind, summary, body)
         moment = now or datetime.now(UTC)
@@ -112,7 +127,7 @@ class EventJournal:
                 age = (moment - datetime.fromisoformat(recent["at"])).total_seconds()
             except ValueError:
                 age = 0.0
-            if age < DEDUPE_WINDOW_SECONDS:
+            if dedupe and age < DEDUPE_WINDOW_SECONDS:
                 return None
 
         cursor = self._db.execute(
