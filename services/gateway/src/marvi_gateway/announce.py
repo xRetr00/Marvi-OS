@@ -280,22 +280,6 @@ def output_devices() -> list[dict[str, object]]:
     ]
 
 
-#: Below this much free memory, loading a 438MB model plus torch is how a
-#: Gateway dies rather than how it gets a voice. Measured against the machine
-#: this runs on: 16GB total, 3.6GB free with Marvi idle.
-ROOM_TO_LOAD_BYTES = 1_500_000_000
-
-
-def _room_to_load() -> bool | None:
-    """Whether there is memory to spare. `None` when it cannot be told."""
-    try:
-        import psutil
-
-        return int(psutil.virtual_memory().available) >= ROOM_TO_LOAD_BYTES
-    except Exception:
-        return None
-
-
 class Announcer:
     """Shared, cancellable PocketTTS synthesis and local playback service."""
 
@@ -326,26 +310,30 @@ class Announcer:
         Loaded at startup instead, on a thread, where two minutes costs
         nobody anything.
 
-        Refused in two cases, both learned the hard way.
+        Not under pytest. Every `create_app` fixture enters the lifespan, so
+        the suite was loading a 438MB model sixty-odd times in one run, and
+        torch allocating a `Linear` under that took the whole process down
+        with an access violation:
 
-        Under pytest, because every `create_app` fixture entered the lifespan
-        and warmed -- sixty-odd loads of a 438MB model in one run, on a machine
-        with three gigabytes free, and torch allocating a `Linear` under that
-        pressure took the whole process down with an access violation. A test
-        suite has nothing to announce.
+            Windows fatal exception: access violation
+            torch/nn/modules/linear.py, line 109 in __init__
+            pocket_tts/modules/mimi_transformer.py, line 29 in __init__
+            marvi_gateway/announce.py, line 362 in _ensure_model
+            marvi_gateway/announce.py, line 314 in warm
 
-        And when the machine genuinely has no room. There is no catching this
-        one: an access violation inside a native allocator kills the process,
-        `try` or no `try`, so the only defence is not starting. The model then
-        loads on first use as it always did, and `mind` warms it in the
-        background the first time it holds something for a cold voice.
+        Not caught, either: an access violation inside a native allocator ends
+        the process whatever the `try` around it says. A test suite has
+        nothing to announce; it should not be loading a voice at all.
+
+        No memory threshold beyond that, deliberately. One was tried and read
+        1.1GB free on the machine this runs on, which would have meant never
+        warming -- silently turning off the thing this exists to guarantee.
+        The announcer has to stay loaded: it is how you learn she noticed the
+        game, and how anything that matters reaches you while you are playing.
         """
         import sys
 
         if "pytest" in sys.modules:
-            return False
-        if _room_to_load() is False:
-            logger.info("not warming the announcer voice; the machine is short of memory")
             return False
         try:
             self._ensure_model()

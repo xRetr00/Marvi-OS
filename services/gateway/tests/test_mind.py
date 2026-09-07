@@ -331,3 +331,23 @@ def test_opening_the_same_game_twice_is_two_events(tmp_path) -> None:
                             now=began + timedelta(minutes=5))
     assert kept is not None
     assert repeat is None
+
+
+def test_the_voice_is_never_warmed_under_pytest() -> None:
+    """It crashed the suite, and the crash could not be caught.
+
+        Windows fatal exception: access violation
+        torch/nn/modules/linear.py, line 109 in __init__
+        pocket_tts/modules/mimi_transformer.py, line 29 in __init__
+        marvi_gateway/announce.py, line 362 in _ensure_model
+        marvi_gateway/announce.py, line 314 in warm
+
+    Every `create_app` fixture enters the lifespan, so one run loaded a 438MB
+    speech model sixty-odd times. A test suite has nothing to announce.
+    """
+    from marvi_gateway.announce import Announcer
+
+    quiet = Announcer.__new__(Announcer)
+    # Would raise AttributeError if it got as far as loading anything: this
+    # instance has no `_model`, no config, nothing.
+    assert quiet.warm() is False
