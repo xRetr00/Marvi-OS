@@ -317,7 +317,13 @@ fn listen(quit: &dyn Fn() -> bool) -> Result<(), Box<dyn std::error::Error>> {
                         // The score *at the firing*, before the next hop
                         // overwrites `confidence` with the silence after it.
                         report.heard_confidence = Some(score);
-                        report.recent.insert(0, state::Detection { at, confidence: score });
+                        report.recent.insert(
+                            0,
+                            state::Detection {
+                                at,
+                                confidence: score,
+                            },
+                        );
                         report.recent.truncate(state::RECENT_DETECTIONS);
                         report.heartbeat = state::now();
                         report.write();
@@ -455,16 +461,17 @@ mod tray {
         }
     }
 
-    fn visual_state(worker_running: bool, report: Option<&marvi_wake_host::state::State>) -> TrayState {
+    fn visual_state(
+        worker_running: bool,
+        report: Option<&marvi_wake_host::state::State>,
+    ) -> TrayState {
         if !worker_running || report.is_some_and(|state| !state.error.trim().is_empty()) {
             return TrayState::Error;
         }
-        let recently_heard = report
-            .and_then(|state| state.heard_at)
-            .is_some_and(|at| {
-                let age = marvi_wake_host::state::now() - at;
-                age >= 0.0 && age <= HEARD_GREEN_FOR.as_secs_f64()
-            });
+        let recently_heard = report.and_then(|state| state.heard_at).is_some_and(|at| {
+            let age = marvi_wake_host::state::now() - at;
+            age >= 0.0 && age <= HEARD_GREEN_FOR.as_secs_f64()
+        });
         if recently_heard {
             TrayState::Armed
         } else {
@@ -629,10 +636,15 @@ mod tray {
                 let report = marvi_wake_host::state::read();
                 let next = visual_state(worker.is_some(), report.as_ref());
                 if next != shown_state {
-                    tray.set_icon(icon(next));
-                    tray.set_tooltip(Some(next.tooltip(
-                        report.as_ref().map(|state| state.error.as_str()).unwrap_or(""),
-                    )))?;
+                    tray.set_icon(icon(next))?;
+                    tray.set_tooltip(Some(
+                        next.tooltip(
+                            report
+                                .as_ref()
+                                .map(|state| state.error.as_str())
+                                .unwrap_or(""),
+                        ),
+                    ))?;
                     shown_state = next;
                 }
             }
@@ -702,13 +714,13 @@ mod tray {
             ] {
                 let pixels = icon_rgba(state);
                 assert_eq!(pixels.len(), 32 * 32 * 4);
-                assert!(pixels.chunks_exact(4).any(|pixel| {
-                    pixel[0..3] == color && pixel[3] == 255
-                }));
+                assert!(pixels
+                    .chunks_exact(4)
+                    .any(|pixel| { pixel[0..3] == color && pixel[3] == 255 }));
                 // The old yellow ring must not survive in any state.
-                assert!(!pixels.chunks_exact(4).any(|pixel| {
-                    pixel[0..3] == [0xE8, 0x8C, 0x3A] && pixel[3] != 0
-                }));
+                assert!(!pixels
+                    .chunks_exact(4)
+                    .any(|pixel| { pixel[0..3] == [0xE8, 0x8C, 0x3A] && pixel[3] != 0 }));
             }
         }
 
@@ -716,7 +728,25 @@ mod tray {
         fn visual_state_has_text_equivalents_for_color() {
             assert!(TrayState::Listening.tooltip("").contains("listening"));
             assert!(TrayState::Armed.tooltip("").contains("heard"));
-            assert!(TrayState::Error.tooltip("microphone stopped").contains("microphone stopped"));
+            assert!(TrayState::Error
+                .tooltip("microphone stopped")
+                .contains("microphone stopped"));
+        }
+
+        #[test]
+        fn visual_state_prioritizes_errors_then_recent_wake_detection() {
+            let mut report = marvi_wake_host::state::State::default();
+
+            assert_eq!(visual_state(true, Some(&report)), TrayState::Listening);
+
+            report.heard_at = Some(marvi_wake_host::state::now());
+            assert_eq!(visual_state(true, Some(&report)), TrayState::Armed);
+
+            report.error = "microphone stopped".into();
+            assert_eq!(visual_state(true, Some(&report)), TrayState::Error);
+
+            report.error.clear();
+            assert_eq!(visual_state(false, Some(&report)), TrayState::Error);
         }
     }
 }
