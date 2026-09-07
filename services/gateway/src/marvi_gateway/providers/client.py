@@ -68,6 +68,56 @@ REQUEST_TIMEOUT = 60.0
 DEFAULT_COOLDOWN_SECONDS = 300.0
 MAX_COOLDOWN_SECONDS = 6 * 60 * 60
 
+#: What a dropped connection costs. Fifteen seconds, not five minutes.
+#:
+#: A single TCP reset took Marvi off the air completely:
+#:
+#:     07:41:45  provider openrouter cooling down 300s: call failed:
+#:               [WinError 10054] An existing connection was forcibly closed
+#:     07:42:29  GET /providers/voice -> 503
+#:     07:42:29  ProviderUnavailableError, the voice session died
+#:
+#: One reset, and the only configured provider was out for five minutes -- so
+#: the next call, the one the user was waiting on, had nowhere to go. A reset
+#: says nothing about whether the provider is healthy; it says a socket died.
+#: Long enough to break a retry storm, short enough that the next sentence
+#: still gets an answer.
+BRIEF_COOLDOWN_SECONDS = 15.0
+
+#: How a dropped connection announces itself, across httpx, OpenSSL and
+#: Winsock. Matched on text rather than on exception classes because these
+#: arrive wrapped in each other and the wrapper is what reaches here.
+TRANSPORT_TROUBLE: tuple[str, ...] = (
+    "10054",  # WinError: connection forcibly closed by the remote host
+    "10053",  # WinError: connection aborted by the software in your host
+    "10060",  # WinError: timed out
+    "connection reset",
+    "connection aborted",
+    "connection refused",
+    "remoteprotocolerror",
+    "readtimeout",
+    "connecttimeout",
+    "connecterror",
+    "readerror",
+    "writeerror",
+    "server disconnected",
+    "eof occurred",
+    "temporary failure in name resolution",
+    "getaddrinfo failed",
+)
+
+
+def _dropped_connection(exc: BaseException) -> bool:
+    """Whether this was the network rather than the provider.
+
+    The distinction is the whole point. A provider that rejects an API key or
+    rate-limits you has told you something about itself and deserves a long
+    rest; a socket that died has told you about the wire, and resting the
+    provider for it punishes the wrong thing.
+    """
+    text = f"{type(exc).__name__} {exc}".lower()
+    return any(marker in text for marker in TRANSPORT_TROUBLE)
+
 
 class ProviderCallError(Exception):
     """The call failed in a way the caller should see."""
@@ -157,6 +207,21 @@ class ProviderClient:
             del self._cooldowns[name]
             return 0.0
         return remaining
+
+    def all_resting(self, now: float | None = None) -> list[tuple[str, float, str]]:
+        """Every provider currently sitting out, soonest back first.
+
+        So that "no usable provider" can say which kind of nothing it is. A
+        provider that is missing wants somebody to open Settings; a provider
+        that is resting wants them to wait fifteen seconds, and telling them
+        the first when it is the second is how a working setup gets taken
+        apart looking for a fault that is not there.
+        """
+        found = [
+            (name, self.resting(name, now), entry.reason)
+            for name, entry in list(self._cooldowns.items())
+        ]
+        return sorted((row for row in found if row[1] > 0), key=lambda row: row[1])
 
     def stand_down(self, name: str, seconds: float, reason: str) -> None:
         seconds = max(1.0, min(float(seconds), MAX_COOLDOWN_SECONDS))
@@ -425,7 +490,12 @@ class ProviderClient:
             )
             raise
         except Exception as exc:
-            self.stand_down(profile.name, DEFAULT_COOLDOWN_SECONDS, f"call failed: {exc}"[:120])
+            dropped = _dropped_connection(exc)
+            self.stand_down(
+                profile.name,
+                BRIEF_COOLDOWN_SECONDS if dropped else DEFAULT_COOLDOWN_SECONDS,
+                f"{'connection dropped' if dropped else 'call failed'}: {exc}"[:120],
+            )
             logger.warning(
                 "model call failed",
                 extra={
@@ -595,7 +665,14 @@ class ProviderClient:
             )
             raise
         except Exception as exc:
-            self.stand_down(profile.name, DEFAULT_COOLDOWN_SECONDS, f"call failed: {exc}"[:120])
+            # The streaming path, same rule. See `_dropped_connection`: a
+            # stream that dies mid-token is the commonest reset of all.
+            dropped = _dropped_connection(exc)
+            self.stand_down(
+                profile.name,
+                BRIEF_COOLDOWN_SECONDS if dropped else DEFAULT_COOLDOWN_SECONDS,
+                f"{'connection dropped' if dropped else 'call failed'}: {exc}"[:120],
+            )
             logger.warning(
                 "model stream failed",
                 extra={

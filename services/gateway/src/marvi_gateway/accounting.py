@@ -254,6 +254,14 @@ class Accountant:
         self._was = ""
         #: Filled in by whoever knows. See `told`.
         self._doing = Doing()
+        #: `() -> str` -- the live phase, asked at the moment of a reading.
+        #:
+        #: Pushing alone was not enough. The first live ledger had fifteen of
+        #: twenty-seven readings labelled `unknown`, because a push only
+        #: happens when something changes and the thirty-second timer keeps
+        #: firing in between. A reading with no phase is a number nobody can
+        #: use, which is the one thing this module exists to stop.
+        self.reads_phase: Any = None
         self._load()
 
     # -- what the rest of the Gateway tells it -------------------------------
@@ -297,7 +305,15 @@ class Accountant:
 
         memory = psutil.virtual_memory()
         used, total, percent = _gpu_totals()
+        live = ""
+        if self.reads_phase is not None:
+            try:
+                live = str(self.reads_phase() or "")
+            except Exception:
+                live = ""
         with self._lock:
+            if live:
+                self._doing.phase = live
             doing = Doing(**asdict(self._doing))
         reading = Reading(
             at=time.time(),

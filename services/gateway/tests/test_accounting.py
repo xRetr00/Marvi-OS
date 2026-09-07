@@ -78,3 +78,26 @@ def test_the_summary_splits_by_what_she_was_doing(tmp_path) -> None:
 
     assert "starting" in doings
     assert "game" in doings
+
+
+def test_a_reading_asks_what_she_is_doing_rather_than_waiting_to_be_told(tmp_path) -> None:
+    """The first live ledger labelled fifteen of twenty-seven `unknown`.
+
+    Pushing alone was not enough: `told` fires when something changes, and the
+    thirty-second timer keeps firing in between. A reading with no phase is a
+    number nobody can use.
+    """
+    from marvi_gateway.accounting import Accountant
+
+    books = Accountant(tmp_path / "resources.jsonl")
+    assert books.look(deep=False).doing.phase == "unknown"
+
+    books.reads_phase = lambda: "listening"
+    assert books.look(deep=False).doing.phase == "listening"
+
+    # A phase that cannot be read is not a reason to lose the reading.
+    def broken() -> str:
+        raise RuntimeError("the store is gone")
+
+    books.reads_phase = broken
+    assert books.look(deep=False).doing.phase == "listening"

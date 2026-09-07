@@ -191,8 +191,25 @@ class AgentConfig:
                 log.info("the Gateway refused one of this process's tokens; trying the next")
                 response = http.get(where, headers=local_token_header(token))
             if response.status_code == 503:
+                # The Gateway's own reason, not a guess. It knows whether the
+                # provider is missing, mis-configured, or resting after an
+                # error, and it puts that in `detail` -- which this used to
+                # throw away and replace with "No provider is configured":
+                #
+                #     07:41:45  openrouter cooling down 300s: [WinError 10054]
+                #     07:42:29  "No provider is configured. Connect one in the
+                #               Marvi control center."
+                #
+                # The provider was configured. It had had one dropped socket.
+                # Sending somebody to the settings page to fix a working
+                # setting is worse than saying nothing.
+                detail = ""
+                try:
+                    detail = str((response.json() or {}).get("detail") or "")
+                except Exception:
+                    detail = ""
                 raise ProviderUnavailableError(
-                    "No provider is configured. Connect one in the Marvi control center."
+                    detail or "No provider is available for the voice path right now."
                 )
             response.raise_for_status()
             body = response.json()

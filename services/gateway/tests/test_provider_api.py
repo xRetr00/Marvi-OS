@@ -331,3 +331,46 @@ def test_the_voice_role_is_honoured_when_the_path_can_drive_it(client, monkeypat
 
     assert answer.status_code == 200
     assert answer.json()["model"] == "gpt-5-mini"
+
+
+def test_a_dropped_connection_is_not_a_broken_provider() -> None:
+    """One TCP reset took Marvi off the air for five minutes.
+
+        07:41:45  provider openrouter cooling down 300s: call failed:
+                  [WinError 10054] An existing connection was forcibly closed
+        07:42:29  GET /providers/voice -> 503
+        07:42:29  ProviderUnavailableError, the voice session died
+
+    OpenRouter was the only configured provider, so the next call -- the one
+    the user was waiting on -- had nowhere to go. A reset says a socket died,
+    not that the provider is unhealthy.
+    """
+    from marvi_gateway.providers.client import _dropped_connection
+
+    assert _dropped_connection(
+        OSError("[WinError 10054] An existing connection was forcibly closed by the remote host")
+    )
+    assert _dropped_connection(Exception("httpx.ReadTimeout"))
+    assert _dropped_connection(Exception("ConnectionResetError: Connection reset by peer"))
+    # A provider that rejected the key or rate-limited has told you something
+    # about itself, and keeps its long rest.
+    assert not _dropped_connection(Exception("401 Unauthorized: invalid api key"))
+    assert not _dropped_connection(Exception("429 rate limited"))
+
+
+def test_the_gateway_says_which_kind_of_nothing_it_has() -> None:
+    """"No provider is configured" sent someone to Settings to fix a working
+    setting. Resting is not missing, and it is the commonest of the three."""
+    from marvi_gateway.providers.client import ProviderClient
+
+    client = ProviderClient()
+    assert client.all_resting() == []
+
+    client.stand_down("openrouter", 15.0, "connection dropped")
+    resting = client.all_resting()
+
+    assert len(resting) == 1
+    name, seconds, why = resting[0]
+    assert name == "openrouter"
+    assert 0 < seconds <= 15.0
+    assert "connection dropped" in why

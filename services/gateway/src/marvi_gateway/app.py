@@ -1110,6 +1110,10 @@ def create_app(
     from .accounting import plain as _plain_reading
 
     books = Accountant(paths.root() / "resources.jsonl")
+    # Asked at the moment of every reading, so the timer's readings carry a
+    # phase too rather than the fifteen-of-twenty-seven `unknown` the first
+    # live ledger recorded.
+    books.reads_phase = lambda: runtime_store.assistant.phase
     books.told(moment="starting")
 
     sidecar: RoomSidecar | None = None
@@ -4746,6 +4750,20 @@ def create_app(
             # Say which provider and why. A locked selection that cannot drive
             # voice is a deliberate outcome, not a mystery -- and "no usable
             # provider" sends someone looking at their microphone.
+            # Resting is not the same as missing, and it is the commonest of
+            # the three. One dropped socket put the only configured provider
+            # into a five-minute cooldown, and the agent reported it to the
+            # user as "no provider is configured" -- so say which it is.
+            # The app's own client, not a fresh one: cooldowns live on the
+            # instance, so a new ProviderClient() would report nothing resting
+            # however long the real one had been sitting out.
+            resting = provider_client.all_resting()
+            if resting:
+                name, seconds, why = resting[0]
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"{name} is resting for another {seconds:.0f}s after {why}",
+                )
             selected = os.environ.get("MARVI_PROVIDER", "").strip()
             profile = provider_get(selected) if selected else None
             if profile is not None:
