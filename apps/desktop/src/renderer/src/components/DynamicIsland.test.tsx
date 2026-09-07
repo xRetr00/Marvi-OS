@@ -5,10 +5,13 @@ import {
   DynamicIsland
 } from './DynamicIsland'
 import {
+  ANNOUNCEMENT_GLANCE_MS,
   ISLAND_AUTO_EXPAND_MS,
   ISLAND_ENTER_SECONDS,
   ISLAND_EXIT_SECONDS,
   ISLAND_REDUCED_MOTION_SECONDS,
+  announcementSourceLabel,
+  islandDisplayState,
   islandHasOrb,
   islandInteractionMode,
   islandPresentationKey
@@ -16,6 +19,15 @@ import {
 import { DEFAULT_ASSISTANT_STATE } from '../../../shared/runtime'
 
 describe('DynamicIsland', () => {
+  const ANNOUNCEMENT = {
+    id: 'announcement-1',
+    text: 'The reminder is due.',
+    source: 'schedule:reminder',
+    at: '2026-09-07T06:00:00Z',
+    active: true,
+    expiresAt: null
+  }
+
   it('uses stable presentation keys and a faster exit than entrance', () => {
     expect(islandPresentationKey(DEFAULT_ASSISTANT_STATE)).toBe('ready')
     expect(
@@ -24,6 +36,64 @@ describe('DynamicIsland', () => {
     expect(ISLAND_EXIT_SECONDS).toBeLessThan(ISLAND_ENTER_SECONDS)
     expect(ISLAND_REDUCED_MOTION_SECONDS).toBeLessThan(ISLAND_EXIT_SECONDS)
     expect(ISLAND_AUTO_EXPAND_MS).toBe(1800)
+    expect(ANNOUNCEMENT_GLANCE_MS).toBe(10_000)
+    expect(
+      islandPresentationKey({
+        ...DEFAULT_ASSISTANT_STATE,
+        phase: 'announcing',
+        announcement: ANNOUNCEMENT
+      })
+    ).toBe('announcement:announcement-1:active')
+  })
+
+  it('lets retained announcements reclaim idle, but never live, voice state', () => {
+    const retained = { ...ANNOUNCEMENT, active: false }
+    expect(
+      islandDisplayState({ ...DEFAULT_ASSISTANT_STATE, announcement: retained }).phase
+    ).toBe('announcing')
+    expect(
+      islandDisplayState({
+        ...DEFAULT_ASSISTANT_STATE,
+        phase: 'listening',
+        announcement: retained
+      }).phase
+    ).toBe('listening')
+    expect(announcementSourceLabel('accounts:gmail')).toBe('MAIL')
+    expect(announcementSourceLabel('schedule:reminder')).toBe('REMINDER')
+  })
+
+  it('makes the exact announcement primary while audio is on air', () => {
+    const html = renderToStaticMarkup(
+      <DynamicIsland
+        state={{
+          ...DEFAULT_ASSISTANT_STATE,
+          phase: 'announcing',
+          announcement: ANNOUNCEMENT
+        }}
+      />
+    )
+
+    expect(html).toContain('data-announcement-active="true"')
+    expect(html).toContain('REMINDER · NOW')
+    expect(html).toContain('<strong>The reminder is due.</strong>')
+    expect(html).not.toContain('Marvi has something')
+  })
+
+  it('keeps a held announcement accessible when it collapses to its orb', () => {
+    const html = renderToStaticMarkup(
+      <DynamicIsland
+        expanded={false}
+        state={{
+          ...DEFAULT_ASSISTANT_STATE,
+          phase: 'announcing',
+          announcement: { ...ANNOUNCEMENT, active: false }
+        }}
+      />
+    )
+
+    expect(html).toContain('is-collapsed')
+    expect(html).toContain('aria-label="REMINDER · NOW: The reminder is due."')
+    expect(html).not.toContain('<strong>The reminder is due.</strong>')
   })
 
   it('captures hover without focus only for states that have an orb', () => {
