@@ -561,7 +561,12 @@ class GatewayTools:
         results = (body.get("result") or {}).get("results") or []
         if not results:
             return f"Nothing remembered about {query}."
-        return " ".join(f"{r['subject']}: {r['body']}" for r in results[:3])[:600]
+        # Each result capped before joining, not just the join. An ingested
+        # email is stored whole -- envelope, headers, the untrusted-data banner
+        # -- and one of them scoring above the facts took the entire 600
+        # characters, so "what game do I play" came back as a mailing about
+        # Friday football with the answer cut off behind it.
+        return " ".join(f"{r['subject']}: {r['body'][:180]}" for r in results[:3])[:600]
 
     @function_tool
     async def remember(self, context: RunContext, subject: str, body: str) -> str:

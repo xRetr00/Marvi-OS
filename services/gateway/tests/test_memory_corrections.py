@@ -82,11 +82,29 @@ def test_a_short_fact_is_never_superseded(store) -> None:
 
 
 def test_episodic_memories_never_supersede(store) -> None:
-    """Two records of a moment are not a contradiction; they are two moments."""
+    """Two records of a moment are not a contradiction; they are two moments.
+
+    Only where the two records differ. This used to assert that the *same*
+    sentence stored three times stayed three rows, and that was wrong for the
+    reason the user hit: the store held
+
+        349  Friday match            The user is participating in a Friday...
+        352  Shereef's Friday match  The user is participating in a Friday...
+
+    written eight seconds apart, and recall answered with the sentence twice.
+    Three copies of one sentence are not three moments; they are one moment
+    the extractor wrote down three times.
+    """
+    store.remember("Monday", "The user went to the gym on Monday.", kind="episodic")
+    store.remember("Tuesday", "The user went to the gym on Tuesday.", kind="episodic")
+    store.remember("Wednesday", "The user went to the gym on Wednesday.", kind="episodic")
+
+    assert len(store.recent(limit=20)) == 3
+
     for _ in range(3):
         store.remember("Hello", "The user said hello and Marvi replied.", kind="episodic")
 
-    assert len(store.recent(limit=20)) == 3
+    assert len(store.recent(limit=20)) == 4
 
 
 def test_an_untrusted_memory_never_corrects_a_trusted_one(store) -> None:
@@ -365,3 +383,63 @@ def test_the_extractor_is_told_what_counts_with_examples() -> None:
     # The counter-examples matter as much: a prompt that only shows what to
     # keep is a prompt that keeps everything.
     assert "These are not memories" in SYSTEM_PROMPT
+
+
+def test_the_same_sentence_twice_is_one_memory(tmp_path) -> None:
+    """The model renames the subject and writes the fact again.
+
+    Two real pairs, eight seconds apart in one conversation:
+
+        349 episodic  Friday match            The user is participating in...
+        352 episodic  Shereef's Friday match  The user is participating in...
+        239 semantic  Shereef's keyboard      Got a Logitech keyboard.
+        354 semantic  Shereef's keyboard      Got a Logitech keyboard.
+
+    Neither was caught. The first is episodic and `_supersedes` leaves those
+    alone by design; the second is three significant words, under the floor
+    that stops "likes tea" replacing "likes coffee". Both rules are right and
+    neither applies when the sentence is the same sentence.
+    """
+    from marvi_gateway.memory import MemoryStore
+
+    store = MemoryStore(tmp_path / "m.db")
+    first = store.remember("Friday match", "The user plays a Friday match with friends.", kind="episodic")
+    again = store.remember(
+        "Shereef's Friday match", "The user plays a Friday match with friends.", kind="episodic"
+    )
+
+    assert first == again, "an identical body should correct the memory, not join it"
+    assert store.recent(limit=10)[0]["subject"] == "Shereef's Friday match"
+
+    # Two moments that merely resemble each other are still two moments.
+    store.remember("Monday", "The user went to the gym on Monday morning.", kind="episodic")
+    store.remember("Tuesday", "The user went to the gym on Tuesday morning.", kind="episodic")
+    assert len(store.recent(limit=10)) == 3
+
+
+def test_recall_never_answers_a_question_with_the_question(tmp_path) -> None:
+    """A memory that restates the question outranks every one that answers it.
+
+    Measured against the live store, embeddings on:
+
+        Q: do you know what game I play?
+        356  0.7233  "The user is asking about things related to a game, but
+                      the specific game is not yet known."
+        185  0.5913  "The user plays EA Sports FC 26 on PC using a PS5
+                      controller."
+
+    She read her own note saying she did not know, and said she did not know.
+    """
+    from marvi_gateway.memory import MemoryStore
+
+    store = MemoryStore(tmp_path / "m.db")
+    store.remember("Shereef's games", "The user plays EA Sports FC 26 on PC using a PS5 controller.")
+    store.remember(
+        "Shereef's games",
+        "The user is asking about things related to a game, but the specific game is not yet known.",
+    )
+
+    bodies = [row["body"] for row in store.search("games")]
+
+    assert any("FC 26" in body for body in bodies), "the answer must survive recall"
+    assert not any("not yet known" in body for body in bodies)

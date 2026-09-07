@@ -242,3 +242,40 @@ def test_caching_reduces_what_the_budget_is_charged(monkeypatch) -> None:
     # The system prompt is identical on every tick, so it should be cached and
     # the budget should see the saving rather than a flat per-call estimate.
     assert deliberator(handler)(event(), verdict())[2] == 60
+
+
+def test_the_model_is_told_when_the_decision_is_already_made() -> None:
+    """It kept answering "not worth interrupting" and being overruled.
+
+    A welcome, an arrival, a feed going silent are `policy.MUST_BE_SAID`: they
+    are spoken whatever the model answers. It was still asked whether they were
+    worth interrupting for, under a prompt that says silence is the normal
+    answer -- so it declined, the override spoke anyway, and its reason for
+    declining went out through the speaker:
+
+        00:19:01  FC 26 started  speak  "not worth interrupting"
+
+    Asking a question whose answer is ignored is how you get an answer you
+    cannot use.
+    """
+    from types import SimpleNamespace
+
+    from marvi_gateway.deliberate import SYSTEM_PROMPT, Deliberator
+
+    asking = Deliberator.__new__(Deliberator)
+    verdict = SimpleNamespace(surface="speak", rule="ceiling", detail="")
+
+    settled = asking._prompt(
+        {"source": "room", "kind": "room_welcome", "summary": "you came in", "trusted": True},
+        verdict,
+    )
+    open_question = asking._prompt(
+        {"source": "gmail", "kind": "message", "summary": "an email arrived", "trusted": False},
+        verdict,
+    )
+
+    assert settled.startswith("ALREADY DECIDED")
+    assert "ALREADY DECIDED" not in open_question
+    # And the system prompt has to say what that marker means, or the model
+    # reads it as one more line of context and answers false anyway.
+    assert "ALREADY DECIDED" in SYSTEM_PROMPT
