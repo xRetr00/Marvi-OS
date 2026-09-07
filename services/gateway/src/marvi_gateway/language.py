@@ -205,8 +205,23 @@ def architecture() -> str:
     # call away. That section was written when this line was cut -- the
     # behaviour was not documented anywhere else, and moving it out of the
     # prompt without moving it into a skill would simply have lost it.
-    del heard
-    return f"Your voice speaks only {speaks}; there is no other installed."
+    del heard, speaks
+    # Nothing at all, now that `reply_instruction` says it.
+    #
+    # Cutting this to one line left the prompt with the same fact twice:
+    #
+    #   "Always answer in English ... the installed voice pronounces nothing
+    #    else and anything else comes out as noise."      <- reply_instruction
+    #   "Your voice speaks only English; there is no other installed."  <- here
+    #
+    # The first already carries the rule and the reason. Two sentences saying
+    # one thing is two instructions' worth of budget for one instruction's
+    # worth of information, which is the whole failure this pass is about.
+    #
+    # Kept as a function rather than deleted: the Gateway publishes it, the
+    # Agent reads it, and an empty string travels that path safely while a
+    # removed key would need both sides changed together.
+    return ""
 
 
 def reply_instruction() -> str:
