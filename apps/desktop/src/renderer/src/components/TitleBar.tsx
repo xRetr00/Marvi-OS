@@ -6,7 +6,7 @@
  * interactive child opts out with no-drag. Double-click on the drag region
  * toggles maximize, matching Windows shell expectations.
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { haptic } from '../lib/haptics'
 import {
   Gauge,
@@ -178,18 +178,22 @@ function LowResourceButton(): React.JSX.Element {
   const [working, setWorking] = useState(false)
   const card = useRef<HTMLDivElement>(null)
 
-  const read = useCallback(async () => {
-    setState((await window.marvi?.getResources()) ?? null)
-  }, [])
-
   useEffect(() => {
+    let alive = true
+    const read = async (): Promise<void> => {
+      const next = (await window.marvi?.getResources()) ?? null
+      if (alive) setState(next)
+    }
     void read()
     // Ten seconds: this changes when a game opens, not continuously, and the
     // agent's own poll is thirty. A title bar that repaints every second is
     // something a person notices out of the corner of their eye.
     const timer = window.setInterval(() => void read(), 10_000)
-    return () => window.clearInterval(timer)
-  }, [read])
+    return () => {
+      alive = false
+      window.clearInterval(timer)
+    }
+  }, [])
 
   useEffect(() => {
     if (!explaining) return
