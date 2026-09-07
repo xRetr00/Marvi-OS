@@ -1,5 +1,10 @@
 # UI Contract
 
+Planned browser/computer controls are specified in
+[Phase 14](phases/14-browser-computer-use.md): compact task status and explicit
+Stop/Take over/Resume actions, with passive background events. These controls
+are not implemented; existing visual and focus rules remain authoritative.
+
 ## Visual identity
 
 Marvi OS uses a modern monochrome ASCII system inspired by the repository and

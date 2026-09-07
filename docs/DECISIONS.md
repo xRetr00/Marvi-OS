@@ -308,6 +308,15 @@ wants — which today contradicts the local-first contract.
 
 ## ADR-017 — The browser is a tool, not an autonomous agent
 
+**2026-09-07 review correction:** The historical decision below describes the
+current fixed browser flags, but AGENTS.md is authoritative: Confirm mode must
+let the LLM request confirmation. Reconcile dispatch/tests before extending the
+browser. Also, only the initial `open` URL is checked today; the statement below
+about every navigation is not an implemented guarantee. Untrusted envelopes
+provide provenance, not proof of prompt-injection resistance. The
+[Phase 14 plan](phases/14-browser-computer-use.md) tracks these prerequisites and
+the proposed persistent browser/desktop tool servers; adoption remains planned.
+
 **Decision:** browsing is a Playwright-backed session behind the same Gateway
 policy as every other tool. Navigating, reading, listing links, and going back
 are ungated; clicking, typing, and submitting are sensitive and confirmed.

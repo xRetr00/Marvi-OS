@@ -97,6 +97,10 @@ nightly channel without applying it.
 
 ## The idea behind Marvi
 
+Planned next: a persistent agent browser with tabs and user takeover, followed
+by Windows application control. These extensions are not yet shipped; see the
+[browser and computer-use review and plan](docs/phases/14-browser-computer-use.md).
+
 The best assistant is not the one demanding the most attention. It is the one that is there when needed, stays quiet when not, remembers the right things, and earns the trust required to act.
 
 Marvi OS is an attempt to build exactly that: one private, expressive presence for your conversations, computer, connected life, and physical space.

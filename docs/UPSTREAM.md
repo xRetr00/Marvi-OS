@@ -133,6 +133,21 @@ Marvi-owned adapter.
 
 ## Update procedure
 
+### Browser/computer-use candidates (reviewed 2026-09-07, not adopted)
+
+The [Phase 14 review](phases/14-browser-computer-use.md) recommends evaluating
+[Playwright MCP](https://github.com/microsoft/playwright-mcp) (Apache-2.0) and
+[Windows-MCP](https://github.com/CursorTouch/Windows-MCP) (MIT) unchanged behind
+Gateway adapters. No source was copied and no dependency was added. Version
+pins are intentionally pending the compatibility spike; neither is a production
+dependency. Before adoption, record exact release/commit, dependency licenses,
+managed runtime/browser artifacts, adapter boundary, and update procedure here.
+Use pinned upgrades with real stdio, browser/desktop, cancellation, and recovery
+tests; never deploy the moving `latest` commands shown in upstream quickstarts.
+
+The review also compares Browser Use, agent-browser, pywinauto, FlaUI, and UFO;
+they remain research candidates, not installed dependencies or approved forks.
+
 For each upstream dependency:
 
 1. Review changelog, security advisories, and license changes.

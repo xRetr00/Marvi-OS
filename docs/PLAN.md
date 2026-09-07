@@ -221,3 +221,11 @@ Full plan in `phases/10-resilience.md`; identity in `IDENTITY.md`.
    the command that will run, and a skill cannot grant itself tools.
 
 Full plan in `phases/11-setup.md`.
+
+## Phase 14 — agent browser and computer use (planned)
+
+First reconcile browser network/confirmation claims with implementation and
+AGENTS.md. Evaluate a persistent local Playwright MCP browser behind Gateway,
+then Windows-MCP for desktop interaction. Reuse existing file, terminal,
+process, and screen tools. Ship only after real process, takeover, cancellation,
+and target-hardware checks. See the [review and acceptance plan](phases/14-browser-computer-use.md).

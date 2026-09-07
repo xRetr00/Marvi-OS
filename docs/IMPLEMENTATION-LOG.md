@@ -1,5 +1,16 @@
 # Implementation Log
 
+## 2026-09-07 — browser and computer-use planning review
+
+- Reviewed current Chromium tools, MCP bridge, confirmation dispatch, screen
+  reading, and file/terminal/process capabilities against maintained web sources.
+- Added planned Phase 14 with browser session/takeover and Windows desktop
+  milestones, upstream candidates, ownership, and real-boundary acceptance gates.
+- Flagged initial-URL-only browser checking and fixed confirmation flags as
+  discrepancies to reconcile before implementation. Added a correction to ADR-017.
+- Updated README, plan, architecture, UI, phase index, and upstream candidate
+  records. Documentation only; no runtime or hardware acceptance claim.
+
 ## 2026-09-07 — Restore line-only idle
 
 - Restored the empty idle indicator to a still `34×2` themed line in a

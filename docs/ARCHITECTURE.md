@@ -1,5 +1,10 @@
 # Architecture
 
+Browser/computer-use follow-on: the [Phase 14 review](phases/14-browser-computer-use.md)
+documents current limitations and proposed local tool-server ownership. It is
+planned, not implemented. In particular, the browser currently checks only its
+initial open URL; it does not enforce a complete browser network boundary.
+
 ## Outcome
 
 Marvi OS is a local Windows product composed of supervised processes. The user
