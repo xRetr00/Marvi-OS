@@ -82,3 +82,47 @@ def test_the_ui_presets_are_settings_the_agent_accepts() -> None:
             assert lookahead_seconds() == float(look)
         finally:
             del os.environ["MARVI_STT_CHUNK"], os.environ["MARVI_STT_LOOKAHEAD"]
+
+
+def test_the_pace_is_only_reported_for_the_engine_that_has_one(monkeypatch, caplog) -> None:
+    """A Nemotron session logged Parakeet's chunk size.
+
+        speech settings from the Gateway: nemotron-3.5 on cuda,
+        2.0s chunks, 0.8s lookahead
+
+    Nemotron is a streaming recogniser and reads neither. The numbers were
+    real -- Parakeet's, sitting in the environment -- and describing the wrong
+    engine, and a 2.3 second transcription delay in that session was then
+    explained with them. A log that reports a setting the running code does
+    not consult is worse than one that omits it, because it gets believed.
+    """
+    import logging
+
+    import httpx
+
+    from marvi_agent import session as agent_session
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"engine": ENGINE, "device": "cuda", "chunk": "2.0",
+                                         "lookahead": "0.8", "tts_language": "en"})
+
+    monkeypatch.setattr(
+        "httpx.get",
+        lambda url, **kw: answer(httpx.Request("GET", url)),
+    )
+
+    global ENGINE
+    for ENGINE, expect, forbid in (
+        ("nemotron-3.5", "streaming", "chunks"),
+        ("parakeet-tdt", "2.0s chunks", "streaming"),
+    ):
+        caplog.clear()
+        with caplog.at_level(logging.INFO):
+            agent_session.apply_speech_settings()
+        said = chr(10).join(record.getMessage() for record in caplog.records)
+".join(record.getMessage() for record in caplog.records)
+        assert expect in said, f"{ENGINE}: expected {expect!r} in {said!r}"
+        assert forbid not in said, f"{ENGINE}: {forbid!r} should not appear"
+
+
+ENGINE = "nemotron-3.5"
