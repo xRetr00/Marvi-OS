@@ -239,6 +239,7 @@ export function CronjobsPage(): React.JSX.Element {
       {!page?.running && page && (
         <p className="cron-warn">The scheduler is not running, so nothing here will fire.</p>
       )}
+      {error && !open && <p className="cron-error cron-action-error">{error}</p>}
 
       <section aria-label="Cron job templates" className="cron-templates">
         <div className="cron-templates-head">

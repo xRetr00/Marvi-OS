@@ -12284,6 +12284,13 @@ html[data-appearance='claude-code-dark'] .control-row {
   color: var(--ui-accent);
 }
 
+.sched-actions button:disabled {
+  border-color: var(--ui-border-subtle);
+  color: var(--ui-text-tertiary);
+  cursor: wait;
+  opacity: 0.62;
+}
+
 .sched-actions button.is-danger:hover {
   border-color: var(--ui-danger);
   color: var(--ui-danger);
@@ -12459,11 +12466,121 @@ html[data-appearance='claude-code-dark'] .control-row {
   font-size: 10px;
 }
 
+.cron-templates {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 20px;
+  padding: 12px 14px;
+  border-block: 1px solid var(--ui-border-subtle);
+}
+
+.cron-templates-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.cron-templates-head > svg {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  margin-top: 1px;
+  color: var(--ui-text-tertiary);
+}
+
+.cron-templates-head h3 {
+  margin: 0;
+  color: var(--ui-text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.cron-templates-head p {
+  margin: 2px 0 0;
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+}
+
+.cron-template-list {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.cron-template-list button {
+  display: grid;
+  gap: 4px;
+  padding: 9px 10px;
+  border: 1px solid var(--ui-border-subtle);
+  border-radius: 5px;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+
+.cron-template-list button:hover {
+  border-color: color-mix(in srgb, var(--ui-accent) 55%, var(--ui-border-subtle));
+  background: color-mix(in srgb, var(--ui-accent) 4%, transparent);
+}
+
+.cron-template-list button > span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cron-template-list strong {
+  color: var(--ui-text-emphasis);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.cron-template-list small {
+  color: var(--ui-text-tertiary);
+  font-size: 7px;
+  letter-spacing: 0.08em;
+}
+
+.cron-template-list em {
+  color: var(--ui-text-tertiary);
+  font-size: 8px;
+  font-style: normal;
+  line-height: 1.45;
+}
+
 .cron-form {
   margin-bottom: 26px;
   padding: 16px;
   border: 1px solid var(--ui-border-subtle);
   border-radius: 8px;
+}
+
+.cron-form-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid var(--ui-border-subtle);
+}
+
+.cron-form-head span {
+  color: var(--ui-accent);
+  font-size: 8px;
+  letter-spacing: 0.08em;
+}
+
+.cron-form-head strong {
+  overflow: hidden;
+  color: var(--ui-text-secondary);
+  font-size: 10px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Two cards, each saying what the kind is, what it costs and one example. */
@@ -12735,6 +12852,12 @@ html[data-appearance='claude-code-dark'] .control-row {
   font-size: 10px;
 }
 
+.cron-action-error {
+  padding: 9px 12px;
+  border: 1px solid color-mix(in srgb, var(--ui-danger) 30%, transparent);
+  border-radius: 6px;
+}
+
 .cron-create {
   padding: 7px 16px;
   border: 1px solid var(--ui-accent);
@@ -12761,6 +12884,12 @@ html[data-appearance='claude-code-dark'] .control-row {
   color: var(--ui-text-tertiary);
   font-size: 10px;
   line-height: 1.55;
+}
+
+@media (max-width: 720px) {
+  .cron-template-list {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* -- Overview ---------------------------------------------------------------
