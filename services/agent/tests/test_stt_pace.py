@@ -98,15 +98,17 @@ def test_the_pace_is_only_reported_for_the_engine_that_has_one(monkeypatch, capl
     """
     import logging
 
+    # `apply_speech_settings` assigns into `os.environ` itself, which
+    # `monkeypatch` cannot see and therefore cannot undo -- so the 0.8s
+    # lookahead set here leaked forward and made a test three files away
+    # assert 0.8 where it wanted the 2.0 default. Snapshot and put it back.
+    import os
+
     import httpx
 
     from marvi_agent import session as agent_session
 
-    # `apply_speech_settings` writes into `os.environ` and does not put it
-    # back, so without this the 0.8s lookahead it sets here leaks into every
-    # test that runs after it -- which is how a test three files away started
-    # asserting 0.8 where it wanted the 2.0 default.
-    for name in (
+    touches = (
         "MARVI_STT_ENGINE",
         "MARVI_STT_DEVICE",
         "MARVI_PARAKEET_CHUNK",
@@ -114,8 +116,8 @@ def test_the_pace_is_only_reported_for_the_engine_that_has_one(monkeypatch, capl
         "MARVI_STT_LANGUAGE",
         "MARVI_REPLY_INSTRUCTION",
         "MARVI_ARCHITECTURE",
-    ):
-        monkeypatch.delenv(name, raising=False)
+    )
+    before = {name: os.environ.get(name) for name in touches}
 
     def answer(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"engine": ENGINE, "device": "cuda", "chunk": "2.0",
@@ -135,8 +137,15 @@ def test_the_pace_is_only_reported_for_the_engine_that_has_one(monkeypatch, capl
         with caplog.at_level(logging.INFO):
             agent_session.apply_speech_settings()
         said = chr(10).join(record.getMessage() for record in caplog.records)
-        assert expect in said, f"{ENGINE}: expected {expect!r} in {said!r}"
-        assert forbid not in said, f"{ENGINE}: {forbid!r} should not appear"
+        try:
+            assert expect in said, f"{ENGINE}: expected {expect!r} in {said!r}"
+            assert forbid not in said, f"{ENGINE}: {forbid!r} should not appear"
+        finally:
+            for name, was in before.items():
+                if was is None:
+                    os.environ.pop(name, None)
+                else:
+                    os.environ[name] = was
 
 
 ENGINE = "nemotron-3.5"
