@@ -17,6 +17,8 @@ import type {
   InitiativeStatus,
   MindSettingsPatch,
   SaidWaiting,
+  ResourceLedger,
+  ResourceReading,
   ResourceState,
   McpRegistryPage,
   McpServerRow,
@@ -108,6 +110,8 @@ export interface MarviDesktopApi {
   getInitiative: () => Promise<InitiativeStatus | null>
   getResources: () => Promise<ResourceState | null>
   holdResources: (on: boolean) => Promise<ResourceState | null>
+  getResourceHistory: (limit?: number) => Promise<ResourceLedger | null>
+  getResourceNow: () => Promise<ResourceReading | null>
   setInitiative: (paused: boolean) => Promise<InitiativeStatus | null>
   setMindSettings: (patch: MindSettingsPatch) => Promise<InitiativeStatus | null>
   sayWaiting: (summary: string) => Promise<SaidWaiting | null>

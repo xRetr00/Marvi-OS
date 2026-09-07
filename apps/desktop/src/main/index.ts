@@ -1596,6 +1596,33 @@ function startApp(): void {
     // Whether something else should have the GPU right now -- a game, usually.
     // See `focus.py`: the agent asks this before it prewarms, and the Overview
     // says so, because standing down silently is the same as not standing down.
+    // The watchdog. `history` is cheap and cached; `now` takes a fresh
+    // reading including per-process video memory, which costs a PowerShell
+    // performance counter -- about three seconds -- so it is a button.
+    ipcMain.handle('marvi:resource-history', async (_event, limit: number) => {
+      try {
+        const response = await fetch(`${gateway()}/resources/history?limit=${limit || 240}`, {
+          signal: AbortSignal.timeout(8_000)
+        })
+        if (!response.ok) return null
+        return await response.json()
+      } catch {
+        return null
+      }
+    })
+
+    ipcMain.handle('marvi:resource-now', async () => {
+      try {
+        const response = await fetch(`${gateway()}/resources/now`, {
+          signal: AbortSignal.timeout(30_000)
+        })
+        if (!response.ok) return null
+        return await response.json()
+      } catch {
+        return null
+      }
+    })
+
     ipcMain.handle('marvi:hold-resources', async (_event, on: boolean) => {
       try {
         const response = await fetch(`${gateway()}/resources`, {

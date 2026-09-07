@@ -18,6 +18,8 @@ import type {
   InitiativeStatus,
   MindSettingsPatch,
   SaidWaiting,
+  ResourceLedger,
+  ResourceReading,
   ResourceState,
   McpRegistryPage,
   McpServerRow,
@@ -163,6 +165,10 @@ const marvi = {
   getResources: (): Promise<ResourceState | null> => ipcRenderer.invoke('marvi:get-resources'),
   holdResources: (on: boolean): Promise<ResourceState | null> =>
     ipcRenderer.invoke('marvi:hold-resources', on),
+  getResourceHistory: (limit?: number): Promise<ResourceLedger | null> =>
+    ipcRenderer.invoke('marvi:resource-history', limit ?? 240),
+  getResourceNow: (): Promise<ResourceReading | null> =>
+    ipcRenderer.invoke('marvi:resource-now'),
   setInitiative: (paused: boolean): Promise<InitiativeStatus | null> =>
     ipcRenderer.invoke('marvi:set-initiative', paused),
   setMindSettings: (patch: MindSettingsPatch): Promise<InitiativeStatus | null> =>

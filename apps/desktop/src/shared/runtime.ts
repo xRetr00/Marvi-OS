@@ -292,6 +292,67 @@ export interface ResourceState {
   automatic?: boolean
 }
 
+/** One Marvi process in a resource reading. See `accounting.py`. */
+export interface ResourceProcess {
+  /** gateway | agent | tts-voxtream | room | desktop | wake-word | livekit */
+  role: string
+  pid: number
+  rss_mb: number
+  cpu_percent: number
+  read_mb: number
+  write_mb: number
+  /** Null when the reading did not go looking. Never a stale number. */
+  vram_mb: number | null
+  alive_seconds: number
+}
+
+/** What she was doing when a reading was taken. */
+export interface ResourceDoing {
+  phase: string
+  moment: string
+  voice_ready: boolean
+  in_call: boolean
+  low_resource: boolean
+  busy_with: string
+}
+
+/** One moment: what she was doing, and what it cost. */
+export interface ResourceReading {
+  at: number
+  doing: ResourceDoing
+  processes: ResourceProcess[]
+  ram_total_mb: number
+  ram_available_mb: number
+  cpu_percent: number
+  vram_total_mb: number
+  vram_used_mb: number
+  gpu_percent: number
+  disk_free_gb: number
+  deep: boolean
+  marvi_ram_mb: number
+  marvi_vram_mb: number | null
+}
+
+/** Averages split by what she was doing -- the split is the whole point. */
+export interface ResourcePhase {
+  doing: string
+  readings: number
+  ram_mb: number
+  cpu_percent: number
+  vram_mb: number | null
+  worst_ram_mb: number
+}
+
+export interface ResourceLedger {
+  readings: ResourceReading[]
+  summary: {
+    readings: number
+    since?: number
+    by_phase: ResourcePhase[]
+    latest: ResourceReading | null
+  }
+}
+
 /** The mind's knobs. Every one of them changes how often Marvi speaks, so
  *  every one of them belongs somewhere a person can reach. */
 export interface MindSettingsPatch {
