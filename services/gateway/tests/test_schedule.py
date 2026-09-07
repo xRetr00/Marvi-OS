@@ -417,3 +417,30 @@ def test_cronjob_tool_exposes_management_and_is_conditionally_sensitive(store) -
     )
     assert made["mode"] == "agent"
     assert spec.handler(action="runs", id=made["id"]) == {"executions": []}
+
+
+def test_running_a_reminder_twice_says_it_twice(store, tmp_path) -> None:
+    """Eight runs produced one announcement, and the button looked broken.
+
+        completed_runs   8
+        journal events   1
+        last_error       None
+
+    The journal drops a repeated fingerprint for six hours, which is right for
+    a poll re-reporting the same email and exactly wrong for a reminder --
+    repeating is what a reminder is for. Every press after the first wrote
+    nothing, said nothing, and still answered 200.
+    """
+    from marvi_gateway.journal import EventJournal
+    from marvi_gateway.schedule import Scheduler
+
+    journal = EventJournal(tmp_path / "journal.sqlite3")
+    made = store.add("nag", "remind", "cron", "0 7 * * *", "Time to get up")
+    scheduler = Scheduler(store, journal=journal)
+
+    scheduler.fire(made.id)
+    scheduler.fire(made.id)
+    scheduler.fire(made.id)
+
+    said = [row for row in journal.recent(limit=20) if row["source"] == "schedule"]
+    assert len(said) == 3, "every run has to be sayable, or the button does nothing"

@@ -811,8 +811,46 @@ def _timed_llm() -> TimedLLM:
     calls the provider itself. The Gateway path reuses the same wrapper with a
     different label, which is what makes the two comparable at all.
     """
-    config = AgentConfig.from_gateway()
+    config = _config_when_one_is_available()
     return TimedLLM(build_llm(config), path="direct", provider=config.provider, model=config.model)
+
+
+#: How long to keep asking when every provider is resting, and how often.
+#:
+#: A dropped connection rests fifteen seconds now, and a job that arrives
+#: inside that window used to die outright:
+#:
+#:     07:41:45  openrouter cooling down 300s: [WinError 10054]
+#:     07:42:29  ProviderUnavailableError -> unhandled exception, job dead
+#:
+#: The user pressed Join and got a session with nobody in it. Waiting twenty
+#: seconds and connecting is a better answer than failing in under one, and
+#: for a genuine outage it still fails -- just with the reason attached.
+WAIT_FOR_A_MODEL = 20.0
+ASK_AGAIN_EVERY = 2.0
+
+
+def _config_when_one_is_available() -> Any:
+    """The provider config, giving a resting provider a moment to come back.
+
+    Only a short wait, and only for this: a session that cannot start is the
+    most visible failure Marvi has, and most of what stops one starting is a
+    cooldown measured in seconds.
+    """
+    from .runtime import ProviderUnavailableError
+
+    began = time.monotonic()
+    while True:
+        try:
+            return AgentConfig.from_gateway()
+        except ProviderUnavailableError as exc:
+            if time.monotonic() - began >= WAIT_FOR_A_MODEL:
+                # The Gateway's own reason travels with it, so the log and
+                # anything above says which kind of nothing this was.
+                log.warning("no model after %.0fs: %s", WAIT_FOR_A_MODEL, exc)
+                raise
+            log.info("waiting for a model to come back: %s", exc)
+            time.sleep(ASK_AGAIN_EVERY)
 
 
 def situation() -> str:

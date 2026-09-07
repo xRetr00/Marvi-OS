@@ -56,6 +56,10 @@ MUST_BE_SAID: frozenset[str] = frozenset({
     "schedule:insistent_reminder",
     "machine:disk_critical",
     "system:feed_quiet",
+    # Going quiet without saying why is the failure this whole path exists to
+    # stop: a rate-limited model, an unreachable Gateway and a recogniser that
+    # heard nothing all look identical from outside -- a pause, then nothing.
+    "system:model_resting",
     "machine:battery_critical",
     "focus:heavy_app_started",
     "focus:heavy_app_ended",
@@ -114,6 +118,10 @@ SURFACE_CEILING: dict[str, str] = {
     # current. Thirteen days of "Phone: HOME" from a stale geofence is what
     # not saying it costs.
     "system:feed_quiet": "speak",
+    # A model resting. Only reported when it leaves nothing else to think
+    # with, so this is Marvi saying she is about to be slower or quieter --
+    # which beats being thought broken. See `providers.client.stand_down`.
+    "system:model_resting": "speak",
     "machine:disk_critical": "speak",
     "machine:disk_low": "island",
     "machine:battery_critical": "speak",

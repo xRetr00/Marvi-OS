@@ -107,6 +107,45 @@ TRANSPORT_TROUBLE: tuple[str, ...] = (
 )
 
 
+#: Below this, staying quiet is right. A fifteen-second rest is over before
+#: anybody notices; announcing it is the interruption, not the outage.
+WORTH_ANNOUNCING = 60.0
+
+#: Set by the Gateway to `(sentence, seconds) -> None`. Left unset, nothing is
+#: announced and everything else behaves exactly as it did.
+on_cooldown: Any = None
+
+
+def resting_sentence(seconds: float, reason: str) -> str:
+    """What to say about a provider sitting out, in her own words.
+
+    Never the exception text. Provider errors carry request URLs and auth
+    headers, and an assistant that reads its errors aloud reads an API key
+    aloud -- see `troubles`, which has held that rule since it was written.
+
+    The duration used to be `max(1, round(seconds / 60))` minutes, which read
+    a fifteen-second rest as "about 1 minute", and the cause was hardcoded to
+    "rate limited" whichever of the two it was.
+    """
+    if seconds < 90:
+        how_long = f"{round(seconds)} seconds"
+    elif seconds < 5400:
+        minutes = round(seconds / 60)
+        how_long = f"about {minutes} minute{'' if minutes == 1 else 's'}"
+    else:
+        # An authentication rejection rests for six hours, and "about 360
+        # minutes" is a number a person has to convert before it means
+        # anything.
+        hours = round(seconds / 3600)
+        how_long = f"about {hours} hour{'' if hours == 1 else 's'}"
+    why = (
+        "lost its connection" if "connection dropped" in reason
+        else "is rate limited" if ("rate limit" in reason or "window exhausted" in reason)
+        else "turned me away"
+    )
+    return f"one of my models {why}, so I am on the slower path for {how_long}"
+
+
 def _dropped_connection(exc: BaseException) -> bool:
     """Whether this was the network rather than the provider.
 
@@ -234,17 +273,23 @@ class ProviderClient:
         with contextlib.suppress(Exception):
             from ..condition import note
 
-            minutes = max(1, round(seconds / 60))
-            note(
-                "thinking",
-                seconds,
-                # Said the way a person would: "one of my models" rather than a
-                # provider slug, and a plural that agrees with itself.
-                failed=(
-                    "one of my models is rate limited for about "
-                    f"{minutes} minute{'' if minutes == 1 else 's'}"
-                ),
-            )
+            note("thinking", seconds, failed=resting_sentence(seconds, reason))
+        # And out loud, when it means she is about to go quiet.
+        #
+        # `condition` reaches the user only through `/voice/aside`, which is
+        # asked at turn boundaries inside a call. The cooldown that mattered
+        # landed five seconds after the last one:
+        #
+        #     07:41:40  GET /voice/aside          <- the last turn boundary
+        #     07:41:45  openrouter cooling down 300s
+        #     07:42:29  the session died, nothing said
+        #
+        # A cooldown between calls, or one that kills the call, was never
+        # spoken at all. This is the other channel: the announcer works
+        # outside a call and is always warm.
+        with contextlib.suppress(Exception):
+            if on_cooldown is not None and seconds >= WORTH_ANNOUNCING and not self.candidates():
+                on_cooldown(resting_sentence(seconds, reason), seconds)
 
     def soonest_available(self) -> float:
         """Seconds until any configured provider will answer; 0 if one will now.

@@ -1365,6 +1365,27 @@ def create_app(
         if initiative is not None:
             initiative.focus = focus
             initiative.books = books
+            # A provider going quiet is something Marvi should say, not
+            # something to find in a log afterwards. `system:model_resting` is
+            # in `policy.MUST_BE_SAID`, so deliberation cannot talk her out
+            # of it. See `providers.client.stand_down`.
+            if journal is not None:
+
+                def _say_resting(sentence: str, seconds: float) -> None:
+                    journal.append(
+                        "system",
+                        "model_resting",
+                        sentence,
+                        {"seconds": round(seconds)},
+                        trusted=True,
+                        # Each outage is its own news, and the sentence is the
+                        # same one every time.
+                        dedupe=False,
+                    )
+
+                from .providers import client as provider_module
+
+                provider_module.on_cooldown = _say_resting
             if sidecar is not None:
                 room = sidecar
                 initiative.pace_the_room = lambda easy: room.call(

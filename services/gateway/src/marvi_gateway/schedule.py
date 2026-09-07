@@ -686,10 +686,31 @@ class Scheduler:
             elif job.action == "remind":
                 if self.journal is None:
                     raise ScheduleError("no journal to record the reminder in")
+                # `dedupe=False`, because a reminder that repeats is the whole
+                # point of a reminder. The journal drops a repeated fingerprint
+                # for six hours, which is right for a poll re-reporting the
+                # same email and exactly wrong here:
+                #
+                #     completed_runs   8
+                #     journal events   1
+                #
+                # Eight runs, one event. The first Run Now was announced and
+                # every press after it wrote nothing, said nothing, and still
+                # answered 200 -- so the button looked broken when the only
+                # thing broken was that nobody was told.
                 self.journal.append(
                     "schedule", "insistent_reminder" if job.insist else "reminder",
                     job.message or job.name,
-                    {"schedule_id": job.id, "name": job.name, "insist": job.insist}, trusted=True,
+                    {
+                        "schedule_id": job.id,
+                        "name": job.name,
+                        "insist": job.insist,
+                        # So two runs are distinguishable to anything reading
+                        # the journal later, not only to the dedupe check.
+                        "run": job.completed_runs + 1,
+                    },
+                    trusted=True,
+                    dedupe=False,
                 )
                 result = {"output": job.message or job.name, "tools_used": []}
             elif job.action == "check_accounts":
