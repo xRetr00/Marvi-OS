@@ -11521,9 +11521,9 @@ html[data-appearance='claude-code-dark'] .control-row {
 
 /* -- The island, when she volunteered ---------------------------------------
    `speaking` is her half of a conversation you started. `announcing` is the
-   announcer: nobody asked. It gets its own colour and a slower, outward pulse
-   so you can tell which is happening from across the room, before any of the
-   words arrive. */
+   announcer: nobody asked. Its weaving orb and slower internal signal separate
+   initiative from a reply while its color remains native to the selected
+   theme. */
 
 .dynamic-island[data-phase='announcing'] {
   --island-announcement-accent: color-mix(
