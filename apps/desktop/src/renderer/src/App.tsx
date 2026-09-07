@@ -104,6 +104,7 @@ import { CapabilityPluginsPanel } from './components/capabilities/CapabilityPlug
 import { ActivityPage } from './components/activity-page'
 import { MemoryHealth } from './components/memory-health'
 import { CronjobsPage } from './components/cronjobs-page'
+import { ResourcesPage } from './components/resources-page'
 import { MindPage } from './components/mind-page'
 import { VisitorPhotos, type VisitorSighting } from './components/visitor-photos'
 import { OverviewPage } from './components/overview-page'
@@ -229,7 +230,7 @@ import { $voices, refreshVoices } from './store/voices'
  */
 const NAV_GROUPS = [
   { label: 'Core', items: ['Overview', 'Voice', 'Chat'] },
-  { label: 'Context', items: ['Vision', 'Room', 'Activity'] },
+  { label: 'Context', items: ['Vision', 'Room', 'Activity', 'Resources'] },
   { label: 'Cortex', items: ['DMN', 'Graph', 'Mind'] },
   { label: 'Capabilities', items: ['Skills', 'Cronjobs', 'Connectors', 'MCP', 'Plugins'] }
 ] as const
@@ -268,6 +269,7 @@ const NAV_CODES: Record<Page, string> = {
   Vision: 'VI',
   Room: 'RM',
   Activity: 'AC',
+  Resources: 'RS',
   DMN: 'DM',
   Graph: 'GR',
   Mind: 'MI',
@@ -285,6 +287,7 @@ const NAV_ICONS: Record<Page, AbstractIconName> = {
   Vision: 'vision',
   Room: 'room',
   Activity: 'activity',
+  Resources: 'overview',
   DMN: 'identity',
   Graph: 'memory',
   Mind: 'mind',
@@ -823,6 +826,8 @@ function MainSurface(): React.JSX.Element {
                     <MemoryPanel />
                   ) : page === 'Mind' ? (
                     <MindPage />
+                  ) : page === 'Resources' ? (
+                    <ResourcesPage />
                   ) : page === 'Cronjobs' ? (
                     <CronjobsPage />
                   ) : page === 'Skills' ? (
@@ -4936,6 +4941,7 @@ function PagePanel({ page }: { page: Page }): React.JSX.Element {
     Room: '',
     Activity: 'Local event and tool history.',
     Cronjobs: '',
+    Resources: '',
     DMN: "Marvi's identity and your standing preferences.",
     Graph: 'What Marvi knows, and how it connects.',
     Mind: 'Autonomous decisions and initiative controls.',
