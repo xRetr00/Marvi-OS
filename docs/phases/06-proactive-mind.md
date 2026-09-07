@@ -108,6 +108,13 @@ when no Voice participant exists. A PID-bound marker pauses wake-word scoring
 only during playback and is removed on completion, failure, or staleness. Chat
 Read Aloud and trusted Room welcomes use this same cancellable service.
 
+Proactive playback publishes a separate announcement channel containing one
+stable identity, the exact spoken sentence, its event source and timestamp, and
+whether audio is still on air. The Dynamic Island expands while it plays,
+remains readable for ten seconds, then collapses to a hover-recallable orb. The
+Gateway expires the retained channel 35 seconds after playback without holding
+the live assistant phase open or overwriting a newer voice turn.
+
 If speech fails for any reason the decision is not lost; it drops to the Island
 so the user still sees it.
 

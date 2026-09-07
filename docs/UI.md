@@ -221,6 +221,8 @@ Target sizes at 100% scaling:
 | listening expanded     |       `210×38` | `LISTEN`, live waveform and concise state copy             |
 | thinking expanded      |       `230×40` | `THINK`, low-cost ASCII pulse and concise state copy       |
 | speaking expanded      |       `250×42` | `SPEAK`, output waveform and interrupt hint                |
+| announcement on-air    |   up to `352×92` | exact sentence, source/time label, active internal signal |
+| announcement retained  |        `38×30` | themed weaving orb; hover recalls the exact sentence       |
 | action expanded        |       `280×46` | tool orb, short verb, progress                             |
 | notification expanded  | up to `320×64` | one concise world/room event                               |
 | error expanded         |       `280×46` | quiet offline/error state and recovery detail              |
@@ -245,10 +247,20 @@ Rules:
 - Camera, microphone, and global mode indicators do not appear in the Island.
   Their authoritative state remains available in the control center.
 - Background events may animate the Island but may not focus the main window.
-- A newly entered orb state discloses its copy for 1.8 seconds, then collapses
-  to the `38×30` orb notch. Hovering that notch expands the same state again;
-  leaving returns it to the orb. Hover capture never makes the window focusable
-  and never activates the current application.
+- A newly entered ordinary orb state discloses its copy for 1.8 seconds, then
+  collapses to the `38×30` orb notch. Hovering that notch expands the same state
+  again; leaving returns it to the orb. Hover capture never makes the window
+  focusable and never activates the current application.
+- Proactive speech rides an announcement channel beside the live voice phase.
+  It expands to at most `352×92` while audio is on air. When playback ends, the
+  assistant returns to `ready`; the exact sentence remains expanded for 10
+  seconds, then becomes a `38×30` weaving orb that can be recalled on hover
+  until the Gateway's 35-second retention expires. A live call or confirmation
+  always outranks the retained announcement.
+- Announcement copy uses the exact spoken sentence as its primary line and a
+  compact source/`NOW` label as context. Its active signal animates inside the
+  native bounds and derives from the selected theme accent. Reduced-motion mode
+  keeps the signal still.
 - The native host follows measured content plus a two-pixel transparent edge
   inset. It never reserves a larger invisible stage. Resize only at
   content/state boundaries; never animate native window bounds per frame.

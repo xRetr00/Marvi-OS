@@ -1591,3 +1591,20 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
 - Changed Smart Room's new review artifacts from tight face thumbnails to
   bounded, native-resolution 4:3 context crops while keeping full raw camera
   frames inside the sidecar.
+
+## 2026-09-07 — two-stage Announcer Island
+
+- Moved proactive announcements onto a retained Gateway channel with stable
+  identity, exact copy, source, timestamp, on-air state, and bounded expiry.
+  Playback still uses the distinct `announcing` phase; completion returns the
+  assistant to `ready` without discarding the readable notice.
+- Reworked the Island into a `352×64–92` on-air/readable notch followed by a
+  ten-second disclosure and `38×30` hover-recall orb for the rest of the
+  Gateway's 35-second retention. Live voice and confirmations take priority.
+- Made the exact spoken sentence primary, added a compact source/`NOW` label,
+  replaced the clipped outer halo with an internal on-air signal, and derived
+  both signal and weaving orb from the selected theme accent.
+- Added Gateway identity/source/lifecycle coverage and desktop normalization,
+  precedence, markup, collapsed-accessibility, and timing coverage. Visual QA
+  confirmed `352×64`, top-edge geometry, theme-derived accent, reduced-motion
+  suppression, ten-second collapse, hover recall, and zero browser errors.

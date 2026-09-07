@@ -17,6 +17,9 @@ surface and its native-window behavior can be proven without the voice engine.
   only its short light line remains visible.
 - A top-attached `38×30` orb notch for active states that briefly expands on
   state entry and expands again on hover; confirmations remain fully disclosed.
+- A separate proactive-announcement channel: up to `352×92` while speech is on
+  air, a ten-second readable hold after playback, then the same `38×30` orb with
+  hover recall until the Gateway expires it. Live voice and confirmations win.
 - A tightly fitted native host that follows measured content with a two-pixel
   transparent edge inset; bounds are validated in Electron before use.
 - Transparent, frameless, click-through, non-focusable, non-draggable,
@@ -42,6 +45,9 @@ surface and its native-window behavior can be proven without the voice engine.
 - Three native pointer policies: click-through sleep, non-focusable hover
   capture for orb states, and focusable confirmation controls. Expanded states
   remain flush with the screen edge rather than floating below it.
+- Announcement metadata includes a stable identity, event source, creation time,
+  active/retained state, and expiry. Its exact sentence is visually primary;
+  the internal signal and weaving orb inherit the selected theme accent.
 - Settings for Confirm/YOLO mode and explicit display plus left/center/right
   Island placement, with accessible switch/pressed semantics.
 - Real Gateway/component, microphone, camera, phase, mode, and version data in
