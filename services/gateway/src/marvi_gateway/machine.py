@@ -23,6 +23,7 @@ own; this exists so that machinery never has to see the repeats at all.
 
 from __future__ import annotations
 
+import json
 import shutil
 import socket
 from dataclasses import dataclass, field
@@ -89,13 +90,55 @@ class Machine:
     that has already been crossed is silence.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, path: Any = None) -> None:
+        #: Where what has already been said is kept between runs.
+        #:
+        #: In memory alone this re-announced every standing condition on every
+        #: restart, and the Gateway restarts often -- eighteen times in two
+        #: days. "D: has 16GB free" was said seven times, each one exactly five
+        #: minutes after a start, because a fresh watcher has never reported
+        #: anything and a full disk is still full.
+        self.path = path
         #: Drive root -> the worst level already reported ("low"/"critical").
         self._disk: dict[str, str] = {}
         self._battery: str = ""
         self._plugged: bool | None = None
         self._memory: bool = False
         self._online: bool | None = None
+        self._load()
+
+    # -- what has already been said ------------------------------------------
+
+    def _load(self) -> None:
+        if self.path is None:
+            return
+        try:
+            saved = json.loads(self.path.read_text(encoding="utf-8"))
+        except Exception:
+            return
+        if not isinstance(saved, dict):
+            return
+        self._disk = {str(k): str(v) for k, v in (saved.get("disk") or {}).items()}
+        self._battery = str(saved.get("battery") or "")
+        self._memory = bool(saved.get("memory"))
+        # `plugged` and `online` are deliberately not restored. Both report on
+        # *change*, and the change that matters across a restart is one nobody
+        # saw -- announcing "back online" because the last run remembered being
+        # offline would be reporting the restart, not the network.
+
+    def _save(self) -> None:
+        if self.path is None:
+            return
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            self.path.write_text(
+                json.dumps(
+                    {"disk": self._disk, "battery": self._battery, "memory": self._memory}
+                ),
+                encoding="utf-8",
+            )
+        except Exception as exc:  # pragma: no cover - disk
+            log.info("could not remember what the machine already reported: %s", str(exc)[:120])
 
     # -- the individual watchers ---------------------------------------------
 
@@ -212,15 +255,24 @@ class Machine:
 
     # -- what the scheduler calls --------------------------------------------
 
-    def look(self) -> list[Reading]:
-        """Everything newly worth saying. Empty is the normal answer."""
+    def look(self, busy_with: str = "") -> list[Reading]:
+        """Everything newly worth saying. Empty is the normal answer.
+
+        `busy_with` is what has the machine, when something does. Memory
+        pressure while a game is running is not news -- it is the game, and
+        complaining about it is complaining about the thing she just stood
+        aside for. See `focus`.
+        """
         seen: list[Reading] = []
-        for watcher in (
-            self._look_at_disks,
-            self._look_at_power,
-            self._look_at_memory,
-            self._look_at_network,
-        ):
+        watchers = [self._look_at_disks, self._look_at_power, self._look_at_network]
+        if not busy_with:
+            # Memory only when nothing is expected to be eating it.
+            watchers.insert(2, self._look_at_memory)
+        else:
+            # Remembered as reported, so that when the game closes and memory
+            # is genuinely still high she does not announce it as new.
+            self._memory = True
+        for watcher in watchers:
             try:
                 seen.extend(watcher())
             except Exception as exc:
@@ -233,6 +285,7 @@ class Machine:
                     str(exc)[:160],
                 )
         if seen:
+            self._save()
             log.info(
                 "machine: %s", "; ".join(reading.summary for reading in seen),
                 extra={"marvi_readings": len(seen)},

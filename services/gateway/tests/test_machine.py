@@ -103,3 +103,75 @@ def test_she_says_it_like_a_person() -> None:
     line = voicing.spoken(event, "Shereef")
     assert "16.3" in line and "D" in line
     assert "disk_low" not in line, "read the event kind aloud"
+
+
+def test_it_does_not_re_announce_a_standing_condition_after_a_restart(monkeypatch, tmp_path) -> None:
+    """The Gateway restarts often -- eighteen times in two days -- and each
+    restart built a fresh watcher that had never reported anything.
+
+        start 09:33 -> "D: has 16GB free" 09:38
+        start 18:51 -> "D: has 16GB free" 18:56
+        start 03:10 -> "D: has 16GB free" 03:15
+
+    Exactly five minutes after each, because a full disk is still full.
+    """
+    _quiet(monkeypatch)
+    _disks(monkeypatch, DISK_LOW_GB - 1)
+    path = tmp_path / "machine.json"
+
+    first = Machine(path)
+    assert [r.kind for r in first.look()] == ["disk_low"]
+
+    # A restart: a new watcher, the same still-full disk.
+    again = Machine(path)
+    assert again.look() == [], "announced the same full disk after a restart"
+
+
+def test_a_worse_reading_survives_a_restart(monkeypatch, tmp_path) -> None:
+    _quiet(monkeypatch)
+    path = tmp_path / "machine.json"
+    _disks(monkeypatch, DISK_LOW_GB - 1)
+    Machine(path).look()
+
+    _disks(monkeypatch, DISK_CRITICAL_GB - 1)
+    assert [r.kind for r in Machine(path).look()] == ["disk_critical"]
+
+
+def test_memory_pressure_during_a_game_is_not_news(monkeypatch, tmp_path) -> None:
+    """It is the game. Complaining about it is complaining about the thing she
+    just stood aside for -- and it reached the room as "memory at 92%" a minute
+    after FC 26 started."""
+    import sys
+    import types
+
+    monkeypatch.setattr(Machine, "_look_at_disks", lambda _s: [])
+    monkeypatch.setattr(Machine, "_look_at_power", lambda _s: [])
+    monkeypatch.setattr(Machine, "_look_at_network", lambda _s: [])
+    # The real memory watcher, against a machine that is genuinely tight.
+    fake = types.ModuleType("psutil")
+    fake.virtual_memory = lambda: types.SimpleNamespace(percent=96.0)
+    fake.sensors_battery = lambda: None
+    monkeypatch.setitem(sys.modules, "psutil", fake)
+
+    machine = Machine(tmp_path / "m.json")
+    assert machine.look(busy_with="FC 26") == [], "complained about the game's own memory"
+
+    # And once the game closes it is not announced as new either: it was
+    # already true, and nobody wants to hear about it a second time.
+    assert machine.look() == []
+
+
+def test_memory_pressure_with_nothing_running_is_worth_saying(monkeypatch, tmp_path) -> None:
+    import sys
+    import types
+
+    monkeypatch.setattr(Machine, "_look_at_disks", lambda _s: [])
+    monkeypatch.setattr(Machine, "_look_at_power", lambda _s: [])
+    monkeypatch.setattr(Machine, "_look_at_network", lambda _s: [])
+    fake = types.ModuleType("psutil")
+    fake.virtual_memory = lambda: types.SimpleNamespace(percent=96.0)
+    fake.sensors_battery = lambda: None
+    monkeypatch.setitem(sys.modules, "psutil", fake)
+
+    # Nothing has the machine, so something has run away and that is news.
+    assert [r.kind for r in Machine(tmp_path / "m.json").look()] == ["memory_tight"]
