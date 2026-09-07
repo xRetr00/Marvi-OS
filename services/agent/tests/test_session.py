@@ -515,25 +515,27 @@ def test_a_game_gets_the_vram_back(monkeypatch) -> None:
             released.append("stt")
 
     class Proc:
-        userdata = {
-            "stt": Listener(),
-            "stt_model": "parakeet",
-            "tts": object(),
-            "tts_engine": "voxtream2",
-            "tts_voice": "english-female",
-            "vad": object(),
-        }
+        def __init__(self) -> None:
+            self.userdata: dict[str, object] = {
+                "stt": Listener(),
+                "stt_model": "parakeet",
+                "tts": object(),
+                "tts_engine": "voxtream2",
+                "tts_voice": "english-female",
+                "vad": object(),
+            }
 
     monkeypatch.setattr(
         "marvi_agent.voice_models.release_sidecars", lambda: released.append("tts") or 1
     )
 
-    agent_session._let_the_game_have_the_card(Proc())
+    proc = Proc()
+    agent_session._let_the_game_have_the_card(proc)
 
     assert released == ["stt", "tts"]
     # Nothing left holding the card, and nothing left that `build_session`
     # would mistake for a warm model it can reuse.
-    assert Proc.userdata == {}
+    assert proc.userdata == {}
 
 
 def test_a_call_in_progress_keeps_its_models() -> None:

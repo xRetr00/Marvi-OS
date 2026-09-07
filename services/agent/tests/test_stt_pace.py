@@ -102,6 +102,21 @@ def test_the_pace_is_only_reported_for_the_engine_that_has_one(monkeypatch, capl
 
     from marvi_agent import session as agent_session
 
+    # `apply_speech_settings` writes into `os.environ` and does not put it
+    # back, so without this the 0.8s lookahead it sets here leaks into every
+    # test that runs after it -- which is how a test three files away started
+    # asserting 0.8 where it wanted the 2.0 default.
+    for name in (
+        "MARVI_STT_ENGINE",
+        "MARVI_STT_DEVICE",
+        "MARVI_PARAKEET_CHUNK",
+        "MARVI_PARAKEET_LOOKAHEAD",
+        "MARVI_STT_LANGUAGE",
+        "MARVI_REPLY_INSTRUCTION",
+        "MARVI_ARCHITECTURE",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
     def answer(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"engine": ENGINE, "device": "cuda", "chunk": "2.0",
                                          "lookahead": "0.8", "tts_language": "en"})
