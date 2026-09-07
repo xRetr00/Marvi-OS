@@ -53,6 +53,7 @@ export function DynamicIsland({
   if (state.phase === 'ready') {
     return (
       <div className="dynamic-island island-seed" data-phase="ready" role="status">
+        <span className="island-seed-line" aria-hidden="true" />
         <span className="sr-only">Marvi OS ready</span>
       </div>
     )

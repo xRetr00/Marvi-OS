@@ -207,10 +207,11 @@ embeddings are never presented as a Marvi embedding setting.
 
 ## Dynamic Island
 
-The Island is a detached, fully rounded capsule, never a screen-edge notch.
+The active Island is a detached, fully rounded capsule, never a screen-edge notch.
 Its native host sits 10 logical pixels below the selected display's work area
-in every state. Orb-driven states retain a concise status beside the orb and
-disclose their detail on hover. Idle is a quiet capsule without a pulsing line.
+while content is present. Orb-driven states retain a concise status beside the
+orb and disclose detail on hover. Empty idle retreats to a small top-edge line
+with no capsule background, border, or shadow.
 This follows Apple's compact-to-expanded hierarchy, adapted to desktop hover:
 https://developer.apple.com/documentation/ActivityKit/displaying-live-data-with-live-activities
 
@@ -218,7 +219,7 @@ Target sizes at 100% scaling:
 
 | State                  |           Size | Content                                                   |
 | ---------------------- | -------------: | --------------------------------------------------------- |
-| sleep                  |        `88×28` | quiet themed capsule; no animation or visible copy        |
+| sleep                  |         `76×8` | transparent seed with a still `34×2` themed top-edge line |
 | collapsed orb state    |       `104×32` | authoritative live orb and concise status                 |
 | listening expanded     |       `210×38` | `LISTEN`, live waveform and concise state copy             |
 | thinking expanded      |       `230×40` | `THINK`, low-cost ASCII pulse and concise state copy       |
@@ -236,8 +237,8 @@ Rules:
 - Approval, denial, expiry, and mode-change results remain visible for three
   seconds, then return to the passive state. A Gateway outage removes stale
   confirmation controls immediately and shows the non-interactive error state.
-- In passive sleep, keep the detached capsule still. Do not show a ready label,
-  simulated camera cutouts, waveform, or continuous attention-seeking animation.
+- In passive sleep, hide the capsule body and retain only the small themed line
+  at the work-area edge. No ready label, waveform, or continuous animation.
 - Never show a full transcript.
 - Never animate merely to hide latency.
 - Coalesce audio-level rendering to a bounded frame rate.

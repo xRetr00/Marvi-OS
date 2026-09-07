@@ -18,7 +18,8 @@ runtime. Earlier native evidence below describes the previous geometry.
 - App icon used at runtime; repository banner excluded from runtime UI.
 - Marvi-derived visual rules: flat hierarchy, one-pixel hairlines, restrained
   blue signal, Collapse branding, and JetBrains Mono system text.
-- Quiet `88×28` idle capsule, detached 10 logical pixels below the work area.
+- Line-only idle: a `34×2` theme-accent line in a transparent `76×8` seed at
+  the work-area edge. Active capsules retain their 10-pixel gap.
 - A fully rounded `104×32` orb/status capsule for active states that briefly expands on
   state entry and expands again on hover; confirmations remain fully disclosed.
 - A separate proactive-announcement channel: up to `352×92` while speech is on
@@ -42,7 +43,7 @@ runtime. Earlier native evidence below describes the previous geometry.
 - Exact-token Island approvals and denials; pointer/focus is enabled only while
   an actionable confirmation is visible. Settled and expired prompts collapse
   automatically, Gateway loss removes stale controls, and every idle mode
-  returns to the quiet idle capsule.
+  returns to the line-only idle seed.
 - Theme- and font-synchronized presentation across renderer processes, with
   compositor-only state entrances/exits, reduced-motion behavior, and a quieter
   persistent offline treatment.

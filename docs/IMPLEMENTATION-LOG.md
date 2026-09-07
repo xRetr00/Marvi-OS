@@ -1,5 +1,15 @@
 # Implementation Log
 
+## 2026-09-07 — Restore line-only idle
+
+- Restored the empty idle indicator to a still `34×2` themed line in a
+  transparent `76×8` seed, with no capsule background, border, or shadow.
+- Idle host placement returns to the work-area edge; active and retained
+  announcements keep the floating capsule, hover behavior, and 10-pixel gap.
+- Added regression assertions for seed measurement/placement and line markup.
+- Acceptance: all 25 focused Island tests passed; `git diff --check` passed.
+  Native compositor appearance has not been reverified in this environment.
+
 This is the chronological record of work that has actually happened. Planned
 work belongs in `docs/phases/`; architectural decisions belong in
 `docs/DECISIONS.md`.

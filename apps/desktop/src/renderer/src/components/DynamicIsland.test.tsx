@@ -109,11 +109,11 @@ describe('DynamicIsland', () => {
     )
   })
 
-  it('rests in a quiet idle capsule without an animated seed line', () => {
+  it('rests in a line-only idle seed', () => {
     const html = renderToStaticMarkup(<DynamicIsland state={DEFAULT_ASSISTANT_STATE} />)
 
     expect(html).toContain('island-seed')
-    expect(html).not.toContain('island-seed-line')
+    expect(html).toContain('island-seed-line')
     expect(html).toContain('Marvi OS ready')
     expect(html).not.toContain('Say Marvi')
   })
@@ -255,13 +255,13 @@ describe('DynamicIsland', () => {
     expect(html).toContain('DENY')
   })
 
-  it('uses the same idle capsule while YOLO is enabled', () => {
+  it('uses the same idle line while YOLO is enabled', () => {
     const html = renderToStaticMarkup(
       <DynamicIsland state={{ ...DEFAULT_ASSISTANT_STATE, yolo: true }} />
     )
 
     expect(html).toContain('island-seed')
-    expect(html).not.toContain('island-seed-line')
+    expect(html).toContain('island-seed-line')
     expect(html).not.toContain('YOLO')
     expect(html).not.toContain('Say Marvi')
   })

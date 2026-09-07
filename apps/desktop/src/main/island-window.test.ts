@@ -34,10 +34,11 @@ describe('islandWindowBounds', () => {
     ).toEqual({ x: 623, y: 50, width: 154, height: 34 })
   })
 
-  it('leaves desktop space above the idle capsule', () => {
+  it('restores the idle line to the top edge with a tightly fitted host', () => {
+    expect(normalizeIslandContentSize(ISLAND_SEED_CONTENT_SIZE)).toEqual(ISLAND_SEED_CONTENT_SIZE)
     expect(
       islandWindowBounds({ x: 100, y: 40, width: 1200, height: 800 }, ISLAND_SEED_CONTENT_SIZE)
-    ).toEqual({ x: 654, y: 50, width: 92, height: 32 })
+    ).toEqual({ x: 660, y: 40, width: 80, height: 12 })
   })
 
   it('keeps compact activity detached at the same height', () => {

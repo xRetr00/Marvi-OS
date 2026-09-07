@@ -16,8 +16,8 @@ export interface IslandPlacement {
 // Two pixels are enough to preserve the hairline edge without leaving a
 // noticeable transparent capture stage around the always-on-top surface.
 export const ISLAND_WINDOW_INSET = 2
-export const ISLAND_MIN_CONTENT_SIZE: IslandContentSize = { width: 88, height: 28 }
-export const ISLAND_SEED_CONTENT_SIZE: IslandContentSize = { width: 88, height: 28 }
+export const ISLAND_MIN_CONTENT_SIZE: IslandContentSize = { width: 76, height: 8 }
+export const ISLAND_SEED_CONTENT_SIZE: IslandContentSize = { width: 76, height: 8 }
 export const ISLAND_TOP_GAP = 10
 export const ISLAND_MAX_CONTENT_SIZE: IslandContentSize = { width: 360, height: 92 }
 
@@ -60,8 +60,10 @@ export function islandWindowBounds(
 
   return {
     x: Math.round(xByAlignment[alignment]),
-    // The capsule stays detached in every state; expansion never becomes a notch.
-    y: Math.round(workArea.y + ISLAND_TOP_GAP),
+    // Idle retreats to the edge; active capsules retain their floating gap.
+    y: Math.round(
+      workArea.y + (contentSize.height === ISLAND_SEED_CONTENT_SIZE.height ? 0 : ISLAND_TOP_GAP)
+    ),
     width,
     height
   }

@@ -816,11 +816,20 @@ nav {
 }
 .dynamic-island.island-seed {
   display: grid;
-  width: 88px;
-  height: 28px;
+  width: 76px;
+  height: 8px;
   padding: 0;
   place-items: center;
   grid-template-columns: 1fr;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.island-seed-line {
+  width: 34px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--ui-accent);
 }
 .sr-only {
   position: absolute;
