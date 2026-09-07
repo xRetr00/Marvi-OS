@@ -70,18 +70,24 @@ DEEP_EVERY_SECONDS = 300.0
 #: hours, which covers "what happened last night" without becoming a database.
 MOST_KEPT = 1_500
 
-#: What each Marvi process is called, matched against its command line. The
-#: order matters: the first match wins, and `marvi_agent.session` would also
-#: match a looser rule for python.
-KNOWN: tuple[tuple[str, str], ...] = (
-    ("marvi_gateway.app", "gateway"),
-    ("marvi_agent.session", "agent"),
-    ("marvi_tts_voxtream", "tts-voxtream"),
-    ("marvi_tts_", "tts-sidecar"),
-    ("runtime.app", "room"),
-    ("Marvi-OS.exe", "desktop"),
-    ("livekit-server", "livekit"),
-    ("wake", "wake-word"),
+#: What each Marvi process is called. Every marker in a row must appear in the
+#: command line for it to count, and the first row that matches wins.
+#:
+#: Every one of these is deliberately specific. The first version matched on
+#: `"wake"` alone and promptly attributed 506 MB of a Claude Code renderer to
+#: Marvi's wake word -- which is worse than having no number, because a wrong
+#: number sends somebody to look at the wrong process. `runtime.app` carries
+#: the same risk from the other direction: it is a common enough module name
+#: that it has to be paired with the install path before it means the room.
+KNOWN: tuple[tuple[tuple[str, ...], str], ...] = (
+    (("marvi_gateway.app",), "gateway"),
+    (("marvi_agent.session",), "agent"),
+    (("marvi_tts_voxtream",), "tts-voxtream"),
+    (("marvi_tts_",), "tts-sidecar"),
+    (("runtime.app", "Marvi-OS"), "room"),
+    (("marvi-wake-host",), "wake-word"),
+    (("livekit-server",), "livekit"),
+    (("Marvi-OS.exe",), "desktop"),
 )
 
 
@@ -219,8 +225,9 @@ def _vram_by_pid() -> dict[int, float]:
 
 def _role(command: str, name: str) -> str:
     """Which part of Marvi this is, or empty for a process that is not hers."""
-    for marker, role in KNOWN:
-        if marker in command or marker == name:
+    haystack = f"{command} {name}"
+    for markers, role in KNOWN:
+        if all(marker in haystack for marker in markers):
             return role
     return ""
 
