@@ -34,7 +34,7 @@ class FakeAnnouncer:
         self.works = works
         self.said: list[str] = []
 
-    def speak(self, text):
+    def speak(self, text, **_context):
         self.said.append(text)
         return {"played": True} if self.works else {"played": False, "error": "no output"}
 

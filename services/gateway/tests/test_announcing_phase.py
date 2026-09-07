@@ -30,7 +30,9 @@ def _wired() -> tuple[Announcer, RuntimeStore, list[bool]]:
     seen: list[bool] = []
     announcer = Announcer()
 
-    def on_air(on: bool, text: str = "") -> None:
+    def on_air(
+        on: bool, text: str = "", source: str = "marvi", announcement_id: str = ""
+    ) -> None:
         seen.append(on)
         said.append(text)
         if on:
@@ -86,6 +88,20 @@ def test_the_island_is_told_what_she_said(monkeypatch) -> None:
     announcer.speak("Hey Shereef, new email just came in from Icemail.")
 
     assert said[0].startswith("Hey Shereef"), f"the island was told {said[0]!r}"
+
+
+def test_the_island_signal_has_one_stable_identity_and_source(monkeypatch) -> None:
+    announcer = Announcer()
+    signals: list[tuple[bool, str, str]] = []
+    announcer.on_air = lambda on, _text, source, item_id: signals.append((on, source, item_id))
+    monkeypatch.setattr(Announcer, "_play", lambda *_a, **_k: 1.0, raising=False)
+    monkeypatch.setattr(Announcer, "_render", lambda *_a, **_k: b"", raising=False)
+
+    announcer.speak("The reminder is due.", source="schedule:reminder")
+
+    assert signals[0][0] is True and signals[-1][0] is False
+    assert signals[0][1] == "schedule:reminder"
+    assert signals[0][2] == signals[-1][2]
 
 
 def test_it_is_held_long_enough_to_read() -> None:

@@ -125,6 +125,24 @@ async def test_read_aloud_uses_one_shot_speech_not_a_livekit_room() -> None:
     assert stopped.json() == {"stopped": True}
 
 
+def test_announcer_becomes_a_retained_channel_after_playback() -> None:
+    speech = FakeOneShot()
+    runtime = RuntimeStore()
+    create_app(tools=ToolRegistry(), runtime=runtime, announcer_service=speech)
+
+    speech.on_air(True, "The reminder is due.", "schedule:reminder", "announcement-1")
+    assert runtime.assistant.phase == "announcing"
+    assert runtime.assistant.announcement is not None
+    assert runtime.assistant.announcement.active is True
+    assert runtime.assistant.announcement.source == "schedule:reminder"
+
+    speech.on_air(False, "The reminder is due.", "schedule:reminder", "announcement-1")
+    assert runtime.assistant.phase == "ready"
+    assert runtime.assistant.announcement is not None
+    assert runtime.assistant.announcement.active is False
+    assert runtime.assistant.announcement.expires_at is not None
+
+
 @pytest.mark.asyncio
 async def test_voice_session_state_suppresses_proactive_speech() -> None:
     app = create_app(tools=ToolRegistry(), announcer_service=FakeOneShot())
