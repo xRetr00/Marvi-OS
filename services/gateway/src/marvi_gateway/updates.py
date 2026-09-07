@@ -80,7 +80,7 @@ def launch(desktop: Path, install_root: Path) -> None:
     flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(
         subprocess, "CREATE_NEW_PROCESS_GROUP", 0
     )
-    subprocess.Popen(  # noqa: S603 - fixed, repository-owned executable
+    subprocess.Popen(
         [str(desktop), UPDATE_FLAG],
         cwd=install_root,
         stdin=subprocess.DEVNULL,
