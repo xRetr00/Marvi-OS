@@ -160,7 +160,6 @@ function GuardedLifecycleButton({
   )
 }
 
-
 /**
  * Low-resource mode, and a switch for the times it cannot see the reason.
  *
@@ -248,13 +247,13 @@ function LowResourceButton(): React.JSX.Element {
             <span className={`lowres-pill${on ? ' is-on' : ''}`}>{on ? 'On' : 'Off'}</span>
           </header>
           <p>
-            Marvi gets out of the way of whatever else is using this machine. She hands back
-            the speech models she is holding on the graphics card, slows the room camera right
-            down, and stops thinking out loud unless it matters.
+            Marvi gets out of the way of whatever else is using this machine. She hands back the
+            speech models she is holding on the graphics card, slows the room camera right down, and
+            stops thinking out loud unless it matters.
           </p>
           <p className="lowres-note">
-            She still talks. Announcements keep working, so you hear anything worth hearing
-            while you are busy.
+            She still talks. Announcements keep working, so you hear anything worth hearing while
+            you are busy.
           </p>
           <p className="lowres-why">
             {automatic

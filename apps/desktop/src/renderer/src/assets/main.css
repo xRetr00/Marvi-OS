@@ -1191,6 +1191,118 @@ nav {
   -webkit-app-region: no-drag;
 }
 
+/* ===== Low-resource mode ===== */
+
+.titlebar-lowres {
+  position: relative;
+  display: flex;
+  height: 100%;
+}
+
+/* On is a state worth seeing without hovering: it means she has handed the
+   graphics card back, and if that is on when it should not be, the reason
+   somebody goes looking is that they noticed the light. */
+.titlebar-control.lowres.is-on {
+  color: var(--ui-accent, #7dd3fc);
+}
+
+.titlebar-control.lowres.is-on::after {
+  content: '';
+  position: absolute;
+  bottom: 6px;
+  width: 14px;
+  height: 2px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+.lowres-card {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 4px;
+  z-index: 60;
+  width: 300px;
+  padding: 14px;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 12px;
+  background: var(--ui-surface-raised, var(--ui-surface));
+  box-shadow: 0 18px 40px rgb(0 0 0 / 38%);
+  -webkit-app-region: no-drag;
+}
+
+.lowres-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.lowres-card h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ui-text-primary);
+}
+
+.lowres-pill {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--ui-stroke-tertiary);
+  color: var(--ui-text-secondary);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.lowres-pill.is-on {
+  background: color-mix(in srgb, var(--ui-accent, #7dd3fc) 22%, transparent);
+  color: var(--ui-accent, #7dd3fc);
+}
+
+.lowres-card p {
+  margin: 0 0 8px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--ui-text-secondary);
+}
+
+.lowres-note {
+  color: var(--ui-text-primary);
+}
+
+.lowres-why {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--ui-stroke-tertiary);
+}
+
+.lowres-switch {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ui-text-primary);
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.lowres-switch:hover:not(:disabled) {
+  background: var(--ui-stroke-tertiary);
+}
+
+.lowres-switch:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.lowres-foot {
+  margin: 8px 0 0;
+  font-size: 10.5px;
+  opacity: 0.75;
+}
+
 /* ===== Electric Gaze backdrop ===== */
 .electric-gaze {
   position: absolute;
