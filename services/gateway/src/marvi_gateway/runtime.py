@@ -104,6 +104,17 @@ ANNOUNCING = {"phase": "announcing", "caption": "Marvi has something", "detail":
 HOLD_ANNOUNCEMENT_SECONDS = 35.0
 
 
+class AnnouncementState(BaseModel):
+    """One proactive line retained independently from the live voice phase."""
+
+    id: str
+    text: str
+    source: str = "marvi"
+    at: str
+    active: bool = True
+    expires_at: str | None = None
+
+
 class AssistantState(BaseModel):
     phase: AssistantPhase = "ready"
     caption: str = "Say Marvi"
@@ -119,6 +130,9 @@ class AssistantState(BaseModel):
     # A background room event rides its own channel so it can never take over a
     # live voice phase. The Island shows it only while idle.
     room_event: RoomEvent | None = None
+    #: Proactive speech has its own channel so a readable held notice does not
+    #: claim the assistant is still speaking or overwrite a live voice turn.
+    announcement: AnnouncementState | None = None
     #: A question Marvi asked, with the options she offered.
     #:
     #: Its own channel rather than the confirmation one, which is a yes or no

@@ -226,7 +226,9 @@ class Mind:
         line = self._out_loud(event) or event.get("summary", "")
         if not line:
             return ""
-        outcome = self.announcer.speak(str(line))
+        outcome = self.announcer.speak(
+            str(line), source=f"{event.get('source', 'marvi')}:{event.get('kind', 'event')}"
+        )
         logger.info(
             "said a held item because it was asked for: %r", str(line)[:100],
             extra={"marvi_played": bool(outcome.get("played"))},
@@ -525,7 +527,10 @@ class Mind:
                     target=self.announcer.warm, name="marvi-warm-voice", daemon=True
                 ).start()
             if surface == "speak" and self.announcer is not None:
-                outcome = self.announcer.speak(sentence)
+                outcome = self.announcer.speak(
+                    sentence,
+                    source=f"{event.get('source', 'marvi')}:{event.get('kind', 'event')}",
+                )
                 if outcome.get("played"):
                     spoken = sentence
                 else:

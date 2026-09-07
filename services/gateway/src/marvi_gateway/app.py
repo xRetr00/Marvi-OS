@@ -10,6 +10,7 @@ import threading
 import time
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager, suppress
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import urlparse
@@ -95,6 +96,7 @@ from .room import RoomSidecar, RoomUnavailableError, register_room_tools, sleep_
 from .runtime import (
     ANNOUNCING,
     HOLD_ANNOUNCEMENT_SECONDS,
+    AnnouncementState,
     ArgumentsMutatedError,
     AuditPage,
     ComponentStatus,
@@ -1036,34 +1038,62 @@ def create_app(
     #: the first rather than being wiped by it a moment later.
     clearing: list[threading.Timer] = []
 
-    def _announcing(on: bool, text: str = "") -> None:
-        """Show the island that this line was her idea, and leave it up.
+    def _announcing(
+        on: bool,
+        text: str = "",
+        source: str = "marvi",
+        announcement_id: str = "",
+    ) -> None:
+        """Publish proactive speech, then retain it without owning the phase.
 
         `speaking` is her half of a conversation the user started; this is the
         announcer. They used to look identical, which meant the only way to
         tell whether you had been asked something was to listen to the words.
 
-        It stays up for `HOLD_ANNOUNCEMENT_SECONDS` after she stops, because
-        the announcement is over in four seconds and is the one thing on screen
-        nobody asked for: you look up because you heard your name, and by then
-        it has gone.
+        During playback the live phase is `announcing`. Afterward the assistant
+        returns to ready while the announcement channel remains available for
+        hover recall until its bounded expiry.
         """
-        while clearing:
-            clearing.pop().cancel()
         books.told(phase="announcing" if on else "ready")
         if on:
+            while clearing:
+                clearing.pop().cancel()
+            now = datetime.now(UTC)
+            announcement = AnnouncementState(
+                id=announcement_id or uuid4().hex,
+                text=text[:400] or "Marvi has something to share.",
+                source=source[:80] or "marvi",
+                at=now.isoformat(),
+                active=True,
+            )
             runtime_store.assistant = runtime_store.assistant.model_copy(
-                update={**ANNOUNCING, "detail": text[:400] or "Unprompted"}
+                update={
+                    **ANNOUNCING,
+                    "caption": announcement.text,
+                    "detail": None,
+                    "announcement": announcement,
+                }
             )
             return
 
+        current = runtime_store.assistant.announcement
+        if current is None or (announcement_id and current.id != announcement_id):
+            return
+
+        expires = datetime.now(UTC) + timedelta(seconds=HOLD_ANNOUNCEMENT_SECONDS)
+        held = current.model_copy(update={"active": False, "expires_at": expires.isoformat()})
+        update: dict[str, Any] = {"announcement": held}
+        if runtime_store.assistant.phase == "announcing":
+            update.update({"phase": "ready", "caption": "Say Marvi", "detail": None})
+        runtime_store.assistant = runtime_store.assistant.model_copy(update=update)
+
         def release() -> None:
-            # Only if it is still ours: a call starting mid-announcement has
-            # already moved the phase on, and stamping "ready" over it would
-            # blank a live session.
-            if runtime_store.assistant.phase == "announcing":
+            # Only clear our retained channel. A newer announcement or a live
+            # voice phase is never overwritten by an older timer.
+            retained = runtime_store.assistant.announcement
+            if retained is not None and retained.id == held.id and not retained.active:
                 runtime_store.assistant = runtime_store.assistant.model_copy(
-                    update={"phase": "ready", "caption": "Say Marvi", "detail": None}
+                    update={"announcement": None}
                 )
 
         timer = threading.Timer(HOLD_ANNOUNCEMENT_SECONDS, release)

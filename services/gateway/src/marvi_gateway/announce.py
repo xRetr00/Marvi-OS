@@ -23,6 +23,7 @@ from contextlib import suppress
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from . import paths
 
@@ -453,12 +454,14 @@ class Announcer:
             logger.info("announcement cancellation requested")
             return True
 
-    #: Called `(on, text)` around an unprompted line, so the island can show
-    #: what she said. Assigned by whoever owns the runtime state; unset here,
-    #: nothing changes and the announcement is exactly what it was.
+    #: Called `(on, text, source, id)` around an unprompted line, so the island
+    #: can retain exactly one announcement without an older completion clearing
+    #: a newer one. Unset here, speech behavior is unchanged.
     on_air: Any = None
 
-    def speak(self, text: str, purpose: str = "proactive") -> dict[str, Any]:
+    def speak(
+        self, text: str, purpose: str = "proactive", source: str = "marvi"
+    ) -> dict[str, Any]:
         """Replace current one-shot speech, synthesize, and play to completion."""
         limit = MAX_READ_ALOUD_CHARS if purpose == "read_aloud" else MAX_PROACTIVE_CHARS
         spoken = " ".join((text or "").split())[:limit]
@@ -474,11 +477,12 @@ class Announcer:
 
         started = time.perf_counter()
         seconds = 0.0
+        announcement_id = uuid4().hex
         # Only for a line nobody asked for. A Read Aloud is something the user
         # pressed, and captioning that "Marvi has something" would be a lie.
         if self.on_air is not None and purpose == "proactive":
             with suppress(Exception):
-                self.on_air(True, spoken)
+                self.on_air(True, spoken, source, announcement_id)
         logger.info(
             "announcement started",
             extra={
@@ -514,7 +518,7 @@ class Announcer:
             # not leave the island claiming she is still talking.
             if self.on_air is not None and purpose == "proactive":
                 with suppress(Exception):
-                    self.on_air(False, spoken)
+                    self.on_air(False, spoken, source, announcement_id)
 
         logger.info(
             "announcement played",
