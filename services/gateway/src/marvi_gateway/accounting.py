@@ -390,7 +390,7 @@ class Accountant:
             lines = self.path.read_text(encoding="utf-8").splitlines()[-MOST_KEPT:]
         except Exception:
             return
-        fields = {name for name in Reading.__dataclass_fields__}
+        fields = set(Reading.__dataclass_fields__)
         for line in lines:
             try:
                 raw = json.loads(line)
