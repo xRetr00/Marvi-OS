@@ -62,6 +62,7 @@ import { ModelPicker } from './components/ui/model-picker'
 import { ConnectingOverlay } from './components/ConnectingOverlay'
 import { DynamicIsland } from './components/DynamicIsland'
 import {
+  ANNOUNCEMENT_GLANCE_MS,
   ISLAND_AUTO_EXPAND_MS,
   ISLAND_ENTER_SECONDS,
   ISLAND_EXIT_SECONDS,
@@ -6609,18 +6610,27 @@ function IslandSurface(): React.JSX.Element {
   const [resolvingToken, setResolvingToken] = useState<string | null>(null)
   const [autoExpanded, setAutoExpanded] = useState(false)
   const [hoverExpanded, setHoverExpanded] = useState(false)
-  const hasOrb = islandHasOrb(voice)
-  const interactionMode = islandInteractionMode(voice)
-  const presentationKey = islandPresentationKey(voice)
-  const confirmationExpanded = voice.phase === 'confirmation' && Boolean(voice.confirmation)
-  // An announcement stays open for as long as the Gateway holds the phase.
-  //
-  // Everything else collapses after `ISLAND_AUTO_EXPAND_MS` because it is a
-  // glance -- "Listening", "Speaking". An announcement is two sentences
-  // somebody looked up to read *after* hearing their name, and 1.8 seconds is
-  // less time than it takes to find the island on the screen.
-  const announcing = voice.phase === 'announcing'
-  const expanded = confirmationExpanded || announcing || (hasOrb && (autoExpanded || hoverExpanded))
+  // A retained announcement rides beside the live phase. It may reclaim the
+  // idle Island, but never covers an active call or confirmation.
+  const showAnnouncement =
+    Boolean(voice.announcement) && (voice.phase === 'ready' || voice.phase === 'announcing')
+  const islandState: VoiceState = showAnnouncement
+    ? {
+        ...voice,
+        phase: 'announcing',
+        caption: voice.announcement?.text ?? voice.caption,
+        detail: null
+      }
+    : voice
+  const hasOrb = islandHasOrb(islandState)
+  const interactionMode = islandInteractionMode(islandState)
+  const presentationKey = islandPresentationKey(islandState)
+  const confirmationExpanded =
+    islandState.phase === 'confirmation' && Boolean(islandState.confirmation)
+  const announcing = islandState.phase === 'announcing' && Boolean(islandState.announcement)
+  const announcementActive = announcing && Boolean(islandState.announcement?.active)
+  const expanded =
+    confirmationExpanded || announcementActive || (hasOrb && (autoExpanded || hoverExpanded))
 
   useEffect(() => {
     void window.marvi?.getRuntime().then(applyRuntimeState)
@@ -6638,15 +6648,18 @@ function IslandSurface(): React.JSX.Element {
       setAutoExpanded(hasOrb)
     }, 0)
     const collapseTimer =
-      hasOrb && !announcing
-        ? window.setTimeout(() => setAutoExpanded(false), ISLAND_AUTO_EXPAND_MS)
+      hasOrb && !announcementActive
+        ? window.setTimeout(
+            () => setAutoExpanded(false),
+            announcing ? ANNOUNCEMENT_GLANCE_MS : ISLAND_AUTO_EXPAND_MS
+          )
         : undefined
 
     return () => {
       window.clearTimeout(revealTimer)
       if (collapseTimer !== undefined) window.clearTimeout(collapseTimer)
     }
-  }, [hasOrb, announcing, presentationKey])
+  }, [hasOrb, announcing, announcementActive, presentationKey])
 
   useEffect(() => {
     const element = measureRef.current
@@ -6666,7 +6679,7 @@ function IslandSurface(): React.JSX.Element {
 
   return (
     <div
-      className={`island-stage island-stage-${voice.phase} ${hasOrb ? 'island-stage-hover' : ''}`}
+      className={`island-stage island-stage-${islandState.phase} ${hasOrb ? 'island-stage-hover' : ''}`}
       onPointerEnter={() => {
         if (hasOrb) setHoverExpanded(true)
       }}
@@ -6709,7 +6722,7 @@ function IslandSurface(): React.JSX.Element {
                   setResolvingToken(null)
                 }
               }}
-              state={voice}
+              state={islandState}
             />
           </motion.div>
         </AnimatePresence>

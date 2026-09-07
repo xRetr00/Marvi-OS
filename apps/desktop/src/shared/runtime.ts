@@ -448,6 +448,17 @@ export interface ModelSummary {
   tts: string
 }
 
+export interface AnnouncementState {
+  id: string
+  text: string
+  /** Gateway event origin, such as `accounts:gmail` or `schedule:reminder`. */
+  source: string
+  at: string
+  /** True only while audio is currently playing. */
+  active: boolean
+  expiresAt: string | null
+}
+
 export interface AssistantState {
   phase: AssistantPhase
   caption: string
@@ -461,6 +472,8 @@ export interface AssistantState {
   confirmation: ConfirmationRequest | null
   /** Background room event. Rendered only while idle; never steals focus. */
   roomEvent: RoomEvent | null
+  /** Proactive speech retained independently from the live voice phase. */
+  announcement: AnnouncementState | null
   /** A question Marvi asked, with the options she offered. */
   question: PendingQuestion | null
   /** A credential Marvi asked for, as a masked field. */
@@ -1069,6 +1082,7 @@ export const DEFAULT_ASSISTANT_STATE: AssistantState = {
   spoken: '',
   confirmation: null,
   roomEvent: null,
+  announcement: null,
   question: null,
   secret: null
 }

@@ -105,6 +105,31 @@ export function normalizeRuntimeStatus(value: unknown): RuntimeStatus | null {
     }
   }
 
+  let announcement: AssistantState['announcement'] = null
+  if (assistant.announcement !== null && assistant.announcement !== undefined) {
+    if (
+      !isRecord(assistant.announcement) ||
+      typeof assistant.announcement.id !== 'string' ||
+      typeof assistant.announcement.text !== 'string' ||
+      typeof assistant.announcement.source !== 'string' ||
+      typeof assistant.announcement.at !== 'string' ||
+      typeof assistant.announcement.active !== 'boolean'
+    ) {
+      return null
+    }
+    announcement = {
+      id: assistant.announcement.id,
+      text: assistant.announcement.text,
+      source: assistant.announcement.source,
+      at: assistant.announcement.at,
+      active: assistant.announcement.active,
+      expiresAt:
+        typeof assistant.announcement.expires_at === 'string'
+          ? assistant.announcement.expires_at
+          : null
+    }
+  }
+
   // A question Marvi asked. Dropped rather than refused when it arrives
   // malformed: a shape this window does not understand is a reason to show no
   // card, never a reason to reject the whole runtime and blank the shell.
@@ -147,6 +172,7 @@ export function normalizeRuntimeStatus(value: unknown): RuntimeStatus | null {
       spoken: typeof assistant.spoken === 'string' ? assistant.spoken : '',
       confirmation,
       roomEvent,
+      announcement,
       question,
       secret
     },
@@ -183,6 +209,7 @@ export function reconcileRuntimeStatus(
       yolo: gateway.assistant.yolo,
       confirmation: gateway.assistant.confirmation,
       roomEvent: gateway.assistant.roomEvent,
+      announcement: gateway.assistant.announcement,
       // From the Gateway, like the confirmation and for the same reason: the
       // renderer's own voice state has no idea a question was asked, and
       // keeping the local copy would leave a card on screen after it was
