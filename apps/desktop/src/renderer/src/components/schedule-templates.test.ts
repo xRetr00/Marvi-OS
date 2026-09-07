@@ -7,9 +7,9 @@ describe('cron job templates', () => {
   it('provide editable action and agent starting points', () => {
     expect(SCHEDULE_TEMPLATES.some((template) => template.schedule.mode === 'action')).toBe(true)
     expect(SCHEDULE_TEMPLATES.some((template) => template.schedule.mode === 'agent')).toBe(true)
-    expect(SCHEDULE_TEMPLATES.every((template) => template.schedule.name && template.schedule.when)).toBe(
-      true
-    )
+    expect(
+      SCHEDULE_TEMPLATES.every((template) => template.schedule.name && template.schedule.when)
+    ).toBe(true)
   })
 
   it('turns stored intervals back into parser input for editing', () => {

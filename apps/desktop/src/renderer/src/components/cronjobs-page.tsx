@@ -126,7 +126,11 @@ export function CronjobsPage(): React.JSX.Element {
       const next = await window.marvi?.scheduleAction(id, choice)
       if (next) setPage(next)
       else {
-        setError(choice === 'run' ? 'The job could not be started. Check Gateway status and try again.' : 'That change was not saved.')
+        setError(
+          choice === 'run'
+            ? 'The job could not be started. Check Gateway status and try again.'
+            : 'That change was not saved.'
+        )
         void refresh()
       }
     } finally {
@@ -157,7 +161,7 @@ export function CronjobsPage(): React.JSX.Element {
     setOpen(true)
   }
 
-  const useTemplate = (template: ScheduleTemplate): void => {
+  const applyTemplate = (template: ScheduleTemplate): void => {
     setError('')
     setEditingId(null)
     resetForm(template.schedule)
@@ -251,7 +255,7 @@ export function CronjobsPage(): React.JSX.Element {
         </div>
         <div className="cron-template-list">
           {SCHEDULE_TEMPLATES.map((template) => (
-            <button key={template.id} onClick={() => useTemplate(template)} type="button">
+            <button key={template.id} onClick={() => applyTemplate(template)} type="button">
               <span>
                 <strong>{template.label}</strong>
                 <small>{template.schedule.mode === 'agent' ? 'AGENT' : 'FIXED'}</small>
@@ -475,7 +479,13 @@ export function CronjobsPage(): React.JSX.Element {
             onClick={() => void save()}
             type="button"
           >
-            {busy ? (editingId ? 'Saving…' : 'Creating…') : editingId ? 'Save changes' : 'Create job'}
+            {busy
+              ? editingId
+                ? 'Saving…'
+                : 'Creating…'
+              : editingId
+                ? 'Save changes'
+                : 'Create job'}
           </button>
         </section>
       )}

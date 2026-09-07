@@ -111,7 +111,11 @@ export function ScheduleCards({
             {row.last_output && <pre className="sched-output">{row.last_output}</pre>}
 
             <div className="sched-actions">
-              <button disabled={busy?.id === row.id} onClick={() => onAct(row.id, 'run')} type="button">
+              <button
+                disabled={busy?.id === row.id}
+                onClick={() => onAct(row.id, 'run')}
+                type="button"
+              >
                 <Play aria-hidden="true" />
                 {busy?.id === row.id && busy.action === 'run' ? 'Running…' : 'Run now'}
               </button>
