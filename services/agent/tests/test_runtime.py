@@ -39,7 +39,29 @@ def test_the_worker_takes_its_provider_from_the_gateway() -> None:
 
 
 def test_no_provider_is_a_clear_message_not_a_crash() -> None:
-    with pytest.raises(ProviderUnavailableError, match="control center"):
+    """And the message is the Gateway's, not a guess made here.
+
+    This used to assert "control center", because the worker answered every
+    503 with "No provider is configured. Connect one in the Marvi control
+    center." One dropped socket later, that sentence was false:
+
+        07:41:45  openrouter cooling down 300s: [WinError 10054]
+        07:42:29  "No provider is configured. Connect one in the Marvi
+                   control center."
+
+    The provider was configured. Sending somebody to Settings to fix a working
+    setting is worse than saying nothing, so the Gateway's own `detail` -- it
+    knows whether the provider is missing, mis-configured, or resting -- is
+    what comes out.
+    """
+    with pytest.raises(ProviderUnavailableError, match="resting for another 15s"):
+        AgentConfig.from_gateway(
+            gateway(503, {"detail": "openrouter is resting for another 15s after a dropped call"})
+        )
+
+    # A 503 with nothing to say still has to be a clear error rather than a
+    # crash, and still must not invent a cause.
+    with pytest.raises(ProviderUnavailableError, match="No provider is available"):
         AgentConfig.from_gateway(gateway(503))
 
 
