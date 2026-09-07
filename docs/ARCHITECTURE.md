@@ -332,9 +332,11 @@ The updater is the small Tauri binary `marvi-bootstrap.exe` (`apps/updater`).
 It is both installer and updater, and lives in `%LOCALAPPDATA%\Marvi OS\bin`;
 the standalone installer copies itself there on a fresh install. The flow:
 
-1. The renderer's Updates panel shows the channel and can run a read-only
-   check (the bootstrap `check` mode) that reports the target commit and how
-   far behind the install is, without quitting.
+1. The renderer's Updates panel and `marvi update --check` use the bootstrap
+   `check` mode to report the target commit and how far behind the install is
+   without quitting. `marvi update` sends a private launch intent through
+   Electron's single-instance boundary, so an open or closed desktop reaches
+   the same graceful handoff rather than a second update implementation.
 2. The user applies; Electron quits and hands off to the bootstrap with the
    install root, channel, its own pid, and the relaunch target.
 3. The bootstrap waits for the app to exit (fails closed), verifies the

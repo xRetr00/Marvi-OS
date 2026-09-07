@@ -4,6 +4,17 @@ This is the chronological record of work that has actually happened. Planned
 work belongs in `docs/phases/`; architectural decisions belong in
 `docs/DECISIONS.md`.
 
+## 2026-09-07 — Terminal update handoff
+
+- Added `marvi update`, with a read-only `--check` form and an explicit `--yes`
+  confirmation bypass, using the update channel already selected in Marvi.
+- Routed terminal applies through the packaged Electron executable and its
+  single-instance boundary. An open desktop now shuts down services cleanly;
+  a closed desktop hands off before starting services. Both paths reuse the
+  existing Tauri bootstrap, progress UI, rollback, result marker, and relaunch.
+- Added Gateway CLI and Electron launch-intent coverage for availability,
+  already-current, check-only, and apply handoffs.
+
 ## 2026-09-07 — Windowless wake host and semantic tray state
 
 - Built the native wake host as a Windows GUI-subsystem executable in every

@@ -91,6 +91,10 @@ Marvi OS is built for Windows and is under active development.
 
 You can begin with Chat and local tools using only a model provider. Voice, vision, browser automation, and additional capabilities can be added when you are ready. Downloads are verified and resumable, unchanged dependencies are reused after a verified install, and failed updates preserve the last working installation.
 
+Installed builds can update from **About → Updates** or from a terminal with
+`marvi update`. Use `marvi update --check` to inspect the selected release or
+nightly channel without applying it.
+
 ## The idea behind Marvi
 
 The best assistant is not the one demanding the most attention. It is the one that is there when needed, stays quiet when not, remembers the right things, and earns the trust required to act.

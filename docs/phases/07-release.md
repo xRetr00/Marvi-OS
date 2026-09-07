@@ -35,6 +35,11 @@ shipped surface depends on the bridge.
   checks, channel selection, current/target SHAs, release integrity, exact
   commit count, bounded grouped commit details, last result, and guarded update
   actions. A result is consumed once rather than re-announced on every launch.
+- `marvi update` checks the selected channel and routes the apply request
+  through Electron's single-instance handoff. It therefore closes a running
+  desktop cleanly and uses the same bootstrap progress, rollback, and relaunch
+  path as the main-window control. `--check` is read-only and `--yes` supports
+  deliberate unattended invocation.
 
 ## Evidence
 

@@ -371,6 +371,7 @@ def test_every_command_is_reachable() -> None:
         ["logs", "errors", "-n", "5"],
         ["providers"],
         ["crashes"],
+        ["update", "--check"],
     ):
         assert parser.parse_args(argv).handler is not None
 
