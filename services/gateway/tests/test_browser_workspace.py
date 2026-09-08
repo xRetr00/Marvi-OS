@@ -9,9 +9,9 @@ import sys
 import threading
 import time
 
+import httpx
 import pytest
 from httpx import ASGITransport, AsyncClient
-import httpx
 
 from marvi_gateway.app import create_app
 from marvi_gateway.browser_privacy import capture_barrier
@@ -21,7 +21,16 @@ from marvi_gateway.tools import ToolRegistry
 
 
 class Page(http.server.BaseHTTPRequestHandler):
+    private_hits = 0
+
     def do_GET(self):
+        if self.path == "/private-redirect":
+            self.send_response(302)
+            self.send_header("Location", f"http://localhost:{self.server.server_port}/private-destination")
+            self.end_headers()
+            return
+        if self.path == "/private-destination":
+            Page.private_hits += 1
         if self.path == "/download":
             self.send_response(200)
             self.send_header("Content-Type", "application/octet-stream")
@@ -258,7 +267,7 @@ def test_real_gateway_process_browser_handoff(browser, tmp_path):
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
-    script = '''
+    script = """
 import sys
 from pathlib import Path
 import uvicorn
@@ -273,14 +282,21 @@ def stop():
     server.should_exit = True
     return {"stopping": True}
 server.run()
-'''
+"""
     process = subprocess.Popen(
         [sys.executable, "-c", script, str(tmp_path / "child-browser"), origin, str(port)],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
         creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
-        env={**os.environ, "MARVI_HOME": str(tmp_path / "child-home"), "MARVI_LOCAL_TOKEN": "test-process"},
+        env={
+            **os.environ,
+            "MARVI_HOME": str(tmp_path / "child-home"),
+            "MARVI_LOCAL_TOKEN": "test-process",
+        },
     )
-    with httpx.Client(base_url=f"http://127.0.0.1:{port}", headers={"x-marvi-local": "test-process"}, timeout=10) as client:
+    with httpx.Client(
+        base_url=f"http://127.0.0.1:{port}", headers={"x-marvi-local": "test-process"}, timeout=10
+    ) as client:
         try:
             deadline = time.monotonic() + 20
             while True:
@@ -290,20 +306,28 @@ server.run()
                 except httpx.TransportError:
                     pass
                 assert time.monotonic() < deadline, "Gateway process did not become available"
-                time.sleep(.1)
+                time.sleep(0.1)
             opened = client.post("/browser/start", json={"url": origin})
             assert opened.status_code == 200
             sid = opened.json()["id"]
+
             def state():
                 return next(s for s in client.get("/browser").json()["sessions"] if s["id"] == sid)
+
             deadline = time.monotonic() + 20
             while state()["state"] == "starting":
                 assert time.monotonic() < deadline
-                time.sleep(.1)
-            private = client.post(f"/browser/{sid}/control", json={"revision": state()["revision"], "command": "private"})
+                time.sleep(0.1)
+            private = client.post(
+                f"/browser/{sid}/control",
+                json={"revision": state()["revision"], "command": "private"},
+            )
             assert private.json()["state"] == "private"
             assert client.get("/browser").json()["private_input"]
-            closed = client.post(f"/browser/{sid}/control", json={"revision": state()["revision"], "command": "close"})
+            closed = client.post(
+                f"/browser/{sid}/control",
+                json={"revision": state()["revision"], "command": "close"},
+            )
             assert closed.json()["state"] == "closed"
             assert not client.get("/browser").json()["private_input"]
         finally:
@@ -314,3 +338,56 @@ server.run()
                 process.terminate()
                 process.wait(timeout=5)
     assert process.returncode == 0
+
+
+def test_browser_image_uses_actual_tab_and_private_barrier(browser):
+    from types import SimpleNamespace
+
+    from marvi_gateway.browser_api import register_workspace_browser_tools
+
+    service, url = browser
+    sid = service.start(url=url)["id"]
+    state = settled(service, sid)
+    calls = []
+
+    class Vision:
+        def call_with_fallback(self, messages, **options):
+            calls.append((messages, options))
+            return SimpleNamespace(text="An invoice fixture is visible.")
+
+    registry = ToolRegistry()
+    register_workspace_browser_tools(registry, lambda: service, Vision())
+    args = {
+        "session_id": sid,
+        "revision": state["revision"],
+        "tab_id": state["tabs"][0]["id"],
+        "question": "What is visible?",
+    }
+    spec = registry.get("browser_read_image")
+    result = registry.execute(spec, args)
+    assert "invoice fixture" in json.dumps(result)
+    assert calls[0][1]["job"] == "vision"
+    assert calls[0][0][1]["content"][1]["data"].startswith("iVBOR")
+    service.control(sid, state["revision"], "private")
+    with pytest.raises(RuntimeError, match="Private"):
+        registry.execute(spec, args)
+    assert len(calls) == 1
+
+
+def test_legacy_mutation_requires_migration_instead_of_guessing_tab(browser):
+    from marvi_gateway.browser_api import register_workspace_browser_tools
+
+    service, _ = browser
+    registry = ToolRegistry()
+    register_workspace_browser_tools(registry, lambda: service)
+    with pytest.raises(ValueError, match="not executed"):
+        registry.execute(registry.get("browser_click"), {"selector": "button"})
+
+
+def test_redirect_cannot_reach_private_destination(browser):
+    service, url = browser
+    Page.private_hits = 0
+    sid = service.start(url=url)["id"]
+    settled(service, sid)
+    act(service, sid, "navigate", {"url": url + "/private-redirect"})
+    assert Page.private_hits == 0

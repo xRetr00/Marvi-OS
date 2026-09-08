@@ -87,7 +87,9 @@ def browser_router(get_service, audit, activate=lambda: None) -> APIRouter:
 
 def register_workspace_browser_tools(registry, get_service, vision_client=None):
     def migrate(**_arguments):
-        raise ValueError("This legacy browser call was not executed. Read browser_status, then use browser_action or browser_control with the current session ID and revision.")
+        raise ValueError(
+            "This legacy browser call was not executed. Read browser_status, then use browser_action or browser_control with the current session ID and revision."
+        )
 
     # Retain resolvable names for stored prompts without allowing an old
     # approval to silently bind to whichever tab happens to be open now.
@@ -100,8 +102,16 @@ def register_workspace_browser_tools(registry, get_service, vision_client=None):
         ("browser_screenshot", {}, {"path": str}),
         ("browser_close", {}, {}),
     ):
-        registry.register(ToolSpec(name=name, description="Legacy browser call: use browser_status then the session-aware browser_action/browser_control instead.",
-            arguments=required, optional=optional, sensitive=False, handler=migrate))
+        registry.register(
+            ToolSpec(
+                name=name,
+                description="Legacy browser call: use browser_status then the session-aware browser_action/browser_control instead.",
+                arguments=required,
+                optional=optional,
+                sensitive=False,
+                handler=migrate,
+            )
+        )
 
     def read_image(session_id: str, revision: int, tab_id: str, question: str):
         import base64

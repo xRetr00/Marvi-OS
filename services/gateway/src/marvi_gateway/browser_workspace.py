@@ -79,6 +79,7 @@ class BrowserWorkspace:
         self._dialogs: dict[str, Any] = {}
         self._downloads: set[asyncio.Task] = set()
         self._playwright = None
+        self._last_expiry = 0.0
         self._launch_lock = asyncio.Lock()
         self._loop = LoopThread("marvi-browser-workspace")
         self._save()
@@ -115,10 +116,16 @@ class BrowserWorkspace:
         if session["state"] in {"private", "stopping"} or capture_barrier.blocked:
             data.update(result=None, tabs=[])
             data.pop("download", None)
+            data.pop("downloads", None)
         return data
 
     def status(self) -> dict:
         async def read():
+            if time.monotonic() - self._last_expiry > 60:
+                self._last_expiry = time.monotonic()
+                for artifact in (self.directory / "artifacts").glob("*"):
+                    if artifact.is_file() and artifact.stat().st_mtime < time.time() - 86400:
+                        artifact.unlink()
             for sid in self._contexts:
                 await self._tabs(sid)
             return {
@@ -367,6 +374,8 @@ class BrowserWorkspace:
                 "instruction": "Read browser_status for completion before another action.",
             }
             self._receipts[key] = {"signature": signature, "receipt": receipt}
+            if len(self._receipts) > 1024:
+                self._receipts.pop(next(iter(self._receipts)))
             self._operations[sid] = asyncio.create_task(self._act(sid, action, dict(arguments)))
             return receipt
 
@@ -397,6 +406,9 @@ class BrowserWorkspace:
                 await asyncio.to_thread(self._url, args["url"])
                 if action == "new_tab":
                     page = await self._contexts[sid].new_page()
+                    self._adopt(sid, page)
+                    tid = next(key for key, candidate in self._pages[sid].items() if candidate == page)
+                    session["active_tab"] = tid
                 await page.goto(args["url"], wait_until="domcontentloaded", timeout=30_000)
             elif action in {"click", "fill", "select", "upload"}:
                 if locator is None or await locator.count() != 1:
@@ -449,7 +461,7 @@ class BrowserWorkspace:
                     path=str(dest), mask=[page.locator('input, textarea, [contenteditable="true"]')]
                 )
                 session["result"] = {"artifact": dest.name}
-            if session["state"] == "stopping" or capture_barrier.blocked:
+            if sid not in self._contexts or session["state"] == "stopping" or capture_barrier.blocked:
                 session["result"] = None
                 return
             if action != "screenshot" and not page.is_closed():
@@ -461,6 +473,7 @@ class BrowserWorkspace:
                 session["result"] = wrap_external(
                     "browser",
                     {
+                        "tab_id": tid,
                         "url": safe_url(page.url),
                         "snapshot": text[:12000],
                         "truncated": len(text) > 12000,
@@ -490,7 +503,11 @@ class BrowserWorkspace:
         # Chromium reports a navigation-to-attachment as ERR_ABORTED before
         # its download event is delivered. That pauses the action, but must
         # not discard the file which is the successful navigation outcome.
-        if capture_barrier.blocked or self.sessions[sid]["state"] not in {"ready", "running", "paused"}:
+        if capture_barrier.blocked or self.sessions[sid]["state"] not in {
+            "ready",
+            "running",
+            "paused",
+        }:
             await download.cancel()
             return
         destination = self.directory / "artifacts" / (uuid4().hex + ".download")
@@ -525,6 +542,7 @@ class BrowserWorkspace:
                 "name": Path(download.suggested_filename).name[:120],
             }
             self.sessions[sid]["download_bytes"] = used + destination.stat().st_size
+            self.sessions[sid].setdefault("downloads", []).append(self.sessions[sid]["download"])
             await download.delete()
         except asyncio.CancelledError:
             await download.cancel()
@@ -545,7 +563,14 @@ class BrowserWorkspace:
             session = self._session(sid)
             if capture_barrier.blocked:
                 raise ValueError("Private input is active")
-            item = session.get("download")
+            item = next(
+                (
+                    item
+                    for item in session.get("downloads", [session.get("download")])
+                    if item and item["artifact"] == artifact
+                ),
+                None,
+            )
             if not item or item["artifact"] != artifact:
                 raise ValueError("No completed download with that ID belongs to this session")
             if self.workspace is None:
