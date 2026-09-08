@@ -144,3 +144,37 @@ def test_the_veto_text_is_never_spoken() -> None:
     assert said, "the game-mode line was silenced"
     assert "not worth interrupting" not in said[0], f"read the veto aloud: {said[0]!r}"
     assert "FC 26" in said[0], f"lost the template line: {said[0]!r}"
+
+
+def test_something_she_worked_out_can_be_said_aloud() -> None:
+    """Twenty conclusions were drawn and every one stopped at a feed line.
+
+    `memory:conclusion` was not in the ceiling table, so it took the default,
+    `activity`. Among the twenty:
+
+        Shereef prefers "good morning" over "good night" because his sleep
+        schedule involves going to sleep in the morning
+
+    concluded at 01:37, capped at a feed entry, and the next conversation was
+    spent correcting her about exactly that. An assistant that notices things
+    and cannot mention them is a notebook.
+    """
+    from marvi_gateway.policy import SURFACE_CEILING
+
+    assert SURFACE_CEILING.get("memory:conclusion") == "speak"
+    # Still a ceiling and not an instruction: reflection stays a memory write.
+    assert SURFACE_CEILING.get("memory:reflection") == "remember"
+
+
+def test_a_conclusion_carries_the_sentence_not_just_its_title() -> None:
+    """It journalled `item["subject"]` -- "Shereef's greeting preference
+    context" -- which is a title, not something anybody can say out loud. The
+    thing she worked out lives in `body`."""
+    import inspect
+
+    from marvi_gateway import initiative
+
+    source = inspect.getsource(initiative.Initiative.run_dream)
+
+    assert '"says": said' in source, "the spoken sentence must reach the payload"
+    assert 'item.get("body")' in source, "the body is the conclusion; the subject is a label"

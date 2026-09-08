@@ -491,8 +491,30 @@ class Initiative:
             **counts,
         )
         for item in (found.get("conclusions") if found else []) or []:
+            # The conclusion itself, not just its title.
+            #
+            # This journalled `item["subject"]` -- "Shereef's greeting
+            # preference context" -- and nothing downstream could turn that
+            # into a sentence, because it is not one. The thing she worked out
+            # is in `body`, and it is the whole point:
+            #
+            #     "Shereef prefers 'good morning' over 'good night' because
+            #      his sleep schedule involves going to sleep in the morning"
+            #
+            # She concluded that at 01:37 and it went to the activity feed,
+            # the night before a conversation spent correcting her about
+            # exactly it.
+            said = str(item.get("body") or "").strip() or str(item["subject"])
             self.journal.append(
-                "memory", "conclusion", item["subject"], {"from": item["premises"]}, trusted=False
+                "memory",
+                "conclusion",
+                said[:300],
+                {
+                    "subject": item["subject"],
+                    "says": said,
+                    "from": item["premises"],
+                },
+                trusted=False,
             )
         logger.info(
             "dreaming completed",

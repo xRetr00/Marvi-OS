@@ -156,6 +156,23 @@ SURFACE_CEILING: dict[str, str] = {
     "vision:owner_seen": "activity",
     "room:vision_gesture": "activity",
     "memory:reflection": "remember",
+    # Something she worked out that nobody told her.
+    #
+    # Unlisted until now, which meant the default -- `activity`, a line in a
+    # feed. Twenty conclusions were drawn and every one of them stopped there,
+    # including the one that would have ended a whole argument:
+    #
+    #     Shereef prefers "good morning" over "good night" because his sleep
+    #     schedule involves going to sleep in the morning
+    #
+    # concluded at 01:37, capped at a feed entry, and the next conversation
+    # was spent correcting her about it. An assistant that notices things and
+    # cannot mention them is a notebook.
+    #
+    # `speak` is a ceiling, not an instruction: salience, the cooldown, quiet
+    # hours, presence and the deliberator all still stand between a conclusion
+    # and a spoken word, and dreaming only runs twice a day.
+    "memory:conclusion": "speak",
 }
 
 
