@@ -1381,10 +1381,19 @@ class MarviVoiceAgent(Agent):
         # a short sentence -- "no, it's morning" -- and `needs_memory` returns
         # False for exactly those, so putting this after the gate would drop
         # the correction on the turns most likely to carry one.
-        if self._corrections.heard(text, _last_thing_she_said(turn_ctx)):
+        mine = _last_thing_she_said(turn_ctx)
+        if self._corrections.heard(text, mine):
             log.info("noted a correction: %s", text[:80])
         if put_right := self._corrections.block():
             turn_ctx.add_message(role="system", content=put_right)
+        # And the signal that needs nothing from them: her saying the same
+        # thing twice. In the session this was built from she said "Goodnight,
+        # Shereef." three times and "Good morning, Shereef. I'm glad you're
+        # awake." verbatim twice, while the objection was phrased four
+        # different ways and matched none of the patterns above.
+        elif twice := self._corrections.repeating(mine):
+            turn_ctx.add_message(role="system", content=twice)
+            log.info("she has said the same thing twice; saying so")
 
         if not needs_memory(text):
             log.info("recall: skipped, nothing in this turn to look up")

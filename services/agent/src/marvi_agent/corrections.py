@@ -68,14 +68,19 @@ from dataclasses import dataclass
 #: matching too loosely would put a note in front of every turn and become the
 #: bloat this was measured against.
 CORRECTING = re.compile(
-    r"\b(why (do|are) you\b.*\?"          # "why do you keep saying that?"
-    r"|i (just )?(told|said to) you\b"    # "I told you it's morning"
-    r"|you keep (say|do|call)"            # "you keep saying goodnight"
-    r"|stop (say|call|doing)"             # "stop saying that"
-    r"|don'?t say\b"                      # "don't say good night"
-    r"|that'?s not what i\b"              # "that's not what I meant"
-    r"|you don'?t understand\b"           # "you don't understand, it's morning"
-    r"|no,? i (said|meant)\b)",           # "no, I meant the other one"
+    r"(^\s*(no|nope|nah)\s*,"                  # "No, it's morning" -- the comma matters
+    r"|^\s*(no|nope|nah)\s+(it|that|i|you|the|not|we)\b"
+    r"|\bit'?s not\b"                     # "It's not night, it's morning"
+    r"|\bthat'?s not\b"                   # "that's not what I said"
+    r"|^\s*but\b.{0,40}$"                 # "But it's morning."
+    r"|\bwhy (do|are) you\b"              # "why do you keep saying that"
+    r"|\bi (just |keep )?(told|said to) you\b"
+    r"|\byou keep (say|do|call|repeat)"   # "you keep saying goodnight"
+    r"|\bstop (say|call|doing|repeat)"    # "stop saying that"
+    r"|\bdon'?t say\b"                    # "don't say good night"
+    r"|\byou don'?t understand\b"         # "you don't understand"
+    r"|\bwrong\b"                         # "that's wrong"
+    r"|\bno,? i (said|meant|am|was)\b)",  # "no, I meant the other one"
     re.I,
 )
 
@@ -96,6 +101,8 @@ class Corrections:
     #: she is copying, and the one the note has to name.
     answered: str = ""
     left: int = 0
+    #: The last reply she gave, normalised. See `repeating`.
+    last: str = ""
 
     def heard(self, text: str, answered: str = "") -> bool:
         """Take note if this turn is a correction. True when it was.
@@ -130,6 +137,36 @@ class Corrections:
             note += " Take it as settled and do not repeat what they corrected."
         return note
 
+    #: Her own last reply, for noticing when she says it twice.
+    #:
+    #: The stronger of the two signals, and the one that needs nothing from
+    #: the user. In a real session she said "Good morning, Shereef. I'm glad
+    #: you're awake." verbatim twice in a row, and "Goodnight, Shereef." three
+    #: times, while the user objected in four different phrasings -- none of
+    #: which the first version of `CORRECTING` matched. Repetition is visible
+    #: without parsing anybody's objection.
+    def repeating(self, said: str) -> str:
+        """Note her repeating herself, and remember this reply. Empty usually.
+
+        Compared on the words rather than the characters, because "Goodnight,
+        Shereef." and "Good night, Shereef" are the same reply twice as far as
+        anyone listening is concerned.
+        """
+        # Letters and digits only, spacing dropped: "Goodnight, Shereef." and
+        # "Good night, Shereef" are one reply said twice to anybody listening,
+        # and she alternated between exactly those two spellings.
+        now = "".join(re.findall(r"[a-z0-9]+", (said or "").lower()))
+        if not now:
+            return ""
+        was, self.last = self.last, now
+        if not was or was != now:
+            return ""
+        return (
+            f'You have just said "{said.strip()[:160]}" twice in a row. '
+            "Do not say it a third time -- answer what they actually asked, "
+            "or say something new."
+        )
+
     def forget(self) -> None:
-        self.said = self.answered = ""
+        self.said = self.answered = self.last = ""
         self.left = 0

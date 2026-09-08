@@ -62,3 +62,59 @@ def test_it_survives_not_knowing_what_she_said() -> None:
 
     assert said, "a correction with no prior reply is still worth carrying"
     assert "do not repeat" in said
+
+
+def test_saying_the_same_thing_twice_is_noticed_without_being_told() -> None:
+    """The signal that needs nothing from the user.
+
+    In a real session she said "Goodnight, Shereef." three times and "Good
+    morning, Shereef. I'm glad you're awake." verbatim twice, while the user
+    objected in four different phrasings -- none of which the first version of
+    `CORRECTING` matched. Repetition is visible without parsing an objection.
+    """
+    notes = Corrections()
+
+    assert notes.repeating("Goodnight, Shereef.") == ""
+    # The same reply, spelled the other way, is the same reply.
+    said = notes.repeating("Good night, Shereef")
+    assert "twice in a row" in said
+    assert "Do not say it a third time" in said
+
+    # A different answer clears it.
+    assert notes.repeating("Good morning, Shereef.") == ""
+
+
+def test_the_real_corrections_from_a_live_session_are_caught() -> None:
+    """The first version fired once in five real chances.
+
+        "It's not night, it's morning."               missed
+        "No, I am going to sleep and it's morning."   missed
+        "But it's morning."                           missed
+        "No, it's morning."                           missed
+        "No, don't say good night when it's morning." caught
+
+    It had been written from a single transcript that happened to phrase every
+    objection as "why do you" or "you don't understand".
+    """
+    from marvi_agent.corrections import CORRECTING
+
+    for said in (
+        "It's not night, it's morning.",
+        "No, I am going to sleep and it's morning.",
+        "But it's morning.",
+        "No, it's morning.",
+        "No it is morning",
+        "No, don't say good night when it's good morning.",
+    ):
+        assert CORRECTING.search(said), said
+
+    # And ordinary turns from the same session stay ordinary. "no problem" is
+    # a courtesy, not a correction -- the comma is what separates them.
+    for said in (
+        "I am going to sleep.",
+        "Yeah, I'm just going to sleep right now.",
+        "Hey Marvey, how you doing?",
+        "no problem, thanks",
+        "turn the light on",
+    ):
+        assert not CORRECTING.search(said), said
