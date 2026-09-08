@@ -940,6 +940,21 @@ def ordered_context_blocks(blocks: dict[str, str]) -> list[str]:
     return ordered
 
 
+def _shipped_soul() -> str:
+    """The `SOUL.md` Marvi ships, so an edited one can be told from it.
+
+    Seeded into the user's home on first run and never overwritten, which is
+    right -- but it means "there is a SOUL.md" does not mean "somebody wrote
+    one". Comparing against the shipped copy is how a persona choice can win
+    over a file nobody has touched, while still losing to one somebody has.
+    """
+    import contextlib
+
+    with contextlib.suppress(OSError):
+        return (REPO_ROOT / "config" / "SOUL.md").read_text(encoding="utf-8")
+    return ""
+
+
 def _really_present(sidecar: Any) -> bool:
     """Whether anybody is there to hear this, from every signal that has a view.
 
@@ -3294,7 +3309,7 @@ def create_app(
         return result
 
     @app.get("/context")
-    async def read_context() -> dict[str, Any]:
+    async def read_context(surface: str = "voice") -> dict[str, Any]:
         """Prompt context the voice worker cannot build for itself.
 
         Voice assembles its own instructions in the Agent process and so was
