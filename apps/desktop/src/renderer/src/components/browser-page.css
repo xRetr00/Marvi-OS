@@ -77,3 +77,11 @@
   margin-top: 16px;
   font-size: 12px;
 }
+.browser-viewport {
+  height: min(58vh, 650px);
+  min-height: 280px;
+  width: 100%;
+  border: 1px solid var(--color-border, #333);
+  background: #fff;
+  margin-top: 12px;
+}

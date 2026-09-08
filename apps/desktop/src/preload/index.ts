@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { BrowserCommand, BrowserProfileEdit, BrowserSession, BrowserStart, BrowserStatus } from '../shared/browser'
+import type { BrowserCommand, BrowserPlacement, BrowserProfileEdit, BrowserSession, BrowserStart, BrowserStatus } from '../shared/browser'
 import type {
   FaceLibrary,
   AuxiliaryPage,
@@ -303,6 +303,12 @@ const marvi = {
     ipcRenderer.invoke('marvi:open-maintenance-terminal', action),
   getSchedules: (): Promise<SchedulePage | null> => ipcRenderer.invoke('marvi:get-schedules'),
   getBrowser: (): Promise<BrowserStatus> => ipcRenderer.invoke('marvi:get-browser'),
+  placeBrowser: (placement: BrowserPlacement | null): Promise<void> => ipcRenderer.invoke('marvi:place-browser', placement),
+  browserAction: (id: string, revision: number, action: string, arguments_: Record<string, unknown>): Promise<unknown> => ipcRenderer.invoke('marvi:browser-action', id, revision, action, arguments_),
+  onBrowserReveal: (callback: () => void): (() => void) => {
+    ipcRenderer.on('marvi:browser-reveal', callback)
+    return () => { ipcRenderer.removeListener('marvi:browser-reveal', callback) }
+  },
   startBrowser: (body: BrowserStart): Promise<BrowserSession> => ipcRenderer.invoke('marvi:start-browser', body),
   browserControl: (id: string, revision: number, command: BrowserCommand): Promise<BrowserSession> =>
     ipcRenderer.invoke('marvi:browser-control', id, revision, command),

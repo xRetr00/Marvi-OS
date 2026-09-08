@@ -1,7 +1,44 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { BrowserCommand, BrowserSession, BrowserStatus } from '../../../shared/browser'
 import { ControlPage, ControlSection } from './control-surface'
 import './browser-page.css'
+
+function BrowserViewport({ session }: { session: BrowserSession }): React.JSX.Element {
+  const area = useRef<HTMLDivElement>(null)
+  const [tab, setTab] = useState('')
+  const lastTarget = useRef<string | undefined>(undefined)
+  const target = session.tabs.find(t => t.id === tab)?.target ?? session.tabs[0]?.target
+  if (target) lastTarget.current = target
+  useEffect(() => {
+    const place = (): void => {
+      if (!area.current) return
+      const rect = area.current.getBoundingClientRect()
+      const y = Math.max(80, rect.top)
+      const height = Math.min(innerHeight - 30, rect.bottom) - y
+      void window.marvi.placeBrowser(height > 0 && rect.width > 0 ? {
+        id: session.id, target: lastTarget.current,
+        bounds: { x: Math.max(0, rect.left), y, width: Math.min(rect.width, innerWidth - rect.left), height }
+      } : null).catch(() => {})
+    }
+    place()
+    const observer = new ResizeObserver(place)
+    if (area.current) observer.observe(area.current)
+    window.addEventListener('resize', place)
+    window.addEventListener('scroll', place, true)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', place)
+      window.removeEventListener('scroll', place, true)
+      void window.marvi.placeBrowser(null).catch(() => {})
+    }
+  }, [session.id, target])
+  return <>
+    {session.tabs.length > 1 && <div className="browser-actions" aria-label="Browser tabs">
+      {session.tabs.map(item => <button key={item.id} aria-pressed={item.id === tab || (!tab && item === session.tabs[0])} onClick={() => setTab(item.id)}>{item.url || 'New tab'}</button>)}
+    </div>}
+    <div className="browser-viewport" ref={area} aria-label="Embedded browser" />
+  </>
+}
 
 export function BrowserPage(): React.JSX.Element {
   const [status, setStatus] = useState<BrowserStatus | null>(null)
@@ -146,6 +183,7 @@ export function BrowserPage(): React.JSX.Element {
               ))}
             </ul>
           )}
+          {session.host === 'embedded' && !['closed', 'failed'].includes(session.state) && <BrowserViewport session={session} />}
           {!status?.private_input && session.download && (
             <form
               className="browser-form"

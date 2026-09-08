@@ -2,7 +2,7 @@
  * The upstream Playwright BrowserModel confines routing to this workspace's tabs.
  * No app webContents, renderer IPC, or app-wide debugging port is exposed.
  */
-import { app, BrowserWindow, session, WebContentsView } from 'electron'
+import { BrowserWindow, session, WebContentsView } from 'electron'
 import type { DownloadItem, Rectangle } from 'electron'
 import { createServer } from 'node:http'
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'

@@ -354,6 +354,7 @@ function MainSurface(): React.JSX.Element {
   const translucency = useStore($translucency)
   const chatContextStatus = useStore($chatContextStatus)
   const [page, setPage] = useState<Page>('Overview')
+  useEffect(() => window.marvi.onBrowserReveal?.(() => setPage('Browser')), [])
   const [collapsed, setCollapsed] = useState(false)
   const [settings, setSettings] = useState<SettingsPage | null>(null)
   const [version, setVersion] = useState('0.1.0-dev.0')

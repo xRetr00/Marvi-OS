@@ -1,4 +1,4 @@
-import type { BrowserCommand, BrowserProfileEdit, BrowserSession, BrowserStart, BrowserStatus } from '../shared/browser'
+import type { BrowserCommand, BrowserPlacement, BrowserProfileEdit, BrowserSession, BrowserStart, BrowserStatus } from '../shared/browser'
 import type {
   FaceLibrary,
   AuxiliaryPage,
@@ -200,6 +200,9 @@ export interface MarviDesktopApi {
   openMaintenanceTerminal: (action: MaintenanceAction) => Promise<boolean>
   getSchedules: () => Promise<SchedulePage | null>
   getBrowser: () => Promise<BrowserStatus>
+  placeBrowser: (placement: BrowserPlacement | null) => Promise<void>
+  browserAction: (id: string, revision: number, action: string, arguments_: Record<string, unknown>) => Promise<unknown>
+  onBrowserReveal: (callback: () => void) => () => void
   startBrowser: (body: BrowserStart) => Promise<BrowserSession>
   browserControl: (id: string, revision: number, command: BrowserCommand) => Promise<BrowserSession>
   browserProfile: (body: BrowserProfileEdit) => Promise<unknown>
