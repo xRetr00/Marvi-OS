@@ -1,0 +1,543 @@
+"""Visible Chromium workspaces. Playwright owns the browser protocol.
+
+Gateway owns task state and serialization; Electron supervises the Gateway
+process tree. No arbitrary Python/JS/CDP is exposed to the model. Browser profile
+contents never enter this metadata store or the tool response.
+"""
+from __future__ import annotations
+
+import asyncio
+import contextlib
+import hashlib
+import json
+import os
+import re
+import shutil
+import sqlite3
+import time
+from pathlib import Path
+from typing import Any
+from urllib.parse import urlsplit, urlunsplit
+from uuid import uuid4
+
+from .background import LoopThread
+from .browser_privacy import capture_barrier
+from .paths import root
+from .untrusted import wrap_external
+from .web import assert_public_http_url
+
+MAX_FILE = 100 * 1024 * 1024
+MAX_TASK_FILES = 500 * 1024 * 1024
+ACTIVE = {"starting", "running", "resuming"}
+
+
+def safe_url(url: str) -> str:
+    """No query, fragment, or URL credentials in status/audit metadata."""
+    parts = urlsplit(url)
+    return urlunsplit((parts.scheme, parts.netloc.rsplit("@", 1)[-1], parts.path, "", ""))
+
+
+class BrowserWorkspace:
+    def __init__(self, directory: Path | None = None, *, headless: bool = False,
+                 workspace=None, allowed_origins: tuple[str, ...] = ()):
+        self.directory = directory or root() / "browser"
+        self.directory.mkdir(parents=True, exist_ok=True)
+        artifacts = self.directory / "artifacts"
+        if artifacts.exists():
+            for artifact in artifacts.iterdir():
+                if artifact.is_file() and artifact.stat().st_mtime < time.time() - 86400:
+                    artifact.unlink()
+        self.headless = headless  # Injection for tests, never model-controlled.
+        self.workspace = workspace
+        self.allowed_origins = allowed_origins  # Test fixture origins only.
+        self._db = sqlite3.connect(self.directory / "metadata.sqlite3", check_same_thread=False)
+        self._db.execute("CREATE TABLE IF NOT EXISTS state (id INTEGER PRIMARY KEY, body TEXT)")
+        row = self._db.execute("SELECT body FROM state WHERE id=1").fetchone()
+        self.profiles = json.loads(row[0])["profiles"] if row else [{"id": "default", "label": "Personal"}]
+        self.sessions: dict[str, dict] = {}
+        if row:
+            for item in json.loads(row[0]).get("sessions", []):
+                item.update(state="closed", detail="Browser stopped. Open the profile to continue.", result=None)
+                self.sessions[item["id"]] = item
+        self._contexts: dict[str, Any] = {}
+        self._pages: dict[str, dict[str, Any]] = {}
+        self._operations: dict[str, asyncio.Task] = {}
+        self._receipts: dict[str, dict] = {}
+        self._dialogs: dict[str, Any] = {}
+        self._downloads: set[asyncio.Task] = set()
+        self._playwright = None
+        self._launch_lock = asyncio.Lock()
+        self._loop = LoopThread("marvi-browser-workspace")
+        self._save()
+
+    def _save(self):
+        # Page content and results are deliberately ephemeral.
+        body = {"profiles": self.profiles, "sessions": [
+            {k: v for k, v in s.items() if k not in {"result", "tabs"}}
+            for s in self.sessions.values()
+        ]}
+        self._db.execute("INSERT OR REPLACE INTO state VALUES (1, ?)", (json.dumps(body),))
+        self._db.commit()
+
+    def _session(self, sid: str) -> dict:
+        if sid not in self.sessions:
+            raise ValueError("Unknown browser session")
+        return self.sessions[sid]
+
+    def _check(self, sid: str, revision: int) -> dict:
+        session = self._session(sid)
+        if session["revision"] != revision:
+            raise ValueError("Browser state changed. Read browser_status before acting.")
+        return session
+
+    def _change(self, session, state: str, detail: str):
+        session.update(state=state, detail=detail, revision=session["revision"] + 1)
+        self._save()
+
+    def _public(self, session):
+        data = dict(session)
+        if session["state"] in {"private", "stopping"} or capture_barrier.blocked:
+            data.update(result=None, tabs=[])
+            data.pop("download", None)
+        return data
+
+    def status(self) -> dict:
+        async def read():
+            for sid in self._contexts:
+                await self._tabs(sid)
+            return {"available": True, "driver": "playwright", "profiles": list(self.profiles),
+                    "sessions": [self._public(s) for s in self.sessions.values()],
+                    "private_input": capture_barrier.blocked}
+        return self._loop.submit(read(), timeout=3)
+
+    def profile(self, action: str, label: str = "", profile_id: str = "") -> dict:
+        async def edit():
+            if action == "create":
+                if not label.strip() or len(label) > 60:
+                    raise ValueError("Profile name must contain 1-60 characters")
+                self.profiles.append({"id": uuid4().hex, "label": label.strip()})
+            else:
+                profile = next((p for p in self.profiles if p["id"] == profile_id), None)
+                if profile is None:
+                    raise ValueError("Unknown profile")
+                if action == "rename":
+                    if not label.strip() or len(label) > 60:
+                        raise ValueError("Profile name must contain 1-60 characters")
+                    profile["label"] = label.strip()
+                elif action == "delete":
+                    if profile_id == "default":
+                        raise ValueError("The default profile cannot be deleted")
+                    if any(s["profile_id"] == profile_id and (s["id"] in self._contexts or s["state"] in ACTIVE)
+                           for s in self.sessions.values()):
+                        raise ValueError("Close this profile's browser before removing it")
+                    target = (self.directory / "profiles" / profile_id).resolve()
+                    if target.parent != (self.directory / "profiles").resolve():
+                        raise ValueError("Invalid profile directory")
+                    if target.exists():
+                        shutil.rmtree(target)
+                    self.profiles.remove(profile)
+                else:
+                    raise ValueError("Unknown profile action")
+            self._save()
+            return {"profiles": list(self.profiles)}
+        return self._loop.submit(edit())
+
+    def _url(self, url: str):
+        p = urlsplit(url)
+        if p.username or p.password:
+            raise ValueError("URL credentials are not supported")
+        origin = f"{p.scheme}://{p.netloc}"
+        if origin in self.allowed_origins:
+            return
+        assert_public_http_url(url)
+
+    async def _route(self, route):
+        try:
+            await asyncio.to_thread(self._url, route.request.url)
+        except Exception:
+            await route.abort("blockedbyclient")
+        else:
+            await route.continue_()
+
+    def start(self, profile_id: str = "default", url: str = "", objective: str = "Browse") -> dict:
+        async def begin():
+            if capture_barrier.blocked:
+                raise ValueError("Private input is active; resume before opening another browser")
+            if not any(p["id"] == profile_id for p in self.profiles):
+                raise ValueError("Unknown profile")
+            if any(s["profile_id"] == profile_id and
+                   (s["id"] in self._contexts or s["state"] in ACTIVE) for s in self.sessions.values()):
+                raise ValueError("This profile already has a browser. Select its existing session.")
+            sid = uuid4().hex
+            session = {"id": sid, "profile_id": profile_id, "objective": objective[:160],
+                       "state": "starting", "revision": 0, "detail": "Opening browser",
+                       "tabs": [], "result": None}
+            self.sessions[sid] = session
+            self._save()
+            self._operations[sid] = asyncio.create_task(self._launch(sid, url))
+            return self._public(session)
+        return self._loop.submit(begin(), timeout=3)
+
+    async def _launch(self, sid: str, url: str):
+        session = self._session(sid)
+        try:
+            if url:
+                await asyncio.to_thread(self._url, url)
+            async with self._launch_lock:
+                if self._playwright is None:
+                    from playwright.async_api import async_playwright
+                    self._playwright = await async_playwright().start()
+            transfer_dir = self.directory / "transfers" / sid
+            transfer_dir.mkdir(parents=True, exist_ok=True)
+            launching = asyncio.create_task(self._playwright.chromium.launch_persistent_context(
+                str(self.directory / "profiles" / session["profile_id"]),
+                headless=self.headless, accept_downloads=True, service_workers="block",
+                downloads_path=str(transfer_dir), no_viewport=True, timeout=60_000,
+            ))
+            try:
+                context = await asyncio.shield(launching)
+            except asyncio.CancelledError:
+                # Do not abandon a launch that can create a native process
+                # after Stop has returned. Keep stopping until it is closed.
+                with contextlib.suppress(Exception):
+                    context = await launching
+                    await context.close()
+                raise
+            self._contexts[sid] = context
+            self._pages[sid] = {}
+            context.set_default_timeout(10_000)
+            await context.route("**/*", self._route)
+            # No uninspected WebSocket alternate path in the public-web pilot.
+            await context.route_web_socket("**/*", lambda ws: ws.close())
+            context.on("page", lambda p: self._adopt(sid, p))
+            context.on("close", lambda: self._closed(sid))
+            for page in context.pages:
+                self._adopt(sid, page)
+            page = context.pages[0] if context.pages else await context.new_page()
+            if url:
+                await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
+            if session["state"] == "stopping" or capture_barrier.blocked:
+                return
+            self._change(session, "ready", "Browser ready. You can browse or ask Marvi to work here.")
+            await self._tabs(sid)
+        except asyncio.CancelledError:
+            if sid in self._contexts:
+                await self._contexts[sid].close()
+            raise
+        except Exception:
+            self._change(session, "failed", "Browser could not open. Check the engine installation and profile lock.")
+
+    def _adopt(self, sid, page):
+        if page in self._pages[sid].values():
+            return
+        tid = uuid4().hex
+        self._pages[sid][tid] = page
+        page.on("dialog", lambda d: self._dialog(sid, tid, d))
+        def downloading(download):
+            task = asyncio.create_task(self._download(sid, download))
+            self._downloads.add(task)
+            task.add_done_callback(self._downloads.discard)
+        page.on("download", downloading)
+        page.on("framenavigated", lambda f: self._navigated(sid, page, f))
+        page.on("close", lambda: self._pages.get(sid, {}).pop(tid, None))
+
+    def _navigated(self, sid, page, frame):
+        if frame == page.main_frame and sid in self.sessions:
+            session = self.sessions[sid]
+            session["revision"] += 1
+            if session["state"] == "ready":
+                self._change(session, "paused", "Page changed. Resume after checking the browser.")
+
+    def _dialog(self, sid, tid, dialog):
+        # Do not record website-provided dialog messages (may contain secrets).
+        self._dialogs[sid] = dialog
+        self.sessions[sid]["detail"] = "Website dialog pending. Respond in the browser or use the dialog action."
+
+    async def _tabs(self, sid):
+        session = self._session(sid)
+        if session["state"] == "private" or capture_barrier.blocked:
+            return []
+        result = []
+        for tid, page in list(self._pages.get(sid, {}).items()):
+            if not page.is_closed():
+                result.append({"id": tid, "url": safe_url(page.url)})
+        session["tabs"] = result
+        return result
+
+    def _closed(self, sid):
+        self._contexts.pop(sid, None)
+        self._pages.pop(sid, None)
+        capture_barrier.leave(sid)
+        self._change(self._session(sid), "closed", "Browser closed. Profile data is saved.")
+
+    def action(self, sid: str, revision: int, action: str, arguments: dict,
+               action_id: str) -> dict:
+        async def enqueue():
+            key = f"{sid}:{action_id}"
+            signature = hashlib.sha256(json.dumps([revision, action, arguments], sort_keys=True).encode()).hexdigest()
+            if key in self._receipts:
+                if self._receipts[key]["signature"] != signature:
+                    raise ValueError("Action ID was already used with different arguments")
+                return self._receipts[key]["receipt"]
+            session = self._check(sid, revision)
+            if session["state"] != "ready":
+                raise ValueError("Browser is not ready. Resume it or wait for the current operation.")
+            if capture_barrier.blocked:
+                raise ValueError("Private input is active; browser automation is paused")
+            if action not in {"read", "navigate", "new_tab", "click", "fill", "select", "press",
+                              "scroll", "back", "reload", "close_tab", "dialog", "screenshot", "upload"}:
+                raise ValueError("Unsupported browser action")
+            self._change(session, "running", f"Browser: {action}")
+            session["result"] = None
+            session.pop("error_type", None)
+            receipt = {"session_id": sid, "action_id": action_id, "status": "accepted",
+                       "instruction": "Read browser_status for completion before another action."}
+            self._receipts[key] = {"signature": signature, "receipt": receipt}
+            self._operations[sid] = asyncio.create_task(self._act(sid, action, dict(arguments)))
+            return receipt
+        return self._loop.submit(enqueue(), timeout=3)
+
+    async def _act(self, sid, action, args):
+        session = self._session(sid)
+        try:
+            pages = self._pages[sid]
+            tid = args.get("tab_id")
+            if tid not in pages:
+                if len(pages) != 1 or tid:
+                    raise ValueError("Select an exact tab ID from browser_status")
+                tid = next(iter(pages))
+            page = pages[tid]
+            session["active_tab"] = tid
+            target = page
+            if args.get("frame_url"):
+                frames = [f for f in page.frames if f.url == args["frame_url"]]
+                if len(frames) != 1:
+                    raise ValueError("Select an unambiguous frame URL")
+                target = frames[0]
+            selector = args.get("selector", "")
+            locator = target.locator(selector) if selector else None
+            if args.get("role"):
+                locator = target.get_by_role(args["role"], name=args.get("name", ""), exact=True)
+            if action in {"navigate", "new_tab"}:
+                await asyncio.to_thread(self._url, args["url"])
+                if action == "new_tab":
+                    page = await self._contexts[sid].new_page()
+                await page.goto(args["url"], wait_until="domcontentloaded", timeout=30_000)
+            elif action in {"click", "fill", "select", "upload"}:
+                if locator is None or await locator.count() != 1:
+                    raise ValueError("Use an unambiguous observed role/name or selector")
+                if action == "click":
+                    await locator.click()
+                elif action == "fill":
+                    if await locator.get_attribute("type") == "password" or await locator.get_attribute("autocomplete") in {"one-time-code", "current-password", "new-password"}:
+                        raise ValueError("Use Private input to enter credentials directly in the browser")
+                    await locator.fill(str(args.get("text", "")))
+                elif action == "select":
+                    await locator.select_option(str(args["value"]))
+                else:
+                    if self.workspace is None:
+                        raise ValueError("Configure a workspace before uploading")
+                    file = self.workspace.resolve(str(args["path"]))
+                    if not file.is_file() or file.stat().st_size > MAX_FILE:
+                        raise ValueError("Upload must be a file under 100 MB")
+                    await locator.set_input_files(str(file))
+            elif action == "press":
+                await page.keyboard.press(str(args["key"]))
+            elif action == "scroll":
+                await page.mouse.wheel(0, max(-2000, min(2000, int(args.get("pixels", 600)))))
+            elif action == "back":
+                await page.go_back(wait_until="domcontentloaded")
+            elif action == "reload":
+                await page.reload(wait_until="domcontentloaded")
+            elif action == "close_tab":
+                await page.close()
+            elif action == "dialog":
+                dialog = self._dialogs.pop(sid, None)
+                if dialog is None:
+                    raise ValueError("No dialog is pending")
+                if args.get("accept", False):
+                    await dialog.accept()
+                else:
+                    await dialog.dismiss()
+            elif action == "screenshot":
+                dest = self.directory / "artifacts" / (uuid4().hex + ".png")
+                dest.parent.mkdir(exist_ok=True)
+                await page.screenshot(path=str(dest), mask=[page.locator('input, textarea, [contenteditable="true"]')])
+                session["result"] = {"artifact": dest.name}
+            if session["state"] == "stopping" or capture_barrier.blocked:
+                session["result"] = None
+                return
+            if action != "screenshot" and not page.is_closed():
+                text = await page.locator("body").aria_snapshot(timeout=5000)
+                if session["state"] == "stopping" or capture_barrier.blocked:
+                    return
+                # No editable-field values in model observations.
+                text = re.sub(r'(?m)^(\s*- (?:textbox|searchbox).*?):.*$', r'\1', text)
+                session["result"] = wrap_external("browser", {"url": safe_url(page.url),
+                    "snapshot": text[:12000], "truncated": len(text) > 12000}).model_dump()
+            self._change(session, "ready", "Action finished. Verify the observation before continuing.")
+            await self._tabs(sid)
+        except asyncio.CancelledError:
+            session["result"] = None
+            raise
+        except Exception as exc:
+            # Upstream errors can include selectors, input values and page text.
+            session["result"] = None
+            if session["state"] == "stopping":
+                return
+            self._change(session, "paused", "Action could not be verified. Inspect the browser before retrying.")
+            session["error_type"] = type(exc).__name__
+
+    async def _download(self, sid, download):
+        # An explicit download is staged; it never chooses its final host path.
+        if self.sessions[sid]["state"] not in {"ready", "running"}:
+            await download.cancel()
+            return
+        destination = self.directory / "artifacts" / (uuid4().hex + ".download")
+        destination.parent.mkdir(exist_ok=True)
+        saving = None
+        try:
+            saving = asyncio.create_task(download.save_as(str(destination)))
+            while not saving.done():
+                sizes = [p.stat().st_size for p in (self.directory / "transfers" / sid).glob("*") if p.is_file()]
+                if any(size > MAX_FILE for size in sizes) or sum(sizes) > MAX_TASK_FILES:
+                    await download.cancel()
+                    raise ValueError("Download quota exceeded")
+                await asyncio.sleep(.1)
+            await saving
+            used = self.sessions[sid].get("download_bytes", 0)
+            if destination.stat().st_size > MAX_FILE or used + destination.stat().st_size > MAX_TASK_FILES:
+                destination.unlink()
+                raise ValueError("Download quota exceeded")
+            with destination.open("rb") as handle:
+                digest = hashlib.file_digest(handle, "sha256").hexdigest()
+            self.sessions[sid]["download"] = {"artifact": destination.name,
+                "bytes": destination.stat().st_size,
+                "sha256": digest, "name": Path(download.suggested_filename).name[:120]}
+            self.sessions[sid]["download_bytes"] = used + destination.stat().st_size
+            await download.delete()
+        except asyncio.CancelledError:
+            await download.cancel()
+            destination.unlink(missing_ok=True)
+            raise
+        except Exception:
+            destination.unlink(missing_ok=True)
+        finally:
+            if saving and not saving.done():
+                saving.cancel()
+                await asyncio.gather(saving, return_exceptions=True)
+
+    def export(self, sid: str, artifact: str, destination: str) -> dict:
+        """Publish a completed file without replacing an existing destination."""
+        async def save():
+            session = self._session(sid)
+            if capture_barrier.blocked:
+                raise ValueError("Private input is active")
+            item = session.get("download")
+            if not item or item["artifact"] != artifact:
+                raise ValueError("No completed download with that ID belongs to this session")
+            if self.workspace is None:
+                raise ValueError("Configure a workspace destination before saving")
+            target = self.workspace.resolve(destination, write=True)
+            if not target.parent.is_dir():
+                raise ValueError("Destination folder does not exist")
+            source = self.directory / "artifacts" / artifact
+            staged = target.parent / (".marvi-" + uuid4().hex + ".partial")
+            try:
+                shutil.copyfile(source, staged)
+                # Link is atomic and fails if target exists; unlike replace it
+                # cannot silently overwrite a file written since validation.
+                os.link(staged, target)
+            finally:
+                staged.unlink(missing_ok=True)
+            return {"path": str(target), "bytes": item["bytes"], "sha256": item["sha256"]}
+        return self._loop.submit(save())
+
+    def control(self, sid: str, revision: int, command: str) -> dict:
+        async def change():
+            session = self._check(sid, revision)
+            if command not in {"pause", "private", "resume", "stop", "close", "show"}:
+                raise ValueError("Unknown browser command")
+            if command == "show":
+                pages = list(self._pages.get(sid, {}).values())
+                if not pages:
+                    raise ValueError("Browser is closed")
+                await pages[0].bring_to_front()
+                return self._public(session)
+            if command == "resume":
+                if sid not in self._contexts:
+                    raise ValueError("Open this profile to restart its browser")
+                if session["state"] not in {"private", "paused", "cancelled"}:
+                    raise ValueError("Browser is not waiting for resume")
+                if capture_barrier.blocked and not capture_barrier.owns(sid):
+                    raise ValueError("Resume the browser with private input first")
+                capture_barrier.leave(sid)
+                session["result"] = None
+                self._change(session, "resuming", "Reading a fresh observation.")
+                pages = self._pages.get(sid, {})
+                tid = session.get("active_tab")
+                if tid not in pages:
+                    tid = next(iter(pages), None)
+                self._operations[sid] = asyncio.create_task(self._act(sid, "read", {"tab_id": tid}))
+                return self._public(session)
+            if command == "private":
+                if sid not in self._contexts:
+                    raise ValueError("Wait for the browser to open before private input")
+                capture_barrier.block(sid)
+            self._change(session, "stopping", "Stopping automation; please wait before typing.")
+            operation = self._operations.get(sid)
+            if operation and not operation.done():
+                # Playwright cancellation does not cancel a protocol command
+                # already dispatched. Drain its bounded operation before ack.
+                with contextlib.suppress(asyncio.CancelledError):
+                    await asyncio.shield(operation)
+            session["result"] = None
+            if command == "close":
+                if sid in self._contexts:
+                    await self._contexts[sid].close()
+                else:
+                    self._closed(sid)
+            elif command == "private":
+                # A second session must not return a frame captured during
+                # credential entry. Quiesce every browser observer first.
+                for other_sid, other in list(self._operations.items()):
+                    if other_sid != sid and not other.done():
+                        self._change(self.sessions[other_sid], "stopping", "Waiting for browser command before private input.")
+                        with contextlib.suppress(asyncio.CancelledError):
+                            await asyncio.shield(other)
+                        self.sessions[other_sid]["result"] = None
+                        self._change(self.sessions[other_sid], "paused", "Private input in another browser.")
+                downloads = list(self._downloads)
+                for download in downloads:
+                    download.cancel()
+                await asyncio.gather(*downloads, return_exceptions=True)
+                await asyncio.to_thread(capture_barrier.enter, sid)
+                session["tabs"] = []
+                self._change(session, "private", "Private input — Marvi paused. Enter credentials in the website, then Resume.")
+            else:
+                # Keep private capture protection until explicit Resume/Close.
+                state = "private" if capture_barrier.owns(sid) else ("cancelled" if command == "stop" else "paused")
+                self._change(session, state, "Automation stopped. Resume explicitly to continue.")
+            return self._public(session)
+        return self._loop.submit(change(), timeout=60)
+
+    def close(self):
+        async def shutdown():
+            for operation in self._operations.values():
+                operation.cancel()
+            await asyncio.gather(*self._operations.values(), return_exceptions=True)
+            downloads = list(self._downloads)
+            for download in downloads:
+                download.cancel()
+            await asyncio.gather(*downloads, return_exceptions=True)
+            for context in list(self._contexts.values()):
+                await context.close()
+            if self._playwright:
+                await self._playwright.stop()
+        try:
+            self._loop.submit(shutdown(), timeout=15)
+        finally:
+            for sid in self.sessions:
+                capture_barrier.leave(sid)
+            self._loop.stop()
+            self._db.close()
