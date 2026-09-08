@@ -45,7 +45,7 @@ dependencies = [
     # declared because depending on somebody else's dependency is how a working
     # install breaks on an unrelated bump -- the same reason `rich` is here.
     "pillow>=10,<13",
-    "proxy-py==2.4.10",
+    "pproxy==2.7.9",
 ]
 
 [project.scripts]

@@ -1,4 +1,4 @@
-"""Loopback-only browser egress using unchanged proxy.py, without TLS interception.
+"""Loopback-only browser egress using unchanged pproxy, without TLS interception.
 
 The plugin returns the validated IP to upstream's connector. Redirects and new
 hosts therefore pass DNS admission even when Chromium skips Playwright routes.
@@ -7,8 +7,8 @@ Only the test constructor supplies private fixture origins. No traffic is logged
 from __future__ import annotations
 
 import ipaddress
+import asyncio
 import json
-import logging
 import os
 import queue
 import socket
@@ -18,23 +18,19 @@ import threading
 from urllib.parse import urlsplit
 from uuid import uuid4
 
-from proxy.http.exception import HttpRequestRejected
-from proxy.http.proxy import HttpProxyBasePlugin
+from pproxy.server import ProxyDirect
 
 
-class PublicNetworkPlugin(HttpProxyBasePlugin):
-    def resolve_dns(self, host, port):
+class PublicNetwork(ProxyDirect):
+    async def wait_open_connection(self, host, port, local_addr, family):
         allowed = {tuple(item) for item in json.loads(os.environ.get("MARVI_BROWSER_TEST_ORIGINS", "[]"))}
         try:
-            addresses = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+            addresses = await asyncio.get_running_loop().getaddrinfo(host, port, type=socket.SOCK_STREAM)
             if (host, port) not in allowed and any(not ipaddress.ip_address(item[4][0]).is_global for item in addresses):
                 raise ValueError("Non-public address")
-            return addresses[0][4][0], None
+            return await super().wait_open_connection(addresses[0][4][0], port, local_addr, family)
         except (OSError, ValueError, IndexError) as exc:
-            raise HttpRequestRejected(status_code=403, reason=b"Browser destination refused") from exc
-
-    def on_access_log(self, context):
-        return None
+            raise ValueError("Browser destination refused") from exc
 
 
 class BrowserNetwork:
@@ -71,17 +67,18 @@ class BrowserNetwork:
             self.process.stdout.close()
 
 
-def main():
-    import proxy
-    logging.disable(logging.CRITICAL)
-    with proxy.Proxy(hostname=ipaddress.ip_address("127.0.0.1"), port=0,
-                     num_acceptors=1, num_workers=1, threadless=False,
-                     plugins=["marvi_gateway.browser_network.PublicNetworkPlugin"],
-                     basic_auth="marvi:" + os.environ["MARVI_BROWSER_PROXY_TOKEN"],
-                     log_level="CRITICAL") as server:
-        print(json.dumps({"port": server.flags.port}), flush=True)
-        sys.stdin.read()
+async def main():
+    import pproxy
+    listener = pproxy.Server("http://127.0.0.1:0#marvi:" + os.environ["MARVI_BROWSER_PROXY_TOKEN"])
+    listener.port = 0
+    server = await listener.start_server({"rserver": [PublicNetwork()], "authtime": 0})
+    try:
+        print(json.dumps({"port": server.sockets[0].getsockname()[1]}), flush=True)
+        await asyncio.to_thread(sys.stdin.read)
+    finally:
+        server.close()
+        await server.wait_closed()
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
