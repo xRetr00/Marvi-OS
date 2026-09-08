@@ -1,7 +1,6 @@
 import { ChevronLeft, ChevronRight, ExternalLink, Plus, RotateCw, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { BrowserCommand, BrowserSession, BrowserStatus } from '../../../shared/browser'
-import { ControlPage, ControlSection } from './control-surface'
 import './browser-page.css'
 
 function BrowserViewport({ session }: { session: BrowserSession }): React.JSX.Element {
@@ -198,11 +197,9 @@ export function BrowserPage({ onClose }: { onClose?: () => void } = {}): React.J
   const [status, setStatus] = useState<BrowserStatus | null>(null)
   const [profile, setProfile] = useState('default')
   const [url, setUrl] = useState('')
-  const [name, setName] = useState('')
-  const [destination, setDestination] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  const [importResult, setImportResult] = useState('')
+  const [menuOpen, setMenuOpen] = useState(false)
   const refresh = useCallback(async () => {
     try {
       setStatus(await window.marvi.getBrowser())
@@ -234,40 +231,50 @@ export function BrowserPage({ onClose }: { onClose?: () => void } = {}): React.J
   }
   const selected =
     status?.sessions.filter((s) => s.profile_id === profile && s.state !== 'closed') ?? []
+  const live = selected[0]
   return (
-    <ControlPage
-      title="Browser"
-      description="A saved browser workspace you and Marvi can use together."
-    >
-      {/* Only when it is a pane. Without a way out, a browser that opens
-          beside the conversation is a browser you cannot put down. */}
-      {onClose ? (
+    <div className="bx-shell">
+      {/* A browser, not a control panel.
+          This rendered a `ControlPage` with a Workspace form, a Profiles
+          section and an import expander -- all of it above the actual page,
+          all of it visible before anything had been opened. The controls are
+          still here; they are behind the menu, where a browser keeps them. */}
+      <div className="bx-strip">
+        <span className="bx-title">{live ? titleOf(live.tabs[0]?.url ?? '') : 'New tab'}</span>
+        <span className="bx-gap" />
         <button
-          aria-label="Close the browser pane"
-          className="browser-close"
-          onClick={onClose}
+          aria-expanded={menuOpen}
+          aria-label="Browser menu"
+          className="bx-icon"
+          onClick={() => setMenuOpen((open) => !open)}
           type="button"
         >
-          Close
+          <MoreVertical aria-hidden="true" />
         </button>
-      ) : null}
-      {error && (
-        <p role="alert" className="browser-error">
+        {onClose ? (
+          <button aria-label="Close the browser" className="bx-icon" onClick={onClose} type="button">
+            <X aria-hidden="true" />
+          </button>
+        ) : null}
+      </div>
+
+      {error ? (
+        <p className="bx-error" role="alert">
           {error}
         </p>
-      )}
-      {status?.private_input && (
-        <div className="browser-private" role="status">
-          <strong>PRIVATE INPUT · MARVI PAUSED</strong>
-          <p>
-            Enter your password or verification code directly in the website. Resume when you are
-            finished.
-          </p>
-        </div>
-      )}
-      <ControlSection title="Workspace">
+      ) : null}
+
+      {status?.private_input ? (
+        <p className="bx-private" role="status">
+          Private input · Marvi paused. Type your password in the page, then Resume.
+        </p>
+      ) : null}
+
+      {live ? (
+        <BrowserViewport session={live} />
+      ) : (
         <form
-          className="browser-form"
+          className="bx-open"
           onSubmit={(event) => {
             event.preventDefault()
             void run(() =>
@@ -279,204 +286,67 @@ export function BrowserPage({ onClose }: { onClose?: () => void } = {}): React.J
             )
           }}
         >
+          <input
+            aria-label="Website"
+            onChange={(event) => setUrl(event.target.value)}
+            placeholder="Type a URL"
+            type="text"
+            value={url}
+          />
+          <button disabled={busy || !status}>Open</button>
+        </form>
+      )}
+
+      {menuOpen ? (
+        <div className="bx-menu" role="menu">
           <label>
-            Saved profile
-            <select value={profile} onChange={(event) => setProfile(event.target.value)}>
-              {(status?.profiles ?? [{ id: 'default', label: 'Personal' }]).map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.label}
+            Profile
+            <select onChange={(event) => setProfile(event.target.value)} value={profile}>
+              {(status?.profiles ?? [{ id: 'default', label: 'Personal' }]).map((one) => (
+                <option key={one.id} value={one.id}>
+                  {one.label}
                 </option>
               ))}
             </select>
           </label>
-          <label>
-            Website
-            <input
-              type="url"
-              placeholder="https://example.com"
-              value={url}
-              onChange={(event) => setUrl(event.target.value)}
-            />
-          </label>
-          <button disabled={busy || !status || selected.length > 0}>Open browser</button>
-        </form>
-        <p className="browser-note">
-          Logins and site preferences stay in this profile when you close the browser. Websites can
-          still require you to sign in again.
-        </p>
-      </ControlSection>
-      {selected.map((session) => (
-        <ControlSection key={session.id} title={session.objective}>
-          <div className="browser-session" aria-live="polite">
-            <span className="browser-state">{session.state.replaceAll('_', ' ')}</span>
-            <p>{session.detail}</p>
-          </div>
-          <div className="browser-actions">
-            <button
-              disabled={busy || session.state === 'starting'}
-              onClick={() => control(session, 'show')}
-            >
-              Show browser
-            </button>
-            <button
-              disabled={busy || session.state === 'private'}
-              onClick={() => control(session, 'pause')}
-            >
-              Take over
-            </button>
-            <button
-              disabled={busy || session.state === 'private'}
-              onClick={() => control(session, 'private')}
-            >
-              Private input
-            </button>
-            <button
-              disabled={busy || !['private', 'paused', 'cancelled'].includes(session.state)}
-              onClick={() => control(session, 'resume')}
-            >
-              Resume
-            </button>
-            <button disabled={busy} onClick={() => control(session, 'stop')}>
-              Stop task
-            </button>
-            <button disabled={busy} onClick={() => control(session, 'close')}>
-              Close browser
-            </button>
-          </div>
-          {!status?.private_input && (
-            <ul className="browser-tabs">
-              {session.tabs.map((tab) => (
-                <li key={tab.id}>{tab.url || 'New tab'}</li>
-              ))}
-            </ul>
-          )}
-          {session.host === 'embedded' && !['closed', 'failed'].includes(session.state) && (
-            <BrowserViewport session={session} />
-          )}
-          {!status?.private_input && session.download && (
-            <form
-              className="browser-form"
-              onSubmit={(event) => {
-                event.preventDefault()
-                const artifact = session.download!.artifact
-                void run(async () => {
-                  await window.marvi.browserSaveDownload(session.id, artifact, destination)
-                  setDestination('')
-                })
-              }}
-            >
-              <p>Download staged · {session.download.bytes.toLocaleString()} bytes</p>
-              <label>
-                Save in workspace
-                <input
-                  value={destination}
-                  placeholder="downloads/invoice.pdf"
-                  onChange={(event) => setDestination(event.target.value)}
-                />
-              </label>
-              <button disabled={busy || !destination.trim()}>Save download</button>
-            </form>
-          )}
-        </ControlSection>
-      ))}
-      <ControlSection title="Profiles">
-        <details>
-          <summary>Import Chrome data into this profile</summary>
-          <button
-            disabled={busy}
-            onClick={() => {
-              void run(() => window.marvi.browserExportHelper())
-            }}
-          >
-            Open Chrome cookie exporter
-          </button>
-          <p className="browser-note">
-            In Chrome, open chrome://extensions, enable Developer mode, and Load unpacked from the
-            exporter folder. Use its export button, then import the saved JSON below. You can remove
-            the helper afterward.
-          </p>
-          <p className="browser-note">
-            Close this profile first. Import cookies from a JSON export, or passwords exported as
-            CSV from Chrome Password Manager → Settings → Export passwords. Chrome's encrypted
-            profile folder cannot be copied directly.
-          </p>
-          <div className="browser-actions">
-            {(['cookies', 'passwords'] as const).map((kind) => (
-              <button
-                key={kind}
-                disabled={busy || selected.length > 0}
-                onClick={() => {
-                  void run(async () => {
-                    const result = await window.marvi.browserImport(profile, kind)
-                    if (result)
-                      setImportResult(
-                        `${result.imported} ${kind} imported; ${result.skipped} skipped. The source export was not deleted.`
-                      )
-                  })
-                }}
-              >
-                Import {kind === 'cookies' ? 'cookie JSON' : 'password CSV'}
+          {live ? (
+            <>
+              <button onClick={() => control(live, 'show')} type="button">
+                Bring to front
               </button>
-            ))}
-          </div>
-          <p className="browser-note">
-            Passwords stay encrypted on this Windows account. In a matching website, right-click and
-            choose Fill saved login. Marvi pauses in Private input before filling; you submit the
-            form and Resume yourself. Imported cookies can expire, and device-bound or partitioned
-            sessions may need a fresh login.
+              <button onClick={() => control(live, 'pause')} type="button">
+                Take over
+              </button>
+              <button onClick={() => control(live, 'private')} type="button">
+                Private input
+              </button>
+              <button
+                disabled={!['private', 'paused', 'cancelled'].includes(live.state)}
+                onClick={() => control(live, 'resume')}
+                type="button"
+              >
+                Resume
+              </button>
+              <button onClick={() => control(live, 'stop')} type="button">
+                Stop task
+              </button>
+              <button
+                className="bx-danger"
+                onClick={() => {
+                  control(live, 'close')
+                  setMenuOpen(false)
+                }}
+                type="button"
+              >
+                Close browser
+              </button>
+            </>
+          ) : null}
+          <p className="bx-note">
+            Logins stay in this profile when the browser closes. Sites may still ask you to sign in.
           </p>
-          {importResult && <p role="status">{importResult}</p>}
-        </details>
-        <form
-          className="browser-form"
-          onSubmit={(event) => {
-            event.preventDefault()
-            void run(async () => {
-              await window.marvi.browserProfile({ action: 'create', label: name })
-              setName('')
-            })
-          }}
-        >
-          <label>
-            Profile name
-            <input
-              value={name}
-              maxLength={60}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="Work"
-            />
-          </label>
-          <button disabled={busy || !name.trim()}>Add profile</button>
-          <button
-            type="button"
-            disabled={busy || !name.trim()}
-            onClick={() => {
-              void run(() =>
-                window.marvi.browserProfile({ action: 'rename', profile_id: profile, label: name })
-              )
-            }}
-          >
-            Rename selected
-          </button>
-        </form>
-        {profile !== 'default' && (
-          <details className="browser-remove">
-            <summary>Remove this profile</summary>
-            <p>This deletes its saved logins and site data. Close its browser first.</p>
-            <button
-              disabled={busy || selected.length > 0}
-              onClick={() => {
-                void run(async () => {
-                  await window.marvi.browserProfile({ action: 'delete', profile_id: profile })
-                  setProfile('default')
-                })
-              }}
-            >
-              Delete selected profile and site data
-            </button>
-          </details>
-        )}
-      </ControlSection>
-    </ControlPage>
+        </div>
+      ) : null}
+    </div>
   )
 }
