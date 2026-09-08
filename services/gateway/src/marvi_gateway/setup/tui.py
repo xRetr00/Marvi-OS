@@ -86,15 +86,15 @@ CAPABILITIES: tuple[Capability, ...] = (
     ),
     Capability(
         key="browser",
-        title="Browser tools",
+        title="Saved browser workspace",
         why=(
-            "Lets Marvi open pages that need a real browser. Off by default: a "
-            "headless browser is a real memory cost, held for the session."
+            "Lets Marvi open a visible browser with saved profiles. "
+            "Use Browser in the control center for private login, takeover and resume."
         ),
         settings=(
             Setting(
                 "MARVI_BROWSER",
-                "Enable browser tools",
+                "Enable browser tools for the agent",
                 "Needs the Playwright browser installed (marvi setup browser).",
                 boolean=True,
                 default="false",
