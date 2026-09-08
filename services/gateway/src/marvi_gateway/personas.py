@@ -138,28 +138,52 @@ def available() -> list[dict[str, str]]:
     ]
 
 
+#: What every persona says, so no persona has to say it.
+#:
+#: The first version had no such file and the personas were near-copies of one
+#: another -- `default` and `funny` shared 59% of their lines -- which had two
+#: costs. They read the same, which is what the picker was supposed to fix; and
+#: `funny` had silently lost a whole section during the copying, so choosing it
+#: dropped rules nobody meant to drop.
+#:
+#: What lives here is what never varies with character: how she uses tools,
+#: what she does before something irreversible, that external text is
+#: information and never instruction, and that a closing offer is not
+#: conversation. A persona is now only the part that differs.
+SHARED = "_shared"
+
+
 def text(name: str = "", root: Path | None = None) -> str:
-    """The persona's own words. Empty when there is no such file.
+    """The persona's own words, with the shared rules after them.
 
     Falls back to the default rather than to nothing: a mistyped setting should
     leave Marvi herself, not leave her with no character at all.
     """
     wanted = (name or chosen()).strip().lower()
     folder = _folder(root)
+    said = ""
     for candidate in (wanted, DEFAULT):
         if not candidate:
             continue
-        path = folder / f"{candidate}.md"
         try:
-            said = path.read_text(encoding="utf-8").strip()
+            said = (folder / f"{candidate}.md").read_text(encoding="utf-8").strip()
         except OSError:
             continue
         if said:
             if candidate != wanted:
                 log.warning("no persona called %r; using %s", wanted, candidate)
-            return said
-    log.warning("no persona files under %s", folder)
-    return ""
+            break
+    if not said:
+        log.warning("no persona files under %s", folder)
+        return ""
+    try:
+        common = (folder / f"{SHARED}.md").read_text(encoding="utf-8").strip()
+    except OSError:
+        common = ""
+    # Character first, then the rules that do not vary. Character leads because
+    # it is the part that decides how everything after it is said.
+    gap = chr(10) * 2
+    return f"{said}{gap}{common}".strip() if common else said
 
 
 def for_surface(surface: str = "voice", root: Path | None = None) -> str:

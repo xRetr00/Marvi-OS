@@ -419,10 +419,22 @@ def test_the_persona_is_not_a_support_queue() -> None:
     personas = Path(__file__).resolve().parents[3] / "config" / "personas"
     assert personas.is_dir(), "the personas ship with the repo"
 
-    for path in sorted(personas.glob("*.md")):
+    # Checked on the composed text, not on each file: the rule lives in
+    # `_shared.md` now, which every persona is served with. Before that it was
+    # copied into each one, and `chat.md` and `silent.md` had already lost it
+    # -- which is the drift the shared file exists to stop.
+    shared = (personas / "_shared.md").read_text(encoding="utf-8").lower()
+    assert "is there anything else" in shared
+    assert "sound of a machine waiting" in shared
+
+    characters = [p for p in sorted(personas.glob("*.md")) if not p.name.startswith("_")]
+    assert len(characters) >= 3, "the picker needs something to pick from"
+    for path in characters:
         said = path.read_text(encoding="utf-8").lower()
-        assert "is there anything else" in said, f"{path.name} lost the closing rule"
-        assert "not conversation" in said or "sound of a machine waiting" in said, path.name
+        # Every persona still owns the spoken-surface rule, because chat's is
+        # the opposite and a shared file cannot hold both.
+        if path.name != "chat.md":
+            assert "no markdown" in said, f"{path.name} would speak asterisks"
 
     # And the core no longer carries it, or the choice would not be a choice.
     core = MarviVoiceAgent(tools=None).instructions.lower()
