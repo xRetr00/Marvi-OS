@@ -105,7 +105,6 @@ SURFACE_CEILING: dict[str, str] = {
     "room:alarm_requested": "speak",
     "room:room_presence_unverified": "speak",
     "room:room_welcome": "speak",
-    "room:room_entry": "speak",
     "room:visitor_report": "speak",
     "room:mode_changed": "activity",
     "room:light_changed": "activity",
@@ -167,7 +166,11 @@ SURFACE_CEILING: dict[str, str] = {
     "room:vision_visitor_seen": "activity",
     "room:presence_detected": "silent",
     "room:presence_cleared": "silent",
-    "room:room_entry": "activity",
+    # Somebody walked in. This was "activity", so 147 arrivals were recorded
+    # and none was ever mentioned -- while `room_welcome`, the one that speaks,
+    # fired 9 times because of a separate one-hour gate. Between them, walking
+    # into your own room produced silence.
+    "room:room_entry": "speak",
     "room:device_offline": "activity",
     "schedule:reminder": "speak",
     "schedule:insistent_reminder": "speak",
