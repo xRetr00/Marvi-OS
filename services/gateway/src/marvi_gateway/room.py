@@ -141,6 +141,25 @@ def is_notable(event: dict[str, Any]) -> bool:
     return kind in NOTABLE_EVENTS
 
 
+def _sleep_mode_on(event: dict[str, Any]) -> bool:
+    """Whether the room says it is bedtime, from the event's own snapshot.
+
+    The camera can see a horizontal torso. It cannot see a bed, and it cannot
+    tell a nap from lying on the floor looking at the ceiling. Sleep mode is
+    the half of the answer that comes from the person rather than the lens, so
+    "asleep" is only ever said when both agree.
+    """
+    for key in ("mode", "active_mode", "room_mode"):
+        if str(event.get(key, "")).strip().lower() == "sleep":
+            return True
+    state = event.get("state")
+    if isinstance(state, dict):
+        modes = state.get("modes")
+        if isinstance(modes, dict):
+            return str(modes.get("active_mode", "")).strip().lower() == "sleep"
+    return False
+
+
 def summarize_event(event: dict[str, Any]) -> str:
     """Build a line worth showing.
 
@@ -174,12 +193,21 @@ def summarize_event(event: dict[str, Any]) -> str:
         # The engine's own summary is the literal "vision sleep state" for both
         # directions, so Marvi heard the transition and could not tell which way
         # it went. The payload has carried `sleep_state` all along.
+        #
+        # And what the camera reports is a *posture*, never a conclusion.
+        # `resting` means a horizontal torso; it does not mean asleep, and not
+        # being visible at all means nothing whatsoever -- somebody out of
+        # frame, or a dark room, is not somebody sleeping. Sleeping is
+        # "lying down, in the dark, with sleep mode on", and only the first of
+        # those three is something a camera can see.
         state = str(event.get("sleep_state", "")).strip().lower()
-        if state in ("asleep", "sleeping"):
-            return "Asleep"
         if state == "awake":
             return "Awake"
-        return "Sleep state changed"
+        if state == "resting":
+            return "Lying down" if not _sleep_mode_on(event) else "Settled down to sleep"
+        if state in ("asleep", "sleeping"):
+            return "Asleep"
+        return "Out of view"
 
     if kind in ("geofence_arrive_home", "geofence_leave_home"):
         return "Arrived home" if kind.endswith("arrive_home") else "Left home"

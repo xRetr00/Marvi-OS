@@ -47,6 +47,12 @@ SURFACES = ("silent", "remember", "activity", "island", "speak", "propose")
 #: is phrasing and the marginal calls, not vetoing the decision itself.
 MUST_BE_SAID: frozenset[str] = frozenset({
     "room:room_welcome",
+    # Somebody walked in. It was capped at `activity` by falling through to the
+    # default, so 147 arrivals were recorded and none was ever mentioned --
+    # while `room_welcome`, which is the one that speaks, fired 9 times because
+    # of a separate one-hour gate. Between them, walking into your own room
+    # produced silence.
+    "room:room_entry",
     "room:visitor_report",
     "room:visitor_photos",
     "room:room_presence_unverified",
@@ -99,6 +105,7 @@ SURFACE_CEILING: dict[str, str] = {
     "room:alarm_requested": "speak",
     "room:room_presence_unverified": "speak",
     "room:room_welcome": "speak",
+    "room:room_entry": "speak",
     "room:visitor_report": "speak",
     "room:mode_changed": "activity",
     "room:light_changed": "activity",
