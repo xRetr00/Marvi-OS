@@ -303,6 +303,11 @@ class RuntimeStore:
         detail: str | None = None,
     ) -> None:
         """Append one immutable line. Auditing never blocks the action path."""
+        if tool.startswith("browser_"):
+            arguments = {k: v for k, v in arguments.items()
+                         if k in {"session_id", "profile_id", "revision", "action", "action_id", "command", "request_confirmation"}}
+            if event == "failed":
+                detail = "Browser action failed; inspect the browser state."
         record = AuditEvent(
             at=datetime.now(UTC).isoformat(),
             event=event,

@@ -66,7 +66,9 @@ from .accounts import (
 )
 from .activity import ActivityWatch, register_activity_tools
 from .announce import Announcer, announce_enabled, output_devices
-from .browser import BrowserSession, browser_enabled, register_browser_tools
+from .browser import browser_enabled
+from .browser_api import browser_router, register_workspace_browser_tools
+from .browser_workspace import BrowserWorkspace
 from .chat import Chat, ChatStore, ChatTurn, schemas_from_registry
 from .clarify import register_clarify_tool
 from .cognition import CognitionHarness
@@ -894,6 +896,50 @@ def load_installed_plugins() -> list[plugins_module.LoadedPlugin]:
     return found
 
 
+#: The context blocks, least likely to change first.
+#:
+#: The order used to be whatever order the code happened to add to the dict,
+#: and that got two things backwards at once.
+#:
+#: These blocks are appended after the agent's instructions, so the last one
+#: sits closest to the conversation. That slot went to the skills catalogue --
+#: 1,788 characters of names that do not change from one turn to the next --
+#: while "what is happening right now", the block that says whether the light
+#: is on, sat four places earlier in the middle, which is where long-context
+#: models retrieve worst.
+#:
+#: It broke prompt caching in the same move. A cache hit is a matching
+#: *prefix*, so a volatile block early in the list invalidates every static
+#: block after it: the room light changing re-sent two kilobytes of unchanged
+#: skill names and soul.
+SETTLED_FIRST: tuple[str, ...] = (
+    # Never change while Marvi is running.
+    "skills",
+    "soul",
+    "situation",
+    "accounts",
+    # Change between sessions, or when the store moves under them.
+    "user",
+    "standing",
+    "continuity",
+    # Changes minute to minute, so it goes nearest the question.
+    "world",
+)
+
+
+def ordered_context_blocks(blocks: dict[str, str]) -> list[str]:
+    """Static first, volatile last. Empty blocks are dropped.
+
+    A block nobody has ranked travels after the ranked ones: unranked is more
+    likely to mean new and volatile than old and settled, and the cost of
+    guessing wrong that way is a shorter cache prefix rather than a stale fact
+    sitting where the model reads best.
+    """
+    ordered = [blocks[name] for name in SETTLED_FIRST if blocks.get(name)]
+    ordered += [text for name, text in blocks.items() if name not in SETTLED_FIRST and text]
+    return ordered
+
+
 def _really_present(sidecar: Any) -> bool:
     """Whether anybody is there to hear this, from every signal that has a view.
 
@@ -991,6 +1037,7 @@ def create_app(
     tools: ToolRegistry | None = None,
     account_service: ComposioAccounts | None = None,
     announcer_service: Announcer | None = None,
+    browser_service: BrowserWorkspace | None = None,
 ) -> FastAPI:
     product_version = version or read_version()
     # Before anything opens a database or a log: move whatever is still in the
@@ -1305,10 +1352,6 @@ def create_app(
             if sidecar is not None
             else None,
         )
-        if browser_enabled():
-            # A headless browser is a real resource cost, so it stays off until
-            # MARVI_BROWSER asks for it.
-            register_browser_tools(tool_registry, BrowserSession(), workspace)
         chat = Chat(
             rememberer=rememberer,
             store=ChatStore(),
@@ -1326,6 +1369,20 @@ def create_app(
             # Routed here rather than attached to the Agent so MCP tools
             # inherit confirmation, audit, and idempotency (ADR-016).
             register_mcp_tools(tool_registry, mcp)
+
+    # The native browser is a supervised descendant of Gateway. Keep its
+    # explicit owner for graceful profile flush before Electron's tree cleanup.
+    browser_holder = [browser_service]
+    browser_lock = threading.Lock()
+
+    def get_browser() -> BrowserWorkspace:
+        with browser_lock:
+            if browser_holder[0] is None:
+                browser_holder[0] = BrowserWorkspace(workspace=Workspace())
+            return browser_holder[0]
+
+    if browser_enabled() or browser_service is not None:
+        register_workspace_browser_tools(tool_registry, get_browser, provider_client)
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
@@ -1440,6 +1497,8 @@ def create_app(
             dictation.close()
             one_shot.close()
             conversation.reset()
+            if browser_holder[0] is not None:
+                await anyio.to_thread.run_sync(browser_holder[0].close)
             if initiative is not None:
                 initiative.stop()
             if account_triggers is not None:
@@ -1460,6 +1519,8 @@ def create_app(
         redoc_url=None,
         lifespan=lifespan,
     )
+    app.include_router(browser_router(get_browser, runtime_store.audit,
+        lambda: register_workspace_browser_tools(tool_registry, get_browser, provider_client)))
     # Reachable from outside, so a proposal can be placed and settled without a
     # model in the loop -- and so a test of what happens to a proposal tests
     # that, rather than the extraction that produced it.
@@ -1957,10 +2018,15 @@ def create_app(
     if scheduler is not None:
         # Cron gets an isolated, transcript-free agent loop, but it calls the
         # exact provider and audited tool paths used by Chat and Voice.
+        def dispatch_for_schedule(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+            if name.startswith("browser_"):
+                return {"status": "failed", "error": "Visible browser tasks require an interactive user session."}
+            return dispatch_for_chat(name, arguments)
+
         scheduler.executor = schedule_module.CronAgentExecutor(
             provider_client,
             lambda: schemas_from_registry(tool_registry),
-            dispatch_for_chat,
+            dispatch_for_schedule,
         )
 
     @app.get("/chat", response_model=ChatHistory)
@@ -3324,7 +3390,7 @@ def create_app(
         except Exception as exc:  # pragma: no cover - depends on what is on disk
             get_logger("gateway").warning("skill catalogue unavailable: %s", exc)
             blocks["skills"] = ""
-        return {"blocks": [text for text in blocks.values() if text]}
+        return {"blocks": ordered_context_blocks(blocks)}
 
     @app.get("/skills")
     async def list_skills() -> dict[str, Any]:
@@ -3473,7 +3539,9 @@ def create_app(
         return ToolCatalog(tools=[ToolDescription(**row) for row in tool_catalogue()])
 
     @app.post("/tools/{name}", response_model=ToolInvocation)
-    async def call_tool(name: str, call: ToolCall) -> ToolInvocation:
+    async def call_tool(name: str, call: ToolCall, http_request: Request) -> ToolInvocation:
+        if name.startswith("browser_"):
+            localauth.guard(http_request)
         try:
             spec = tool_registry.get(name)
         except UnknownToolError as exc:
@@ -3521,7 +3589,8 @@ def create_app(
         return await run_tool_off_the_loop(spec, arguments, write_key)
 
     @app.post("/confirmations/{token}", response_model=ToolInvocation)
-    async def resolve_confirmation(token: str, decision: ConfirmationDecision) -> ToolInvocation:
+    async def resolve_confirmation(token: str, decision: ConfirmationDecision, http_request: Request) -> ToolInvocation:
+        localauth.guard(http_request)
         try:
             pending = runtime_store.take_confirmation(token, decision.arguments)
         except ArgumentsMutatedError as exc:
