@@ -30,7 +30,7 @@ from livekit.agents import (
 )
 from livekit.plugins import silero
 
-from . import alone, delegated, greeting, observability, oncall, sidecars
+from . import alone, corrections, delegated, greeting, observability, oncall, sidecars
 from .parakeet_stt import PARAKEET_ROOT, build_stt, chosen_engine
 from .runtime import AgentConfig, build_llm, build_local_turn_detector
 from .timing import TimedLLM
@@ -949,6 +949,8 @@ class MarviVoiceAgent(Agent):
     """
 
     def __init__(self, *, tools: GatewayTools | None = None) -> None:
+        #: What the user has lately put her right about. See `corrections`.
+        self._corrections = corrections.Corrections()
         super().__init__(
             instructions=(
                 situation() + " "
@@ -1351,6 +1353,20 @@ class MarviVoiceAgent(Agent):
         if finished := delegated.jobs.block():
             turn_ctx.add_message(role="system", content=finished)
             log.info("delegated: a finished job was put in front of this turn")
+
+        # What they have just put her right about, in front of her rather than
+        # buried in the history. See `corrections`: replayed against the real
+        # model, the same conversation went from saying "good night" in seven
+        # turns out of eight to one in eight, and nothing else changed.
+        #
+        # Before the recall gate below on purpose. A correction is most often
+        # a short sentence -- "no, it's morning" -- and `needs_memory` returns
+        # False for exactly those, so putting this after the gate would drop
+        # the correction on the turns most likely to carry one.
+        if self._corrections.heard(text):
+            log.info("noted a correction: %s", text[:80])
+        if put_right := self._corrections.block():
+            turn_ctx.add_message(role="system", content=put_right)
 
         if not needs_memory(text):
             log.info("recall: skipped, nothing in this turn to look up")
