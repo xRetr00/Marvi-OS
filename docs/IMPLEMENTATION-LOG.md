@@ -13,6 +13,11 @@
   with the final proxy backend, including real Chromium and Gateway-process tests.
   Prior OBS authentication and public-download evidence preceded this backend;
   do not treat it as embedded-host acceptance.
+- Added five passing proxy admission/authentication/shutdown checks and repeated
+  the real public attachment successfully through the final backend.
+- Added an actual Electron host probe. Guest isolation/storage/text insertion
+  passed; native click/capture failed. Preserved the failing reproduction and
+  recorded it as an open qualification issue rather than a completed feature.
 
 ## 2026-09-08 — visible browser implementation and qualification
 

@@ -42,8 +42,10 @@ Harness performance benchmark was not completed.
 
 Evidence recorded so far:
 
-- 115 targeted Gateway/browser/workspace/screen tests passed, including 30
+- 121 targeted Gateway/browser/workspace/screen tests passed with the final
+  proxy transport in 99.45 seconds, including 30
   repeated private-entry/resume/stale-revision fixture runs using real Chromium.
+- Five additional proxy authentication/DNS admission/shutdown tests passed.
 - 42 voice bridge/catalogue tests passed using the agent project's pytest
   configuration. An initial mixed-project invocation used the wrong asyncio
   mode; rerunning with the correct configuration passed.
@@ -56,6 +58,10 @@ Evidence recorded so far:
   SHA-256 `665a63e68a07707dad9781e592d9a3a41d915752c7c2914c2e4fc55e4a36fca7`.
   This exposed and fixed attachment-navigation event ordering; Chromium's
   aborted-navigation event must not cancel the subsequent download event.
+  The same download/hash passed again through the final proxy backend.
+- The embedded Electron fixture probe is **not passing**: guest isolation,
+  text insertion, same-process storage and profile separation passed, but native
+  click and compositor capture did not. See the Hermes review for reproduction.
 
 Remaining qualification: end-to-end secret-canary coverage across every
 history/model path, native foreground/visual acceptance, crash/upgrade/profile

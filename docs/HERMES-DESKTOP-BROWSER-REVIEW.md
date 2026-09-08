@@ -82,5 +82,18 @@ qualified. Website authentication may expire independently of saved storage.
 6. Verify bounds, resize/DPI, tabs, focus, Island priority, hidden-window behavior,
    shutdown, secret canaries, upgrade/recovery, and mixed voice/browser soak.
 
+## Local host probe
+
+`scripts/qualify-embedded-browser.cjs` runs a disposable local fixture with the
+actual Electron binary. On Windows 11 / Electron 43.4.0 / Chromium 150.0.7871.224,
+it verified absence of Node and the Marvi preload bridge in the guest, text
+insertion, profile separation, storage after same-process view recreation, and
+continued guest execution after detachment. The native click did not reach the
+fixture button and capture reported no available display surface. It therefore
+exits nonzero and does **not** qualify the visual/input host. It does not test
+the Gateway bridge, app restart, private-input integration, or real-site login.
+Evidence is generated at `output/playwright/embedded-host-proof/evidence.json`.
+This reproduction must pass before introducing the host as a production default.
+
 Status: embedded host is required and not implemented yet. The native workspace
 remains under qualification. Computer-use planning remains separate.
