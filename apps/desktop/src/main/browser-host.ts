@@ -2,14 +2,15 @@
  * The upstream Playwright BrowserModel confines routing to this workspace's tabs.
  * No app webContents, renderer IPC, or app-wide debugging port is exposed.
  */
-import { BrowserWindow, session, WebContentsView } from 'electron'
+import { BrowserWindow, dialog, Menu, safeStorage, session, WebContentsView } from 'electron'
 import type { DownloadItem, Rectangle } from 'electron'
 import { createServer } from 'node:http'
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, readFileSync, statSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
 import { WebSocketServer, WebSocket } from 'ws'
 import { BrowserModel, type CDPMessage } from './vendor/playwright/browserModel'
+import { BrowserPasswords, fillLogin } from './browser-import'
 
 type Proxy = { server: string; username: string; password: string }
 type Guest = { view: WebContentsView; target: string; context?: string }
@@ -34,14 +35,59 @@ export class BrowserHost {
   private placement: { id: string; target?: string; bounds: Rectangle } | null = null
   private parent: BrowserWindow | null = null
 
-  constructor(private directory: string, private reveal: () => void = () => {}, private diagnostic: (method: string, error: unknown) => void = () => {}) {}
+  constructor(private directory: string, private reveal: () => void = () => {}, private diagnostic: (method: string, error: unknown) => void = () => {}, private enterPrivate: (id: string) => Promise<void> = async () => { throw new Error('Private input unavailable') }) {}
+
+  async importProfile(profile: string, kind: 'cookies' | 'passwords', file: string): Promise<{ imported: number; skipped: number }> {
+    if (!identity(profile) || [...this.workspaces.values()].some(w => w.profile === profile)) throw new Error('Close this profile before importing')
+    if (statSync(file).size > 10 * 1024 * 1024) throw new Error('Export exceeds 10 MB')
+    const text = readFileSync(file, 'utf8')
+    if (kind === 'passwords') return { imported: this.passwords(profile).import(text), skipped: 0 }
+    const data = JSON.parse(text)
+    const cookies = Array.isArray(data) ? data : data.cookies
+    if (!Array.isArray(cookies) || cookies.length > 10000) throw new Error('Expected a cookie JSON export with at most 10,000 cookies')
+    const storage = session.fromPath(join(this.directory, 'electron-profiles', profile))
+    let imported = 0, skipped = 0
+    for (const cookie of cookies) {
+      try {
+        if (typeof cookie.domain !== 'string' || !/^[.a-zA-Z0-9-]+$/.test(cookie.domain) || typeof cookie.name !== 'string' || typeof cookie.value !== 'string' || cookie.partitionKey) throw new Error('Unsupported cookie')
+        const expirationDate = cookie.expirationDate ?? cookie.expires
+        if (typeof expirationDate === 'number' && expirationDate > 0 && expirationDate <= Date.now() / 1000) throw new Error('Expired cookie')
+        await storage.cookies.set({
+          url: `${cookie.secure ? 'https' : 'http'}://${cookie.domain.replace(/^\./, '')}${cookie.path || '/'}`,
+          name: cookie.name, value: cookie.value, domain: cookie.hostOnly ? undefined : cookie.domain,
+          path: cookie.path || '/', secure: Boolean(cookie.secure), httpOnly: Boolean(cookie.httpOnly),
+          ...(typeof expirationDate === 'number' && expirationDate > 0 ? { expirationDate } : {}),
+          sameSite: ({ Strict: 'strict', Lax: 'lax', None: 'no_restriction', strict: 'strict', lax: 'lax', no_restriction: 'no_restriction', unspecified: 'unspecified' } as const)[cookie.sameSite as string] ?? 'unspecified'
+        })
+        imported++
+      } catch { skipped++ }
+    }
+    await storage.cookies.flushStore()
+    return { imported, skipped }
+  }
+
+  private passwords(profile: string): BrowserPasswords {
+    return new BrowserPasswords(join(this.directory, 'passwords', profile + '.encrypted'), safeStorage)
+  }
+
+  async fillSavedLogin(id: string, tab: number, username: string): Promise<void> {
+    const workspace = this.workspaces.get(id)
+    const contents = workspace?.guests.get(tab)?.view.webContents
+    if (!workspace || !contents) throw new Error('Browser is unavailable')
+    const origin = new URL(contents.getURL()).origin
+    const login = this.passwords(workspace.profile).forOrigin(origin).find(item => item.username === username)
+    if (!login) throw new Error('No matching saved login')
+    await this.enterPrivate(id)
+    if (!workspace.private || contents.isDestroyed() || new URL(contents.getURL()).origin !== origin) throw new Error('Website changed')
+    await contents.executeJavaScriptInIsolatedWorld(1001, [{ code: `(${fillLogin.toString()})(${JSON.stringify(login)})` }])
+  }
 
   async start(): Promise<void> {
     const authorized = (headers: Record<string, unknown>): boolean => {
       if (headers.origin || headers['sec-fetch-site']) return false
       const value = headers.authorization
       const expected = `Bearer ${this.token}`
-      return typeof value === 'string' && value.length === expected.length &&
+      return typeof value === 'string' && Buffer.byteLength(value) === Buffer.byteLength(expected) &&
         timingSafeEqual(Buffer.from(value), Buffer.from(expected))
     }
     this.server.on('request', async (request, response) => {
@@ -78,6 +124,9 @@ export class BrowserHost {
           await storage.clearAuthCache()
           await storage.closeAllConnections()
           await storage.cookies.flushStore()
+          try { unlinkSync(join(this.directory, 'passwords', body.profile + '.encrypted')) } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+          }
           response.end('{}')
         } else { response.writeHead(404).end() }
       } catch { response.writeHead(409).end('{"error":"Browser host request refused"}') }
@@ -194,6 +243,21 @@ export class BrowserHost {
     } })
     const contents = view.webContents
     contents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp')
+    contents.on('context-menu', () => {
+      let origin: string
+      try { origin = new URL(contents.getURL()).origin } catch { return }
+      let logins
+      try { logins = this.passwords(workspace.profile).forOrigin(origin) } catch { return }
+      if (!logins.length) return
+      Menu.buildFromTemplate(logins.map(login => ({
+        label: `Fill saved login: ${login.username || '(no username)'}`,
+        click: async () => {
+          try {
+            await this.fillSavedLogin(workspace.id, contents.id, login.username)
+          } catch { void dialog.showMessageBox({ type: 'info', message: 'Login could not be filled. Check the website and private-input state, then try again.' }) }
+        }
+      }))).popup()
+    })
     const guest: Guest = { view, target: '' }
     workspace.guests.set(contents.id, guest)
     contents.on('login', (event, _details, auth, callback) => {
@@ -242,9 +306,20 @@ export class BrowserHost {
   private async command(workspace: Workspace, message: CDPMessage): Promise<unknown> {
     const { method, params = {} } = message
     const sessionId = message.sessionId === workspace.id ? undefined : message.sessionId
-    if (workspace.private && /^(Input\.|DOM\.|Runtime\.(evaluate|callFunctionOn)|Page\.capture)/.test(method!)) throw new Error('Private input is active')
+    if (workspace.private && /^(Input\.|DOM\.|Accessibility\.|Storage\.|Runtime\.(evaluate|callFunctionOn|getProperties)|Network\.getResponseBody|Page\.(capture|getResource))/.test(method!)) throw new Error('Private input is active')
+    if (method?.startsWith('Target.') && !['Target.attachToBrowserTarget', 'Target.attachToTarget', 'Target.detachFromTarget', 'Target.createTarget', 'Target.closeTarget', 'Target.getTargetInfo', 'Target.setAutoAttach'].includes(method)) throw new Error('Unsupported target command')
+    if (method === 'Target.getTargetInfo' && params.targetId && ![...workspace.guests.values()].some(g => g.target === params.targetId)) throw new Error('Unknown target')
+    if (method?.startsWith('Browser.') && !['Browser.getVersion', 'Browser.setDownloadBehavior', 'Browser.cancelDownload', 'Browser.getWindowForTarget', 'Browser.setWindowBounds', 'Browser.close'].includes(method)) throw new Error('Unsupported browser command')
+    if (method?.startsWith('Storage.')) {
+      if (!['Storage.getCookies', 'Storage.setCookies', 'Storage.clearCookies'].includes(method)) throw new Error('Unsupported storage command')
+      const guest = [...workspace.guests.values()][0]
+      if (!guest?.context) throw new Error('Missing browser context')
+      params.browserContextId = guest.context
+    }
     if (method === 'Target.attachToBrowserTarget') return { sessionId: workspace.id }
     if (sessionId && workspace.rawSessions.has(sessionId)) {
+      // A raw page session must never become a route to browser-wide targets.
+      if (method?.startsWith('Browser.') || (method?.startsWith('Target.') && method !== 'Target.getTargetInfo')) throw new Error('Unsupported raw session command')
       return workspace.rawSessions.get(sessionId)!.view.webContents.debugger.sendCommand(method!, params, sessionId)
     }
     if (method === 'Browser.getVersion') return { protocolVersion: '1.3', product: `Chrome/${process.versions.chrome}`, userAgent: session.defaultSession.getUserAgent() }
