@@ -8,6 +8,7 @@ export interface BrowserSession {
   detail: string
   tabs: { id: string; url: string; target?: string }[]
   host?: 'embedded' | 'native'
+  active_tab?: string
   download?: { artifact: string; bytes: number; sha256: string }
 }
 export interface BrowserPlacement {

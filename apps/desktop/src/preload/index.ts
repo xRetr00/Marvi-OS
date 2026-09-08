@@ -308,6 +308,8 @@ const marvi = {
     ipcRenderer.invoke('marvi:open-maintenance-terminal', action),
   getSchedules: (): Promise<SchedulePage | null> => ipcRenderer.invoke('marvi:get-schedules'),
   getBrowser: (): Promise<BrowserStatus> => ipcRenderer.invoke('marvi:get-browser'),
+  browserExportHelper: (): Promise<void> => ipcRenderer.invoke('marvi:browser-export-helper'),
+  browserImport: (profile: string, kind: 'cookies' | 'passwords'): Promise<{ imported: number; skipped: number } | null> => ipcRenderer.invoke('marvi:browser-import', profile, kind),
   placeBrowser: (placement: BrowserPlacement | null): Promise<void> => ipcRenderer.invoke('marvi:place-browser', placement),
   browserAction: (id: string, revision: number, action: string, arguments_: Record<string, unknown>): Promise<unknown> => ipcRenderer.invoke('marvi:browser-action', id, revision, action, arguments_),
   onBrowserReveal: (callback: () => void): (() => void) => {

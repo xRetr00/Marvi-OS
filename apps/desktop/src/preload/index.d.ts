@@ -203,6 +203,8 @@ export interface MarviDesktopApi {
   openMaintenanceTerminal: (action: MaintenanceAction) => Promise<boolean>
   getSchedules: () => Promise<SchedulePage | null>
   getBrowser: () => Promise<BrowserStatus>
+  browserExportHelper: () => Promise<void>
+  browserImport: (profile: string, kind: 'cookies' | 'passwords') => Promise<{ imported: number; skipped: number } | null>
   placeBrowser: (placement: BrowserPlacement | null) => Promise<void>
   browserAction: (id: string, revision: number, action: string, arguments_: Record<string, unknown>) => Promise<unknown>
   onBrowserReveal: (callback: () => void) => () => void

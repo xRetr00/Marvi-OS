@@ -17,7 +17,7 @@ import {
   Tray
 } from 'electron'
 import { is } from '@electron-toolkit/utils'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { readFile } from 'fs/promises'
 import { join, resolve } from 'path'
 import icon from '../../resources/icon.png?asset'
@@ -1343,6 +1343,18 @@ function startApp(): void {
     browserHost = new BrowserHost(join(stateDir(), 'browser'), () => {
       showMainWindow()
       mainWindow?.webContents.send('marvi:browser-reveal')
+    }, (method, error) => {
+      const name = /^[A-Za-z]+\.[A-Za-z0-9]+$/.test(method) ? method : 'invalid'
+      desktop.warn(`Browser protocol failed: method=${name} error_type=${error instanceof Error ? error.name : 'unknown'}`)
+    }, async id => {
+      const status = await gatewayJson('/browser') as { sessions?: { id: string; revision: number; state: string }[] } | null
+      const current = status?.sessions?.find(s => s.id === id)
+      if (!current) throw new Error('Browser session unavailable')
+      if (current.state === 'private') return
+      const result = await gatewayJson(`/browser/${id}/control`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: current.revision, command: 'private' })
+      }, 65000) as { state?: string } | null
+      if (result?.state !== 'private') throw new Error('Private input was not acknowledged')
     })
     void browserHost.start().then(() => {
       const register = async (): Promise<void> => {
@@ -2049,6 +2061,25 @@ function startApp(): void {
       return response.json()
     }
     ipcMain.handle('marvi:get-browser', () => browserRequest(''))
+    ipcMain.handle('marvi:browser-export-helper', async event => {
+      if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error('Invalid browser caller')
+      const target = join(stateDir(), 'browser', 'import-helper')
+      cpSync(join(app.getAppPath(), 'resources', 'browser-import'), target, { recursive: true })
+      const error = await shell.openPath(target)
+      if (error) throw new Error('The exporter folder could not open')
+    })
+    ipcMain.handle('marvi:browser-import', async (event, profile, kind) => {
+      if (!mainWindow || event.sender !== mainWindow.webContents || !browserHost || !['cookies', 'passwords'].includes(kind)) throw new Error('Invalid import request')
+      const status = await browserRequest('') as { profiles: { id: string }[] }
+      if (!status.profiles.some(item => item.id === profile)) throw new Error('Unknown profile')
+      const selection = await dialog.showOpenDialog(mainWindow, {
+        title: kind === 'passwords' ? 'Import Chrome password CSV' : 'Import browser cookie JSON',
+        properties: ['openFile'], filters: [{ name: 'Browser export', extensions: [kind === 'passwords' ? 'csv' : 'json'] }]
+      })
+      if (selection.canceled || selection.filePaths.length !== 1) return null
+      try { return await browserHost.importProfile(profile, kind, selection.filePaths[0]) }
+      catch { throw new Error('Import failed. Check the export format and close the selected browser profile first.') }
+    })
     ipcMain.handle('marvi:place-browser', (event, placement) => {
       if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error('Invalid browser caller')
       browserHost?.place(mainWindow, placement)
@@ -3453,10 +3484,29 @@ app.on('window-all-closed', () => {
   // The tray and Dynamic Island are the always-on product surface.
 })
 
-app.on('before-quit', () => {
+let browserShutdownStarted = false
+let browserShutdownFinished = false
+app.on('before-quit', (event) => {
+  if (browserHost && !browserShutdownFinished) {
+    event.preventDefault()
+    if (!browserShutdownStarted) {
+      browserShutdownStarted = true
+      if (browserHostPoll) clearInterval(browserHostPoll)
+      browserHostPoll = null
+      // Electron does not await event handlers. Keep the process alive while
+      // Chromium flushes profile storage, then run the normal shutdown path.
+      void Promise.race([
+        browserHost.close(),
+        new Promise<void>(resolve => setTimeout(resolve, 5000))
+      ]).catch(() => {}).finally(() => {
+        browserShutdownFinished = true
+        app.quit()
+      })
+    }
+    return
+  }
   if (browserHostPoll) clearInterval(browserHostPoll)
   browserHostPoll = null
-  void browserHost?.close()
   isQuitting = true
   if (gatewayPoll) clearInterval(gatewayPoll)
   gatewayPoll = null

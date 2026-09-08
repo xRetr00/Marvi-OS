@@ -6,6 +6,22 @@ import './browser-page.css'
 function BrowserViewport({ session }: { session: BrowserSession }): React.JSX.Element {
   const area = useRef<HTMLDivElement>(null)
   const [tab, setTab] = useState('')
+  const [address, setAddress] = useState('')
+  const [error, setError] = useState('')
+  const [navigating, setNavigating] = useState(false)
+  const selectedTab = session.tabs.find(t => t.id === tab) ?? session.tabs[0]
+  useEffect(() => { if (session.active_tab) setTab(session.active_tab) }, [session.active_tab])
+  useEffect(() => { setAddress(selectedTab?.url ?? '') }, [selectedTab?.url])
+  const navigate = async (action: string): Promise<void> => {
+    setNavigating(true); setError('')
+    try {
+      await window.marvi.browserAction(session.id, session.revision, action, {
+        tab_id: selectedTab?.id, ...(['navigate', 'new_tab'].includes(action) ? { url: action === 'new_tab' ? '' : address } : {})
+      })
+    } catch { setError('Navigation could not start. Wait for the current action or refresh the browser state.') }
+    finally { setNavigating(false) }
+  }
+  const disabled = navigating || !['ready', 'paused', 'cancelled'].includes(session.state)
   const lastTarget = useRef<string | undefined>(undefined)
   const target = session.tabs.find(t => t.id === tab)?.target ?? session.tabs[0]?.target
   if (target) lastTarget.current = target
@@ -33,6 +49,15 @@ function BrowserViewport({ session }: { session: BrowserSession }): React.JSX.El
     }
   }, [session.id, target])
   return <>
+    <form className="browser-form" onSubmit={event => { event.preventDefault(); void navigate('navigate') }}>
+      <button type="button" disabled={disabled} onClick={() => { void navigate('back') }}>Back</button>
+      <button type="button" disabled={disabled} onClick={() => { void navigate('reload') }}>Reload</button>
+      <label>Address<input type="url" aria-label="Browser address" value={session.state === 'private' ? '' : address} disabled={disabled} onChange={event => setAddress(event.target.value)} placeholder={session.state === 'private' ? 'Private input' : 'https://example.com'} /></label>
+      <button disabled={disabled || !address}>Go</button>
+      <button type="button" disabled={disabled} onClick={() => { void navigate('new_tab') }}>New tab</button>
+      <button type="button" disabled={disabled || session.tabs.length < 2} onClick={() => { void navigate('close_tab') }}>Close tab</button>
+    </form>
+    {error && <p role="alert">{error}</p>}
     {session.tabs.length > 1 && <div className="browser-actions" aria-label="Browser tabs">
       {session.tabs.map(item => <button key={item.id} aria-pressed={item.id === tab || (!tab && item === session.tabs[0])} onClick={() => setTab(item.id)}>{item.url || 'New tab'}</button>)}
     </div>}
@@ -48,6 +73,7 @@ export function BrowserPage(): React.JSX.Element {
   const [destination, setDestination] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [importResult, setImportResult] = useState('')
   const refresh = useCallback(async () => {
     try {
       setStatus(await window.marvi.getBrowser())
@@ -211,6 +237,20 @@ export function BrowserPage(): React.JSX.Element {
         </ControlSection>
       ))}
       <ControlSection title="Profiles">
+        <details>
+          <summary>Import Chrome data into this profile</summary>
+          <button disabled={busy} onClick={() => { void run(() => window.marvi.browserExportHelper()) }}>Open Chrome cookie exporter</button>
+          <p className="browser-note">In Chrome, open chrome://extensions, enable Developer mode, and Load unpacked from the exporter folder. Use its export button, then import the saved JSON below. You can remove the helper afterward.</p>
+          <p className="browser-note">Close this profile first. Import cookies from a JSON export, or passwords exported as CSV from Chrome Password Manager → Settings → Export passwords. Chrome's encrypted profile folder cannot be copied directly.</p>
+          <div className="browser-actions">
+            {(['cookies', 'passwords'] as const).map(kind => <button key={kind} disabled={busy || selected.length > 0} onClick={() => { void run(async () => {
+              const result = await window.marvi.browserImport(profile, kind)
+              if (result) setImportResult(`${result.imported} ${kind} imported; ${result.skipped} skipped. The source export was not deleted.`)
+            }) }}>Import {kind === 'cookies' ? 'cookie JSON' : 'password CSV'}</button>)}
+          </div>
+          <p className="browser-note">Passwords stay encrypted on this Windows account. In a matching website, right-click and choose Fill saved login. Marvi pauses in Private input before filling; you submit the form and Resume yourself. Imported cookies can expire, and device-bound or partitioned sessions may need a fresh login.</p>
+          {importResult && <p role="status">{importResult}</p>}
+        </details>
         <form
           className="browser-form"
           onSubmit={(event) => {
