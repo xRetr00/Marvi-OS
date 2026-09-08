@@ -1,3 +1,11 @@
+import {
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  Plus,
+  RotateCw,
+  X
+} from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { BrowserCommand, BrowserSession, BrowserStatus } from '../../../shared/browser'
 import { ControlPage, ControlSection } from './control-surface'
@@ -74,80 +82,123 @@ function BrowserViewport({ session }: { session: BrowserSession }): React.JSX.El
     }
   }, [session.id, target])
   return (
-    <>
+    <div className="bx">
+      {/* Tab strip. A browser's tabs belong at the top of the browser, not in
+          a list under a form -- this used to render `session.tabs` as an
+          unordered list beneath the controls. */}
+      <div className="bx-tabs" role="tablist" aria-label="Browser tabs">
+        {session.tabs.map((item) => (
+          <button
+            aria-selected={item.id === (tab || session.tabs[0]?.id)}
+            className={`bx-tab${item.id === (tab || session.tabs[0]?.id) ? ' is-on' : ''}`}
+            key={item.id}
+            onClick={() => setTab(item.id)}
+            role="tab"
+            type="button"
+          >
+            <span>{titleOf(item.url)}</span>
+          </button>
+        ))}
+        <button
+          aria-label="New tab"
+          className="bx-icon"
+          disabled={disabled}
+          onClick={() => void navigate('new_tab')}
+          type="button"
+        >
+          <Plus aria-hidden="true" />
+        </button>
+        <span className="bx-gap" />
+        {session.tabs.length > 1 ? (
+          <button
+            aria-label="Close tab"
+            className="bx-icon"
+            disabled={disabled}
+            onClick={() => void navigate('close_tab')}
+            type="button"
+          >
+            <X aria-hidden="true" />
+          </button>
+        ) : null}
+      </div>
+
+      {/* One row: navigation, then the address, the way every browser does it.
+          It was two rows of labelled form fields. */}
       <form
-        className="browser-form"
+        className="bx-bar"
         onSubmit={(event) => {
           event.preventDefault()
           void navigate('navigate')
         }}
       >
         <button
-          type="button"
+          aria-label="Back"
+          className="bx-icon"
           disabled={disabled}
-          onClick={() => {
-            void navigate('back')
-          }}
+          onClick={() => void navigate('back')}
+          type="button"
         >
-          Back
+          <ChevronLeft aria-hidden="true" />
         </button>
         <button
-          type="button"
+          aria-label="Forward"
+          className="bx-icon"
           disabled={disabled}
-          onClick={() => {
-            void navigate('reload')
-          }}
-        >
-          Reload
-        </button>
-        <label>
-          Address
-          <input
-            type="url"
-            aria-label="Browser address"
-            value={session.state === 'private' ? '' : address}
-            disabled={disabled}
-            onChange={(event) => setAddress(event.target.value)}
-            placeholder={session.state === 'private' ? 'Private input' : 'https://example.com'}
-          />
-        </label>
-        <button disabled={disabled || !address}>Go</button>
-        <button
+          onClick={() => void navigate('forward')}
           type="button"
-          disabled={disabled}
-          onClick={() => {
-            void navigate('new_tab')
-          }}
         >
-          New tab
+          <ChevronRight aria-hidden="true" />
         </button>
         <button
+          aria-label="Reload"
+          className="bx-icon"
+          disabled={disabled}
+          onClick={() => void navigate('reload')}
           type="button"
-          disabled={disabled || session.tabs.length < 2}
-          onClick={() => {
-            void navigate('close_tab')
-          }}
         >
-          Close tab
+          <RotateCw aria-hidden="true" />
+        </button>
+        <input
+          aria-label="Browser address"
+          className="bx-url"
+          disabled={disabled}
+          onChange={(event) => setAddress(event.target.value)}
+          placeholder={session.state === 'private' ? 'Private input' : 'Search or enter address'}
+          type="text"
+          value={session.state === 'private' ? '' : address}
+        />
+        <button
+          aria-label="Open in your own browser"
+          className="bx-icon"
+          disabled={disabled || !address}
+          onClick={() => void window.marvi.openExternal?.(address)}
+          type="button"
+        >
+          <ExternalLink aria-hidden="true" />
         </button>
       </form>
-      {error && <p role="alert">{error}</p>}
-      {session.tabs.length > 1 && (
-        <div className="browser-actions" aria-label="Browser tabs">
-          {session.tabs.map((item) => (
-            <button
-              key={item.id}
-              aria-pressed={item.id === tab || (!tab && item === session.tabs[0])}
-              onClick={() => setTab(item.id)}
-            >
-              {item.url || 'New tab'}
-            </button>
-          ))}
-        </div>
-      )}
-      <div className="browser-viewport" ref={area} aria-label="Embedded browser" />
-    </>
+
+      {error ? (
+        <p className="bx-error" role="alert">
+          {error}
+        </p>
+      ) : null}
+
+      <div aria-label="Embedded browser" className="browser-viewport" ref={area} />
+    </div>
   )
+}
+
+/** A tab's label: the site, not the whole URL. */
+function titleOf(url: string): string {
+  if (!url) return 'New tab'
+  try {
+    const { hostname, pathname } = new URL(url)
+    const site = hostname.replace(/^www\./, '')
+    return pathname.length > 1 ? `${site}${pathname}`.slice(0, 28) : site
+  } catch {
+    return url.slice(0, 28)
+  }
 }
 
 export function BrowserPage({ onClose }: { onClose?: () => void } = {}): React.JSX.Element {
