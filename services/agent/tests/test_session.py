@@ -405,11 +405,28 @@ def test_the_persona_is_not_a_support_queue() -> None:
     """The owner's words: "a goddamn 2 modes robot, asked and answered, cold
     and idiot". Measured over 201 turns -- 76 replies ended in a question and
     most were "is there anything else I can help you with". Twenty-six real
-    questions in two hundred turns."""
-    said = MarviVoiceAgent(tools=None).instructions.lower()
+    questions in two hundred turns.
 
-    assert "do not end turns with an offer of further help" in said
-    assert "you are not a search box" in said
+    The rule now lives in the persona rather than here, which is the point of
+    personas: this file said it on every turn whichever character was chosen,
+    so choosing one made no difference to how she closed a turn. It is checked
+    where it lives -- and in every persona that speaks, because a picker whose
+    options quietly differ on a measured rule is a picker that reintroduces the
+    bug under a new name.
+    """
+    from pathlib import Path
+
+    personas = Path(__file__).resolve().parents[3] / "config" / "personas"
+    assert personas.is_dir(), "the personas ship with the repo"
+
+    for path in sorted(personas.glob("*.md")):
+        said = path.read_text(encoding="utf-8").lower()
+        assert "is there anything else" in said, f"{path.name} lost the closing rule"
+        assert "not conversation" in said or "sound of a machine waiting" in said, path.name
+
+    # And the core no longer carries it, or the choice would not be a choice.
+    core = MarviVoiceAgent(tools=None).instructions.lower()
+    assert "do not end turns with an offer of further help" not in core
 
 
 def test_the_persona_puts_her_in_the_conversation() -> None:
