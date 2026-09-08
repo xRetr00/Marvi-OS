@@ -61,10 +61,19 @@ class CognitionHarness:
         client: ProviderClient,
         identity: IdentityFiles | None = None,
         tools: ToolRegistry | None = None,
+        in_character: bool = False,
     ) -> None:
         self.client = client
         self.identity = identity or IdentityFiles()
         self.tools = tools
+        #: Whether this harness produces something Marvi says.
+        #:
+        #: Almost nothing does. Extraction, reflection, the standing brief
+        #: and dreaming all produce structured text nobody hears, and giving
+        #: them her persona is seventeen hundred characters of how-to-speak
+        #: in front of a task that never speaks. The deliberator is the
+        #: exception -- it writes the sentence -- and asks for it explicitly.
+        self.in_character = in_character
 
     def _system(self, task: str) -> str:
         moment = datetime.now().astimezone()

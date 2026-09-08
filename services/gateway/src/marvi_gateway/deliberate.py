@@ -68,7 +68,11 @@ class Deliberator:
         harness: CognitionHarness | None = None,
     ) -> None:
         self.client = client or ProviderClient()
-        self.harness = harness or CognitionHarness(self.client, identity=identity, tools=tools)
+        # In character, unlike the other background jobs: this one writes
+        # the sentence Marvi actually says, so how she sounds is the output.
+        self.harness = harness or CognitionHarness(
+            self.client, identity=identity, tools=tools, in_character=True
+        )
         # Thinking in the background is exactly the work that should run on a
         # free local model when one is there.
         self.preferred = preferred or os.environ.get("MARVI_MIND_PROVIDER", "").strip() or None

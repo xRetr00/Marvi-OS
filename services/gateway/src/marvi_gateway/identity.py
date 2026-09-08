@@ -169,16 +169,26 @@ class IdentityFiles:
         self.user_path.write_text(text.strip() + "\n", encoding="utf-8")
         return estimate_tokens(text)
 
-    def compose(self, task: str = "") -> str:
+    def compose(self, task: str = "", in_character: bool = True) -> str:
         """Build the system prompt: identity first, then the task.
 
         Identity leads because it is what should survive if anything downstream
         truncates, and because it is the part that is cacheable — it is
         byte-identical every turn, which is what makes a cache hit possible.
+
+        `in_character=False` leaves the persona out, and most background
+        work wants that. Every auxiliary call used to receive the whole of
+        `SOUL.md`, so the job deciding whether a sentence holds a durable
+        fact was told "Warm, dry, unhurried. Never call yourself an AI
+        assistant" first -- seventeen hundred characters about how to speak,
+        in front of a task that produces JSON and never says a word.
+
+        Who she is talking to still travels: the extractor is judging facts
+        *about that person*. Only the voice is dropped.
         """
         identity = self.read()
         parts: list[str] = []
-        if identity.soul:
+        if identity.soul and in_character:
             parts.append(f"# Who you are\n\n{identity.soul}")
         if identity.user:
             parts.append(
