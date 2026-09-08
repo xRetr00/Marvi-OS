@@ -487,7 +487,10 @@ class BrowserWorkspace:
 
     async def _download(self, sid, download):
         # An explicit download is staged; it never chooses its final host path.
-        if self.sessions[sid]["state"] not in {"ready", "running"}:
+        # Chromium reports a navigation-to-attachment as ERR_ABORTED before
+        # its download event is delivered. That pauses the action, but must
+        # not discard the file which is the successful navigation outcome.
+        if capture_barrier.blocked or self.sessions[sid]["state"] not in {"ready", "running", "paused"}:
             await download.cancel()
             return
         destination = self.directory / "artifacts" / (uuid4().hex + ".download")
@@ -527,8 +530,9 @@ class BrowserWorkspace:
             await download.cancel()
             destination.unlink(missing_ok=True)
             raise
-        except Exception:
+        except Exception as exc:
             destination.unlink(missing_ok=True)
+            self.sessions[sid]["download_error_type"] = type(exc).__name__
         finally:
             if saving and not saving.done():
                 saving.cancel()

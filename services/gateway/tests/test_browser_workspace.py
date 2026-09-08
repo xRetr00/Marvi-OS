@@ -2,11 +2,16 @@
 
 import http.server
 import json
+import os
+import socket
+import subprocess
+import sys
 import threading
 import time
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+import httpx
 
 from marvi_gateway.app import create_app
 from marvi_gateway.browser_privacy import capture_barrier
@@ -141,14 +146,18 @@ def test_private_blocks_other_profiles_and_resume_with_multiple_tabs(browser):
     assert settled(service, sid)["state"] == "ready"
 
 
-def test_download_export_preserves_bytes_and_refuses_overwrite(browser, tmp_path):
+@pytest.mark.parametrize("trigger", ["click", "navigate"])
+def test_download_export_preserves_bytes_and_refuses_overwrite(browser, tmp_path, trigger):
     from marvi_gateway.workspace import Workspace
 
     service, url = browser
     service.workspace = Workspace(tmp_path)
     sid = service.start(url=url)["id"]
     settled(service, sid)
-    act(service, sid, "click", {"role": "link", "name": "Download invoice"})
+    if trigger == "click":
+        act(service, sid, "click", {"role": "link", "name": "Download invoice"})
+    else:
+        act(service, sid, "navigate", {"url": url + "/download"})
     deadline = time.monotonic() + 5
     while "download" not in session(service, sid) and time.monotonic() < deadline:
         time.sleep(0.03)
@@ -242,3 +251,66 @@ async def test_browser_api_requires_local_token_and_refuses_web_origin(browser, 
             )
         ).status_code == 403
         assert (await client.post("/tools/browser_open", json={"arguments": {}})).status_code == 403
+
+
+def test_real_gateway_process_browser_handoff(browser, tmp_path):
+    _, origin = browser
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    script = '''
+import sys
+from pathlib import Path
+import uvicorn
+from marvi_gateway.app import create_app
+from marvi_gateway.browser_workspace import BrowserWorkspace
+from marvi_gateway.tools import ToolRegistry
+service = BrowserWorkspace(Path(sys.argv[1]), headless=True, allowed_origins=(sys.argv[2],))
+app = create_app(tools=ToolRegistry(), browser_service=service)
+server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=int(sys.argv[3]), log_level="error"))
+@app.post("/_test_exit")
+def stop():
+    server.should_exit = True
+    return {"stopping": True}
+server.run()
+'''
+    process = subprocess.Popen(
+        [sys.executable, "-c", script, str(tmp_path / "child-browser"), origin, str(port)],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+        env={**os.environ, "MARVI_HOME": str(tmp_path / "child-home"), "MARVI_LOCAL_TOKEN": "test-process"},
+    )
+    with httpx.Client(base_url=f"http://127.0.0.1:{port}", headers={"x-marvi-local": "test-process"}, timeout=10) as client:
+        try:
+            deadline = time.monotonic() + 20
+            while True:
+                try:
+                    if client.get("/browser").status_code == 200:
+                        break
+                except httpx.TransportError:
+                    pass
+                assert time.monotonic() < deadline, "Gateway process did not become available"
+                time.sleep(.1)
+            opened = client.post("/browser/start", json={"url": origin})
+            assert opened.status_code == 200
+            sid = opened.json()["id"]
+            def state():
+                return next(s for s in client.get("/browser").json()["sessions"] if s["id"] == sid)
+            deadline = time.monotonic() + 20
+            while state()["state"] == "starting":
+                assert time.monotonic() < deadline
+                time.sleep(.1)
+            private = client.post(f"/browser/{sid}/control", json={"revision": state()["revision"], "command": "private"})
+            assert private.json()["state"] == "private"
+            assert client.get("/browser").json()["private_input"]
+            closed = client.post(f"/browser/{sid}/control", json={"revision": state()["revision"], "command": "close"})
+            assert closed.json()["state"] == "closed"
+            assert not client.get("/browser").json()["private_input"]
+        finally:
+            try:
+                client.post("/_test_exit")
+                process.wait(timeout=20)
+            except (httpx.TransportError, subprocess.TimeoutExpired):
+                process.terminate()
+                process.wait(timeout=5)
+    assert process.returncode == 0
