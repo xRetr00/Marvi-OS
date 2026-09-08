@@ -10,6 +10,8 @@ const { resolve, join } = require('node:path')
 let window
 let server
 const views = new Set()
+// Covered Windows windows still need a compositor surface for agent input/capture.
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion')
 
 async function main() {
   const directory = await mkdtemp(join(tmpdir(), 'marvi-embedded-proof-'))
