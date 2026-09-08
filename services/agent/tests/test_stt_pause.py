@@ -355,7 +355,15 @@ def test_the_recogniser_is_given_a_timeout_to_produce_words() -> None:
     built = inspect.getsource(session_module.build_session)
 
     assert "transcription_timeout=TRANSCRIPTION_TIMEOUT" in built
-    assert 0 < session_module.TRANSCRIPTION_TIMEOUT <= 4
+    # The upper bound was 4 when the value was a guess of 2. Measured over 129
+    # real turns the guess was under the *mean*: p50 1,379ms, p90 5,185ms,
+    # p95 6,265ms, and 24% of turns took longer than 2,000ms -- so a quarter
+    # were called missing while the transcript was still arriving.
+    #
+    # Ten is the ceiling now, not the target. It is there to catch somebody
+    # setting a minute by accident, because past ten seconds the apology is
+    # useless anyway: they have already repeated themselves.
+    assert 0 < session_module.TRANSCRIPTION_TIMEOUT <= 10
 
 
 def test_she_says_something_when_the_words_never_arrive() -> None:

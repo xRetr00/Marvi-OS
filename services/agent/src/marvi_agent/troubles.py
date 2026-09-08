@@ -111,7 +111,7 @@ TROUBLES: tuple[Trouble, ...] = (
         re.compile(r"no audio frames were pushed|<tool_call>", re.I),
         "I got tangled up mid-answer and lost the end of it. Ask me again and "
         "I will take another run at it.",
-        30.0,
+        60.0,
     ),
     Trouble(
         re.compile(r"tts|speech synthesis|voice sidecar", re.I),
