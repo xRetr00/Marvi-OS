@@ -187,7 +187,11 @@ class Workspace:
         could only ever enforce the stricter of the two.
         """
         try:
-            return self.access.resolve(relative, write=write)
+            resolved = self.access.resolve(relative, write=write)
+            from .paths import root as data_root
+            if resolved.is_relative_to((data_root() / "browser" / "profiles").resolve()):
+                raise WorkspaceRefusedError("Browser profile data is private; use the browser controls.")
+            return resolved
         except PathRefusedError as exc:
             raise WorkspaceRefusedError(str(exc)) from exc
 
@@ -446,7 +450,9 @@ class Workspace:
                 # Judged one by one rather than only at the root: a blacklisted
                 # folder inside the search path must not be searched, and the
                 # root check cannot see it.
-                if self.access.refusal(file, write=False):
+                try:
+                    self.resolve(str(file))
+                except WorkspaceRefusedError:
                     continue
                 yield file
 

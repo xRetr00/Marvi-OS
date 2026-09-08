@@ -85,7 +85,28 @@ def browser_router(get_service, audit, activate=lambda: None) -> APIRouter:
     return router
 
 
-def register_workspace_browser_tools(registry, get_service):
+def register_workspace_browser_tools(registry, get_service, vision_client=None):
+    def read_image(session_id: str, revision: int, tab_id: str, question: str):
+        import base64
+        from . import auxiliary
+        from .screen import SYSTEM_PROMPT, MAX_OUTPUT_TOKENS
+        from .untrusted import wrap_external
+        if vision_client is None:
+            raise ValueError("Configure the Vision model before reading browser images")
+        png = get_service().image(session_id, revision, tab_id)
+        response = vision_client.call_with_fallback(
+            [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": [
+                {"type": "text", "text": question[:2000]},
+                {"type": "image", "media_type": "image/png", "data": base64.b64encode(png).decode("ascii")}
+            ]}], job="vision", max_tokens=MAX_OUTPUT_TOKENS, temperature=0.2,
+            **auxiliary.fallback_overrides("vision"))
+        return wrap_external("browser-vision", getattr(response, "text", "")).model_dump()
+
+    registry.register(ToolSpec(
+        name="browser_read_image", description="Answer a question about one browser tab using the configured Vision model. Editable fields are masked; unavailable during private input.",
+        arguments={"session_id": str, "revision": int, "tab_id": str, "question": str},
+        sensitive=False, handler=read_image,
+    ))
     def start(url: str = "", profile_id: str = "default", objective: str = "Browse"):
         return get_service().start(profile_id, url, objective)
 
