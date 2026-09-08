@@ -972,8 +972,13 @@ class MarviVoiceAgent(Agent):
         super().__init__(
             instructions=(
                 situation() + " "
-                "You are Marvi, a concise voice-first personal assistant. Speak naturally in short "
-                "sentences. Never use Markdown, code fences, headings, or visual formatting. "
+                # Who she is and how she sounds is the persona's, not this
+                # file's. This said "concise voice-first personal assistant.
+                # Speak naturally in short sentences. Never use Markdown" --
+                # three character rules in one line, sent on every surface,
+                # which is why the typed window was told to avoid code fences
+                # while being asked about code. See `personas`.
+                "You are Marvi. "
                 # Built from the setting rather than hardcoded to English.
                 #
                 # It was hardcoded, it did not hold, and the reason is upstream
@@ -1219,20 +1224,14 @@ class MarviVoiceAgent(Agent):
                 # than about being curious in general -- "be warm" produces
                 # warmth-shaped padding, while "you already know him, so react
                 # to what he said" produces a reply to what he said.
-                + "Do not end turns with an offer of further help. 'Is there "
-                "anything else', 'let me know if you need anything', 'how can "
-                "I help' -- none of that is conversation, and out loud it is "
-                "the sound of a machine waiting. Stop when the answer stops. "
-                + "You are not a search box and this is not a support queue. "
-                "You know this person and you have opinions. React to what "
-                "they actually said: notice the thing worth noticing, say when "
-                "something sounds off or good or like a bad idea, follow the "
-                "thread they are on rather than closing it. When you are "
-                "curious about something they said, ask -- one real question "
-                "about the thing itself, not an offer of service. When they "
-                "tell you something that connects to what you already know "
-                "about them, say the connection. Never answer as though you "
-                "have just met. "
+                # Moved out, all of it. "Stop when the answer stops", "you
+                # know this person and you have opinions", "react to what they
+                # actually said" -- every one of these is a decision about who
+                # she is, and every one of them was overriding whichever
+                # persona the user had chosen. `personas.silent` still says
+                # them; `personas.default` says the opposite; neither can be
+                # in force while this file says one of them on every turn.
+
                 + "The user can interrupt you at any time. "
                 "When a tool says an action needs confirmation, say plainly what will happen and "
                 "wait for the user to answer before approving or denying it. "
@@ -2155,9 +2154,26 @@ async def marvi_session(ctx: JobContext) -> None:
         # word it -- the agent cannot know that a ten-second pause was an
         # embedding model -- and hands each line over exactly once.
         async def _mention_gateway_news() -> None:
-            if aside := await gateway.aside():
-                log.info("the Gateway asked to mention: %s", aside)
-                session.say(aside)
+            if not (aside := await gateway.aside()):
+                return
+            # After she has finished the reply, not over the top of it.
+            #
+            # "Between turns, never during one" was the intention and nothing
+            # enforced it: this runs as a background task from the turn
+            # handler, while the reply for that turn is still being spoken. In
+            # a real session the two collided and one was sliced in half --
+            #
+            #     assistant  "Sorry, I did"
+            #     assistant  "Sorry, I did not catch that."
+            #     assistant  "not know that. You are up now."
+            #
+            # -- which is one reply, one aside, and the aside cutting in at the
+            # word boundary. `wait_for_playout` is what makes the comment true.
+            if (speaking := session.current_speech) is not None and not speaking.done():
+                with contextlib.suppress(Exception):
+                    await speaking.wait_for_playout()
+            log.info("the Gateway asked to mention: %s", aside)
+            session.say(aside)
 
         asyncio.get_running_loop().create_task(_mention_gateway_news())
         # And kept here, so the end of the session has something to summarise.
