@@ -118,3 +118,24 @@ def test_the_real_corrections_from_a_live_session_are_caught() -> None:
         "turn the light on",
     ):
         assert not CORRECTING.search(said), said
+
+
+def test_a_correction_is_taken_without_being_announced() -> None:
+    """She stopped making the mistake and started announcing that she had.
+
+        "I will not tell you that you are up."
+        "I should not have said good morning like that."
+        "I will keep that in mind for future greetings."
+
+    Correct, and unbearable. Measured over twenty samples on the turn that
+    produced those: 18/20 narrated the correction without the closing
+    sentence, 8/20 with it, and the mistake itself stayed at 0/20 either way.
+    """
+    notes = Corrections()
+    notes.heard("No I'm not up because I didn't sleep.", "You are up now.")
+
+    said = notes.block()
+
+    assert "do not say it again" in said
+    assert "Do not mention the correction" in said
+    assert "as though you had it right the first time" in said

@@ -91,6 +91,17 @@ CORRECTING = re.compile(
 #: one that forgot -- it would read as being unable to let something go.
 HELD_FOR_TURNS = 3
 
+#: How to take a correction without making a performance of it.
+#:
+#: A correction she announces is worse company than the mistake was. Being put
+#: right is ordinary; the reply that follows should sound like somebody who
+#: had it right all along, not like a machine reading back a rule it has just
+#: been given.
+QUIETLY = (
+    " Do not mention the correction, apologise for it, or promise to change. "
+    "Just answer them as though you had it right the first time."
+)
+
 
 @dataclass
 class Corrections:
@@ -135,7 +146,20 @@ class Corrections:
             note += f' You had said: "{mine}" -- do not say it again.'
         else:
             note += " Take it as settled and do not repeat what they corrected."
-        return note
+        # And the half that keeps her a person rather than a compliance log.
+        #
+        # Without this she stopped making the mistake and started announcing
+        # that she had stopped: "I will not tell you that you are up", "I
+        # should not have said good morning like that", "I will keep that in
+        # mind for future greetings". Correct, and unbearable. Measured over
+        # twenty samples on the turn that produced those:
+        #
+        #     18/20 narrated the correction   without this sentence
+        #      8/20 narrated the correction   with it
+        #
+        # The mistake itself stayed at 0/20 either way, so this costs nothing
+        # except the apology.
+        return note + QUIETLY
 
     #: Her own last reply, for noticing when she says it twice.
     #:
