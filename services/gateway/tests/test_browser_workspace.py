@@ -397,3 +397,50 @@ def test_redirect_cannot_reach_private_destination(browser, path):
     settled(service, sid)
     act(service, sid, "navigate", {"url": url + path})
     assert Page.private_hits == 0
+
+def test_embedded_connection_failure_releases_host_profile(browser, monkeypatch):
+    service, origin = browser
+    # Real proxy and Playwright process; only the host control endpoint is a
+    # fixture. Refusing CDP must still release the host's acquired profile.
+    service.headless = False
+    service.register_host('http://127.0.0.1:1', 'a' * 64)
+    calls = []
+
+    async def host_request(path, body):
+        calls.append((path, body['id']))
+        return {'endpoint': 'ws://127.0.0.1:1/refused', 'downloads': str(service.directory)}
+
+    monkeypatch.setattr(service, '_host_request', host_request)
+    sid = service.start(url=origin)['id']
+    state = settled(service, sid)
+    assert state['state'] == 'failed'
+    assert state['error_stage'] == 'connect_embedded_protocol'
+    assert calls == [('/open', sid), ('/close', sid)]
+
+
+def test_new_tab_without_url_opens_blank(browser):
+    service, origin = browser
+    sid = service.start(url=origin)['id']
+    state = settled(service, sid)
+    service.action(sid, state['revision'], 'new_tab', {}, 'blank-tab')
+    state = settled(service, sid)
+    assert state['state'] == 'ready'
+    assert len(state['tabs']) == 2
+    assert any(tab['url'] == 'about:blank' for tab in state['tabs'])
+
+@pytest.mark.asyncio
+async def test_browser_status_timeout_is_explicit():
+    from fastapi import FastAPI
+
+    from marvi_gateway.browser_api import browser_router
+
+    class Busy:
+        def status(self):
+            raise TimeoutError()
+
+    app = FastAPI()
+    app.include_router(browser_router(lambda: Busy(), lambda *_: None))
+    async with AsyncClient(transport=ASGITransport(app=app), base_url='http://localhost') as client:
+        response = await client.get('/browser')
+    assert response.status_code == 503
+    assert 'busy' in response.json()['detail']

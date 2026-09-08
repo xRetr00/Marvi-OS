@@ -23,6 +23,7 @@ from uuid import uuid4
 
 from .background import LoopThread
 from .browser_privacy import capture_barrier
+from .logs import get_logger
 from .paths import root
 from .untrusted import wrap_external
 from .web import assert_public_http_url
@@ -30,6 +31,7 @@ from .web import assert_public_http_url
 MAX_FILE = 100 * 1024 * 1024
 MAX_TASK_FILES = 500 * 1024 * 1024
 ACTIVE = {"starting", "running", "resuming"}
+log = get_logger("browser")
 
 
 def safe_url(url: str) -> str:
@@ -90,17 +92,21 @@ class BrowserWorkspace:
     def register_host(self, endpoint: str, token: str):
         if not re.fullmatch(r"http://127\.0\.0\.1:[0-9]{1,5}", endpoint) or len(token) != 64:
             raise ValueError("Invalid desktop browser host")
+
         async def register():
             self._host = {"endpoint": endpoint, "token": token}
+
         self._loop.submit(register(), timeout=3)
 
     async def _host_request(self, path: str, body: dict):
         import httpx
+
         if self._host is None:
             raise ValueError("Desktop browser host is unavailable")
         async with httpx.AsyncClient(trust_env=False, timeout=15) as client:
             response = await client.post(
-                self._host["endpoint"] + path, json=body,
+                self._host["endpoint"] + path,
+                json=body,
                 headers={"Authorization": "Bearer " + self._host["token"]},
             )
             response.raise_for_status()
@@ -132,6 +138,7 @@ class BrowserWorkspace:
     def _change(self, session, state: str, detail: str):
         session.update(state=state, detail=detail, revision=session["revision"] + 1)
         self._save()
+        log.info("session=%s state=%s revision=%s", session["id"], state, session["revision"])
 
     def _public(self, session):
         data = dict(session)
@@ -183,7 +190,7 @@ class BrowserWorkspace:
                         for s in self.sessions.values()
                     ):
                         raise ValueError("Close this profile's browser before removing it")
-                    if (self.directory / "electron-profiles" / profile_id).exists():
+                    if (self.directory / "electron-profiles" / profile_id).exists() or (self.directory / "passwords" / (profile_id + ".encrypted")).exists():
                         await self._host_request("/profile/delete", {"profile": profile_id})
                     target = (self.directory / "profiles" / profile_id).resolve()
                     if target.parent != (self.directory / "profiles").resolve():
@@ -250,12 +257,16 @@ class BrowserWorkspace:
 
     async def _launch(self, sid: str, url: str):
         session = self._session(sid)
+        stage = "validate_url"
+        host_requested = False
         try:
             if url:
                 await asyncio.to_thread(self._url, url)
             async with self._launch_lock:
+                stage = "start_dependencies"
                 if self._network is None:
                     from .browser_network import BrowserNetwork
+
                     self._network = await asyncio.to_thread(BrowserNetwork, self.allowed_origins)
                 if self._playwright is None:
                     from playwright.async_api import async_playwright
@@ -264,12 +275,23 @@ class BrowserWorkspace:
             transfer_dir = self.directory / "transfers" / sid
             transfer_dir.mkdir(parents=True, exist_ok=True)
             if self._host and not self.headless:
-                host = await self._host_request("/open", {
-                    "id": sid, "profile": session["profile_id"], "proxy": self._network.settings,
-                })
+                stage = "open_embedded_host"
+                host_requested = True
+                host = await self._host_request(
+                    "/open",
+                    {
+                        "id": sid,
+                        "profile": session["profile_id"],
+                        "proxy": self._network.settings,
+                    },
+                )
+                stage = "connect_embedded_protocol"
                 browser = await self._playwright.chromium.connect_over_cdp(
-                    host["endpoint"], headers={"Authorization": "Bearer " + self._host["token"]},
-                    is_local=True, artifacts_dir=host["downloads"], timeout=30_000,
+                    host["endpoint"],
+                    headers={"Authorization": "Bearer " + self._host["token"]},
+                    is_local=True,
+                    artifacts_dir=host["downloads"],
+                    timeout=30_000,
                 )
                 self._embedded[sid] = browser
                 session["host"] = "embedded"
@@ -289,6 +311,7 @@ class BrowserWorkspace:
                     await context.close()
                 raise
             self._contexts[sid] = context
+            stage = "install_browser_routes"
             self._pages[sid] = {}
             context.set_default_timeout(10_000)
             await context.route("**/*", self._route)
@@ -299,33 +322,50 @@ class BrowserWorkspace:
                 self._adopt(sid, page)
             page = context.pages[0] if context.pages else await context.new_page()
             if url:
+                stage = "initial_navigation"
                 await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
             if session["state"] == "stopping" or capture_barrier.blocked:
                 return
-            self._change(session, "ready", "Browser ready. You can browse or ask Marvi to work here.")
+            self._change(
+                session, "ready", "Browser ready. You can browse or ask Marvi to work here."
+            )
             await self._tabs(sid)
         except asyncio.CancelledError:
             if sid in self._contexts:
                 await self._contexts[sid].close()
-            raise
-        except Exception:
-            if sid in self._embedded:
+            if host_requested:
                 with contextlib.suppress(Exception):
                     await self._host_request("/close", {"id": sid})
-            self._change(session, "failed", "Browser could not open. Check the desktop host, engine and profile lock.")
+            raise
+        except Exception as exc:
+            session["error_type"] = type(exc).__name__
+            session["error_stage"] = stage
+            log.warning("session=%s launch_failed stage=%s error_type=%s", sid, stage, type(exc).__name__)
+            if host_requested:
+                with contextlib.suppress(Exception):
+                    await self._host_request("/close", {"id": sid})
+            self._change(
+                session,
+                "failed",
+                "Browser could not open. Check the desktop host, engine and profile lock.",
+            )
 
     async def _native_context(self, session, transfer_dir):
         return await self._playwright.chromium.launch_persistent_context(
-                    str(self.directory / "profiles" / session["profile_id"]),
-                    headless=self.headless,
-                    proxy=self._network.settings,
-                    args=["--proxy-bypass-list=<-loopback>", "--disable-quic", "--force-webrtc-ip-handling-policy=disable_non_proxied_udp"],
-                    accept_downloads=True,
-                    service_workers="block",
-                    downloads_path=str(transfer_dir),
-                    no_viewport=True,
-                    timeout=60_000,
-                )
+            str(self.directory / "profiles" / session["profile_id"]),
+            headless=self.headless,
+            proxy=self._network.settings,
+            args=[
+                "--proxy-bypass-list=<-loopback>",
+                "--disable-quic",
+                "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
+            ],
+            accept_downloads=True,
+            service_workers="block",
+            downloads_path=str(transfer_dir),
+            no_viewport=True,
+            timeout=60_000,
+        )
 
     def _adopt(self, sid, page):
         if page in self._pages[sid].values():
@@ -367,13 +407,17 @@ class BrowserWorkspace:
                 item = {"id": tid, "url": safe_url(page.url)}
                 if sid in self._embedded:
                     # Host target identity is presentation metadata, never a global CDP capability.
-                    previous = next((tab for tab in session.get("tabs", []) if tab["id"] == tid), {})
+                    previous = next(
+                        (tab for tab in session.get("tabs", []) if tab["id"] == tid), {}
+                    )
                     if previous.get("target"):
                         item["target"] = previous["target"]
                     else:
                         cdp = await self._contexts[sid].new_cdp_session(page)
                         try:
-                            item["target"] = (await cdp.send("Target.getTargetInfo"))["targetInfo"]["targetId"]
+                            item["target"] = (await cdp.send("Target.getTargetInfo"))["targetInfo"][
+                                "targetId"
+                            ]
                         finally:
                             await cdp.detach()
                 result.append(item)
@@ -386,7 +430,7 @@ class BrowserWorkspace:
         capture_barrier.leave(sid)
         self._change(self._session(sid), "closed", "Browser closed. Profile data is saved.")
 
-    def action(self, sid: str, revision: int, action: str, arguments: dict, action_id: str) -> dict:
+    def action(self, sid: str, revision: int, action: str, arguments: dict, action_id: str, manual: bool = False) -> dict:
         async def enqueue():
             key = f"{sid}:{action_id}"
             signature = hashlib.sha256(
@@ -397,7 +441,7 @@ class BrowserWorkspace:
                     raise ValueError("Action ID was already used with different arguments")
                 return self._receipts[key]["receipt"]
             session = self._check(sid, revision)
-            if session["state"] != "ready":
+            if session["state"] != "ready" and not (manual and session["state"] in {"paused", "cancelled"}):
                 raise ValueError(
                     "Browser is not ready. Resume it or wait for the current operation."
                 )
@@ -420,6 +464,7 @@ class BrowserWorkspace:
                 "upload",
             }:
                 raise ValueError("Unsupported browser action")
+            finish_state = "paused" if manual and session["state"] != "ready" else "ready"
             self._change(session, "running", f"Browser: {action}")
             session["result"] = None
             session.pop("error_type", None)
@@ -432,12 +477,12 @@ class BrowserWorkspace:
             self._receipts[key] = {"signature": signature, "receipt": receipt}
             if len(self._receipts) > 1024:
                 self._receipts.pop(next(iter(self._receipts)))
-            self._operations[sid] = asyncio.create_task(self._act(sid, action, dict(arguments)))
+            self._operations[sid] = asyncio.create_task(self._act(sid, action, dict(arguments), finish_state))
             return receipt
 
         return self._loop.submit(enqueue(), timeout=3)
 
-    async def _act(self, sid, action, args):
+    async def _act(self, sid, action, args, finish_state="ready"):
         session = self._session(sid)
         try:
             pages = self._pages[sid]
@@ -459,13 +504,19 @@ class BrowserWorkspace:
             if args.get("role"):
                 locator = target.get_by_role(args["role"], name=args.get("name", ""), exact=True)
             if action in {"navigate", "new_tab"}:
-                await asyncio.to_thread(self._url, args["url"])
+                destination = args.get("url", "")
+                if action == "new_tab" and not destination:
+                    destination = "about:blank"
+                if destination != "about:blank" or action != "new_tab":
+                    await asyncio.to_thread(self._url, destination)
                 if action == "new_tab":
                     page = await self._contexts[sid].new_page()
                     self._adopt(sid, page)
-                    tid = next(key for key, candidate in self._pages[sid].items() if candidate == page)
+                    tid = next(
+                        key for key, candidate in self._pages[sid].items() if candidate == page
+                    )
                     session["active_tab"] = tid
-                await page.goto(args["url"], wait_until="domcontentloaded", timeout=30_000)
+                await page.goto(destination, wait_until="domcontentloaded", timeout=30_000)
             elif action in {"click", "fill", "select", "upload"}:
                 if locator is None or await locator.count() != 1:
                     raise ValueError("Use an unambiguous observed role/name or selector")
@@ -517,7 +568,11 @@ class BrowserWorkspace:
                     path=str(dest), mask=[page.locator('input, textarea, [contenteditable="true"]')]
                 )
                 session["result"] = {"artifact": dest.name}
-            if sid not in self._contexts or session["state"] == "stopping" or capture_barrier.blocked:
+            if (
+                sid not in self._contexts
+                or session["state"] == "stopping"
+                or capture_barrier.blocked
+            ):
                 session["result"] = None
                 return
             if action != "screenshot" and not page.is_closed():
@@ -536,7 +591,7 @@ class BrowserWorkspace:
                     },
                 ).model_dump()
             self._change(
-                session, "ready", "Action finished. Verify the observation before continuing."
+                session, finish_state, "Action finished. Verify the observation before continuing."
             )
             await self._tabs(sid)
         except asyncio.CancelledError:
@@ -544,6 +599,7 @@ class BrowserWorkspace:
             raise
         except Exception as exc:
             # Upstream errors can include selectors, input values and page text.
+            log.warning("session=%s action_failed action=%s error_type=%s", sid, action, type(exc).__name__)
             session["result"] = None
             if session["state"] == "stopping":
                 return

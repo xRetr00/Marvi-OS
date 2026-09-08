@@ -189,7 +189,7 @@ class Workspace:
         try:
             resolved = self.access.resolve(relative, write=write)
             from .paths import root as data_root
-            if resolved.is_relative_to((data_root() / "browser" / "profiles").resolve()):
+            if any(resolved.is_relative_to((data_root() / "browser" / folder).resolve()) for folder in ("profiles", "electron-profiles", "passwords")):
                 raise WorkspaceRefusedError("Browser profile data is private; use the browser controls.")
             return resolved
         except PathRefusedError as exc:
