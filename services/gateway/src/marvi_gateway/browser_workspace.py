@@ -148,7 +148,7 @@ class BrowserWorkspace:
                 for artifact in (self.directory / "artifacts").glob("*"):
                     if artifact.is_file() and artifact.stat().st_mtime < time.time() - 86400:
                         artifact.unlink()
-            for sid in self._contexts:
+            for sid in list(self._contexts):
                 await self._tabs(sid)
             return {
                 "available": True,
@@ -183,6 +183,8 @@ class BrowserWorkspace:
                         for s in self.sessions.values()
                     ):
                         raise ValueError("Close this profile's browser before removing it")
+                    if (self.directory / "electron-profiles" / profile_id).exists():
+                        await self._host_request("/profile/delete", {"profile": profile_id})
                     target = (self.directory / "profiles" / profile_id).resolve()
                     if target.parent != (self.directory / "profiles").resolve():
                         raise ValueError("Invalid profile directory")
@@ -365,11 +367,15 @@ class BrowserWorkspace:
                 item = {"id": tid, "url": safe_url(page.url)}
                 if sid in self._embedded:
                     # Host target identity is presentation metadata, never a global CDP capability.
-                    cdp = await self._contexts[sid].new_cdp_session(page)
-                    try:
-                        item["target"] = (await cdp.send("Target.getTargetInfo"))["targetInfo"]["targetId"]
-                    finally:
-                        await cdp.detach()
+                    previous = next((tab for tab in session.get("tabs", []) if tab["id"] == tid), {})
+                    if previous.get("target"):
+                        item["target"] = previous["target"]
+                    else:
+                        cdp = await self._contexts[sid].new_cdp_session(page)
+                        try:
+                            item["target"] = (await cdp.send("Target.getTargetInfo"))["targetInfo"]["targetId"]
+                        finally:
+                            await cdp.detach()
                 result.append(item)
         session["tabs"] = result
         return result

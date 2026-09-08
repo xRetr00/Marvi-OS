@@ -12,7 +12,7 @@ import { WebSocketServer, WebSocket } from 'ws'
 import { BrowserModel, type CDPMessage } from './vendor/playwright/browserModel'
 
 type Proxy = { server: string; username: string; password: string }
-type Guest = { view: WebContentsView; target: string }
+type Guest = { view: WebContentsView; target: string; context?: string }
 type Workspace = {
   id: string; profile: string; model: BrowserModel; guests: Map<number, Guest>
   socket?: WebSocket; downloads: Map<string, DownloadItem>; directory: string
@@ -34,7 +34,7 @@ export class BrowserHost {
   private placement: { id: string; target?: string; bounds: Rectangle } | null = null
   private parent: BrowserWindow | null = null
 
-  constructor(private directory: string, private reveal: () => void = () => {}) {}
+  constructor(private directory: string, private reveal: () => void = () => {}, private diagnostic: (method: string, error: unknown) => void = () => {}) {}
 
   async start(): Promise<void> {
     const authorized = (headers: Record<string, unknown>): boolean => {
@@ -70,6 +70,15 @@ export class BrowserHost {
           workspace.private = body.active
           if (body.active) for (const item of workspace.downloads.values()) item.cancel()
           response.end('{}')
+        } else if (request.method === 'POST' && request.url === '/profile/delete') {
+          if (!identity(body.profile) || body.profile === 'default' || [...this.workspaces.values()].some(w => w.profile === body.profile)) throw new Error('Profile in use')
+          const storage = session.fromPath(join(this.directory, 'electron-profiles', body.profile))
+          await storage.clearStorageData()
+          await storage.clearCache()
+          await storage.clearAuthCache()
+          await storage.closeAllConnections()
+          await storage.cookies.flushStore()
+          response.end('{}')
         } else { response.writeHead(404).end() }
       } catch { response.writeHead(409).end('{"error":"Browser host request refused"}') }
     })
@@ -87,7 +96,8 @@ export class BrowserHost {
             if (!message || typeof message.id !== 'number' || typeof message.method !== 'string') throw new Error('Invalid packet')
             const result = await this.command(workspace, message)
             this.emit(workspace, { id: message.id, sessionId: message.sessionId, result })
-          } catch {
+          } catch (error) {
+            this.diagnostic(message?.method ?? 'invalid', error)
             if (message) this.emit(workspace, { id: message.id, sessionId: message.sessionId, error: { message: 'Guest command failed' } })
           }
         })
@@ -135,13 +145,17 @@ export class BrowserHost {
         }
         if (method === 'chrome.debugger.sendCommand') {
           const result = await debug.sendCommand(args[1], args[2], args[0].sessionId)
-          if (args[1] === 'Target.getTargetInfo') guest.target = result.targetInfo.targetId
+          if (args[1] === 'Target.getTargetInfo') {
+            guest.target = result.targetInfo.targetId
+            guest.context = result.targetInfo.browserContextId
+          }
           return result
         }
         throw new Error('Unsupported host command')
       })
     }
     this.workspaces.set(id, workspace)
+    this.reveal()
     const storage = session.fromPath(join(this.directory, 'electron-profiles', profile))
     await storage.setProxy({ mode: 'fixed_servers', proxyRules: proxy.server, proxyBypassRules: '<-loopback>' })
     await storage.closeAllConnections()
@@ -198,7 +212,21 @@ export class BrowserHost {
         return [...workspace.guests.entries()].find(([id]) => !before.has(id))![1].view.webContents
       } }
     })
-    contents.debugger.on('message', (_event, method, params, sessionId) => workspace.model.onDebuggerEvent({ tabId: contents.id, sessionId: sessionId || undefined }, method, params))
+    contents.debugger.on('message', (_event, method, params, sessionId) => {
+      if (['Runtime.consoleAPICalled', 'Runtime.exceptionThrown', 'Log.entryAdded'].includes(method)) return
+      // Explicit user CDP sessions must not be auto-attached as new page
+      // sessions by Playwright; that would replace its callback registry.
+      if (method === 'Target.attachedToTarget' && params.targetInfo?.targetId === guest.target) {
+        workspace.rawSessions.set(params.sessionId, guest)
+        return
+      }
+      if (method === 'Target.detachedFromTarget' && workspace.rawSessions.has(params.sessionId)) {
+        workspace.rawSessions.delete(params.sessionId)
+        this.emit(workspace, { sessionId: workspace.id, method, params })
+        return
+      }
+      workspace.model.onDebuggerEvent({ tabId: contents.id, sessionId: sessionId || undefined }, method, params)
+    })
     contents.debugger.on('detach', () => workspace.model.onDebuggerDetach({ tabId: contents.id }))
     contents.once('destroyed', () => {
       workspace.guests.delete(contents.id)
@@ -212,7 +240,13 @@ export class BrowserHost {
   }
 
   private async command(workspace: Workspace, message: CDPMessage): Promise<unknown> {
-    const { method, sessionId, params = {} } = message
+    const { method, params = {} } = message
+    const sessionId = message.sessionId === workspace.id ? undefined : message.sessionId
+    if (workspace.private && /^(Input\.|DOM\.|Runtime\.(evaluate|callFunctionOn)|Page\.capture)/.test(method!)) throw new Error('Private input is active')
+    if (method === 'Target.attachToBrowserTarget') return { sessionId: workspace.id }
+    if (sessionId && workspace.rawSessions.has(sessionId)) {
+      return workspace.rawSessions.get(sessionId)!.view.webContents.debugger.sendCommand(method!, params, sessionId)
+    }
     if (method === 'Browser.getVersion') return { protocolVersion: '1.3', product: `Chrome/${process.versions.chrome}`, userAgent: session.defaultSession.getUserAgent() }
     if (method === 'Browser.setDownloadBehavior') return {} // Native DownloadItem stages files with CDP GUIDs.
     if (method === 'Browser.cancelDownload') { workspace.downloads.get(params.guid)?.cancel(); return {} }
@@ -230,13 +264,10 @@ export class BrowserHost {
       return result
     }
     if (method === 'Target.detachFromTarget' && !sessionId) {
+      if (params.sessionId === workspace.id) return {}
       const guest = workspace.rawSessions.get(params.sessionId)
       if (!guest) throw new Error('Unknown session')
-      workspace.rawSessions.delete(params.sessionId)
       return guest.view.webContents.debugger.sendCommand(method, params)
-    }
-    if (sessionId && workspace.rawSessions.has(sessionId)) {
-      return workspace.rawSessions.get(sessionId)!.view.webContents.debugger.sendCommand(method!, params, sessionId)
     }
     // Never forward browser-wide Target commands into Electron's real browser.
     if (method?.startsWith('Target.') && !['Target.setAutoAttach', 'Target.detachFromTarget'].includes(method)) throw new Error('Unsupported target command')
@@ -244,7 +275,12 @@ export class BrowserHost {
     if (method === 'Browser.setWindowBounds') return {}
     if (method === 'Page.bringToFront') { this.reveal(); return {} }
     if (method === 'Browser.close') { setImmediate(() => { void this.closeWorkspace(workspace.id) }); return {} }
-    if (!sessionId && !['Storage.getCookies', 'Storage.setCookies', 'Storage.clearCookies'].includes(method!)) throw new Error('Unsupported browser command')
+    if (!sessionId) {
+      if (!['Storage.getCookies', 'Storage.setCookies', 'Storage.clearCookies'].includes(method!)) throw new Error('Unsupported browser command')
+      const guest = [...workspace.guests.values()][0]
+      if (!guest?.context) throw new Error('Missing browser context')
+      params.browserContextId = guest.context
+    }
     return sessionId ? workspace.model.sendCommand(sessionId, method!, params) : workspace.model.sendBrowserCommand(method!, params)
   }
 
