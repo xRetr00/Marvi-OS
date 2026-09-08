@@ -132,10 +132,37 @@ def test_marvi_does_not_talk_over_a_live_conversation() -> None:
 
 
 def test_a_chatty_source_is_throttled_by_cooldown() -> None:
+    """The mechanism, asked for explicitly, because it is no longer the default.
+
+    `DEFAULT_COOLDOWN_SECONDS` was fifteen minutes and is now zero. A blanket
+    timer cannot tell the second announcement of the same nothing from the one
+    thing that mattered all afternoon -- it just silences whichever came
+    second -- and everything it was guarding is judged better elsewhere:
+    repetition by `salience`, worth by the deliberator, presence and hour by
+    their own gates. "She never says anything twice in a quarter of an hour"
+    was producing an assistant who never said anything.
+
+    Still honoured when somebody sets one, which is what this checks.
+    """
     recent = world(last_surfaced=NOON - timedelta(minutes=2))
-    verdict = evaluate(alarm(), recent, wanted="speak")
+    wanted = InitiativeSettings(cooldown_seconds=15 * 60)
+    verdict = evaluate(alarm(), recent, wanted, wanted="speak")
+
     assert verdict.rule == "cooldown"
     assert verdict.surface == "activity"
+
+
+def test_there_is_no_cooldown_unless_somebody_asks_for_one() -> None:
+    """Two minutes after the last thing she said, she may speak again."""
+    from marvi_gateway.policy import DEFAULT_COOLDOWN_SECONDS
+
+    assert DEFAULT_COOLDOWN_SECONDS == 0
+    recent = world(last_surfaced=NOON - timedelta(minutes=2))
+
+    verdict = evaluate(alarm(), recent, wanted="speak")
+
+    assert verdict.rule != "cooldown"
+    assert verdict.surface == "speak"
 
 
 def test_cooldown_expires() -> None:
