@@ -105,6 +105,10 @@ but OBS required another login after closing and reopening its profile. Read the
 [browser delivery plan](docs/phases/14-browser-computer-use.md). Computer use
 will be reviewed separately after browser delivery.
 
+The browser currently opens in a separate Chromium window. An agent-controlled
+browser embedded in the desktop app is now required, but is not implemented yet;
+see the [Hermes Desktop v0.21.0 review](docs/HERMES-DESKTOP-BROWSER-REVIEW.md).
+
 The best assistant is not the one demanding the most attention. It is the one that is there when needed, stays quiet when not, remembers the right things, and earns the trust required to act.
 
 Marvi OS is an attempt to build exactly that: one private, expressive presence for your conversations, computer, connected life, and physical space.

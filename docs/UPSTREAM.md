@@ -144,6 +144,22 @@ lockfile and matching `playwright install chromium`; rerun profile, privacy,
 confirmation, attachment, and lifecycle tests before accepting an upgrade.
 Rollback only with the browser stopped and a compatible native profile.
 
+Browser egress also uses [pproxy](https://github.com/qwj/python-proxy), MIT,
+pinned unchanged at `2.7.9` with hashes in `uv.lock`. The adapter boundary is
+`browser_network.py`: an authenticated loopback subprocess and a `ProxyDirect`
+connector that resolves, validates, and connects to the approved numeric IP.
+Upstream owns proxy authentication and streaming tunnels; no TLS interception.
+Update via the lockfile and requalify authentication, DNS admission, redirect
+chains, real Chromium downloads, and shutdown. This is a version-pinned adapter,
+not a claim about maintenance cadence. Evaluated `proxy.py 2.4.10` was rejected
+after Windows connection timeouts and removed from the production lock.
+
+Hermes Desktop v0.21.0 was reviewed at commit
+`29112bef099274229cadff79cdff7bf7b99c4b77`; see the
+[source review](HERMES-DESKTOP-BROWSER-REVIEW.md). No code was extracted.
+The embedded-host design selects the existing MIT Electron dependency's
+WebContentsView API unchanged; the host adapter is not implemented yet.
+
 Harness 0.1.13 was installed separately for source qualification. Its
 `run.py` executes supplied code with global browser access; the service does
 not expose a per-action private-entry gate suitable for adoption unchanged.

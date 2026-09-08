@@ -10,6 +10,17 @@ Computer use is a separate planning exercise after browser delivery passes
 acceptance. That review will consider cua-driver and maintained alternatives.
 Windows-MCP is not a selected dependency.
 
+## Scope correction — embedded desktop browser, 2026-09-08
+
+The user requires the agent-controlled browser inside the desktop app. The
+[Hermes v0.21.0 source review](../HERMES-DESKTOP-BROWSER-REVIEW.md) records the
+miss in the native-window choice and revised delivery gates. An Electron
+main-owned WebContentsView is required for the primary desktop experience.
+The native Playwright workspace below is groundwork and an explicit fallback;
+it does not satisfy embedded-browser acceptance. The embedded host and Gateway
+adapter are not implemented yet. Historical native-window details below now
+describe that fallback. Do not complete 14B or 14E without the new host gates.
+
 ## Implementation evidence — 2026-09-08
 
 Implemented the visible Playwright persistent workspace, profile lifecycle,
@@ -25,7 +36,8 @@ Browser Use/Harness 0.1.13 was installed in an isolated evaluation environment
 and its execution surface inspected. Arbitrary Python execution with global
 browser/CDP access does not provide the required per-action admission boundary.
 The existing locked Playwright 1.62.0 is the selected thin-adapter fallback;
-no Harness code or new production dependency was copied. A full comparative
+no Harness code was copied. Unchanged pproxy 2.7.9 now owns authenticated proxy
+transport (see UPSTREAM). A full comparative
 Harness performance benchmark was not completed.
 
 Evidence recorded so far:
@@ -52,10 +64,13 @@ voice/browser 60-minute soak. These gates are not waived by unit tests. Neither
 Phase 14 nor its production release is marked complete.
 
 Current limits: all browser WebSockets and service workers are blocked in the
-public-web pilot. Request routing validates resolved public HTTP(S) destinations,
-but is not an OS egress sandbox or DNS pinning guarantee. Download staging polls
+public-web pilot. Request routing checks HTTP(S) destinations; the authenticated
+proxy connector validates and pins each resolved destination IP before connecting,
+including redirect hops Chromium skips in Playwright routing. This is not an
+OS egress sandbox. Download staging polls
 transfer size (100 MB/file, 500 MB/task), so transient overshoot is possible;
-24-hour artifact expiry runs on service startup. Older tool names return explicit
+24-hour artifact expiry runs on startup and at most once per minute during status
+polling. Older tool names return explicit
 migration guidance instead of silently acting in an unbound current tab. Browser
 screenshots can be interpreted by the configured Vision role with editable
 fields masked; pixels outside those fields are not guaranteed secret-free.

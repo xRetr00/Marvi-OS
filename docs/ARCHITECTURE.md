@@ -1,5 +1,11 @@
 # Architecture
 
+The [Hermes Desktop review](HERMES-DESKTOP-BROWSER-REVIEW.md) revises the primary
+browser host to an Electron main-owned WebContentsView. That host and its narrow
+Gateway adapter remain unimplemented; the native backend described below is
+an explicit fallback under qualification. The two engines must not share a live
+profile directory or silently exchange a running task.
+
 The [browser architecture review](BROWSER-ARCHITECTURE-REVIEW.md) documents the
 pre-change singleton headless page, dispatch/timeout paths and missing lifecycle
 contracts. The [browser-only Phase 14 plan](phases/14-browser-computer-use.md)

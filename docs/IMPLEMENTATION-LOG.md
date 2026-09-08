@@ -1,5 +1,19 @@
 # Implementation Log
 
+## 2026-09-08 — browser redirect qualification and Hermes Desktop correction
+
+- Verified Hermes v0.21.0 at `29112bef099274229cadff79cdff7bf7b99c4b77`:
+  persistent Electron webview, agent read/action bridge, native input, pop-out.
+  Recorded the missed embedded-browser requirement and main-owned WebContentsView
+  delivery gates. No Hermes code copied; embedded runtime remains unimplemented.
+- Qualified authenticated pproxy 2.7.9 transport after rejecting proxy.py's
+  Windows timeout behavior. DNS admission passes the validated numeric address
+  to the upstream connector, covering redirect chains omitted by page routing.
+- All 121 targeted Gateway/browser/workspace/screen tests passed in 99.45 seconds
+  with the final proxy backend, including real Chromium and Gateway-process tests.
+  Prior OBS authentication and public-download evidence preceded this backend;
+  do not treat it as embedded-host acceptance.
+
 ## 2026-09-08 — visible browser implementation and qualification
 
 - Added Gateway-owned persistent Chromium workspaces, profile and tab identity,

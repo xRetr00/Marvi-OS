@@ -1,5 +1,12 @@
 # UI Contract
 
+2026-09-08 scope correction: the primary Browser experience must embed the
+agent-controlled guest inside the desktop app using an Electron main-owned
+WebContentsView. The implemented separate Chromium window and control page
+are fallback groundwork. See the [Hermes review](HERMES-DESKTOP-BROWSER-REVIEW.md)
+for host, profile, privacy, and acceptance boundaries. The embedded guest is
+not yet implemented.
+
 Browser workspace controls are specified in
 [Phase 14](phases/14-browser-computer-use.md): a native visible browser, saved
 profile selection, Browser control view, and Pause/Take over/Private input/

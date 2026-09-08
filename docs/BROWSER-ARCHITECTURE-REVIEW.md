@@ -1,5 +1,9 @@
 # Browser architecture review
 
+Follow-up: the [Hermes Desktop v0.21.0 review](HERMES-DESKTOP-BROWSER-REVIEW.md)
+records the 2026-09-08 embedded-browser scope correction. The original review
+below is historical; the native workspace does not meet the new in-app host gate.
+
 Reviewed 2026-09-07, before preparing the replacement browser plan. Local
 baseline: `ce97137f06b0ca012b12345ffe49309399e116b7`. Static code/document
 review only; no new browser packages installed and no runtime acceptance claimed.
