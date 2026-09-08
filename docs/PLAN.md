@@ -222,7 +222,7 @@ Full plan in `phases/10-resilience.md`; identity in `IDENTITY.md`.
 
 Full plan in `phases/11-setup.md`.
 
-## Phase 14 — visible persistent agent browser (planned)
+## Phase 14 — visible persistent agent browser (implementation under qualification)
 
 The [architecture review](BROWSER-ARCHITECTURE-REVIEW.md) precedes the
 [browser delivery plan](phases/14-browser-computer-use.md). Deliver a visible

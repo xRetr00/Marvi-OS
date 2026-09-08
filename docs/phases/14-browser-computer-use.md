@@ -1,7 +1,7 @@
 # Phase 14 — Visible persistent agent browser
 
-Status: planned. Architecture review and plan completed 2026-09-07; runtime
-implementation has not started. This browser-only plan supersedes the earlier
+Status: implementation under qualification, 2026-09-08. Architecture review and
+plan completed 2026-09-07. This browser-only plan supersedes the earlier
 combined browser/computer-use proposal. The filename is retained for existing
 links. Read the [current architecture review](../BROWSER-ARCHITECTURE-REVIEW.md)
 first; it was completed before preparing this plan.
@@ -9,6 +9,56 @@ first; it was completed before preparing this plan.
 Computer use is a separate planning exercise after browser delivery passes
 acceptance. That review will consider cua-driver and maintained alternatives.
 Windows-MCP is not a selected dependency.
+
+## Implementation evidence — 2026-09-08
+
+Implemented the visible Playwright persistent workspace, profile lifecycle,
+session/tab IDs and revisions, asynchronous action receipts, explicit dialogs,
+uploads and staged downloads, authenticated Browser API/IPC, Browser control
+view, and bounded idle-Island handoff. Native Chromium owns profile storage.
+Private input closes admission first, drains issued browser commands and
+Gateway capture/tool leases, suppresses observations, then acknowledges. Resume
+requires a new observation. Generic screen capture and registered tools share
+the barrier. This is an application boundary, not Windows-account isolation.
+
+Browser Use/Harness 0.1.13 was installed in an isolated evaluation environment
+and its execution surface inspected. Arbitrary Python execution with global
+browser/CDP access does not provide the required per-action admission boundary.
+The existing locked Playwright 1.62.0 is the selected thin-adapter fallback;
+no Harness code or new production dependency was copied. A full comparative
+Harness performance benchmark was not completed.
+
+Evidence recorded so far:
+
+- 115 targeted Gateway/browser/workspace/screen tests passed, including 30
+  repeated private-entry/resume/stale-revision fixture runs using real Chromium.
+- 42 voice bridge/catalogue tests passed using the agent project's pytest
+  configuration. An initial mixed-project invocation used the wrong asyncio
+  mode; rerunning with the correct configuration passed.
+- 433 desktop tests passed; desktop Node/web type checks passed.
+- Real headed OBS: user manually authenticated with private input acknowledged;
+  resume reached the root page and produced a fresh observation. After graceful
+  close/reopen OBS redirected to `/account/login`; login persistence is **not**
+  claimed for this site. No credential or page-body evidence was recorded.
+- Public GitHub attachment: 1,662,105 bytes exported without overwrite,
+  SHA-256 `665a63e68a07707dad9781e592d9a3a41d915752c7c2914c2e4fc55e4a36fca7`.
+  This exposed and fixed attachment-navigation event ordering; Chromium's
+  aborted-navigation event must not cancel the subsequent download event.
+
+Remaining qualification: end-to-end secret-canary coverage across every
+history/model path, native foreground/visual acceptance, crash/upgrade/profile
+compatibility, quantified receipt/stop latency, and the target-hardware mixed
+voice/browser 60-minute soak. These gates are not waived by unit tests. Neither
+Phase 14 nor its production release is marked complete.
+
+Current limits: all browser WebSockets and service workers are blocked in the
+public-web pilot. Request routing validates resolved public HTTP(S) destinations,
+but is not an OS egress sandbox or DNS pinning guarantee. Download staging polls
+transfer size (100 MB/file, 500 MB/task), so transient overshoot is possible;
+24-hour artifact expiry runs on service startup. Older tool names return explicit
+migration guidance instead of silently acting in an unbound current tab. Browser
+screenshots can be interpreted by the configured Vision role with editable
+fields masked; pixels outside those fields are not guaranteed secret-free.
 
 ## 1. Product outcome
 

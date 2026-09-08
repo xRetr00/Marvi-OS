@@ -1,5 +1,19 @@
 # Implementation Log
 
+## 2026-09-08 — visible browser implementation and qualification
+
+- Added Gateway-owned persistent Chromium workspaces, profile and tab identity,
+  asynchronous receipts, private-input admission/drain/resume, controlled files,
+  authenticated desktop/voice calls, and Browser/idle-Island controls.
+- Kept Playwright 1.62.0 unchanged after isolated Harness source qualification.
+- Verified 115 targeted Gateway tests, 42 agent bridge tests, 433 desktop tests,
+  and desktop type checks. See Phase 14 for the exact evidence and remaining gates.
+- User completed the headed OBS private-login test. Same-session resume worked;
+  OBS required login after closing/reopening. Public attachment download/export
+  passed after correcting the navigation-aborted/download event ordering race.
+- Phase 14 remains under qualification; no hardware soak, complete secret-channel
+  guarantee, or production readiness is claimed. Computer use remains deferred.
+
 ## 2026-09-07 — browser architecture review and replacement delivery plan
 
 - Completed a fresh static review before planning: browser/session lifecycle,

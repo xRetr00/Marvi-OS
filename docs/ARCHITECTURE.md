@@ -1,12 +1,17 @@
 # Architecture
 
 The [browser architecture review](BROWSER-ARCHITECTURE-REVIEW.md) documents the
-current singleton headless page, dispatch/timeout paths and missing lifecycle
+pre-change singleton headless page, dispatch/timeout paths and missing lifecycle
 contracts. The [browser-only Phase 14 plan](phases/14-browser-computer-use.md)
-proposes a visible persistent browser, user handoff and private login, with
-Browser Use/Harness evaluated first. Electron retains process ownership;
-Gateway owns tasks, profiles' metadata, policy and observations. This is planned,
-not implemented. Computer-use architecture is reviewed only after browser delivery.
+now has a Playwright 1.62.0 persistent-context implementation under qualification.
+Electron retains process-tree ownership; Gateway owns tasks, profile metadata,
+action revisions, confirmation binding, privacy admission and observations.
+Renderer and Island controls use authenticated, narrow IPC/HTTP calls. Native
+Chromium stores profile contents; SQLite stores bounded task metadata. Commands
+return receipts, and a fresh status/observation establishes completion. Stop
+drains already-issued protocol commands before acknowledging quiescence.
+Browser Use/Harness was reviewed first; its arbitrary-code execution surface was
+not adopted. Computer-use architecture is reviewed only after browser delivery.
 
 ## Outcome
 

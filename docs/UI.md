@@ -1,10 +1,14 @@
 # UI Contract
 
-Planned browser workspace controls are specified in
+Browser workspace controls are specified in
 [Phase 14](phases/14-browser-computer-use.md): a native visible browser, saved
 profile selection, Browser control view, and Pause/Take over/Private input/
 Resume/Stop. Credentials are entered directly in the website after an acknowledged
-private-input barrier. No new transcript is introduced. These are not implemented.
+private-input barrier. No new transcript is introduced. Browser and idle-Island
+controls are implemented and undergoing qualification. Existing voice/confirmation
+presentation takes priority over the browser handoff. Private entry controls
+never ask for a credential in a Marvi input field. Saved profiles preserve site
+data, but a website may still require a new login after reopening.
 The phase explicitly extends the current confirmation-only Island interaction
 rule to bounded browser handoff controls; passive background focus rules remain.
 

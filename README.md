@@ -97,8 +97,10 @@ nightly channel without applying it.
 
 ## The idea behind Marvi
 
-Planned next: a visible agent browser with saved profiles, tabs, private login
-handoff and pause/resume. This is not yet shipped. Read the
+In development: a visible Chromium workspace with saved profiles, tabs, private
+login handoff, pause/resume, downloads and Browser/Island controls. The implementation
+is under qualification; it is not yet release-qualified. OBS login/resume works,
+but OBS required another login after closing and reopening its profile. Read the
 [current architecture review](docs/BROWSER-ARCHITECTURE-REVIEW.md) and
 [browser delivery plan](docs/phases/14-browser-computer-use.md). Computer use
 will be reviewed separately after browser delivery.

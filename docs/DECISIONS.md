@@ -308,7 +308,7 @@ wants — which today contradicts the local-first contract.
 
 ## ADR-017 — Browser execution stays behind Gateway
 
-**Current implementation, reviewed 2026-09-07:** one Playwright Chromium page,
+**Previous implementation, reviewed 2026-09-07:** one Playwright Chromium page,
 headless by default, enabled with `MARVI_BROWSER`. Reads are ungated; click/type
 use fixed sensitive flags. Downloads are refused and dialogs dismissed. Only
 the initial open URL is validated; the former claim that every navigation is
@@ -320,11 +320,18 @@ request confirmation; Gateway validates a token for the requested action. YOLO
 bypasses action confirmation. The current fixed browser flags must be reconciled
 in Phase 14, with both HTTP and in-process dispatch tests.
 
-**Planned replacement:** a visible native browser workspace, persistent managed
+**Replacement implemented under qualification, 2026-09-08:** a visible native browser workspace, persistent managed
 profiles, tabs, explicit user/private-input handoff and resume. Browser Use/
 Harness is the first driver evaluation; existing Playwright remains the launch
 baseline and fallback. No second autonomous planner or renderer-owned policy.
 Electron supervises processes; Gateway owns task/session state and execution.
+
+Select the existing pinned Playwright 1.62.0 adapter after inspecting Harness
+0.1.13's arbitrary-code execution boundary. No new driver dependency is adopted.
+Browser actions use LLM-selected confirmation; authenticated HTTP and Gateway
+dispatch retain validation/audit in YOLO. Stop drains dispatched commands before
+acknowledgement, rather than treating coroutine cancellation as protocol cancellation.
+See the phase evidence for actual OBS login behavior and remaining release gates.
 
 Raw Python/JS/CDP execution is not assumed to honor pause, private input or
 exact-action confirmation. Qualify those boundaries before enabling that
