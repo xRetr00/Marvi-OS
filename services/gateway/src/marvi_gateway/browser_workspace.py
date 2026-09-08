@@ -492,6 +492,7 @@ class BrowserWorkspace:
                 "press",
                 "scroll",
                 "back",
+                "forward",
                 "reload",
                 "close_tab",
                 "dialog",
@@ -584,6 +585,10 @@ class BrowserWorkspace:
                 await page.mouse.wheel(0, max(-2000, min(2000, int(args.get("pixels", 600)))))
             elif action == "back":
                 await page.go_back(wait_until="domcontentloaded")
+            elif action == "forward":
+                # Every browser has one and this did not, so the toolbar could
+                # go back and then had no way to undo that.
+                await page.go_forward(wait_until="domcontentloaded")
             elif action == "reload":
                 await page.reload(wait_until="domcontentloaded")
             elif action == "close_tab":

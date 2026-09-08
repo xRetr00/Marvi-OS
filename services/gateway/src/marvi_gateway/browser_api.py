@@ -28,7 +28,7 @@ class BrowserHostRegistration(BaseModel):
 class BrowserUIAction(BaseModel):
     model_config = ConfigDict(extra="forbid")
     revision: int = Field(ge=0)
-    action: Literal["navigate", "new_tab", "close_tab", "back", "reload"]
+    action: Literal["navigate", "new_tab", "close_tab", "back", "forward", "reload"]
     arguments: dict = Field(default_factory=dict)
     action_id: str = Field(min_length=1, max_length=64)
 
@@ -233,7 +233,7 @@ def register_workspace_browser_tools(registry, get_service, vision_client=None):
             name="browser_action",
             description=(
                 "Act in a ready browser session. Use its current revision and an exact tab_id. "
-                "Actions: read, navigate, new_tab, click, fill, select, press, scroll, back, reload, "
+                "Actions: read, navigate, new_tab, click, fill, select, press, scroll, back, forward, reload, "
                 "close_tab, dialog, screenshot, upload. arguments contains tab_id and observed role/name "
                 "or selector; url/text/value/key/pixels/path as needed. Never enter passwords or OTPs: "
                 "use browser_control private and ask the user to sign in. Decide if approval is needed "
