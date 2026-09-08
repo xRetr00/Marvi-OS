@@ -65,7 +65,7 @@ function BrowserViewport({ session }: { session: BrowserSession }): React.JSX.El
   </>
 }
 
-export function BrowserPage(): React.JSX.Element {
+export function BrowserPage({ onClose }: { onClose?: () => void } = {}): React.JSX.Element {
   const [status, setStatus] = useState<BrowserStatus | null>(null)
   const [profile, setProfile] = useState('default')
   const [url, setUrl] = useState('')
@@ -110,6 +110,14 @@ export function BrowserPage(): React.JSX.Element {
       title="Browser"
       description="A saved browser workspace you and Marvi can use together."
     >
+      {/* Only when it is a pane. Without a way out, a browser that opens
+          beside the conversation is a browser you cannot put down. */}
+      {onClose ? (
+        <button aria-label="Close the browser pane" className="browser-close" onClick={onClose}
+          type="button">
+          Close
+        </button>
+      ) : null}
       {error && (
         <p role="alert" className="browser-error">
           {error}

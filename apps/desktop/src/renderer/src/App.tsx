@@ -237,7 +237,7 @@ const NAV_GROUPS = [
   { label: 'Core', items: ['Overview', 'Voice', 'Chat'] },
   { label: 'Context', items: ['Vision', 'Room', 'Activity', 'Resources'] },
   { label: 'Cortex', items: ['DMN', 'Graph', 'Mind'] },
-  { label: 'Capabilities', items: ['Browser', 'Skills', 'Cronjobs', 'Connectors', 'MCP', 'Plugins'] }
+  { label: 'Capabilities', items: ['Skills', 'Cronjobs', 'Connectors', 'MCP', 'Plugins'] }
 ] as const
 
 /** Behind the gear: the things you set up. */
@@ -280,7 +280,6 @@ const NAV_CODES: Record<Page, string> = {
   Mind: 'MI',
   Skills: 'SK',
   Cronjobs: 'CJ',
-  Browser: 'BR',
   Connectors: 'CN',
   MCP: 'MC',
   Plugins: 'PL'
@@ -299,7 +298,6 @@ const NAV_ICONS: Record<Page, AbstractIconName> = {
   Mind: 'mind',
   Skills: 'skills',
   Cronjobs: 'schedules',
-  Browser: 'search',
   Connectors: 'connectors',
   MCP: 'mcp',
   Plugins: 'plugins'
@@ -355,7 +353,13 @@ function MainSurface(): React.JSX.Element {
   const translucency = useStore($translucency)
   const chatContextStatus = useStore($chatContextStatus)
   const [page, setPage] = useState<Page>('Overview')
-  useEffect(() => window.marvi.onBrowserReveal?.(() => setPage('Browser')), [])
+  // Opening a browser used to navigate the whole window to a Browser page,
+  // which takes you away from the conversation that asked for it -- you are
+  // talking to her, she opens a page, and the thing you were doing disappears.
+  // It is a pane beside the conversation now, the way it is when you watch
+  // somebody drive a browser next to a chat.
+  const [browsing, setBrowsing] = useState(false)
+  useEffect(() => window.marvi.onBrowserReveal?.(() => setBrowsing(true)), [])
   const [collapsed, setCollapsed] = useState(false)
   const [settings, setSettings] = useState<SettingsPage | null>(null)
   const [version, setVersion] = useState('0.1.0-dev.0')
@@ -812,7 +816,7 @@ function MainSurface(): React.JSX.Element {
 
                 {/* One scroll region for every page; shell chrome stays in its
                 own tracks and no page has to manage window overflow. */}
-                <div className="page-scroll">
+                <div className={`page-scroll${browsing ? ' has-browser' : ''}`}>
                   {page === 'Overview' ? (
                     <OverviewPage
                       device={(which) => deviceState(runtime, which)}
@@ -841,8 +845,6 @@ function MainSurface(): React.JSX.Element {
                     <ResourcesPage />
                   ) : page === 'Cronjobs' ? (
                     <CronjobsPage />
-                  ) : page === 'Browser' ? (
-                    <BrowserPage />
                   ) : page === 'Skills' ? (
                     <SkillsPanel />
                   ) : page === 'Connectors' ? (
@@ -854,6 +856,14 @@ function MainSurface(): React.JSX.Element {
                   ) : (
                     <PagePanel page={page} />
                   )}
+                  {/* Beside the conversation, not instead of it. Only mounted
+                      while there is a browser to show, so a session that never
+                      opens one pays nothing. */}
+                  {browsing ? (
+                    <aside className="browser-pane">
+                      <BrowserPage onClose={() => setBrowsing(false)} />
+                    </aside>
+                  ) : null}
                 </div>
               </main>
             </>
@@ -4954,7 +4964,6 @@ function PagePanel({ page }: { page: Page }): React.JSX.Element {
     Room: '',
     Activity: 'Local event and tool history.',
     Cronjobs: '',
-    Browser: '',
     Resources: '',
     DMN: "Marvi's identity and your standing preferences.",
     Graph: 'What Marvi knows, and how it connects.',
