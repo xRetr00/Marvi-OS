@@ -45,8 +45,8 @@ async function main() {
     return view
   }
 
-  const first = await guest('profile-a')
   window.show()
+  const first = await guest('profile-a')
   first.webContents.focus()
   assert.equal(await first.webContents.executeJavaScript('typeof window.marvi'), 'undefined')
   assert.equal(await first.webContents.executeJavaScript('typeof require'), 'undefined')
