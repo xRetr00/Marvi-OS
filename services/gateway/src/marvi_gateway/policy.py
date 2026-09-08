@@ -71,7 +71,19 @@ def must_be_said(event: dict[str, Any]) -> bool:
     return f"{event.get('source')}:{event.get('kind')}" in MUST_BE_SAID
 
 
-DEFAULT_COOLDOWN_SECONDS = 15 * 60
+#: No cooldown. It was fifteen minutes, and it was the wrong instrument.
+#:
+#: A blanket timer cannot tell the difference between the second announcement
+#: of the same nothing and the one thing that mattered all afternoon -- it just
+#: silences whatever comes second. Everything it was protecting against is
+#: judged better elsewhere: repetition by `salience`, worth by the
+#: deliberator, presence and hour by their own gates.
+#:
+#: Still a setting, and still honoured when set. Somebody who wants a floor
+#: between interruptions can have one; it is simply not the default any more,
+#: because "she never says anything twice in a quarter of an hour" was
+#: producing an assistant who never said anything.
+DEFAULT_COOLDOWN_SECONDS = 0
 # Denominated in tokens, not money. Every provider reports tokens in the same
 # way; a plan reports no spend at all, and a local model has no price. A budget
 # in dollars would silently stop guarding on exactly the providers that need it.
@@ -208,6 +220,13 @@ class InitiativeSettings:
     quiet_end: int = DEFAULT_QUIET_END
     cooldown_seconds: int = DEFAULT_COOLDOWN_SECONDS
     daily_token_budget: int = DEFAULT_DAILY_TOKEN_BUDGET
+    #: Whether she speaks into a room with nobody in it.
+    #:
+    #: Named for the room rather than for the person: the check is presence in
+    #: *this* room, so "away" here means the mmWave and the camera agree
+    #: nobody is there, not that the user is out of the house. Off, because
+    #: talking to an empty room is the clearest waste there is -- and because
+    #: the announcement is not lost when it is held. See `pending`.
     speak_when_away: bool = False
     surface_ceiling: dict[str, str] = field(default_factory=lambda: dict(SURFACE_CEILING))
 

@@ -940,21 +940,6 @@ def ordered_context_blocks(blocks: dict[str, str]) -> list[str]:
     return ordered
 
 
-def _shipped_soul() -> str:
-    """The `SOUL.md` Marvi ships, so an edited one can be told from it.
-
-    Seeded into the user's home on first run and never overwritten, which is
-    right -- but it means "there is a SOUL.md" does not mean "somebody wrote
-    one". Comparing against the shipped copy is how a persona choice can win
-    over a file nobody has touched, while still losing to one somebody has.
-    """
-    import contextlib
-
-    with contextlib.suppress(OSError):
-        return (REPO_ROOT / "config" / "SOUL.md").read_text(encoding="utf-8")
-    return ""
-
-
 def _really_present(sidecar: Any) -> bool:
     """Whether anybody is there to hear this, from every signal that has a view.
 
@@ -3308,6 +3293,26 @@ def create_app(
         runtime_store.audit("setup", "mcp-remove", result)
         return result
 
+    @app.get("/personas")
+    async def list_personas() -> dict[str, Any]:
+        """Who Marvi can be, and who she is being. See `personas`."""
+        from . import personas
+
+        return {"chosen": personas.chosen(), "available": personas.available()}
+
+    @app.post("/personas")
+    async def choose_persona(body: dict[str, Any]) -> dict[str, Any]:
+        """Pick one. An unknown name leaves the choice alone."""
+        from . import personas
+
+        wanted = str(body.get("name") or "").strip().lower()
+        if wanted not in {one["name"] for one in personas.available()}:
+            raise HTTPException(status_code=400, detail=f"no persona called {wanted!r}")
+        provider_config.update({personas.SETTING: wanted})
+        os.environ[personas.SETTING] = wanted
+        runtime_store.audit("persona", "chosen", {"name": wanted})
+        return {"chosen": personas.chosen(), "available": personas.available()}
+
     @app.get("/context")
     async def read_context(surface: str = "voice") -> dict[str, Any]:
         """Prompt context the voice worker cannot build for itself.
@@ -3335,7 +3340,26 @@ def create_app(
         # because a name misheard is a name re-remembered. It was in `USER.md`
         # the whole time.
         who = identity.read()
-        if who.soul:
+        # Her character comes from the chosen persona.
+        #
+        # `SOUL.md` used to be the single shipped character and the only one
+        # there could be: "Silence is the default and it is not failure" is a
+        # position, held on purpose, and it is why she answers "hi" with "hi".
+        # That text is now `personas.silent`, one option among several, and
+        # which one is in force belongs to whoever is being talked to.
+        #
+        # `SOUL.md` is the fallback rather than the source: it is still seeded
+        # into the user's home and still read when the persona files are
+        # missing, so an install without them behaves exactly as it did.
+        #
+        # The surface matters as much as the choice. "Never use Markdown" is
+        # right in a room and wrong in a chat window, where a table is often
+        # the clearest answer there is -- see `personas.FOR_CHAT`.
+        from . import personas
+
+        if said := personas.for_surface(surface, REPO_ROOT):
+            blocks["soul"] = said
+        elif who.soul:
             blocks["soul"] = who.soul
         if who.user:
             # Named, because the Agent appends these to its instructions and an
