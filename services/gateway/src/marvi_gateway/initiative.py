@@ -17,6 +17,7 @@ one that misses a tick.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import time
 from datetime import UTC, datetime
@@ -35,6 +36,13 @@ MACHINE_MINUTES = 5
 #: matter are taken on phase changes rather than on this timer, so this only
 #: has to be often enough to draw a line between them.
 ACCOUNTING_SECONDS = 30
+#: How often she checks whether there is something worth asking about.
+#:
+#: Four hours, and `Curiosity` has a cooldown of its own on top, so the real
+#: rate is far lower. A question is the most intrusive thing she can offer
+#: unprompted -- it wants an answer -- so this is deliberately the slowest job
+#: on the scheduler.
+CURIOSITY_HOURS = 4
 #: How often the foreground app is checked. Shorter than the machine watch:
 #: standing off the GPU is only useful if it happens while the game is still
 #: loading, and `focus.SETTLED_LOOKS` means two of these before it acts.
@@ -320,6 +328,52 @@ class Initiative:
                 trusted=True, dedupe=False,
             )
         return {"noticed": len(changes)}
+
+    def run_curiosity(self) -> dict[str, Any]:
+        """Ask about something she does not know, when there is a good moment.
+
+        Curiosity has always been able to name a gap -- `may_ask` returns one
+        thing worth asking and `None` the rest of the time -- and nothing ever
+        asked it outside a turn. So she noticed things while being spoken to
+        and never went looking, which is most of the difference between an
+        assistant and a form.
+
+        The gap becomes an event and the mind decides the rest: presence, the
+        hour, whether she has just spoken, whether it is worth a word. This job
+        only says there is something worth asking.
+        """
+        if self.journal is None:
+            return {"asked": 0}
+        try:
+            from .curiosity import Curiosity
+        except Exception:
+            return {"asked": 0}
+        try:
+            wondering = Curiosity()
+        except Exception as exc:
+            logger.info("could not open curiosity (%s)", str(exc)[:120])
+            return {"asked": 0}
+        try:
+            # `turns_this_session` guards against asking in the first breath of
+            # a conversation. Out here there is no conversation, so the guard
+            # does not apply and its own cooldown is what spaces these out.
+            gap = wondering.may_ask(turns_this_session=99)
+            if gap is None:
+                return {"asked": 0}
+            self.journal.append(
+                "curiosity",
+                "question",
+                f"Ask about {gap.prompt}.",
+                {"key": gap.key, "heading": gap.heading, "says": f"Ask about {gap.prompt}."},
+                trusted=True,
+                dedupe=False,
+            )
+            wondering.mark_asked(gap.key)
+            logger.info("wondering about %s", gap.key, extra={"marvi_gap": gap.key})
+            return {"asked": 1, "gap": gap.key}
+        finally:
+            with contextlib.suppress(Exception):
+                wondering.close()
 
     def run_accounting(self) -> dict[str, Any]:
         """Take a reading. See `accounting`."""
@@ -625,6 +679,11 @@ class Initiative:
         scheduler.add_job(
             self._guard("machine", self.run_machine), "interval",
             minutes=MACHINE_MINUTES, id="machine", max_instances=1, coalesce=True,
+        )
+        scheduler.add_job(
+            self._guard("curiosity", self.run_curiosity), "interval",
+            hours=CURIOSITY_HOURS, id="curiosity", max_instances=1, coalesce=True,
+            next_run_time=self._first_run("curiosity", CURIOSITY_HOURS * 3600),
         )
         scheduler.add_job(
             self._guard("accounting", self.run_accounting), "interval",

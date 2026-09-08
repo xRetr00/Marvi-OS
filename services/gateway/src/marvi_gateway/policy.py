@@ -185,6 +185,15 @@ SURFACE_CEILING: dict[str, str] = {
     # hours, presence and the deliberator all still stand between a conclusion
     # and a spoken word, and dreaming only runs twice a day.
     "memory:conclusion": "speak",
+    # Something she wants to know and cannot look up.
+    #
+    # `curiosity.may_ask` has always been able to name one thing worth asking
+    # and nothing ever asked it outside a turn, so she noticed while being
+    # spoken to and never went looking. A question is the most intrusive thing
+    # she can offer unprompted -- it wants an answer -- which is why the job
+    # behind it is the slowest on the scheduler and why this is still only a
+    # ceiling: presence, the hour and the deliberator all still apply.
+    "curiosity:question": "speak",
 }
 
 
