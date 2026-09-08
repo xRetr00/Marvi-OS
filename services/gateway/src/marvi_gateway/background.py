@@ -30,7 +30,12 @@ class LoopThread:
 
     def submit(self, coro, timeout: float = DEFAULT_TIMEOUT) -> Any:
         """Run a coroutine on the background loop and wait for its result."""
-        return asyncio.run_coroutine_threadsafe(coro, self.loop).result(timeout)
+        future = asyncio.run_coroutine_threadsafe(coro, self.loop)
+        try:
+            return future.result(timeout)
+        except TimeoutError:
+            future.cancel()
+            raise
 
     def stop(self) -> None:
         self.loop.call_soon_threadsafe(self.loop.stop)
