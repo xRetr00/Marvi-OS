@@ -58,6 +58,8 @@ def browser_router(get_service, audit, activate=lambda: None) -> APIRouter:
     async def call(function, *args):
         try:
             return await asyncio.to_thread(function, *args)
+        except TimeoutError as exc:
+            raise HTTPException(503, "Browser service is busy. Refresh its state before retrying.") from exc
         except (ValueError, RuntimeError) as exc:
             raise HTTPException(409, str(exc)) from exc
 
@@ -97,8 +99,20 @@ def browser_router(get_service, audit, activate=lambda: None) -> APIRouter:
 
     @router.post("/{session_id}/action")
     async def action(session_id: str, body: BrowserUIAction):
-        audit("browser_control", "browser_navigation", {"session_id": session_id, "action": body.action})
-        return await call(get_service().action, session_id, body.revision, body.action, body.arguments, body.action_id)
+        audit(
+            "browser_control",
+            "browser_navigation",
+            {"session_id": session_id, "action": body.action},
+        )
+        return await call(
+            get_service().action,
+            session_id,
+            body.revision,
+            body.action,
+            body.arguments,
+            body.action_id,
+            True,
+        )
 
     @router.post("/{session_id}/download")
     async def export(session_id: str, body: ExportDownload):
