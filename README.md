@@ -105,8 +105,11 @@ but OBS required another login after closing and reopening its profile. Read the
 [browser delivery plan](docs/phases/14-browser-computer-use.md). Computer use
 will be reviewed separately after browser delivery.
 
-The browser currently opens in a separate Chromium window. An agent-controlled
-browser embedded in the desktop app is now required, but is not implemented yet;
+The desktop now hosts its agent-controlled browser in an isolated Electron
+WebContentsView, with Playwright driving the same visible tabs. Chrome cookie
+JSON and password CSV imports are available for closed profiles; imported
+passwords are encrypted locally and filled only through private user input.
+Embedded real-site and restart qualification remains in progress;
 see the [Hermes Desktop v0.21.0 review](docs/HERMES-DESKTOP-BROWSER-REVIEW.md).
 
 The best assistant is not the one demanding the most attention. It is the one that is there when needed, stays quiet when not, remembers the right things, and earns the trust required to act.

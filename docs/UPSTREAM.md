@@ -158,7 +158,34 @@ Hermes Desktop v0.21.0 was reviewed at commit
 `29112bef099274229cadff79cdff7bf7b99c4b77`; see the
 [source review](HERMES-DESKTOP-BROWSER-REVIEW.md). No code was extracted.
 The embedded-host design selects the existing MIT Electron dependency's
-WebContentsView API unchanged; the host adapter is not implemented yet.
+WebContentsView API unchanged. Electron is pinned at `43.4.1` in package-lock.json,
+including the [hidden-view fix](https://releases.electronjs.org/pr/52844).
+Windows native occlusion calculation is disabled so covered browser guests
+retain a compositor surface. Requalify hidden/covered views, input, capture,
+permissions, profile persistence, and the desktop build on every upgrade.
+
+The focused `BrowserModel` component from
+[Playwright 1.62.0](https://github.com/microsoft/playwright/blob/v1.62.0/packages/playwright-core/src/tools/mcp/browserModel.ts)
+is vendored under `apps/desktop/src/main/vendor/playwright`, Apache-2.0 with
+its license retained. Modification boundary: inline its three small protocol
+types and suppress upstream error-message logging. Marvi adapts the component's
+Chrome extension operations to owned Electron WebContentsView instances. The
+Gateway retains unchanged Playwright selectors/actions; no global Electron
+debugging port is enabled. Update by diffing the pinned source and rerunning
+the real Electron/Gateway qualification, including explicit CDP session routing.
+
+[ws](https://github.com/websockets/ws), MIT, `8.21.3`, owns authenticated-loopback
+WebSocket transport unchanged; `@types/ws 8.18.1` supplies types. Marvi's boundary
+is handshake authentication and workspace-scoped protocol routing. Upgrade via
+npm lockfile and rerun forged-origin/token and target-isolation tests.
+
+[csv-parse](https://github.com/adaltas/node-csv), MIT, `7.0.2`, parses explicit
+Chrome password exports unchanged. Electron safeStorage encrypts imported
+passwords for the Windows account; Marvi adds origin matching and user-invoked
+private-input filling. No Chrome database decryption is implemented. Upgrade
+the lockfile and rerun CSV, encrypted-storage, and private-fill tests.
+The small local cookie-export helper uses Chrome's supported cookies/downloads
+extension APIs; it sends no data to a server. No third-party extension code is copied.
 
 Harness 0.1.13 was installed separately for source qualification. Its
 `run.py` executes supplied code with global browser access; the service does

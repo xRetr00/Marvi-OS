@@ -95,5 +95,10 @@ the Gateway bridge, app restart, private-input integration, or real-site login.
 Evidence is generated at `output/playwright/embedded-host-proof/evidence.json`.
 This reproduction must pass before introducing the host as a production default.
 
-Status: embedded host is required and not implemented yet. The native workspace
-remains under qualification. Computer-use planning remains separate.
+Follow-up implementation, 2026-09-09: Electron 43.4.1 plus disabling Windows
+native occlusion calculation passes the original input/capture probe. Added the
+main-owned host and authenticated Gateway connection using Playwright's vendored
+BrowserModel. A real Electron/Python fixture passes embedded fill/click/screenshot,
+private/resume, download/export, and close. The host is implemented and under
+qualification; the historical failed probe above explains the investigation.
+Computer-use planning remains separate until browser acceptance is complete.

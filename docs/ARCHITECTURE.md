@@ -2,9 +2,18 @@
 
 The [Hermes Desktop review](HERMES-DESKTOP-BROWSER-REVIEW.md) revises the primary
 browser host to an Electron main-owned WebContentsView. That host and its narrow
-Gateway adapter remain unimplemented; the native backend described below is
+Gateway adapter are implemented under qualification; the native backend is
 an explicit fallback under qualification. The two engines must not share a live
 profile directory or silently exchange a running task.
+
+Electron hosts sandboxed guest views and encrypted imported passwords. Gateway
+connects through an authenticated loopback CDP adapter using Playwright's
+upstream BrowserModel routing; the privileged app renderer is never a target.
+The desktop requires this host and cannot silently fall back to a separate
+window. Cookie JSON and Chrome password CSV import use explicit native file
+selection for closed profiles. A user-selected saved-login fill first obtains
+the Gateway private-input acknowledgment; credentials stay in Electron main
+and the destination guest. Shutdown waits up to five seconds for storage flush.
 
 The [browser architecture review](BROWSER-ARCHITECTURE-REVIEW.md) documents the
 pre-change singleton headless page, dispatch/timeout paths and missing lifecycle

@@ -18,7 +18,7 @@ miss in the native-window choice and revised delivery gates. An Electron
 main-owned WebContentsView is required for the primary desktop experience.
 The native Playwright workspace below is groundwork and an explicit fallback;
 it does not satisfy embedded-browser acceptance. The embedded host and Gateway
-adapter are not implemented yet. Historical native-window details below now
+adapter are implemented and passing the real Electron/Gateway fixture. Historical native-window details below now
 describe that fallback. Do not complete 14B or 14E without the new host gates.
 
 ## Implementation evidence — 2026-09-08
@@ -49,7 +49,7 @@ Evidence recorded so far:
 - 42 voice bridge/catalogue tests passed using the agent project's pytest
   configuration. An initial mixed-project invocation used the wrong asyncio
   mode; rerunning with the correct configuration passed.
-- 433 desktop tests passed; desktop Node/web type checks passed.
+- 438 desktop tests passed; desktop Node/web type checks passed.
 - Real headed OBS: user manually authenticated with private input acknowledged;
   resume reached the root page and produced a fresh observation. After graceful
   close/reopen OBS redirected to `/account/login`; login persistence is **not**
@@ -59,9 +59,12 @@ Evidence recorded so far:
   This exposed and fixed attachment-navigation event ordering; Chromium's
   aborted-navigation event must not cancel the subsequent download event.
   The same download/hash passed again through the final proxy backend.
-- The embedded Electron fixture probe is **not passing**: guest isolation,
-  text insertion, same-process storage and profile separation passed, but native
-  click and compositor capture did not. See the Hermes review for reproduction.
+- The embedded Electron probe now passes isolation, native click, capture and
+  same-process profile separation after Electron 43.4.1 and disabling native
+  window occlusion. The real Electron/Gateway protocol fixture also passes
+  cookie import, encrypted password import/private filling, browser actions,
+  screenshot capture, download/export and close. These are fixture results,
+  not evidence of OBS authentication or full application restart persistence.
 
 Remaining qualification: end-to-end secret-canary coverage across every
 history/model path, native foreground/visual acceptance, crash/upgrade/profile
@@ -69,8 +72,8 @@ compatibility, quantified receipt/stop latency, and the target-hardware mixed
 voice/browser 60-minute soak. These gates are not waived by unit tests. Neither
 Phase 14 nor its production release is marked complete.
 
-Current limits: all browser WebSockets and service workers are blocked in the
-public-web pilot. Request routing checks HTTP(S) destinations; the authenticated
+Current limits: browser WebSockets are blocked in the public-web pilot. Native
+Playwright blocks service workers; embedded workers use the profile network proxy. Request routing checks HTTP(S) destinations; the authenticated
 proxy connector validates and pins each resolved destination IP before connecting,
 including redirect hops Chromium skips in Playwright routing. This is not an
 OS egress sandbox. Download staging polls

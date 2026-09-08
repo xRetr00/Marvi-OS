@@ -230,6 +230,11 @@ browser with durable profiles, tabs, acknowledged user/private-login handoff,
 resume and verified file workflows. Evaluate Browser Use/Harness first, reusing
 the existing Chromium infrastructure and Gateway authority.
 
+The embedded Electron host and Playwright adapter now pass the real protocol
+fixture, including explicit cookie/password imports and thirty private/resume
+cycles. Full Browser-page, real-site, restart and hardware-soak acceptance
+remain required; this phase is not complete.
+
 Order: driver/contract proof; durable workspace; private input; reliable browser
 actions/files; voice/Island integration; hardware qualification and migration.
 The plan defines acceptance tests and explicitly unresolved driver boundaries.

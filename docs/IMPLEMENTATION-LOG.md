@@ -1,5 +1,29 @@
 # Implementation Log
 
+## 2026-09-09 — embedded browser integration and explicit profile imports
+
+- Fixed the host probe by patching Electron to 43.4.1 and disabling Windows
+  native occlusion calculation. Real guest input and capture now pass.
+- Added an authenticated, workspace-scoped host around Electron WebContentsView
+  and Playwright's focused BrowserModel component. The real Python/Electron
+  fixture passes actions, privacy handoff, download/export, and shutdown.
+- Added explicit cookie JSON/password CSV imports, OS-encrypted password storage,
+  origin-matched user-only filling after private-input acknowledgment, and a
+  local Chrome cookie-export helper. Qualification is ongoing.
+- Passed 438 desktop and 126 Gateway tests, desktop type checks and production
+  Electron/Vite bundle build. Expanded real embedded qualification to thirty
+  private/resume cycles, stale actions, exact tab routing, and manual navigation
+  retaining pause. Fixed failed CDP connection cleanup and awaited profile
+  flushing on quit. New tabs open blank without contacting an unsolicited site.
+- Follow-up browser suite: 45 passed and one transient real-process startup
+  HTTP 500; isolated rerun passed. This remains a qualification concern. Added
+  explicit timeout-to-503 API behavior; all three new regressions passed
+  (timeout response, failed embedded connection cleanup, blank new tab).
+- Inspected the user's local logs: browser_open/browser_status at 2026-09-08
+  08:28 lacked a recorded failure stage. No specific historical cause can be
+  established from those lines. Added credential-free browser state/stage/error
+  logging instead of treating the absence of errors as proof of success.
+
 ## 2026-09-08 — browser redirect qualification and Hermes Desktop correction
 
 - Verified Hermes v0.21.0 at `29112bef099274229cadff79cdff7bf7b99c4b77`:

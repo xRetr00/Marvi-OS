@@ -5,7 +5,19 @@ agent-controlled guest inside the desktop app using an Electron main-owned
 WebContentsView. The implemented separate Chromium window and control page
 are fallback groundwork. See the [Hermes review](HERMES-DESKTOP-BROWSER-REVIEW.md)
 for host, profile, privacy, and acceptance boundaries. The embedded guest is
-not yet implemented.
+implemented and under qualification; the historical native-window contract below
+describes the explicit fallback. The Browser page now places the real guest and
+keeps it alive when the control surface is hidden.
+
+Profile import accepts explicit cookie JSON and Chrome password CSV exports.
+The optional local Chrome cookie-export helper is installed by the user in Chrome.
+Imports report counts and skipped cookies, never credential values. Passwords
+are encrypted with Electron safeStorage and are filled only from a native user
+menu on the matching origin after Gateway acknowledges Private input. The user
+submits the website form and resumes automation explicitly. Source exports are
+not deleted automatically. This is not a full Chrome-directory migration:
+extensions, browser settings, device-bound sessions and partitioned cookies are
+not imported.
 
 Browser workspace controls are specified in
 [Phase 14](phases/14-browser-computer-use.md): a native visible browser, saved
