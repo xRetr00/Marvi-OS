@@ -1,4 +1,12 @@
-import { ChevronLeft, ChevronRight, ExternalLink, Plus, RotateCw, X } from 'lucide-react'
+import {
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  MoreVertical,
+  Plus,
+  RotateCw,
+  X
+} from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { BrowserCommand, BrowserSession, BrowserStatus } from '../../../shared/browser'
 import './browser-page.css'
@@ -252,7 +260,12 @@ export function BrowserPage({ onClose }: { onClose?: () => void } = {}): React.J
           <MoreVertical aria-hidden="true" />
         </button>
         {onClose ? (
-          <button aria-label="Close the browser" className="bx-icon" onClick={onClose} type="button">
+          <button
+            aria-label="Close the browser"
+            className="bx-icon"
+            onClick={onClose}
+            type="button"
+          >
             <X aria-hidden="true" />
           </button>
         ) : null}

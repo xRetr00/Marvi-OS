@@ -14147,10 +14147,15 @@ html[data-appearance='claude-code-dark'] .control-row {
 
 .page-scroll.has-browser {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(360px, 44%);
+  grid-template-columns: minmax(0, 1fr) clamp(360px, 42%, 720px);
   gap: 0;
   align-items: stretch;
   overflow: hidden;
+}
+
+.page-scroll.has-browser > * {
+  min-width: 0;
+  min-height: 0;
 }
 
 .page-scroll.has-browser > :first-child {
@@ -14204,35 +14209,32 @@ html[data-appearance='claude-code-dark'] .control-row {
   color: var(--ui-accent, #7dd3fc);
 }
 
-/* Chat renders outside the shared scroll region, so it needs the same split. */
+/* Chat renders outside the shared scroll region, so it needs its own split.
+   A grid rather than flex, and only when a browser is actually open.
+   The flex version broke Chat: `Chat` builds its own columns internally, and
+   putting a `flex: 1` wrapper with a `max-width` around it collapsed the
+   conversation into a strip with a screen of empty space beside it. A grid
+   with one column when there is no browser is a no-op on the page, which is
+   what the closed state should be. */
 .chat-shell {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   min-height: 0;
   height: 100%;
 }
 
-.chat-shell > :first-child {
-  flex: 1;
+.chat-shell > * {
   min-width: 0;
+  min-height: 0;
 }
 
-.chat-shell.has-browser > :first-child {
-  max-width: 56%;
-}
-
-.chat-shell.has-browser .browser-pane {
-  flex: 0 0 44%;
-  min-width: 360px;
+.chat-shell.has-browser {
+  grid-template-columns: minmax(0, 1fr) clamp(360px, 42%, 720px);
 }
 
 @media (max-width: 1100px) {
   .chat-shell.has-browser {
-    flex-direction: column;
-  }
-
-  .chat-shell.has-browser > :first-child,
-  .chat-shell.has-browser .browser-pane {
-    max-width: none;
-    flex: 1 1 auto;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(240px, 48%);
   }
 }
