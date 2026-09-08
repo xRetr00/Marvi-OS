@@ -58,6 +58,8 @@ class ToolSpec:
 
     def summary(self, arguments: dict[str, Any]) -> str:
         """One short human line for the Island and the audit trail."""
+        if self.name.startswith("browser_"):
+            return f"Browser: {arguments.get('action', self.name)} (session {arguments.get('session_id', '')[:8]})"
         if not arguments:
             return self.description
         rendered = ", ".join(f"{key}={value}" for key, value in sorted(arguments.items()))
@@ -184,7 +186,13 @@ class ToolRegistry:
         started = time.perf_counter()
         failed = ""
         try:
-            return spec.handler(**arguments)
+            # Quiesce third-party capture/terminal tools during private entry.
+            # Control cannot take this lease: it waits for existing leases.
+            if spec.name in {"browser_control", "browser_status"}:
+                return spec.handler(**arguments)
+            from .browser_privacy import capture_barrier
+            with capture_barrier.observe():
+                return spec.handler(**arguments)
         except Exception as exc:
             failed = f"{type(exc).__name__}: {exc}"
             raise

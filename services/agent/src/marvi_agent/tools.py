@@ -353,7 +353,8 @@ class GatewayTools:
     async def _post(self, path: str, payload: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         client = self._client or httpx.AsyncClient(timeout=REQUEST_TIMEOUT)
         try:
-            response = await client.post(f"{self._base_url}{path}", json=payload)
+            from .runtime import local_token_header
+            response = await client.post(f"{self._base_url}{path}", json=payload, headers=local_token_header())
             try:
                 body = response.json()
             except ValueError:
