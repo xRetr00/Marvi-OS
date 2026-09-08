@@ -92,6 +92,27 @@ TROUBLES: tuple[Trouble, ...] = (
         "answer properly until that is topped up.",
         600.0,
     ),
+    # Before the voice-engine line, because it is the commoner cause and the
+    # voice line was swallowing it.
+    #
+    # When the model runs out of tool steps it is forced to answer with
+    # `tool_choice='none'`, and it sometimes answers by writing the call it
+    # wanted as prose. The markup stripper removes it, TTS is handed an empty
+    # string, and the error that comes back is labelled `tts_error` --
+    #
+    #     APIError('no audio frames were pushed for text:
+    #              <tool_call>browser_status</tool_call>')
+    #
+    # -- which matched `tts` below and told the user twice that her voice
+    # engine had restarted. Nothing had restarted. She was reporting a model
+    # mistake as a hardware fault, which sent somebody looking in exactly the
+    # wrong place.
+    Trouble(
+        re.compile(r"no audio frames were pushed|<tool_call>", re.I),
+        "I got tangled up mid-answer and lost the end of it. Ask me again and "
+        "I will take another run at it.",
+        30.0,
+    ),
     Trouble(
         re.compile(r"tts|speech synthesis|voice sidecar", re.I),
         "My voice engine had to restart, so I may be a moment behind for the "
