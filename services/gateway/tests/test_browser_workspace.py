@@ -24,6 +24,11 @@ class Page(http.server.BaseHTTPRequestHandler):
     private_hits = 0
 
     def do_GET(self):
+        if self.path == "/public-redirect":
+            self.send_response(302)
+            self.send_header("Location", "/private-redirect")
+            self.end_headers()
+            return
         if self.path == "/private-redirect":
             self.send_response(302)
             self.send_header("Location", f"http://localhost:{self.server.server_port}/private-destination")
@@ -384,10 +389,11 @@ def test_legacy_mutation_requires_migration_instead_of_guessing_tab(browser):
         registry.execute(registry.get("browser_click"), {"selector": "button"})
 
 
-def test_redirect_cannot_reach_private_destination(browser):
+@pytest.mark.parametrize("path", ["/private-redirect", "/public-redirect"])
+def test_redirect_cannot_reach_private_destination(browser, path):
     service, url = browser
     Page.private_hits = 0
     sid = service.start(url=url)["id"]
     settled(service, sid)
-    act(service, sid, "navigate", {"url": url + "/private-redirect"})
+    act(service, sid, "navigate", {"url": url + path})
     assert Page.private_hits == 0

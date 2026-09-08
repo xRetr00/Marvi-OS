@@ -79,6 +79,7 @@ class BrowserWorkspace:
         self._dialogs: dict[str, Any] = {}
         self._downloads: set[asyncio.Task] = set()
         self._playwright = None
+        self._network = None
         self._last_expiry = 0.0
         self._launch_lock = asyncio.Lock()
         self._loop = LoopThread("marvi-browser-workspace")
@@ -184,10 +185,13 @@ class BrowserWorkspace:
         assert_public_http_url(url)
 
     async def _route(self, route):
+        # Initial request guard for actionable errors. The separate upstream
+        # proxy checks every connection, including redirect destinations.
         try:
             await asyncio.to_thread(self._url, route.request.url)
         except Exception:
-            await route.abort("blockedbyclient")
+            with contextlib.suppress(Exception):
+                await route.abort("blockedbyclient")
         else:
             await route.continue_()
 
@@ -227,6 +231,9 @@ class BrowserWorkspace:
             if url:
                 await asyncio.to_thread(self._url, url)
             async with self._launch_lock:
+                if self._network is None:
+                    from .browser_network import BrowserNetwork
+                    self._network = await asyncio.to_thread(BrowserNetwork, self.allowed_origins)
                 if self._playwright is None:
                     from playwright.async_api import async_playwright
 
@@ -237,6 +244,8 @@ class BrowserWorkspace:
                 self._playwright.chromium.launch_persistent_context(
                     str(self.directory / "profiles" / session["profile_id"]),
                     headless=self.headless,
+                    proxy=self._network.settings,
+                    args=["--proxy-bypass-list=<-loopback>", "--disable-quic", "--force-webrtc-ip-handling-policy=disable_non_proxied_udp"],
                     accept_downloads=True,
                     service_workers="block",
                     downloads_path=str(transfer_dir),
@@ -705,6 +714,8 @@ class BrowserWorkspace:
                 await context.close()
             if self._playwright:
                 await self._playwright.stop()
+            if self._network:
+                await asyncio.to_thread(self._network.close)
 
         try:
             self._loop.submit(shutdown(), timeout=15)
