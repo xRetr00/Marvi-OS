@@ -19,6 +19,7 @@ import type {
   InitiativeStatus,
   MindSettingsPatch,
   SaidWaiting,
+  PersonaChoice,
   ResourceLedger,
   ResourceReading,
   ResourceState,
@@ -166,6 +167,10 @@ const marvi = {
   getResources: (): Promise<ResourceState | null> => ipcRenderer.invoke('marvi:get-resources'),
   holdResources: (on: boolean): Promise<ResourceState | null> =>
     ipcRenderer.invoke('marvi:hold-resources', on),
+  getPersonas: (): Promise<PersonaChoice | null> =>
+    ipcRenderer.invoke('marvi:get-personas'),
+  choosePersona: (name: string): Promise<PersonaChoice | null> =>
+    ipcRenderer.invoke('marvi:choose-persona', name),
   getResourceHistory: (limit?: number): Promise<ResourceLedger | null> =>
     ipcRenderer.invoke('marvi:resource-history', limit ?? 240),
   getResourceNow: (): Promise<ResourceReading | null> =>

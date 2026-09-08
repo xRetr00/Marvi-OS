@@ -1623,6 +1623,35 @@ function startApp(): void {
     // The watchdog. `history` is cheap and cached; `now` takes a fresh
     // reading including per-process video memory, which costs a PowerShell
     // performance counter -- about three seconds -- so it is a button.
+    // Who she is being. See `personas.py`: the old SOUL.md is now one option
+    // among several rather than the only character there could be.
+    ipcMain.handle('marvi:get-personas', async () => {
+      try {
+        const response = await fetch(`${gateway()}/personas`, {
+          signal: AbortSignal.timeout(6_000)
+        })
+        if (!response.ok) return null
+        return await response.json()
+      } catch {
+        return null
+      }
+    })
+
+    ipcMain.handle('marvi:choose-persona', async (_event, name: string) => {
+      try {
+        const response = await fetch(`${gateway()}/personas`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name }),
+          signal: AbortSignal.timeout(8_000)
+        })
+        if (!response.ok) return null
+        return await response.json()
+      } catch {
+        return null
+      }
+    })
+
     ipcMain.handle('marvi:resource-history', async (_event, limit: number) => {
       try {
         const response = await fetch(`${gateway()}/resources/history?limit=${limit || 240}`, {

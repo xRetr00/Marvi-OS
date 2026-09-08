@@ -292,6 +292,12 @@ export interface ResourceState {
   automatic?: boolean
 }
 
+/** Who Marvi can be, and who she is being. See `personas.py`. */
+export interface PersonaChoice {
+  chosen: string
+  available: { name: string; label: string; blurb: string }[]
+}
+
 /** One Marvi process in a resource reading. See `accounting.py`. */
 export interface ResourceProcess {
   /** gateway | agent | tts-voxtream | room | desktop | wake-word | livekit */

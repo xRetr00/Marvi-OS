@@ -84,8 +84,8 @@ export function PersonaPicker(): React.JSX.Element | null {
         ))}
       </div>
       <p className="persona-foot">
-        The chat window has its own — longer answers, Markdown, code in code blocks — whichever
-        you choose here.
+        The chat window has its own — longer answers, Markdown, code in code blocks — whichever you
+        choose here.
       </p>
     </section>
   )

@@ -108,6 +108,7 @@ import { ActivityPage } from './components/activity-page'
 import { MemoryHealth } from './components/memory-health'
 import { CronjobsPage } from './components/cronjobs-page'
 import { BrowserPage } from './components/browser-page'
+import { PersonaPicker } from './components/persona-picker'
 import { ResourcesPage } from './components/resources-page'
 import { MindPage } from './components/mind-page'
 import { VisitorPhotos, type VisitorSighting } from './components/visitor-photos'
@@ -828,7 +829,10 @@ function MainSurface(): React.JSX.Element {
                   ) : page === 'Activity' ? (
                     <ActivityPage />
                   ) : page === 'DMN' ? (
-                    <IdentityPanel />
+                    <>
+                      <PersonaPicker />
+                      <IdentityPanel />
+                    </>
                   ) : page === 'Graph' ? (
                     <MemoryPanel />
                   ) : page === 'Mind' ? (

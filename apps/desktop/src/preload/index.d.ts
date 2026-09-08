@@ -18,6 +18,7 @@ import type {
   InitiativeStatus,
   MindSettingsPatch,
   SaidWaiting,
+  PersonaChoice,
   ResourceLedger,
   ResourceReading,
   ResourceState,
@@ -111,6 +112,8 @@ export interface MarviDesktopApi {
   getInitiative: () => Promise<InitiativeStatus | null>
   getResources: () => Promise<ResourceState | null>
   holdResources: (on: boolean) => Promise<ResourceState | null>
+  getPersonas: () => Promise<PersonaChoice | null>
+  choosePersona: (name: string) => Promise<PersonaChoice | null>
   getResourceHistory: (limit?: number) => Promise<ResourceLedger | null>
   getResourceNow: () => Promise<ResourceReading | null>
   setInitiative: (paused: boolean) => Promise<InitiativeStatus | null>

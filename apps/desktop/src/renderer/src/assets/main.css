@@ -14036,3 +14036,106 @@ html[data-appearance='claude-code-dark'] .control-row {
   --res-game: #fda4af;
   --res-closing: #475569;
 }
+
+/* ===== Who she is =====
+   Her character was one shipped file with one position in it. It is a choice
+   now; the old text is still here as "Marvi, quiet". */
+
+.persona {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--ui-stroke-secondary);
+}
+
+.persona header h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ui-text-primary);
+}
+
+.persona header p {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--ui-text-secondary);
+}
+
+.persona-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 8px;
+}
+
+.persona-one {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 11px 12px;
+  text-align: left;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ui-text-primary);
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease;
+}
+
+.persona-one:hover:not(:disabled) {
+  background: var(--ui-stroke-tertiary);
+}
+
+.persona-one:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.persona-one.is-on {
+  border-color: var(--ui-accent, #7dd3fc);
+  background: color-mix(in srgb, var(--ui-accent, #7dd3fc) 10%, transparent);
+}
+
+.persona-tick {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  margin-top: 1px;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 50%;
+  color: var(--ui-accent, #7dd3fc);
+}
+
+.persona-one.is-on .persona-tick {
+  border-color: var(--ui-accent, #7dd3fc);
+}
+
+.persona-tick svg {
+  width: 10px;
+  height: 10px;
+}
+
+.persona-one strong {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.persona-one em {
+  display: block;
+  margin-top: 3px;
+  font-size: 10.5px;
+  font-style: normal;
+  line-height: 1.45;
+  color: var(--ui-text-secondary);
+}
+
+.persona-foot {
+  margin: 0;
+  font-size: 10.5px;
+  color: var(--ui-text-secondary);
+}
