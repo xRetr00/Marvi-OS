@@ -30,10 +30,23 @@ rule -- it is completing a sequence, and the sequence is the strongest signal
 in the request. So the correction has to arrive as something other than one
 more user line among forty:
 
-    said "good night" in 1 of 8   with the correction restated as a system
-                                  message immediately before the turn
+Restating the correction as a system message helps only if it names the thing
+to stop. Measured at 24 samples a variant, same conversation, same model:
 
-Seven in eight to one in eight, same model, same conversation, same prompt.
+    11/24  45%   nothing
+    13/24  54%   the user's complaint quoted, and nothing else
+     5/24  20%   an explicit instruction, "it is morning, do not say good night"
+     2/24   8%   the complaint quoted *and her own last reply named*
+
+Quoting the complaint alone is no better than doing nothing -- it says
+somebody is unhappy without saying which words to drop. What works is putting
+her own sentence in front of her and forbidding that sentence, because the
+sentence is what she is copying.
+
+The first version of this module did the thing that does not work. It was
+written from a run of eight samples that read 7/8 against 1/8; twenty-four
+samples put the same comparison at 13/24 against 11/24, which is noise. Small
+samples on a sampling model are how a fix that does nothing gets shipped.
 
 ## Why it expires
 
@@ -79,16 +92,26 @@ class Corrections:
     """The last thing the user put right, for the next few turns."""
 
     said: str = ""
+    #: What Marvi answered immediately before being corrected -- the sentence
+    #: she is copying, and the one the note has to name.
+    answered: str = ""
     left: int = 0
 
-    def heard(self, text: str) -> bool:
-        """Take note if this turn is a correction. True when it was."""
+    def heard(self, text: str, answered: str = "") -> bool:
+        """Take note if this turn is a correction. True when it was.
+
+        `answered` is her own last reply. Without it the note says somebody is
+        unhappy without saying which words to drop, which measured no better
+        than saying nothing at all.
+        """
         clean = " ".join((text or "").split())
         if not clean or not CORRECTING.search(clean):
             return False
         # Their words, not a paraphrase. A summary of a correction is one more
         # place for the meaning to go missing, and the sentence is short.
-        self.said, self.left = clean[:200], HELD_FOR_TURNS
+        self.said = clean[:200]
+        self.answered = " ".join((answered or "").split())[:200]
+        self.left = HELD_FOR_TURNS
         return True
 
     def block(self) -> str:
@@ -96,14 +119,17 @@ class Corrections:
         if self.left <= 0 or not self.said:
             return ""
         self.left -= 1
-        held = self.said
+        complaint, mine = self.said, self.answered
         if self.left <= 0:
-            self.said = ""
-        return (
-            "The user has just corrected you. They said: "
-            f'"{held}" '
-            "Take it as settled and do not repeat what they corrected."
-        )
+            self.said = self.answered = ""
+        note = f'The user has just corrected you. They said: "{complaint}"'
+        if mine:
+            # The half that does the work. See the measurements above.
+            note += f' You had said: "{mine}" -- do not say it again.'
+        else:
+            note += " Take it as settled and do not repeat what they corrected."
+        return note
 
     def forget(self) -> None:
-        self.said, self.left = "", 0
+        self.said = self.answered = ""
+        self.left = 0

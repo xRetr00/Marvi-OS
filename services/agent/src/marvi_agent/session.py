@@ -632,6 +632,24 @@ def _remember_the_session() -> None:
     _said.clear()
 
 
+def _last_thing_she_said(turn_ctx: Any) -> str:
+    """Marvi's own most recent reply, or empty.
+
+    The sentence she is about to repeat. `corrections` needs it by name: a
+    note that quotes only the user's complaint measured no better than no note
+    at all, because it says somebody is unhappy without saying which words to
+    drop.
+    """
+    for item in reversed(list(getattr(turn_ctx, "items", []) or [])):
+        if getattr(item, "role", "") != "assistant":
+            continue
+        content = getattr(item, "content", "")
+        said = " ".join(str(part) for part in content) if isinstance(content, list) else str(content)
+        if said.strip():
+            return said.strip()
+    return ""
+
+
 def _report_shape(turn_ctx: Any) -> None:
     """Tell the Gateway what the outgoing request looks like. Never raises.
 
@@ -1363,7 +1381,7 @@ class MarviVoiceAgent(Agent):
         # a short sentence -- "no, it's morning" -- and `needs_memory` returns
         # False for exactly those, so putting this after the gate would drop
         # the correction on the turns most likely to carry one.
-        if self._corrections.heard(text):
+        if self._corrections.heard(text, _last_thing_she_said(turn_ctx)):
             log.info("noted a correction: %s", text[:80])
         if put_right := self._corrections.block():
             turn_ctx.add_message(role="system", content=put_right)
