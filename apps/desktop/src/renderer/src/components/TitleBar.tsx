@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from 'react'
 import { haptic } from '../lib/haptics'
 import {
   Gauge,
+  Globe,
   PanelLeftClose,
   PanelLeftOpen,
   Power,
@@ -35,13 +36,19 @@ interface TitleBarProps {
   onShutdown: () => void
   onToggleSidebar?: () => void
   sidebarCollapsed?: boolean
+  /** Open or close the browser pane. Absent on pages that have no
+   *  conversation to sit beside -- see `App`. */
+  onToggleBrowser?: () => void
+  browserOpen?: boolean
 }
 
 export function TitleBar({
+  browserOpen = false,
   hapticsMuted,
   onRestart,
   onSettings,
   onShutdown,
+  onToggleBrowser,
   onToggleSidebar,
   onToggleHaptics,
   page,
@@ -74,6 +81,25 @@ export function TitleBar({
       </div>
       <div className="titlebar-spacer" />
       <div className="titlebar-controls no-drag">
+        {/* Only where there is a conversation for it to sit beside. A browser
+            button on the Graph page opens a pane next to a graph, which is
+            not the thing anybody meant. */}
+        {onToggleBrowser ? (
+          <UiTooltip label={browserOpen ? 'Close the browser' : 'Open the browser'} side="bottom">
+            <button
+              aria-label={browserOpen ? 'Close the browser' : 'Open the browser'}
+              aria-pressed={browserOpen}
+              className={`titlebar-control browser${browserOpen ? ' is-on' : ''}`}
+              onClick={() => {
+                haptic('tap')
+                onToggleBrowser()
+              }}
+              type="button"
+            >
+              <Globe aria-hidden="true" />
+            </button>
+          </UiTooltip>
+        ) : null}
         <LowResourceButton />
         <UiTooltip label={hapticsMuted ? 'Unmute haptics' : 'Mute haptics'} side="bottom">
           <button

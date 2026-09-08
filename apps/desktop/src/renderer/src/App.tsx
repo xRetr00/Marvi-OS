@@ -678,10 +678,14 @@ function MainSurface(): React.JSX.Element {
     <ShellContextMenu actions={contextActions}>
       <div className="app-shell">
         <TitleBar
+          browserOpen={browsing}
           hapticsMuted={hapticsMuted}
           onRestart={() => void window.marvi?.restartAll()}
           onSettings={() => setSettings('Preferences')}
           onShutdown={() => void window.marvi?.shutdownAll()}
+          onToggleBrowser={
+            page === 'Voice' || page === 'Chat' ? () => setBrowsing((open) => !open) : undefined
+          }
           onToggleSidebar={page === 'Chat' ? undefined : toggleSidebar}
           onToggleHaptics={toggleHaptics}
           page={settings ?? page}
@@ -699,7 +703,16 @@ function MainSurface(): React.JSX.Element {
           <ElectricGazeBackground />
 
           {page === 'Chat' ? (
-            <Chat onExit={() => navigate('Overview')} />
+            // Chat renders outside the shared scroll region, so the browser
+            // dock has to exist here too rather than once for both.
+            <div className={`chat-shell${browsing ? ' has-browser' : ''}`}>
+              <Chat onExit={() => navigate('Overview')} />
+              {browsing ? (
+                <aside className="browser-pane">
+                  <BrowserPage onClose={() => setBrowsing(false)} />
+                </aside>
+              ) : null}
+            </div>
           ) : (
             <>
               {/* Width inline rather than by class. The stylesheet route lost a
@@ -816,7 +829,7 @@ function MainSurface(): React.JSX.Element {
 
                 {/* One scroll region for every page; shell chrome stays in its
                 own tracks and no page has to manage window overflow. */}
-                <div className={`page-scroll${browsing ? ' has-browser' : ''}`}>
+                <div className={`page-scroll${browsing && page === 'Voice' ? ' has-browser' : ''}`}>
                   {page === 'Overview' ? (
                     <OverviewPage
                       device={(which) => deviceState(runtime, which)}
@@ -859,7 +872,7 @@ function MainSurface(): React.JSX.Element {
                   {/* Beside the conversation, not instead of it. Only mounted
                       while there is a browser to show, so a session that never
                       opens one pays nothing. */}
-                  {browsing ? (
+                  {browsing && page === 'Voice' ? (
                     <aside className="browser-pane">
                       <BrowserPage onClose={() => setBrowsing(false)} />
                     </aside>

@@ -1,11 +1,4 @@
-import {
-  ChevronLeft,
-  ChevronRight,
-  ExternalLink,
-  Plus,
-  RotateCw,
-  X
-} from 'lucide-react'
+import { ChevronLeft, ChevronRight, ExternalLink, Plus, RotateCw, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { BrowserCommand, BrowserSession, BrowserStatus } from '../../../shared/browser'
 import { ControlPage, ControlSection } from './control-surface'
