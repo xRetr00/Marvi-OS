@@ -45,7 +45,10 @@ def test_verified_numeric_ip_is_passed_to_upstream_connector(monkeypatch):
 
         monkeypatch.setattr(asyncio.get_running_loop(), "getaddrinfo", resolve)
         monkeypatch.setattr(ProxyDirect, "wait_open_connection", connect)
-        assert await PublicNetwork().wait_open_connection("fixture.example", 443, None, 0) == "connected"
+        assert (
+            await PublicNetwork().wait_open_connection("fixture.example", 443, None, 0)
+            == "connected"
+        )
 
     asyncio.run(exercise())
     assert connected == ["93.184.215.14"]
