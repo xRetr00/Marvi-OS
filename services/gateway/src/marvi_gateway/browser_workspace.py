@@ -570,11 +570,14 @@ class BrowserWorkspace:
             page = self._pages.get(sid, {}).get(tab_id)
             if page is None:
                 raise ValueError("Select an exact tab ID")
-            png = await page.screenshot(mask=[page.locator('input, textarea, [contenteditable="true"]')], timeout=5000)
+            png = await page.screenshot(
+                mask=[page.locator('input, textarea, [contenteditable="true"]')], timeout=5000
+            )
             self._check(sid, revision)
             if capture_barrier.blocked:
                 raise ValueError("Private input is active")
             return png
+
         return self._loop.submit(capture(), timeout=8)
 
     def control(self, sid: str, revision: int, command: str) -> dict:

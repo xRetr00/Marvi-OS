@@ -8,8 +8,8 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
-from .tools import ToolSpec
 from .localauth import guard
+from .tools import ToolSpec
 
 
 class StartBrowser(BaseModel):
@@ -86,27 +86,65 @@ def browser_router(get_service, audit, activate=lambda: None) -> APIRouter:
 
 
 def register_workspace_browser_tools(registry, get_service, vision_client=None):
+    def migrate(**_arguments):
+        raise ValueError("This legacy browser call was not executed. Read browser_status, then use browser_action or browser_control with the current session ID and revision.")
+
+    # Retain resolvable names for stored prompts without allowing an old
+    # approval to silently bind to whichever tab happens to be open now.
+    for name, required, optional in (
+        ("browser_read", {}, {}),
+        ("browser_links", {}, {"limit": int}),
+        ("browser_click", {"selector": str}, {}),
+        ("browser_type", {"selector": str, "text": str}, {"submit": bool}),
+        ("browser_back", {}, {}),
+        ("browser_screenshot", {}, {"path": str}),
+        ("browser_close", {}, {}),
+    ):
+        registry.register(ToolSpec(name=name, description="Legacy browser call: use browser_status then the session-aware browser_action/browser_control instead.",
+            arguments=required, optional=optional, sensitive=False, handler=migrate))
+
     def read_image(session_id: str, revision: int, tab_id: str, question: str):
         import base64
+
         from . import auxiliary
-        from .screen import SYSTEM_PROMPT, MAX_OUTPUT_TOKENS
+        from .screen import MAX_OUTPUT_TOKENS, SYSTEM_PROMPT
         from .untrusted import wrap_external
+
         if vision_client is None:
             raise ValueError("Configure the Vision model before reading browser images")
         png = get_service().image(session_id, revision, tab_id)
         response = vision_client.call_with_fallback(
-            [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": [
-                {"type": "text", "text": question[:2000]},
-                {"type": "image", "media_type": "image/png", "data": base64.b64encode(png).decode("ascii")}
-            ]}], job="vision", max_tokens=MAX_OUTPUT_TOKENS, temperature=0.2,
-            **auxiliary.fallback_overrides("vision"))
+            [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": question[:2000]},
+                        {
+                            "type": "image",
+                            "media_type": "image/png",
+                            "data": base64.b64encode(png).decode("ascii"),
+                        },
+                    ],
+                },
+            ],
+            job="vision",
+            max_tokens=MAX_OUTPUT_TOKENS,
+            temperature=0.2,
+            **auxiliary.fallback_overrides("vision"),
+        )
         return wrap_external("browser-vision", getattr(response, "text", "")).model_dump()
 
-    registry.register(ToolSpec(
-        name="browser_read_image", description="Answer a question about one browser tab using the configured Vision model. Editable fields are masked; unavailable during private input.",
-        arguments={"session_id": str, "revision": int, "tab_id": str, "question": str},
-        sensitive=False, handler=read_image,
-    ))
+    registry.register(
+        ToolSpec(
+            name="browser_read_image",
+            description="Answer a question about one browser tab using the configured Vision model. Editable fields are masked; unavailable during private input.",
+            arguments={"session_id": str, "revision": int, "tab_id": str, "question": str},
+            sensitive=False,
+            handler=read_image,
+        )
+    )
+
     def start(url: str = "", profile_id: str = "default", objective: str = "Browse"):
         return get_service().start(profile_id, url, objective)
 
