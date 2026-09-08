@@ -16,5 +16,13 @@ export interface BrowserStatus {
   profiles: { id: string; label: string }[]
   sessions: BrowserSession[]
 }
-export interface BrowserStart { profile_id: string; url: string; objective: string }
-export interface BrowserProfileEdit { action: 'create' | 'rename' | 'delete'; profile_id?: string; label?: string }
+export interface BrowserStart {
+  profile_id: string
+  url: string
+  objective: string
+}
+export interface BrowserProfileEdit {
+  action: 'create' | 'rename' | 'delete'
+  profile_id?: string
+  label?: string
+}
