@@ -1,4 +1,5 @@
 """Real Chromium tests for the visible-browser backend (headless in CI)."""
+
 import http.server
 import json
 import threading
@@ -26,13 +27,13 @@ class Page(http.server.BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "text/html")
         self.end_headers()
-        self.wfile.write(b'''<html><body><h1>Invoice fixture</h1>
+        self.wfile.write(b"""<html><body><h1>Invoice fixture</h1>
           <label>Name<input aria-label="Name"></label>
           <label>Password<input type="password" aria-label="Password"></label>
           <button onclick="localStorage.setItem('signed-in', 'yes');document.querySelector('h1').textContent='Signed in'">Sign in</button>
           <button onclick="document.querySelector('h1').textContent=localStorage.getItem('signed-in')||'no'">Check session</button>
           <a href="/download">Download invoice</a>
-          <a target="_blank" href="/second">Second tab</a></body></html>''')
+          <a target="_blank" href="/second">Second tab</a></body></html>""")
 
     def log_message(self, *args):
         pass
@@ -60,13 +61,15 @@ def settled(service, sid):
         state = session(service, sid)
         if state["state"] not in {"starting", "running", "resuming", "stopping"}:
             return state
-        time.sleep(.03)
+        time.sleep(0.03)
     pytest.fail("Browser operation did not settle")
 
 
 def act(service, sid, action, arguments=None, action_id=""):
     state = session(service, sid)
-    service.action(sid, state["revision"], action, arguments or {}, action_id or str(time.monotonic_ns()))
+    service.action(
+        sid, state["revision"], action, arguments or {}, action_id or str(time.monotonic_ns())
+    )
     return settled(service, sid)
 
 
@@ -85,10 +88,13 @@ def test_persistent_profile_actual_actions_and_isolation(browser):
     profile = service.profile("create", "Work")["profiles"][-1]["id"]
     other = service.start(profile, url)["id"]
     settled(service, other)
-    assert "no" in json.dumps(act(service, other, "click", {"role": "button", "name": "Check session"})["result"])
+    assert "no" in json.dumps(
+        act(service, other, "click", {"role": "button", "name": "Check session"})["result"]
+    )
 
 
-def test_private_input_fresh_resume_and_stale_actions(browser):
+@pytest.mark.parametrize("iteration", range(30))
+def test_private_input_fresh_resume_and_stale_actions(browser, iteration):
     service, url = browser
     sid = service.start(url=url)["id"]
     state = settled(service, sid)
@@ -137,6 +143,7 @@ def test_private_blocks_other_profiles_and_resume_with_multiple_tabs(browser):
 
 def test_download_export_preserves_bytes_and_refuses_overwrite(browser, tmp_path):
     from marvi_gateway.workspace import Workspace
+
     service, url = browser
     service.workspace = Workspace(tmp_path)
     sid = service.start(url=url)["id"]
@@ -144,7 +151,7 @@ def test_download_export_preserves_bytes_and_refuses_overwrite(browser, tmp_path
     act(service, sid, "click", {"role": "link", "name": "Download invoice"})
     deadline = time.monotonic() + 5
     while "download" not in session(service, sid) and time.monotonic() < deadline:
-        time.sleep(.03)
+        time.sleep(0.03)
     item = session(service, sid)["download"]
     service.export(sid, item["artifact"], "invoice.txt")
     assert (tmp_path / "invoice.txt").read_bytes() == b"invoice fixture bytes"
@@ -160,26 +167,30 @@ def test_stop_cancels_pending_click_without_late_action(browser):
     current = session(service, sid)
     stopped = service.control(sid, current["revision"], "stop")
     assert stopped["state"] == "cancelled"
-    time.sleep(.1)
+    time.sleep(0.1)
     assert session(service, sid)["state"] == "cancelled"
 
 
 def test_private_capture_barrier_waits_for_inflight_delivery():
     entered, release = threading.Event(), threading.Event()
+
     def observer():
         with capture_barrier.observe():
             entered.set()
             release.wait(3)
+
     thread = threading.Thread(target=observer)
     thread.start()
     assert entered.wait(2)
     acknowledged = threading.Event()
+
     def private():
         capture_barrier.enter("test")
         acknowledged.set()
+
     waiter = threading.Thread(target=private)
     waiter.start()
-    assert not acknowledged.wait(.05)
+    assert not acknowledged.wait(0.05)
     release.set()
     assert acknowledged.wait(2)
     capture_barrier.leave("test")
@@ -196,13 +207,20 @@ async def test_gateway_confirmation_and_real_browser(browser, tmp_path):
         started = await client.post("/browser/start", json={"url": url})
         sid = started.json()["id"]
         state = settled(service, sid)
-        args = {"session_id": sid, "revision": state["revision"], "action": "click",
-                "arguments": {"role": "button", "name": "Sign in"},
-                "action_id": "approved", "request_confirmation": True}
+        args = {
+            "session_id": sid,
+            "revision": state["revision"],
+            "action": "click",
+            "arguments": {"role": "button", "name": "Sign in"},
+            "action_id": "approved",
+            "request_confirmation": True,
+        }
         proposed = await client.post("/tools/browser_action", json={"arguments": args})
         assert proposed.json()["status"] == "confirmation_required"
-        approved = await client.post(f"/confirmations/{proposed.json()['token']}",
-                                    json={"decision": "approve", "arguments": args})
+        approved = await client.post(
+            f"/confirmations/{proposed.json()['token']}",
+            json={"decision": "approve", "arguments": args},
+        )
         assert approved.json()["status"] == "executed"
         assert "Signed in" in json.dumps(settled(service, sid)["result"])
 
@@ -214,6 +232,13 @@ async def test_browser_api_requires_local_token_and_refuses_web_origin(browser, 
     app = create_app(tools=ToolRegistry(), browser_service=service)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://m.local") as client:
         assert (await client.get("/browser")).status_code == 403
-        assert (await client.get("/browser", headers={"x-marvi-local": "fixture-token"})).status_code == 200
-        assert (await client.get("/browser", headers={"x-marvi-local": "fixture-token", "sec-fetch-site": "cross-site"})).status_code == 403
+        assert (
+            await client.get("/browser", headers={"x-marvi-local": "fixture-token"})
+        ).status_code == 200
+        assert (
+            await client.get(
+                "/browser",
+                headers={"x-marvi-local": "fixture-token", "sec-fetch-site": "cross-site"},
+            )
+        ).status_code == 403
         assert (await client.post("/tools/browser_open", json={"arguments": {}})).status_code == 403

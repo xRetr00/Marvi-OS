@@ -4,6 +4,7 @@ Gateway owns task state and serialization; Electron supervises the Gateway
 process tree. No arbitrary Python/JS/CDP is exposed to the model. Browser profile
 contents never enter this metadata store or the tool response.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -38,8 +39,14 @@ def safe_url(url: str) -> str:
 
 
 class BrowserWorkspace:
-    def __init__(self, directory: Path | None = None, *, headless: bool = False,
-                 workspace=None, allowed_origins: tuple[str, ...] = ()):
+    def __init__(
+        self,
+        directory: Path | None = None,
+        *,
+        headless: bool = False,
+        workspace=None,
+        allowed_origins: tuple[str, ...] = (),
+    ):
         self.directory = directory or root() / "browser"
         self.directory.mkdir(parents=True, exist_ok=True)
         artifacts = self.directory / "artifacts"
@@ -53,11 +60,17 @@ class BrowserWorkspace:
         self._db = sqlite3.connect(self.directory / "metadata.sqlite3", check_same_thread=False)
         self._db.execute("CREATE TABLE IF NOT EXISTS state (id INTEGER PRIMARY KEY, body TEXT)")
         row = self._db.execute("SELECT body FROM state WHERE id=1").fetchone()
-        self.profiles = json.loads(row[0])["profiles"] if row else [{"id": "default", "label": "Personal"}]
+        self.profiles = (
+            json.loads(row[0])["profiles"] if row else [{"id": "default", "label": "Personal"}]
+        )
         self.sessions: dict[str, dict] = {}
         if row:
             for item in json.loads(row[0]).get("sessions", []):
-                item.update(state="closed", detail="Browser stopped. Open the profile to continue.", result=None)
+                item.update(
+                    state="closed",
+                    detail="Browser stopped. Open the profile to continue.",
+                    result=None,
+                )
                 self.sessions[item["id"]] = item
         self._contexts: dict[str, Any] = {}
         self._pages: dict[str, dict[str, Any]] = {}
@@ -72,10 +85,13 @@ class BrowserWorkspace:
 
     def _save(self):
         # Page content and results are deliberately ephemeral.
-        body = {"profiles": self.profiles, "sessions": [
-            {k: v for k, v in s.items() if k not in {"result", "tabs"}}
-            for s in self.sessions.values()
-        ]}
+        body = {
+            "profiles": self.profiles,
+            "sessions": [
+                {k: v for k, v in s.items() if k not in {"result", "tabs"}}
+                for s in self.sessions.values()
+            ],
+        }
         self._db.execute("INSERT OR REPLACE INTO state VALUES (1, ?)", (json.dumps(body),))
         self._db.commit()
 
@@ -105,9 +121,14 @@ class BrowserWorkspace:
         async def read():
             for sid in self._contexts:
                 await self._tabs(sid)
-            return {"available": True, "driver": "playwright", "profiles": list(self.profiles),
-                    "sessions": [self._public(s) for s in self.sessions.values()],
-                    "private_input": capture_barrier.blocked}
+            return {
+                "available": True,
+                "driver": "playwright",
+                "profiles": list(self.profiles),
+                "sessions": [self._public(s) for s in self.sessions.values()],
+                "private_input": capture_barrier.blocked,
+            }
+
         return self._loop.submit(read(), timeout=3)
 
     def profile(self, action: str, label: str = "", profile_id: str = "") -> dict:
@@ -127,8 +148,11 @@ class BrowserWorkspace:
                 elif action == "delete":
                     if profile_id == "default":
                         raise ValueError("The default profile cannot be deleted")
-                    if any(s["profile_id"] == profile_id and (s["id"] in self._contexts or s["state"] in ACTIVE)
-                           for s in self.sessions.values()):
+                    if any(
+                        s["profile_id"] == profile_id
+                        and (s["id"] in self._contexts or s["state"] in ACTIVE)
+                        for s in self.sessions.values()
+                    ):
                         raise ValueError("Close this profile's browser before removing it")
                     target = (self.directory / "profiles" / profile_id).resolve()
                     if target.parent != (self.directory / "profiles").resolve():
@@ -140,6 +164,7 @@ class BrowserWorkspace:
                     raise ValueError("Unknown profile action")
             self._save()
             return {"profiles": list(self.profiles)}
+
         return self._loop.submit(edit())
 
     def _url(self, url: str):
@@ -165,17 +190,28 @@ class BrowserWorkspace:
                 raise ValueError("Private input is active; resume before opening another browser")
             if not any(p["id"] == profile_id for p in self.profiles):
                 raise ValueError("Unknown profile")
-            if any(s["profile_id"] == profile_id and
-                   (s["id"] in self._contexts or s["state"] in ACTIVE) for s in self.sessions.values()):
+            if any(
+                s["profile_id"] == profile_id
+                and (s["id"] in self._contexts or s["state"] in ACTIVE)
+                for s in self.sessions.values()
+            ):
                 raise ValueError("This profile already has a browser. Select its existing session.")
             sid = uuid4().hex
-            session = {"id": sid, "profile_id": profile_id, "objective": objective[:160],
-                       "state": "starting", "revision": 0, "detail": "Opening browser",
-                       "tabs": [], "result": None}
+            session = {
+                "id": sid,
+                "profile_id": profile_id,
+                "objective": objective[:160],
+                "state": "starting",
+                "revision": 0,
+                "detail": "Opening browser",
+                "tabs": [],
+                "result": None,
+            }
             self.sessions[sid] = session
             self._save()
             self._operations[sid] = asyncio.create_task(self._launch(sid, url))
             return self._public(session)
+
         return self._loop.submit(begin(), timeout=3)
 
     async def _launch(self, sid: str, url: str):
@@ -186,14 +222,21 @@ class BrowserWorkspace:
             async with self._launch_lock:
                 if self._playwright is None:
                     from playwright.async_api import async_playwright
+
                     self._playwright = await async_playwright().start()
             transfer_dir = self.directory / "transfers" / sid
             transfer_dir.mkdir(parents=True, exist_ok=True)
-            launching = asyncio.create_task(self._playwright.chromium.launch_persistent_context(
-                str(self.directory / "profiles" / session["profile_id"]),
-                headless=self.headless, accept_downloads=True, service_workers="block",
-                downloads_path=str(transfer_dir), no_viewport=True, timeout=60_000,
-            ))
+            launching = asyncio.create_task(
+                self._playwright.chromium.launch_persistent_context(
+                    str(self.directory / "profiles" / session["profile_id"]),
+                    headless=self.headless,
+                    accept_downloads=True,
+                    service_workers="block",
+                    downloads_path=str(transfer_dir),
+                    no_viewport=True,
+                    timeout=60_000,
+                )
+            )
             try:
                 context = await asyncio.shield(launching)
             except asyncio.CancelledError:
@@ -218,14 +261,20 @@ class BrowserWorkspace:
                 await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
             if session["state"] == "stopping" or capture_barrier.blocked:
                 return
-            self._change(session, "ready", "Browser ready. You can browse or ask Marvi to work here.")
+            self._change(
+                session, "ready", "Browser ready. You can browse or ask Marvi to work here."
+            )
             await self._tabs(sid)
         except asyncio.CancelledError:
             if sid in self._contexts:
                 await self._contexts[sid].close()
             raise
         except Exception:
-            self._change(session, "failed", "Browser could not open. Check the engine installation and profile lock.")
+            self._change(
+                session,
+                "failed",
+                "Browser could not open. Check the engine installation and profile lock.",
+            )
 
     def _adopt(self, sid, page):
         if page in self._pages[sid].values():
@@ -233,10 +282,12 @@ class BrowserWorkspace:
         tid = uuid4().hex
         self._pages[sid][tid] = page
         page.on("dialog", lambda d: self._dialog(sid, tid, d))
+
         def downloading(download):
             task = asyncio.create_task(self._download(sid, download))
             self._downloads.add(task)
             task.add_done_callback(self._downloads.discard)
+
         page.on("download", downloading)
         page.on("framenavigated", lambda f: self._navigated(sid, page, f))
         page.on("close", lambda: self._pages.get(sid, {}).pop(tid, None))
@@ -251,7 +302,9 @@ class BrowserWorkspace:
     def _dialog(self, sid, tid, dialog):
         # Do not record website-provided dialog messages (may contain secrets).
         self._dialogs[sid] = dialog
-        self.sessions[sid]["detail"] = "Website dialog pending. Respond in the browser or use the dialog action."
+        self.sessions[sid]["detail"] = (
+            "Website dialog pending. Respond in the browser or use the dialog action."
+        )
 
     async def _tabs(self, sid):
         session = self._session(sid)
@@ -270,31 +323,53 @@ class BrowserWorkspace:
         capture_barrier.leave(sid)
         self._change(self._session(sid), "closed", "Browser closed. Profile data is saved.")
 
-    def action(self, sid: str, revision: int, action: str, arguments: dict,
-               action_id: str) -> dict:
+    def action(self, sid: str, revision: int, action: str, arguments: dict, action_id: str) -> dict:
         async def enqueue():
             key = f"{sid}:{action_id}"
-            signature = hashlib.sha256(json.dumps([revision, action, arguments], sort_keys=True).encode()).hexdigest()
+            signature = hashlib.sha256(
+                json.dumps([revision, action, arguments], sort_keys=True).encode()
+            ).hexdigest()
             if key in self._receipts:
                 if self._receipts[key]["signature"] != signature:
                     raise ValueError("Action ID was already used with different arguments")
                 return self._receipts[key]["receipt"]
             session = self._check(sid, revision)
             if session["state"] != "ready":
-                raise ValueError("Browser is not ready. Resume it or wait for the current operation.")
+                raise ValueError(
+                    "Browser is not ready. Resume it or wait for the current operation."
+                )
             if capture_barrier.blocked:
                 raise ValueError("Private input is active; browser automation is paused")
-            if action not in {"read", "navigate", "new_tab", "click", "fill", "select", "press",
-                              "scroll", "back", "reload", "close_tab", "dialog", "screenshot", "upload"}:
+            if action not in {
+                "read",
+                "navigate",
+                "new_tab",
+                "click",
+                "fill",
+                "select",
+                "press",
+                "scroll",
+                "back",
+                "reload",
+                "close_tab",
+                "dialog",
+                "screenshot",
+                "upload",
+            }:
                 raise ValueError("Unsupported browser action")
             self._change(session, "running", f"Browser: {action}")
             session["result"] = None
             session.pop("error_type", None)
-            receipt = {"session_id": sid, "action_id": action_id, "status": "accepted",
-                       "instruction": "Read browser_status for completion before another action."}
+            receipt = {
+                "session_id": sid,
+                "action_id": action_id,
+                "status": "accepted",
+                "instruction": "Read browser_status for completion before another action.",
+            }
             self._receipts[key] = {"signature": signature, "receipt": receipt}
             self._operations[sid] = asyncio.create_task(self._act(sid, action, dict(arguments)))
             return receipt
+
         return self._loop.submit(enqueue(), timeout=3)
 
     async def _act(self, sid, action, args):
@@ -329,8 +404,16 @@ class BrowserWorkspace:
                 if action == "click":
                     await locator.click()
                 elif action == "fill":
-                    if await locator.get_attribute("type") == "password" or await locator.get_attribute("autocomplete") in {"one-time-code", "current-password", "new-password"}:
-                        raise ValueError("Use Private input to enter credentials directly in the browser")
+                    if await locator.get_attribute(
+                        "type"
+                    ) == "password" or await locator.get_attribute("autocomplete") in {
+                        "one-time-code",
+                        "current-password",
+                        "new-password",
+                    }:
+                        raise ValueError(
+                            "Use Private input to enter credentials directly in the browser"
+                        )
                     await locator.fill(str(args.get("text", "")))
                 elif action == "select":
                     await locator.select_option(str(args["value"]))
@@ -362,7 +445,9 @@ class BrowserWorkspace:
             elif action == "screenshot":
                 dest = self.directory / "artifacts" / (uuid4().hex + ".png")
                 dest.parent.mkdir(exist_ok=True)
-                await page.screenshot(path=str(dest), mask=[page.locator('input, textarea, [contenteditable="true"]')])
+                await page.screenshot(
+                    path=str(dest), mask=[page.locator('input, textarea, [contenteditable="true"]')]
+                )
                 session["result"] = {"artifact": dest.name}
             if session["state"] == "stopping" or capture_barrier.blocked:
                 session["result"] = None
@@ -372,10 +457,18 @@ class BrowserWorkspace:
                 if session["state"] == "stopping" or capture_barrier.blocked:
                     return
                 # No editable-field values in model observations.
-                text = re.sub(r'(?m)^(\s*- (?:textbox|searchbox).*?):.*$', r'\1', text)
-                session["result"] = wrap_external("browser", {"url": safe_url(page.url),
-                    "snapshot": text[:12000], "truncated": len(text) > 12000}).model_dump()
-            self._change(session, "ready", "Action finished. Verify the observation before continuing.")
+                text = re.sub(r"(?m)^(\s*- (?:textbox|searchbox).*?):.*$", r"\1", text)
+                session["result"] = wrap_external(
+                    "browser",
+                    {
+                        "url": safe_url(page.url),
+                        "snapshot": text[:12000],
+                        "truncated": len(text) > 12000,
+                    },
+                ).model_dump()
+            self._change(
+                session, "ready", "Action finished. Verify the observation before continuing."
+            )
             await self._tabs(sid)
         except asyncio.CancelledError:
             session["result"] = None
@@ -385,7 +478,11 @@ class BrowserWorkspace:
             session["result"] = None
             if session["state"] == "stopping":
                 return
-            self._change(session, "paused", "Action could not be verified. Inspect the browser before retrying.")
+            self._change(
+                session,
+                "paused",
+                "Action could not be verified. Inspect the browser before retrying.",
+            )
             session["error_type"] = type(exc).__name__
 
     async def _download(self, sid, download):
@@ -399,21 +496,31 @@ class BrowserWorkspace:
         try:
             saving = asyncio.create_task(download.save_as(str(destination)))
             while not saving.done():
-                sizes = [p.stat().st_size for p in (self.directory / "transfers" / sid).glob("*") if p.is_file()]
+                sizes = [
+                    p.stat().st_size
+                    for p in (self.directory / "transfers" / sid).glob("*")
+                    if p.is_file()
+                ]
                 if any(size > MAX_FILE for size in sizes) or sum(sizes) > MAX_TASK_FILES:
                     await download.cancel()
                     raise ValueError("Download quota exceeded")
-                await asyncio.sleep(.1)
+                await asyncio.sleep(0.1)
             await saving
             used = self.sessions[sid].get("download_bytes", 0)
-            if destination.stat().st_size > MAX_FILE or used + destination.stat().st_size > MAX_TASK_FILES:
+            if (
+                destination.stat().st_size > MAX_FILE
+                or used + destination.stat().st_size > MAX_TASK_FILES
+            ):
                 destination.unlink()
                 raise ValueError("Download quota exceeded")
             with destination.open("rb") as handle:
                 digest = hashlib.file_digest(handle, "sha256").hexdigest()
-            self.sessions[sid]["download"] = {"artifact": destination.name,
+            self.sessions[sid]["download"] = {
+                "artifact": destination.name,
                 "bytes": destination.stat().st_size,
-                "sha256": digest, "name": Path(download.suggested_filename).name[:120]}
+                "sha256": digest,
+                "name": Path(download.suggested_filename).name[:120],
+            }
             self.sessions[sid]["download_bytes"] = used + destination.stat().st_size
             await download.delete()
         except asyncio.CancelledError:
@@ -429,6 +536,7 @@ class BrowserWorkspace:
 
     def export(self, sid: str, artifact: str, destination: str) -> dict:
         """Publish a completed file without replacing an existing destination."""
+
         async def save():
             session = self._session(sid)
             if capture_barrier.blocked:
@@ -451,6 +559,7 @@ class BrowserWorkspace:
             finally:
                 staged.unlink(missing_ok=True)
             return {"path": str(target), "bytes": item["bytes"], "sha256": item["sha256"]}
+
         return self._loop.submit(save())
 
     def control(self, sid: str, revision: int, command: str) -> dict:
@@ -502,23 +611,38 @@ class BrowserWorkspace:
                 # credential entry. Quiesce every browser observer first.
                 for other_sid, other in list(self._operations.items()):
                     if other_sid != sid and not other.done():
-                        self._change(self.sessions[other_sid], "stopping", "Waiting for browser command before private input.")
+                        self._change(
+                            self.sessions[other_sid],
+                            "stopping",
+                            "Waiting for browser command before private input.",
+                        )
                         with contextlib.suppress(asyncio.CancelledError):
                             await asyncio.shield(other)
                         self.sessions[other_sid]["result"] = None
-                        self._change(self.sessions[other_sid], "paused", "Private input in another browser.")
+                        self._change(
+                            self.sessions[other_sid], "paused", "Private input in another browser."
+                        )
                 downloads = list(self._downloads)
                 for download in downloads:
                     download.cancel()
                 await asyncio.gather(*downloads, return_exceptions=True)
                 await asyncio.to_thread(capture_barrier.enter, sid)
                 session["tabs"] = []
-                self._change(session, "private", "Private input — Marvi paused. Enter credentials in the website, then Resume.")
+                self._change(
+                    session,
+                    "private",
+                    "Private input — Marvi paused. Enter credentials in the website, then Resume.",
+                )
             else:
                 # Keep private capture protection until explicit Resume/Close.
-                state = "private" if capture_barrier.owns(sid) else ("cancelled" if command == "stop" else "paused")
+                state = (
+                    "private"
+                    if capture_barrier.owns(sid)
+                    else ("cancelled" if command == "stop" else "paused")
+                )
                 self._change(session, state, "Automation stopped. Resume explicitly to continue.")
             return self._public(session)
+
         return self._loop.submit(change(), timeout=60)
 
     def close(self):
@@ -534,6 +658,7 @@ class BrowserWorkspace:
                 await context.close()
             if self._playwright:
                 await self._playwright.stop()
+
         try:
             self._loop.submit(shutdown(), timeout=15)
         finally:

@@ -4,6 +4,7 @@ This does not isolate the Windows account from unrelated processes. A capture
 lease covers delivery as well as acquisition, so private entry cannot acknowledge
 while a previously captured frame is still being delivered to a model.
 """
+
 from contextlib import contextmanager
 from threading import Condition
 
