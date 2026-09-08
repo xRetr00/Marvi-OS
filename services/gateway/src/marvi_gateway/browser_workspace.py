@@ -73,6 +73,8 @@ class BrowserWorkspace:
                 )
                 self.sessions[item["id"]] = item
         self._contexts: dict[str, Any] = {}
+        self._host: dict[str, str] | None = None
+        self._embedded: dict[str, Any] = {}
         self._pages: dict[str, dict[str, Any]] = {}
         self._operations: dict[str, asyncio.Task] = {}
         self._receipts: dict[str, dict] = {}
@@ -84,6 +86,25 @@ class BrowserWorkspace:
         self._launch_lock = asyncio.Lock()
         self._loop = LoopThread("marvi-browser-workspace")
         self._save()
+
+    def register_host(self, endpoint: str, token: str):
+        if not re.fullmatch(r"http://127\.0\.0\.1:[0-9]{1,5}", endpoint) or len(token) != 64:
+            raise ValueError("Invalid desktop browser host")
+        async def register():
+            self._host = {"endpoint": endpoint, "token": token}
+        self._loop.submit(register(), timeout=3)
+
+    async def _host_request(self, path: str, body: dict):
+        import httpx
+        if self._host is None:
+            raise ValueError("Desktop browser host is unavailable")
+        async with httpx.AsyncClient(trust_env=False, timeout=15) as client:
+            response = await client.post(
+                self._host["endpoint"] + path, json=body,
+                headers={"Authorization": "Bearer " + self._host["token"]},
+            )
+            response.raise_for_status()
+            return response.json()
 
     def _save(self):
         # Page content and results are deliberately ephemeral.
@@ -131,7 +152,7 @@ class BrowserWorkspace:
                 await self._tabs(sid)
             return {
                 "available": True,
-                "driver": "playwright",
+                "driver": "electron-playwright" if self._host else "playwright",
                 "profiles": list(self.profiles),
                 "sessions": [self._public(s) for s in self.sessions.values()],
                 "private_input": capture_barrier.blocked,
@@ -240,24 +261,27 @@ class BrowserWorkspace:
                     self._playwright = await async_playwright().start()
             transfer_dir = self.directory / "transfers" / sid
             transfer_dir.mkdir(parents=True, exist_ok=True)
-            launching = asyncio.create_task(
-                self._playwright.chromium.launch_persistent_context(
-                    str(self.directory / "profiles" / session["profile_id"]),
-                    headless=self.headless,
-                    proxy=self._network.settings,
-                    args=["--proxy-bypass-list=<-loopback>", "--disable-quic", "--force-webrtc-ip-handling-policy=disable_non_proxied_udp"],
-                    accept_downloads=True,
-                    service_workers="block",
-                    downloads_path=str(transfer_dir),
-                    no_viewport=True,
-                    timeout=60_000,
+            if self._host and not self.headless:
+                host = await self._host_request("/open", {
+                    "id": sid, "profile": session["profile_id"], "proxy": self._network.settings,
+                })
+                browser = await self._playwright.chromium.connect_over_cdp(
+                    host["endpoint"], headers={"Authorization": "Bearer " + self._host["token"]},
+                    is_local=True, artifacts_dir=host["downloads"], timeout=30_000,
                 )
-            )
+                self._embedded[sid] = browser
+                session["host"] = "embedded"
+                context = browser.contexts[0]
+                context.on("close", lambda: self._embedded.pop(sid, None))
+                launching = asyncio.create_task(asyncio.sleep(0, result=context))
+            else:
+                if os.environ.get("MARVI_BROWSER_HOST_REQUIRED") == "1" and not self.headless:
+                    raise ValueError("Desktop browser host is unavailable")
+                session["host"] = "native"
+                launching = asyncio.create_task(self._native_context(session, transfer_dir))
             try:
                 context = await asyncio.shield(launching)
             except asyncio.CancelledError:
-                # Do not abandon a launch that can create a native process
-                # after Stop has returned. Keep stopping until it is closed.
                 with contextlib.suppress(Exception):
                     context = await launching
                     await context.close()
@@ -266,7 +290,6 @@ class BrowserWorkspace:
             self._pages[sid] = {}
             context.set_default_timeout(10_000)
             await context.route("**/*", self._route)
-            # No uninspected WebSocket alternate path in the public-web pilot.
             await context.route_web_socket("**/*", lambda ws: ws.close())
             context.on("page", lambda p: self._adopt(sid, p))
             context.on("close", lambda: self._closed(sid))
@@ -277,20 +300,30 @@ class BrowserWorkspace:
                 await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
             if session["state"] == "stopping" or capture_barrier.blocked:
                 return
-            self._change(
-                session, "ready", "Browser ready. You can browse or ask Marvi to work here."
-            )
+            self._change(session, "ready", "Browser ready. You can browse or ask Marvi to work here.")
             await self._tabs(sid)
         except asyncio.CancelledError:
             if sid in self._contexts:
                 await self._contexts[sid].close()
             raise
         except Exception:
-            self._change(
-                session,
-                "failed",
-                "Browser could not open. Check the engine installation and profile lock.",
-            )
+            if sid in self._embedded:
+                with contextlib.suppress(Exception):
+                    await self._host_request("/close", {"id": sid})
+            self._change(session, "failed", "Browser could not open. Check the desktop host, engine and profile lock.")
+
+    async def _native_context(self, session, transfer_dir):
+        return await self._playwright.chromium.launch_persistent_context(
+                    str(self.directory / "profiles" / session["profile_id"]),
+                    headless=self.headless,
+                    proxy=self._network.settings,
+                    args=["--proxy-bypass-list=<-loopback>", "--disable-quic", "--force-webrtc-ip-handling-policy=disable_non_proxied_udp"],
+                    accept_downloads=True,
+                    service_workers="block",
+                    downloads_path=str(transfer_dir),
+                    no_viewport=True,
+                    timeout=60_000,
+                )
 
     def _adopt(self, sid, page):
         if page in self._pages[sid].values():
@@ -329,7 +362,15 @@ class BrowserWorkspace:
         result = []
         for tid, page in list(self._pages.get(sid, {}).items()):
             if not page.is_closed():
-                result.append({"id": tid, "url": safe_url(page.url)})
+                item = {"id": tid, "url": safe_url(page.url)}
+                if sid in self._embedded:
+                    # Host target identity is presentation metadata, never a global CDP capability.
+                    cdp = await self._contexts[sid].new_cdp_session(page)
+                    try:
+                        item["target"] = (await cdp.send("Target.getTargetInfo"))["targetInfo"]["targetId"]
+                    finally:
+                        await cdp.detach()
+                result.append(item)
         session["tabs"] = result
         return result
 
@@ -636,6 +677,8 @@ class BrowserWorkspace:
                     raise ValueError("Browser is not waiting for resume")
                 if capture_barrier.blocked and not capture_barrier.owns(sid):
                     raise ValueError("Resume the browser with private input first")
+                if sid in self._embedded:
+                    await self._host_request("/private", {"id": sid, "active": False})
                 capture_barrier.leave(sid)
                 session["result"] = None
                 self._change(session, "resuming", "Reading a fresh observation.")
@@ -663,6 +706,8 @@ class BrowserWorkspace:
                 else:
                     self._closed(sid)
             elif command == "private":
+                for embedded_id in self._embedded:
+                    await self._host_request("/private", {"id": embedded_id, "active": True})
                 # A second session must not return a frame captured during
                 # credential entry. Quiesce every browser observer first.
                 for other_sid, other in list(self._operations.items()):

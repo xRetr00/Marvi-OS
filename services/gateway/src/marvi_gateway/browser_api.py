@@ -19,6 +19,12 @@ class StartBrowser(BaseModel):
     objective: str = Field(default="Browse", max_length=160)
 
 
+class BrowserHostRegistration(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    endpoint: str
+    token: str
+
+
 class BrowserControl(BaseModel):
     model_config = ConfigDict(extra="forbid")
     revision: int = Field(ge=0)
@@ -50,6 +56,11 @@ def browser_router(get_service, audit, activate=lambda: None) -> APIRouter:
     @router.get("")
     async def status():
         return await call(get_service().status)
+
+    @router.post("/host")
+    async def host(body: BrowserHostRegistration):
+        await call(get_service().register_host, body.endpoint, body.token)
+        return {"ok": True}
 
     @router.post("/start")
     async def start(body: StartBrowser):
