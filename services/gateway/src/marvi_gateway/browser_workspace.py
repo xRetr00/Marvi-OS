@@ -231,12 +231,27 @@ class BrowserWorkspace:
                 raise ValueError("Private input is active; resume before opening another browser")
             if not any(p["id"] == profile_id for p in self.profiles):
                 raise ValueError("Unknown profile")
-            if any(
-                s["profile_id"] == profile_id
-                and (s["id"] in self._contexts or s["state"] in ACTIVE)
-                for s in self.sessions.values()
+            # Already open is the commonest case, not an error.
+            #
+            # This refused with "This profile already has a browser. Select its
+            # existing session." -- which is true, and useless to a model that
+            # has just been asked to open a browser and now has to work out
+            # which of its other tools finds the session it was not given the
+            # id of. It failed that way twice in one session and burned tool
+            # steps guessing.
+            #
+            # Handing back the session it would have had to go and find is the
+            # same outcome with none of the detour.
+            if existing := next(
+                (
+                    one
+                    for one in self.sessions.values()
+                    if one["profile_id"] == profile_id
+                    and (one["id"] in self._contexts or one["state"] in ACTIVE)
+                ),
+                None,
             ):
-                raise ValueError("This profile already has a browser. Select its existing session.")
+                return self._public(existing)
             sid = uuid4().hex
             session = {
                 "id": sid,
