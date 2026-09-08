@@ -208,8 +208,9 @@
           "chromium"
         ],
         "check": [
-          "playwright",
-          "--version"
+          "python",
+          "-m",
+          "marvi_gateway.browser_check"
         ],
         "note": "Roughly 150 MB, downloaded by Playwright itself into its own cache."
       }

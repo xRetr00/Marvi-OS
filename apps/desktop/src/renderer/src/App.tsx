@@ -61,6 +61,7 @@ import { Picker, type PickerOption } from './components/ui/picker'
 import { ModelPicker } from './components/ui/model-picker'
 import { ConnectingOverlay } from './components/ConnectingOverlay'
 import { DynamicIsland } from './components/DynamicIsland'
+import { BrowserIsland, useBrowserHandoff } from './components/browser-island'
 import {
   ANNOUNCEMENT_GLANCE_MS,
   ISLAND_AUTO_EXPAND_MS,
@@ -106,6 +107,7 @@ import { CapabilityPluginsPanel } from './components/capabilities/CapabilityPlug
 import { ActivityPage } from './components/activity-page'
 import { MemoryHealth } from './components/memory-health'
 import { CronjobsPage } from './components/cronjobs-page'
+import { BrowserPage } from './components/browser-page'
 import { ResourcesPage } from './components/resources-page'
 import { MindPage } from './components/mind-page'
 import { VisitorPhotos, type VisitorSighting } from './components/visitor-photos'
@@ -234,7 +236,7 @@ const NAV_GROUPS = [
   { label: 'Core', items: ['Overview', 'Voice', 'Chat'] },
   { label: 'Context', items: ['Vision', 'Room', 'Activity', 'Resources'] },
   { label: 'Cortex', items: ['DMN', 'Graph', 'Mind'] },
-  { label: 'Capabilities', items: ['Skills', 'Cronjobs', 'Connectors', 'MCP', 'Plugins'] }
+  { label: 'Capabilities', items: ['Browser', 'Skills', 'Cronjobs', 'Connectors', 'MCP', 'Plugins'] }
 ] as const
 
 /** Behind the gear: the things you set up. */
@@ -277,6 +279,7 @@ const NAV_CODES: Record<Page, string> = {
   Mind: 'MI',
   Skills: 'SK',
   Cronjobs: 'CJ',
+  Browser: 'BR',
   Connectors: 'CN',
   MCP: 'MC',
   Plugins: 'PL'
@@ -295,6 +298,7 @@ const NAV_ICONS: Record<Page, AbstractIconName> = {
   Mind: 'mind',
   Skills: 'skills',
   Cronjobs: 'schedules',
+  Browser: 'search',
   Connectors: 'connectors',
   MCP: 'mcp',
   Plugins: 'plugins'
@@ -832,6 +836,8 @@ function MainSurface(): React.JSX.Element {
                     <ResourcesPage />
                   ) : page === 'Cronjobs' ? (
                     <CronjobsPage />
+                  ) : page === 'Browser' ? (
+                    <BrowserPage />
                   ) : page === 'Skills' ? (
                     <SkillsPanel />
                   ) : page === 'Connectors' ? (
@@ -4943,6 +4949,7 @@ function PagePanel({ page }: { page: Page }): React.JSX.Element {
     Room: '',
     Activity: 'Local event and tool history.',
     Cronjobs: '',
+    Browser: '',
     Resources: '',
     DMN: "Marvi's identity and your standing preferences.",
     Graph: 'What Marvi knows, and how it connects.',
@@ -6606,6 +6613,8 @@ function VisitorWatch(): React.JSX.Element | null {
 
 function IslandSurface(): React.JSX.Element {
   const voice = useStore($voiceState)
+  const browserSession = useBrowserHandoff()
+  const browserVisible = Boolean(browserSession && voice.phase === 'ready')
   const reduceMotion = useReducedMotion()
   const measureRef = useRef<HTMLDivElement>(null)
   const [resolvingToken, setResolvingToken] = useState<string | null>(null)
@@ -6615,7 +6624,7 @@ function IslandSurface(): React.JSX.Element {
   // idle Island, but never covers an active call or confirmation.
   const islandState = islandDisplayState(voice)
   const hasOrb = islandHasOrb(islandState)
-  const interactionMode = islandInteractionMode(islandState)
+  const interactionMode = browserVisible ? 'interactive' : islandInteractionMode(islandState)
   const presentationKey = islandPresentationKey(islandState)
   const confirmationExpanded =
     islandState.phase === 'confirmation' && Boolean(islandState.confirmation)
@@ -6699,7 +6708,7 @@ function IslandSurface(): React.JSX.Element {
                 : { duration: ISLAND_ENTER_SECONDS, ease: [0.22, 1, 0.36, 1] }
             }
           >
-            <DynamicIsland
+            {browserVisible && browserSession ? <BrowserIsland session={browserSession} /> : <DynamicIsland
               confirmationPending={resolvingToken === voice.confirmation?.token}
               expanded={expanded}
               onConfirmationDecision={async (decision) => {
@@ -6714,7 +6723,7 @@ function IslandSurface(): React.JSX.Element {
                 }
               }}
               state={islandState}
-            />
+            />}
           </motion.div>
         </AnimatePresence>
       </div>

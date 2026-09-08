@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type { BrowserCommand, BrowserProfileEdit, BrowserSession, BrowserStart, BrowserStatus } from '../shared/browser'
 import type {
   FaceLibrary,
   AuxiliaryPage,
@@ -301,6 +302,12 @@ const marvi = {
   openMaintenanceTerminal: (action: MaintenanceAction): Promise<boolean> =>
     ipcRenderer.invoke('marvi:open-maintenance-terminal', action),
   getSchedules: (): Promise<SchedulePage | null> => ipcRenderer.invoke('marvi:get-schedules'),
+  getBrowser: (): Promise<BrowserStatus> => ipcRenderer.invoke('marvi:get-browser'),
+  startBrowser: (body: BrowserStart): Promise<BrowserSession> => ipcRenderer.invoke('marvi:start-browser', body),
+  browserControl: (id: string, revision: number, command: BrowserCommand): Promise<BrowserSession> =>
+    ipcRenderer.invoke('marvi:browser-control', id, revision, command),
+  browserProfile: (body: BrowserProfileEdit): Promise<unknown> => ipcRenderer.invoke('marvi:browser-profile', body),
+  browserSaveDownload: (id: string, artifact: string, destination: string): Promise<unknown> => ipcRenderer.invoke('marvi:browser-save-download', id, artifact, destination),
   addSchedule: (body: {
     name: string
     when: string

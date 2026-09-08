@@ -1525,7 +1525,7 @@ function startApp(): void {
       try {
         const response = await fetch(`${gateway()}/confirmations/${encodeURIComponent(token)}`, {
           method: 'POST',
-          headers: { 'content-type': 'application/json' },
+          headers: { 'content-type': 'application/json', ...localHeaders() },
           body: JSON.stringify({ decision, arguments: pending.arguments }),
           signal: AbortSignal.timeout(10_000)
         })
@@ -1985,6 +1985,28 @@ function startApp(): void {
     })
 
     ipcMain.handle('marvi:get-schedules', () => gatewayJson('/schedules'))
+    const browserRequest = async (path: string, body?: unknown): Promise<unknown> => {
+      const response = await fetch(`${gateway()}/browser${path}`, {
+        method: body === undefined ? 'GET' : 'POST',
+        headers: { 'Content-Type': 'application/json', ...localHeaders() },
+        body: body === undefined ? undefined : JSON.stringify(body),
+        signal: AbortSignal.timeout(65_000)
+      })
+      if (!response.ok) throw await gatewayFailure(response, 'Browser request failed')
+      return response.json()
+    }
+    ipcMain.handle('marvi:get-browser', () => browserRequest(''))
+    ipcMain.handle('marvi:start-browser', (_event, body) => browserRequest('/start', body))
+    ipcMain.handle('marvi:browser-profile', (_event, body) => browserRequest('/profiles', body))
+    ipcMain.handle('marvi:browser-save-download', (_event, id, artifact, destination) => {
+      if (typeof id !== 'string' || !/^[a-f0-9]{32}$/.test(id)) throw new Error('Invalid browser session')
+      return browserRequest(`/${id}/download`, { artifact, destination })
+    })
+    ipcMain.handle('marvi:browser-control', (_event, id, revision, command) => {
+      if (typeof id !== 'string' || !/^[a-f0-9]{32}$/.test(id)) throw new Error('Invalid browser session')
+      if (!['pause', 'private', 'resume', 'stop', 'show', 'close'].includes(command)) throw new Error('Invalid browser command')
+      return browserRequest(`/${id}/control`, { revision, command })
+    })
     ipcMain.handle('marvi:add-schedule', (_event, body) =>
       gatewayJson('/schedules', {
         method: 'POST',
