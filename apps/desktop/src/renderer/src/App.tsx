@@ -6722,22 +6722,26 @@ function IslandSurface(): React.JSX.Element {
                 : { duration: ISLAND_ENTER_SECONDS, ease: [0.22, 1, 0.36, 1] }
             }
           >
-            {browserVisible && browserSession ? <BrowserIsland session={browserSession} /> : <DynamicIsland
-              confirmationPending={resolvingToken === voice.confirmation?.token}
-              expanded={expanded}
-              onConfirmationDecision={async (decision) => {
-                if (!voice.confirmation || resolvingToken === voice.confirmation.token) return
-                const token = voice.confirmation.token
-                setResolvingToken(token)
-                try {
-                  const next = await window.marvi?.resolveConfirmation(token, decision)
-                  if (next) applyRuntimeState(next)
-                } finally {
-                  setResolvingToken(null)
-                }
-              }}
-              state={islandState}
-            />}
+            {browserVisible && browserSession ? (
+              <BrowserIsland session={browserSession} />
+            ) : (
+              <DynamicIsland
+                confirmationPending={resolvingToken === voice.confirmation?.token}
+                expanded={expanded}
+                onConfirmationDecision={async (decision) => {
+                  if (!voice.confirmation || resolvingToken === voice.confirmation.token) return
+                  const token = voice.confirmation.token
+                  setResolvingToken(token)
+                  try {
+                    const next = await window.marvi?.resolveConfirmation(token, decision)
+                    if (next) applyRuntimeState(next)
+                  } finally {
+                    setResolvingToken(null)
+                  }
+                }}
+                state={islandState}
+              />
+            )}
           </motion.div>
         </AnimatePresence>
       </div>

@@ -14139,3 +14139,63 @@ html[data-appearance='claude-code-dark'] .control-row {
   font-size: 10.5px;
   color: var(--ui-text-secondary);
 }
+
+/* ===== The browser, beside the conversation =====
+   It used to be a page in the sidebar, and opening one navigated the whole
+   window away from whatever you were doing. You are talking to her, she opens
+   a page, and the conversation disappears. It is a pane now. */
+
+.page-scroll.has-browser {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 44%);
+  gap: 0;
+  align-items: stretch;
+  overflow: hidden;
+}
+
+.page-scroll.has-browser > :first-child {
+  min-width: 0;
+  overflow-y: auto;
+}
+
+.browser-pane {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-left: 1px solid var(--ui-stroke-secondary);
+  background: var(--ui-surface);
+  overflow-y: auto;
+}
+
+.browser-close {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  z-index: 2;
+  padding: 4px 10px;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 7px;
+  background: var(--ui-surface);
+  color: var(--ui-text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.browser-close:hover {
+  color: var(--ui-text-primary);
+  background: var(--ui-stroke-tertiary);
+}
+
+/* Narrow windows stack rather than squeezing both into nothing. */
+@media (max-width: 1100px) {
+  .page-scroll.has-browser {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(240px, 50%);
+  }
+
+  .browser-pane {
+    border-left: 0;
+    border-top: 1px solid var(--ui-stroke-secondary);
+  }
+}
