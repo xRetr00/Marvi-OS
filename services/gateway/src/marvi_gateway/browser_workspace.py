@@ -242,6 +242,22 @@ class BrowserWorkspace:
             #
             # Handing back the session it would have had to go and find is the
             # same outcome with none of the detour.
+            # One browser per profile, and the refusal says which one.
+            #
+            # The rule is real: a persistent profile is a directory on disk and
+            # a second context on the same directory is how a profile gets
+            # corrupted. `test_persistent_profile_actual_actions_and_isolation`
+            # asserts it, and it is right to.
+            #
+            # What was wrong was the message. "This profile already has a
+            # browser. Select its existing session." is true and unusable: the
+            # model has just been told a session exists and not which one, so
+            # it goes looking -- and in a real turn it spent its remaining tool
+            # steps doing exactly that, then wrote a tool call as prose when
+            # the budget ran out.
+            #
+            # The id costs nothing to include and turns a dead end into the
+            # next call.
             if existing := next(
                 (
                     one
@@ -251,7 +267,11 @@ class BrowserWorkspace:
                 ),
                 None,
             ):
-                return self._public(existing)
+                raise ValueError(
+                    "This profile already has a browser: session "
+                    f"{existing['id']} ({existing['state']}). Use it, or close "
+                    "it first."
+                )
             sid = uuid4().hex
             session = {
                 "id": sid,
