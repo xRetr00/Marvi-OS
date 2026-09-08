@@ -25,6 +25,14 @@ class BrowserHostRegistration(BaseModel):
     token: str
 
 
+class BrowserUIAction(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    revision: int = Field(ge=0)
+    action: Literal["navigate", "new_tab", "close_tab", "back", "reload"]
+    arguments: dict = Field(default_factory=dict)
+    action_id: str = Field(min_length=1, max_length=64)
+
+
 class BrowserControl(BaseModel):
     model_config = ConfigDict(extra="forbid")
     revision: int = Field(ge=0)
@@ -86,6 +94,11 @@ def browser_router(get_service, audit, activate=lambda: None) -> APIRouter:
             {"session_id": session_id, "command": body.command},
         )
         return await call(get_service().control, session_id, body.revision, body.command)
+
+    @router.post("/{session_id}/action")
+    async def action(session_id: str, body: BrowserUIAction):
+        audit("browser_control", "browser_navigation", {"session_id": session_id, "action": body.action})
+        return await call(get_service().action, session_id, body.revision, body.action, body.arguments, body.action_id)
 
     @router.post("/{session_id}/download")
     async def export(session_id: str, body: ExportDownload):

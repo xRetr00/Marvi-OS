@@ -1,4 +1,5 @@
 import { execFile, spawn } from 'node:child_process'
+import { BrowserHost } from './browser-host'
 import { randomBytes } from 'node:crypto'
 import { promisify } from 'node:util'
 
@@ -104,6 +105,11 @@ import type {
 } from '../shared/runtime'
 
 let mainWindow: BrowserWindow | null = null
+let browserHost: BrowserHost | null = null
+let browserHostPoll: ReturnType<typeof setInterval> | null = null
+// The browser must paint when covered by another window, for bounded agent actions.
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion')
+app.commandLine.appendSwitch('disable-quic')
 let islandWindow: BrowserWindow | null = null
 let petHost: NativePetHost | null = null
 let petBounds: RectangleLike | null = null
@@ -669,6 +675,7 @@ function startVoiceStack(): void {
     // never written to disk. See marvi_gateway/localauth.py.
     MARVI_LOCAL_TOKEN: localToken,
     MARVI_HOME: stateDir(),
+    MARVI_BROWSER_HOST_REQUIRED: '1',
     MARVI_LOG_DIR: logsDir(),
     // So a child can notice this process going away and stop on its own.
     //
@@ -1333,6 +1340,23 @@ if (!app.requestSingleInstanceLock()) {
 function startApp(): void {
   app.whenReady().then(() => {
     app.setAppUserModelId('ai.neuretro.marvi-os')
+    browserHost = new BrowserHost(join(stateDir(), 'browser'), () => {
+      showMainWindow()
+      mainWindow?.webContents.send('marvi:browser-reveal')
+    })
+    void browserHost.start().then(() => {
+      const register = async (): Promise<void> => {
+        try {
+          await fetch(`${gateway()}/browser/host`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json', ...localHeaders() },
+            body: JSON.stringify({ endpoint: browserHost?.endpoint, token: browserHost?.token }),
+            signal: AbortSignal.timeout(3000)
+          })
+        } catch { /* Gateway may still be starting. */ }
+      }
+      void register()
+      browserHostPoll = setInterval(() => { void register() }, 3000)
+    }).catch(() => desktop.warn('Embedded browser host could not start'))
     // `marvi update` launches the packaged executable with this private flag.
     // Hand off before starting services or creating windows when Marvi was
     // closed; an existing instance reaches the branch above instead.
@@ -1996,6 +2020,15 @@ function startApp(): void {
       return response.json()
     }
     ipcMain.handle('marvi:get-browser', () => browserRequest(''))
+    ipcMain.handle('marvi:place-browser', (event, placement) => {
+      if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error('Invalid browser caller')
+      browserHost?.place(mainWindow, placement)
+    })
+    ipcMain.handle('marvi:browser-action', (_event, id, revision, action, arguments_) => {
+      if (typeof id !== 'string' || !/^[a-f0-9]{32}$/.test(id)) throw new Error('Invalid session')
+      if (!['navigate', 'new_tab', 'close_tab', 'back', 'reload'].includes(action)) throw new Error('Invalid browser action')
+      return browserRequest(`/${id}/action`, { revision, action, arguments: arguments_, action_id: randomBytes(16).toString('hex') })
+    })
     ipcMain.handle('marvi:start-browser', (_event, body) => browserRequest('/start', body))
     ipcMain.handle('marvi:browser-profile', (_event, body) => browserRequest('/profiles', body))
     ipcMain.handle('marvi:browser-save-download', (_event, id, artifact, destination) => {
@@ -3392,6 +3425,9 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  if (browserHostPoll) clearInterval(browserHostPoll)
+  browserHostPoll = null
+  void browserHost?.close()
   isQuitting = true
   if (gatewayPoll) clearInterval(gatewayPoll)
   gatewayPoll = null

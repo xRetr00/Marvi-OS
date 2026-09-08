@@ -6,8 +6,14 @@ export interface BrowserSession {
   revision: number
   state: string
   detail: string
-  tabs: { id: string; url: string }[]
+  tabs: { id: string; url: string; target?: string }[]
+  host?: 'embedded' | 'native'
   download?: { artifact: string; bytes: number; sha256: string }
+}
+export interface BrowserPlacement {
+  id: string
+  target?: string
+  bounds: { x: number; y: number; width: number; height: number }
 }
 export interface BrowserStatus {
   available: boolean

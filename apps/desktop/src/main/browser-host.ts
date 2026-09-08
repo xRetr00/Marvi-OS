@@ -17,6 +17,7 @@ type Workspace = {
   id: string; profile: string; model: BrowserModel; guests: Map<number, Guest>
   socket?: WebSocket; downloads: Map<string, DownloadItem>; directory: string
   proxy: Proxy; attached: boolean; private: boolean
+  rawSessions: Map<string, Guest>
 }
 
 const identity = (value: unknown): value is string => typeof value === 'string' && /^(default|[a-f0-9]{32})$/.test(value)
@@ -108,7 +109,7 @@ export class BrowserHost {
     mkdirSync(directory, { recursive: true })
     const workspace: Workspace = {
       id, profile, proxy, directory, guests: new Map(), downloads: new Map(),
-      attached: false, private: false,
+      attached: false, private: false, rawSessions: new Map(),
       model: new BrowserModel(async (method, args) => {
         if (method === 'chrome.tabs.create') {
           const guest = await this.createGuest(workspace)
@@ -178,6 +179,7 @@ export class BrowserHost {
       disableDialogs: false
     } })
     const contents = view.webContents
+    contents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp')
     const guest: Guest = { view, target: '' }
     workspace.guests.set(contents.id, guest)
     contents.on('login', (event, _details, auth, callback) => {
@@ -220,6 +222,22 @@ export class BrowserHost {
     if (method === 'Target.createTarget') return workspace.model.createTarget(params.url)
     if (method === 'Target.closeTarget') return workspace.model.closeTarget(params.targetId)
     if (method === 'Target.getTargetInfo') return { targetInfo: workspace.model.getTargetInfo(sessionId) ?? { targetId: workspace.id, type: 'browser', attached: true } }
+    if (method === 'Target.attachToTarget' && !sessionId) {
+      const guest = [...workspace.guests.values()].find(g => g.target === params.targetId)
+      if (!guest) throw new Error('Unknown tab')
+      const result = await guest.view.webContents.debugger.sendCommand(method, params)
+      workspace.rawSessions.set(result.sessionId, guest)
+      return result
+    }
+    if (method === 'Target.detachFromTarget' && !sessionId) {
+      const guest = workspace.rawSessions.get(params.sessionId)
+      if (!guest) throw new Error('Unknown session')
+      workspace.rawSessions.delete(params.sessionId)
+      return guest.view.webContents.debugger.sendCommand(method, params)
+    }
+    if (sessionId && workspace.rawSessions.has(sessionId)) {
+      return workspace.rawSessions.get(sessionId)!.view.webContents.debugger.sendCommand(method!, params, sessionId)
+    }
     // Never forward browser-wide Target commands into Electron's real browser.
     if (method?.startsWith('Target.') && !['Target.setAutoAttach', 'Target.detachFromTarget'].includes(method)) throw new Error('Unsupported target command')
     if (method === 'Browser.getWindowForTarget') return { windowId: 1, bounds: { left: 0, top: 0, width: 1000, height: 700, windowState: 'normal' } }
