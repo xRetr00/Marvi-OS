@@ -1,0 +1,13 @@
+.browser-form, .browser-actions { display:flex; flex-wrap:wrap; gap:12px; align-items:end; }
+.browser-form label { display:grid; gap:8px; min-width:180px; flex:1; font-size:12px; }
+.browser-form input, .browser-form select { width:100%; min-height:36px; padding:8px 10px; border:1px solid var(--border, #333); background:var(--background, #111); color:inherit; font:inherit; }
+.browser-actions button, .browser-form button, .browser-remove button { min-height:36px; padding:8px 12px; border:1px solid var(--border, #333); background:transparent; color:inherit; font:inherit; cursor:pointer; }
+.browser-actions button:disabled, .browser-form button:disabled { opacity:.4; cursor:default; }
+.browser-note, .browser-session p { font-size:12px; opacity:.75; line-height:1.6; }
+.browser-private { border:1px solid var(--accent, #147ec1); padding:16px; margin-bottom:16px; }
+.browser-private p { margin-bottom:0; font-size:12px; line-height:1.6; }
+.browser-state { text-transform:uppercase; font-size:11px; letter-spacing:.1em; }
+.browser-tabs { list-style:none; padding:0; font-size:12px; overflow-wrap:anywhere; }
+.browser-tabs li { padding:8px 0; border-bottom:1px solid var(--border, #333); }
+.browser-error { color:var(--danger, #d85b5b); overflow-wrap:anywhere; }
+.browser-remove { margin-top:16px; font-size:12px; }
