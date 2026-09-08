@@ -112,6 +112,7 @@ export interface MarviDesktopApi {
   getInitiative: () => Promise<InitiativeStatus | null>
   getResources: () => Promise<ResourceState | null>
   holdResources: (on: boolean) => Promise<ResourceState | null>
+  openExternal: (url: string) => Promise<boolean>
   getPersonas: () => Promise<PersonaChoice | null>
   choosePersona: (name: string) => Promise<PersonaChoice | null>
   getResourceHistory: (limit?: number) => Promise<ResourceLedger | null>

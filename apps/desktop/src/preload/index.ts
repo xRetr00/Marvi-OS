@@ -167,6 +167,8 @@ const marvi = {
   getResources: (): Promise<ResourceState | null> => ipcRenderer.invoke('marvi:get-resources'),
   holdResources: (on: boolean): Promise<ResourceState | null> =>
     ipcRenderer.invoke('marvi:hold-resources', on),
+  openExternal: (url: string): Promise<boolean> =>
+    ipcRenderer.invoke('marvi:open-external', url),
   getPersonas: (): Promise<PersonaChoice | null> =>
     ipcRenderer.invoke('marvi:get-personas'),
   choosePersona: (name: string): Promise<PersonaChoice | null> =>

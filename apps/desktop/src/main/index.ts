@@ -1637,6 +1637,20 @@ function startApp(): void {
     // performance counter -- about three seconds -- so it is a button.
     // Who she is being. See `personas.py`: the old SOUL.md is now one option
     // among several rather than the only character there could be.
+    // Hand a page to the user's own browser. Validated, because "open this
+    // URL" from the renderer is a capability and not a convenience: without
+    // the scheme check it opens `file://` and anything else the OS handles.
+    ipcMain.handle('marvi:open-external', async (_event, url: string) => {
+      try {
+        const parsed = new URL(String(url))
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false
+        await shell.openExternal(parsed.toString())
+        return true
+      } catch {
+        return false
+      }
+    })
+
     ipcMain.handle('marvi:get-personas', async () => {
       try {
         const response = await fetch(`${gateway()}/personas`, {
