@@ -67,3 +67,42 @@ def test_it_tells_her_not_to_recite_it() -> None:
     # The failure this shape guards against: reading the context aloud instead
     # of using it.
     assert "never recite it" in describe(ROOM, None)
+
+
+def test_the_context_blocks_are_ordered_static_first() -> None:
+    """The order was whatever the dict happened to be, and it cost twice.
+
+    These blocks are appended after the agent's instructions, so the last one
+    sits closest to the conversation. That slot went to the skills catalogue --
+    1,788 characters of names that do not change between turns -- while "what
+    is happening right now" sat in the middle, where long-context models
+    retrieve worst.
+
+    And a cache hit is a matching prefix, so a volatile block early in the list
+    invalidates every static block after it: the room light changing re-sent
+    two kilobytes of unchanged skills and soul.
+    """
+    from marvi_gateway.app import ordered_context_blocks
+
+    # Deliberately given in the old, accidental order.
+    given = {
+        "situation": "where you live",
+        "soul": "# Marvi",
+        "user": "about the person",
+        "standing": "who you are talking to",
+        "world": "what is happening right now",
+        "accounts": "accounts connected",
+        "skills": "# Skills you can use",
+    }
+    out = ordered_context_blocks(given)
+
+    assert out[0] == "# Skills you can use", "the most static block goes first"
+    assert out[-1] == "what is happening right now", "the freshest goes nearest the turn"
+    assert out.index("# Skills you can use") < out.index("what is happening right now")
+
+    # Empty blocks are dropped rather than sent as blank lines.
+    assert ordered_context_blocks({"world": "", "soul": "# Marvi"}) == ["# Marvi"]
+
+    # A block nobody ranked still travels, after the ranked ones.
+    out = ordered_context_blocks({"soul": "# Marvi", "brand_new": "something else"})
+    assert out == ["# Marvi", "something else"]

@@ -152,6 +152,11 @@ def register_screen_tools(registry: Any, client: Any) -> None:
             "screen": f"{size[0]}x{size[1]}",
         }
 
+    def guarded_read_screen(question: str = "") -> dict[str, Any]:
+        from .browser_privacy import capture_barrier
+        with capture_barrier.observe():
+            return read_screen(question)
+
     registry.register(
         ToolSpec(
             name="read_screen",
@@ -163,7 +168,7 @@ def register_screen_tools(registry: Any, client: Any) -> None:
             # friction on the most natural thing this tool is for. It is
             # audited like every other call.
             sensitive=False,
-            handler=read_screen,
+            handler=guarded_read_screen,
             describes={
                 "question": "What you want to know about what is on screen -- "
                 "'what does this error say', 'what is the total on this "
