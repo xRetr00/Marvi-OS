@@ -1791,9 +1791,51 @@ TOOL_SEARCH_NOTE = (
 
 #: How long to wait for sound to become words before saying so.
 #:
-#: Longer than a slow final transcript, shorter than the silence a person reads
-#: as being ignored.
-TRANSCRIPTION_TIMEOUT = 2.0
+#: Six seconds, from measuring it rather than guessing. Two was the guess, and
+#: over 129 real turns it was under the *mean*:
+#:
+#:     p50   1,379ms      p90   5,185ms
+#:     p75   1,926ms      p95   6,265ms      max  24,503ms
+#:
+#:     32 of 129 turns (24%) took longer than the 2,000ms timeout
+#:      7 of 129 turns  (5%) take longer than 6,000ms
+#:
+#: So a quarter of turns were being called missing while the transcript was
+#: still on its way -- eight of those in one session, each one an apology for
+#: a sentence she had already heard.
+#:
+#: Six is above p90 and just under p95: it still fires on the genuinely stuck
+#: turn and no longer fires on a merely slow one. The cost of the longer wait
+#: is bounded by the guard in `observability`, which does not apologise at all
+#: while a partial is in hand -- so this only delays the apology on turns where
+#: nothing whatsoever arrived, which is the case that deserves the patience.
+TRANSCRIPTION_TIMEOUT = 6.0
+
+#: How many tool calls she may chain in one turn.
+#:
+#: LiveKit's default is three and we never set it, which is a chatbot's budget
+#: given to something that is not a chatbot. A single browser task spends it
+#: before it has done anything:
+#:
+#:     tools: browser_open
+#:     tools: browser_status
+#:     tools: browser_control        <- three, and the budget is gone
+#:     maximum number of function calls steps reached,
+#:         generating final response with tool_choice='none'
+#:     tts: the model wrote a tool call as text instead of calling one
+#:
+#: That last line is what the ceiling actually buys: forced to answer with no
+#: tools left, the model wrote `<tool_call>browser_status</tool_call>` as
+#: prose, the markup stripper removed it, and TTS was handed an empty string.
+#: The user was then told her voice engine had restarted. None of that is a
+#: browser bug; all of it is three.
+#:
+#: Not unlimited, though, and the reason is the medium rather than the model:
+#: a chain that never ends is a person sitting in silence with no way to
+#: interrupt it, because she is not speaking and there is nothing to barge in
+#: on. Twenty-four is roughly three times the longest real chain observed and
+#: still bounded.
+TOOL_STEPS = 24
 
 #: What she says when the recogniser heard something and produced nothing.
 #: Short, and it does not apologise twice or explain the pipeline.
@@ -1867,6 +1909,7 @@ def build_session(proc: JobProcess | None = None) -> tuple[AgentSession, Callabl
         # and shorter than the silence a person reads as being ignored. See
         # `_lost_the_words` for what happens when it fires.
         transcription_timeout=TRANSCRIPTION_TIMEOUT,
+        max_tool_steps=TOOL_STEPS,
         turn_handling=TurnHandlingOptions(
             turn_detection=_turn_detection(),
             # LiveKit's own defaults for the delay, after a conversation where
