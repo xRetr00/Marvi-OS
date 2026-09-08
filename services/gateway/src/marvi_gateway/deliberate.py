@@ -179,7 +179,14 @@ class Deliberator:
         worth_it, sentence = decision
         if not worth_it:
             # The model may always choose quiet; that is the whole point.
-            return "silent", "not worth interrupting", tokens
+            # Not "not worth interrupting".
+            #
+            # It was the commonest line on the Decisions page and it reads as a
+            # verdict on the user rather than on the moment -- and it was
+            # sometimes spoken aloud, because an override kept the model's
+            # reason for declining and handed it to the voice. Silence is the
+            # ordinary answer here; it does not need a dismissive name.
+            return "silent", "nothing that needed saying", tokens
         return verdict.surface, sentence[:300], tokens
 
 

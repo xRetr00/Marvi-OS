@@ -260,3 +260,53 @@ def test_an_unrecognised_face_reaches_marvi() -> None:
     because it looks so much like the one that was there.
     """
     assert is_notable({"type": "vision_visitor_seen", "sighting_id": 7})
+
+
+def test_a_steady_condition_stops_repeating_across_drains() -> None:
+    """The collapser only ever worked inside one batch.
+
+    Batches are small, so a condition that does not change emits one event per
+    drain forever -- each a run of length one, each kept. `vision_sleep_state`
+    was 626 of the mind's events and 94% of everything the room ever sent, at
+    roughly a thousand log lines an hour saying "Awake" about somebody who had
+    not moved.
+    """
+    from marvi_gateway.room import _only_when_it_changed, forget_bursts
+
+    forget_bursts()
+    awake = {"type": "vision_sleep_state", "sleep_state": "awake"}
+    asleep = {"type": "vision_sleep_state", "sleep_state": "asleep"}
+
+    assert len(_only_when_it_changed([dict(awake)])) == 1
+    assert _only_when_it_changed([dict(awake)]) == [], "the same state is not news twice"
+    assert _only_when_it_changed([dict(awake)]) == []
+    assert len(_only_when_it_changed([dict(asleep)])) == 1, "a real change still passes"
+    assert len(_only_when_it_changed([dict(awake)])) == 1, "and back again"
+
+
+def test_it_only_touches_the_events_it_is_told_about() -> None:
+    """Everything not in `BURSTY_EVENTS` passes untouched, however repetitive
+    it looks. Two arrivals at the same door are two arrivals."""
+    from marvi_gateway.room import _only_when_it_changed, forget_bursts
+
+    forget_bursts()
+    entry = {"type": "room_entry", "who": "owner"}
+
+    assert len(_only_when_it_changed([dict(entry)])) == 1
+    assert len(_only_when_it_changed([dict(entry)])) == 1
+
+
+def test_the_collapser_still_keeps_the_moment_a_run_began() -> None:
+    """The two rules disagree about which event of a run survives, which is why
+    they are separate functions. Folding the memory into the collapser made it
+    keep the newest -- the opposite of what it exists for."""
+    from marvi_gateway.room import _collapse_bursts
+
+    # Newest first, the order the caller wants.
+    run = [
+        {"type": "vision_gesture", "gesture": "wave", "at": "third"},
+        {"type": "vision_gesture", "gesture": "wave", "at": "second"},
+        {"type": "vision_gesture", "gesture": "wave", "at": "first"},
+    ]
+
+    assert [one["at"] for one in _collapse_bursts(run)] == ["first"]

@@ -62,7 +62,7 @@ WAITING_FOR: dict[str, str] = {
     "conversation-active": "we were talking",
     "cooldown": "I had just said something",
     "daily-budget": "I had run out of thinking for the day",
-    "unread": "I could not read it at the time",
+    "unread": "I had not read it yet",
     # A cold voice while a game has the machine. Loading 438MB of speech model
     # to say "the card is yours" is the one thing guaranteed to ruin what she
     # was standing aside for.

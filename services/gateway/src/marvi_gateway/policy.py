@@ -310,6 +310,16 @@ def _quiet_now(settings: InitiativeSettings, now: datetime) -> bool:
     return hour >= start or hour < end if start > end else start <= hour < end
 
 
+#: What each ceiling means, for the person reading the Decisions list.
+CEILING_SAID: dict[str, str] = {
+    "speak": "worth saying out loud",
+    "island": "worth showing, not saying",
+    "activity": "worth recording only",
+    "remember": "kept in memory",
+    "silent": "not worth recording",
+}
+
+
 def _cap(surface: str, ceiling: str) -> str:
     """Never louder than the ceiling for this kind of event."""
     return surface if SURFACES.index(surface) <= SURFACES.index(ceiling) else ceiling
@@ -434,7 +444,13 @@ def evaluate(
         # and try again once a model is available. A rate limit is the most
         # temporary reason of all to not say something.
         return Verdict(True, surface, "unread", "no summary yet; a model was unavailable")
-    return Verdict(True, surface, "allowed", f"ceiling {ceiling}")
+    # In words, because this reaches a page a person reads.
+    #
+    # It said "ceiling speak" and "ceiling silent", which is the name of an
+    # internal table and a variable, shown to somebody who has never seen
+    # either. The Decisions list is meant to answer "why did she not say
+    # anything", and "ceiling silent" does not answer it.
+    return Verdict(True, surface, "allowed", CEILING_SAID.get(ceiling, f"can {ceiling}"))
 
 
 def day_start(now: datetime) -> datetime:

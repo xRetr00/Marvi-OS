@@ -284,6 +284,51 @@ def read_sleep_state(sidecar: RoomSidecar) -> tuple[str | None, bool]:
     )
 
 
+#: Nothing has been seen yet, distinct from a field whose value really is None.
+_UNSEEN = object()
+
+#: The last value let through for each bursty field, across drains.
+_last_burst: dict[str, Any] = {}
+
+
+def forget_bursts() -> None:
+    """For tests, and for a room that has just reconnected."""
+    _last_burst.clear()
+
+
+def _only_when_it_changed(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Drop a bursty event whose value has not moved since the last drain.
+
+    `_collapse_bursts` collapses a run *within one batch*, and the batches are
+    small: a steady condition emits one event per drain forever, each one a run
+    of length one, each one kept. `vision_sleep_state` was 626 of the mind's
+    events and 94% of everything the room ever sent -- about a thousand log
+    lines an hour saying "Awake" about somebody who had not moved.
+
+    Separate from the collapser rather than folded into it, because the two
+    rules disagree about which event of a run to keep. The collapser keeps the
+    *oldest* -- the moment a gesture started. This keeps whatever survived
+    that, and only if its value differs from the last one let through. Folding
+    them together made the collapser stateful and it started keeping the
+    newest, which is the opposite of what it exists for.
+
+    Same rule `machine` uses for a disk that has been full since Tuesday:
+    report the crossing, not the condition.
+    """
+    kept = []
+    for event in events:
+        field = BURSTY_EVENTS.get(str(event.get("type", "")))
+        if field is None:
+            kept.append(event)
+            continue
+        value = event.get(field)
+        if _last_burst.get(field, _UNSEEN) == value:
+            continue
+        _last_burst[field] = value
+        kept.append(event)
+    return kept
+
+
 def _collapse_bursts(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Keep one event per run of a repeating condition.
 
@@ -472,7 +517,7 @@ class RoomSidecar:
             if notable_only and not is_notable(event):
                 continue
             events.append({**event, "summary": summarize_event(event)})
-        return _collapse_bursts(events)
+        return _only_when_it_changed(_collapse_bursts(events))
 
     def latest_notable_event(self) -> dict[str, Any] | None:
         found = self.events(limit=1)

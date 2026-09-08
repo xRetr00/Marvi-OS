@@ -131,7 +131,10 @@ def test_something_unread_waits_for_a_model_not_a_moment(room) -> None:
     unread["payload"]["body"] = "Your mailboxes will be permanently deleted today."
 
     assert room.hold(unread, "unread") is True
-    assert [w["because"] for w in room.waiting()] == ["I could not read it at the time"]
+    # The wording is the user-facing half and it changed: "I could not read it
+    # at the time" reads as an excuse for a failure. It is not one -- the item
+    # is held precisely so nothing is lost -- so it says what happened instead.
+    assert [w["because"] for w in room.waiting()] == ["I had not read it yet"]
 
 
 def test_the_policy_calls_unread_mail_unread() -> None:
