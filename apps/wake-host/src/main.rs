@@ -32,6 +32,7 @@ use marvi_wake_host::state::{self, State, HEARTBEAT};
 const DEBOUNCE: Duration = Duration::from_secs(4);
 const DEFAULT_THRESHOLD: f32 = 0.5;
 const AUTO_RESTART_SETTING: &str = "MARVI_WAKE_AUTO_RESTART";
+const THRESHOLD_SETTING: &str = "MARVI_WAKE_THRESHOLD";
 
 fn auto_restart_enabled() -> bool {
     !matches!(
@@ -150,10 +151,20 @@ fn score_file(path: &str) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// How sure the detector has to be before this counts as her name.
+///
+/// Read through `settings::get`, not `std::env::var`, and that is a fix rather
+/// than a tidy-up. The microphone already went through `settings::get` -- env
+/// first, then the settings file -- while this looked only at the environment.
+/// So a threshold changed on the settings page was written to the file, read
+/// back by the page, shown as the current value, and silently ignored by the
+/// next listener to start: it saw nothing in its environment and fell back to
+/// `DEFAULT_THRESHOLD`. Two settings on one page, one of which worked.
 fn threshold() -> f32 {
-    std::env::var("MARVI_WAKE_THRESHOLD")
+    marvi_wake_host::settings::get(THRESHOLD_SETTING)
+        .trim()
+        .parse::<f32>()
         .ok()
-        .and_then(|value| value.trim().parse::<f32>().ok())
         .filter(|value| *value > 0.0 && *value <= 1.0)
         .unwrap_or(DEFAULT_THRESHOLD)
 }
