@@ -122,3 +122,71 @@ tests hold the line:
 - a constant that has moved must leave the list, so the list cannot go stale.
 
 The list is allowed to get shorter and never longer.
+
+## How tools reach the model
+
+Reviewed against Claude Code, because the shapes differ and the difference is
+the largest single cost in a Marvi request.
+
+### Claude Code: two tiers
+
+Core tools — Read, Edit, Bash, Grep, Glob and a handful more — carry full
+JSONSchema at the top of the prompt. **Everything else is deferred: the name
+appears in a `<system-reminder>` list and the schema does not.** Calling a
+deferred tool without fetching it fails with `InputValidationError`. `ToolSearch`
+loads schemas on demand, by exact name (`select:Read,Edit`) or by keyword.
+
+Three details worth copying:
+
+- The deferred **names are always visible.** A model cannot decide to look up a
+  thing whose existence it has no reason to suspect.
+- The failure mode is **named and explained** in the tool's own description, so
+  a model that calls a deferred tool knows what happened and what to do.
+- MCP servers still connecting get their own reminder saying *do not report the
+  capability as unavailable while they are connecting.*
+
+### Marvi: everything, every turn
+
+All 61 tools ship with full schemas on every request. Deferral exists —
+`MARVI_DEFER_TOOLS`, `MARVI_CORE_TOOLS`, `tool_search`, and a seven-tool
+`DEFAULT_CORE` — and is **off by default**, because it was measured and
+reverted. Over 123 real turns with it on: seven distinct tools called,
+`tool_search` called once, and twenty-three flat refusals of things Marvi can
+do — "I can't open websites in a browser right now", "I don't have access to
+your calendar" — each phrased as a fact about herself, none true.
+
+That failure has since been fixed, and the fix has not been re-measured
+against deferral. `catalogue_index()` now puts **every tool name** in the
+instructions, grouped by area, schemas excluded. That is exactly the missing
+piece: names are what turn "I can't" into knowing there is something to look
+up. Marvi now has both halves of Claude Code's arrangement and has never run
+them together.
+
+### What it costs today
+
+Measured on the current tree, counting name, description and a modest
+per-argument schema:
+
+| | chars | ~tokens |
+|---|---|---|
+| every schema, every turn (today) | 23,251 | 5,812 |
+| core schemas + all 61 names | 3,936 | 984 |
+| **difference** | **19,315** | **4,828 per turn** |
+
+Rewriting the descriptions from a 38-character median to 245 was the right
+call — `send_email` saying "Send an email" is why a model has to guess whether
+an action can be undone — but it is not free. Descriptions went from 4,678 to
+15,267 characters, about **2,647 extra tokens on every request** for as long as
+deferral stays off.
+
+### The recommendation
+
+Run the experiment that has never been run: `MARVI_DEFER_TOOLS=on` **with**
+`catalogue_index()` supplying the names. The old measurement condemned
+deferral-without-names, which is a different thing. Watch the number that
+failed before — refusals of capabilities Marvi has — not the token count, which
+will obviously improve.
+
+If it fails again, the fallback is not "send everything": it is to widen
+`DEFAULT_CORE` beyond seven, since the reverting measurement also showed the
+loaded case reaching eighteen distinct tools at 0.1s median latency.
