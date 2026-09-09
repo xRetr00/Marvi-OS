@@ -55,9 +55,21 @@ class ExportDownload(BaseModel):
 def browser_router(get_service, audit, activate=lambda: None) -> APIRouter:
     router = APIRouter(prefix="/browser", dependencies=[Depends(guard)])
 
-    async def call(function, *args):
+    async def call(job: str, *args):
+        """Run one workspace method on a worker thread.
+
+        The method is *looked up* on the thread too. It used to be written as
+        `call(get_service().status)`, which evaluates `get_service()` on the
+        event loop -- and that takes `browser_lock` and, the first time,
+        constructs the whole workspace there. Everything the loop owes anybody
+        else waits behind it.
+        """
+
+        def run():
+            return getattr(get_service(), job)(*args)
+
         try:
-            return await asyncio.to_thread(function, *args)
+            return await asyncio.to_thread(run)
         except TimeoutError as exc:
             raise HTTPException(503, "Browser service is busy. Refresh its state before retrying.") from exc
         except (ValueError, RuntimeError) as exc:
@@ -65,17 +77,17 @@ def browser_router(get_service, audit, activate=lambda: None) -> APIRouter:
 
     @router.get("")
     async def status():
-        return await call(get_service().status)
+        return await call("status")
 
     @router.post("/host")
     async def host(body: BrowserHostRegistration):
-        await call(get_service().register_host, body.endpoint, body.token)
+        await call("register_host", body.endpoint, body.token)
         return {"ok": True}
 
     @router.post("/start")
     async def start(body: StartBrowser):
         audit("browser_control", "browser_start", {"profile_id": body.profile_id})
-        result = await call(get_service().start, body.profile_id, body.url, body.objective)
+        result = await call("start", body.profile_id, body.url, body.objective)
         activate()
         return result
 
@@ -86,7 +98,7 @@ def browser_router(get_service, audit, activate=lambda: None) -> APIRouter:
             "browser_profile",
             {"action": body.action, "profile_id": body.profile_id},
         )
-        return await call(get_service().profile, body.action, body.label, body.profile_id)
+        return await call("profile", body.action, body.label, body.profile_id)
 
     @router.post("/{session_id}/control")
     async def control(session_id: str, body: BrowserControl):
@@ -95,7 +107,7 @@ def browser_router(get_service, audit, activate=lambda: None) -> APIRouter:
             "browser_control",
             {"session_id": session_id, "command": body.command},
         )
-        return await call(get_service().control, session_id, body.revision, body.command)
+        return await call("control", session_id, body.revision, body.command)
 
     @router.post("/{session_id}/action")
     async def action(session_id: str, body: BrowserUIAction):
@@ -105,7 +117,7 @@ def browser_router(get_service, audit, activate=lambda: None) -> APIRouter:
             {"session_id": session_id, "action": body.action},
         )
         return await call(
-            get_service().action,
+            "action",
             session_id,
             body.revision,
             body.action,
@@ -116,7 +128,7 @@ def browser_router(get_service, audit, activate=lambda: None) -> APIRouter:
 
     @router.post("/{session_id}/download")
     async def export(session_id: str, body: ExportDownload):
-        result = await call(get_service().export, session_id, body.artifact, body.destination)
+        result = await call("export", session_id, body.artifact, body.destination)
         audit("browser_control", "browser_save_download", {"session_id": session_id})
         return result
 

@@ -54,12 +54,32 @@ function BrowserViewport({
   const lastTarget = useRef<string | undefined>(undefined)
   const target = session.tabs.find((t) => t.id === tab)?.target ?? session.tabs[0]?.target
   if (target) lastTarget.current = target
+  /* The last rectangle we sent, so an unchanged one is not sent again.
+
+     `place` is wired to a capture-phase `scroll` listener on `window`, which
+     means it runs for every scrolling element anywhere in the app -- the
+     conversation, the activity feed, a menu -- and each run POSTed
+     `/browser/host`. In the retained logs that is 3,980 posts, against 8,445
+     polls of `/browser`, and together they are ~100 requests a minute at
+     roughly 1.7 a second sustained.
+
+     That is a load problem, and it is also a *diagnosis* problem, which is
+     the more expensive half. `condition.doing` is a stack and the watchdog
+     reports the innermost frame, so with a browser request open almost all
+     the time, the loop watcher blamed `/browser` for stalls it had nothing to
+     do with: 3,166 of them, top of the list, well ahead of `/tools/room_health`
+     which is slow on essentially every call. */
+  const sent = useRef('')
   useEffect(() => {
+    let frame = 0
     const place = (): void => {
       if (!area.current) return
       const rect = area.current.getBoundingClientRect()
       const y = Math.max(80, rect.top)
       const height = Math.min(innerHeight - 30, rect.bottom) - y
+      const now = `${Math.round(rect.left)},${Math.round(y)},${Math.round(rect.width)},${Math.round(height)}`
+      if (now === sent.current) return
+      sent.current = now
       void window.marvi
         .placeBrowser(
           height > 0 && rect.width > 0
@@ -77,15 +97,26 @@ function BrowserViewport({
         )
         .catch(() => {})
     }
+    // Coalesced to one frame: a scroll fires these faster than the view can
+    // possibly be moved, and only the last rectangle of a burst is real.
+    const soon = (): void => {
+      if (frame) return
+      frame = requestAnimationFrame(() => {
+        frame = 0
+        place()
+      })
+    }
     place()
-    const observer = new ResizeObserver(place)
+    const observer = new ResizeObserver(soon)
     if (area.current) observer.observe(area.current)
-    window.addEventListener('resize', place)
-    window.addEventListener('scroll', place, true)
+    window.addEventListener('resize', soon)
+    window.addEventListener('scroll', soon, true)
     return () => {
+      if (frame) cancelAnimationFrame(frame)
       observer.disconnect()
-      window.removeEventListener('resize', place)
-      window.removeEventListener('scroll', place, true)
+      window.removeEventListener('resize', soon)
+      window.removeEventListener('scroll', soon, true)
+      sent.current = ''
       void window.marvi.placeBrowser(null).catch(() => {})
     }
   }, [session.id, target])
@@ -224,13 +255,23 @@ export function BrowserPage({ onClose }: { onClose?: () => void } = {}): React.J
       setError('Browser service is unavailable. Check Marvi Gateway.')
     }
   }, [])
+  /* Poll fast only when there is something changing, and not at all when
+     nobody is looking.
+
+     A flat 1.5s poll ran whether or not a browser existed and whether or not
+     the window was on screen, which is 40 requests a minute for the answer
+     "no sessions". `live` here is read from the last status rather than from
+     state, so the interval re-arms at the right pace as soon as one opens. */
+  const active = (status?.sessions ?? []).some((s) => s.state !== 'closed')
   useEffect(() => {
+    if (typeof document !== 'undefined' && document.hidden) return undefined
     void refresh()
     const timer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return
       void refresh()
-    }, 1500)
+    }, active ? 1500 : 10_000)
     return () => clearInterval(timer)
-  }, [refresh])
+  }, [refresh, active])
   const run = async (operation: () => Promise<unknown>): Promise<void> => {
     setBusy(true)
     setError('')
