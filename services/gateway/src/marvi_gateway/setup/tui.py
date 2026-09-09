@@ -198,6 +198,10 @@ def _shown(setting: Setting) -> str:
 
 
 def _ready(capability: Capability) -> bool:
+    if capability.key == "computer-use":
+        from ..computer import binary_path
+        if not binary_path().is_file():
+            return False
     present = [_satisfied(s) for s in capability.settings]
     return any(present) if capability.any_of else all(present)
 
