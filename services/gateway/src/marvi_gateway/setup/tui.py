@@ -66,6 +66,13 @@ class Capability:
 
 CAPABILITIES: tuple[Capability, ...] = (
     Capability(
+        key="computer-use", title="Computer use and app control",
+        why="Lets Marvi inspect and control Windows apps. The Island shows active use; Private input pauses capture.",
+        settings=(Setting("MARVI_COMPUTER_USE", "Enable computer use",
+                          "Install the Computer use (Cua Driver) component first. Restart Marvi after changing this setting.",
+                          boolean=True, default="false"),),
+    ),
+    Capability(
         key="web",
         title="Web search and reading",
         why="Marvi can look things up rather than guessing from training data.",

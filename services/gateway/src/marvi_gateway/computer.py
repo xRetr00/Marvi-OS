@@ -125,7 +125,7 @@ class ComputerUse:
             with capture_barrier.observe():
                 # Keep the admission lease until the actual native command ends.
                 # A client timeout does not imply that a click was cancelled.
-                result = self._loop.submit(dispatch(), timeout=180)
+                result = self._loop.submit(dispatch(), timeout=None)
                 answer = {"is_error": result.is_error, "error_code": result.error_code,
                           "degraded": result.degraded,
                           "observation": wrap_external("computer", result.text).model_dump()}

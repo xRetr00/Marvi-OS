@@ -69,6 +69,7 @@ from .announce import Announcer, announce_enabled, output_devices
 from .browser import browser_enabled
 from .browser_api import browser_router, register_workspace_browser_tools
 from .browser_workspace import BrowserWorkspace
+from .computer import ComputerUse, register_computer_tools
 from .chat import Chat, ChatStore, ChatTurn, schemas_from_registry
 from .clarify import register_clarify_tool
 from .cognition import CognitionHarness
@@ -1373,6 +1374,8 @@ def create_app(
     # The native browser is a supervised descendant of Gateway. Keep its
     # explicit owner for graceful profile flush before Electron's tree cleanup.
     browser_holder = [browser_service]
+    computer_service = ComputerUse(provider_client)
+    register_computer_tools(tool_registry, computer_service)
     browser_lock = threading.Lock()
 
     def get_browser() -> BrowserWorkspace:
@@ -1499,6 +1502,7 @@ def create_app(
             conversation.reset()
             if browser_holder[0] is not None:
                 await anyio.to_thread.run_sync(browser_holder[0].close)
+            await anyio.to_thread.run_sync(computer_service.close)
             if initiative is not None:
                 initiative.stop()
             if account_triggers is not None:
@@ -2019,7 +2023,7 @@ def create_app(
         # Cron gets an isolated, transcript-free agent loop, but it calls the
         # exact provider and audited tool paths used by Chat and Voice.
         def dispatch_for_schedule(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
-            if name.startswith("browser_"):
+            if name.startswith(("browser_", "computer_")):
                 return {"status": "failed", "error": "Visible browser tasks require an interactive user session."}
             return dispatch_for_chat(name, arguments)
 
@@ -3579,7 +3583,7 @@ def create_app(
 
     @app.post("/tools/{name}", response_model=ToolInvocation)
     async def call_tool(name: str, call: ToolCall, http_request: Request) -> ToolInvocation:
-        if name.startswith("browser_"):
+        if name.startswith(("browser_", "computer_")):
             localauth.guard(http_request)
         try:
             spec = tool_registry.get(name)
