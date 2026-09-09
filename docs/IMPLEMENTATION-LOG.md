@@ -1,5 +1,17 @@
 # Implementation Log
 
+## 2026-09-09 — computer use and application control
+
+- Recorded user acceptance of the browser phase and kept its Playwright backend.
+- Integrated Cua Driver 0.24.0 private-worker SDK, pinned Windows installer
+  artifacts, Setup capability, authenticated Gateway controls and Island UI.
+- Added app discovery, launch, inspection, token-targeted input and window
+  control with existing Confirm/YOLO, privacy barrier and redacted audit.
+- Real Windows fixture passed launch, field entry, background click, verified
+  file output, private capture rejection/resume and app close.
+- 35 Gateway/setup/tool tests, four Island tests and 26 voice-bridge tests passed.
+  Native timing and compatibility boundaries: [Phase 15](phases/15-computer-use.md).
+
 ## 2026-09-09 — embedded browser integration and explicit profile imports
 
 - Fixed the host probe by patching Electron to 43.4.1 and disabling Windows

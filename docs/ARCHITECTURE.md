@@ -1,5 +1,12 @@
 # Architecture
 
+Computer use now uses the unchanged Cua Driver 0.24.0 private-worker SDK.
+Gateway owns its lazy connection, tool admission, Confirm/YOLO and audit under
+Electron's supervised process tree. Browser and computer private input share
+capture admission; Stop drains issued work. Structured native observations
+remain untrusted data. The embedded browser retains Playwright. See
+[Phase 15](phases/15-computer-use.md) for contracts and acceptance evidence.
+
 The [Hermes Desktop review](HERMES-DESKTOP-BROWSER-REVIEW.md) revises the primary
 browser host to an Electron main-owned WebContentsView. That host and its narrow
 Gateway adapter are implemented under qualification; the native backend is

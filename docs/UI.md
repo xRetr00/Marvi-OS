@@ -1,5 +1,13 @@
 # UI Contract
 
+Computer use: Dynamic Island reads `Marvi is using the computer` during active
+operations and exposes Stop/Private input. Stop shows stopping until issued
+work drains; private input waits for capture/model delivery to finish before
+acknowledgment. Paused/private states expose Resume. Connection loss shows
+unavailable controls rather than claiming ongoing use. Confirmations retain
+priority. Activity status excludes text, screenshots, window titles and paths.
+Setup TUI installs the Computer use component and enables the capability.
+
 2026-09-08 scope correction: the primary Browser experience must embed the
 agent-controlled guest inside the desktop app using an Electron main-owned
 WebContentsView. The implemented separate Chromium window and control page

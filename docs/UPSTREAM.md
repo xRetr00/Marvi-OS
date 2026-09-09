@@ -1,5 +1,13 @@
 # Upstream Reuse Ledger
 
+## Cua Driver — 2026-09-09
+
+- Source: https://github.com/trycua/cua and https://cua.ai/docs/reference/cua-driver/sdk-reference
+- License: MIT. Python `cua-driver==0.24.0`, native release `cua-driver-rs-v0.24.0`; pinned in uv.lock and config/components.json.
+- Windows x86-64 archive SHA-256: `cc22d7a44ad526f779f2df7e6da053dd898ef8e5014b1ecfc01728645f691be0`.
+- Boundary: unchanged SDK/binary. Marvi owns tool selection, confirmation, privacy admission and activity UI. No upstream code, model or agent loop copied.
+- Updates: bump SDK/binary together, refresh release digests and lockfile, rerun native Windows qualification, privacy/confirmation and renderer/voice tests.
+
 Nothing in this table is vendored merely because it is listed. Pinning and
 integration happen only when its delivery phase begins. Every adopted entry must
 be updated with the exact version/commit and local modification path.
