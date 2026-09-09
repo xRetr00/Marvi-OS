@@ -2,6 +2,28 @@
 
 Status: implemented, acceptance checks in progress, 2026-09-09.
 
+Continuation after the user's tool-loading and asking-card changes:
+native timeout recovery now retires the SDK worker before releasing capture
+exclusion. Requests remain bounded; a stalled retirement keeps private input
+unacknowledged, and a failed retirement requires restart. Recovery reports an
+unknown action outcome and requires fresh targets from a new worker.
+The authenticated `/computer?after=<revision>` endpoint waits up to 25 seconds
+for state changes, so Island activity does not wait for a five-second idle poll.
+Older Gateways and failed connections retain polling/backoff. Active computer
+controls take priority over an ordinary asking card; confirmations still win.
+
+Validation on 2026-09-09: 80 Gateway browser/tool-search/asking/computer tests
+passed before these follow-up fixes; the updated computer suite passes 11 tests.
+46 voice-tool/catalogue tests and 447 desktop tests passed; five focused Island
+tests cover active, stopping, private, and unknown states. Desktop typecheck
+passed. The real Windows fixture additionally passed password-canary redaction
+and forced native-timeout retirement followed by private input and app closure.
+Latest fixture times: launch 4511.21 ms, window discovery 1612.75 ms,
+observations 1722.87/1749.80 ms, input 11.00 ms, click 1289.94 ms, close 75.38 ms.
+Evidence was collected against the September 9 continuation culminating in
+`ec27f51c` (plus subsequent status-watch changes). These are native fixture and
+bridge checks; live voice-to-Island visual acceptance remains outstanding.
+
 The user reported completing and testing the browser phase and requested
 computer use. This is user acceptance, not evidence that every historical
 automated soak ran. The embedded browser remains separate.

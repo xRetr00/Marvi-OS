@@ -1,5 +1,17 @@
 # Implementation Log
 
+## 2026-09-09 — computer recovery and activity continuation
+
+Preserved the user's lazy tool loading and asking-card implementation. Closed
+the timeout/privacy gap by retaining the capture lease until SDK shutdown
+acknowledges the old worker, then creating fresh targets through a new worker.
+Added the missing Island unknown-outcome state and revision-based status waiting
+to catch short actions without continuous idle polling. Active computer controls
+remain visible ahead of ordinary questions. Fixed native qualification to wait
+for the launched fixture's window. Real worker timeout recovery, password-field
+redaction, private/resume, and independent file verification passed. Current
+counts and remaining live UI acceptance are recorded in Phase 15.
+
 ## 2026-09-09 — computer use and application control
 
 - Recorded user acceptance of the browser phase and kept its Playwright backend.

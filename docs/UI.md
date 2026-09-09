@@ -7,6 +7,10 @@ acknowledgment. Paused/private states expose Resume. Connection loss shows
 unavailable controls rather than claiming ongoing use. Confirmations retain
 priority. Activity status excludes text, screenshots, window titles and paths.
 Setup TUI installs the Computer use component and enables the capability.
+Computer status waits for revision changes instead of repeatedly polling while
+idle. Unknown completion is displayed explicitly; worker retirement shows
+stopping until acknowledged. Active computer controls precede ordinary asking
+cards. A failed retirement requires restart and cannot acknowledge private input.
 
 2026-09-08 scope correction: the primary Browser experience must embed the
 agent-controlled guest inside the desktop app using an Electron main-owned
