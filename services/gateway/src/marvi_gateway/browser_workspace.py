@@ -34,6 +34,23 @@ from .web import assert_public_http_url
 #: instead of a timeout with the barrier left closed behind it.
 PRIVATE_WAIT_SECONDS = 30.0
 
+#: What to tell somebody, per step of opening a browser.
+#:
+#: Keyed by the same `stage` the log records, so the line a person reads and
+#: the line in `browser.log` cannot drift apart.
+WHY_IT_DID_NOT_OPEN = {
+    "validate_url": "That address was refused. Check it is a public http or https URL.",
+    "start_dependencies": "The browser engine did not start. Check it is installed in Setup.",
+    "open_embedded_host": "The desktop window would not host a browser. Restart Marvi.",
+    "connect_embedded_protocol": "The browser opened but the desktop could not attach to it.",
+    "install_browser_routes": "The browser opened but network filtering could not be applied.",
+    "initial_navigation": "The browser opened but that page would not load.",
+}
+
+GENERIC_LAUNCH_FAILURE = (
+    "Browser could not open. Check the desktop host, engine and profile lock."
+)
+
 MAX_FILE = 100 * 1024 * 1024
 MAX_TASK_FILES = 500 * 1024 * 1024
 ACTIVE = {"starting", "running", "resuming"}
@@ -385,11 +402,15 @@ class BrowserWorkspace:
             if host_requested:
                 with contextlib.suppress(Exception):
                     await self._host_request("/close", {"id": sid})
-            self._change(
-                session,
-                "failed",
-                "Browser could not open. Check the desktop host, engine and profile lock.",
-            )
+            # Say which step failed. The session records `error_stage` and the
+            # message ignored it, so a URL refused before anything launched --
+            #
+            #     04:38:06  launch_failed stage=validate_url WebRefusedError
+            #
+            # was reported as "Check the desktop host, engine and profile lock",
+            # sending whoever read it to look at three things that were all
+            # fine.
+            self._change(session, "failed", WHY_IT_DID_NOT_OPEN.get(stage, GENERIC_LAUNCH_FAILURE))
 
     async def _native_context(self, session, transfer_dir):
         return await self._playwright.chromium.launch_persistent_context(
