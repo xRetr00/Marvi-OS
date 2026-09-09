@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import threading
+from contextlib import ExitStack
 from pathlib import Path
 from typing import Literal
 
@@ -16,6 +17,29 @@ from .setup.catalog import install_root
 from .untrusted import wrap_external
 
 VERSION = "0.24.0"
+
+#: How long one native action may run before the lease is released.
+#:
+#: It used to be `None` -- wait forever -- on the reasoning that a client
+#: timeout does not mean the click was cancelled. That reasoning is right and
+#: the consequence was not: `submit(..., timeout=None)` is
+#: `future.result(None)`, so a driver that never answers holds the request
+#: thread, `_active`, and a `capture_barrier` observer permanently. After that
+#: every computer action raises "busy or paused", `resume` raises "Wait for the
+#: current action to finish", and -- because the barrier is shared with the
+#: browser -- `browser_workspace`'s private input blocks forever too. One hung
+#: subprocess bricked both subsystems with no recovery but a restart.
+#:
+#: So the lease is bounded and the *claim* is what stays careful: on a timeout
+#: the state becomes `unknown`, which says completion could not be established
+#: rather than that anything was undone.
+ACTION_TIMEOUT = 120.0
+
+#: How long to wait for observers to finish before entering private input.
+#:
+#: Bounded for the same reason, and released on failure: a `private` that half
+#: succeeded used to leave the barrier closed with nobody able to open it.
+PRIVATE_TIMEOUT = 30.0
 
 
 class ComputerControl(BaseModel):
@@ -141,6 +165,10 @@ class ComputerUse:
                 )
             if self._active or self._state in {"paused", "private", "stopping"}:
                 raise RuntimeError("Computer use is busy or paused. Check computer_status.")
+            # `unknown` is deliberately not in that set. It means the last
+            # action outran its lease and nobody can say whether it landed,
+            # and the answer to that is to go and look -- which is itself an
+            # action. Blocking here would make the advice impossible to take.
             self._active = True
             self._state = "running"
             self._action = action
@@ -153,6 +181,7 @@ class ComputerUse:
                 self._state = "idle"
             elif self._state == "stopping":
                 self._state = "paused"
+            # `unknown` and `private` are left alone: both outlive the action.
 
     def catalog(self):
         self._admit("discover")
@@ -185,10 +214,28 @@ class ComputerUse:
             return await driver.call_tool(action, json.dumps(arguments))
 
         try:
-            with capture_barrier.observe():
+            # Refusals are separated from failures on purpose. `observe()`
+            # raises when private input is held -- by this service or by a
+            # browser session, since the barrier is shared -- and in that case
+            # nothing was dispatched at all. Folding it into the blanket
+            # handler below told the model "completion may be unknown" about an
+            # action that was never attempted, which invites it to go and
+            # check, or worse, to do it again.
+            watching = ExitStack()
+            watching.enter_context(capture_barrier.observe())
+        except RuntimeError:
+            self._finish()
+            raise RuntimeError(
+                "Computer use is paused for private input. Nothing was done. "
+                "Resume before retrying."
+            ) from None
+        try:
+            with watching:
                 # Keep the admission lease until the actual native command ends.
-                # A client timeout does not imply that a click was cancelled.
-                result = self._runtime_loop().submit(dispatch(), timeout=None)
+                # A client timeout does not imply that a click was cancelled --
+                # but it cannot hold the lease for ever either. See
+                # `ACTION_TIMEOUT`.
+                result = self._runtime_loop().submit(dispatch(), timeout=ACTION_TIMEOUT)
                 answer = {
                     "is_error": result.is_error,
                     "error_code": result.error_code,
@@ -234,6 +281,15 @@ class ComputerUse:
                             "computer-vision", response.text
                         ).model_dump()
                 return answer
+        except TimeoutError:
+            # Say what is actually true: the command was issued, it outran the
+            # lease, and whether it landed is not knowable from here.
+            with self._lock:
+                self._state = "unknown"
+            raise RuntimeError(
+                f"Computer action ran past {ACTION_TIMEOUT:.0f}s and was left running. "
+                "Whether it completed is unknown -- inspect fresh state before retrying."
+            ) from None
         except Exception:
             # No raw SDK exception: it can contain typed text or window contents.
             raise RuntimeError(
@@ -254,7 +310,18 @@ class ComputerUse:
             else:
                 self._state = "stopping" if self._active else "paused"
         if command == "private":
-            capture_barrier.enter("computer-use")
+            try:
+                capture_barrier.enter("computer-use", timeout=PRIVATE_TIMEOUT)
+            except TimeoutError:
+                # Half-entered is the worst outcome: `block` has already closed
+                # admission, so leaving it there would refuse every browser and
+                # computer action from now on with nobody able to clear it.
+                capture_barrier.leave("computer-use")
+                with self._lock:
+                    self._state = "idle" if not self._active else "running"
+                raise RuntimeError(
+                    "Something is still reading the screen; private input did not start. Try again."
+                ) from None
             with self._lock:
                 self._state = "private"
         return self.status()

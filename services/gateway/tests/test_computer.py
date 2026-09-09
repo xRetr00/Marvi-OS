@@ -143,3 +143,82 @@ def test_setup_has_pinned_install_and_opt_in():
     assert all(f.size and len(f.sha256) == 64 for f in component.files)
     capability = next(c for c in tui.CAPABILITIES if c.key == "computer-use")
     assert capability.settings[0].name == "MARVI_COMPUTER_USE"
+
+
+def test_a_hung_driver_releases_the_lease_instead_of_bricking_both_subsystems(service, monkeypatch):
+    """One unanswered native call used to disable computer use until restart.
+
+    `submit(..., timeout=None)` is `future.result(None)`, so a driver that
+    never answers held the request thread, `_active`, and a `capture_barrier`
+    observer for ever. After that every action raised "busy or paused",
+    `resume` raised "Wait for the current action to finish", and -- because the
+    barrier is shared -- the browser's private input could not start either.
+    """
+    import marvi_gateway.computer as computer
+
+    s, d = service
+    monkeypatch.setattr(computer, "ACTION_TIMEOUT", 0.2)
+    d.wait = True
+
+    with pytest.raises(RuntimeError) as hung:
+        s.action("click", {})
+    # Careful about the claim: it was issued and may well have landed.
+    assert "unknown" in str(hung.value).lower()
+    assert "cancel" not in str(hung.value).lower()
+
+    # The lease is back, the barrier is clear, and the advice it gave -- go and
+    # look at the screen -- is something it will actually let you do.
+    assert s.status()["state"] == "unknown"
+    assert not s.status()["active"]
+    assert not capture_barrier.blocked
+    d.release.set()
+    d.wait = False
+    assert s.action("get_desktop_state", {})["is_error"] is False
+
+
+def test_private_input_elsewhere_is_a_refusal_not_a_maybe(service):
+    """Saying "completion may be unknown" about a thing never attempted.
+
+    `observe()` raises when the barrier is held by anyone -- including a
+    browser session, since they share it -- and nothing is dispatched. That
+    went through the same blanket handler as a real failure, so the model was
+    told the action might have landed and could reasonably go and undo it, or
+    do it twice.
+    """
+    s, d = service
+    capture_barrier.enter("some-browser-session")
+    try:
+        with pytest.raises(RuntimeError) as refused:
+            s.action("click", {})
+        assert "Nothing was done" in str(refused.value)
+        assert "unknown" not in str(refused.value).lower()
+        assert d.calls == []
+    finally:
+        capture_barrier.leave("some-browser-session")
+
+    # And the refusal did not consume the lease.
+    assert not s.status()["active"]
+    assert s.action("click", {})["is_error"] is False
+
+
+def test_private_input_that_cannot_start_does_not_leave_the_door_shut(service, monkeypatch):
+    """`block` runs before the wait, so a failed `enter` used to close everything.
+
+    `enter` closes admission first and then waits for readers. With no timeout
+    that wait was forever; with one, returning without releasing would leave
+    `_private` populated and every browser and computer action refused, with no
+    command able to clear it.
+    """
+    import marvi_gateway.computer as computer
+
+    s, d = service
+    monkeypatch.setattr(computer, "PRIVATE_TIMEOUT", 0.2)
+    d.wait = True
+    threading.Thread(target=lambda: s.action("click", {}), daemon=True).start()
+    assert d.entered.wait(2)
+
+    with pytest.raises(RuntimeError, match="private input did not start"):
+        s.control("private")
+    assert not capture_barrier.blocked
+
+    d.release.set()
