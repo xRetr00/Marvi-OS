@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable, Iterator
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 
@@ -125,6 +125,21 @@ class ToolRegistry:
         self._tools: dict[str, ToolSpec] = {}
 
     def register(self, spec: ToolSpec) -> None:
+        """Add a tool, taking its description from `prompts/tools/` when there is one.
+
+        The file wins over whatever the call site passed. That direction is the
+        point: a description is prompt text -- it is the entire basis on which
+        the model decides whether to call something -- and it should be
+        editable and reviewable in one place rather than found by grepping
+        seventeen modules.
+
+        A tool with no file keeps its literal, so an MCP server's tools and
+        anything registered at runtime still work.
+        """
+        from . import prompts
+
+        if said := prompts.tool(spec.name):
+            spec = replace(spec, description=said)
         self._tools[spec.name] = spec
 
     def unregister(self, name: str) -> bool:

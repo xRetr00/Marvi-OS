@@ -217,7 +217,11 @@ def register_activity_tools(registry, activity: ActivityWatch) -> None:
     registry.register(
         ToolSpec(
             name="activity_now",
-            description="Read what the user is doing on this machine",
+            description=(
+                "What the user is doing on this machine right now -- the focused app and window. Use "
+                "it to decide whether this is a moment to interrupt, and to answer questions about "
+                "what they are working on. Someone deep in something is a reason to wait."
+            ),
             arguments={},
             sensitive=False,
             handler=activity_now,
@@ -226,7 +230,11 @@ def register_activity_tools(registry, activity: ActivityWatch) -> None:
     registry.register(
         ToolSpec(
             name="activity_today",
-            description="Which apps the user has spent time in today, longest first",
+            description=(
+                "Which apps the user has spent time in today, longest first. Use it for 'where did my "
+                "day go' and for noticing a pattern worth mentioning. It measures focus time, not "
+                "productivity -- do not editorialise about how they spent it."
+            ),
             arguments={},
             sensitive=False,
             handler=activity_today,

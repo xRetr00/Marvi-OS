@@ -177,7 +177,12 @@ def register_skill_tools(registry: Any) -> None:
     registry.register(
         ToolSpec(
             name="skill_read",
-            description="Read a skill's instructions",
+            description=(
+                "Read a skill's full instructions. Use it once skill_find says a skill covers what "
+                "you are about to do -- the description alone is the index, not the procedure. Read "
+                "it before acting, not after, and follow it rather than improvising a similar "
+                "approach."
+            ),
             arguments={"name": str},
             describes={"name": "The skill's name, exactly as listed in the prompt."},
             sensitive=False,
@@ -352,7 +357,12 @@ def register_store_tools(registry: Any) -> None:
     registry.register(
         ToolSpec(
             name="skill_find",
-            description="Search skills you have, and skills you could install",
+            description=(
+                "Search the skills Marvi has, and skills she could install. Use it when a task feels "
+                "like a procedure that could be got wrong -- something multi-step, or something you "
+                "have explained before. It returns descriptions only; read the one that fits with "
+                "skill_read before acting."
+            ),
             arguments={"query": str},
             describes={
                 "query": (

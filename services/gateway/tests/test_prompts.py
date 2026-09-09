@@ -162,3 +162,64 @@ def test_the_coding_brief_says_what_a_delegated_agent_kept_getting_wrong() -> No
     assert "read your final report to someone out loud" in brief.replace(chr(10), " ")
     # And the pipe-exit-status mistake, which shipped a segfaulting suite green.
     assert "not the exit status of something you piped it into" in brief.replace(chr(10), " ")
+
+
+#: The floor a tool description has to clear.
+#:
+#: Marvi's median was 38 characters. `send_email` -- outward-facing, no undo --
+#: was "Send an email", so the model had to infer from three words that it
+#: should confirm first, that there is no unsend, and that retrying a partial
+#: failure can deliver two. Nothing made that visible, which is why it stayed
+#: that way across every tool.
+SHORTEST_USEFUL_DESCRIPTION = 120
+
+
+def test_every_tool_description_lives_in_a_file() -> None:
+    """A description is prompt text: it is the whole basis for calling a tool."""
+    from marvi_gateway import tools as tooling
+
+    described = prompts.tools()
+    assert len(described) >= 60, "the tool descriptions did not load"
+
+    registry = tooling.ToolRegistry()
+    registry.register(
+        tooling.ToolSpec("send_email", "Send an email", {}, True, lambda: None)
+    )
+    # The file wins over the call site, which is what makes the file the source.
+    assert "there is no unsend" in registry.get("send_email").description
+
+
+def test_a_tool_with_no_file_keeps_what_it_was_given() -> None:
+    """MCP servers register at runtime and cannot have shipped a file."""
+    from marvi_gateway import tools as tooling
+
+    registry = tooling.ToolRegistry()
+    registry.register(
+        tooling.ToolSpec("mcp__somewhere__thing", "Whatever it does", {}, False, lambda: None)
+    )
+    assert registry.get("mcp__somewhere__thing").description == "Whatever it does"
+
+
+def test_no_tool_is_described_in_three_words() -> None:
+    short = {
+        name: len(said)
+        for name, said in prompts.tools().items()
+        if len(said) < SHORTEST_USEFUL_DESCRIPTION
+    }
+    assert not short, (
+        f"too thin to choose from: {short}. A description says what the tool does, "
+        "when to reach for it, when not to and what to use instead, and the mistake "
+        "that has actually been made with it."
+    )
+
+
+def test_the_dangerous_tools_say_they_cannot_be_undone() -> None:
+    """Each of these reaches outside the machine or destroys something."""
+    described = prompts.tools()
+    for name, must_say in (
+        ("send_email", "no unsend"),
+        ("memory_forget", "no undo"),
+        ("file_delete", "cannot be undone"),
+        ("calendar_remove", "cannot be undone"),
+    ):
+        assert must_say in described[name].lower().replace("\n", " "), name

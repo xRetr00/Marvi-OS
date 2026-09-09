@@ -189,6 +189,38 @@ def _load(folder: str) -> dict[str, Prompt]:
     return found
 
 
+#: Where a tool's description lives, one file per tool, named for the tool.
+#:
+#: Claude Code has 182 of these. Worth being exact about what that number is:
+#: they are *extracted* from its compiled JavaScript by a third party, so in
+#: Anthropic's own tree they are almost certainly strings in code, as Marvi's
+#: were. The file-per-tool shape is the extractor's, not evidence that it is
+#: the better source layout.
+#:
+#: What it does buy here is real, though. Marvi's descriptions had a median
+#: length of 38 characters -- `send_email`, which cannot be undone, was "Send
+#: an email" -- and nothing made that visible. A directory has an obvious size,
+#: and `test_tools_are_described` can hold a floor under it.
+TOOLS = "tools"
+
+
+def tool(name: str, root: Path | None = None) -> str:
+    """One tool's description. Empty when it has no file yet."""
+    try:
+        text = (_folder(root) / TOOLS / f"{name}.md").read_text(encoding="utf-8")
+    except OSError:
+        return ""
+    return _parse(name, text).body
+
+
+def tools(root: Path | None = None) -> dict[str, str]:
+    """Every tool description on disk, by tool name."""
+    folder = _folder(root) / TOOLS
+    if not folder.is_dir():
+        return {}
+    return {path.stem: tool(path.stem, root) for path in sorted(folder.glob("*.md"))}
+
+
 def catalogue(root: Path | None = None) -> list[Prompt]:
     """Every prompt, largest first. What the inventory is for."""
     return sorted(_load(str(_folder(root))).values(), key=lambda one: -one.chars)

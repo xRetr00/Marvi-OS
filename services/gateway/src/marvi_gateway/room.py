@@ -647,7 +647,13 @@ def register_room_tools(registry, sidecar: RoomSidecar) -> None:
     registry.register(
         ToolSpec(
             name="room_presence",
-            description="Who is in the room, weighing sensors that disagree",
+            description=(
+                "Who is in the room, weighing sensors that disagree. This is the tool for who is "
+                "there -- not room_state's presence field, which is one sensor's opinion. It says "
+                "whether the sensors agreed: when the answer is unknown, say unknown rather than "
+                "rounding it to yes or no. A sensor with no reading is silent, not reporting an empty "
+                "room."
+            ),
             arguments={},
             # A reading, not an action. And the moment a confirmation is most
             # irritating is when somebody asks whether anyone is home.
@@ -687,7 +693,11 @@ def register_room_tools(registry, sidecar: RoomSidecar) -> None:
     registry.register(
         ToolSpec(
             name="room_refresh",
-            description="Reconnect room devices and immediately refresh their state",
+            description=(
+                "Reconnect room devices and refresh their state. Use it after room_health shows "
+                "something unreachable, before telling the user a device is broken. It is a retry, "
+                "not a fix -- if it comes back unreachable again, say so."
+            ),
             arguments={},
             sensitive=False,
             handler=room_refresh,

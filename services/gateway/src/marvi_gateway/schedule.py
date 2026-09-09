@@ -839,7 +839,7 @@ def register_schedule_tools(registry: Any, scheduler: Scheduler) -> None:
         raise ScheduleError("action must be create, list, get, runs, update, pause, resume, run, or remove")
 
     registry.register(ToolSpec(
-        name="cronjob", description="Create, inspect, edit, run, pause, resume, or remove scheduled jobs",
+        name="cronjob", description=("Create, inspect, edit, run, pause, resume or remove scheduled jobs. Inspect before " "editing or removing, and name what you are changing -- a job cancelled by mistake is " "silent until the moment it does not fire. Running one now does not change its " "schedule."),
         arguments={"action": str},
         optional={"id": int, "name": str, "when": str, "prompt": str,
                   "scheduled_action": str, "message": str, "provider": str, "model": str,

@@ -224,7 +224,12 @@ def register_workspace_browser_tools(registry, get_service, vision_client=None):
     registry.register(
         ToolSpec(
             name="browser_open",
-            description="Open a visible saved browser profile for a user-requested task. Returns a receipt; read browser_status next.",
+            description=(
+                "Open a visible saved browser profile for a task the user asked for. Returns a "
+                "receipt, not a browser: read browser_status until the state is ready before acting. "
+                "One browser per profile -- if it refuses, it names the existing session, so use that "
+                "one or close it. For a question the web can answer, search instead."
+            ),
             arguments={},
             optional={"url": str, "profile_id": str, "objective": str},
             sensitive=False,

@@ -1940,7 +1940,10 @@ def register_memory_tools(
     registry.register(
         ToolSpec(
             name="memory_search",
-            description="Compatibility alias for memory_recall",
+            description=(
+                "Compatibility alias for memory_recall. Prefer memory_recall in new calls; this name "
+                "exists so older prompts keep working and behaves identically."
+            ),
             arguments={"query": str},
             describes={"query": "Words to look for. Plain phrasing, not a search syntax."},
             sensitive=False,
@@ -1967,7 +1970,12 @@ def register_memory_tools(
     registry.register(
         ToolSpec(
             name="memory_link",
-            description="Record a relationship between two things",
+            description=(
+                "Record that two things in memory are related. Use it when you learn a connection the "
+                "store does not have yet -- this person works on that project, this device is in that "
+                "room. Only for relationships the user actually stated or that follow plainly from "
+                "what they said."
+            ),
             arguments={"subject": str, "predicate": str, "target": str},
             describes={
                 "subject": "The thing the relationship starts from.",
@@ -1981,7 +1989,11 @@ def register_memory_tools(
     registry.register(
         ToolSpec(
             name="memory_unlink",
-            description="Remove a relationship you got wrong",
+            description=(
+                "Remove a relationship that turned out to be wrong. Use it when the user corrects a "
+                "connection, not to tidy up on your own. Removing the wrong link is silent -- name "
+                "what you are unlinking."
+            ),
             arguments={"subject": str},
             optional={"predicate": str, "target": str},
             describes={
@@ -1998,7 +2010,11 @@ def register_memory_tools(
     registry.register(
         ToolSpec(
             name="memory_neighbours",
-            description="Read what is connected to something",
+            description=(
+                "Read what is connected to a thing in memory. Use it when one memory answers half a "
+                "question and you want the surrounding context -- what else relates to this person, "
+                "project or object. Nothing connected is not the same as nothing known; search too."
+            ),
             arguments={"name": str},
             describes={"name": "The subject or target whose connections to read."},
             sensitive=False,
@@ -2008,7 +2024,11 @@ def register_memory_tools(
     registry.register(
         ToolSpec(
             name="memory_reflect",
-            description="Consolidate repeated episodes into durable facts",
+            description=(
+                "Turn repeated episodes into durable facts. Use it when the same thing has come up "
+                "several times and is clearly a pattern rather than an event. It writes to memory, so "
+                "it is not a read-only inspection."
+            ),
             arguments={},
             sensitive=False,
             handler=memory_reflect,
