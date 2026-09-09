@@ -11,7 +11,15 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { BrowserCommand, BrowserSession, BrowserStatus } from '../../../shared/browser'
 import './browser-page.css'
 
-function BrowserViewport({ session }: { session: BrowserSession }): React.JSX.Element {
+function BrowserViewport({
+  session,
+  trailing
+}: {
+  session: BrowserSession
+  /* The shell's own buttons, so the tab strip and the shell header are one
+     row rather than two stacked ones. A browser has a single strip. */
+  trailing?: React.ReactNode
+}): React.JSX.Element {
   const area = useRef<HTMLDivElement>(null)
   const [tab, setTab] = useState('')
   const [address, setAddress] = useState('')
@@ -120,6 +128,7 @@ function BrowserViewport({ session }: { session: BrowserSession }): React.JSX.El
             <X aria-hidden="true" />
           </button>
         ) : null}
+        {trailing}
       </div>
 
       {/* One row: navigation, then the address, the way every browser does it.
@@ -240,6 +249,24 @@ export function BrowserPage({ onClose }: { onClose?: () => void } = {}): React.J
   const selected =
     status?.sessions.filter((s) => s.profile_id === profile && s.state !== 'closed') ?? []
   const live = selected[0]
+  const buttons = (
+    <>
+      <button
+        aria-expanded={menuOpen}
+        aria-label="Browser menu"
+        className="bx-icon"
+        onClick={() => setMenuOpen((open) => !open)}
+        type="button"
+      >
+        <MoreVertical aria-hidden="true" />
+      </button>
+      {onClose ? (
+        <button aria-label="Close the browser" className="bx-icon" onClick={onClose} type="button">
+          <X aria-hidden="true" />
+        </button>
+      ) : null}
+    </>
+  )
   return (
     <div className="bx-shell">
       {/* A browser, not a control panel.
@@ -247,29 +274,15 @@ export function BrowserPage({ onClose }: { onClose?: () => void } = {}): React.J
           section and an import expander -- all of it above the actual page,
           all of it visible before anything had been opened. The controls are
           still here; they are behind the menu, where a browser keeps them. */}
-      <div className="bx-strip">
-        <span className="bx-title">{live ? titleOf(live.tabs[0]?.url ?? '') : 'New tab'}</span>
-        <span className="bx-gap" />
-        <button
-          aria-expanded={menuOpen}
-          aria-label="Browser menu"
-          className="bx-icon"
-          onClick={() => setMenuOpen((open) => !open)}
-          type="button"
-        >
-          <MoreVertical aria-hidden="true" />
-        </button>
-        {onClose ? (
-          <button
-            aria-label="Close the browser"
-            className="bx-icon"
-            onClick={onClose}
-            type="button"
-          >
-            <X aria-hidden="true" />
-          </button>
-        ) : null}
-      </div>
+      {live ? null : (
+        <div className="bx-tabs">
+          <span className="bx-tab is-on">
+            <span>New tab</span>
+          </span>
+          <span className="bx-gap" />
+          {buttons}
+        </div>
+      )}
 
       {error ? (
         <p className="bx-error" role="alert">
@@ -284,7 +297,7 @@ export function BrowserPage({ onClose }: { onClose?: () => void } = {}): React.J
       ) : null}
 
       {live ? (
-        <BrowserViewport session={live} />
+        <BrowserViewport session={live} trailing={buttons} />
       ) : (
         <form
           className="bx-open"

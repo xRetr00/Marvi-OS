@@ -698,7 +698,17 @@ function MainSurface(): React.JSX.Element {
             applied, and visually ignored. */}
         <div
           className="app-body"
-          style={{ gridTemplateColumns: `${page === 'Chat' ? 248 : collapsed ? 52 : 212}px 1fr` }}
+          style={{
+            // Chat's own two elements — the session sidebar and the
+            // conversation — are the first two tracks, and the browser is a
+            // third when it is open. `chat-shell` is `display: contents`, so
+            // the dock adds a column here rather than nesting a second grid
+            // inside one of these. Wrapping them instead put the sidebar in
+            // the 1fr and the conversation in the browser's column.
+            gridTemplateColumns:
+              `${page === 'Chat' ? 248 : collapsed ? 52 : 212}px 1fr` +
+              (page === 'Chat' && browsing ? ' clamp(360px, 42%, 720px)' : '')
+          }}
         >
           <ElectricGazeBackground />
 

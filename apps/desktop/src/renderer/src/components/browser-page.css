@@ -1,95 +1,10 @@
-.browser-form,
-.browser-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: end;
-}
-.browser-form label {
-  display: grid;
-  gap: 8px;
-  min-width: 180px;
-  flex: 1;
-  font-size: 12px;
-}
-.browser-form input,
-.browser-form select {
-  width: 100%;
-  min-height: 36px;
-  padding: 8px 10px;
-  border: 1px solid var(--border, #333);
-  background: var(--background, #111);
-  color: inherit;
-  font: inherit;
-}
-.browser-actions button,
-.browser-form button,
-.browser-remove button {
-  min-height: 36px;
-  padding: 8px 12px;
-  border: 1px solid var(--border, #333);
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
-.browser-actions button:disabled,
-.browser-form button:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-.browser-note,
-.browser-session p {
-  font-size: 12px;
-  opacity: 0.75;
-  line-height: 1.6;
-}
-.browser-private {
-  border: 1px solid var(--accent, #147ec1);
-  padding: 16px;
-  margin-bottom: 16px;
-}
-.browser-private p {
-  margin-bottom: 0;
-  font-size: 12px;
-  line-height: 1.6;
-}
-.browser-state {
-  text-transform: uppercase;
-  font-size: 11px;
-  letter-spacing: 0.1em;
-}
-.browser-tabs {
-  list-style: none;
-  padding: 0;
-  font-size: 12px;
-  overflow-wrap: anywhere;
-}
-.browser-tabs li {
-  padding: 8px 0;
-  border-bottom: 1px solid var(--border, #333);
-}
-.browser-error {
-  color: var(--danger, #d85b5b);
-  overflow-wrap: anywhere;
-}
-.browser-remove {
-  margin-top: 16px;
-  font-size: 12px;
-}
-.browser-viewport {
-  height: min(58vh, 650px);
-  min-height: 280px;
-  width: 100%;
-  border: 1px solid var(--color-border, #333);
-  background: #fff;
-  margin-top: 12px;
-}
-
-/* ===== Browser chrome =====
-   Tabs on top, one toolbar row, viewport below. It used to be a stack of
-   labelled form fields with the tabs rendered as a list underneath, which is
-   a control panel for a browser rather than a browser. */
+/* The embedded browser's chrome.
+   Tabs on top, one toolbar row, the page below -- the shape every browser
+   has. What was here before was a control panel: a Workspace form, a saved
+   profile select, a Website field, an Open button, a Profiles section and a
+   Chrome-import expander, all stacked above the page and all visible before
+   anything had been opened. The controls did not go away; they moved into the
+   menu, where a browser keeps them. */
 
 .bx {
   display: flex;
@@ -98,6 +13,8 @@
   height: 100%;
 }
 
+/* One strip, not two. The shell's own buttons render at the end of this row
+   rather than in a header above it. */
 .bx-tabs {
   display: flex;
   align-items: center;
@@ -125,7 +42,7 @@
 }
 
 .bx-tab.is-on {
-  background: var(--ui-surface-raised, var(--ui-stroke-tertiary));
+  background: var(--ui-bg-raised);
   color: var(--ui-text-primary);
 }
 
@@ -164,8 +81,8 @@
   border-bottom: 1px solid var(--ui-stroke-tertiary);
 }
 
-/* Centred, like the screenshot: the address is the label of what you are
-   looking at more often than it is something you are about to type. */
+/* Centred until focused: the address is the label of what you are looking at
+   more often than it is something you are about to type. */
 .bx-url {
   flex: 1;
   min-width: 0;
@@ -181,7 +98,7 @@
 
 .bx-url:focus {
   border-color: var(--ui-stroke-secondary);
-  background: var(--ui-surface);
+  background: var(--ui-bg-secondary);
   text-align: left;
   outline: none;
 }
@@ -190,39 +107,23 @@
   margin: 0;
   padding: 6px 12px;
   font-size: 11px;
-  color: var(--ui-danger, #f87171);
+  color: var(--ui-danger);
 }
 
-/* The view is an OS-level overlay positioned onto this rectangle, so it must
-   be allowed to take the remaining height and never collapse to nothing. */
-.bx .browser-viewport {
+/* The page is an OS-level view positioned onto this rectangle, so it must be
+   allowed to take the remaining height and must never collapse to nothing. */
+.browser-viewport {
   flex: 1;
   min-height: 240px;
+  background: #fff;
 }
 
-/* The shell: a strip, then either the browser or a place to type a URL. */
 .bx-shell {
   position: relative;
   display: flex;
   flex-direction: column;
   min-height: 0;
   height: 100%;
-}
-
-.bx-strip {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 6px 6px 6px 12px;
-  border-bottom: 1px solid var(--ui-stroke-tertiary);
-}
-
-.bx-title {
-  font-size: 11.5px;
-  color: var(--ui-text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .bx-open {
@@ -238,7 +139,7 @@
   padding: 0 12px;
   border: 1px solid var(--ui-stroke-secondary);
   border-radius: 8px;
-  background: var(--ui-surface);
+  background: var(--ui-bg-secondary);
   color: var(--ui-text-primary);
   font-size: 12px;
 }
@@ -265,7 +166,7 @@
   padding: 8px;
   border: 1px solid var(--ui-stroke-secondary);
   border-radius: 10px;
-  background: var(--ui-surface-raised, var(--ui-surface));
+  background: var(--ui-bg-raised);
   box-shadow: 0 16px 36px rgb(0 0 0 / 40%);
 }
 
@@ -290,7 +191,7 @@
 }
 
 .bx-menu .bx-danger {
-  color: var(--ui-danger, #f87171);
+  color: var(--ui-danger);
 }
 
 .bx-menu label {
@@ -306,7 +207,7 @@
   height: 26px;
   border: 1px solid var(--ui-stroke-secondary);
   border-radius: 7px;
-  background: var(--ui-surface);
+  background: var(--ui-bg-secondary);
   color: var(--ui-text-primary);
   font-size: 11.5px;
 }
@@ -322,5 +223,5 @@
   margin: 0;
   padding: 8px 12px;
   font-size: 11px;
-  color: var(--ui-accent, #7dd3fc);
+  color: var(--ui-accent);
 }

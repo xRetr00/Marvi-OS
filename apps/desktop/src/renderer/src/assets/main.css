@@ -1207,7 +1207,7 @@ nav {
   padding: 14px;
   border: 1px solid var(--ui-stroke-secondary);
   border-radius: 12px;
-  background: var(--ui-surface-raised, var(--ui-surface));
+  background: var(--ui-bg-raised);
   box-shadow: 0 18px 40px rgb(0 0 0 / 38%);
   -webkit-app-region: no-drag;
 }
@@ -13737,7 +13737,7 @@ html[data-appearance='claude-code-dark'] .control-row {
   border: 1px solid var(--ui-stroke-secondary);
   border-left: 3px solid var(--res-idle);
   border-radius: 10px;
-  background: var(--ui-surface-raised, var(--ui-surface));
+  background: var(--ui-bg-raised);
 }
 
 .res-now.is-call {
@@ -13777,7 +13777,7 @@ html[data-appearance='claude-code-dark'] .control-row {
   padding: 13px 14px;
   border: 1px solid var(--ui-stroke-secondary);
   border-radius: 11px;
-  background: var(--ui-surface-raised, var(--ui-surface));
+  background: var(--ui-bg-raised);
 }
 
 .res-band.is-warn {
@@ -13916,7 +13916,7 @@ html[data-appearance='claude-code-dark'] .control-row {
   padding: 8px 10px;
   border: 1px solid var(--ui-stroke-secondary);
   border-radius: 11px;
-  background: var(--ui-surface-raised, var(--ui-surface));
+  background: var(--ui-bg-raised);
   overflow-x: auto;
 }
 
@@ -14163,34 +14163,21 @@ html[data-appearance='claude-code-dark'] .control-row {
   overflow-y: auto;
 }
 
+/* `overflow: hidden`, not `auto`. The page is an OS-level view positioned
+   onto the viewport rectangle; it does not move when this box scrolls, so a
+   scrollbar here slides the chrome off the page it belongs to. */
 .browser-pane {
   position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
   border-left: 1px solid var(--ui-stroke-secondary);
-  background: var(--ui-surface);
-  overflow-y: auto;
+  background: var(--ui-bg-raised);
+  overflow: hidden;
 }
 
-.browser-close {
-  position: absolute;
-  top: 12px;
-  right: 14px;
-  z-index: 2;
-  padding: 4px 10px;
-  border: 1px solid var(--ui-stroke-secondary);
-  border-radius: 7px;
-  background: var(--ui-surface);
-  color: var(--ui-text-secondary);
-  font-size: 11px;
-  cursor: pointer;
-}
 
-.browser-close:hover {
-  color: var(--ui-text-primary);
-  background: var(--ui-stroke-tertiary);
-}
 
 /* Narrow windows stack rather than squeezing both into nothing. */
 @media (max-width: 1100px) {
@@ -14216,25 +14203,16 @@ html[data-appearance='claude-code-dark'] .control-row {
    conversation into a strip with a screen of empty space beside it. A grid
    with one column when there is no browser is a no-op on the page, which is
    what the closed state should be. */
+/* Chat is not one element: it returns its session sidebar and the
+   conversation as siblings, and `app-body` is already the grid that places
+   them. So this box must not exist in layout at all -- `display: contents`
+   hands all three children (sidebar, conversation, browser) straight to that
+   grid, which adds a third column when the browser is open.
+
+   Both earlier attempts made it a real box, first flex then grid, and both
+   broke Chat the same way: the wrapper took a single track, so the sidebar
+   landed in the conversation's column and the conversation in the browser's.
+   That is the screen of empty space. */
 .chat-shell {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  min-height: 0;
-  height: 100%;
-}
-
-.chat-shell > * {
-  min-width: 0;
-  min-height: 0;
-}
-
-.chat-shell.has-browser {
-  grid-template-columns: minmax(0, 1fr) clamp(360px, 42%, 720px);
-}
-
-@media (max-width: 1100px) {
-  .chat-shell.has-browser {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) minmax(240px, 48%);
-  }
+  display: contents;
 }
