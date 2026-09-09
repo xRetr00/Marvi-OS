@@ -1,5 +1,9 @@
 # Phase 14 — Visible persistent agent browser
 
+2026-09-09: The user reports completing and testing this phase and authorizes
+computer use. Accepted by the user; prior automated qualification limitations
+below remain historical evidence and are not retroactively marked as tested.
+
 Status: implementation under qualification, 2026-09-08. Architecture review and
 plan completed 2026-09-07. This browser-only plan supersedes the earlier
 combined browser/computer-use proposal. The filename is retained for existing

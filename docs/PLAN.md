@@ -1,5 +1,9 @@
 # Delivery Plan
 
+2026-09-09: The user reports browser acceptance and authorizes computer use.
+[Phase 15](phases/15-computer-use.md) delivers Cua Driver integration with Setup,
+Gateway app controls and Dynamic Island activity/private-input controls.
+
 Implementation checkpoints and evidence live in [`docs/phases/`](phases/README.md).
 The chronological record of completed work lives in
 [`docs/IMPLEMENTATION-LOG.md`](IMPLEMENTATION-LOG.md).

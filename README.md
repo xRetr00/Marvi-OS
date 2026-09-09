@@ -102,15 +102,22 @@ login handoff, pause/resume, downloads and Browser/Island controls. The implemen
 is under qualification; it is not yet release-qualified. OBS login/resume works,
 but OBS required another login after closing and reopening its profile. Read the
 [current architecture review](docs/BROWSER-ARCHITECTURE-REVIEW.md) and
-[browser delivery plan](docs/phases/14-browser-computer-use.md). Computer use
-will be reviewed separately after browser delivery.
+[browser delivery plan](docs/phases/14-browser-computer-use.md). The user reported
+browser acceptance on 2026-09-09; computer use now has a separate
+[Cua Driver integration](docs/phases/15-computer-use.md).
 
 The desktop now hosts its agent-controlled browser in an isolated Electron
 WebContentsView, with Playwright driving the same visible tabs. Chrome cookie
 JSON and password CSV imports are available for closed profiles; imported
 passwords are encrypted locally and filled only through private user input.
-Embedded real-site and restart qualification remains in progress;
+Historical automated qualification limits are recorded in the phase document;
 see the [Hermes Desktop v0.21.0 review](docs/HERMES-DESKTOP-BROWSER-REVIEW.md).
+
+For computer use, run `marvi setup`, install **Computer use (Cua Driver)**,
+enable **Computer use and app control** under capabilities, and restart Marvi.
+App discovery, launch, inspection, window management and input use the local
+driver. Dynamic Island shows **Marvi is using the computer** and provides Stop,
+Private input and Resume. Browser tasks retain the embedded Playwright browser.
 
 The best assistant is not the one demanding the most attention. It is the one that is there when needed, stays quiet when not, remembers the right things, and earns the trust required to act.
 
