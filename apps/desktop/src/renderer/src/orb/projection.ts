@@ -1,5 +1,9 @@
 /** Perspective and directional lighting for Marvi's existing unit-sphere mesh. */
-export function projectVoicePoint(x: number, y: number, z: number): {
+export function projectVoicePoint(
+  x: number,
+  y: number,
+  z: number
+): {
   x: number
   y: number
   perspective: number

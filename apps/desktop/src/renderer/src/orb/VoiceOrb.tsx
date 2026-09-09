@@ -90,7 +90,12 @@ function draw(ctx: CanvasRenderingContext2D, f: Frame): void {
   // A shaded core gives the dotted mesh volume rather than a see-through cloud.
   const [cr, cg, cb] = blend(f.from, f.to, f.mix, 0.55)
   const core = ctx.createRadialGradient(
-    cx - scale * 0.32, cy - scale * 0.36, scale * 0.04, cx, cy, scale
+    cx - scale * 0.32,
+    cy - scale * 0.36,
+    scale * 0.04,
+    cx,
+    cy,
+    scale
   )
   core.addColorStop(0, `rgba(${cr},${cg},${cb},0.28)`)
   core.addColorStop(0.6, `rgba(${cr},${cg},${cb},0.1)`)

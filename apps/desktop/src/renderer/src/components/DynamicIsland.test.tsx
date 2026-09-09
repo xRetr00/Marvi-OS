@@ -6,6 +6,8 @@ import {
   ANNOUNCEMENT_GLANCE_MS,
   ISLAND_AUTO_EXPAND_MS,
   ISLAND_ENTER_SECONDS,
+  ISLAND_LINE_CLIP,
+  ISLAND_OPEN_CLIP,
   ISLAND_EXIT_SECONDS,
   ISLAND_REDUCED_MOTION_SECONDS,
   announcementSourceLabel,
@@ -34,6 +36,9 @@ describe('DynamicIsland', () => {
     expect(ISLAND_EXIT_SECONDS).toBeLessThan(ISLAND_ENTER_SECONDS)
     expect(ISLAND_REDUCED_MOTION_SECONDS).toBeLessThan(ISLAND_EXIT_SECONDS)
     expect(ISLAND_AUTO_EXPAND_MS).toBe(1800)
+    expect(ISLAND_LINE_CLIP).toContain('50% - 17px')
+    expect(ISLAND_LINE_CLIP).toContain('100% - 2px')
+    expect(ISLAND_OPEN_CLIP).toBe('inset(0px 0px 0px round 22px)')
     expect(ANNOUNCEMENT_GLANCE_MS).toBe(10_000)
     expect(
       islandPresentationKey({
