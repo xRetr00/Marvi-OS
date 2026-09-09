@@ -53,8 +53,11 @@ class ComputerUse:
                 self._driver = self._factory()
             else:
                 from cua_driver import (
-                    ConfiguredDriverOptions, CuaDriver, PrivateWorkerOptions,
-                    RuntimeAuthorizationOptions, SessionPermissionMode,
+                    ConfiguredDriverOptions,
+                    CuaDriver,
+                    PrivateWorkerOptions,
+                    RuntimeAuthorizationOptions,
+                    SessionPermissionMode,
                 )
                 if not binary_path().is_file():
                     raise RuntimeError("Install Computer use from Setup before using desktop tools.")
@@ -192,3 +195,31 @@ def register_computer_tools(registry, service):
         sensitive_when=lambda args: args.get("request_confirmation", False),
     ))
     registry.register(ToolSpec("computer_control", "Stop new computer actions, enter private user input, or resume. Stop drains an issued action; inspect fresh state after resume.", {"command": str}, False, service.control))
+
+
+def computer_router(service):
+    import asyncio
+    from typing import Literal
+
+    from fastapi import APIRouter, Depends, HTTPException
+    from pydantic import BaseModel
+
+    from .localauth import guard
+
+    class Control(BaseModel):
+        command: Literal['stop', 'private', 'resume']
+
+    router = APIRouter(prefix='/computer', dependencies=[Depends(guard)])
+
+    @router.get('')
+    def status():
+        return service.status()
+
+    @router.post('/control')
+    async def control(body: Control):
+        try:
+            return await asyncio.to_thread(service.control, body.command)
+        except (ValueError, RuntimeError) as exc:
+            raise HTTPException(409, str(exc)) from exc
+
+    return router

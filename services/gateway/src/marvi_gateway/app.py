@@ -69,7 +69,7 @@ from .announce import Announcer, announce_enabled, output_devices
 from .browser import browser_enabled
 from .browser_api import browser_router, register_workspace_browser_tools
 from .browser_workspace import BrowserWorkspace
-from .computer import ComputerUse, register_computer_tools
+from .computer import ComputerUse, computer_router, register_computer_tools
 from .chat import Chat, ChatStore, ChatTurn, schemas_from_registry
 from .clarify import register_clarify_tool
 from .cognition import CognitionHarness
@@ -1525,6 +1525,7 @@ def create_app(
     )
     app.include_router(browser_router(get_browser, runtime_store.audit,
         lambda: register_workspace_browser_tools(tool_registry, get_browser, provider_client)))
+    app.include_router(computer_router(computer_service))
     # Reachable from outside, so a proposal can be placed and settled without a
     # model in the loop -- and so a test of what happens to a proposal tests
     # that, rather than the extraction that produced it.
