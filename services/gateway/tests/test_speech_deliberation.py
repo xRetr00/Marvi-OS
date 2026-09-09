@@ -260,7 +260,7 @@ def test_the_model_is_told_when_the_decision_is_already_made() -> None:
     """
     from types import SimpleNamespace
 
-    from marvi_gateway.deliberate import SYSTEM_PROMPT, Deliberator
+    from marvi_gateway.deliberate import Deliberator, system_prompt
 
     asking = Deliberator.__new__(Deliberator)
     verdict = SimpleNamespace(surface="speak", rule="ceiling", detail="")
@@ -278,4 +278,56 @@ def test_the_model_is_told_when_the_decision_is_already_made() -> None:
     assert "ALREADY DECIDED" not in open_question
     # And the system prompt has to say what that marker means, or the model
     # reads it as one more line of context and answers false anyway.
-    assert "ALREADY DECIDED" in SYSTEM_PROMPT
+    assert "ALREADY DECIDED" in system_prompt()
+
+
+def test_a_failed_thought_offers_no_words_rather_than_its_own_label() -> None:
+    """The bug the user heard out loud.
+
+    `verdict.detail` is the feed label for the policy ceiling -- "worth saying
+    out loud" -- and the three paths that give up used to hand it back in the
+    slot `mind.tick` reads as the phrasing. So a rate-limited provider made
+    Marvi say her own ceiling label:
+
+        02:07:25  model_resting  speak  llm 38ms  ->  "worth saying out loud"
+
+    Empty means "no opinion", and the caller already falls back correctly.
+    """
+    ceiling = Verdict(True, "speak", "allowed", "worth saying out loud")
+
+    # The provider is unreachable.
+    broke = deliberator(lambda request: httpx.Response(500))
+    surface, words, _ = broke(event(), ceiling)
+    assert surface == "speak"
+    assert words == ""
+
+    # The provider answered, with something that is not the JSON asked for.
+    babbled = deliberator(lambda request: reply("I think maybe?"))
+    assert babbled(event(), ceiling)[1] == ""
+
+
+def test_the_mind_speaks_by_default_and_the_quiet_persona_is_the_opt_out(monkeypatch) -> None:
+    """Which Marvi you picked has to reach the background decision.
+
+    It did not. The stance was a Python string reading "Silence is the normal,
+    correct answer", so every persona deliberated like the quiet one and the
+    picker only changed the wording of whatever got past it.
+    """
+    from marvi_gateway.deliberate import system_prompt
+
+    monkeypatch.setenv("MARVI_PERSONA", "default")
+    forward = system_prompt()
+    monkeypatch.setenv("MARVI_PERSONA", "silent")
+    quiet = system_prompt()
+
+    assert forward != quiet
+    # The default now says the opposite of what was hardcoded.
+    assert "Speak. That is the normal answer" in forward
+    assert "Silence is the normal, correct answer" not in forward
+    # And the quiet one is still available to anybody who wants it.
+    assert "Stay quiet. That is the normal answer here" in quiet
+    # Both get the mind's own file: the short list of what is genuinely not
+    # worth saying, which is what keeps "speak by default" from meaning
+    # "narrate every marketing email".
+    for prompt in (forward, quiet):
+        assert "Marketing email" in prompt
