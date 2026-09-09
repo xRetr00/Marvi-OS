@@ -158,10 +158,48 @@ class Curiosity:
             for row in self._db.execute("SELECT * FROM gaps")
         }
 
+    def already_in_user_md(self) -> set[str]:
+        """Gap keys that `USER.md` already answers.
+
+        Two stores, and they were allowed to disagree. The gap table is seeded
+        open and only closes when `learn` runs; `USER.md` is written by hand,
+        by the extractor, and by the setup flow. So a name recorded any way but
+        `learn` left the gap open, and Marvi asked for something she is handed
+        on every turn:
+
+            19:20:35  curiosity  speak  "What would you like to be called?"
+
+        while `USER.md` -- which the mind does receive, as "Who you are
+        speaking to" -- had a filled `## Name`.
+
+        Matched on the heading, because `Gap.heading` and the headings in the
+        seeded `USER.md` are the same strings by construction.
+        """
+        try:
+            written = self.identity.read().user
+        except OSError:
+            return set()
+        if not written:
+            return set()
+        sections: dict[str, str] = {}
+        heading = ""
+        for line in written.splitlines():
+            if line.startswith("## "):
+                heading = line[3:].strip().lower()
+                sections[heading] = ""
+            elif heading:
+                sections[heading] += line
+        return {gap.key for gap in GAPS if sections.get(gap.heading.strip().lower(), "").strip()}
+
     def open_gaps(self) -> list[Gap]:
         rows = {r["key"]: r["state"] for r in self._db.execute("SELECT * FROM gaps")}
+        answered = self.already_in_user_md()
         return sorted(
-            (gap for gap in GAPS if rows.get(gap.key, "open") == "open"),
+            (
+                gap
+                for gap in GAPS
+                if rows.get(gap.key, "open") == "open" and gap.key not in answered
+            ),
             key=lambda gap: gap.priority,
         )
 

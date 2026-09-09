@@ -1376,6 +1376,12 @@ def create_app(
     browser_holder = [browser_service]
     computer_service = ComputerUse(provider_client)
     register_computer_tools(tool_registry, computer_service)
+
+    # Questions Marvi puts on screen, and the follow-up when nobody answers.
+    from .asking import Asking, asking_router, register_asking_tools
+
+    asking_store = Asking()
+    register_asking_tools(tool_registry, asking_store)
     browser_lock = threading.Lock()
 
     def get_browser() -> BrowserWorkspace:
@@ -1526,6 +1532,7 @@ def create_app(
     app.include_router(browser_router(get_browser, runtime_store.audit,
         lambda: register_workspace_browser_tools(tool_registry, get_browser, provider_client)))
     app.include_router(computer_router(computer_service, runtime_store.audit))
+    app.include_router(asking_router(asking_store, runtime_store.audit))
     # Reachable from outside, so a proposal can be placed and settled without a
     # model in the loop -- and so a test of what happens to a proposal tests
     # that, rather than the extraction that produced it.
