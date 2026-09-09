@@ -18,6 +18,13 @@ from .setup.catalog import install_root
 from .untrusted import wrap_external
 
 VERSION = "0.24.0"
+CURSOR_SESSION = "Marvi"
+# Session-bearing actions in the pinned 0.24.0 Windows tool contract. App/process
+# discovery and lifecycle calls have no cursor/session input in that contract.
+NO_CURSOR_ACTIONS = frozenset({
+    "list_apps", "list_windows", "launch_app", "kill_app", "bring_to_front",
+    "get_accessibility_tree",
+})
 
 #: How long one native action may run before worker retirement begins.
 #:
@@ -211,6 +218,7 @@ class ComputerUse:
             for tool in data["tools"]:
                 if tool["name"] in ACTIONS:
                     tool["inputSchema"]["properties"].pop("screenshot_out_file", None)
+                    tool["inputSchema"]["properties"].pop("session", None)
                     tools.append(tool)
             return {"actions": tools}
 
@@ -264,11 +272,30 @@ class ComputerUse:
             raise ValueError("Unknown computer action. Read computer_tools first.")
         if "screenshot_out_file" in arguments:
             raise ValueError("Computer screenshots are transient; file capture is not exposed.")
+        if "session" in arguments:
+            raise ValueError("Marvi manages the computer cursor session; omit session.")
         self._admit(action)
 
         async def dispatch():
             driver = await self._get_driver()
-            return await driver.call_tool(action, json.dumps(arguments))
+            if action in NO_CURSOR_ACTIONS:
+                return await driver.call_tool(action, json.dumps(arguments))
+
+            async def cursor_tool(name, **options):
+                result = await driver.call_tool(name, json.dumps({"session": CURSOR_SESSION, **options}))
+                if result.is_error:
+                    raise RuntimeError("Computer cursor configuration failed")
+
+            # start_session is idempotent and revives an expired named session.
+            # The public name supplies Cua's native badge, not authorization.
+            await cursor_tool("start_session", cursor_theme={"theme_id": "cua.default", "reduced_motion": "auto"})
+            try:
+                await cursor_tool("set_agent_cursor_enabled", enabled=True)
+                return await driver.call_tool(action, json.dumps({**arguments, "session": CURSOR_SESSION}))
+            finally:
+                # Kept inside the action/capture lease: a pause/private handoff
+                # cannot acknowledge before cursor cleanup has finished.
+                await cursor_tool("set_agent_cursor_enabled", enabled=False)
 
         try:
             # Refusals are separated from failures on purpose. `observe()`

@@ -27,8 +27,9 @@ class Driver:
 
     async def call_tool(self, name, arguments):
         self.calls.append((name, arguments))
-        self.entered.set()
-        if self.wait:
+        if name not in {"start_session", "set_agent_cursor_enabled"}:
+            self.entered.set()
+        if self.wait and name not in {"start_session", "set_agent_cursor_enabled"}:
             await asyncio.to_thread(self.release.wait)
         return SimpleNamespace(
             text="fixture result", images=[], is_error=False, error_code=None, degraded=False
@@ -64,6 +65,40 @@ def test_catalog_keeps_browser_and_driver_configuration_out(service):
     assert [t["name"] for t in s.catalog()["actions"]] == ["click"]
     with pytest.raises(ValueError):
         s.action("set_config", {})
+
+
+def test_cursor_is_named_marvi_and_hidden_before_private_input(service):
+    s, d = service
+    s.action("click", {})
+    calls = [(name, json.loads(args)) for name, args in d.calls]
+    assert calls == [
+        ("start_session", {"session": "Marvi", "cursor_theme": {"theme_id": "cua.default", "reduced_motion": "auto"}}),
+        ("set_agent_cursor_enabled", {"session": "Marvi", "enabled": True}),
+        ("click", {"session": "Marvi"}),
+        ("set_agent_cursor_enabled", {"session": "Marvi", "enabled": False}),
+    ]
+    s.control("private")
+    assert not json.loads(d.calls[-1][1])["enabled"]
+    s.control("resume")
+    s.action("list_apps", {})
+    assert d.calls[-1] == ("list_apps", "{}")
+    with pytest.raises(ValueError, match="omit session"):
+        s.action("click", {"session": "someone else"})
+
+
+def test_failed_action_still_hides_cursor(service):
+    s, d = service
+    original = d.call_tool
+
+    async def fail(name, args):
+        if name == "click":
+            raise RuntimeError("fixture input error")
+        return await original(name, args)
+
+    d.call_tool = fail
+    with pytest.raises(RuntimeError):
+        s.action("click", {})
+    assert json.loads(d.calls[-1][1]) == {"session": "Marvi", "enabled": False}
 
 
 def test_stop_does_not_claim_issued_action_was_cancelled(service):
