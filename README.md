@@ -118,6 +118,10 @@ enable **Computer use and app control** under capabilities, and restart Marvi.
 App discovery, launch, inspection, window management and input use the local
 driver. Dynamic Island shows **Marvi is using the computer** and provides Stop,
 Private input and Resume. Browser tasks retain the embedded Playwright browser.
+Computer activity updates on state changes. Timed-out actions retire their old
+worker before private input can start; uncertain outcomes are shown explicitly.
+Native app-control and recovery checks pass; live voice-to-Island visual
+acceptance is still tracked in the [computer-use phase](docs/phases/15-computer-use.md).
 
 The best assistant is not the one demanding the most attention. It is the one that is there when needed, stays quiet when not, remembers the right things, and earns the trust required to act.
 

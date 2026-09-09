@@ -6,6 +6,10 @@ Electron's supervised process tree. Browser and computer private input share
 capture admission; Stop drains issued work. Structured native observations
 remain untrusted data. The embedded browser retains Playwright. See
 [Phase 15](phases/15-computer-use.md) for contracts and acceptance evidence.
+Timed-out actions transfer capture exclusion to SDK worker retirement; only
+acknowledged shutdown releases it. Failed retirement refuses further computer
+actions/private acknowledgment until restart. A content-free revision counter
+supports authenticated status long-polling through Electron's narrow bridge.
 
 The [Hermes Desktop review](HERMES-DESKTOP-BROWSER-REVIEW.md) revises the primary
 browser host to an Electron main-owned WebContentsView. That host and its narrow

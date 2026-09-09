@@ -13,10 +13,13 @@ Older Gateways and failed connections retain polling/backoff. Active computer
 controls take priority over an ordinary asking card; confirmations still win.
 
 Validation on 2026-09-09: 80 Gateway browser/tool-search/asking/computer tests
-passed before these follow-up fixes; the updated computer suite passes 11 tests.
+passed before these follow-up fixes; the updated computer suite passes 12 tests.
 46 voice-tool/catalogue tests and 447 desktop tests passed; five focused Island
 tests cover active, stopping, private, and unknown states. Desktop typecheck
-passed. The real Windows fixture additionally passed password-canary redaction
+passed, as did the Electron main/preload/renderer production build. Eleven
+focused computer/browser/asking-card tests passed after the status-watch change.
+The installed driver and saved enabled setting were verified. The real Windows
+fixture additionally passed password-canary redaction
 and forced native-timeout retirement followed by private input and app closure.
 Latest fixture times: launch 4511.21 ms, window discovery 1612.75 ms,
 observations 1722.87/1749.80 ms, input 11.00 ms, click 1289.94 ms, close 75.38 ms.

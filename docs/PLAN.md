@@ -1,6 +1,9 @@
 # Delivery Plan
 
 2026-09-09: The user reports browser acceptance and authorizes computer use.
+Continuation validates native app control, password-field redaction and worker
+retirement after timeouts; Island status now waits for content-free revisions.
+Live voice-to-Island visual acceptance remains open in Phase 15.
 [Phase 15](phases/15-computer-use.md) delivers Cua Driver integration with Setup,
 Gateway app controls and Dynamic Island activity/private-input controls.
 

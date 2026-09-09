@@ -132,7 +132,11 @@ async def test_control_api_requires_auth_and_valid_command(service, monkeypatch)
     ) as c:
         assert (await c.get("/computer")).status_code == 403
         c.headers["x-marvi-local"] = "computer-fixture"
+        assert (await c.get("/computer?after=-1")).status_code == 422
+        initial = (await c.get("/computer")).json()
         assert (await c.post("/computer/control", json={"command": "stop"})).status_code == 200
+        changed = (await c.get(f"/computer?after={initial['revision']}")).json()
+        assert changed["state"] == "paused" and changed["revision"] > initial["revision"]
         assert (await c.post("/computer/control", json={"command": "invalid"})).status_code == 422
 
 
@@ -243,12 +247,39 @@ def test_timeout_keeps_capture_lease_until_native_shutdown_acknowledges(service,
         s.control("resume")
     d.release.set()
     assert shutdown_done.wait(2)
-    # Serialize behind the cleanup coroutine before checking its final state.
     s._runtime_loop().submit(asyncio.sleep(0))
     assert s.status()["state"] == "unknown"
     assert s._driver is None
     capture_barrier.enter("browser-retirement-test", timeout=0.1)
     capture_barrier.leave("browser-retirement-test")
+
+
+def test_failed_retirement_cannot_resume_or_acknowledge_private_input(service, monkeypatch):
+    import marvi_gateway.computer as computer
+
+    s, d = service
+    monkeypatch.setattr(computer, "ACTION_TIMEOUT", 0.05)
+    d.wait = True
+    original_shutdown = d.shutdown
+
+    async def failed_shutdown():
+        raise RuntimeError("fixture shutdown failure")
+
+    d.shutdown = failed_shutdown
+    try:
+        with pytest.raises(RuntimeError, match="unknown"):
+            s.action("click", {})
+        assert s.status()["state"] == "unavailable"
+        for command in ("resume", "private", "stop"):
+            with pytest.raises(RuntimeError, match="Restart Marvi"):
+                s.control(command)
+        with pytest.raises(RuntimeError):
+            s.action("get_desktop_state", {})
+        with pytest.raises(TimeoutError):
+            capture_barrier.enter("browser-failed-retirement", timeout=0.01)
+    finally:
+        capture_barrier.leave("browser-failed-retirement")
+        d.shutdown = original_shutdown
 
 
 def test_private_input_that_cannot_start_does_not_leave_the_door_shut(service, monkeypatch):
