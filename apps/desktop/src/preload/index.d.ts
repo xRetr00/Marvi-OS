@@ -204,7 +204,7 @@ export interface MarviDesktopApi {
   openMaintenanceTerminal: (action: MaintenanceAction) => Promise<boolean>
   getSchedules: () => Promise<SchedulePage | null>
   getBrowser: () => Promise<BrowserStatus>
-  getComputer: () => Promise<import('../shared/computer').ComputerStatus>
+  getComputer: (after?: number) => Promise<import('../shared/computer').ComputerStatus>
   getAsking: () => Promise<import('../shared/asking').Asking>
   settleAsking: (
     id: string,

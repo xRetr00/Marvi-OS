@@ -2075,7 +2075,13 @@ function startApp(): void {
       return response.json()
     }
     ipcMain.handle('marvi:get-browser', () => browserRequest(''))
-    ipcMain.handle('marvi:get-computer', () => gatewayJson('/computer'))
+    ipcMain.handle('marvi:get-computer', (_event, after?: number) =>
+      gatewayJson(
+        Number.isSafeInteger(after) && (after as number) >= 0 ? `/computer?after=${after}` : '/computer',
+        undefined,
+        30_000
+      )
+    )
     ipcMain.handle('marvi:get-asking', () => gatewayJson('/asking'))
     ipcMain.handle('marvi:settle-asking', async (_event, id, state, answer) => {
       // The three the Gateway accepts. Checked here as well as there so a

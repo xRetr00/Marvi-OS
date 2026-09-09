@@ -309,7 +309,7 @@ const marvi = {
   openMaintenanceTerminal: (action: MaintenanceAction): Promise<boolean> =>
     ipcRenderer.invoke('marvi:open-maintenance-terminal', action),
   getSchedules: (): Promise<SchedulePage | null> => ipcRenderer.invoke('marvi:get-schedules'),
-  getComputer: (): Promise<import('../shared/computer').ComputerStatus> => ipcRenderer.invoke('marvi:get-computer'),
+  getComputer: (after?: number): Promise<import('../shared/computer').ComputerStatus> => ipcRenderer.invoke('marvi:get-computer', after),
   getAsking: (): Promise<import('../shared/asking').Asking> => ipcRenderer.invoke('marvi:get-asking'),
   settleAsking: (
     id: string,

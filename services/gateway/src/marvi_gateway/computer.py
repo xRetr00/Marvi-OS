@@ -91,6 +91,8 @@ class ComputerUse:
         self._loop = None
         self._driver = None
         self._lock = threading.RLock()
+        self._changed = threading.Condition(self._lock)
+        self._revision = 0
         self._state = "idle"
         self._active = False
         self._action = ""
@@ -115,7 +117,19 @@ class ComputerUse:
                 "action": self._action,
                 "driver": "cua-driver",
                 "version": VERSION,
+                "revision": self._revision,
             }
+
+    def _publish(self):
+        with self._changed:
+            self._revision += 1
+            self._changed.notify_all()
+
+    def watch(self, after: int | None = None, timeout: float = 25):
+        with self._changed:
+            if after is not None:
+                self._changed.wait_for(lambda: self._revision != after or self._closed, timeout)
+            return self.status()
 
     async def _get_driver(self):
         if self._driver is None:
@@ -174,6 +188,7 @@ class ComputerUse:
             self._active = True
             self._state = "running"
             self._action = action
+            self._publish()
 
     def _finish(self):
         with self._lock:
@@ -184,6 +199,7 @@ class ComputerUse:
             elif self._state == "stopping":
                 self._state = "paused"
             # `unknown` and `private` are left alone: both outlive the action.
+            self._publish()
 
     def catalog(self):
         self._admit("discover")
@@ -215,6 +231,7 @@ class ComputerUse:
             stopped = self._state == "stopping"
             self._state = "stopping"
             self._retirement_lease = watching.pop_all()
+            self._publish()
 
         async def retire():
             try:
@@ -225,6 +242,7 @@ class ComputerUse:
                     self._state = "unavailable"
                     self._active = False
                     self._action = ""
+                    self._publish()
                 return  # Keep the lease: private input cannot be acknowledged.
             with self._lock:
                 self._driver = None
@@ -233,6 +251,7 @@ class ComputerUse:
                 self._action = ""
                 self._retirement_lease.close()
                 self._retirement_lease = None
+                self._publish()
 
         pending = asyncio.run_coroutine_threadsafe(retire(), self._runtime_loop().loop)
         try:
@@ -357,6 +376,7 @@ class ComputerUse:
                 self._state = "idle"
             else:
                 self._state = "stopping" if self._active else "paused"
+            self._publish()
         if command == "private":
             try:
                 capture_barrier.enter("computer-use", timeout=PRIVATE_TIMEOUT)
@@ -367,17 +387,20 @@ class ComputerUse:
                 capture_barrier.leave("computer-use")
                 with self._lock:
                     self._state = "idle" if not self._active else "running"
+                    self._publish()
                 raise RuntimeError(
                     "Something is still reading the screen; private input did not start. Try again."
                 ) from None
             with self._lock:
                 self._state = "private"
+                self._publish()
         return self.status()
 
     def close(self):
         with self._lock:
             self._closed = True
             self._state = "stopping"
+            self._publish()
         if self._loop is None:
             capture_barrier.leave("computer-use")
             return
@@ -447,15 +470,15 @@ def register_computer_tools(registry, service):
 def computer_router(service, audit=lambda *_: None):
     import asyncio
 
-    from fastapi import APIRouter, Depends, HTTPException
+    from fastapi import APIRouter, Depends, HTTPException, Query
 
     from .localauth import guard
 
     router = APIRouter(prefix="/computer", dependencies=[Depends(guard)])
 
     @router.get("")
-    def status():
-        return service.status()
+    def status(after: int | None = Query(default=None, ge=0)):
+        return service.watch(after)
 
     @router.post("/control")
     async def control(body: ComputerControl):

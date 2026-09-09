@@ -6,5 +6,6 @@ export interface ComputerStatus {
   action: string
   driver: string
   version: string
+  revision?: number
 }
 export type ComputerCommand = 'stop' | 'private' | 'resume'
