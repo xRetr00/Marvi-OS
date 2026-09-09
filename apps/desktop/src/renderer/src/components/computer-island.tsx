@@ -22,23 +22,28 @@ export function useComputerActivity(): ComputerStatus | null {
   useEffect(() => {
     let alive = true
     let timer: ReturnType<typeof setTimeout>
+    let revision: number | undefined
     // Doubles on each consecutive failure up to OFF, and resets on any answer.
     let cooling = IDLE
     const refresh = async (): Promise<void> => {
       let next: number = IDLE
       try {
-        const answer = await window.marvi?.getComputer?.()
+        const answer = await window.marvi?.getComputer?.(revision)
         if (!answer) throw new Error('Gateway unavailable')
         if (alive) setStatus(answer)
         cooling = IDLE
         // Fast only while something is actually happening; slow when the
         // feature is switched off or not installed, which is the common case.
-        next = answer.active || answer.state === 'running' || answer.state === 'stopping'
+        // A current Gateway waits up to 25s for a revision change. Re-arm
+        // immediately so a short action cannot disappear between idle polls.
+        revision = answer.enabled && answer.installed ? answer.revision : undefined
+        next = revision !== undefined ? 0 : answer.active || answer.state === 'running' || answer.state === 'stopping'
           ? WATCHING
           : answer.enabled && answer.installed
             ? IDLE
             : OFF
       } catch {
+        revision = undefined
         if (alive)
           setStatus((previous) =>
             previous && previous.state !== 'idle'
@@ -54,7 +59,7 @@ export function useComputerActivity(): ComputerStatus | null {
             () => {
               void refresh()
             },
-            typeof document !== 'undefined' && document.hidden ? OFF : next
+            revision !== undefined ? next : typeof document !== 'undefined' && document.hidden ? OFF : next
           )
       }
     }

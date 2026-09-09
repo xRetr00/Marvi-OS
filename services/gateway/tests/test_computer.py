@@ -145,6 +145,21 @@ def test_setup_has_pinned_install_and_opt_in():
     assert capability.settings[0].name == "MARVI_COMPUTER_USE"
 
 
+def test_idle_status_watch_wakes_for_action_and_completion(service):
+    s, d = service
+    d.wait = True
+    previous = s.status()["revision"]
+    worker = threading.Thread(target=lambda: s.action("click", {}))
+    worker.start()
+    assert d.entered.wait(2)
+    running = s.watch(previous, timeout=0.1)
+    assert running["active"] and running["revision"] > previous
+    d.release.set()
+    worker.join(2)
+    finished = s.watch(running["revision"], timeout=0.1)
+    assert not finished["active"] and finished["revision"] > running["revision"]
+
+
 def test_a_hung_driver_releases_the_lease_instead_of_bricking_both_subsystems(service, monkeypatch):
     """One unanswered native call used to disable computer use until restart.
 

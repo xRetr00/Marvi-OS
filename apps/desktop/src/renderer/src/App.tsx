@@ -6754,7 +6754,9 @@ function IslandSurface(): React.JSX.Element {
                 : { duration: ISLAND_ENTER_SECONDS, ease: [0.22, 1, 0.36, 1] }
             }
           >
-            {askingVisible && asking ? (
+            {computerVisible && computerStatus?.active ? (
+              <ComputerIsland status={computerStatus} />
+            ) : askingVisible && asking ? (
               <AskingCard key={asking.id} question={asking} />
             ) : computerVisible && computerStatus ? (
               <ComputerIsland status={computerStatus} />
