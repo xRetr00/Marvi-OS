@@ -77,6 +77,25 @@ class Prompt:
     description: str
     variables: tuple[str, ...]
     body: str
+    #: When a sub-agent carrying this prompt should be chosen. Empty for the
+    #: prompts that are not agents.
+    #:
+    #: Claude Code declares this next to the prompt rather than in the code
+    #: that dispatches -- `agentMetadata.whenToUse` -- so the description a
+    #: router reads and the instructions the agent receives cannot drift.
+    #: Marvi has no sub-agent system yet; `coding-agent` is delegated to an
+    #: outside CLI today. Declaring it here means the day that changes, the
+    #: routing information is already written and already reviewed.
+    when_to_use: str = ""
+    #: Tools a sub-agent carrying this prompt must not be given.
+    #:
+    #: A request, not an enforcement -- exactly as in `skills`. It never widens
+    #: anything, and the runtime is what actually withholds a tool.
+    denied_tools: tuple[str, ...] = ()
+
+    @property
+    def is_agent(self) -> bool:
+        return bool(self.when_to_use)
 
     @property
     def chars(self) -> int:
@@ -128,15 +147,15 @@ def _parse(key: str, text: str) -> Prompt:
     if not matched:
         raise PromptError(f"{key} has no frontmatter comment")
     meta: dict[str, str] = {}
-    variables: list[str] = []
+    lists: dict[str, list[str]] = {"variables": [], "denied-tools": []}
     listing = ""
     for raw in matched["meta"].splitlines():
         line = raw.strip()
         if not line:
             continue
         if line.startswith("- "):
-            if listing == "variables":
-                variables.append(line[2:].strip().strip("\"'"))
+            if listing in lists:
+                lists[listing].append(line[2:].strip().strip("\"'"))
             continue
         field, sep, value = line.partition(":")
         if not sep:
@@ -155,8 +174,10 @@ def _parse(key: str, text: str) -> Prompt:
         key=key,
         name=meta.get("name", key),
         description=meta["description"],
-        variables=tuple(variables),
+        variables=tuple(lists["variables"]),
         body=body,
+        when_to_use=meta.get("when-to-use", ""),
+        denied_tools=tuple(lists["denied-tools"]),
     )
 
 
@@ -171,6 +192,11 @@ def _load(folder: str) -> dict[str, Prompt]:
 def catalogue(root: Path | None = None) -> list[Prompt]:
     """Every prompt, largest first. What the inventory is for."""
     return sorted(_load(str(_folder(root))).values(), key=lambda one: -one.chars)
+
+
+def agents(root: Path | None = None) -> list[Prompt]:
+    """The prompts that describe a sub-agent, for whatever routes to them."""
+    return [one for one in catalogue(root) if one.is_agent]
 
 
 def get(key: str, root: Path | None = None) -> Prompt:

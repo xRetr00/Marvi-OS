@@ -334,13 +334,25 @@ class Accountant:
             pass
 
         seen: set[int] = set()
-        for entry in psutil.process_iter(["pid", "name", "cmdline", "create_time"]):
+        # Iterated bare, and every field read inside the guard below.
+        #
+        # `process_iter(["cmdline", ...])` reads those attributes eagerly, and
+        # it swallows only `NoSuchProcess` and `AccessDenied`. On Windows a
+        # process can also refuse with a plain `OSError` --
+        #
+        #     OSError: [WinError 87] The parameter is incorrect:
+        #     '(originated from ReadProcessMemory)'
+        #
+        # -- which escapes the generator and ends the whole scan. One
+        # unreadable process on the machine, and the resource watchdog stops
+        # reporting on every process, having caught nothing.
+        for entry in psutil.process_iter():
             try:
-                command = " ".join(entry.info.get("cmdline") or ())
-                role = _role(command, str(entry.info.get("name") or ""))
+                command = " ".join(entry.cmdline() or ())
+                role = _role(command, str(entry.name() or ""))
                 if not role:
                     continue
-                pid = int(entry.info["pid"])
+                pid = int(entry.pid)
                 seen.add(pid)
                 handle = self._handles.get(pid) or entry
                 self._handles[pid] = handle
@@ -361,7 +373,7 @@ class Accountant:
                         read_mb=_mb(read),
                         write_mb=_mb(wrote),
                         vram_mb=round(vram[pid], 1) if pid in vram else None,
-                        alive_seconds=round(time.time() - float(entry.info["create_time"]), 1),
+                        alive_seconds=round(time.time() - float(entry.create_time()), 1),
                     )
                 )
             except Exception:

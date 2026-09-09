@@ -137,7 +137,13 @@ def test_the_task_is_handed_over_on_stdin(workspace, monkeypatch) -> None:
             break
         time.sleep(0.05)
 
-    assert captured["input"] == "why is the room offline"
+    # The task travels on stdin -- that is the property this guards, and it is
+    # what keeps a `.CMD` shim's shell away from model-written text. It is no
+    # longer the *whole* of stdin: `prompts/coding-agent.md` goes with it, so
+    # the agent knows whether it may edit and that its summary gets read aloud.
+    assert "why is the room offline" in captured["input"]
+    assert "# A coding job from Marvi" in captured["input"]
+    assert "Mode: investigate" in captured["input"]
 
 
 def test_an_unknown_mode_is_refused_rather_than_treated_as_fix(workspace) -> None:

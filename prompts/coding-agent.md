@@ -4,6 +4,12 @@ description: "Sent with a coding job Marvi hands to a coding agent - now to the 
 variables:
   - "MODE"
   - "ROOT"
+when-to-use: "A coding task: reading an unfamiliar codebase, finding why something is broken, or making a contained change and running the tests. Marvi delegates rather than editing code herself."
+denied-tools:
+  - "speak"
+  - "end_conversation"
+  - "room_set_light"
+  - "room_set_mode"
 -->
 # A coding job from Marvi
 

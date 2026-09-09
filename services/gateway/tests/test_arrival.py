@@ -16,24 +16,39 @@ import pytest
 from marvi_gateway import arrival, presence
 from marvi_gateway.arrival import judge, phone_can_be_believed, where
 
-FRESH = datetime.now(UTC).isoformat()
 STALE = "2026-08-24T21:46:54+00:00"
+
+
+def _fresh() -> str:
+    """Now, at the moment the room is built -- not at import.
+
+    This was `FRESH = datetime.now(UTC).isoformat()` at module level, stamped
+    once when pytest collected the file. `presence.STALE_AFTER` is 180 seconds,
+    so every reading in here went stale three minutes into the run and the
+    whole file failed with `unsure` where it expected an answer.
+
+    It passed for as long as the suite reached this file inside three minutes.
+    On a seventeen-minute run -- two suites contending on one machine -- nine
+    of these failed at once, and they look exactly like a real regression in
+    the presence logic. They are not; the sensors had simply aged out.
+    """
+    return datetime.now(UTC).isoformat()
 
 
 def _room(*, mmwave=None, people=None, owner=False, unknown=0, ble=None, location=None):
     state: dict = {}
     if mmwave is not None:
-        state["mmwave"] = {"occupied": mmwave, "last_seen": FRESH}
+        state["mmwave"] = {"occupied": mmwave, "last_seen": _fresh()}
     if people is not None:
         state["vision"] = {
             "person_count": people,
             "owner_visible": owner,
             "unknown_count": unknown,
-            "last_inference_at": FRESH,
+            "last_inference_at": _fresh(),
         }
     if ble is not None:
         state["presence"] = {
-            "detected": ble, "source": "ble", "last_seen": FRESH, "confidence": 0.7
+            "detected": ble, "source": "ble", "last_seen": _fresh(), "confidence": 0.7
         }
     state["location"] = location or {}
     return state

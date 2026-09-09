@@ -197,14 +197,6 @@ def text(name: str = "", root: Path | None = None, shared: bool = True) -> str:
 #: reasoning applied to the other background jobs.
 STANCE = "## Deciding in the background"
 
-#: The background mind's own file, the way `chat` is the typed surface's.
-#:
-#: The mind had no file and no way to get one. Its whole stance was a Python
-#: string in `deliberate`, and the string said "Silence is the normal, correct
-#: answer" -- so every persona deliberated like the quiet one, and the picker
-#: changed only how the sentence was worded once something had already got
-#: past that. It is a shipped file now, editable like the rest.
-FOR_MIND = "mind"
 
 
 def stance(name: str = "", root: Path | None = None) -> str:
@@ -238,25 +230,6 @@ def stance(name: str = "", root: Path | None = None) -> str:
             break
         lines.append(line)
     return gap.join(lines).strip()
-
-
-def for_mind(root: Path | None = None) -> str:
-    """The mind's file plus the chosen persona's stance. Empty if unshipped.
-
-    Two parts because they answer different questions. `mind.md` is the job --
-    what this decision is, and the short list of things genuinely not worth
-    saying (marketing mail, a repeat, someone mid-thought, an empty room). The
-    persona's section is how readily *this* Marvi speaks, which is the part
-    the picker owns. The persona goes last so it wins.
-    """
-    job = ""
-    try:
-        job = (_folder(root) / f"{FOR_MIND}.md").read_text(encoding="utf-8").strip()
-    except OSError:
-        log.warning("no %s.md; the mind is running on its fallback stance", FOR_MIND)
-    mine = stance(root=root)
-    gap = chr(10) * 2
-    return gap.join(part for part in (job, mine) if part)
 
 
 def for_surface(surface: str = "voice", root: Path | None = None) -> str:

@@ -89,7 +89,7 @@ def system_prompt(root: Path | None = None) -> str:
     from . import personas, prompts
 
     return prompts.text(
-        "mind-deliberation", STANCE=personas.for_mind(root) or FALLBACK_STANCE
+        "mind-deliberation", STANCE=personas.stance(root=root) or FALLBACK_STANCE
     )
 
 

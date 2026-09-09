@@ -91,6 +91,13 @@ being *heard*: nothing visual survives, one thought per turn, numbers said the
 way people say them, no error text read aloud, and "I don't know" as a complete
 answer.
 
+`voice-assistant.md` is **written and registered but not yet wired.** The
+Agent still assembles its instructions inline in `session.py`, and that block
+carries behaviour measured turn by turn over several sessions — the memory
+recitation rule, the language lock, the reply rule. Swapping it is a change
+that deserves its own pass with the Agent suite as the check, not a side effect
+of building the registry.
+
 ## The coding agent
 
 `prompts/coding-agent.md` goes out with every job `delegate.py` hands to the

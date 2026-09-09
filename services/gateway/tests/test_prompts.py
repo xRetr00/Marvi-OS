@@ -135,3 +135,30 @@ def test_the_two_surfaces_ask_for_different_things() -> None:
     typed = prompts.text("chat", LANGUAGE="Reply in English.")
     assert "No Markdown" in voice
     assert "Markdown when structure helps" in typed
+
+
+def test_an_agent_prompt_declares_when_to_use_it() -> None:
+    """Routing information lives with the prompt, not in the dispatcher.
+
+    Claude Code keeps `whenToUse` in the prompt file so the description a
+    router reads and the instructions the agent gets cannot drift apart. Marvi
+    has no sub-agent system yet -- `coding-agent` is handed to an outside CLI
+    -- so this is written ahead of the runtime that will read it.
+    """
+    coding = prompts.get("coding-agent")
+    assert coding.is_agent
+    assert "coding" in coding.when_to_use.lower()
+    # It must not be able to talk to the room or hang up on anybody.
+    assert "speak" in coding.denied_tools
+    assert "end_conversation" in coding.denied_tools
+    assert prompts.agents() == [coding]
+
+
+def test_the_coding_brief_says_what_a_delegated_agent_kept_getting_wrong() -> None:
+    """Each of these is a habit an unbriefed run actually produced."""
+    brief = prompts.text("coding-agent", MODE="investigate", ROOT="D:/Marvi-OS")
+    assert "D:/Marvi-OS" in brief and "Mode: investigate" in brief
+    # Reports came back as bullet lists of file paths, which cannot be spoken.
+    assert "read your final report to someone out loud" in brief.replace(chr(10), " ")
+    # And the pipe-exit-status mistake, which shipped a segfaulting suite green.
+    assert "not the exit status of something you piped it into" in brief.replace(chr(10), " ")
