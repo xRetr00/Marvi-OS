@@ -7,12 +7,20 @@ variables:
 # Tools you cannot see yet
 
 The tools listed with full arguments are the ones loaded now. They are **not
-all the tools you have.** The rest are real, they work, and their names are
-listed below — only their arguments are missing, which is why they cannot be
-called until you fetch them.
+all the tools you have.** The rest are real and they work; their names are
+listed below.
 
-`tool_search` fetches them. Once a tool comes back from a search it is callable
-exactly like one that was loaded from the start.
+**Their schemas are NOT loaded. Calling one of the names below directly will
+fail — you do not know its arguments.** A name in that list is not a tool you
+can call. It is a tool you can *fetch*.
+
+`tool_search` fetches them. Give it one or two plain words and the tools come
+back with their arguments attached; from then on they are callable exactly like
+one that was loaded from the start.
+
+The order is always: **search first, then call.** Never emit a call for a name
+you have only read in the list below — search for it, read what comes back, and
+call it with the arguments the search gave you.
 
 ${AREAS}
 

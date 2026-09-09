@@ -190,3 +190,63 @@ will obviously improve.
 If it fails again, the fallback is not "send everything": it is to widen
 `DEFAULT_CORE` beyond seven, since the reverting measurement also showed the
 loaded case reaching eighteen distinct tools at 0.1s median latency.
+
+## Measured: 60 real turns with deferral on
+
+The recommendation above said to run the experiment that had never been run.
+It has now been run, against `inclusionai/ling-3.0-flash`, five questions taken
+from the twenty-three refusals in the log, six samples each, two conditions
+differing only in the prompt.
+
+| condition | denied a real capability |
+|---|---|
+| A — the note in force when deferral was measured and reverted | **8/30 (27%)** |
+| B — `prompts/deferred-tools.md` | **0/30 (0%)** |
+
+Fisher exact, one-sided: **p = 0.0023.** The same question, the same tools:
+
+    A   "I don't have a tool to open a website in a browser directly."
+    B   "Yes, I can open a website in a browser for you. Which website?"
+
+So the refusals are fixed, and the cause was what the earlier note failed to
+say — not that more tools exist, but that *you may not claim one is missing
+without looking.*
+
+### And a second finding, which is a problem
+
+Given imperative asks ("open github.com in the browser"), the model called the
+deferred tool **directly, 24 times out of 24** — `browser_open`,
+`calendar_events`, `read_screen`, `schedule_add` — none of whose schemas were
+in the request. It never once called `tool_search`.
+
+Strengthening the wording did not help. A second run after adding *"Their
+schemas are NOT loaded. Calling one of the names below directly will fail"* and
+*"Never emit a call for a name you have only read in the list"* was again
+**24/24 calling directly**.
+
+**A name the model can see is a name it will call.** That is not something a
+prompt can talk it out of, and it is worth stating plainly because the obvious
+response — write the rule more forcefully — was tried and measured and did not
+work.
+
+Claude Code lives with this: its `ToolSearch` description names the failure
+(`InputValidationError`) so the model can recover from it, rather than trying
+to prevent it.
+
+**Marvi can do better than recover, because Marvi is not shaped like Claude
+Code here.** The Gateway registers all 61 tools; only the Agent's function list
+is filtered. A call for a deferred tool is a call the Gateway could simply
+serve. And the arguments the model guesses from the name and the listed
+description are mostly right — checked against the real schemas:
+
+    18/23  guessed arguments valid
+     3/23  wrong (a missing or extra field)
+     2/23  a name that does not exist
+
+Seventy-eight percent first time, and the other twenty-two percent now get the
+Gateway's own 422, which says which argument and that calling it again
+unchanged will fail the same way.
+
+That points at lazy loading rather than search-then-call: let the name be the
+index, resolve an unloaded name against the full catalogue, and run it. It is a
+change to the Agent's dispatch, not to a prompt, and it is not made here.
