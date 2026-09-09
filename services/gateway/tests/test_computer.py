@@ -27,9 +27,9 @@ class Driver:
 
     async def call_tool(self, name, arguments):
         self.calls.append((name, arguments))
-        if name not in {"start_session", "set_agent_cursor_enabled"}:
+        if name not in {"start_session", "set_agent_cursor_enabled", "set_agent_cursor_motion"}:
             self.entered.set()
-        if self.wait and name not in {"start_session", "set_agent_cursor_enabled"}:
+        if self.wait and name not in {"start_session", "set_agent_cursor_enabled", "set_agent_cursor_motion"}:
             await asyncio.to_thread(self.release.wait)
         return SimpleNamespace(
             text="fixture result", images=[], is_error=False, error_code=None, degraded=False
@@ -73,9 +73,9 @@ def test_cursor_is_named_marvi_and_hidden_before_private_input(service):
     calls = [(name, json.loads(args)) for name, args in d.calls]
     assert calls == [
         ("start_session", {"session": "Marvi", "cursor_theme": {"theme_id": "cua.default", "reduced_motion": "auto"}}),
+        ("set_agent_cursor_motion", {"session": "Marvi", "idle_hide_ms": 1000}),
         ("set_agent_cursor_enabled", {"session": "Marvi", "enabled": True}),
         ("click", {"session": "Marvi"}),
-        ("set_agent_cursor_enabled", {"session": "Marvi", "enabled": False}),
     ]
     s.control("private")
     assert not json.loads(d.calls[-1][1])["enabled"]

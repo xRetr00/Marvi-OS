@@ -97,6 +97,7 @@ class ComputerUse:
         self._factory = factory
         self._loop = None
         self._driver = None
+        self._cursor_started = False
         self._lock = threading.RLock()
         self._changed = threading.Condition(self._lock)
         self._revision = 0
@@ -180,6 +181,12 @@ class ComputerUse:
                 )
         return self._driver
 
+    async def _hide_cursor(self):
+        if self._driver and self._cursor_started:
+            result = await self._driver.call_tool("set_agent_cursor_enabled", json.dumps({"session": CURSOR_SESSION, "enabled": False}))
+            if result.is_error:
+                raise RuntimeError("Computer cursor could not be hidden")
+
     def _admit(self, action):
         with self._lock:
             if self._closed or not enabled():
@@ -254,6 +261,7 @@ class ComputerUse:
                 return  # Keep the lease: private input cannot be acknowledged.
             with self._lock:
                 self._driver = None
+                self._cursor_started = False
                 self._state = "paused" if stopped else "unknown"
                 self._active = False
                 self._action = ""
@@ -289,13 +297,23 @@ class ComputerUse:
             # start_session is idempotent and revives an expired named session.
             # The public name supplies Cua's native badge, not authorization.
             await cursor_tool("start_session", cursor_theme={"theme_id": "cua.default", "reduced_motion": "auto"})
+            self._cursor_started = True
+            cancelled = False
+            failed = True
             try:
+                await cursor_tool("set_agent_cursor_motion", idle_hide_ms=1000)
                 await cursor_tool("set_agent_cursor_enabled", enabled=True)
-                return await driver.call_tool(action, json.dumps({**arguments, "session": CURSOR_SESSION}))
+                result = await driver.call_tool(action, json.dumps({**arguments, "session": CURSOR_SESSION}))
+                failed = result.is_error
+                return result
+            except asyncio.CancelledError:
+                cancelled = True  # Worker retirement owns cleanup after timeout.
+                raise
             finally:
-                # Kept inside the action/capture lease: a pause/private handoff
-                # cannot acknowledge before cursor cleanup has finished.
-                await cursor_tool("set_agent_cursor_enabled", enabled=False)
+                with self._lock:
+                    paused = self._state in {"stopping", "paused", "private"}
+                if not cancelled and (failed or paused):
+                    await self._hide_cursor()
 
         try:
             # Refusals are separated from failures on purpose. `observe()`
@@ -403,7 +421,10 @@ class ComputerUse:
                 self._state = "idle"
             else:
                 self._state = "stopping" if self._active else "paused"
+            hide_now = command == "stop" and not self._active
             self._publish()
+        if hide_now and self._loop:
+            self._loop.submit(self._hide_cursor(), timeout=10)
         if command == "private":
             try:
                 capture_barrier.enter("computer-use", timeout=PRIVATE_TIMEOUT)
@@ -418,6 +439,8 @@ class ComputerUse:
                 raise RuntimeError(
                     "Something is still reading the screen; private input did not start. Try again."
                 ) from None
+            if self._loop:
+                self._loop.submit(self._hide_cursor(), timeout=10)
             with self._lock:
                 self._state = "private"
                 self._publish()
