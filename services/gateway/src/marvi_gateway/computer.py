@@ -5,6 +5,9 @@ import json
 import os
 import threading
 from pathlib import Path
+from typing import Literal
+
+from pydantic import BaseModel
 
 from .background import LoopThread
 from .browser_privacy import capture_barrier
@@ -12,6 +15,11 @@ from .setup.catalog import install_root
 from .untrusted import wrap_external
 
 VERSION = "0.24.0"
+
+
+class ComputerControl(BaseModel):
+    command: Literal["stop", "private", "resume"]
+
 ACTIONS = frozenset({
     "list_apps", "list_windows", "get_window_state", "get_desktop_state",
     "get_accessibility_tree", "verify_state", "launch_app", "kill_app",
@@ -199,15 +207,10 @@ def register_computer_tools(registry, service):
 
 def computer_router(service):
     import asyncio
-    from typing import Literal
 
     from fastapi import APIRouter, Depends, HTTPException
-    from pydantic import BaseModel
 
     from .localauth import guard
-
-    class Control(BaseModel):
-        command: Literal['stop', 'private', 'resume']
 
     router = APIRouter(prefix='/computer', dependencies=[Depends(guard)])
 
@@ -216,7 +219,7 @@ def computer_router(service):
         return service.status()
 
     @router.post('/control')
-    async def control(body: Control):
+    async def control(body: ComputerControl):
         try:
             return await asyncio.to_thread(service.control, body.command)
         except (ValueError, RuntimeError) as exc:
