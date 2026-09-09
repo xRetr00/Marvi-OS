@@ -799,6 +799,15 @@ wheels = [
 ]
 
 [[package]]
+name = "cua-driver"
+version = "0.24.0"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/49/2b/8408d7b58982788750f1d9b28912573cafdd242b1a36f8393f8cfbd8ff3a/cua_driver-0.24.0-py3-none-win_amd64.whl", hash = "sha256:fdfb79c146ddd7f89ccd4510b16d41842d53c7b81f6a13e69925820e1fa040d3", size = 25636913, upload-time = "2026-09-07T16:53:47.815Z" },
+    { url = "https://files.pythonhosted.org/packages/21/b7/1c5bf5a378a095cf9201e587b12b2239fa76ddfc390fe21730a46ab4dbbc/cua_driver-0.24.0-py3-none-win_arm64.whl", hash = "sha256:1903208355db886c894b99c30d65333de3b97e9a589c4374c1f9e4af6a0f2522", size = 23816267, upload-time = "2026-09-07T16:53:50.449Z" },
+]
+
+[[package]]
 name = "cuda-bindings"
 version = "13.3.1"
 source = { registry = "https://pypi.org/simple" }
@@ -2345,6 +2354,7 @@ source = { editable = "services/gateway" }
 dependencies = [
     { name = "apscheduler" },
     { name = "composio" },
+    { name = "cua-driver", marker = "sys_platform == 'win32'" },
     { name = "fastapi" },
     { name = "honcho-ai" },
     { name = "httpx" },
@@ -2373,6 +2383,7 @@ dev = [
 requires-dist = [
     { name = "apscheduler", specifier = ">=3.10,<4" },
     { name = "composio", specifier = ">=0.19,<1" },
+    { name = "cua-driver", marker = "sys_platform == 'win32'", specifier = "==0.24.0" },
     { name = "fastapi", specifier = ">=0.116,<1" },
     { name = "honcho-ai", specifier = "==2.4.0" },
     { name = "httpx", specifier = ">=0.28,<1" },

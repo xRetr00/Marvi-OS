@@ -46,6 +46,7 @@ dependencies = [
     # install breaks on an unrelated bump -- the same reason `rich` is here.
     "pillow>=10,<13",
     "pproxy==2.7.9",
+    "cua-driver==0.24.0 ; sys_platform == 'win32'",
 ]
 
 [project.scripts]
