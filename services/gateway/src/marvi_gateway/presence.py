@@ -41,7 +41,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from . import auxiliary
+from . import auxiliary, prompts
 from .logs import get_logger
 
 log = get_logger("presence")
@@ -53,18 +53,7 @@ STALE_AFTER = 180.0
 
 MAX_OUTPUT_TOKENS = 200
 
-SYSTEM_PROMPT = (
-    "You decide who is in a room from sensors that disagree. You produce one "
-    "JSON object and nothing else.\n"
-    'Reply exactly: {"present": true|false, "who": "owner|someone|nobody|unknown", '
-    '"confidence": 0.0-1.0, "why": "<one short sentence>"}\n'
-    "Weigh the sensors by what each can actually know. A camera that sees a "
-    "face is strong evidence someone is there and weak evidence about who is "
-    "not. Motion sensors miss people sitting still. A phone at home means the "
-    "phone is at home. Silence from any sensor is not evidence of absence.\n"
-    "Prefer 'unknown' with low confidence over a confident guess: something "
-    "downstream will act on this, and being unsure is a useful answer."
-)
+SYSTEM_PROMPT = prompts.text("presence-judgement")
 
 
 @dataclass

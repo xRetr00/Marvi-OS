@@ -16,6 +16,7 @@ import asyncio
 import logging
 import os
 import queue
+import re
 import threading
 import time
 from typing import Any
@@ -376,6 +377,9 @@ class GatewayTools:
         #: something; never shrinks, because a tool that worked a minute ago
         #: and has quietly gone is worse than one that was never there.
         self._loaded: set[str] = set()
+        #: Loaded with one sentence and an open arguments object. See
+        #: `_as_function_tool(brief=True)` and `_promote`.
+        self._brief: set[str] = set()
         #: Set once the Agent exists, which is after these tools are built.
         self._agent: Any = None
 
@@ -452,8 +456,13 @@ class GatewayTools:
                     said = await self._run(tool, arguments)
         except ToolError as exc:
             self._watch({"call_id": call_id, "outcome": "failed", "detail": str(exc)[:200]})
+            # Promoted on failure too, and especially then: the commonest
+            # reason a brief tool fails is a guessed argument, and the fix for
+            # that is the exact schema rather than a second guess.
+            await self._promote(tool)
             raise
         self._watch({"call_id": call_id, "outcome": "ok", "detail": said[:200]})
+        await self._promote(tool)
         return said
 
     async def _run(self, tool: str, arguments: dict[str, Any]) -> str:
@@ -806,7 +815,11 @@ class GatewayTools:
             # exist is exactly the standing falsehood `defers()` was added to
             # stop.
             response = await client.get(
-                f"{self._base_url}/context", params={"deferred": str(self.defers()).lower()}
+                f"{self._base_url}/context",
+                params={
+                    "deferred": str(self.defers()).lower(),
+                    "brief": str(self.briefly_loaded()).lower(),
+                },
             )
             response.raise_for_status()
             blocks = response.json().get("blocks") or []
@@ -818,11 +831,20 @@ class GatewayTools:
             if self._client is None:
                 await client.aclose()
 
-    def _as_function_tool(self, entry: dict[str, Any]) -> Any:
+    def _as_function_tool(self, entry: dict[str, Any], brief: bool = False) -> Any:
         """One catalogue entry as a LiveKit function tool.
 
         Every call goes back through `/tools/{name}`, which is the one path
         with the confirmation flow and the audit line on it.
+
+        `brief` is the lazy form: the real name, the first sentence of the
+        description, and an open arguments object. It exists because of what
+        the comment in `from_gateway` records -- a name the model can see is a
+        name it calls, and a named tool with no schema loaded is not callable,
+        so ten direct calls came back `unknown AI function`. Brief keeps the
+        name callable at roughly a third of the cost, and the Gateway is what
+        checks the arguments. `_promote` swaps in the full schema afterwards,
+        so a tool is imprecise once and exact from then on.
         """
         from livekit.agents import function_tool
 
@@ -830,17 +852,26 @@ class GatewayTools:
         required = [a for a in (entry.get("arguments") or []) if isinstance(a, str)]
         optional = [a for a in (entry.get("optional") or []) if isinstance(a, str)]
         published_schema = entry.get("input_schema")
-        parameters = (
-            published_schema
-            if isinstance(published_schema, dict) and published_schema.get("type") == "object"
-            else {
-                "type": "object",
-                "properties": {
-                    argument: {"type": "string"} for argument in [*required, *optional]
-                },
-                "required": required,
-            }
-        )
+        described = str(entry.get("description") or name)
+        if brief:
+            # The whole schema is the saving; the first sentence is what makes
+            # the guess work. Measured against the real schemas, arguments
+            # guessed from the name alone were right 18 times in 23 -- and a
+            # sentence of description is more than a name.
+            described = re.split(r"(?<=[.!?])\s", described.strip())[0]
+            parameters: dict[str, Any] = {"type": "object", "properties": {}}
+        else:
+            parameters = (
+                published_schema
+                if isinstance(published_schema, dict) and published_schema.get("type") == "object"
+                else {
+                    "type": "object",
+                    "properties": {
+                        argument: {"type": "string"} for argument in [*required, *optional]
+                    },
+                    "required": required,
+                }
+            )
 
         # `context` is annotated so LiveKit injects it: it resolves RunContext
         # parameters by type hint for raw-schema tools exactly as it does for
@@ -860,11 +891,7 @@ class GatewayTools:
 
         return function_tool(
             caller,
-            raw_schema={
-                "name": name,
-                "description": str(entry.get("description") or name),
-                "parameters": parameters,
-            },
+            raw_schema={"name": name, "description": described, "parameters": parameters},
         )
 
     async def from_gateway(self, everything: bool | None = None) -> list[Any]:
@@ -932,19 +959,52 @@ class GatewayTools:
         #
         # `MARVI_DEFER_TOOLS=on` is the way back, and `MARVI_CORE_TOOLS` still
         # chooses what survives when it is.
+        # Three settings, and the third is the one the measurements point at.
+        #
+        #   off    every tool with its full schema. Correct, and 6,800 tokens
+        #          of schema on every turn including "good morning".
+        #   on     core tools only, the rest behind `tool_search`. Cheapest,
+        #          and it does not work: the model calls the names it can see
+        #          and LiveKit answers `unknown AI function`.
+        #   lazy   every tool callable, but the ones outside the core carry
+        #          one sentence and an open arguments object. The model calls
+        #          by name -- which is what it does anyway -- the Gateway
+        #          checks the arguments, and `_promote` swaps in the exact
+        #          schema for the rest of the session.
+        #
+        # Lazy costs about a third of `off` and never refuses a capability,
+        # because there is nothing to refuse: every tool is in the request.
+        wanted = os.environ.get(DEFER_SETTING, "lazy").strip().lower()
         if everything is None:
-            everything = os.environ.get(DEFER_SETTING, "off").strip().lower() in (
-                "0", "false", "no", "off", ""
+            everything = wanted in ("0", "false", "no", "off", "")
+        lazy = not everything and wanted == "lazy"
+        has_core = any(entry.get("core") for entry in self._catalogue.values())
+        defers = not everything and has_core
+        if lazy and has_core:
+            # Everything is loaded; what varies is how much of it is described.
+            self._brief = {
+                name
+                for name, entry in self._catalogue.items()
+                if not entry.get("core") and name != SEARCH_TOOL
+            }
+            self._loaded = set(self._catalogue)
+        else:
+            self._brief = set()
+            self._loaded = {
+                name
+                for name, entry in self._catalogue.items()
+                if not defers or entry.get("core") or name == SEARCH_TOOL
+            }
+        loaded = [
+            self._as_function_tool(self._catalogue[name], brief=name in self._brief)
+            for name in self._loaded
+        ]
+        if self._brief:
+            log.info(
+                "%d tools loaded, %d of them briefly; arguments are checked by the Gateway",
+                len(loaded),
+                len(self._brief),
             )
-        defers = not everything and any(
-            entry.get("core") for entry in self._catalogue.values()
-        )
-        self._loaded = {
-            name
-            for name, entry in self._catalogue.items()
-            if not defers or entry.get("core") or name == SEARCH_TOOL
-        }
-        loaded = [self._as_function_tool(self._catalogue[name]) for name in self._loaded]
         if defers:
             log.info(
                 "%d of %d Gateway tools loaded; the rest are found with %s",
@@ -990,6 +1050,16 @@ class GatewayTools:
         itself in exactly this case.
         """
         return bool(self._catalogue.keys() - self._loaded)
+
+    def briefly_loaded(self) -> bool:
+        """Whether any tool is in the request with one sentence and no arguments.
+
+        A different question from `defers`, and the two are never both true.
+        Deferred means a tool is missing from the request and has to be found;
+        brief means it is present and callable but under-described. They need
+        different things said to the model, so they are asked separately.
+        """
+        return bool(self._brief)
 
     def catalogue_index(self) -> str:
         """Every tool's name, for the instructions. Names only, never schemas.
@@ -1061,6 +1131,28 @@ class GatewayTools:
         found.raise_for_status()
         answer = found.json().get("result")
         return answer if isinstance(answer, dict) else {}
+
+    async def _promote(self, name: str) -> str:
+        """Give a briefly-loaded tool its full schema, once it has been used.
+
+        The model guesses arguments from one sentence, which is right most of
+        the time and cheap when it is not -- the Gateway answers 422 saying
+        which argument. What should not happen is guessing twice about the
+        same tool, so the first call is what buys the exact schema.
+
+        Returns the name when it did something, for the test to read.
+        """
+        if name not in self._brief:
+            return ""
+        agent = self._agent
+        if agent is None or name not in self._catalogue:
+            return ""
+        self._brief.discard(name)
+        full = self._as_function_tool(self._catalogue[name])
+        kept = [tool for tool in agent.tools if getattr(tool, "name", None) != name]
+        await agent.update_tools([*kept, full])
+        log.info("promoted %s to its full schema", name)
+        return name
 
     async def _load_found(self, names: list[str]) -> None:
         """Add tools a search just found, for the rest of the session.

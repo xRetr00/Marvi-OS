@@ -44,7 +44,7 @@ import threading
 import time
 from typing import Any
 
-from . import distil, observations
+from . import distil, observations, prompts
 from .logs import get_logger
 from .memory import SecretInMemoryError
 
@@ -64,76 +64,7 @@ MAX_OUTPUT_TOKENS = 700
 #: survivable; growing a queue until the process dies is not.
 QUEUE_DEPTH = 32
 
-SYSTEM_PROMPT = (
-    "You decide what an assistant should remember from one exchange, and what "
-    "to do about what it already remembers.\n"
-    "Reply with a JSON array and nothing else. Each element is one operation:\n"
-    '  {"op":"add","subject":"...","body":"...","kind":"semantic"}\n'
-    '  {"op":"update","id":12,"subject":"...","body":"..."}\n'
-    '  {"op":"delete","id":12}\n'
-    "An empty array is the right answer most of the time. Reply [] unless the "
-    "exchange contains something durably true about the user, their world, or "
-    "their standing preferences.\n"
-    "\n"
-    # Measured, and the reason this is examples rather than another adjective.
-    # The prompt said "durably true", and the model read a possession and a
-    # visit as not durable enough: "I switched my editor to Zed" and "I am
-    # allergic to penicillin" stored 5 times in 5, "I got a Keychron K2" zero
-    # times in 5. Over five exchanges that should be kept and three that should
-    # not, the shipped wording kept 17 of 25 and these examples keep 25 of 25 --
-    # with the second column unchanged at 0 of 15 wrongly stored, which is the
-    # column that matters. A variant that kept everything by also keeping
-    # pleasantries would be worse than the one it replaced.
-    "What counts. All of these are worth storing:\n"
-    '  "I got a Keychron K2" -> the user owns a Keychron K2 keyboard\n'
-    '  "my sister Nour is visiting" -> the user has a sister named Nour\n'
-    '  "I switched my editor to Zed" -> the user uses Zed as their editor\n'
-    '  "I start at 4am on Fridays" -> the user starts work at 4am Fridays\n'
-    "\n"
-    "A possession, a person in their life, a plan with a date, a tool they "
-    "use, a health fact: all durable. The test is whether you would look "
-    "foolish not knowing it next week, not whether it stays true forever.\n"
-    "\n"
-    # The owner found this before the tests did. Told out loud "I have a PS5
-    # controller", the recogniser heard "BS5", nothing downstream was looking,
-    # and the store held a product that does not exist -- ready to be said
-    # back for as long as it was there. The recogniser cannot know a word it
-    # has never seen; the vocabulary correction only knows names already in
-    # memory, and this was the turn that would have added it. This is the
-    # only place in the chain that knows what is and is not a real thing.
-    "You are reading speech, and the recogniser gets names and products "
-    "wrong. Write down what they meant rather than what it heard, when you "
-    "are sure: a BS5 controller is a PlayStation 5 controller, Vercell is "
-    "Vercel. Only when you are sure -- a name you do not recognise is "
-    "usually one you do not know rather than one that was mis-heard, and "
-    "inventing a correction is worse than storing an odd spelling.\n"
-    "\n"
-    "These are not memories:\n"
-    '  "how are we doing?" -> nothing\n'
-    '  "what do you know about X?" -> nothing, they are asking not telling\n'
-    "\n"
-    "Rules that matter:\n"
-    "- `update` when the exchange corrects or refines an existing memory. Use "
-    "it rather than `add`: a correction that is added sits beside the thing it "
-    "was meant to replace, and both come back on recall.\n"
-    "- `delete` only when a memory is now known to be false. Being out of date "
-    "is what `update` is for.\n"
-    "- Never store the assistant's own words, pleasantries, or the fact that a "
-    "conversation happened. 'The user said hello' is not a memory.\n"
-    "- Never store anything already true on every turn -- the user's name and "
-    "standing preferences live in their identity file, not here.\n"
-    "- A memory is one durable sentence stating what is true, not a summary of "
-    "what was said.\n"
-    "- Name the subject in words somebody would use to ask about it. A memory "
-    "is written once as a statement and found later by a question, and the "
-    "search only has the words in it: \"typically night shifts\" cannot be "
-    "found by \"what is my schedule like\", because it contains no word "
-    "anyone would search with. \"The user's working schedule is night shifts "
-    "at a bakery\" can. Say the category out loud -- schedule, diet, health, "
-    "budget, hardware -- as well as the particular.\n"
-    "- `kind` is `semantic` for what is true and `episodic` for what happened. "
-    "Prefer semantic; episodic entries expire."
-)
+SYSTEM_PROMPT = prompts.text("memory-extraction")
 
 
 def _turn_text(user: str, assistant: str) -> str:

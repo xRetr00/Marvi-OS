@@ -47,7 +47,7 @@ import json
 import re
 from typing import Any
 
-from . import distil
+from . import distil, prompts
 from .logs import get_logger
 
 log = get_logger("memory")
@@ -66,39 +66,7 @@ MIN_PREMISES = 2
 #: in the subject position makes an unreadable graph and a useless one.
 MAX_ENTITY = 60
 
-SYSTEM_PROMPT = (
-    "You are the part of an assistant's mind that works things out while it is "
-    "idle. You are shown memories it has stored. Find what follows from them "
-    "that nobody said.\n"
-    "\n"
-    "Reply with one JSON object and nothing else:\n"
-    '{"conclusions":[{"subject":"<a few words>","body":"<one sentence>",'
-    '"from":[<memory ids>]}],\n'
-    ' "links":[{"subject":"<name>","predicate":"<verb phrase>","object":"<name>"}],\n'
-    ' "retire":[<ids of conclusions that no longer hold>]}\n'
-    "\n"
-    "Any of the three may be empty, and usually at least one is.\n"
-    "\n"
-    "conclusions -- things that are true given several of these memories but "
-    "are stated in none of them. Each must name at least two memory ids in "
-    '"from". A conclusion drawn from one memory is that memory reworded, which '
-    "is worth nothing. Do not restate, summarise, or combine memories that "
-    "simply agree. Prefer few and specific over many and vague.\n"
-    "\n"
-    "links -- the people, places, projects and things these memories are "
-    "about, and how they relate. Subject and object are short names, not "
-    "sentences. The predicate is a verb phrase: 'works on', 'lives in', "
-    "'prefers', 'is the developer of'. This is how the assistant's graph of "
-    "who and what gets built, so name the same thing the same way every time.\n"
-    "\n"
-    "retire -- ids from the CONCLUSIONS list below that later memories "
-    "contradict or make irrelevant. Only ids from that list. Never retire "
-    "something because it is old.\n"
-    "\n"
-    "Say nothing you are guessing at. An empty answer is a good answer, and a "
-    "confident invention is worse than silence -- the assistant will repeat it "
-    "back to the person it is about."
-)
+SYSTEM_PROMPT = prompts.text("dreaming")
 
 
 def _parse(text: str) -> dict[str, Any]:

@@ -41,7 +41,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from . import distil
+from . import distil, prompts
 from .logs import get_logger
 
 log = get_logger("memory")
@@ -65,19 +65,7 @@ MAX_OUTPUT_TOKENS = 120
 #: nobody asked for, paid on every turn of the next session.
 MAX_CHARS = 220
 
-SYSTEM_PROMPT = (
-    "Summarise what this conversation was about in one short sentence, for the "
-    "assistant to read at the start of the next one.\n"
-    "\n"
-    "Write what they were doing or discussing, not what was said. Name the "
-    "subject plainly: 'the graph UI in Marvi', 'their exam timetable', "
-    "'whether to switch editors'.\n"
-    "\n"
-    "If it was small talk, a greeting, or nothing in particular, reply exactly: "
-    "NOTHING\n"
-    "\n"
-    "Never include anything the assistant should not repeat aloud."
-)
+SYSTEM_PROMPT = prompts.text("continuity")
 
 
 def enabled() -> bool:

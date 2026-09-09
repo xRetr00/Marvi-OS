@@ -27,6 +27,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from . import prompts
+
 # Roughly four characters per token. Deliberately an estimate: the point is a
 # hard ceiling, not an exact count, and over-estimating is the safe direction.
 CHARS_PER_TOKEN = 4
@@ -214,13 +216,7 @@ class IdentityFiles:
 
 # -- plan terms ---------------------------------------------------------------
 
-PLAN_TERMS_WARNING = (
-    "This provider is a subscription plan, not a metered API. Plans are sold "
-    "for interactive use, and driving one from an always-on assistant may fall "
-    "outside its terms of service. Marvi will use it if you connect it — that "
-    "is your decision to make, and other agent tools work the same way — but "
-    "you should know the risk is account suspension, not a warning email."
-)
+PLAN_TERMS_WARNING = prompts.text("plan-terms-warning")
 
 
 def plan_warning(profile: object) -> str | None:

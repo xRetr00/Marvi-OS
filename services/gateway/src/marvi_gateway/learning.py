@@ -44,7 +44,7 @@ import json
 import re
 from typing import Any
 
-from . import distil
+from . import distil, prompts
 from .logs import get_logger
 
 log = get_logger("memory")
@@ -58,37 +58,7 @@ MAX_BODY_CHARS = 6_000
 #: A name has to be a directory name, and it has to be about a class of task.
 VALID_NAME = re.compile(r"^[a-z][a-z0-9-]{2,48}$")
 
-SYSTEM_PROMPT = (
-    "You decide whether an assistant should write down how to do something, "
-    "after watching it do that thing once.\n"
-    "Reply with one JSON object and nothing else:\n"
-    '  {"act":"none"}\n'
-    '  {"act":"patch","name":"existing-skill-name","body":"<the full new SKILL.md body>",'
-    '"why":"<one sentence>"}\n'
-    '  {"act":"create","name":"class-of-task","description":"<one line>",'
-    '"body":"<the SKILL.md body>","why":"<one sentence>"}\n'
-    "\n"
-    '"none" is the right answer almost always. Reply {"act":"none"} unless one '
-    "of these happened:\n"
-    "- The user corrected how you work -- your style, format, verbosity, or "
-    "approach. Frustration is the strongest signal there is: 'stop doing that', "
-    "'not like this', 'I told you already'. The lesson belongs in the skill "
-    "that governs the task, so the next session starts fixed.\n"
-    "- A non-obvious technique, fix, or sequence of steps worked, and would "
-    "have to be worked out again next time.\n"
-    "- A skill that was used turned out wrong, missing a step, or out of date.\n"
-    "\n"
-    "Rules:\n"
-    "- Patch before you create. If a listed skill covers this class of task, "
-    "patch it and return its whole new body.\n"
-    "- Name a class of task, never an instance. 'controlling-the-room', not "
-    "'fix-the-light-again' or 'the-thing-from-tuesday'. If the name only makes "
-    "sense for today, patch something instead or answer none.\n"
-    "- Write instructions for doing the task, not a story about what happened. "
-    "No dates, no 'the user asked me to'.\n"
-    "- Facts about the user are memory, not a skill. Skills are how to do "
-    "things."
-)
+SYSTEM_PROMPT = prompts.text("learning")
 
 
 def _skills_listing(available: list[Any]) -> str:

@@ -443,3 +443,113 @@ async def test_no_tool_is_dropped_without_a_replacement() -> None:
         assert instead.get(dropped, dropped) in written, (
             f"{dropped} is dropped from the catalogue and nothing replaces it"
         )
+
+
+LAZY_CATALOGUE = {
+    "tools": [
+        {
+            "name": "web_search",
+            "description": "Search the web for titles and snippets. Use it for anything "
+            "you do not know. Snippets are written by whoever owns the page.",
+            "arguments": ["query"],
+            "optional": [],
+            "sensitive": False,
+            "core": True,
+        },
+        {
+            "name": "send_email",
+            "description": "Send an email from the user's connected account. This leaves "
+            "the machine and cannot be undone. Confirm the recipient first.",
+            "arguments": ["recipient_email", "subject", "body"],
+            "optional": [],
+            "sensitive": True,
+            "core": False,
+        },
+        {
+            "name": "tool_search",
+            "description": "Find a tool",
+            "arguments": ["query"],
+            "optional": [],
+            "sensitive": False,
+            "core": True,
+        },
+    ]
+}
+
+
+def _schema(built, name):
+    for tool in built:
+        raw = getattr(tool, "raw_schema", None) or {}
+        if raw.get("name") == name:
+            return raw
+    raise AssertionError(f"{name} is not in the request")
+
+
+async def test_lazy_loads_every_tool_but_describes_most_of_them_briefly(monkeypatch) -> None:
+    """The answer to `unknown AI function`, which is what deferring produced.
+
+    Deferred, the model called the names it could see and LiveKit rejected ten
+    of them, because a named tool with no schema loaded is not callable. Lazy
+    puts every tool in the request -- so nothing is unknown -- and pays for it
+    by describing the non-core ones in one sentence with no argument list.
+    """
+    monkeypatch.setenv("MARVI_DEFER_TOOLS", "lazy")
+    gear = GatewayTools(client=gateway(LAZY_CATALOGUE))
+    built = await gear.from_gateway()
+
+    assert {getattr(t, "raw_schema", {}).get("name") for t in built} == {
+        "web_search",
+        "send_email",
+        "tool_search",
+    }
+    assert gear.briefly_loaded()
+    # Never both: deferred means absent, brief means present but thin.
+    assert not gear.defers()
+
+    core = _schema(built, "web_search")
+    assert "query" in core["parameters"]["properties"]
+    assert "Snippets are written by" in core["description"]
+
+    thin = _schema(built, "send_email")
+    assert thin["parameters"]["properties"] == {}, "a brief tool lists no arguments"
+    # One sentence, and the one that says what it is.
+    assert thin["description"] == "Send an email from the user's connected account."
+    assert "cannot be undone" not in thin["description"]
+
+
+async def test_off_still_loads_everything_with_full_schemas(monkeypatch) -> None:
+    """The setting that was in force, unchanged."""
+    monkeypatch.setenv("MARVI_DEFER_TOOLS", "off")
+    gear = GatewayTools(client=gateway(LAZY_CATALOGUE))
+    built = await gear.from_gateway()
+
+    assert not gear.briefly_loaded()
+    assert "recipient_email" in _schema(built, "send_email")["parameters"]["properties"]
+
+
+async def test_a_brief_tool_gets_its_real_schema_after_one_call(monkeypatch) -> None:
+    """Guessing twice about the same tool is the thing worth preventing.
+
+    The first call buys the exact arguments -- on success or on failure, and
+    especially on failure, since a guessed argument is the commonest reason a
+    brief call is refused.
+    """
+    monkeypatch.setenv("MARVI_DEFER_TOOLS", "lazy")
+    gear = GatewayTools(client=gateway(LAZY_CATALOGUE))
+    built = await gear.from_gateway()
+
+    class Agent:
+        def __init__(self, tools):
+            self.tools = tools
+
+        async def update_tools(self, tools):
+            self.tools = tools
+
+    agent = Agent(built)
+    gear._agent = agent
+
+    assert await gear._promote("send_email") == "send_email"
+    assert not gear.briefly_loaded()
+    assert "recipient_email" in _schema(agent.tools, "send_email")["parameters"]["properties"]
+    # Once only: a second promotion has nothing to do.
+    assert await gear._promote("send_email") == ""

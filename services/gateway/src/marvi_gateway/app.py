@@ -3319,7 +3319,9 @@ def create_app(
         return {"chosen": personas.chosen(), "available": personas.available()}
 
     @app.get("/context")
-    async def read_context(surface: str = "voice", deferred: bool = False) -> dict[str, Any]:
+    async def read_context(
+        surface: str = "voice", deferred: bool = False, brief: bool = False
+    ) -> dict[str, Any]:
         """Prompt context the voice worker cannot build for itself.
 
         Voice assembles its own instructions in the Agent process and so was
@@ -3463,6 +3465,13 @@ def create_app(
                 "deferred-tools",
                 AREAS=f"{heading}{chr(10) * 2}{listed}" if listed else "",
             )
+        if brief:
+            # Lazy loading: every tool is callable, most with one sentence and
+            # no argument list. Never both this and `deferred` -- see
+            # `GatewayTools.briefly_loaded`.
+            from . import prompts
+
+            blocks["tools_brief"] = prompts.text("lazy-tools")
         return {"blocks": ordered_context_blocks(blocks)}
 
     @app.get("/skills")

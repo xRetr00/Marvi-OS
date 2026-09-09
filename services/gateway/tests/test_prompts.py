@@ -29,27 +29,7 @@ REPO = Path(__file__).resolve().parents[3]
 #:
 #: `SCHEMA` constants are database DDL rather than instructions and are not
 #: counted; see `_is_prompt`.
-STILL_IN_CODE = {
-    ("remembering.py", "SYSTEM_PROMPT"),
-    ("distil.py", "TITLE_SYSTEM"),
-    ("gatekeeping.py", "SYSTEM_PROMPT"),
-    ("memory_import.py", "SYSTEM_PROMPT"),
-    ("dreaming.py", "SYSTEM_PROMPT"),
-    ("learning.py", "SYSTEM_PROMPT"),
-    ("gatekeeping.py", "ONE_SYSTEM_PROMPT"),
-    ("rephrasing.py", "SYSTEM_PROMPT"),
-    ("memory_import.py", "PACK_PROMPT"),
-    ("standing.py", "SYSTEM_PROMPT"),
-    ("presence.py", "SYSTEM_PROMPT"),
-    ("distil.py", "MEMORY_SYSTEM"),
-    ("continuity.py", "SYSTEM_PROMPT"),
-    ("screen.py", "SYSTEM_PROMPT"),
-    ("identity.py", "PLAN_TERMS_WARNING"),
-    ("distil.py", "EXTRACT_SYSTEM"),
-    # The Agent service, which has the same problem for the same reason.
-    ("session.py", "DEFAULT_REPLY_RULE"),
-    ("session.py", "TOOL_SEARCH_NOTE"),
-}
+STILL_IN_CODE: set[tuple[str, str]] = set()
 
 #: Below this, a string constant is a message or a label rather than a prompt.
 PROMPT_SIZED = 200
@@ -130,11 +110,24 @@ def test_a_dollar_in_prose_survives_substitution() -> None:
 
 
 def test_the_two_surfaces_ask_for_different_things() -> None:
-    """Voice and chat differ by medium, and the prompts have to say so."""
-    voice = prompts.text("voice-assistant", LANGUAGE="Reply in English.")
+    """Voice and chat differ by medium, and the prompts have to say so.
+
+    Not by looking for "No Markdown" in the voice prompt -- that rule belongs
+    to the persona, because it is the one thing `chat` reverses. What the voice
+    prompt owns is everything about the input being *heard*: a transcript that
+    may have got a name wrong, and `clarify` rather than saying the word.
+    """
+    voice = prompts.text(
+        "voice-assistant",
+        SITUATION="Right now it is Tuesday.",
+        LANGUAGE="Reply in English.",
+        ARCHITECTURE="",
+    )
     typed = prompts.text("chat", LANGUAGE="Reply in English.")
-    assert "No Markdown" in voice
+    assert "reading a transcript of speech, not typing" in voice
+    assert "the microphone is the likeliest reason" in voice
     assert "Markdown when structure helps" in typed
+    assert "transcript" not in typed
 
 
 def test_an_agent_prompt_declares_when_to_use_it() -> None:

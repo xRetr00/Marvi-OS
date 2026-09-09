@@ -64,7 +64,7 @@ import os
 import re
 from typing import Any
 
-from . import distil
+from . import distil, prompts
 from .logs import get_logger
 
 log = get_logger("memory")
@@ -86,36 +86,7 @@ MAX_OUTPUT_TOKENS = 1_200
 #: that it does not drown the memory it belongs to when both are embedded.
 MAX_LINE = 240
 
-SYSTEM_PROMPT = (
-    "For each memory, write the words somebody would use to ask about it.\n"
-    "\n"
-    "Reply with one JSON object and nothing else:\n"
-    '{"asked":[{"id":<id>,"words":"..."}]}\n'
-    "\n"
-    "This is not a summary and not a rewrite. The memory stays exactly as it "
-    "is; you are adding the vocabulary a search would arrive with, because a "
-    "memory is written as a statement and looked for as a question.\n"
-    "\n"
-    "Worked example. The memory:\n"
-    "  The user works as the main dough chef at a bakery, typically night "
-    "shifts.\n"
-    "would be asked for as:\n"
-    "  working schedule, working hours, shift pattern, what time they work, "
-    "night work, day job, employment, where they work\n"
-    "\n"
-    "Rules:\n"
-    "- Name the *category* the memory belongs to, which is usually the word "
-    "the memory itself is missing: schedule, diet, health, budget, hardware, "
-    "family, travel, sleep, money, education.\n"
-    "- Include the plain-English question forms: 'what do I do for work', "
-    "'where do I live'.\n"
-    "- Only what the memory actually supports. Adding words for things it does "
-    "not say makes it answer questions it cannot answer, which is worse than "
-    "not being found.\n"
-    "- One line per memory, no more than thirty words.\n"
-    "- Skip a memory that is already stated in the words it would be asked for; "
-    "return it with an empty string."
-)
+SYSTEM_PROMPT = prompts.text("rephrasing")
 
 
 def enabled() -> bool:

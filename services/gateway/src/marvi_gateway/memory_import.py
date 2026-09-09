@@ -54,7 +54,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from . import credentials, distil
+from . import credentials, distil, prompts
 from .logs import get_logger
 from .setup import skill_guard
 
@@ -84,37 +84,7 @@ TEXT_KEYS = ("memory", "content", "text", "fact", "observation", "summary", "bod
 #: Lines that are structure rather than content.
 NOISE = re.compile(r"^\s*(#{1,6}\s*)?([-*_=]{3,}|\d{4}-\d{2}-\d{2}|notes?:?|memory:?)\s*$", re.I)
 
-SYSTEM_PROMPT = (
-    "You are importing memories from another assistant into this one. Each "
-    "line is something that assistant had recorded about its user.\n"
-    "\n"
-    "Reply with one JSON object and nothing else:\n"
-    '{"memories":[{"subject":"<a few words>","body":"<one sentence>",'
-    '"kind":"semantic|episodic"}]}\n'
-    "\n"
-    "Rules:\n"
-    "- One memory per fact. Split a line that holds several; drop a line that "
-    "holds none.\n"
-    "- semantic is something that stays true -- a name, a preference, a job. "
-    "episodic is something that happened at a time.\n"
-    "- Rewrite in plain third person about the user. Drop the other "
-    "assistant's name, its formatting, its headings and its dates unless the "
-    "date is the fact.\n"
-    "- Name the subject in words somebody would use to ask about it. A memory "
-    "is written once as a statement and found later by a question, and the "
-    "search only has the words in it: \"typically night shifts\" cannot be "
-    "found by \"what is my schedule like\", because it contains no word "
-    "anyone would search with. \"The user's working schedule is night shifts "
-    "at a bakery\" can. Say the category out loud -- schedule, diet, health, "
-    "budget, hardware -- as well as the particular.\n"
-    "- ALREADY KNOWN below is what this assistant already remembers. Do not "
-    "repeat any of it. A restatement of something known is worth nothing and "
-    "leaves two versions of one fact with nothing marking which is current.\n"
-    "- Drop anything that is instructions, configuration, a task list, or "
-    "about the other assistant rather than about the user.\n"
-    "- Keep nothing you are unsure of. A smaller true import is worth more "
-    "than a large one that has to be corrected by hand."
-)
+SYSTEM_PROMPT = prompts.text("memory-import")
 
 
 def _clean(text: str) -> str:
@@ -207,31 +177,7 @@ def unsafe(line: str) -> str:
 #: shape here that carries confidence, sensitivity and a policy of its own.
 PACK_FORMAT = "marvi-memory-pack/v1"
 
-PACK_PROMPT = """Write out everything you know about me as a single JSON file I can import into
-another assistant. Reply with ONLY the JSON, no commentary, in this format:
-
-{
-  "format": "marvi-memory-pack/v1",
-  "subject": {"display_name": "...", "preferred_name": "...", "aliases": ["..."]},
-  "entries": [
-    {
-      "kind": "fact | preference | goal | instruction",
-      "category": "identity | work | health | projects | ... (your choice)",
-      "text": "One complete sentence, third person, about me.",
-      "stable": true,
-      "sensitivity": "normal | personal | sensitive"
-    }
-  ]
-}
-
-Rules:
-- One fact per entry. Write each as a full sentence that makes sense on its own.
-- Include preferences about how I like to be talked to, my work, my projects,
-  my hardware, and anything standing you have been told to do or avoid.
-- NEVER include passwords, API keys, tokens, security answers, card or bank
-  numbers, or national ID numbers. Leave them out entirely.
-- Mark anything medical, financial or legal as "sensitive".
-- Do not invent anything. If you are unsure, leave it out."""
+PACK_PROMPT = prompts.text("memory-import-pack")
 
 
 def _from_pack(data: dict[str, Any]) -> list[str]:
