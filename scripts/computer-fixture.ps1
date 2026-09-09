@@ -16,4 +16,10 @@ $button.Width = 180
 $button.Add_Click({ [System.IO.File]::WriteAllText($ResultPath, $inputBox.Text) })
 $form.Controls.Add($inputBox)
 $form.Controls.Add($button)
+$passwordBox = New-Object System.Windows.Forms.TextBox
+$passwordBox.AccessibleName = 'Fixture password'
+$passwordBox.UseSystemPasswordChar = $true
+$passwordBox.Text = 'MARVI_COMPUTER_PASSWORD_CANARY'
+$passwordBox.Location = New-Object System.Drawing.Point(25,120)
+$form.Controls.Add($passwordBox)
 [void]$form.ShowDialog()
