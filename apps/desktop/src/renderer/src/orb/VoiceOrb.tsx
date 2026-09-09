@@ -7,6 +7,7 @@ import { useEffect, useRef } from 'react'
 
 import { MOOD_FOR_PHASE, RAMPS, blend, type Ramp } from './moods'
 import { coherentWaveScale } from './wave'
+import { projectVoicePoint } from './projection'
 
 const N = 2000
 
@@ -86,6 +87,19 @@ function draw(ctx: CanvasRenderingContext2D, f: Frame): void {
   const dotScale = 0.72 + energy * 0.82
   const scale = reach * 0.33
 
+  // A shaded core gives the dotted mesh volume rather than a see-through cloud.
+  const [cr, cg, cb] = blend(f.from, f.to, f.mix, 0.55)
+  const core = ctx.createRadialGradient(
+    cx - scale * 0.32, cy - scale * 0.36, scale * 0.04, cx, cy, scale
+  )
+  core.addColorStop(0, `rgba(${cr},${cg},${cb},0.28)`)
+  core.addColorStop(0.6, `rgba(${cr},${cg},${cb},0.1)`)
+  core.addColorStop(1, 'rgba(0,0,0,0.55)')
+  ctx.fillStyle = core
+  ctx.beginPath()
+  ctx.arc(cx, cy, scale * 0.96, 0, Math.PI * 2)
+  ctx.fill()
+
   for (const point of SPHERE) {
     const [x, y, z] = point
     const wave = coherentWaveScale(point, f.wavePhase, energy)
@@ -96,12 +110,14 @@ function draw(ctx: CanvasRenderingContext2D, f: Frame): void {
     const z1 = -wx * sy + wz * cyw
     const y1 = wy * ct - z1 * st
     const z2 = wy * st + z1 * ct
+    const projected = projectVoicePoint(x1, y1, z2)
+    if (!projected.visible) continue
     const depth = (z2 + 1) / 2
-    const px = cx + x1 * scale
-    const py = cy - y1 * scale
+    const px = cx + projected.x * scale
+    const py = cy - projected.y * scale
     const [r, g, b] = blend(f.from, f.to, f.mix, depth)
-    const alpha = 0.3 + depth * 0.7
-    const rad = Math.max(0.42, (0.5 + depth * 1.05) * dotScale)
+    const alpha = projected.light
+    const rad = Math.max(0.42, (0.5 + depth * 1.05) * dotScale * projected.perspective)
     ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`
     ctx.beginPath()
     ctx.arc(px, py, rad, 0, Math.PI * 2)
@@ -167,11 +183,16 @@ export function VoiceOrb({
     let smoothed = levelRef.current
     let last = performance.now()
     let wavePhase = 0
-    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)')
 
     const loop = (now: number): void => {
       const delta = Math.min(0.05, Math.max(0, (now - last) / 1000))
       last = now
+      if (document.hidden) {
+        raf = requestAnimationFrame(loop)
+        return
+      }
+      const reducedMotion = motionPreference.matches
       smoothed += (levelRef.current - smoothed) * 0.12
       const audioEnergy = activeRef.current ? Math.max(0, Math.min(1, smoothed)) : 0
       // Always advancing, just slowly when nothing is being said. Gating the
@@ -196,7 +217,7 @@ export function VoiceOrb({
         width,
         height,
         wavePhase,
-        level: smoothed,
+        level: reducedMotion ? 0 : smoothed,
         active: activeRef.current,
         from,
         to,
