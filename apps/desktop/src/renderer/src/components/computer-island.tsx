@@ -89,6 +89,8 @@ export function ComputerIsland({ status }: { status: ComputerStatus }): React.JS
         <strong>
           {error || status.state === 'unavailable'
             ? 'Computer controls unavailable. Retry.'
+            : status.state === 'unknown'
+              ? 'Computer action outcome unknown'
             : status.state === 'stopping'
               ? 'Marvi is stopping computer use'
               : paused

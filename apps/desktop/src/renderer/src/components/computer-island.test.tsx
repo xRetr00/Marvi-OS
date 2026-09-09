@@ -12,6 +12,13 @@ const status: ComputerStatus = {
   version: '0.24.0'
 }
 describe('computer-use Island', () => {
+  it('keeps uncertain completion distinct from active use', () => {
+    const html = renderToStaticMarkup(
+      <ComputerIsland status={{ ...status, state: 'unknown', active: false }} />
+    )
+    expect(html).toContain('Computer action outcome unknown')
+    expect(html).not.toContain('Marvi is using the computer')
+  })
   it('shows active use and immediate user controls', () => {
     const html = renderToStaticMarkup(<ComputerIsland status={status} />)
     expect(html).toContain('Marvi is using the computer')
