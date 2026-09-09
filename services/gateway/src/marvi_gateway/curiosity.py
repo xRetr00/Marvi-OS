@@ -189,7 +189,17 @@ class Curiosity:
                 sections[heading] = ""
             elif heading:
                 sections[heading] += line
-        return {gap.key for gap in GAPS if sections.get(gap.heading.strip().lower(), "").strip()}
+        # A heading is not an answer. `_rewrite` regenerates the whole file and
+        # writes `UNKNOWN` under anything not yet known, so every section is
+        # always present and always non-empty -- and the first version of this
+        # read that as "answered" and suppressed every question, including the
+        # two that are genuinely open.
+        return {
+            gap.key
+            for gap in GAPS
+            if (said := sections.get(gap.heading.strip().lower(), "").strip())
+            and said != UNKNOWN
+        }
 
     def open_gaps(self) -> list[Gap]:
         rows = {r["key"]: r["state"] for r in self._db.execute("SELECT * FROM gaps")}

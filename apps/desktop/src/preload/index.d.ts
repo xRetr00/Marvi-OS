@@ -205,6 +205,12 @@ export interface MarviDesktopApi {
   getSchedules: () => Promise<SchedulePage | null>
   getBrowser: () => Promise<BrowserStatus>
   getComputer: () => Promise<import('../shared/computer').ComputerStatus>
+  getAsking: () => Promise<import('../shared/asking').Asking>
+  settleAsking: (
+    id: string,
+    state: import('../shared/asking').Settled,
+    answer?: string
+  ) => Promise<{ ok: boolean; state: string }>
   computerControl: (command: import('../shared/computer').ComputerCommand) => Promise<import('../shared/computer').ComputerStatus>
   browserExportHelper: () => Promise<void>
   browserImport: (profile: string, kind: 'cookies' | 'passwords') => Promise<{ imported: number; skipped: number } | null>

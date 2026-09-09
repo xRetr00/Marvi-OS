@@ -310,6 +310,13 @@ const marvi = {
     ipcRenderer.invoke('marvi:open-maintenance-terminal', action),
   getSchedules: (): Promise<SchedulePage | null> => ipcRenderer.invoke('marvi:get-schedules'),
   getComputer: (): Promise<import('../shared/computer').ComputerStatus> => ipcRenderer.invoke('marvi:get-computer'),
+  getAsking: (): Promise<import('../shared/asking').Asking> => ipcRenderer.invoke('marvi:get-asking'),
+  settleAsking: (
+    id: string,
+    state: import('../shared/asking').Settled,
+    answer?: string
+  ): Promise<{ ok: boolean; state: string }> =>
+    ipcRenderer.invoke('marvi:settle-asking', id, state, answer ?? ''),
   computerControl: (command: import('../shared/computer').ComputerCommand): Promise<import('../shared/computer').ComputerStatus> => ipcRenderer.invoke('marvi:computer-control', command),
   getBrowser: (): Promise<BrowserStatus> => ipcRenderer.invoke('marvi:get-browser'),
   browserExportHelper: (): Promise<void> => ipcRenderer.invoke('marvi:browser-export-helper'),

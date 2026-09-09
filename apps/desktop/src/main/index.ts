@@ -2076,6 +2076,21 @@ function startApp(): void {
     }
     ipcMain.handle('marvi:get-browser', () => browserRequest(''))
     ipcMain.handle('marvi:get-computer', () => gatewayJson('/computer'))
+    ipcMain.handle('marvi:get-asking', () => gatewayJson('/asking'))
+    ipcMain.handle('marvi:settle-asking', async (_event, id, state, answer) => {
+      // The three the Gateway accepts. Checked here as well as there so a
+      // renderer bug cannot put a state into the store that nothing reads.
+      if (!['answered', 'dismissed', 'declined'].includes(state))
+        throw new Error('Invalid answer state')
+      const response = await fetch(`${gateway()}/asking/${encodeURIComponent(String(id))}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...localHeaders() },
+        body: JSON.stringify({ state, answer: typeof answer === 'string' ? answer : '' }),
+        signal: AbortSignal.timeout(15_000)
+      })
+      if (!response.ok) throw await gatewayFailure(response, 'Could not send that answer')
+      return response.json()
+    })
     ipcMain.handle('marvi:computer-control', async (_event, command) => {
       if (!['stop', 'private', 'resume'].includes(command)) throw new Error('Invalid computer control')
       const response = await fetch(`${gateway()}/computer/control`, {
