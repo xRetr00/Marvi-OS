@@ -28,6 +28,12 @@ from .paths import root
 from .untrusted import wrap_external
 from .web import assert_public_http_url
 
+#: How long private input waits for in-flight reads before giving up.
+#:
+#: Under the 60s ceiling on `control`, so the caller hears a real answer
+#: instead of a timeout with the barrier left closed behind it.
+PRIVATE_WAIT_SECONDS = 30.0
+
 MAX_FILE = 100 * 1024 * 1024
 MAX_TASK_FILES = 500 * 1024 * 1024
 ACTIVE = {"starting", "running", "resuming"}
@@ -829,7 +835,23 @@ class BrowserWorkspace:
                 for download in downloads:
                     download.cancel()
                 await asyncio.gather(*downloads, return_exceptions=True)
-                await asyncio.to_thread(capture_barrier.enter, sid)
+                # Bounded, and released if it does not come. `control` is
+                # submitted with a 60s ceiling, so an unbounded wait here did
+                # not hang for ever visibly -- it timed out the caller and left
+                # the barrier closed behind it, which refuses every later
+                # browser *and* computer action with nothing able to clear it.
+                try:
+                    await asyncio.to_thread(capture_barrier.enter, sid, PRIVATE_WAIT_SECONDS)
+                except TimeoutError:
+                    capture_barrier.leave(sid)
+                    self._change(
+                        session,
+                        "paused",
+                        "Private input did not start: something is still reading the page.",
+                    )
+                    raise ValueError(
+                        "Private input did not start; a browser read is still running. Try again."
+                    ) from None
                 session["tabs"] = []
                 self._change(
                     session,
