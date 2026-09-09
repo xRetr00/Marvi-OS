@@ -974,10 +974,22 @@ class GatewayTools:
         #
         # Lazy costs about a third of `off` and never refuses a capability,
         # because there is nothing to refuse: every tool is in the request.
-        wanted = os.environ.get(DEFER_SETTING, "lazy").strip().lower()
+        # The default stays `off`, and deliberately.
+        #
+        # `lazy` measures better -- a third of the schema cost, no refusals,
+        # three quarters of first calls valid -- but that is thirty-two offline
+        # calls against three sweeps of 123 real turns behind the current
+        # default. Flipping a measured default on the smaller number is the
+        # mistake this file already records once. It is one word to try:
+        # `MARVI_DEFER_TOOLS=lazy`.
+        wanted = os.environ.get(DEFER_SETTING, "off").strip().lower()
         if everything is None:
             everything = wanted in ("0", "false", "no", "off", "")
-        lazy = not everything and wanted == "lazy"
+            lazy = not everything and wanted == "lazy"
+        else:
+            # An explicit caller means the two-way question it has always
+            # meant: everything, or the core set with the rest behind search.
+            lazy = False
         has_core = any(entry.get("core") for entry in self._catalogue.values())
         defers = not everything and has_core
         if lazy and has_core:
@@ -1149,7 +1161,15 @@ class GatewayTools:
             return ""
         self._brief.discard(name)
         full = self._as_function_tool(self._catalogue[name])
-        kept = [tool for tool in agent.tools if getattr(tool, "name", None) != name]
+        # `tool.info.name`, not `tool.name`. A LiveKit function tool carries its
+        # schema on `.info`, so filtering on `.name` matched nothing, kept the
+        # brief version, and registered the full one beside it -- two tools
+        # with one name in the same request.
+        kept = [
+            tool
+            for tool in agent.tools
+            if getattr(getattr(tool, "info", None), "name", None) != name
+        ]
         await agent.update_tools([*kept, full])
         log.info("promoted %s to its full schema", name)
         return name

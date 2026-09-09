@@ -479,7 +479,7 @@ LAZY_CATALOGUE = {
 
 def _schema(built, name):
     for tool in built:
-        raw = getattr(tool, "raw_schema", None) or {}
+        raw = getattr(getattr(tool, "info", None), "raw_schema", None) or {}
         if raw.get("name") == name:
             return raw
     raise AssertionError(f"{name} is not in the request")
@@ -497,7 +497,7 @@ async def test_lazy_loads_every_tool_but_describes_most_of_them_briefly(monkeypa
     gear = GatewayTools(client=gateway(LAZY_CATALOGUE))
     built = await gear.from_gateway()
 
-    assert {getattr(t, "raw_schema", {}).get("name") for t in built} == {
+    assert {t.info.raw_schema["name"] for t in built} == {
         "web_search",
         "send_email",
         "tool_search",
