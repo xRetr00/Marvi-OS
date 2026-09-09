@@ -245,6 +245,43 @@ def _number(value: Any) -> int | None:
 DEFER_SETTING = "MARVI_DEFER_TOOLS"
 
 
+#: Whether a failed call could already have taken effect, by HTTP status.
+#:
+#: The question a model actually has to answer after a failure is not "what
+#: went wrong" but "may this have happened anyway, and is retrying safe". A
+#: bare status code answers neither, which is what `failed with status 500`
+#: left it to guess.
+def _what_a_failure_means(tool: str, status: int) -> str:
+    if status in (502, 503, 504):
+        return (
+            f"{tool} could not be reached -- the service behind it is down or busy. "
+            "Nothing was done, so it is safe to try once more. If it fails again, "
+            "tell the user that part is unavailable and carry on with the rest."
+        )
+    if status == 409:
+        return (
+            f"{tool} refused because something else is already in progress or the "
+            "state moved under you. Read the current state before trying again; "
+            "repeating the same call will refuse the same way."
+        )
+    if status in (401, 403):
+        return (
+            f"{tool} was refused for lack of permission. This is not something to "
+            "retry or work around -- tell the user it needs their attention in Setup."
+        )
+    if status == 429:
+        return (
+            f"{tool} is rate limited. Do not retry it now. Do the parts of the task "
+            "that do not need it, and say which part is waiting."
+        )
+    return (
+        f"{tool} failed partway through. It may or may not have taken effect, so "
+        "do not simply repeat it -- especially if it sends, buys, writes or deletes "
+        "anything. Check the current state first, or tell the user the outcome is "
+        "unknown."
+    )
+
+
 class _Watcher:
     """Posts the Voice page's activity feed without any turn waiting for it.
 
@@ -422,11 +459,29 @@ class GatewayTools:
     async def _run(self, tool: str, arguments: dict[str, Any]) -> str:
         status, body = await self._post(f"/tools/{tool}", {"arguments": arguments})
         if status == 404:
-            raise ToolError(f"{tool} is not available.")
+            raise ToolError(
+                f"{tool} does not exist on this Gateway. It is not switched off and it is "
+                "not temporarily away -- there is no such tool. Do not call it again. "
+                "Use a different tool, or tell the user this is something you cannot do."
+            )
         if status == 422:
-            raise ToolError(str(body.get("detail", "those arguments are not valid")))
+            # The Gateway's own words: it knows which argument and why, and a
+            # paraphrase would lose the part that says how to fix it.
+            raise ToolError(
+                f"{tool} refused those arguments: "
+                f"{body.get('detail', 'they did not match what it expects')}. "
+                "Fix the arguments and call it again -- calling it unchanged will "
+                "fail the same way."
+            )
         if status != 200:
-            raise ToolError(f"{tool} failed with status {status}.")
+            # Said in terms of what to do next, not in terms of a number.
+            #
+            # This was `f"{tool} failed with status {status}."` -- an HTTP code
+            # handed to a language model, which cannot tell from `500` whether
+            # the thing happened, whether to retry, or whether to give up. The
+            # distinction that matters is not the code, it is whether the call
+            # could have taken effect before it failed.
+            raise ToolError(_what_a_failure_means(tool, status))
 
         outcome = body.get("status")
         if outcome == "confirmation_required":

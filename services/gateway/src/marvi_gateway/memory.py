@@ -1908,7 +1908,13 @@ def register_memory_tools(
     registry.register(
         ToolSpec(
             name="memory_remember",
-            description="Remember a durable fact",
+            description=(
+                "Write one durable fact about the user or their world. For things still true next "
+                "month -- what they own, prefer, are working on, are called. Not for what just "
+                "happened in this conversation, and never for a description of the conversation "
+                "itself. One fact per call, written as a statement. Never write a password, code, "
+                "card or ID number."
+            ),
             arguments={"subject": str, "body": str},
             describes={
                 "subject": "What the fact is about, in a word or two. Used to find it later.",
@@ -1944,7 +1950,12 @@ def register_memory_tools(
     registry.register(
         ToolSpec(
             name="memory_forget",
-            description="Forget everything matching a phrase",
+            description=(
+                "Delete every memory matching a phrase. Destructive, with no undo. Search first and "
+                "tell the user what you found and are about to remove -- a broad phrase takes far "
+                "more than they meant. Use it when they ask you to forget something, never to tidy up "
+                "on your own initiative."
+            ),
             arguments={"query": str},
             describes={
                 "query": ("Phrase to match. Everything matching it is deleted, so be specific.")

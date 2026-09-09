@@ -658,7 +658,13 @@ def register_room_tools(registry, sidecar: RoomSidecar) -> None:
     registry.register(
         ToolSpec(
             name="room_state",
-            description="Read the current room state",
+            description=(
+                "Everything the room currently reports: light, mode, sensors and their ages. Read it "
+                "before changing anything and before answering a question about the room. Its "
+                "presence field is one sensor's opinion, not the answer to who is there -- "
+                "room_presence is for that. A sensor with no reading is silent, not reporting an "
+                "empty room."
+            ),
             arguments={},
             sensitive=False,
             handler=room_state,
@@ -667,7 +673,12 @@ def register_room_tools(registry, sidecar: RoomSidecar) -> None:
     registry.register(
         ToolSpec(
             name="room_health",
-            description="Read room device health",
+            description=(
+                "Which room devices are actually reachable. Use it when a room tool fails or a device "
+                "does not respond, before telling the user something is broken. A device that is "
+                "unreachable is not a device that is off, and that difference is usually the whole "
+                "answer."
+            ),
             arguments={},
             sensitive=False,
             handler=room_health,
@@ -685,7 +696,11 @@ def register_room_tools(registry, sidecar: RoomSidecar) -> None:
     registry.register(
         ToolSpec(
             name="room_set_mode",
-            description="Change the room mode",
+            description=(
+                "Set the room's overall mode. Read room_state first and say what actually changed. "
+                "Modes have consequences beyond the light -- sleep mode changes what else is allowed "
+                "-- so do not set one to get a side effect the user did not ask for."
+            ),
             arguments={"mode": str},
             describes={"mode": "The room mode to switch to. Use room_state to see valid names."},
             sensitive=False,
@@ -695,7 +710,14 @@ def register_room_tools(registry, sidecar: RoomSidecar) -> None:
     registry.register(
         ToolSpec(
             name="room_set_light",
-            description="Change the room light",
+            description=(
+                "Turn the room light on or off, or set brightness and colour temperature. Read "
+                "room_state first -- acting on an assumed state is how you switch off a light that "
+                "was already off and report the opposite. Say what happened only after seeing it in "
+                "the state that comes back; an accepted call is not a light that changed. When the "
+                "room is asleep the light can only go off, enforced outside your reach, so a refusal "
+                "there is not something to work around."
+            ),
             arguments={"on": bool},
             optional={"brightness": int, "color_temp": int, "rgb": list},
             describes={

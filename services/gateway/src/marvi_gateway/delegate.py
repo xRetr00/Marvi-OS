@@ -269,7 +269,13 @@ def register_delegate_tools(registry: Any) -> None:
     registry.register(
         ToolSpec(
             name="delegate_to_coder",
-            description="Hand a coding job to a coding agent",
+            description=(
+                "Hand a coding job to a coding agent and get back a job id. Use it for anything that "
+                "means reading or changing source code -- you are not the thing that edits code. "
+                "Default mode is investigate, which is read-only; fix lets it edit and needs the "
+                "user's say-so. It takes minutes and returns immediately: keep talking, then use "
+                "delegated_status."
+            ),
             arguments={"task": str},
             optional={"coder": str, "mode": str},
             describes={
@@ -291,7 +297,11 @@ def register_delegate_tools(registry: Any) -> None:
     registry.register(
         ToolSpec(
             name="delegated_status",
-            description="Check a delegated job",
+            description=(
+                "Check a delegated coding job by id: whether it is still running, and its report if "
+                "it finished. The report is written to be spoken -- give the user its answer, not a "
+                "list of file paths."
+            ),
             arguments={},
             optional={"job": str},
             describes={"job": "The job id. Omit for every job."},

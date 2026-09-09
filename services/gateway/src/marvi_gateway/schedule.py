@@ -878,11 +878,11 @@ def register_schedule_tools(registry: Any, scheduler: Scheduler) -> None:
         handler=cronjob,
     ))
     registry.register(ToolSpec(
-        name="schedule_list", description="List scheduled jobs", arguments={},
+        name="schedule_list", description=("Everything currently scheduled, with ids and times. Read it before adding something " "that may duplicate, before cancelling anything, and when the user asks what is set."), arguments={},
         sensitive=False, handler=lambda: scheduler.status(),
     ))
     registry.register(ToolSpec(
-        name="schedule_add", description="Set a reminder or scheduled check",
+        name="schedule_add", description=("Set something to happen later -- a reminder, or a check Marvi runs on her own. Say " "back the time you actually set, in the user's words, so a misheard time is caught " "now rather than at three in the morning. Read schedule_list first to avoid " "duplicating one that already exists."),
         arguments={"name": str, "when": str},
         optional={"message": str, "action": str, "insist": bool}, sensitive=True,
         handler=lambda name, when, message="", action="remind", insist=False: cronjob(
@@ -891,7 +891,7 @@ def register_schedule_tools(registry: Any, scheduler: Scheduler) -> None:
         ),
     ))
     registry.register(ToolSpec(
-        name="schedule_remove", description="Cancel a scheduled job",
+        name="schedule_remove", description=("Cancel a scheduled job by id. Read schedule_list first and name what you are " "cancelling -- cancelling the wrong reminder is silent until the moment it does not " "fire."),
         arguments={"id": int}, sensitive=True,
         handler=lambda id: cronjob("remove", id=id),  # noqa: A006
     ))

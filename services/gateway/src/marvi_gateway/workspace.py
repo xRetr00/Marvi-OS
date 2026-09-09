@@ -702,7 +702,7 @@ def register_workspace_tools(registry, workspace: Workspace) -> None:
             },
         ),
         ToolSpec(
-            name="file_delete", description="Delete a file in the workspace",
+            name="file_delete", description=("Delete one file. This cannot be undone. Read it first: if what you find does not " "match how the user described it, or you did not create it, say so instead of " "deleting. Only on an explicit request."),
             arguments={"path": str}, sensitive=True, handler=file_delete,
         ),
         ToolSpec(
@@ -731,11 +731,11 @@ def register_workspace_tools(registry, workspace: Workspace) -> None:
             },
         ),
         ToolSpec(
-            name="process_list", description="List running processes",
+            name="process_list", description=("The processes Marvi started, with their ids. Read it before stopping anything, and " "when the user asks whether something is still running."),
             arguments={}, optional={"contains": str}, sensitive=False, handler=process_list,
         ),
         ToolSpec(
-            name="process_stop", description="Stop a running process",
+            name="process_stop", description=("Stop a process by id. It may be doing something the user cares about -- check " "process_list and say what you are about to stop before stopping it. Work in progress " "dies with it."),
             arguments={"pid": int}, sensitive=True, handler=process_stop,
         ),
     ):
