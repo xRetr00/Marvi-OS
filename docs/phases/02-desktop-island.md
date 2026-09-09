@@ -8,6 +8,15 @@ surface and its native-window behavior can be proven without the voice engine.
 
 ## Delivered
 
+September 9 refinement: Island-only transparent canvas styling and inset-only
+shading remove outer background paint. The 320ms line-to-capsule reveal clips
+the silhouette without stretching text. Browser computed styles confirmed
+transparent document/body/root and an intermediate-to-settled clip animation.
+The Voice orb now has perspective, rear-face culling, and directional lighting;
+its actual component was visually inspected in an isolated browser mount.
+All 43 focused tests, both desktop typechecks, and targeted lint passed.
+Native Windows compositor appearance and hardware frame timing remain unverified.
+
 September 7 capsule refinement: focused tests and typechecks passed; renderer
 inspection confirmed the rounded compact capsule. Native visual acceptance of
 the new top gap and compositor transparency is pending a working Electron

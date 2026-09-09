@@ -309,9 +309,12 @@ Rules:
 - The native host follows measured content plus a two-pixel transparent edge
   inset. It never reserves a larger invisible stage. Resize only at
   content/state boundaries; never animate native window bounds per frame.
-- State changes use one restrained compositor-only fade/centered scale on the
-  rendered content. Native bounds do not participate in the animation, exits
-  are quicker than entrances, and reduced-motion users get an immediate swap.
+- State reveals use a 320ms silhouette clip from the `34×2` line to the rounded
+  capsule, without scaling text. Exits use 130ms; reduced-motion users get a
+  short opacity swap. Native bounds never resize per animation frame.
+- The Island document explicitly opts out of dark color-scheme canvas paint.
+  Document, body, and root backgrounds stay transparent; capsule shading is
+  inset-only so no outer halo exposes the transparent native window rectangle.
 - The Island reads the selected appearance and font live from the shared
   renderer preferences. Its surface, type, borders, orb, and status accents use
   theme tokens rather than hard-coded phase palettes.
@@ -323,6 +326,13 @@ Typography reuses the current Marvi desktop faces: Collapse for the product
 wordmark and JetBrains Mono for ASCII construction, labels, status, and data.
 
 ## Main control center
+
+The Voice-page dotted orb projects its existing spherical mesh through a
+perspective camera. Rear-facing points are culled; directional lighting,
+depth-dependent point size, and a shaded core communicate volume. Voice still
+drives the coherent travelling wave and phase colors. Reduced motion freezes
+rotation and audio deformation; hidden documents skip drawing. This remains
+the existing Canvas renderer, not a second voice or media runtime.
 
 The main window uses a fixed shell:
 

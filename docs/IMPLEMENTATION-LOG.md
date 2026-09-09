@@ -1,5 +1,20 @@
 # Implementation Log
 
+## 2026-09-09 — Island transparency, reveal, and Voice orb depth
+
+- Scoped transparent document/body/root paint and normal color-scheme to the
+  Island before mount; removed outer shadow while preserving themed inset edges.
+- Replaced the near-static scale entrance with a measured 320ms line-to-capsule
+  clipping reveal; reduced motion uses a short fade and native size stays stable.
+- Reused the existing Voice Canvas sphere with perspective projection, rear-face
+  culling, directional lighting, and a shaded core. Added four geometry tests;
+  reduced motion freezes deformation and hidden documents skip rendering.
+- Acceptance: 43 focused tests, both TypeScript checks, targeted lint passed.
+  Browser checks confirmed transparent canvas styles and intermediate/settled
+  animation clipping. Voice component visually inspected at 600×600. Evidence:
+  `output/playwright/announcer-alpha-sep9.png` and `voice-orb-3d-sep9.png`.
+  Native Windows compositor and live-audio/hardware frame timing not verified.
+
 ## 2026-09-09 — computer recovery and activity continuation
 
 Preserved the user's lazy tool loading and asking-card implementation. Closed
