@@ -250,3 +250,69 @@ unchanged will fail the same way.
 That points at lazy loading rather than search-then-call: let the name be the
 index, resolve an unloaded name against the full catalogue, and run it. It is a
 change to the Agent's dispatch, not to a prompt, and it is not made here.
+
+## Lazy tool loading
+
+Built, tested, and **off by default.** One word turns it on:
+`MARVI_DEFER_TOOLS=lazy`.
+
+### What it does
+
+Every tool is in the request and every one is callable. The core set carries
+its full schema; the rest carry **the first sentence of their description and
+an open arguments object.** The model calls by name — which is what it does
+anyway — the Gateway checks the arguments, and the first call to a tool swaps
+in its exact schema for the rest of the session.
+
+### Why, in one line from the codebase
+
+`from_gateway` already recorded the failure this fixes:
+
+> she stopped refusing and started calling them by name, directly, the way a
+> model does with any tool it can see — and LiveKit answered `unknown AI
+> function` ten times, because a named tool with no schema loaded is not
+> callable.
+
+Deferring makes the model reach for names it cannot call. Loading everything
+makes every turn carry 6,800 tokens of schema. Lazy is the third option: the
+name is callable, the schema is what waits.
+
+### Cost
+
+| | chars | ~tokens |
+|---|---|---|
+| everything, full schemas (today) | 27,196 | 6,799 |
+| **core full + rest brief (lazy)** | **8,662** | **2,165** |
+| core full + names in the prompt (defer) | 4,236 | 1,059 |
+
+**68% off the tool payload**, and no round trip.
+
+### Measured
+
+Thirty-two calls, five imperative asks, `inclusionai/ling-3.0-flash`, arguments
+checked against the real registry schemas:
+
+| | |
+|---|---|
+| call valid first time | **24/32 (75%)** |
+| needs a 422, which names the argument | 6/32 (19%) |
+| answered without calling | 2/32 (6%) |
+| **refused a capability** | **0** |
+| **`unknown AI function`** | **0** |
+
+The 422 path is not a failure mode: the refusal says which argument and what it
+expects, and promotion means the retry uses the exact schema. A tool is
+imprecise once.
+
+Tuning happens in the first sentence, which is what a brief tool is called
+from. `cronjob` failed until its opening line named the argument that decides
+the call — "Manage scheduled jobs: pass action as one of create, list, edit…"
+rather than "Create, inspect, edit, run, pause, resume or remove scheduled
+jobs."
+
+### Why it is not the default
+
+The current default was chosen after three sweeps of the same 123 real turns.
+This is thirty-two offline calls. Flipping a measured default on the smaller
+number is the mistake this file already documents once, and it is not repeated
+here.
