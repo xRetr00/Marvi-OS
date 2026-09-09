@@ -59,6 +59,61 @@ DEFAULT_CORE = (
 
 CORE_SETTING = "MARVI_CORE_TOOLS"
 
+#: The areas a deferred catalogue is listed under, and the word that finds each.
+#:
+#: Named for what a person would call the thing, not for the string a tool name
+#: starts with. Splitting on the prefix produced "ask" for `ask_secret`, "send"
+#: for `send_email`, "read" for `read_screen`, "other" for `cronjob`, and both
+#: "delegate" and "delegated" -- twenty-three headings that read as sixty-one
+#: unrelated strings, which is the thing grouping exists to avoid.
+#:
+#: Every word here is checked by `test_every_area_word_finds_its_tools` against
+#: the real search, because an index that names a query returning nothing is
+#: worse than no index.
+#: Each entry is (what to call the area, the word that finds it, names the word
+#: does not match on its own). The third field exists because `cronjob` is a
+#: schedule, `delegate_to_coder` is a coding job and `note_about_user` is
+#: memory -- none of which their names say.
+AREAS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
+    ("email", "email", ()),
+    ("calendar", "calendar", ()),
+    ("the room", "room", ()),
+    ("memory", "memory", ("note_about_user",)),
+    ("files", "file", ()),
+    ("the browser", "browser", ()),
+    ("the desktop", "computer", ()),
+    ("the web", "web", ()),
+    ("schedules and reminders", "schedule", ("cronjob",)),
+    ("skills", "skill", ()),
+    ("the screen", "screen", ()),
+    ("processes", "process", ()),
+    ("coding jobs", "coding", ("delegate_to_coder", "delegated_status")),
+    ("passwords and keys", "secret", ()),
+    ("Marvi's own logs", "logs", ()),
+    ("connected accounts", "account", ()),
+    ("what the user is doing", "activity", ()),
+    ("the terminal", "terminal", ()),
+)
+
+
+def by_area(names: list[str]) -> list[tuple[str, str, list[str]]]:
+    """Group tool names into areas, in the order `AREAS` names them.
+
+    Anything unclaimed goes under its own name, so a new tool is listed rather
+    than silently dropped from the index the model reads.
+    """
+    left = set(names)
+    grouped: list[tuple[str, str, list[str]]] = []
+    for label, word, also in AREAS:
+        mine = sorted(one for one in left if word.rstrip("s") in one or one in also)
+        if not mine:
+            continue
+        left -= set(mine)
+        grouped.append((label, word, mine))
+    for orphan in sorted(left):
+        grouped.append((orphan, orphan.split("_")[0], [orphan]))
+    return grouped
+
 #: The search itself, which can never be deferred -- it is the way back.
 SEARCH_TOOL = "tool_search"
 

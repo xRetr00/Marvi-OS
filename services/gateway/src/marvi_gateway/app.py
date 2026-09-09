@@ -3319,7 +3319,7 @@ def create_app(
         return {"chosen": personas.chosen(), "available": personas.available()}
 
     @app.get("/context")
-    async def read_context(surface: str = "voice") -> dict[str, Any]:
+    async def read_context(surface: str = "voice", deferred: bool = False) -> dict[str, Any]:
         """Prompt context the voice worker cannot build for itself.
 
         Voice assembles its own instructions in the Agent process and so was
@@ -3329,6 +3329,12 @@ def create_app(
         rather than duplicated -- and this is the same fix for prompt text.
 
         Blocks rather than one string, so the caller decides what to use.
+
+        `deferred` says the caller is holding tool schemas back, so the block
+        that explains how to reach them is added. Asked for rather than
+        assumed: the Agent owns that decision, and a prompt describing a
+        request that does not exist is a prompt the model has to disagree with
+        to be right.
         """
         blocks = {"situation": selfaware.situation()}
         # Who Marvi is and who she is talking to, which voice never had.
@@ -3434,6 +3440,29 @@ def create_app(
         except Exception as exc:  # pragma: no cover - depends on what is on disk
             get_logger("gateway").warning("skill catalogue unavailable: %s", exc)
             blocks["skills"] = ""
+        if deferred:
+            # How to reach a tool whose schema is not in the request.
+            #
+            # Ported from how Claude Code prompts `ToolSearch`: the deferred
+            # names stay visible, the search to run is named per area, and the
+            # model is forbidden from asserting a missing capability out of
+            # general knowledge. That last rule is the one Marvi needed --
+            # deferral was measured, produced twenty-three refusals of things
+            # she can do, and was switched off.
+            from . import prompts
+
+            core = toolsearch.core_tools()
+            listed = chr(10).join(
+                f"- **{label}** -- search `{word}`: {', '.join(names)}"
+                for label, word, names in toolsearch.by_area(
+                    [spec.name for spec in tool_registry if spec.name not in core]
+                )
+            )
+            heading = "## What is there, and the word that finds it"
+            blocks["tools_deferred"] = prompts.text(
+                "deferred-tools",
+                AREAS=f"{heading}{chr(10) * 2}{listed}" if listed else "",
+            )
         return {"blocks": ordered_context_blocks(blocks)}
 
     @app.get("/skills")

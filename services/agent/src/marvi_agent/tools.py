@@ -799,7 +799,15 @@ class GatewayTools:
         """
         client = self._client or httpx.AsyncClient(timeout=REQUEST_TIMEOUT)
         try:
-            response = await client.get(f"{self._base_url}/context")
+            # `deferred` decides whether the Gateway includes the block that
+            # explains how to reach a tool whose schema is not in the request.
+            # Asked for rather than assumed, because the Agent is what decides
+            # to defer, and that block describing a request that does not
+            # exist is exactly the standing falsehood `defers()` was added to
+            # stop.
+            response = await client.get(
+                f"{self._base_url}/context", params={"deferred": str(self.defers()).lower()}
+            )
             response.raise_for_status()
             blocks = response.json().get("blocks") or []
             return [str(block) for block in blocks if str(block).strip()]

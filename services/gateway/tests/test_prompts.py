@@ -223,3 +223,52 @@ def test_the_dangerous_tools_say_they_cannot_be_undone() -> None:
         ("calendar_remove", "cannot be undone"),
     ):
         assert must_say in described[name].lower().replace("\n", " "), name
+
+
+def test_every_area_word_finds_its_tools() -> None:
+    """An index that names a query returning nothing is worse than no index.
+
+    The deferred-tools block tells the model, per area, the exact word to
+    search with -- copied from how Claude Code names the `ToolSearch` query for
+    a toolkit rather than saying "search if you need something". That is only
+    worth anything if the words work, so they are checked against the real
+    search rather than assumed.
+    """
+    from marvi_gateway import toolsearch
+
+    described = prompts.tools()
+    catalogue = [
+        {"name": name, "description": said, "arguments": [], "optional": [], "input_schema": {}}
+        for name, said in described.items()
+    ]
+    core = toolsearch.core_tools()
+    deferred = [name for name in described if name not in core]
+
+    for label, word, mine in toolsearch.by_area(deferred):
+        found = {row["name"] for row in toolsearch.search(catalogue, word, 12)}
+        missed = set(mine) - found
+        assert not missed, f"searching {word!r} for {label!r} does not find {sorted(missed)}"
+
+
+def test_no_tool_is_left_out_of_the_index() -> None:
+    """A tool nobody lists is a tool the model has no reason to suspect."""
+    from marvi_gateway import toolsearch
+
+    deferred = [n for n in prompts.tools() if n not in toolsearch.core_tools()]
+    listed = [name for _, _, names in toolsearch.by_area(deferred) for name in names]
+    assert sorted(listed) == sorted(deferred)
+    assert len(listed) == len(set(listed)), "a tool is listed under two areas"
+
+
+def test_the_deferred_block_forbids_denying_a_capability() -> None:
+    """The rule that Marvi's own measured failure needed.
+
+    Deferral was tried, produced twenty-three refusals of things she can do
+    across 123 turns, and was switched off. Claude Code's answer is a standing
+    rule -- do not assert a missing capability from general knowledge -- plus
+    always-visible names. Both are in this block.
+    """
+    block = prompts.text("deferred-tools", AREAS="- **email** -- search `email`: send_email")
+    assert "Never say you cannot do something" in block
+    assert "search that found nothing" in block
+    assert "send_email" in block
