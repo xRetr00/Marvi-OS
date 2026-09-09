@@ -561,3 +561,12 @@ def test_every_hand_written_tool_is_actually_registered() -> None:
     }
 
     assert written - registered == set(), "decorated but never handed to the Agent"
+
+@pytest.mark.asyncio
+async def test_computer_tools_reach_the_voice_bridge(gateway, voice, monkeypatch):
+    client, _, _ = gateway
+    monkeypatch.setenv('MARVI_LOCAL_TOKEN', 'voice-computer-fixture')
+    client.headers['x-marvi-local'] = 'voice-computer-fixture'
+    async with client:
+        result = await voice._call('computer_status', {})
+    assert 'cua-driver' in result

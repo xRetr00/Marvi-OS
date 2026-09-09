@@ -6653,7 +6653,7 @@ function IslandSurface(): React.JSX.Element {
   const voice = useStore($voiceState)
   const browserSession = useBrowserHandoff()
   const computerStatus = useComputerActivity()
-  const computerVisible = Boolean(computerStatus && (computerStatus.active || ['stopping', 'private', 'paused'].includes(computerStatus.state)) && voice.phase !== 'confirmation')
+  const computerVisible = Boolean(computerStatus && (computerStatus.active || ['stopping', 'private', 'paused', 'unavailable'].includes(computerStatus.state)) && voice.phase !== 'confirmation')
   const browserVisible = Boolean(browserSession && voice.phase === 'ready')
   const reduceMotion = useReducedMotion()
   const measureRef = useRef<HTMLDivElement>(null)

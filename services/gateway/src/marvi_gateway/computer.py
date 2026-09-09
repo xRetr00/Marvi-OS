@@ -41,13 +41,21 @@ class ComputerUse:
     def __init__(self, client=None, factory=None):
         self.client = client
         self._factory = factory
-        self._loop = LoopThread("marvi-computer")
+        self._loop = None
         self._driver = None
         self._lock = threading.RLock()
         self._state = "idle"
         self._active = False
         self._action = ""
         self._closed = False
+
+    def _runtime_loop(self):
+        with self._lock:
+            if self._closed:
+                raise RuntimeError("Computer use is closed")
+            if self._loop is None:
+                self._loop = LoopThread("marvi-computer")
+            return self._loop
 
     def status(self):
         with self._lock:
@@ -119,7 +127,7 @@ class ComputerUse:
             return {"actions": tools}
         try:
             with capture_barrier.observe():
-                return self._loop.submit(read(), timeout=25)
+                return self._runtime_loop().submit(read(), timeout=25)
         finally:
             self._finish()
 
@@ -136,10 +144,16 @@ class ComputerUse:
             with capture_barrier.observe():
                 # Keep the admission lease until the actual native command ends.
                 # A client timeout does not imply that a click was cancelled.
-                result = self._loop.submit(dispatch(), timeout=None)
+                result = self._runtime_loop().submit(dispatch(), timeout=None)
                 answer = {"is_error": result.is_error, "error_code": result.error_code,
                           "degraded": result.degraded,
                           "observation": wrap_external("computer", result.text).model_dump()}
+                if getattr(result, "structured_json", None):
+                    structured = json.loads(result.structured_json)
+                    if isinstance(structured, dict):
+                        structured.pop("tree_markdown", None)
+                        structured.pop("_note", None)
+                    answer["targets"] = wrap_external("computer-targets", structured).model_dump()
                 if question and result.images and not result.is_error:
                     if self.client is None:
                         answer["vision_error"] = "Configure the Vision model to read screenshots."
@@ -166,7 +180,7 @@ class ComputerUse:
             raise ValueError("Unknown computer control")
         with self._lock:
             if command == "resume":
-                if self._active:
+                if self._active or self._state == "stopping":
                     raise RuntimeError("Wait for the current action to finish")
                 capture_barrier.leave("computer-use")
                 self._state = "idle"
@@ -182,6 +196,9 @@ class ComputerUse:
         with self._lock:
             self._closed = True
             self._state = "stopping"
+        if self._loop is None:
+            capture_barrier.leave("computer-use")
+            return
         async def shutdown():
             if self._driver:
                 await self._driver.shutdown()
@@ -205,7 +222,7 @@ def register_computer_tools(registry, service):
     registry.register(ToolSpec("computer_control", "Stop new computer actions, enter private user input, or resume. Stop drains an issued action; inspect fresh state after resume.", {"command": str}, False, service.control))
 
 
-def computer_router(service):
+def computer_router(service, audit=lambda *_: None):
     import asyncio
 
     from fastapi import APIRouter, Depends, HTTPException
@@ -221,6 +238,7 @@ def computer_router(service):
     @router.post('/control')
     async def control(body: ComputerControl):
         try:
+            audit("requested", "computer_control", {"command": body.command})
             return await asyncio.to_thread(service.control, body.command)
         except (ValueError, RuntimeError) as exc:
             raise HTTPException(409, str(exc)) from exc

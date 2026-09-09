@@ -1525,7 +1525,7 @@ def create_app(
     )
     app.include_router(browser_router(get_browser, runtime_store.audit,
         lambda: register_workspace_browser_tools(tool_registry, get_browser, provider_client)))
-    app.include_router(computer_router(computer_service))
+    app.include_router(computer_router(computer_service, runtime_store.audit))
     # Reachable from outside, so a proposal can be placed and settled without a
     # model in the loop -- and so a test of what happens to a proposal tests
     # that, rather than the extraction that produced it.

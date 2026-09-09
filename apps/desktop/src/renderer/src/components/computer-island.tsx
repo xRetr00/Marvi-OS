@@ -9,8 +9,11 @@ export function useComputerActivity(): ComputerStatus | null {
     const refresh = async (): Promise<void> => {
       try {
         const next = await window.marvi?.getComputer?.()
-        if (alive) setStatus(next ?? null)
-      } catch { /* Retain visible activity until the Gateway confirms it ended. */ }
+        if (!next) throw new Error('Gateway unavailable')
+        if (alive) setStatus(next)
+      } catch {
+        if (alive) setStatus(previous => previous && previous.state !== 'idle' ? { ...previous, active: false, state: 'unavailable' } : null)
+      }
       finally { if (alive) timer = setTimeout(() => { void refresh() }, 250) }
     }
     void refresh()
@@ -32,7 +35,7 @@ export function ComputerIsland({ status }: { status: ComputerStatus }): React.JS
   return <div className="dynamic-island island-confirmation" role="status" aria-live="polite">
     <div className="confirmation-copy">
       <small>{status.state === 'private' ? 'PRIVATE INPUT' : 'COMPUTER USE'}</small>
-      <strong>{error ? 'Computer controls unavailable. Retry.' : status.state === 'stopping'
+      <strong>{error || status.state === 'unavailable' ? 'Computer controls unavailable. Retry.' : status.state === 'stopping'
         ? 'Marvi is stopping computer use' : paused ? 'Computer use paused' : 'Marvi is using the computer'}</strong>
     </div>
     <div className="confirmation-actions">
