@@ -61,6 +61,20 @@ export function useAsking(): Question | null {
   return waiting
 }
 
+/** What will actually be sent, or empty when there is nothing to send.
+ *
+ * Pulled out of the component because it is the only decision here worth
+ * testing on its own, and the desktop suite renders to static markup -- there
+ * is no DOM to type into.
+ *
+ * Whitespace is not an answer. A box holding three spaces that reports itself
+ * answered is the worst of the outcomes: Marvi files nothing, marks the
+ * question settled, and never asks again.
+ */
+export function readyToSend(answer: string): string {
+  return answer.trim()
+}
+
 export function AskingCard({
   question,
   onSettled
@@ -100,7 +114,8 @@ export function AskingCard({
       className="asking-card"
       onSubmit={(event) => {
         event.preventDefault()
-        if (answer.trim()) void settle('answered', answer.trim())
+        const said = readyToSend(answer)
+        if (said) void settle('answered', said)
       }}
     >
       <p className="asking-question">{question.question}</p>
@@ -128,7 +143,7 @@ export function AskingCard({
         </p>
       ) : null}
       <div className="asking-actions">
-        <button className="asking-send" disabled={busy || !answer.trim()} type="submit">
+        <button className="asking-send" disabled={busy || !readyToSend(answer)} type="submit">
           Send
         </button>
         <button

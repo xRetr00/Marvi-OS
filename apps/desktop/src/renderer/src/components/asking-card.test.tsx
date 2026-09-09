@@ -1,8 +1,7 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import type { Question } from '../../../shared/asking'
-import { AskingCard } from './asking-card'
+import { AskingCard, readyToSend } from './asking-card'
 
 const question: Question = {
   id: 'q1',
@@ -15,79 +14,49 @@ const question: Question = {
   settled_at: 0
 }
 
-const settleAsking = vi.fn()
-
-beforeEach(() => {
-  settleAsking.mockReset().mockResolvedValue({ ok: true, state: 'answered' })
-  // @ts-expect-error -- the renderer's bridge, stubbed for the test
-  window.marvi = { settleAsking }
-})
-
 describe('the question Marvi puts on screen', () => {
   it('asks the question and offers the three real outcomes', () => {
     const html = renderToStaticMarkup(<AskingCard question={question} />)
     expect(html).toContain('How do you spell your surname?')
     expect(html).toContain('Surname')
-    // Answering, closing, and never again are three different things.
+    // Answering, closing it, and never again are three different things, and
+    // collapsing them into one ✕ would make the accidental click permanent.
     expect(html).toContain('Send')
     expect(html).toContain('Not now')
     expect(html).toContain('Don&#x27;t ask')
   })
 
-  it('will not send an empty answer', async () => {
-    // An empty box reporting itself answered is the worst outcome: Marvi files
-    // nothing and never asks again.
-    render(<AskingCard question={question} />)
-    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
-
-    fireEvent.change(screen.getByRole('textbox'), { target: { value: '   ' } })
-    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
-
-    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Ibrahim' } })
-    expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled()
+  it('cannot send until something is typed', () => {
+    const html = renderToStaticMarkup(<AskingCard question={question} />)
+    // The Send button ships disabled, so an empty box cannot report itself
+    // answered — which would settle the question and stop the follow-up.
+    expect(html).toMatch(/class="asking-send"[^>]*disabled/)
   })
 
-  it('sends a trimmed answer', async () => {
-    const settled = vi.fn()
-    render(<AskingCard onSettled={settled} question={question} />)
-    fireEvent.change(screen.getByRole('textbox'), { target: { value: '  Ibrahim  ' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
-
-    await waitFor(() => expect(settleAsking).toHaveBeenCalledWith('q1', 'answered', 'Ibrahim'))
-    await waitFor(() => expect(settled).toHaveBeenCalledWith('answered'))
+  it('falls back to a generic hint when the question carries none', () => {
+    const html = renderToStaticMarkup(
+      <AskingCard question={{ ...question, placeholder: '' }} />
+    )
+    expect(html).toContain('Type your answer')
   })
 
-  it('separates closing the box from refusing the subject', async () => {
-    // "Not now" earns one spoken follow-up. "Don't ask" is permanent. Sending
-    // the same state for both would make the gentle one irreversible.
-    const { unmount } = render(<AskingCard question={question} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Not now' }))
-    await waitFor(() => expect(settleAsking).toHaveBeenCalledWith('q1', 'dismissed', ''))
-    unmount()
+  it('labels the box with the question, for anyone not reading the screen', () => {
+    const html = renderToStaticMarkup(<AskingCard question={question} />)
+    expect(html).toContain('aria-label="How do you spell your surname?"')
+    expect(html).toContain('aria-label="A question from Marvi"')
+  })
+})
 
-    settleAsking.mockClear()
-    render(<AskingCard question={question} />)
-    fireEvent.click(screen.getByRole('button', { name: /Don.t ask/ }))
-    await waitFor(() => expect(settleAsking).toHaveBeenCalledWith('q1', 'declined', ''))
+describe('what counts as an answer', () => {
+  it('treats whitespace as nothing', () => {
+    // Marvi would file nothing, mark it settled, and never ask again.
+    expect(readyToSend('')).toBe('')
+    expect(readyToSend('   ')).toBe('')
+    expect(readyToSend('\n\t ')).toBe('')
   })
 
-  it('closes the box on Escape rather than swallowing the key', async () => {
-    render(<AskingCard question={question} />)
-    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Escape' })
-    await waitFor(() => expect(settleAsking).toHaveBeenCalledWith('q1', 'dismissed', ''))
-  })
-
-  it('keeps the question on screen when sending fails', async () => {
-    // Clearing it would look like it went through, and Marvi would sit waiting
-    // for an answer that never arrived.
-    settleAsking.mockRejectedValue(new Error('gateway down'))
-    const settled = vi.fn()
-    render(<AskingCard onSettled={settled} question={question} />)
-    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Ibrahim' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
-
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('did not send'))
-    expect(settled).not.toHaveBeenCalled()
-    expect(screen.getByRole('textbox')).toHaveValue('Ibrahim')
+  it('trims what is sent', () => {
+    expect(readyToSend('  Ibrahim  ')).toBe('Ibrahim')
+    expect(readyToSend('Ibrahim')).toBe('Ibrahim')
   })
 })

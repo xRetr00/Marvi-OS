@@ -6659,7 +6659,7 @@ function IslandSurface(): React.JSX.Element {
   // something Marvi is holding mid-action and the user is waiting on; a
   // question is not urgent, and can wait for the turn to settle.
   const askingVisible = Boolean(asking && voice.phase !== 'confirmation')
-  const computerVisible = Boolean(computerStatus && (computerStatus.active || ['stopping', 'private', 'paused', 'unavailable'].includes(computerStatus.state)) && voice.phase !== 'confirmation')
+  const computerVisible = Boolean(computerStatus && (computerStatus.active || ['stopping', 'private', 'paused', 'unknown', 'unavailable'].includes(computerStatus.state)) && voice.phase !== 'confirmation')
   const browserVisible = Boolean(browserSession && voice.phase === 'ready')
   const reduceMotion = useReducedMotion()
   const measureRef = useRef<HTMLDivElement>(null)
