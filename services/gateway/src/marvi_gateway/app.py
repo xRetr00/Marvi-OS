@@ -69,10 +69,10 @@ from .announce import Announcer, announce_enabled, output_devices
 from .browser import browser_enabled
 from .browser_api import browser_router, register_workspace_browser_tools
 from .browser_workspace import BrowserWorkspace
-from .computer import ComputerUse, computer_router, register_computer_tools
 from .chat import Chat, ChatStore, ChatTurn, schemas_from_registry
 from .clarify import register_clarify_tool
 from .cognition import CognitionHarness
+from .computer import ComputerUse, computer_router, register_computer_tools
 from .credentials import register_secret_tool
 from .curiosity import Curiosity, seed_identity
 from .deliberate import deliberator_from_env
