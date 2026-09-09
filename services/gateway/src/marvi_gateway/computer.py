@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import threading
@@ -18,7 +19,7 @@ from .untrusted import wrap_external
 
 VERSION = "0.24.0"
 
-#: How long one native action may run before the lease is released.
+#: How long one native action may run before worker retirement begins.
 #:
 #: It used to be `None` -- wait forever -- on the reasoning that a client
 #: timeout does not mean the click was cancelled. That reasoning is right and
@@ -30,10 +31,10 @@ VERSION = "0.24.0"
 #: browser -- `browser_workspace`'s private input blocks forever too. One hung
 #: subprocess bricked both subsystems with no recovery but a restart.
 #:
-#: So the lease is bounded and the *claim* is what stays careful: on a timeout
-#: the state becomes `unknown`, which says completion could not be established
-#: rather than that anything was undone.
+#: The request is bounded. Capture exclusion outlives it until SDK shutdown
+#: acknowledges that the old worker drained; recovery then reports `unknown`.
 ACTION_TIMEOUT = 120.0
+RECOVERY_TIMEOUT = 10.0
 
 #: How long to wait for observers to finish before entering private input.
 #:
@@ -94,6 +95,7 @@ class ComputerUse:
         self._active = False
         self._action = ""
         self._closed = False
+        self._retirement_lease = None
 
     def _runtime_loop(self):
         with self._lock:
@@ -163,7 +165,7 @@ class ComputerUse:
                 raise RuntimeError(
                     "Computer use is disabled. Enable it in Setup and restart Marvi."
                 )
-            if self._active or self._state in {"paused", "private", "stopping"}:
+            if self._active or self._retirement_lease or self._state in {"paused", "private", "stopping", "unavailable"}:
                 raise RuntimeError("Computer use is busy or paused. Check computer_status.")
             # `unknown` is deliberately not in that set. It means the last
             # action outran its lease and nobody can say whether it landed,
@@ -202,6 +204,42 @@ class ComputerUse:
         finally:
             self._finish()
 
+    def _retire(self, watching):
+        """Retain capture exclusion until the timed-out worker actually stops.
+
+        Cancelling the Python future does not prove native work ended. SDK
+        shutdown drains admitted work; only its acknowledgment releases this
+        lease. The request remains bounded even if shutdown itself stalls.
+        """
+        with self._lock:
+            stopped = self._state == "stopping"
+            self._state = "stopping"
+            self._retirement_lease = watching.pop_all()
+
+        async def retire():
+            try:
+                if self._driver:
+                    await self._driver.shutdown()
+            except Exception:
+                with self._lock:
+                    self._state = "unavailable"
+                    self._active = False
+                    self._action = ""
+                return  # Keep the lease: private input cannot be acknowledged.
+            with self._lock:
+                self._driver = None
+                self._state = "paused" if stopped else "unknown"
+                self._active = False
+                self._action = ""
+                self._retirement_lease.close()
+                self._retirement_lease = None
+
+        pending = asyncio.run_coroutine_threadsafe(retire(), self._runtime_loop().loop)
+        try:
+            pending.result(RECOVERY_TIMEOUT)
+        except TimeoutError:
+            pass  # Deliberately do not cancel cleanup or release its lease.
+
     def action(self, action: str, arguments: dict, question: str = "", request_confirmation=False):
         if action not in ACTIONS:
             raise ValueError("Unknown computer action. Read computer_tools first.")
@@ -229,13 +267,16 @@ class ComputerUse:
                 "Computer use is paused for private input. Nothing was done. "
                 "Resume before retrying."
             ) from None
+        retired = False
         try:
             with watching:
-                # Keep the admission lease until the actual native command ends.
-                # A client timeout does not imply that a click was cancelled --
-                # but it cannot hold the lease for ever either. See
-                # `ACTION_TIMEOUT`.
-                result = self._runtime_loop().submit(dispatch(), timeout=ACTION_TIMEOUT)
+                # A timeout retires the worker before releasing capture exclusion.
+                try:
+                    result = self._runtime_loop().submit(dispatch(), timeout=ACTION_TIMEOUT)
+                except TimeoutError:
+                    retired = True
+                    self._retire(watching)
+                    raise
                 answer = {
                     "is_error": result.is_error,
                     "error_code": result.error_code,
@@ -282,13 +323,17 @@ class ComputerUse:
                         ).model_dump()
                 return answer
         except TimeoutError:
+            if not retired:
+                raise RuntimeError(
+                    "Screen interpretation timed out after the native action returned. "
+                    "Inspect fresh state before retrying the action."
+                ) from None
             # Say what is actually true: the command was issued, it outran the
             # lease, and whether it landed is not knowable from here.
-            with self._lock:
-                self._state = "unknown"
             raise RuntimeError(
-                f"Computer action ran past {ACTION_TIMEOUT:.0f}s and was left running. "
-                "Whether it completed is unknown -- inspect fresh state before retrying."
+                f"Computer action ran past {ACTION_TIMEOUT:.0f}s. Its outcome is unknown. "
+                "The old worker is being retired; check computer_status. Once recovery "
+                "finishes, inspect fresh state before retrying. If unavailable, restart Marvi."
             ) from None
         except Exception:
             # No raw SDK exception: it can contain typed text or window contents.
@@ -296,14 +341,17 @@ class ComputerUse:
                 "Computer action failed. Inspect fresh state before retrying; completion may be unknown."
             ) from None
         finally:
-            self._finish()
+            if not retired:
+                self._finish()
 
     def control(self, command):
         if command not in {"stop", "private", "resume"}:
             raise ValueError("Unknown computer control")
         with self._lock:
+            if self._retirement_lease and not self._active:
+                raise RuntimeError("Computer worker recovery failed. Restart Marvi before private input or more actions.")
             if command == "resume":
-                if self._active or self._state == "stopping":
+                if self._active or self._state == "stopping" or self._retirement_lease:
                     raise RuntimeError("Wait for the current action to finish")
                 capture_barrier.leave("computer-use")
                 self._state = "idle"
@@ -340,6 +388,9 @@ class ComputerUse:
 
         try:
             self._loop.submit(shutdown(), timeout=190)
+            if self._retirement_lease:
+                self._retirement_lease.close()
+                self._retirement_lease = None
         finally:
             capture_barrier.leave("computer-use")
             self._loop.stop()

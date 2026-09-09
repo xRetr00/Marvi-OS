@@ -201,6 +201,41 @@ def test_private_input_elsewhere_is_a_refusal_not_a_maybe(service):
     assert s.action("click", {})["is_error"] is False
 
 
+def test_timeout_keeps_capture_lease_until_native_shutdown_acknowledges(service, monkeypatch):
+    import marvi_gateway.computer as computer
+
+    s, d = service
+    monkeypatch.setattr(computer, "ACTION_TIMEOUT", 0.05)
+    monkeypatch.setattr(computer, "RECOVERY_TIMEOUT", 0.05)
+    d.wait = True
+    shutdown_entered = threading.Event()
+    shutdown_done = threading.Event()
+
+    async def shutdown():
+        shutdown_entered.set()
+        await asyncio.to_thread(d.release.wait)
+        shutdown_done.set()
+
+    d.shutdown = shutdown
+    with pytest.raises(RuntimeError, match="unknown"):
+        s.action("click", {})
+    assert shutdown_entered.wait(1)
+    assert s.status()["state"] == "stopping"
+    with pytest.raises(TimeoutError):
+        capture_barrier.enter("browser-retirement-test", timeout=0.05)
+    capture_barrier.leave("browser-retirement-test")
+    with pytest.raises(RuntimeError):
+        s.control("resume")
+    d.release.set()
+    assert shutdown_done.wait(2)
+    # Serialize behind the cleanup coroutine before checking its final state.
+    s._runtime_loop().submit(asyncio.sleep(0))
+    assert s.status()["state"] == "unknown"
+    assert s._driver is None
+    capture_barrier.enter("browser-retirement-test", timeout=0.1)
+    capture_barrier.leave("browser-retirement-test")
+
+
 def test_private_input_that_cannot_start_does_not_leave_the_door_shut(service, monkeypatch):
     """`block` runs before the wait, so a failed `enter` used to close everything.
 
