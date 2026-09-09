@@ -141,13 +141,34 @@ def available() -> list[dict[str, str]]:
     ]
 
 
+def _briefed(job: Job) -> str:
+    """The task, with the standing instructions for a job Marvi handed over.
+
+    The task used to go across on its own -- one or two sentences a language
+    model wrote from something somebody said out loud -- and the coding agent
+    was left to infer the rest: whether it could edit, what counted as done,
+    and that its closing summary would be *read aloud* to someone who is not
+    looking at a diff. It inferred badly. Reports came back as bullet lists of
+    file paths, which is unspeakable, and "investigate" runs proposed changes
+    nobody had asked for.
+
+    `prompts/coding-agent.md` says those things once. It is the same text that
+    becomes the system prompt when the coding sub-agent lands and this stops
+    shelling out to somebody else's CLI.
+    """
+    from . import prompts
+
+    standing = prompts.text("coding-agent", MODE=job.mode, ROOT=job.root)
+    return f"{standing}{chr(10) * 2}---{chr(10) * 2}# The task{chr(10) * 2}{job.task}"
+
+
 def _run(job: Job, argv: list[str]) -> None:
     try:
         # The task arrives on stdin. Nothing model-written is in `argv`, which
         # is what keeps a `.CMD` shim's shell out of the picture entirely.
         finished = subprocess.run(
             argv,
-            input=job.task,
+            input=_briefed(job),
             cwd=job.root,
             capture_output=True,
             text=True,
