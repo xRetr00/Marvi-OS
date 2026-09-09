@@ -1,10 +1,15 @@
 import type { VoiceState } from '../store/voice-state'
 
-export const ISLAND_ENTER_SECONDS = 0.2
+export const ISLAND_ENTER_SECONDS = 0.32
 export const ISLAND_EXIT_SECONDS = 0.13
 export const ISLAND_REDUCED_MOTION_SECONDS = 0.01
 export const ISLAND_AUTO_EXPAND_MS = 1800
 export const ANNOUNCEMENT_GLANCE_MS = 10_000
+
+// Reveal the silhouette from the same 34×2 indicator as idle. Clipping avoids
+// stretching text or triggering native window resizes on animation frames.
+export const ISLAND_LINE_CLIP = 'inset(0px calc(50% - 17px) calc(100% - 2px) round 999px)'
+export const ISLAND_OPEN_CLIP = 'inset(0px 0px 0px round 22px)'
 
 export function islandDisplayState(state: VoiceState): VoiceState {
   if (!state.announcement || (state.phase !== 'ready' && state.phase !== 'announcing')) {

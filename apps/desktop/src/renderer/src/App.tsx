@@ -68,6 +68,8 @@ import {
   ANNOUNCEMENT_GLANCE_MS,
   ISLAND_AUTO_EXPAND_MS,
   ISLAND_ENTER_SECONDS,
+  ISLAND_LINE_CLIP,
+  ISLAND_OPEN_CLIP,
   ISLAND_EXIT_SECONDS,
   ISLAND_REDUCED_MOTION_SECONDS,
   islandDisplayState,
@@ -6735,18 +6737,18 @@ function IslandSurface(): React.JSX.Element {
       <div className="island-measure" ref={measureRef}>
         <AnimatePresence initial={false} mode="popLayout">
           <motion.div
-            animate={{ opacity: 1, scale: 1 }}
+            animate={{ opacity: 1, clipPath: ISLAND_OPEN_CLIP }}
             className="island-transition-shell"
             exit={
               reduceMotion
                 ? { opacity: 0, transition: { duration: ISLAND_REDUCED_MOTION_SECONDS } }
                 : {
                     opacity: 0,
-                    scale: 0.985,
+                    clipPath: ISLAND_LINE_CLIP,
                     transition: { duration: ISLAND_EXIT_SECONDS, ease: [0.4, 0, 1, 1] }
                   }
             }
-            initial={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.97 }}
+            initial={reduceMotion ? { opacity: 0 } : { opacity: 1, clipPath: ISLAND_LINE_CLIP }}
             key={`${presentationKey}:${expanded ? 'expanded' : 'collapsed'}`}
             transition={
               reduceMotion

@@ -117,6 +117,22 @@ body {
   background: transparent;
 }
 
+/* A native overlay must not inherit Chromium's dark canvas or shell paint. */
+html[data-surface='island'],
+html[data-surface='island'] body,
+html[data-surface='island'] #root {
+  color-scheme: normal;
+  background: transparent !important;
+  background-image: none !important;
+}
+html[data-surface='island'] .dynamic-island {
+  /* Keep all shading inside the silhouette, not around the transparent host. */
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ui-text-primary) 8%, transparent);
+}
+html[data-surface='island'] .island-seed {
+  box-shadow: none;
+}
+
 .app-shell,
 .app-shell button,
 .app-shell input,
