@@ -2075,6 +2075,16 @@ function startApp(): void {
       return response.json()
     }
     ipcMain.handle('marvi:get-browser', () => browserRequest(''))
+    ipcMain.handle('marvi:get-computer', () => gatewayJson('/computer'))
+    ipcMain.handle('marvi:computer-control', async (_event, command) => {
+      if (!['stop', 'private', 'resume'].includes(command)) throw new Error('Invalid computer control')
+      const response = await fetch(`${gateway()}/computer/control`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...localHeaders() },
+        body: JSON.stringify({ command }), signal: AbortSignal.timeout(65_000)
+      })
+      if (!response.ok) throw await gatewayFailure(response, 'Computer control failed')
+      return response.json()
+    })
     ipcMain.handle('marvi:browser-export-helper', async event => {
       if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error('Invalid browser caller')
       const target = join(stateDir(), 'browser', 'import-helper')

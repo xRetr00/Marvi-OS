@@ -204,6 +204,8 @@ export interface MarviDesktopApi {
   openMaintenanceTerminal: (action: MaintenanceAction) => Promise<boolean>
   getSchedules: () => Promise<SchedulePage | null>
   getBrowser: () => Promise<BrowserStatus>
+  getComputer: () => Promise<import('../shared/computer').ComputerStatus>
+  computerControl: (command: import('../shared/computer').ComputerCommand) => Promise<import('../shared/computer').ComputerStatus>
   browserExportHelper: () => Promise<void>
   browserImport: (profile: string, kind: 'cookies' | 'passwords') => Promise<{ imported: number; skipped: number } | null>
   placeBrowser: (placement: BrowserPlacement | null) => Promise<void>

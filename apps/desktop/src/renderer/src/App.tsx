@@ -62,6 +62,7 @@ import { ModelPicker } from './components/ui/model-picker'
 import { ConnectingOverlay } from './components/ConnectingOverlay'
 import { DynamicIsland } from './components/DynamicIsland'
 import { BrowserIsland, useBrowserHandoff } from './components/browser-island'
+import { ComputerIsland, useComputerActivity } from './components/computer-island'
 import {
   ANNOUNCEMENT_GLANCE_MS,
   ISLAND_AUTO_EXPAND_MS,
@@ -6651,6 +6652,8 @@ function VisitorWatch(): React.JSX.Element | null {
 function IslandSurface(): React.JSX.Element {
   const voice = useStore($voiceState)
   const browserSession = useBrowserHandoff()
+  const computerStatus = useComputerActivity()
+  const computerVisible = Boolean(computerStatus && (computerStatus.active || ['stopping', 'private', 'paused'].includes(computerStatus.state)) && voice.phase !== 'confirmation')
   const browserVisible = Boolean(browserSession && voice.phase === 'ready')
   const reduceMotion = useReducedMotion()
   const measureRef = useRef<HTMLDivElement>(null)
@@ -6661,7 +6664,7 @@ function IslandSurface(): React.JSX.Element {
   // idle Island, but never covers an active call or confirmation.
   const islandState = islandDisplayState(voice)
   const hasOrb = islandHasOrb(islandState)
-  const interactionMode = browserVisible ? 'interactive' : islandInteractionMode(islandState)
+  const interactionMode = browserVisible || computerVisible ? 'interactive' : islandInteractionMode(islandState)
   const presentationKey = islandPresentationKey(islandState)
   const confirmationExpanded =
     islandState.phase === 'confirmation' && Boolean(islandState.confirmation)
@@ -6745,7 +6748,9 @@ function IslandSurface(): React.JSX.Element {
                 : { duration: ISLAND_ENTER_SECONDS, ease: [0.22, 1, 0.36, 1] }
             }
           >
-            {browserVisible && browserSession ? (
+            {computerVisible && computerStatus ? (
+              <ComputerIsland status={computerStatus} />
+            ) : browserVisible && browserSession ? (
               <BrowserIsland session={browserSession} />
             ) : (
               <DynamicIsland

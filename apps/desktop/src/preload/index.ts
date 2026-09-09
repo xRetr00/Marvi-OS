@@ -309,6 +309,8 @@ const marvi = {
   openMaintenanceTerminal: (action: MaintenanceAction): Promise<boolean> =>
     ipcRenderer.invoke('marvi:open-maintenance-terminal', action),
   getSchedules: (): Promise<SchedulePage | null> => ipcRenderer.invoke('marvi:get-schedules'),
+  getComputer: (): Promise<import('../shared/computer').ComputerStatus> => ipcRenderer.invoke('marvi:get-computer'),
+  computerControl: (command: import('../shared/computer').ComputerCommand): Promise<import('../shared/computer').ComputerStatus> => ipcRenderer.invoke('marvi:computer-control', command),
   getBrowser: (): Promise<BrowserStatus> => ipcRenderer.invoke('marvi:get-browser'),
   browserExportHelper: (): Promise<void> => ipcRenderer.invoke('marvi:browser-export-helper'),
   browserImport: (profile: string, kind: 'cookies' | 'passwords'): Promise<{ imported: number; skipped: number } | null> => ipcRenderer.invoke('marvi:browser-import', profile, kind),
