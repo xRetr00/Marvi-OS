@@ -153,7 +153,7 @@ def available() -> list[dict[str, str]]:
 SHARED = "_shared"
 
 
-def text(name: str = "", root: Path | None = None) -> str:
+def text(name: str = "", root: Path | None = None, shared: bool = True) -> str:
     """The persona's own words, with the shared rules after them.
 
     Falls back to the default rather than to nothing: a mistyped setting should
@@ -176,6 +176,8 @@ def text(name: str = "", root: Path | None = None) -> str:
     if not said:
         log.warning("no persona files under %s", folder)
         return ""
+    if not shared:
+        return said
     try:
         common = (folder / f"{SHARED}.md").read_text(encoding="utf-8").strip()
     except OSError:
@@ -184,6 +186,77 @@ def text(name: str = "", root: Path | None = None) -> str:
     # it is the part that decides how everything after it is said.
     gap = chr(10) * 2
     return f"{said}{gap}{common}".strip() if common else said
+
+
+#: The heading whose section tells the mind how readily to speak up.
+#:
+#: A section rather than the whole persona, because the mind is deciding, not
+#: talking: it emits one JSON object and never says a word itself, so the
+#: fifteen hundred characters about Markdown and sentence length are noise in
+#: front of it. See `identity.compose(in_character=False)` for the same
+#: reasoning applied to the other background jobs.
+STANCE = "## Deciding in the background"
+
+#: The background mind's own file, the way `chat` is the typed surface's.
+#:
+#: The mind had no file and no way to get one. Its whole stance was a Python
+#: string in `deliberate`, and the string said "Silence is the normal, correct
+#: answer" -- so every persona deliberated like the quiet one, and the picker
+#: changed only how the sentence was worded once something had already got
+#: past that. It is a shipped file now, editable like the rest.
+FOR_MIND = "mind"
+
+
+def stance(name: str = "", root: Path | None = None) -> str:
+    """How readily this persona speaks when nobody asked. Empty if unsaid.
+
+    This is the half of the persona the background mind needs, and it had no
+    way to reach it. `deliberate.SYSTEM_PROMPT` hardcoded "Silence is the
+    normal, correct answer. Set worth_it false unless a person would genuinely
+    want interrupting for this" -- the *silent* persona's position, stated as
+    a fact about the system, in a string the picker cannot touch.
+
+    So choosing "Marvi, warm and forward" changed how she phrased an answer and
+    changed nothing about whether she offered one. `personas.default` says
+    "Judgement, not silence by default ... and often it is" and lost every
+    time, because the task text is more specific than the character text and
+    arrives after it.
+
+    On this machine it did not even lose a fair fight: `SOUL.md` is empty, and
+    `CognitionHarness._system` composes `SOUL.md` rather than the chosen
+    persona, so the hardcoded sentence was the mind's entire stance.
+    """
+    body = text(name, root, shared=False)
+    if STANCE not in body:
+        return ""
+    after = body.split(STANCE, 1)[1]
+    # To the next heading of the same level, or the end.
+    gap = chr(10)
+    lines: list[str] = []
+    for line in after.split(gap):
+        if line.startswith("## "):
+            break
+        lines.append(line)
+    return gap.join(lines).strip()
+
+
+def for_mind(root: Path | None = None) -> str:
+    """The mind's file plus the chosen persona's stance. Empty if unshipped.
+
+    Two parts because they answer different questions. `mind.md` is the job --
+    what this decision is, and the short list of things genuinely not worth
+    saying (marketing mail, a repeat, someone mid-thought, an empty room). The
+    persona's section is how readily *this* Marvi speaks, which is the part
+    the picker owns. The persona goes last so it wins.
+    """
+    job = ""
+    try:
+        job = (_folder(root) / f"{FOR_MIND}.md").read_text(encoding="utf-8").strip()
+    except OSError:
+        log.warning("no %s.md; the mind is running on its fallback stance", FOR_MIND)
+    mine = stance(root=root)
+    gap = chr(10) * 2
+    return gap.join(part for part in (job, mine) if part)
 
 
 def for_surface(surface: str = "voice", root: Path | None = None) -> str:
