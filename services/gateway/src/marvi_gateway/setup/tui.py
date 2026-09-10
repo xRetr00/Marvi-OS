@@ -233,7 +233,7 @@ def run(
     the installer are the parts that touch the network and the filesystem.
     """
     from rich.console import Console
-    from rich.prompt import IntPrompt
+    from rich.prompt import Prompt
 
     from .. import terminal_ui
 
@@ -254,10 +254,10 @@ def run(
             "[bold cyan]2[/bold cyan] Tools and keys   "
             "[bold cyan]3[/bold cyan] Quit"
         )
-        answer = IntPrompt.ask("Choose", choices=[1, 2, 3], default=3, console=console)
-        if answer == 3:
+        answer = Prompt.ask("Choose", choices=["1", "2", "3"], default="3", console=console)
+        if answer == "3":
             return 0
-        if answer == 1:
+        if answer == "1":
             _install_components(console, components, current, install, root)
         else:
             _edit_capabilities(console)
@@ -307,18 +307,40 @@ def _install_components(
     console: Any, components: list[Any], current: dict[str, Any], install: Any, root: Any
 ) -> None:
     from rich.progress import BarColumn, Progress, TextColumn, TimeRemainingColumn
-    from rich.prompt import Confirm
+    from rich.prompt import Confirm, Prompt
 
     if not current["install"]:
         console.print("[green]Everything is already installed.[/green]")
         return
 
-    total = _gigabytes(current["bytes_total"])
-    console.print(f"\n{len(current['install'])} to install, {total} to download.")
+    missing = current["install"]
+    console.print("\n[bold]Select components to install[/bold]")
+    console.print("[dim]Choose one or more numbers. Enter 0 when finished.[/dim]")
+    for index, entry in enumerate(missing, 1):
+        console.print(
+            f"  [bold cyan]{index}[/bold cyan] {entry['title']}  "
+            f"[dim]{_gigabytes(entry['bytes'])}[/dim]"
+        )
+
+    choices = [str(index) for index in range(1, len(missing) + 1)] + ["0"]
+    selected: set[int] = set()
+    while True:
+        choice = Prompt.ask("Component", choices=choices, default="0", console=console)
+        if choice == "0":
+            break
+        selected.add(int(choice) - 1)
+
+    if not selected:
+        console.print("[dim]No components selected.[/dim]")
+        return
+
+    selected_entries = [missing[index] for index in sorted(selected)]
+    total = _gigabytes(sum(entry["bytes"] for entry in selected_entries))
+    console.print(f"\n{len(selected_entries)} selected, {total} to download.")
     if not Confirm.ask("Download now?", default=False, console=console):
         return
 
-    wanted = {entry["title"] for entry in current["install"]}
+    wanted = {entry["title"] for entry in selected_entries}
     todo = [c for c in components if c.title in wanted]
     failed = 0
     with Progress(
@@ -345,25 +367,23 @@ def _install_components(
 
 def _edit_capabilities(console: Any) -> None:
     """Set what a capability needs, and write it where the app will read it."""
-    from rich.prompt import Confirm, IntPrompt, Prompt
+    from rich.prompt import Confirm, Prompt
 
-    keys = [c.key for c in CAPABILITIES]
-    console.print("\n" + "   ".join(f"[bold]{c.key}[/bold] {c.title}" for c in CAPABILITIES))
     console.print("\n[bold]Tools and keys[/bold]")
     for index, capability in enumerate(CAPABILITIES, 1):
         mark = "[green]ready[/green]" if _ready(capability) else "[yellow]needs setup[/yellow]"
         console.print(f"  [bold cyan]{index}[/bold cyan] {capability.title}  {mark}")
     console.print(f"  [bold cyan]{len(CAPABILITIES) + 1}[/bold cyan] Back")
-    chosen = IntPrompt.ask(
+    chosen = Prompt.ask(
         "Which capability",
-        choices=list(range(1, len(CAPABILITIES) + 2)),
-        default=len(CAPABILITIES) + 1,
+        choices=[str(index) for index in range(1, len(CAPABILITIES) + 2)],
+        default=str(len(CAPABILITIES) + 1),
         console=console,
     )
-    if chosen == len(CAPABILITIES) + 1:
+    if chosen == str(len(CAPABILITIES) + 1):
         return
 
-    capability = CAPABILITIES[chosen - 1]
+    capability = CAPABILITIES[int(chosen) - 1]
     console.print(f"\n[dim]{capability.why}[/dim]")
     changes: dict[str, str] = {}
     for setting in capability.settings:
