@@ -533,3 +533,296 @@
   background: color-mix(in srgb, var(--ui-danger) 14%, transparent);
   color: var(--ui-danger);
 }
+
+/* -- widgets -------------------------------------------------------------- */
+
+/* Cards, not boxed panels.
+   They were 340px wide with a bordered header strip and 8px labels, so a
+   two-row table arrived looking like a cramped dialog and a wide one was
+   unreadable. A widget is a piece of the answer: it gets the answer's width,
+   the answer's type sizes, and a surface instead of an outline. */
+.chat-widgets {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 10px 0 4px;
+}
+
+.chat-widget-flat {
+  width: 100%;
+  max-width: 620px;
+  padding: 12px 14px 13px;
+  overflow: hidden;
+  border: 1px solid var(--ui-stroke-tertiary);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--ui-bg-raised) 55%, transparent);
+}
+
+/* The caption sits with the content rather than in a strip above it. A ruled
+   header on a card this small was two borders around three rows of data. */
+.chat-widget-label {
+  min-height: 0;
+  margin-bottom: 9px;
+  padding: 0;
+  border-bottom: 0;
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.chat-metrics > div,
+.chat-status > div {
+  display: grid;
+  gap: 2px 18px;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+}
+
+.chat-metric,
+.chat-status-row {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 0;
+  border: 0;
+  border-top: 1px solid color-mix(in srgb, var(--ui-stroke-tertiary) 45%, transparent);
+}
+
+.chat-metric span,
+.chat-status-row span {
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.chat-metric strong,
+.chat-status-row strong {
+  overflow-wrap: anywhere;
+  color: var(--ui-text-primary);
+  font-size: 14px;
+  font-weight: 500;
+  /* Digits line up column to column, which is most of what a metric is for. */
+  font-variant-numeric: tabular-nums;
+}
+
+.chat-metric small {
+  color: var(--ui-text-tertiary);
+  font-size: 10px;
+}
+
+.chat-widget-table {
+  overflow-x: auto;
+  margin: 0 -14px -13px;
+  padding: 0 14px 13px;
+}
+
+.chat-widget-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.chat-widget-table th {
+  padding: 0 14px 6px 0;
+  border-bottom: 1px solid var(--ui-stroke-tertiary);
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.chat-widget-table td {
+  padding: 7px 14px 7px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--ui-stroke-tertiary) 40%, transparent);
+  color: var(--ui-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.chat-widget-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.chat-details dl {
+  display: grid;
+  margin: 0;
+  gap: 0;
+}
+
+.chat-details dl > div {
+  display: grid;
+  padding: 6px 0;
+  border-top: 1px solid color-mix(in srgb, var(--ui-stroke-tertiary) 45%, transparent);
+  gap: 2px 16px;
+  grid-template-columns: minmax(88px, 26%) minmax(0, 1fr);
+}
+
+.chat-details dt {
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.chat-details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--ui-text-primary);
+  font-size: 12.5px;
+}
+
+.chat-comparison-options {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.chat-option {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 11px;
+  border: 1px solid var(--ui-stroke-tertiary);
+  border-radius: 9px;
+}
+
+.chat-option.recommended {
+  border-color: color-mix(in srgb, var(--ui-accent) 55%, transparent);
+  background: color-mix(in srgb, var(--ui-accent) 8%, transparent);
+}
+
+.chat-option > span {
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.chat-option em {
+  color: var(--ui-accent);
+  font-size: 8px;
+  font-style: normal;
+  letter-spacing: 0.14em;
+}
+
+.chat-option strong {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.chat-option small {
+  color: var(--ui-text-tertiary);
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+.chat-timeline ol {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  gap: 0;
+  list-style: none;
+}
+
+.chat-timeline li {
+  display: grid;
+  padding-bottom: 11px;
+  gap: 0 10px;
+  grid-template-columns: auto 9px minmax(0, 1fr);
+}
+
+.chat-timeline time {
+  color: var(--ui-text-tertiary);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The rail: a dot on the row, a line running to the next one.
+   chat.css draws this span as a 7px ring; the reset stops that ring and
+   this dot both rendering, which read as one smudged glyph per row. */
+.chat-timeline li > span {
+  position: relative;
+  display: block;
+  width: 9px;
+  height: auto;
+  margin-top: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+.chat-timeline li > span::before {
+  position: absolute;
+  top: 5px;
+  left: 3px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ui-accent);
+  content: '';
+}
+
+.chat-timeline li:not(:last-child) > span::after {
+  position: absolute;
+  top: 13px;
+  bottom: -4px;
+  height: auto;
+  left: 5px;
+  width: 1px;
+  background: var(--ui-stroke-tertiary);
+  content: '';
+}
+
+.chat-timeline li strong {
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.chat-timeline li small {
+  display: block;
+  color: var(--ui-text-tertiary);
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+.chat-widget-gallery {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(116px, 1fr));
+}
+
+.chat-widget-gallery figure {
+  margin: 0;
+}
+
+.chat-widget-gallery img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.chat-widget-gallery figcaption {
+  margin-top: 4px;
+  overflow: hidden;
+  color: var(--ui-text-tertiary);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A widget the model sent with nothing in it. Saying so beats an empty bar
+   that looks like a rendering failure. */
+.chat-widget-empty {
+  margin: 0;
+  color: var(--ui-text-tertiary);
+  font-size: 11.5px;
+  font-style: italic;
+}

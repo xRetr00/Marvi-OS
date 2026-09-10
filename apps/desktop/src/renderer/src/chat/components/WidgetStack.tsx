@@ -46,6 +46,14 @@ function WidgetLabel({ children }: { children: string }): React.JSX.Element {
   return <div className="chat-widget-label">{children}</div>
 }
 
+/** A widget the model sent with nothing in it.
+ *
+ * Saying so beats a captioned box with no body, which looks exactly like a
+ * widget that failed to draw. */
+function EmptyWidget({ what }: { what: string }): React.JSX.Element {
+  return <p className="chat-widget-empty">No {what} to show.</p>
+}
+
 function Sources({ rows }: { rows: Item[]; title: string }): React.JSX.Element {
   return (
     <details className="chat-sources">
@@ -79,6 +87,7 @@ function Metrics({ rows, title }: { rows: Item[]; title: string }): React.JSX.El
   return (
     <section className="chat-widget-flat chat-metrics" aria-label={title}>
       <WidgetLabel>{title}</WidgetLabel>
+      {rows.length === 0 ? <EmptyWidget what="figures" /> : null}
       <div>
         {rows.map((row, index) => (
           <div className="chat-metric" key={`${row.label}-${index}`}>
@@ -96,6 +105,7 @@ function Comparison({ rows, title }: { rows: Item[]; title: string }): React.JSX
   return (
     <section className="chat-widget-flat chat-comparison" aria-label={title}>
       <WidgetLabel>{title}</WidgetLabel>
+      {rows.length === 0 ? <EmptyWidget what="options" /> : null}
       <div className="chat-comparison-options">
         {rows.map((row, index) => {
           const recommended = /recommend|best|pick/i.test(
@@ -122,6 +132,7 @@ function Timeline({ rows, title }: { rows: Item[]; title: string }): React.JSX.E
   return (
     <section className="chat-widget-flat chat-timeline" aria-label={title}>
       <WidgetLabel>{title}</WidgetLabel>
+      {rows.length === 0 ? <EmptyWidget what="events" /> : null}
       <ol>
         {rows.map((row, index) => (
           <li key={`${row.at}-${row.label}-${index}`}>
@@ -144,6 +155,7 @@ function Status({ rows, title }: { rows: Item[]; title: string }): React.JSX.Ele
   return (
     <section className="chat-widget-flat chat-status" aria-label={title}>
       <WidgetLabel>{title}</WidgetLabel>
+      {rows.length === 0 ? <EmptyWidget what="status" /> : null}
       <div>
         {rows.map((row, index) => (
           <div className="chat-status-row" key={`${row.label}-${index}`}>
@@ -168,6 +180,7 @@ function DataTable({
   return (
     <section className="chat-widget-flat chat-data-card" aria-label={title}>
       <WidgetLabel>{title}</WidgetLabel>
+      {rows.length === 0 ? <EmptyWidget what="rows" /> : null}
       <div className="chat-widget-table">
         <table>
           <thead>
@@ -205,6 +218,7 @@ function Details({
   return (
     <section className="chat-widget-flat chat-details" aria-label={title}>
       <WidgetLabel>{title}</WidgetLabel>
+      {entries.length === 0 ? <EmptyWidget what="details" /> : null}
       <dl>
         {entries.map(([key, value]) => (
           <div key={key}>
@@ -229,6 +243,7 @@ function Gallery({ rows, title }: { rows: Item[]; title: string }): React.JSX.El
   return (
     <section className="chat-widget-flat chat-gallery-card" aria-label={title}>
       <WidgetLabel>{title}</WidgetLabel>
+      {rows.length === 0 ? <EmptyWidget what="images" /> : null}
       <div className="chat-widget-gallery">
         {rows.map((row, index) =>
           row.url ? (
