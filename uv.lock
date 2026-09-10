@@ -2353,6 +2353,7 @@ version = "0.1.0.dev0"
 source = { editable = "services/gateway" }
 dependencies = [
     { name = "apscheduler" },
+    { name = "av" },
     { name = "composio" },
     { name = "cua-driver", marker = "sys_platform == 'win32'" },
     { name = "fastapi" },
@@ -2366,6 +2367,7 @@ dependencies = [
     { name = "playwright" },
     { name = "pocket-tts" },
     { name = "pproxy" },
+    { name = "python-telegram-bot" },
     { name = "rich" },
     { name = "sentence-transformers" },
     { name = "sounddevice" },
@@ -2382,6 +2384,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "apscheduler", specifier = ">=3.10,<4" },
+    { name = "av", specifier = ">=17,<18" },
     { name = "composio", specifier = ">=0.19,<1" },
     { name = "cua-driver", marker = "sys_platform == 'win32'", specifier = "==0.24.0" },
     { name = "fastapi", specifier = ">=0.116,<1" },
@@ -2395,6 +2398,7 @@ requires-dist = [
     { name = "playwright", specifier = ">=1.49,<2" },
     { name = "pocket-tts", specifier = ">=2,<3" },
     { name = "pproxy", specifier = "==2.7.9" },
+    { name = "python-telegram-bot", specifier = "==22.8" },
     { name = "rich", specifier = ">=13,<15" },
     { name = "sentence-transformers", specifier = ">=3,<6" },
     { name = "sounddevice", specifier = ">=0.5,<1" },
@@ -3988,6 +3992,19 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/52/a9/0c0db8d37b2b8a645666f7fd8accea4c6224e013c42b1d5c17c93590cd06/python_pptx-1.0.2.tar.gz", hash = "sha256:479a8af0eaf0f0d76b6f00b0887732874ad2e3188230315290cd1f9dd9cc7095", size = 10109297, upload-time = "2024-08-07T17:33:37.772Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d9/4f/00be2196329ebbff56ce564aa94efb0fbc828d00de250b1980de1a34ab49/python_pptx-1.0.2-py3-none-any.whl", hash = "sha256:160838e0b8565a8b1f67947675886e9fea18aa5e795db7ae531606d68e785cba", size = 472788, upload-time = "2024-08-07T17:33:28.192Z" },
+]
+
+[[package]]
+name = "python-telegram-bot"
+version = "22.8"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "httpcore", marker = "python_full_version >= '3.14'" },
+    { name = "httpx" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ba/77/153517bb1ac1bba670c6fb1dbf09e1fd0730494b1705934e715391413a0d/python_telegram_bot-22.8.tar.gz", hash = "sha256:f9d3847fcb23ee603477e442800b33bb4adf851a73e0619d2050be879decf1ef", size = 1551700, upload-time = "2026-06-12T08:10:29.1Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/60/7c/ed7d4dd94280bd434173cae9f7a7aedaaab9af128ae4f494423a5687c820/python_telegram_bot-22.8-py3-none-any.whl", hash = "sha256:42373918097f1b837cc4e717d588c19ea79651497ec712bb5b0c76e5e63c50e1", size = 769397, upload-time = "2026-06-12T08:10:27.066Z" },
 ]
 
 [[package]]
