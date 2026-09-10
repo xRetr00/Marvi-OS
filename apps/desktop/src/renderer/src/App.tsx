@@ -58,6 +58,7 @@ import { UsagePanel } from './components/usage-panel'
 import { ProcessingCard } from './components/ui/processing-card'
 import { GlyphSpinner } from './components/ui/glyph-spinner'
 import { Picker, type PickerOption } from './components/ui/picker'
+import { WakeConfidence } from './components/wake-confidence'
 import { ModelPicker } from './components/ui/model-picker'
 import { ConnectingOverlay } from './components/ConnectingOverlay'
 import { DynamicIsland } from './components/DynamicIsland'
@@ -3665,23 +3666,11 @@ function WakeSettings(): React.JSX.Element {
 
       {on ? (
         <>
-          <Picker
-            options={[
-              {
-                value: '0.35',
-                label: 'Sensitive',
-                detail: 'Catches you sooner, false alarms more likely'
-              },
-              { value: '0.5', label: 'Balanced', detail: 'The default' },
-              {
-                value: '0.7',
-                label: 'Strict',
-                detail: 'Say it clearly; almost never fires by accident'
-              }
-            ]}
-            value={String(wake.threshold)}
+          <WakeConfidence
+            heardTotal={wake.heardTotal}
             onChange={(next) => set({ [wake.thresholdSetting]: next })}
-            placeholder="Balanced"
+            recent={wake.recent}
+            threshold={wake.threshold}
           />
           <ControlRow
             action={

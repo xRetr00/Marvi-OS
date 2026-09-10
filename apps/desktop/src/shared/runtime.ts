@@ -789,6 +789,18 @@ export interface WakeStatus {
   heardSecondsAgo: number | null
   recentlyHeard: boolean
   confidence: number
+  /**
+   * The last few times the listener fired, newest first, with the score at
+   * the moment it fired.
+   *
+   * Carried through because it is the only evidence there is for choosing a
+   * threshold. Three fires in 58 minutes scored 0.396, 0.475 and 0.477 -- all
+   * false, all above a threshold of 0.35, all below the 0.5 default -- and
+   * none of that was visible anywhere in the app.
+   */
+  recent: { at: number; confidence: number }[]
+  /** Fires since the listener started. Resets when it restarts. */
+  heardTotal: number
   setting: string
   thresholdSetting: string
   /**

@@ -2755,6 +2755,13 @@ function startApp(): void {
               : Number(body.heard_seconds_ago),
           recentlyHeard: Boolean(body.recently_heard),
           confidence: Number(body.confidence ?? 0),
+          recent: Array.isArray(body.recent)
+            ? (body.recent as Record<string, unknown>[]).map((one) => ({
+                at: Number(one['at'] ?? 0),
+                confidence: Number(one['confidence'] ?? 0)
+              }))
+            : [],
+          heardTotal: Number(body.heard_total ?? 0),
           setting: String(body.setting ?? 'MARVI_WAKE_WORD'),
           thresholdSetting: String(body.threshold_setting ?? 'MARVI_WAKE_THRESHOLD'),
           device: String(body.device ?? ''),
