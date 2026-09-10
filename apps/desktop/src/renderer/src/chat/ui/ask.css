@@ -1,0 +1,212 @@
+/* Pieces that arrived with assistant-ui and had no rule in chat.css yet:
+   the inline question cards, the branch picker, and the viewport furniture.
+   Everything else reuses the classes already defined there. */
+
+.chat-thread,
+.chat-thread-viewport {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.chat-thread-viewport {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.chat-thread-foot {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  /* The composer sits on the page background, not on the transcript, so a
+     message scrolling under it disappears rather than showing through. */
+  background: var(--surface, #0b0b0d);
+  padding-top: 6px;
+}
+
+.chat-scroll-bottom {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-bottom: 2px;
+  border: 1px solid var(--line, #2a2a30);
+  border-radius: 50%;
+  background: var(--surface, #0b0b0d);
+  color: inherit;
+  opacity: 0.72;
+  cursor: pointer;
+}
+
+.chat-scroll-bottom:hover {
+  opacity: 1;
+}
+
+/* -- branch picker ------------------------------------------------------- */
+
+.chat-branches {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0.62;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.chat-branches:hover {
+  opacity: 1;
+}
+
+.chat-branch-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.chat-branch-step:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.chat-branch-count {
+  font-variant-numeric: tabular-nums;
+}
+
+/* -- inline question cards ----------------------------------------------- */
+
+.chat-ask {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--accent-line, #3a3a44);
+  border-radius: 10px;
+  background: var(--raised, #131318);
+}
+
+.chat-ask-question {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.chat-ask-why {
+  margin: 0;
+  font-size: 12px;
+  opacity: 0.7;
+  line-height: 1.4;
+}
+
+.chat-ask-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chat-ask-choice {
+  padding: 5px 11px;
+  border: 1px solid var(--line, #2a2a30);
+  border-radius: 999px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.chat-ask-choice:hover,
+.chat-ask-choice.is-chosen {
+  border-color: var(--accent, #7c7cf0);
+  background: color-mix(in srgb, var(--accent, #7c7cf0) 14%, transparent);
+}
+
+.chat-ask-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chat-ask-input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--line, #2a2a30);
+  border-radius: 7px;
+  background: var(--surface, #0b0b0d);
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+}
+
+.chat-ask-send,
+.chat-ask-skip {
+  padding: 6px 12px;
+  border: 1px solid var(--line, #2a2a30);
+  border-radius: 7px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+.chat-ask-send:not(:disabled) {
+  border-color: var(--accent, #7c7cf0);
+}
+
+.chat-ask-send:disabled,
+.chat-ask-skip:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.chat-ask-failed {
+  margin: 0;
+  font-size: 12px;
+  color: var(--danger, #ff6b6b);
+}
+
+.chat-ask-settled {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 0;
+  border: 0;
+  background: none;
+  opacity: 0.62;
+}
+
+/* -- inline media -------------------------------------------------------- */
+
+.chat-inline-image {
+  max-width: 100%;
+  border-radius: 8px;
+}
+
+.chat-inline-file {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--line, #2a2a30);
+  border-radius: 7px;
+  font-size: 12px;
+}
+
+.chat-inline-file-type {
+  opacity: 0.6;
+  font-size: 11px;
+}
