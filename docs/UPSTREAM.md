@@ -1,5 +1,25 @@
 # Upstream Reuse Ledger
 
+## python-telegram-bot and PyAV (Telegram channel) — 2026-09-10
+
+- Source: https://github.com/python-telegram-bot/python-telegram-bot (docs: https://docs.python-telegram-bot.org)
+  and https://github.com/PyAV-Org/PyAV.
+- License: python-telegram-bot LGPL-3.0-only, used as an unmodified dependency
+  (`python-telegram-bot==22.8`, Bot API 10.0). PyAV BSD-3-Clause (`av>=17,<18`,
+  already installed through LiveKit; declared because the Gateway now imports it).
+  Both pinned in `services/gateway/pyproject.toml` and uv.lock.
+- Boundary: SDK only — `Application` long polling inside the Gateway loop, `Bot`
+  for sends, drafts (`sendMessageDraft`) and profile methods. Marvi owns owner
+  pairing, untrusted-field enveloping, the Chat-turn bridge, confirmation taps,
+  cron delivery and Mind forwarding in `marvi_gateway/telegram.py`. PyAV only
+  decodes voice notes to 16 kHz PCM for the existing local dictation worker.
+- Reference, not copied: Hermes Agent (MIT, https://github.com/NousResearch/hermes-agent)
+  informed the owner-pairing rules (`gateway/pairing.py`) and the adapter
+  checklist (`gateway/platforms/ADDING_A_PLATFORM.md`); OpenClaw message-object
+  research (Imperva) informed which inbound fields are enveloped. No code taken.
+- Updates: bump `python-telegram-bot`, run `tests/test_telegram.py` (it drives the
+  real SDK against a loopback fake Bot API), then one real bot on a phone.
+
 ## Cua Driver — 2026-09-09
 
 - Source: https://github.com/trycua/cua and https://cua.ai/docs/reference/cua-driver/sdk-reference

@@ -39,6 +39,10 @@ Start hands-free with your own wake phrase. Marvi listens and responds in real t
 
 Move naturally between spoken conversation and a rich typed workspace. Chat supports long-running threads, branching, files, images, dictation, sources, structured results, and read-aloud—without turning Marvi into a traditional chat app.
 
+### Reach her from your phone
+
+Link a Telegram bot and message Marvi from anywhere. It is the same Marvi, with the same memory, tools and approvals: sensitive actions arrive as Approve and Deny buttons, voice notes are transcribed on your own computer, and each conversation also appears in Chat. The bot answers only the account you link and needs no public address. When she has something to say and nobody is in the room, she can text you instead, and scheduled jobs can deliver their results to Telegram.
+
 ### Memory you can actually see
 
 Marvi Cortex turns useful moments into durable context: names, preferences, relationships, recurring patterns, and things you asked her not to forget. Explore those memories as a living graph, trace where each fact came from, correct what is wrong, import knowledge from another assistant, or erase it.

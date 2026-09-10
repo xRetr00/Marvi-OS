@@ -227,9 +227,36 @@ bypassing policy. Creation and other standing-instruction mutations are
 sensitive model tools themselves.
 
 Delivery is a Gateway protocol boundary rather than platform logic in the
-scheduler. The installed adapter exposes only `local` (save output). A future
-messaging subsystem registers destinations and implements delivery without
-changing cron records, execution, or the desktop contract.
+scheduler. The installed adapter exposes `local` (save output) and, once a
+Telegram account is linked, `telegram` (send to the owner's chat). Cron
+records, execution and the desktop contract did not change to add it.
+
+### Messaging channels: Telegram
+
+Telegram is a third typed surface beside Chat and Voice, owned by the Gateway
+(`telegram.py`, python-telegram-bot). The bot long-polls from this machine, so
+no port is opened and no public URL or tunnel exists. It answers exactly one
+account, linked with a ten-minute one-time code shown on Capabilities ›
+Channels and returned through a `t.me` deep link; every other sender gets a
+fixed refusal and an untrusted `telegram:stranger` journal event. Group chats
+are ignored. Every Telegram route is behind the local token.
+
+Each Telegram chat is a Chat thread, and each message is a `Chat.send_stream`
+turn with `surface="telegram"`: the same SOUL/USER identity, memory recall and
+after-turn observation, tool registry and Confirm/YOLO path. The surface only
+swaps the brief (`prompts/telegram.md`) and withholds React widgets. Replies
+stream as Bot API drafts and settle as formatted messages. A confirmation
+becomes Approve/Deny buttons whose tap consumes the Gateway token exactly as
+`POST /confirmations` does; `clarify` becomes buttons, and `ask_secret` is
+refused in Telegram and sent to the desktop. Forwarded text, contact cards,
+venue labels and forwarded voice notes are enveloped as untrusted; the owner's
+own voice notes are decoded with PyAV and transcribed by the local dictation
+worker. The model gets `telegram_send`, `telegram_status` and `telegram_recent`.
+
+The Mind gains one hook: when policy downgrades speech only because nobody is
+in the room (`nobody-present`) and "Text me when I'm away" is on, the sentence
+is texted instead of held. Quiet hours, a live conversation and the budget
+still mean silence; a failed text falls back to the waiting room.
 
 ## Always-on lifecycle
 

@@ -1796,3 +1796,27 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   precedence, markup, collapsed-accessibility, and timing coverage. Visual QA
   confirmed `352×64`, top-edge geometry, theme-derived accent, reduced-motion
   suppression, ten-second collapse, hover recall, and zero browser errors.
+
+## 2026-09-10 — Telegram channel
+
+- Added `marvi_gateway/telegram.py` on python-telegram-bot 22.8: long polling
+  inside the Gateway loop, one owner linked by a ten-minute one-time code and a
+  `t.me` deep link, fixed refusals plus an untrusted `telegram:stranger` event
+  for everyone else, and group chats ignored.
+- Each Telegram chat is a Chat thread; each message runs `Chat.send_stream` with
+  `surface="telegram"` (new `prompts/telegram.md`, no widgets). Replies stream
+  through `sendMessageDraft` and settle as Telegram HTML with a plain fallback.
+  Confirmations become Approve/Deny buttons over the Gateway token path,
+  `clarify` becomes buttons, and `ask_secret` is sent back to the desktop.
+- Forwards, contact cards, venues and forwarded voice notes are enveloped as
+  untrusted. The owner's voice notes are decoded with PyAV and transcribed by
+  the local dictation worker; photos and documents become Chat attachments.
+- Added `telegram_send`, `telegram_status` and `telegram_recent` tools, a
+  `telegram` cron delivery target (offered for reminders too), a bot-profile
+  sync (name, descriptions, commands, app-icon avatar), and Mind forwarding:
+  speech downgraded only by `nobody-present` is texted instead of held.
+- Added guarded `/telegram` routes, Electron IPC, and Capabilities › Channels.
+- Evidence: `tests/test_telegram.py` drives the real SDK against a loopback fake
+  Bot API through link, a streamed Chat turn and an Approve tap; full gateway
+  suite 1788 passed; desktop typecheck, lint and vitest passed. A real bot on a
+  phone is the remaining manual check.
