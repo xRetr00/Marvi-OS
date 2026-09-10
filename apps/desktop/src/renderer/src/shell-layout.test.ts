@@ -133,6 +133,12 @@ describe('shell layout', () => {
     expect(css).toContain('.settings-frame')
   })
 
+  it('keeps the DMN surfaces under one page-scroll child', () => {
+    expect(app).toMatch(
+      /page === 'DMN' \? \(\s*<div className="dmn-page">\s*<PersonaPicker \/>\s*<IdentityPanel \/>\s*<\/div>/
+    )
+  })
+
   it('organises settings with the overlay and row grammar', () => {
     expect(app).toContain('className="settings-close"')
     expect(app).toContain("'settings-group has-gap'")
