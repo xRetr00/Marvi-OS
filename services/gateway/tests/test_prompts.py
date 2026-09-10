@@ -29,7 +29,15 @@ REPO = Path(__file__).resolve().parents[3]
 #:
 #: `SCHEMA` constants are database DDL rather than instructions and are not
 #: counted; see `_is_prompt`.
-STILL_IN_CODE: set[tuple[str, str]] = set()
+#: Large string constants that are not prompts.
+#:
+#: The scan matches on size and an upper-case name, which is the right net for
+#: a prompt and catches the odd thing that merely looks like one. Each entry
+#: needs a reason, so the list cannot quietly become a place to hide prompts.
+STILL_IN_CODE: set[tuple[str, str]] = {
+    # The MARVI OS banner: box-drawing characters, printed to a terminal.
+    ("terminal_ui.py", "MARVI_ART"),
+}
 
 #: Below this, a string constant is a message or a label rather than a prompt.
 PROMPT_SIZED = 200
