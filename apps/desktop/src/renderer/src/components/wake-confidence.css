@@ -1,0 +1,67 @@
+.wake-confidence {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wake-confidence-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.wake-confidence-row label {
+  font-size: 11.5px;
+  color: var(--ui-text-secondary);
+}
+
+.wake-threshold {
+  width: 92px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 8px;
+  background: var(--ui-bg-secondary);
+  color: var(--ui-text-primary);
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 12px;
+}
+
+.wake-threshold:focus {
+  border-color: var(--ui-accent);
+  outline: none;
+}
+
+/* Said in the border as well as the help text: the field is the thing that
+   is wrong, and the message is below the fold on a narrow panel. */
+.wake-threshold.is-bad {
+  border-color: var(--ui-danger);
+}
+
+.wake-threshold-save {
+  padding: 0 14px;
+  height: 28px;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ui-text-primary);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.wake-threshold-save:hover:not(:disabled) {
+  border-color: var(--ui-accent);
+  color: var(--ui-accent);
+}
+
+.wake-threshold-save:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.wake-confidence-help {
+  margin: 0;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--ui-text-secondary);
+}
