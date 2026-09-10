@@ -3966,7 +3966,7 @@ function VoiceModelPicker({ current }: { current: string }): React.JSX.Element {
   useEffect(() => {
     let gone = false
     void (async () => {
-      const [models, settings] = await Promise.all([
+      const [models, settings, voiceSettings] = await Promise.all([
         window.marvi?.getModels({}),
         window.marvi?.getProviders(),
         window.marvi?.getAuxiliary()
@@ -3974,7 +3974,7 @@ function VoiceModelPicker({ current }: { current: string }): React.JSX.Element {
       if (gone) return
       setPage(models ?? null)
       setProviders(settings ?? null)
-      setAuxiliary(auxiliary ?? null)
+      setAuxiliary(voiceSettings ?? null)
     })()
     return () => {
       gone = true
