@@ -861,10 +861,10 @@ function MainSurface(): React.JSX.Element {
                   ) : page === 'Activity' ? (
                     <ActivityPage />
                   ) : page === 'DMN' ? (
-                    <>
+                    <div className="dmn-page">
                       <PersonaPicker />
                       <IdentityPanel />
-                    </>
+                    </div>
                   ) : page === 'Graph' ? (
                     <MemoryPanel />
                   ) : page === 'Mind' ? (
