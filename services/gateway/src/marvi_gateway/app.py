@@ -1856,6 +1856,7 @@ def create_app(
             # tell "mine" from "someone else's" -- see `signature`.
             build=signature.build(),
             pid=os.getpid(),
+            stamp=signature.stamp("gateway"),
             state=overall_state(components),
             components=components,
             assistant=runtime_store.assistant,

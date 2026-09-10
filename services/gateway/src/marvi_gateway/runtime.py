@@ -172,6 +172,10 @@ class RuntimeStatus(BaseModel):
     build: str = ""
     #: So a caller that decides to replace it knows what to stop.
     pid: int = 0
+    #: The full process identity: ours, which build, started when, and by
+    #: whom. `marvi.gateway.6e949353e928.20260910T091530Z.51008`. See
+    #: `signature` -- every long-lived process Marvi owns carries one.
+    stamp: str = ""
     state: Literal["ready", "starting", "degraded", "offline", "error"]
     components: dict[str, ComponentStatus]
     assistant: AssistantState

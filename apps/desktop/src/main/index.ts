@@ -770,6 +770,10 @@ async function startVoiceStack(): Promise<void> {
   // Handed to every child rather than left to a .env nobody ships. The agent
   // exits immediately without LIVEKIT_URL, and it is the shell that knows it.
   const credentials = livekitCredentials()
+  // Computed once for this launch and handed to every child. Empty when it
+  // cannot be worked out, which is not fatal -- a child then computes its
+  // own, and the worst case is the old behaviour.
+  const marviBuild = ourBuild(repoRoot)
   const childEnv: Record<string, string> = {
     LIVEKIT_URL: process.env['LIVEKIT_URL'] ?? `ws://${lk.host}:${lk.port}`,
     LIVEKIT_API_KEY: credentials.key,
@@ -783,6 +787,15 @@ async function startVoiceStack(): Promise<void> {
     // never written to disk. See marvi_gateway/localauth.py.
     MARVI_LOCAL_TOKEN: localToken,
     MARVI_HOME: stateDir(),
+    // The build every child must agree with.
+    //
+    // Passed down rather than each child computing its own, so a sidecar
+    // running older code on disk is *visible* as a mismatch instead of
+    // confidently reporting its own stale digest as correct. Every
+    // long-lived process Marvi owns stamps itself with this, and every
+    // stamp begins `marvi.` so a sweep can tell hers from anything else on
+    // the machine before doing anything more expensive.
+    ...(marviBuild ? { MARVI_BUILD_SIGNATURE: marviBuild } : {}),
     MARVI_BROWSER_HOST_REQUIRED: '1',
     MARVI_LOG_DIR: logsDir(),
     // So a child can notice this process going away and stop on its own.
