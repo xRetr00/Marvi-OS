@@ -1007,7 +1007,9 @@ def gateway_detail(fallback: str = "") -> str:
     return fallback
 
 
-def voice_state(*, worker_ready: bool, detail: str, in_a_call: bool) -> ComponentStatus:
+def voice_state(
+    *, worker_ready: bool, detail: str, in_a_call: bool, blocked: bool = False
+) -> ComponentStatus:
     """Voice, once LiveKit and the models are known to be in place.
 
     Its own function, at module level, because the interesting case is
@@ -1036,6 +1038,12 @@ def voice_state(*, worker_ready: bool, detail: str, in_a_call: bool) -> Componen
     if in_a_call:
         return ComponentStatus(
             state="ready", detail="in a call; the spare process warms up when it ends"
+        )
+    if blocked:
+        # Something is missing or broken and waiting will not fix it. Said as
+        # an error with the reason, rather than a fourth minute of WARMING UP.
+        return ComponentStatus(
+            state="error", detail=detail or "the voice worker could not start"
         )
     return ComponentStatus(
         state="starting", detail=detail or "the voice worker is still starting"
@@ -1720,6 +1728,7 @@ def create_app(
             worker_ready=bool(live["ready"]),
             detail=str(live["detail"] or ""),
             in_a_call=conversation.active(),
+            blocked=bool(live.get("blocked")),
         )
 
     def drain_room_events() -> dict[str, Any] | None:
@@ -2538,6 +2547,7 @@ def create_app(
         agent_ready.set(
             bool(update.get("ready")),
             detail=str(update.get("detail") or ""),
+            blocked=bool(update.get("blocked")),
         )
         return agent_ready.status()
 

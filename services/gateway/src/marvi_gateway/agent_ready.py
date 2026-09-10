@@ -27,11 +27,27 @@ from typing import Any
 _ready = False
 _detail = ""
 _at = 0.0
+_blocked = False
 
 
-def set(ready: bool, detail: str = "") -> None:  # noqa: A001 - the verb is the point
-    global _ready, _detail, _at
+def set(ready: bool, detail: str = "", blocked: bool = False) -> None:  # noqa: A001
+    """Record what the worker said. `blocked` means waiting will not help.
+
+    Not-ready was one state and it is two. A worker eighteen seconds into
+    loading and a worker that will never load both reported `ready: False`,
+    both became `state="starting"`, and the shell showed WARMING UP for each.
+    So a missing espeak backend --
+
+        could not prewarm the speech models: VoXtream2 failed to load:
+        [!] No espeak backend found. Install espeak-ng or espeak to your system.
+
+    -- was indistinguishable from a slow start, and sat there warming for ever
+    with the actual reason in a detail nothing displayed.
+    """
+    global _ready, _detail, _at, _blocked
     _ready, _detail, _at = ready, detail, time.time()
+    # A worker that reports ready is by definition no longer blocked.
+    _blocked = blocked and not ready
 
 
 def forget() -> None:
@@ -43,6 +59,7 @@ def status() -> dict[str, Any]:
     return {
         "ready": _ready,
         "detail": _detail,
+        "blocked": _blocked,
         "since": _at or None,
         "age_seconds": (time.time() - _at) if _at else None,
     }

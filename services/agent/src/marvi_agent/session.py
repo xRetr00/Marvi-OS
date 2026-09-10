@@ -1161,7 +1161,10 @@ def prewarm(proc: JobProcess) -> None:
         # dispatching a room to a selected engine that cannot load produces a
         # silent session and hides the actionable setup/runtime error.
         log.warning("could not prewarm the speech models: %s", exc)
-        _report_ready(False, f"{tts_engine} could not load: {exc}")
+        # `blocked`: this will not come right by waiting. Without it the shell
+        # showed WARMING UP over a missing espeak backend indefinitely, with
+        # the reason sitting in a detail nothing rendered.
+        _report_ready(False, f"{tts_engine} could not load: {exc}", blocked=True)
         return
     step = mark(f"tts({tts_engine})", step)
     proc.userdata["tts"] = engine
@@ -1676,7 +1679,7 @@ def build_session(proc: JobProcess | None = None) -> tuple[AgentSession, Callabl
     return session, warm
 
 
-def _report_ready(ready: bool, detail: str = "") -> None:
+def _report_ready(ready: bool, detail: str = "", blocked: bool = False) -> None:
     """Tell the Gateway whether this worker could take a job.
 
     Nothing else can see it. The Gateway checked LiveKit and the models on disk
@@ -1692,7 +1695,7 @@ def _report_ready(ready: bool, detail: str = "") -> None:
 
         httpx.post(
             f"{gateway_url()}/voice/agent",
-            json={"ready": ready, "detail": detail},
+            json={"ready": ready, "detail": detail, "blocked": blocked},
             timeout=REPORT_TIMEOUT,
         )
 
