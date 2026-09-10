@@ -38,7 +38,6 @@ export function WidgetToolUI({
         <GlyphSpinner
           ariaLabel="Marvi is preparing a widget"
           className="chat-working-spinner"
-          spinner="braille"
         />
         <ActivityLabel live text="Marvi is preparing a widget" />
       </div>
@@ -58,7 +57,6 @@ export function ToolActivity({ toolName, status }: ToolCallMessagePartProps): Re
         <GlyphSpinner
           ariaLabel={`Marvi is using ${toolLabel(toolName)}`}
           className="chat-working-spinner"
-          spinner="braille"
         />
       ) : (
         <span aria-hidden="true" className="chat-tool-dot" />

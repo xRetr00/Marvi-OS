@@ -64,7 +64,6 @@ const Reasoning = ({ text, status }: ReasoningMessagePartProps): React.JSX.Eleme
           <GlyphSpinner
             ariaLabel="Marvi is thinking"
             className="chat-working-spinner"
-            spinner="braille"
           />
         ) : null}
         <ActivityLabel live={streaming} text={streaming ? 'Marvi is thinking' : 'Marvi thought'} />
@@ -104,7 +103,7 @@ const File = ({ filename, mimeType }: FileMessagePartProps): React.JSX.Element =
 /** Shown while an assistant message exists but has produced nothing yet. */
 const Empty = (): React.JSX.Element => (
   <div className="chat-scaffold chat-stream-activity" data-conversation-scaffold="">
-    <GlyphSpinner ariaLabel="Marvi is working" className="chat-working-spinner" spinner="braille" />
+    <GlyphSpinner ariaLabel="Marvi is working" className="chat-working-spinner" />
     <ActivityLabel live text="Marvi is working" />
   </div>
 )

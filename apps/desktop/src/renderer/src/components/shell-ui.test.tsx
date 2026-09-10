@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { BootFailureOverlay } from './BootFailureOverlay'
 import { ConnectingOverlay } from './ConnectingOverlay'
 import { TitleBar } from './TitleBar'
-import { GlyphSpinner } from './ui/glyph-spinner'
+import { GlyphSpinner, MARVI_SPINNER_FRAMES } from './ui/glyph-spinner'
 import { DecodeText } from './ui/decode-text'
 import { TooltipProvider } from './ui/tooltip'
 import { OFFLINE_RUNTIME } from '../../../shared/runtime'
@@ -97,21 +97,26 @@ describe('BootFailureOverlay', () => {
 })
 
 describe('GlyphSpinner', () => {
-  it('renders the first braille frame as a live-region status', () => {
-    const html = renderToStaticMarkup(<GlyphSpinner spinner="braille" />)
+  it('renders the first Marvi frame as a live-region status', () => {
+    const html = renderToStaticMarkup(<GlyphSpinner />)
 
     expect(html).toContain('glyph-spinner')
     expect(html).toContain('role="status"')
-    expect(html).toContain('⠋')
+    expect(html).toContain(MARVI_SPINNER_FRAMES[0])
   })
 
-  it('falls back to braille for unknown spinner names', () => {
-    const html = renderToStaticMarkup(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      <GlyphSpinner spinner={'nope' as any} />
-    )
+  it('carries the text presentation selector on every frame', () => {
+    // Without U+FE0E several of these render as colour emoji, so the spinner
+    // changes size, baseline and hue between frames and jitters its line.
+    for (const frame of MARVI_SPINNER_FRAMES) {
+      expect(frame).toContain('︎')
+    }
+  })
 
-    expect(html).toContain('⠋')
+  it('is one glyph per frame', () => {
+    for (const frame of MARVI_SPINNER_FRAMES) {
+      expect([...frame.replace('︎', '')]).toHaveLength(1)
+    }
   })
 })
 

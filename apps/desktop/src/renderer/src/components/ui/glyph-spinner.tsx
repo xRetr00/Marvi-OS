@@ -1,65 +1,76 @@
 /**
- * One-char glyph spinner driven by `unicode-animations` (braille, orbit, scan,
- * ...). Adapted from the the predecessor assistant desktop shell (MIT):
- * the predecessor assistant\apps\desktop\src\components\ui\glyph-spinner.tsx — minus the
- * pane-shell visibility controller, which Marvi OS does not have. Mirrors the
- * spinner the Marvi Agent TUI uses so desktop and terminal read the same.
+ * Marvi's spinner. One frame set, everywhere.
+ *
+ * These are the frames the Marvi Agent TUI uses, so the desktop shell and the
+ * terminal read as the same program. It replaced a table of braille, orbit and
+ * scan animations from `unicode-animations`: every call site asked for
+ * `braille` anyway, so the table was a naming layer over a single choice, and
+ * the braille dots were a texture rather than a mark -- they read as static
+ * beside Marvi's own typography.
+ *
+ * The asterisk grows from a point through progressively heavier stars and back
+ * down, so it pulses rather than rotating. That is the same shape as the
+ * activity language everywhere else here: something opening, not something
+ * spinning in place.
  */
 import { useEffect, useRef } from 'react'
-import spinners, { type BrailleSpinnerName as SpinnerName } from 'unicode-animations'
 
-export type { SpinnerName }
+/**
+ * Each frame carries U+FE0E, the text presentation selector.
+ *
+ * Without it several of these are rendered as colour emoji -- so the spinner
+ * changed size, baseline and hue between frames, and jittered the line it sat
+ * in. The selector forces the monochrome text glyph, which is what a spinner
+ * beside a sentence needs to be.
+ */
+export const MARVI_SPINNER_FRAMES = [
+  '·︎',
+  '✲︎',
+  '✵︎',
+  '✶︎',
+  '✷︎',
+  '✸︎',
+  '✹︎',
+  '✺︎',
+  '✻︎',
+  '✼︎',
+  '✽︎',
+  '✾︎',
+  '✿︎'
+] as const
 
-interface NormalisedSpinner {
-  frames: readonly string[]
-  interval: number
-}
-
-// Some spinners ship multi-character frames. Pull the first cell so each
-// frame fits in one monospace box — matches how the TUI uses them.
-const FRAMES_BY_NAME: Record<SpinnerName, NormalisedSpinner> = (() => {
-  const out = {} as Record<SpinnerName, NormalisedSpinner>
-
-  for (const name of Object.keys(spinners) as SpinnerName[]) {
-    const raw = spinners[name]
-
-    out[name] = {
-      frames: raw.frames.map((frame) => [...frame][0] ?? '⠀'),
-      interval: raw.interval
-    }
-  }
-
-  return out
-})()
+/** Fast enough to read as motion, slow enough that the shape registers. */
+export const FRAME_INTERVAL_MS = 80
 
 interface GlyphSpinnerProps {
   ariaLabel?: string
   className?: string
-  spinner?: SpinnerName
 }
 
 export function GlyphSpinner({
   ariaLabel = 'Loading',
-  className,
-  spinner = 'braille'
+  className
 }: GlyphSpinnerProps): React.JSX.Element {
-  const spin = FRAMES_BY_NAME[spinner] ?? FRAMES_BY_NAME.braille
   const glyphRef = useRef<HTMLSpanElement>(null)
 
   useEffect(() => {
     const glyph = glyphRef.current
     if (!glyph) return undefined
+    // Reduced motion keeps the mark, loses the movement: the frame that reads
+    // most clearly as "busy" rather than as a full stop.
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return undefined
 
     let frame = 0
-    glyph.textContent = spin.frames[0]
-
     const timer = window.setInterval(() => {
-      frame = (frame + 1) % spin.frames.length
-      glyph.textContent = spin.frames[frame]
-    }, spin.interval)
+      frame = (frame + 1) % MARVI_SPINNER_FRAMES.length
+      // Written straight to the node rather than through state: this ticks
+      // twelve times a second beside streaming text, and re-rendering the
+      // whole message for one character is work nobody sees.
+      glyph.textContent = MARVI_SPINNER_FRAMES[frame]
+    }, FRAME_INTERVAL_MS)
 
     return () => window.clearInterval(timer)
-  }, [spin])
+  }, [])
 
   return (
     <span
@@ -68,7 +79,7 @@ export function GlyphSpinner({
       ref={glyphRef}
       role="status"
     >
-      {spin.frames[0]}
+      {MARVI_SPINNER_FRAMES[0]}
     </span>
   )
 }

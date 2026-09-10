@@ -37,7 +37,6 @@ export function ReasoningDisclosure({
           <GlyphSpinner
             ariaLabel="Marvi is thinking"
             className="chat-working-spinner"
-            spinner="braille"
           />
         ) : null}
         <span className={streaming ? 'chat-scaffold-label is-live' : 'chat-scaffold-label'}>
@@ -72,7 +71,6 @@ export function StreamActivity({
       <GlyphSpinner
         ariaLabel={`Marvi is ${label.toLowerCase()}`}
         className="chat-working-spinner"
-        spinner="braille"
       />
       <span className="chat-scaffold-label is-live">{label}</span>
       <ActivityTimer active startedAt={startedAt} />

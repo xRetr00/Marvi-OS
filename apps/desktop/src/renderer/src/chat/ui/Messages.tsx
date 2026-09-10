@@ -25,6 +25,7 @@ import { MarviAvatar } from '../../components/ui/avatar'
 import { TooltipProvider, UiTooltip } from '../../components/ui/tooltip'
 import { formatTime } from '../time'
 import { AttachmentPreview } from '../components/AttachmentPreview'
+import { CopyMessageAction } from '../components/MessageAction'
 import { messageText } from './message-text'
 import { MESSAGE_PART_COMPONENTS } from './parts'
 import type { ReadAloud } from './parts'
@@ -112,15 +113,13 @@ export function UserMessage({ message }: { message: MessageState }): React.JSX.E
                   <AbstractIcon name="edit" size={13} />
                 </ActionBarPrimitive.Edit>
               </UiTooltip>
-              <UiTooltip label="Copy message">
-                <ActionBarPrimitive.Copy
-                  aria-label="Copy message"
-                  className="chat-message-action"
-                  type="button"
-                >
-                  <AbstractIcon name="copy" size={13} />
-                </ActionBarPrimitive.Copy>
-              </UiTooltip>
+              {/* Marvi's own copy, not `ActionBarPrimitive.Copy`.
+                  The SDK's version goes through `navigator.clipboard`, which
+                  needs a secure context and a focused document -- in this
+                  window it rejects and the button does nothing at all. The
+                  main process owns a real clipboard, and this is the same path
+                  the code blocks in a reply already use. */}
+              <CopyMessageAction content={messageText(message)} label="Copy message" />
             </ActionBarPrimitive.Root>
           </div>
         </TooltipProvider>
@@ -210,15 +209,7 @@ export function AssistantMessage({
                     <AbstractIcon name="regenerate" size={14} />
                   </ActionBarPrimitive.Reload>
                 </UiTooltip>
-                <UiTooltip label="Copy response">
-                  <ActionBarPrimitive.Copy
-                    aria-label="Copy response"
-                    className="chat-message-action"
-                    type="button"
-                  >
-                    <AbstractIcon name="copy" size={14} />
-                  </ActionBarPrimitive.Copy>
-                </UiTooltip>
+                <CopyMessageAction content={text} label="Copy response" />
               </ActionBarPrimitive.Root>
             </div>
           </div>

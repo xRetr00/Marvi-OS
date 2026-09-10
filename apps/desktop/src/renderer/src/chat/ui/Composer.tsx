@@ -141,7 +141,7 @@ export function Composer({
                   type="button"
                 >
                   {dictation.starting ? (
-                    <GlyphSpinner ariaLabel="Starting dictation" spinner="braille" />
+                    <GlyphSpinner ariaLabel="Starting dictation" />
                   ) : (
                     <AbstractIcon name={dictation.active ? 'stop' : 'microphone'} size={15} />
                   )}

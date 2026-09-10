@@ -143,3 +143,20 @@ describe('the bubble hugs its text', () => {
     expect(ui).toMatch(/\.chat-user-surface\s*\{[^}]*justify-self:\s*end/)
   })
 })
+
+describe('copying goes through the main process', () => {
+  it('does not use the SDK copy primitive', () => {
+    // `ActionBarPrimitive.Copy` calls `navigator.clipboard`, which needs a
+    // secure context and a focused document. In this window it rejects, and
+    // the button silently does nothing.
+    const messages = readFileSync(join(__dirname, 'Messages.tsx'), 'utf8')
+    expect(messages).not.toContain('ActionBarPrimitive.Copy')
+    expect(messages).toContain('CopyMessageAction')
+  })
+
+  it('reaches Electron’s clipboard, with a browser fallback', () => {
+    const action = readFileSync(join(__dirname, '..', 'components', 'MessageAction.tsx'), 'utf8')
+    expect(action).toContain('window.marvi?.copyText')
+    expect(action).toContain('navigator.clipboard.writeText')
+  })
+})

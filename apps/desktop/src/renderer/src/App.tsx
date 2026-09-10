@@ -804,7 +804,7 @@ function MainSurface(): React.JSX.Element {
                         type="button"
                       >
                         {maintenancePending === action ? (
-                          <GlyphSpinner ariaLabel={`Opening ${label}`} spinner="braille" />
+                          <GlyphSpinner ariaLabel={`Opening ${label}`} />
                         ) : (
                           <Icon aria-hidden="true" size={14} />
                         )}
