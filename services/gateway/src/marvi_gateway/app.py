@@ -1516,9 +1516,36 @@ def create_app(
             await anyio.to_thread.run_sync(
                 lambda p=plugin: plugins_module.fire(p, "on_gateway_start")
             )
+
+        async def update_plugins() -> None:
+            """Keep installed trusted plugins current without touching Marvi itself."""
+            while True:
+                for source in plugins_module.sources(REPO_ROOT):
+                    if not source.trusted or not plugins_module.installed(source.name):
+                        continue
+                    try:
+                        async with plugin_update_lock:
+                            await anyio.to_thread.run_sync(
+                                lambda s=source: plugins_module.update(
+                                    s.name,
+                                    REPO_ROOT,
+                                    on_updated=lambda: restart_plugin(s.name),
+                                )
+                            )
+                    except Exception as exc:
+                        get_logger("plugins").warning(
+                            "automatic plugin update failed",
+                            extra={"marvi_plugin": source.name, "marvi_error": str(exc)[:300]},
+                        )
+                await asyncio.sleep(plugin_update_interval())
+
+        plugin_updates = asyncio.create_task(update_plugins())
         try:
             yield
         finally:
+            plugin_updates.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await plugin_updates
             # Before anything is torn down, so the last line in the ledger says
             # what she was holding when she went -- which is the line somebody
             # goes looking for after a machine locks up.
@@ -3200,9 +3227,14 @@ def create_app(
         if source is None:
             raise HTTPException(status_code=404, detail=f"unknown plugin {name}")
         try:
-            detail = await anyio.to_thread.run_sync(
-                lambda: plugins_module.install(source, REPO_ROOT)
-            )
+            async with plugin_update_lock:
+                detail = await anyio.to_thread.run_sync(
+                    lambda: plugins_module.install(
+                        source,
+                        REPO_ROOT,
+                        on_updated=lambda: restart_plugin(name),
+                    )
+                )
         except plugins_module.PluginError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
         runtime_store.audit("plugin", "install", {"plugin": name, "detail": detail})
@@ -3211,7 +3243,14 @@ def create_app(
     @app.post("/plugins/{name}/update", response_model=PluginPage)
     async def update_plugin(name: str) -> PluginPage:
         try:
-            detail = await anyio.to_thread.run_sync(lambda: plugins_module.update(name, REPO_ROOT))
+            async with plugin_update_lock:
+                detail = await anyio.to_thread.run_sync(
+                    lambda: plugins_module.update(
+                        name,
+                        REPO_ROOT,
+                        on_updated=lambda: restart_plugin(name),
+                    )
+                )
         except plugins_module.PluginError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
         runtime_store.audit("plugin", "update", {"plugin": name, "detail": detail})
@@ -3323,15 +3362,6 @@ def create_app(
         if server is None:
             raise HTTPException(status_code=404, detail=f"no server named {name}")
         return await anyio.to_thread.run_sync(lambda: mcp.test(server))
-            async with plugin_update_lock:
-                detail = await anyio.to_thread.run_sync(
-                    lambda: plugins_module.install(
-                        source,
-                        REPO_ROOT,
-                        on_updated=lambda: restart_plugin(name),
-                    )
-        result = mcp.remove(name)
-        return result
 
     @app.get("/personas")
     async def list_personas() -> dict[str, Any]:
