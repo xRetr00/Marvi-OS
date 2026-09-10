@@ -61,10 +61,7 @@ const Reasoning = ({ text, status }: ReasoningMessagePartProps): React.JSX.Eleme
         type="button"
       >
         {streaming ? (
-          <GlyphSpinner
-            ariaLabel="Marvi is thinking"
-            className="chat-working-spinner"
-          />
+          <GlyphSpinner ariaLabel="Marvi is thinking" className="chat-working-spinner" />
         ) : null}
         <ActivityLabel live={streaming} text={streaming ? 'Marvi is thinking' : 'Marvi thoughts'} />
         <ChevronDown

@@ -1434,6 +1434,10 @@ class Chat:
             final_round = round_number == MAX_TOOL_ROUNDS - 1
             calls: list[dict[str, Any]] = []
             answer = []
+            # Every round starts held: the first characters decide whether
+            # this is a reply or a tool call typed out, and once a delta has
+            # been yielded it is on screen for good.
+            withholding = True
             try:
                 # Timed like the blocking path, and now with a real first
                 # token: chat can finally be compared against voice on the one
@@ -1490,7 +1494,30 @@ class Chat:
                                 )
                             deltas += 1
                             answer.append(event["delta"])
-                            yield {"delta": event["delta"]}
+                            # Held back while it could still be a tool call
+                            # written as text.
+                            #
+                            # A streamed reply is shown as it arrives, so by
+                            # the time the markup is recognisable it is
+                            # already on screen and nothing can take it back.
+                            # That is how the fix for the blocking path left
+                            # this one showing `<tool_call>present_widget
+                            # <arg_key>kind</arg_key>...` to the user.
+                            #
+                            # `might_be_starting` is false for anything that
+                            # is plainly prose, so an ordinary answer streams
+                            # as before; the cost of holding is that a reply
+                            # arrives at once instead of word by word, and it
+                            # is only paid on replies that open with a
+                            # bracket.
+                            if withholding and not tool_call_prose.might_be_starting(
+                                "".join(answer)
+                            ):
+                                withholding = False
+                                yield {"delta": "".join(answer)}
+                                continue
+                            if not withholding:
+                                yield {"delta": event["delta"]}
                             continue
                         if event.get("tool_calls"):
                             calls = event["tool_calls"]
@@ -1528,8 +1555,28 @@ class Chat:
                 }
                 return
 
+            # The same recovery the blocking path does. See `tool_call_prose`.
+            if (
+                not calls
+                and not final_round
+                and (meant := tool_call_prose.recover("".join(answer)))
+            ):
+                logger.warning(
+                    "recovered a tool call the model streamed as text: %s", meant["name"]
+                )
+                calls = [{**meant, "id": f"recovered-{len(used)}"}]
+                answer.clear()
+                withholding = True
+
             if not calls:
                 reply = "".join(answer).strip()
+                if withholding and reply:
+                    # Held to the end and not recoverable: say what happened
+                    # rather than releasing markup nobody can act on.
+                    if tool_call_prose.looks_typed_out(reply):
+                        reply = tool_call_prose.instead_say(reply)
+                    yield {"delta": reply}
+                withholding = False
                 # The line that proves it, in one place, for a real provider:
                 # how many pieces the answer arrived in, and how long the first
                 # one took. A blocking turn would read "1 delta".

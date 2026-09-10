@@ -66,6 +66,38 @@ OPENS_WITH = re.compile(
 )
 
 
+#: The openers, without the trailing bracket, for matching a partial stream.
+_OPENERS = ("tool_call", "tool_calls", "function_call", "invoke")
+
+
+def might_be_starting(text: str) -> bool:
+    """Whether what has arrived so far could still become a typed-out call.
+
+    Needed because a streamed reply is shown as it arrives. By the time the
+    whole thing is readable the markup is already on screen, and nothing can
+    take it back -- which is how the fix for the blocking path left the
+    streaming one showing exactly what it was written to prevent.
+
+    True while the text is a prefix of an opener, or has passed one. False as
+    soon as it is clearly ordinary prose, so a normal answer is never held
+    back: the cost of a wrong `True` is that a reply appears all at once
+    instead of word by word, and the cost of a wrong `False` is markup on
+    screen.
+    """
+    seen = (text or "").lstrip()
+    if not seen:
+        # Nothing yet: hold, because the very first character decides.
+        return True
+    if not seen.startswith("<"):
+        return False
+    body = seen[1:].lstrip().lower()
+    if body.startswith("|"):
+        return True  # `<|DSML|...>` and its relatives.
+    return any(
+        name.startswith(body) or body.startswith(name) for name in _OPENERS
+    )
+
+
 def looks_typed_out(text: str) -> bool:
     """Whether this reply is a tool call the model wrote instead of made."""
     if not text or "<" not in text:

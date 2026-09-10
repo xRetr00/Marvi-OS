@@ -34,10 +34,7 @@ export function ReasoningDisclosure({
         type="button"
       >
         {streaming ? (
-          <GlyphSpinner
-            ariaLabel="Marvi is thinking"
-            className="chat-working-spinner"
-          />
+          <GlyphSpinner ariaLabel="Marvi is thinking" className="chat-working-spinner" />
         ) : null}
         <span className={streaming ? 'chat-scaffold-label is-live' : 'chat-scaffold-label'}>
           {streaming ? 'Thinking' : 'Thought'}

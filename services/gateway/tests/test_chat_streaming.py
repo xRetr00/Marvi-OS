@@ -512,3 +512,53 @@ def test_usage_survives_a_turn_that_called_a_tool(tmp_path: Path) -> None:
 
     assert store.context()["input_tokens"] == 1400
     assert store.context()["cached_tokens"] == 300
+
+
+#: A tool call the model streamed as text, split across deltas the way a real
+#: provider sends it. Taken from the chat window verbatim.
+TYPED_OUT = sse(
+    '{"choices":[{"delta":{"content":"<tool_"}}]}',
+    '{"choices":[{"delta":{"content":"call>present_widget "}}]}',
+    '{"choices":[{"delta":{"content":"<arg_key>kind</arg_key> "}}]}',
+    '{"choices":[{"delta":{"content":"<arg_value>timeline</arg_value>"}}]}',
+    '{"choices":[{"delta":{"content":"</tool_call>"}}]}',
+    '{"usage":{"prompt_tokens":10,"completion_tokens":9}}',
+)
+
+
+def test_markup_is_never_streamed_to_the_window(tmp_path) -> None:
+    """The failure the blocking-path fix did not cover.
+
+    A streamed reply is shown as it arrives, so by the time the markup is
+    recognisable it is already on screen. Recovering it server-side afterwards
+    changes nothing the user has seen -- which is why this reached the window
+    verbatim after the first fix:
+
+        <tool_call>present_widget <arg_key>kind</arg_key> ...
+    """
+    ran: list[str] = []
+
+    def dispatch(name: str, arguments: dict) -> dict:
+        ran.append(name)
+        return {"status": "ok", "result": {"shown": True}}
+
+    events = list(
+        chat_with(tmp_path, TYPED_OUT, dispatch=dispatch).send_stream("show me a timeline")
+    )
+    streamed = "".join(e["delta"] for e in events if "delta" in e)
+
+    assert "<tool_call" not in streamed, "markup reached the window"
+    assert "<arg_key>" not in streamed
+    # And it was not merely hidden: the call the model meant actually ran.
+    assert "present_widget" in ran
+
+
+def test_ordinary_prose_still_streams_piece_by_piece(tmp_path) -> None:
+    """Holding must cost nothing for a normal answer.
+
+    The guard releases as soon as the text is plainly not markup, so a reply
+    that does not open with a bracket streams exactly as before.
+    """
+    events = list(chat_with(tmp_path, ANSWER).send_stream("is the light on?"))
+
+    assert [e["delta"] for e in events if "delta" in e] == ["The ", "light ", "is on."]

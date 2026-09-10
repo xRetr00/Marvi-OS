@@ -716,9 +716,7 @@ async function startVoiceStack(): Promise<void> {
   if (reclaimed.includes('another running Marvi')) {
     const theirs = await gatewayBuild(port)
     if (theirs && theirs.build && theirs.build === ourBuild(repoRoot)) {
-      desktop.info(
-        `attaching to the Marvi already on port ${port}: same build ${theirs.build}`
-      )
+      desktop.info(`attaching to the Marvi already on port ${port}: same build ${theirs.build}`)
     } else {
       const why = theirs?.build
         ? `it is build ${theirs.build}, and this one is ${ourBuild(repoRoot)}`

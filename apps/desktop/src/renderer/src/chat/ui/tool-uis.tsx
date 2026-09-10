@@ -35,10 +35,7 @@ export function WidgetToolUI({
   if (status.type === 'running' || result == null) {
     return (
       <div className="chat-scaffold chat-inline-tool" data-conversation-scaffold="">
-        <GlyphSpinner
-          ariaLabel="Marvi is preparing a widget"
-          className="chat-working-spinner"
-        />
+        <GlyphSpinner ariaLabel="Marvi is preparing a widget" className="chat-working-spinner" />
         <ActivityLabel live text="Marvi is preparing a widget" />
       </div>
     )
