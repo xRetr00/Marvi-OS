@@ -2449,6 +2449,23 @@ function startApp(): void {
         return false
       }
     })
+    ipcMain.handle('marvi:settle-chat-ask', async (_event, id, answer) => {
+      if (typeof id !== 'string' || typeof answer !== 'string') return false
+      try {
+        const response = await fetch(`${gateway()}/chat/ask/${encodeURIComponent(id)}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ answer }),
+          // No timeout worth setting: the turn on the other side is already
+          // blocked waiting for exactly this, and a retry after a timeout
+          // would answer a question that has moved on.
+          signal: AbortSignal.timeout(10_000)
+        })
+        return response.ok
+      } catch {
+        return false
+      }
+    })
     ipcMain.handle('marvi:upload-chat-attachment', async (_event, input) => {
       if (!input || typeof input !== 'object') return null
       try {

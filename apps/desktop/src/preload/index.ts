@@ -252,6 +252,8 @@ const marvi = {
   ): Promise<ChatThread | null> => ipcRenderer.invoke('marvi:set-chat-thread-model', id, selection),
   deleteChatThread: (id: string): Promise<boolean> =>
     ipcRenderer.invoke('marvi:delete-chat-thread', id),
+  settleChatAsk: (id: string, answer: string): Promise<boolean> =>
+    ipcRenderer.invoke('marvi:settle-chat-ask', id, answer),
   uploadChatAttachment: (input: {
     threadId: string
     name: string

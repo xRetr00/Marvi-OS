@@ -168,6 +168,8 @@ export interface MarviDesktopApi {
     selection: { provider?: string; model?: string; effort?: string }
   ) => Promise<ChatThread | null>
   deleteChatThread: (id: string) => Promise<boolean>
+  /** Hand an inline `clarify`/`ask_secret` answer back to the waiting turn. */
+  settleChatAsk: (id: string, answer: string) => Promise<boolean>
   uploadChatAttachment: (input: {
     threadId: string
     name: string

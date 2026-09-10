@@ -870,7 +870,28 @@ export type ChatPart =
   | { type: 'image'; attachment_id?: string; url?: string; alt?: string }
   | { type: 'file'; attachment_id?: string; name: string; media_type?: string; size?: number }
   | { type: 'tool'; name: string; status?: string; content?: string }
+  | ChatAskPart
   | ChatWidgetPart
+
+/**
+ * A question the turn is blocked on, drawn in the transcript.
+ *
+ * Only ever live: the Gateway streams it, the window answers it, and the turn
+ * stores the *result* as an ordinary tool row. Nothing persists an unanswered
+ * question, so reopening a thread never shows a card nobody is waiting on.
+ */
+export interface ChatAskPart {
+  type: 'ask'
+  id: string
+  kind: 'clarify' | 'secret'
+  question?: string
+  choices?: string[]
+  multi_select?: boolean
+  /** `secret` only: the setting name the value is stored under. */
+  name?: string
+  why?: string
+  answered?: boolean
+}
 
 export interface ChatWidgetPart {
   type: 'widget'
