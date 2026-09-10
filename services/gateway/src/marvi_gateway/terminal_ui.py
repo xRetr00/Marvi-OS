@@ -17,7 +17,9 @@ MARVI_ART = (
     "\n\u255a\u2550\u255d     \u255a\u2550\u255d\u255a\u2550\u255d  \u255a\u2550\u255d\u255a\u2550\u255d  \u255a\u2550\u255d  \u255a\u2550\u2550\u2550\u255d  \u255a\u2550\u255d"
 )
 
-MARVI_SPINNER_FRAMES = ("\u00b7", "\u2732", "\u2733", "\u2736", "\u273b", "\u273d")
+# ASCII-only frames avoid Windows emoji/font fallback, which can add a colored
+# glyph background in some terminal profiles.
+MARVI_SPINNER_FRAMES = ("-", "\\", "|", "/", "*", "+")
 
 # Claude's Crail / Cloudy / Pampas palette, with semantic terminal colors.
 CRAIL = "#c15f3c"

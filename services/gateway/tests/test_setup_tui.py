@@ -191,6 +191,13 @@ def test_shared_header_uses_the_repository_version(tmp_path, capsys) -> None:
     assert "SETUP" in output
 
 
+def test_spinner_frames_are_terminal_safe() -> None:
+    from marvi_gateway import terminal_ui
+
+    assert all(frame.isascii() for frame in terminal_ui.MARVI_SPINNER_FRAMES)
+    assert len(terminal_ui.MARVI_SPINNER_FRAMES) == 6
+
+
 def test_component_selection_only_installs_selected_entries(monkeypatch) -> None:
     from io import StringIO
     from types import SimpleNamespace
