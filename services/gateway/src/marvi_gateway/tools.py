@@ -8,6 +8,7 @@ behind adapters instead of leaking transport details into the router.
 
 from __future__ import annotations
 
+import json
 import time
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field, replace
@@ -97,10 +98,33 @@ def _coerce(value: Any, expected: type) -> Any:
     refused otherwise. Nothing else is coerced: an int where a string was asked
     for stays wrong, because that is a different mistake and quietly papering
     over it would hide a real schema disagreement.
+
+    The same thing then happened with `dict`, which this did not cover, and it
+    cost a whole conversation:
+
+        00:03:04  computer_action refused those arguments: argument
+                  arguments must be dict
+        ... the identical call, six more times ...
+        00:03:25  "The computer tools are rejecting my calls -- the arguments
+                  schema is not accepting what I am sending."
+
+    A model that writes `"arguments": "{\"app\": \"Spotify\"}"` means the
+    object. Nesting is where stringifying happens most, and `arguments` is the
+    nested field on the two biggest tools Marvi has -- `computer_action` and
+    `browser_action` -- so refusing it took both of them out.
     """
     if not isinstance(value, str) or expected is str:
         return value
     text = value.strip()
+    if expected in (dict, list):
+        # Only when it parses to exactly what was asked for. A string that
+        # turns out to be a list where a dict was wanted is a different
+        # mistake, and reading it as success would hide it.
+        try:
+            parsed = json.loads(text)
+        except ValueError:
+            return value
+        return parsed if isinstance(parsed, expected) else value
     if expected is bool:
         if text.lower() in ("true", "yes", "1"):
             return True
