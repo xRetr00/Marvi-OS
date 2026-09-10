@@ -666,8 +666,20 @@ def cmd_crashes(_args: argparse.Namespace) -> int:
 def cmd_update(args: argparse.Namespace) -> int:
     """Check and hand off to the same updater used by the main window."""
     from . import updates
+    from .setup import tui
 
     root = repo_root()
+    console = None
+    terminal_ui = None
+    if tui.available():
+        from rich.console import Console
+
+        from . import terminal_ui as terminal_ui_module
+
+        console = Console()
+        terminal_ui = terminal_ui_module
+        terminal_ui.header(console, root, "UPDATES")
+
     bootstrap = updates.bootstrap_path()
     desktop = updates.desktop_path(root)
     if bootstrap is None or desktop is None or not (root / ".git").exists():
@@ -679,16 +691,6 @@ def cmd_update(args: argparse.Namespace) -> int:
         return 1
 
     selected_channel = updates.channel()
-    from .setup import tui
-
-    console = None
-    if tui.available():
-        from rich.console import Console
-
-        from . import terminal_ui
-
-        console = Console()
-        terminal_ui.header(console, root, "UPDATES")
     print(f"Checking the {selected_channel} channel ...")
     with terminal_ui.activity(console, "Checking for Marvi updates") if console else contextlib.nullcontext():
         result = updates.check(bootstrap, root, selected_channel)
