@@ -20,12 +20,19 @@ MARVI_ART = (
 # U+FE0E requests text presentation so Windows terminals keep these Claude-style
 # frames monochrome instead of selecting an emoji glyph with a colored backdrop.
 MARVI_SPINNER_FRAMES = (
-    "\u00b7\ufe0e",
-    "\u2732\ufe0e",
-    "\u2733\ufe0e",
-    "\u2736\ufe0e",
-    "\u273b\ufe0e",
-    "\u273d\ufe0e",
+    "\u00b7\ufe0e",  # ·
+    "\u2732\ufe0e",  # ✲
+    "\u2735\ufe0e",  # ✵
+    "\u2736\ufe0e",  # ✶
+    "\u2737\ufe0e",  # ✷
+    "\u2738\ufe0e",  # ✸
+    "\u2739\ufe0e",  # ✹
+    "\u273a\ufe0e",  # ✺
+    "\u273b\ufe0e",  # ✻
+    "\u273c\ufe0e",  # ✼
+    "\u273d\ufe0e",  # ✽
+    "\u273e\ufe0e",  # ✾
+    "\u273f\ufe0e",  # ✿
 )
 
 # Claude's Crail / Cloudy / Pampas palette, with semantic terminal colors.
