@@ -364,3 +364,48 @@ describe('the SDK accepts what we produce', () => {
     expect(() => convertMessages(rows).forEach(accept)).not.toThrow()
   })
 })
+
+describe('a turn that is still running says so', () => {
+  it('marks reasoning as running while the reply streams', () => {
+    // Parts do not inherit the message's status, so a reasoning block on a
+    // streaming turn rendered as "Marvi thought", collapsed, mid-stream.
+    const converted = convertMessage(
+      message({ role: 'assistant', meta: { streaming: true, reasoning: 'weighing it' } })
+    )
+
+    expect(converted.content[0]).toMatchObject({ type: 'reasoning', status: { type: 'running' } })
+  })
+
+  it('leaves finished reasoning without a running status', () => {
+    const converted = convertMessage(
+      message({ role: 'assistant', meta: { reasoning: 'weighed it' } })
+    )
+
+    expect(converted.content[0]).not.toHaveProperty('status')
+  })
+
+  it('gives a running tool call no result, so it reads as in progress', () => {
+    // A result -- even an empty string -- is how the SDK decides a call has
+    // finished, so every tool rendered as "Marvi used ..." the instant it was
+    // called.
+    const converted = convertMessage(
+      message({
+        role: 'assistant',
+        parts: [{ type: 'tool', name: 'marvi_logs', status: 'running' }]
+      })
+    )
+
+    expect(converted.content[0]).not.toHaveProperty('result')
+  })
+
+  it('gives a finished tool call its result', () => {
+    const converted = convertMessage(
+      message({
+        role: 'assistant',
+        parts: [{ type: 'tool', name: 'marvi_logs', content: 'nothing found' }]
+      })
+    )
+
+    expect(converted.content[0]).toMatchObject({ result: 'nothing found' })
+  })
+})

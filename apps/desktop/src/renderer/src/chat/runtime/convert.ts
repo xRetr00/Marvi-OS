@@ -44,7 +44,7 @@ export type JsonObject = { [key: string]: JsonValue }
 
 export type UiPart =
   | { type: 'text'; text: string }
-  | { type: 'reasoning'; text: string }
+  | { type: 'reasoning'; text: string; status?: { type: 'running' } }
   | { type: 'source'; sourceType: 'url'; id: string; url: string; title?: string }
   | { type: 'image'; image: string; filename?: string }
   | { type: 'file'; filename?: string; data: string; mimeType: string }
@@ -145,7 +145,12 @@ function convertPart(part: ChatPart, message: ChatMessage, index: number): UiPar
         toolCallId: partId(message, index),
         toolName: part.name,
         args: {},
-        result: part.content ?? '',
+        // A result -- even an empty string -- is how the SDK decides a tool
+        // call has finished. Setting one unconditionally made every running
+        // tool render as "Marvi used ..." the moment it was called.
+        ...(part.status === 'running' || part.content === undefined
+          ? {}
+          : { result: part.content }),
         isError: part.status === 'failed'
       }
     case 'ask':
@@ -225,8 +230,16 @@ export function convertMessage(message: ChatMessage): UiMessage {
   if (!isUser) {
     const reasoning = metaValue(message.meta, 'reasoning')
     // Ahead of the answer, because that is the order it was produced in and
-    // the order the disclosure reads in.
-    if (reasoning) content.push({ type: 'reasoning', text: reasoning })
+    // the order the disclosure reads in. The status has to be carried: parts
+    // do not inherit the message's, so a reasoning block on a streaming turn
+    // rendered as "Marvi thought", collapsed, while it was still arriving.
+    if (reasoning) {
+      content.push({
+        type: 'reasoning',
+        text: reasoning,
+        ...(message.meta.streaming ? { status: { type: 'running' as const } } : {})
+      })
+    }
   }
 
   message.parts.forEach((part, index) => {
