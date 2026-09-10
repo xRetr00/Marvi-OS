@@ -67,20 +67,19 @@ export function UserMessage({ message }: { message: MessageState }): React.JSX.E
         <div className="chat-body chat-user-text">
           <MessagePrimitive.Parts components={MESSAGE_PART_COMPONENTS} />
         </div>
-        <MessagePrimitive.Attachments
-          components={{
-            Attachment: () => null
-          }}
-        />
-        {message.attachments.length ? (
+        {message.attachments?.length ? (
+          // Marvi's own preview rather than `MessagePrimitive.Attachments`: it
+          // resolves a thumbnail through the preload bridge by attachment id,
+          // which an SDK attachment part has no way to reach.
           <div className="chat-message-files">
             {message.attachments.map((attachment) => (
               <AttachmentPreview
                 attachment={{
                   id: attachment.id,
                   name: attachment.name,
-                  media_type: attachment.contentType,
-                  size: 0
+                  media_type: attachment.contentType ?? 'application/octet-stream',
+                  size: 0,
+                  kind: attachment.contentType?.startsWith('image/') ? 'image' : 'document'
                 }}
                 key={attachment.id}
               />

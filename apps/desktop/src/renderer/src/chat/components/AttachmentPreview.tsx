@@ -4,10 +4,20 @@ import type { ChatAttachment } from '../../../../shared/runtime'
 import { AbstractIcon } from '../../components/abstract-icon'
 import { formatBytes } from '../attachment-format'
 
+/** Only the fields this actually reads.
+ *
+ * Narrowed so a caller holding an SDK attachment -- which has an id, a name
+ * and a mime type and nothing else -- can render one without inventing a
+ * thread id and a timestamp to satisfy a type. */
+export type PreviewableAttachment = Pick<
+  ChatAttachment,
+  'id' | 'name' | 'media_type' | 'size' | 'kind'
+>
+
 export function AttachmentPreview({
   attachment
 }: {
-  attachment: ChatAttachment
+  attachment: PreviewableAttachment
 }): React.JSX.Element {
   const [source, setSource] = useState('')
   const [expanded, setExpanded] = useState(false)

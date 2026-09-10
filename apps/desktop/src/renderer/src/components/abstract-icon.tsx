@@ -3,6 +3,7 @@ import {
   Archive,
   ArrowDownToLine,
   ArrowLeft,
+  ArrowRight,
   ArrowUp,
   AudioLines,
   Blocks,
@@ -80,6 +81,7 @@ export type AbstractIconName =
   | 'download'
   | 'down'
   | 'back'
+  | 'forward'
   | 'search'
   | 'plus'
   | 'edit'
@@ -130,6 +132,7 @@ export const ABSTRACT_ICONS: Readonly<Record<AbstractIconName, LucideIcon>> = Ob
   download: Download,
   down: ChevronDown,
   back: ArrowLeft,
+  forward: ArrowRight,
   search: Search,
   plus: Plus,
   edit: Pencil,
