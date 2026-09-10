@@ -13,7 +13,12 @@
  */
 
 import type { MessageState } from '@assistant-ui/react'
-import { ActionBarPrimitive, BranchPickerPrimitive, MessagePrimitive } from '@assistant-ui/react'
+import {
+  ActionBarPrimitive,
+  BranchPickerPrimitive,
+  ComposerPrimitive,
+  MessagePrimitive
+} from '@assistant-ui/react'
 
 import { AbstractIcon } from '../../components/abstract-icon'
 import { MarviAvatar } from '../../components/ui/avatar'
@@ -28,9 +33,12 @@ function createdAt(message: MessageState): string {
   return (message.createdAt ?? new Date()).toISOString()
 }
 
-function BranchPicker(): React.JSX.Element {
+function BranchPicker({ className }: { className?: string }): React.JSX.Element {
   return (
-    <BranchPickerPrimitive.Root className="chat-branches" hideWhenSingleBranch>
+    <BranchPickerPrimitive.Root
+      className={className ? `chat-branches ${className}` : 'chat-branches'}
+      hideWhenSingleBranch
+    >
       <BranchPickerPrimitive.Previous aria-label="Previous version" className="chat-branch-step">
         <AbstractIcon name="back" size={12} />
       </BranchPickerPrimitive.Previous>
@@ -44,6 +52,16 @@ function BranchPicker(): React.JSX.Element {
   )
 }
 
+/**
+ * Your turn, as assistant-ui draws it: a bubble on the right that hugs its
+ * text, with the actions tucked to its left and the branch picker beneath.
+ *
+ * It used to be a full-width card, which read as a section header rather than
+ * as something *you* said -- the two speakers looked like one column of blocks
+ * stacked on each other. The two-column grid is the whole trick: the bubble
+ * takes the second column and sizes to content, the first column absorbs the
+ * slack and gives the action row somewhere to live.
+ */
 export function UserMessage({ message }: { message: MessageState }): React.JSX.Element {
   return (
     <MessagePrimitive.Root
@@ -53,6 +71,31 @@ export function UserMessage({ message }: { message: MessageState }): React.JSX.E
       data-slot="chat-user-message"
     >
       <span className="sr-only">YOU</span>
+      <TooltipProvider>
+        <div className="chat-turn-actions chat-user-actions">
+          <span className="chat-message-age">{formatTime(createdAt(message))}</span>
+          <ActionBarPrimitive.Root className="chat-action-bar">
+            <UiTooltip label="Edit and branch from this message">
+              <ActionBarPrimitive.Edit
+                aria-label="Edit message"
+                className="chat-message-action"
+                type="button"
+              >
+                <AbstractIcon name="edit" size={14} />
+              </ActionBarPrimitive.Edit>
+            </UiTooltip>
+            <UiTooltip label="Copy message">
+              <ActionBarPrimitive.Copy
+                aria-label="Copy message"
+                className="chat-message-action"
+                type="button"
+              >
+                <AbstractIcon name="copy" size={14} />
+              </ActionBarPrimitive.Copy>
+            </UiTooltip>
+          </ActionBarPrimitive.Root>
+        </div>
+      </TooltipProvider>
       <div className="chat-user-surface" data-slot="chat-user-surface">
         <div className="chat-body chat-user-text">
           <MessagePrimitive.Parts components={MESSAGE_PART_COMPONENTS} />
@@ -77,32 +120,30 @@ export function UserMessage({ message }: { message: MessageState }): React.JSX.E
           </div>
         ) : null}
       </div>
-      <TooltipProvider>
-        <div className="chat-turn-actions">
-          <span className="chat-message-age">{formatTime(createdAt(message))}</span>
-          <BranchPicker />
-          <ActionBarPrimitive.Root className="chat-action-bar">
-            <UiTooltip label="Edit and branch from this message">
-              <ActionBarPrimitive.Edit
-                aria-label="Edit message"
-                className="chat-message-action"
-                type="button"
-              >
-                <AbstractIcon name="edit" size={14} />
-              </ActionBarPrimitive.Edit>
-            </UiTooltip>
-            <UiTooltip label="Copy message">
-              <ActionBarPrimitive.Copy
-                aria-label="Copy message"
-                className="chat-message-action"
-                type="button"
-              >
-                <AbstractIcon name="copy" size={14} />
-              </ActionBarPrimitive.Copy>
-            </UiTooltip>
-          </ActionBarPrimitive.Root>
+      <BranchPicker className="chat-user-branches" />
+    </MessagePrimitive.Root>
+  )
+}
+
+/**
+ * The same bubble, opened for editing.
+ *
+ * `ActionBarPrimitive.Edit` only puts the message's composer into editing
+ * state -- something still has to render that composer, and nothing did, which
+ * is why the pencil appeared to do nothing at all. Inside a message scope the
+ * composer primitives bind to *that message's* editor, so this is the same
+ * three components the main composer uses.
+ */
+export function UserEditComposer(): React.JSX.Element {
+  return (
+    <MessagePrimitive.Root className="chat-turn chat-user is-editing">
+      <ComposerPrimitive.Root className="chat-user-surface chat-message-edit">
+        <ComposerPrimitive.Input aria-label="Edit message" autoFocus />
+        <div className="chat-message-edit-actions">
+          <ComposerPrimitive.Cancel className="chat-edit-cancel">CANCEL</ComposerPrimitive.Cancel>
+          <ComposerPrimitive.Send className="chat-edit-send">SEND EDIT</ComposerPrimitive.Send>
         </div>
-      </TooltipProvider>
+      </ComposerPrimitive.Root>
     </MessagePrimitive.Root>
   )
 }

@@ -384,6 +384,7 @@ class ChatStore:
 
     def context(self, thread_id: str = DEFAULT_THREAD_ID) -> dict[str, Any]:
         """Return only context facts the provider or store can prove."""
+        thread_id = self.resolve(thread_id)
         thread = self.get_thread(thread_id)
         history = self.history(limit=200, thread_id=thread_id)
         latest = next((row for row in reversed(history) if row["role"] == "assistant"), None)
@@ -428,6 +429,7 @@ class ChatStore:
     def history(
         self, limit: int = HISTORY_TURNS, thread_id: str = DEFAULT_THREAD_ID
     ) -> list[dict[str, Any]]:
+        thread_id = self.resolve(thread_id)
         thread = self.get_thread(thread_id)
         leaf = thread.get("active_message_id")
         if leaf is None:
@@ -456,24 +458,36 @@ class ChatStore:
         self._db.commit()
         return self.get_thread(identifier)
 
+    def resolve(self, thread_id: str) -> str:
+        """Turn a requested thread id into one that exists.
+
+        `DEFAULT_THREAD_ID` is a *sentinel* meaning "whatever conversation is
+        current", not the id of a row that must exist. Treating it as a row is
+        what made one conversation immortal: it could not be deleted, and once
+        it could, every call that fell back to the sentinel recreated it -- so
+        deleting it appeared to work and then it came straight back.
+
+        Resolving it to the most recent conversation instead means the sentinel
+        always lands somewhere real, nothing is pinned to a magic id, and the
+        only row this ever creates is the one needed when no conversation
+        exists at all.
+        """
+        row = self._db.execute("SELECT id FROM threads WHERE id = ?", (thread_id,)).fetchone()
+        if row is not None:
+            return thread_id
+        if thread_id != DEFAULT_THREAD_ID:
+            raise KeyError(f"unknown chat thread: {thread_id}")
+        latest = self._db.execute(
+            "SELECT id FROM threads WHERE archived = 0 ORDER BY updated_at DESC LIMIT 1"
+        ).fetchone()
+        if latest is not None:
+            return str(latest["id"])
+        # There is always a conversation to be in, even after deleting the last.
+        return str(self.create_thread()["id"])
+
     def get_thread(self, thread_id: str) -> dict[str, Any]:
+        thread_id = self.resolve(thread_id)
         row = self._db.execute("SELECT * FROM threads WHERE id = ?", (thread_id,)).fetchone()
-        if row is None and thread_id == DEFAULT_THREAD_ID:
-            # The default thread is a fallback argument on half the methods
-            # here, so it has to exist whenever it is asked for. It used to be
-            # kept alive by refusing to delete it, which is why deleting the
-            # conversation you start in appeared to do nothing. Recreating it
-            # on demand is the same guarantee without the dead button.
-            now = self._now()
-            self._db.execute(
-                "INSERT INTO threads (id, title, created_at, updated_at, active_branch) "
-                "VALUES (?, ?, ?, ?, 'main')",
-                (DEFAULT_THREAD_ID, PLACEHOLDER_TITLES[0], now, now),
-            )
-            self._db.commit()
-            row = self._db.execute(
-                "SELECT * FROM threads WHERE id = ?", (thread_id,)
-            ).fetchone()
         if row is None:
             raise KeyError(f"unknown chat thread: {thread_id}")
         count = self._db.execute(
@@ -762,6 +776,7 @@ class ChatStore:
         return True
 
     def clear(self, thread_id: str = DEFAULT_THREAD_ID) -> int:
+        thread_id = self.resolve(thread_id)
         removed = self._db.execute(
             "SELECT COUNT(*) AS n FROM messages WHERE thread_id = ?", (thread_id,)
         ).fetchone()["n"]
@@ -1340,6 +1355,9 @@ class Chat:
         answered_model = model or ""
         usage = {"input": 0, "output": 0, "cached_input": 0, "billable": 0}
         widgets: list[dict[str, Any]] = []
+        # Kept across tool rounds, because the thinking that led to a tool call
+        # is part of the same answer as the thinking that followed it.
+        reasoning: list[str] = []
         # Counted so a real turn can prove it streamed. One delta carrying the
         # whole reply and forty deltas carrying a word each produce identical
         # text, and only the count tells them apart.
@@ -1394,6 +1412,7 @@ class Chat:
                             continue
                         if event.get("reasoning"):
                             reasoning_deltas += 1
+                            reasoning.append(str(event["reasoning"]))
                             yield {"reasoning": event["reasoning"]}
                             continue
                         if event.get("delta"):
@@ -1458,6 +1477,10 @@ class Chat:
                     parts=parts,
                     provider=answered,
                     model=answered_model,
+                    # Streamed *and* stored. It used to be streamed only, so
+                    # the thinking disclosure vanished the moment the turn
+                    # finished and never came back when the thread reopened.
+                    reasoning="".join(reasoning),
                     tokens=tokens,
                     input_tokens=usage["input"],
                     output_tokens=usage["output"],

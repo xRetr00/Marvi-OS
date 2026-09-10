@@ -1,8 +1,102 @@
-/* Pieces that arrived with assistant-ui and had no rule in chat.css yet.
-   Nothing here re-declares a selector chat.css already owns: the layout of the
-   viewport, the log, the centred column, the turns and the composer all stay
-   where they were. Overriding them from this file is exactly what flattened
-   the transcript into full-width strips. */
+/* Pieces that arrived with assistant-ui.
+   The viewport, the log, the centred column and the composer are chat.css's
+   and are not touched here -- overriding those is what flattened the
+   transcript into full-width strips. The turn layout below IS redeclared, on
+   purpose: adopting assistant-ui's message design is the point of it. */
+
+/* -- the message design, from assistant-ui ------------------------------- */
+
+/* A two-column grid is the whole trick. The bubble takes the second column
+   and sizes to its own text; the first column absorbs the slack, pushes the
+   bubble right, and gives the action row somewhere to sit. The user turn used
+   to be a full-width card, which read as a section header rather than as
+   something the user said -- both speakers became one column of stacked
+   blocks. */
+.chat-user {
+  position: static;
+  display: grid;
+  width: 100%;
+  max-width: none;
+  align-items: center;
+  margin-top: 22px;
+  padding: 0;
+  gap: 4px 8px;
+  /* The bubble track grows to fit its text and stops at 80% of the turn,
+     which is assistant-ui's cap -- past that a bubble stops reading as one
+     side of a conversation and starts reading as a full-width block again. */
+  grid-template-columns: minmax(56px, 1fr) minmax(0, 80%);
+  background: none;
+}
+
+.chat-user:first-child {
+  margin-top: 0;
+}
+
+.chat-user-surface {
+  width: auto;
+  max-width: 100%;
+  padding: 9px 17px;
+  border-radius: 18px;
+  grid-row: 1;
+  grid-column: 2;
+}
+
+/* No fade and no clamp: a bubble is already the size of what it holds, and
+   masking the bottom of three lines just hides the end of a sentence. */
+.chat-user-text {
+  max-height: none;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+/* Beside the bubble rather than under it, and out of the way until wanted. */
+.chat-user-actions {
+  position: static;
+  grid-row: 1;
+  grid-column: 1;
+  justify-content: flex-end;
+  margin: 0;
+}
+
+.chat-user-branches {
+  grid-row: 2;
+  grid-column: 2;
+  justify-self: end;
+}
+
+.chat-user.is-editing {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.chat-user.is-editing .chat-user-surface {
+  width: 100%;
+  grid-column: 1;
+}
+
+.chat-message-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.chat-edit-cancel,
+.chat-edit-send {
+  padding: 5px 12px;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 7px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+.chat-edit-send {
+  border-color: var(--ui-accent);
+  color: var(--ui-accent);
+}
 
 /* The scroll-to-bottom primitive disables itself at the bottom rather than
    unmounting, so it is hidden here instead of conditionally rendered. */

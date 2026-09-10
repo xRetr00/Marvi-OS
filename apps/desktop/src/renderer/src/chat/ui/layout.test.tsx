@@ -61,3 +61,36 @@ describe('the transcript keeps the structure chat.css styles', () => {
     expect(html).toContain('chat-empty-logo')
   })
 })
+
+/**
+ * The message design, asserted where it is actually decided.
+ *
+ * The turn layout moved out of `chat.css` and into `ask.css` deliberately, so
+ * the contract moved with it. A user turn that is not a two-column grid is a
+ * full-width card again, which is the thing this whole section exists to stop.
+ */
+const ui = readFileSync(join(__dirname, 'ask.css'), 'utf8')
+
+describe('the user turn is a bubble, not a card', () => {
+  it('lays the turn out in two columns so the bubble can sit right', () => {
+    expect(ui).toMatch(
+      /\.chat-user\s*\{[^}]*grid-template-columns:\s*minmax\(56px,\s*1fr\)\s*minmax\(0,\s*80%\)/
+    )
+  })
+
+  it('lets the bubble size to its own text', () => {
+    expect(ui).toMatch(/\.chat-user-surface\s*\{[^}]*width:\s*auto/)
+    expect(ui).toMatch(/\.chat-user-surface\s*\{[^}]*grid-column:\s*2/)
+  })
+
+  it('drops the clamp that hid the end of a long message', () => {
+    expect(ui).toMatch(/\.chat-user-text\s*\{[^}]*max-height:\s*none/)
+  })
+
+  it('places the action row and branch picker in their own cells', () => {
+    // The fixture thread is empty, so this asserts the placement rules rather
+    // than the markup: a user turn only exists once there is a message.
+    expect(ui).toMatch(/\.chat-user-actions\s*\{[^}]*grid-column:\s*1/)
+    expect(ui).toMatch(/\.chat-user-branches\s*\{[^}]*justify-self:\s*end/)
+  })
+})

@@ -89,6 +89,44 @@ def test_a_reply_is_returned_and_remembered(store, tmp_path) -> None:
     assert roles == ["user", "assistant"]
 
 
+def test_the_sentinel_lands_on_the_newest_conversation_after_a_delete(store) -> None:
+    """The bug this exists for: one conversation that came back every time it
+    was deleted. `default` is a sentinel meaning "the current conversation",
+    and treating it as a row meant every fallback call recreated that row."""
+    kept = store.create_thread("Kept")
+    store.append("user", "hello", thread_id=kept["id"])
+
+    store.delete_thread("default")
+
+    assert store.resolve("default") == kept["id"]
+    rows = store._db.execute("SELECT id FROM threads WHERE id = 'default'").fetchall()
+    assert rows == []
+    # And it stays gone: reading through the sentinel must not put it back.
+    store.history(thread_id="default")
+    store.context("default")
+    assert store._db.execute("SELECT id FROM threads WHERE id = 'default'").fetchall() == []
+
+
+def test_deleting_the_last_conversation_leaves_a_fresh_one(store) -> None:
+    """There is always a conversation to be in -- but it is a new one, not the
+    same one resurrected with its old id."""
+    store.append("user", "old message")
+
+    store.delete_thread("default")
+    landed = store.resolve("default")
+
+    assert landed != "default"
+    assert store.history(thread_id=landed) == []
+    assert store.get_thread(landed)["title"] == "New conversation"
+
+
+def test_an_unknown_thread_is_still_an_error(store) -> None:
+    """Only the sentinel resolves. A real id that does not exist is a 404, not
+    a silent redirect to somebody else's conversation."""
+    with pytest.raises(KeyError):
+        store.resolve("not-a-thread")
+
+
 def test_deleting_the_reserved_conversation_really_deletes_it(store) -> None:
     """The default thread used to refuse to be deleted, so the Delete button on
     the conversation you start in did nothing at all. It goes like any other --
@@ -100,7 +138,6 @@ def test_deleting_the_reserved_conversation_really_deletes_it(store) -> None:
     assert rows == []
 
     assert store.history(thread_id="default") == []
-    assert store.get_thread("default")["title"] == "New conversation"
 
 
 def test_deleting_an_empty_conversation_is_still_a_delete(store) -> None:

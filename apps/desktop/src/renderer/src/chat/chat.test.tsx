@@ -12,10 +12,9 @@ const chatCss = readFileSync(join(__dirname, 'chat.css'), 'utf8').replace(/\r\n/
 
 
 describe('transcript visual contract', () => {
-  it('keeps prompts sticky, responses unboxed, and work evidence subordinate', () => {
+  it('keeps responses unboxed and work evidence subordinate', () => {
     const transcript = chatCss.slice(chatCss.lastIndexOf('/* Transcript hierarchy'))
     expect(transcript).toContain('.chat-user {')
-    expect(transcript).toContain('position: sticky')
     expect(transcript).toContain('.chat-assistant {')
     expect(transcript).not.toMatch(/\.chat-assistant\s*\{[^}]*border:/s)
     expect(transcript).toContain('.chat-scaffold {')

@@ -7,6 +7,9 @@
  * rendered character.
  */
 
+import { useState } from 'react'
+import { ChevronDown } from 'lucide-react'
+
 import type {
   FileMessagePartProps,
   ImageMessagePartProps,
@@ -33,23 +36,29 @@ const Text = ({ text }: TextMessagePartProps): React.JSX.Element | null =>
     </div>
   ) : null
 
-const Reasoning = ({
-  text,
-  status
-}: ReasoningMessagePartProps): React.JSX.Element | null => {
-  // The disclosure component owns its own open/closed state, and remounting it
-  // would slam it shut on every delta -- so reasoning renders through a plain
-  // details element here and the streaming state rides on a data attribute.
+const Reasoning = ({ text, status }: ReasoningMessagePartProps): React.JSX.Element | null => {
   const streaming = status?.type === 'running'
+  // Open while it is being written, and then whatever you last chose.
+  //
+  // This used to be `open={streaming}`, which React re-applies on every
+  // render: the disclosure slammed shut the instant the turn finished, and
+  // clicking it open again did nothing because the next delta closed it. The
+  // null means "nobody has decided yet", which is what lets streaming decide.
+  const [chosen, setChosen] = useState<boolean | null>(null)
+  const open = chosen ?? streaming
   if (!text.trim()) return null
   return (
-    <details
+    <section
       className="chat-scaffold chat-reasoning"
       data-conversation-scaffold=""
       data-state={streaming ? 'streaming' : 'complete'}
-      open={streaming}
     >
-      <summary className="chat-disclosure-row">
+      <button
+        aria-expanded={open}
+        className="chat-disclosure-row"
+        onClick={() => setChosen(!open)}
+        type="button"
+      >
         {streaming ? (
           <GlyphSpinner
             ariaLabel="Marvi is thinking"
@@ -60,11 +69,19 @@ const Reasoning = ({
         <span className={streaming ? 'chat-scaffold-label is-live' : 'chat-scaffold-label'}>
           {streaming ? 'Marvi is thinking' : 'Marvi thought'}
         </span>
-      </summary>
-      <div className={streaming ? 'chat-reasoning-body is-live' : 'chat-reasoning-body'}>
-        <Markdown content={text} />
-      </div>
-    </details>
+        <ChevronDown
+          aria-hidden="true"
+          className={open ? 'chat-disclosure-caret is-open' : 'chat-disclosure-caret'}
+          size={13}
+          strokeWidth={1.6}
+        />
+      </button>
+      {open ? (
+        <div className={streaming ? 'chat-reasoning-body is-live' : 'chat-reasoning-body'}>
+          <Markdown content={text} />
+        </div>
+      ) : null}
+    </section>
   )
 }
 
@@ -88,11 +105,7 @@ const File = ({ filename, mimeType }: FileMessagePartProps): React.JSX.Element =
 /** Shown while an assistant message exists but has produced nothing yet. */
 const Empty = (): React.JSX.Element => (
   <div className="chat-scaffold chat-stream-activity" data-conversation-scaffold="">
-    <GlyphSpinner
-      ariaLabel="Marvi is working"
-      className="chat-working-spinner"
-      spinner="braille"
-    />
+    <GlyphSpinner ariaLabel="Marvi is working" className="chat-working-spinner" spinner="braille" />
     <span className="chat-scaffold-label is-live">Marvi is working</span>
   </div>
 )

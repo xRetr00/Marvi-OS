@@ -18,7 +18,7 @@ import { ThreadPrimitive } from '@assistant-ui/react'
 
 import { AbstractIcon } from '../../components/abstract-icon'
 import { marviLogo } from '../../components/ui/marvi-logo'
-import { AssistantMessage, UserMessage } from './Messages'
+import { AssistantMessage, UserEditComposer, UserMessage } from './Messages'
 import type { ReadAloud } from './parts'
 
 /** The three openers on an empty thread. Prompts, not instructions. */
@@ -61,13 +61,19 @@ export function Thread({ readAloud }: { readAloud?: ReadAloud }): React.JSX.Elem
             <EmptyState />
           </ThreadPrimitive.Empty>
           <ThreadPrimitive.Messages>
-            {({ message }) =>
-              message.role === 'user' ? (
-                <UserMessage message={message} />
+            {({ message }) => {
+              if (message.role !== 'user') {
+                return <AssistantMessage message={message} readAloud={readAloud} />
+              }
+              // The render-function form of `Messages` has no edit-composer
+              // slot, so the swap happens here. Without it the Edit button
+              // sets a state nothing renders.
+              return message.composer.isEditing ? (
+                <UserEditComposer />
               ) : (
-                <AssistantMessage message={message} readAloud={readAloud} />
+                <UserMessage message={message} />
               )
-            }
+            }}
           </ThreadPrimitive.Messages>
         </div>
       </ThreadPrimitive.Viewport>
