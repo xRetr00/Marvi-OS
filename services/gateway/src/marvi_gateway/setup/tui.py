@@ -43,6 +43,7 @@ class Setting:
     detail: str
     secret: bool = False
     boolean: bool = False
+    choices: tuple[str, ...] = ()
     #: What the code does when this is unset.
     #:
     #: Without it the screen reported every default as a gap: announcements are
@@ -137,6 +138,7 @@ CAPABILITIES: tuple[Capability, ...] = (
                     "subtitles, not the answer."
                 ),
                 default="2.0",
+                choices=("2.0", "0.8"),
             ),
             Setting(
                 "MARVI_STT_DEVICE",
@@ -147,6 +149,7 @@ CAPABILITIES: tuple[Capability, ...] = (
                     "speech, and that is what ran out of room."
                 ),
                 default="cpu",
+                choices=("cpu", "cuda"),
             ),
         ),
     ),
@@ -160,6 +163,7 @@ CAPABILITIES: tuple[Capability, ...] = (
                 "Sensitivity",
                 "0.35 catches you sooner; 0.7 almost never fires by accident.",
                 default="0.5",
+                choices=("0.35", "0.5", "0.7"),
             ),
         ),
     ),
@@ -394,6 +398,16 @@ def _edit_capabilities(console: Any) -> None:
                 changes[setting.name] = "true"
             elif _satisfied(setting):
                 changes[setting.name] = "false"
+            continue
+        if setting.choices:
+            answer = Prompt.ask(
+                "  choose value",
+                choices=list(setting.choices),
+                default=_effective(setting),
+                console=console,
+            )
+            if answer != _effective(setting):
+                changes[setting.name] = answer
             continue
         answer = Prompt.ask(
             "  value (blank to leave)",
