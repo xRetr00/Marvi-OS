@@ -26,12 +26,20 @@ function BrowserViewport({
   const [error, setError] = useState('')
   const [navigating, setNavigating] = useState(false)
   const selectedTab = session.tabs.find((t) => t.id === tab) ?? session.tabs[0]
-  useEffect(() => {
+  // Adjusted during render rather than in an effect. Both of these follow a
+  // prop: an effect that setStates on every change renders the stale value
+  // first and the right one a frame later, which shows the previous tab's URL
+  // in the address bar for one paint every time you switch.
+  const [syncedTab, setSyncedTab] = useState(session.active_tab)
+  if (session.active_tab !== syncedTab) {
+    setSyncedTab(session.active_tab)
     if (session.active_tab) setTab(session.active_tab)
-  }, [session.active_tab])
-  useEffect(() => {
+  }
+  const [syncedUrl, setSyncedUrl] = useState(selectedTab?.url)
+  if (selectedTab?.url !== syncedUrl) {
+    setSyncedUrl(selectedTab?.url)
     setAddress(selectedTab?.url ?? '')
-  }, [selectedTab?.url])
+  }
   const navigate = async (action: string): Promise<void> => {
     setNavigating(true)
     setError('')
@@ -51,9 +59,13 @@ function BrowserViewport({
     }
   }
   const disabled = navigating || !['ready', 'paused', 'cancelled'].includes(session.state)
-  const lastTarget = useRef<string | undefined>(undefined)
+  // The last target that was actually known, kept so a tab mid-navigation
+  // does not blank the view. State rather than a ref because it is read while
+  // rendering, and a ref read during render is a value React may not have
+  // committed yet.
+  const [lastTarget, setLastTarget] = useState<string | undefined>(undefined)
   const target = session.tabs.find((t) => t.id === tab)?.target ?? session.tabs[0]?.target
-  if (target) lastTarget.current = target
+  if (target && target !== lastTarget) setLastTarget(target)
   /* The last rectangle we sent, so an unchanged one is not sent again.
 
      `place` is wired to a capture-phase `scroll` listener on `window`, which
@@ -85,7 +97,7 @@ function BrowserViewport({
           height > 0 && rect.width > 0
             ? {
                 id: session.id,
-                target: lastTarget.current,
+                target: lastTarget,
                 bounds: {
                   x: Math.max(0, rect.left),
                   y,
@@ -265,12 +277,20 @@ export function BrowserPage({ onClose }: { onClose?: () => void } = {}): React.J
   const active = (status?.sessions ?? []).some((s) => s.state !== 'closed')
   useEffect(() => {
     if (typeof document !== 'undefined' && document.hidden) return undefined
-    void refresh()
-    const timer = setInterval(() => {
-      if (typeof document !== 'undefined' && document.hidden) return
-      void refresh()
-    }, active ? 1500 : 10_000)
-    return () => clearInterval(timer)
+    // Deferred by a tick so the first poll's setState lands in its own render
+    // rather than cascading out of this effect.
+    const first = setTimeout(() => void refresh(), 0)
+    const timer = setInterval(
+      () => {
+        if (typeof document !== 'undefined' && document.hidden) return
+        void refresh()
+      },
+      active ? 1500 : 10_000
+    )
+    return () => {
+      clearTimeout(first)
+      clearInterval(timer)
+    }
   }, [refresh, active])
   const run = async (operation: () => Promise<unknown>): Promise<void> => {
     setBusy(true)

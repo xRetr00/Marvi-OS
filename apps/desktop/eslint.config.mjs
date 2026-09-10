@@ -6,7 +6,20 @@ import eslintPluginReactHooks from 'eslint-plugin-react-hooks'
 import eslintPluginReactRefresh from 'eslint-plugin-react-refresh'
 
 export default defineConfig(
-  { ignores: ['**/node_modules', '**/dist', '**/out', '**/orb/engine/**'] },
+  {
+    // Vendored and shipped-as-is code is linted by whoever wrote it, at the
+    // version it was vendored at.
+    //
+    // `resources/` is the browser-extension bundle: it runs in Chrome, against
+    // Chrome's globals, and is not part of this app's TypeScript at all.
+    //
+    // Vendored code is linted by whoever vendored it, at the version it was
+    // vendored at -- the same reason `vitest.config.ts` excludes it from the
+    // suite. Reformatting someone else's tree to this project's rules makes
+    // the next update a merge conflict and reports on their repository rather
+    // than on this one.
+    ignores: ['**/node_modules', '**/dist', '**/out', '**/orb/engine/**', 'src/main/vendor/**', 'resources/**']
+  },
   tseslint.configs.recommended,
   eslintPluginReact.configs.flat.recommended,
   eslintPluginReact.configs.flat['jsx-runtime'],

@@ -1,7 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import type { Question } from '../../../shared/asking'
-import { AskingCard, readyToSend } from './asking-card'
+import { AskingCard } from './asking-card'
+import { readyToSend } from './asking'
 
 const question: Question = {
   id: 'q1',

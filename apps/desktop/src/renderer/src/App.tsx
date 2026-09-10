@@ -62,9 +62,12 @@ import { WakeConfidence } from './components/wake-confidence'
 import { ModelPicker } from './components/ui/model-picker'
 import { ConnectingOverlay } from './components/ConnectingOverlay'
 import { DynamicIsland } from './components/DynamicIsland'
-import { BrowserIsland, useBrowserHandoff } from './components/browser-island'
-import { ComputerIsland, useComputerActivity } from './components/computer-island'
-import { AskingCard, useAsking } from './components/asking-card'
+import { BrowserIsland } from './components/browser-island'
+import { useBrowserHandoff } from './components/browser-handoff'
+import { ComputerIsland } from './components/computer-island'
+import { useComputerActivity } from './components/computer-activity'
+import { AskingCard } from './components/asking-card'
+import { useAsking } from './components/asking'
 import {
   ANNOUNCEMENT_GLANCE_MS,
   ISLAND_AUTO_EXPAND_MS,
