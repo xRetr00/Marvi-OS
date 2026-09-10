@@ -12,7 +12,11 @@
  */
 
 import { useCallback, useRef, useState } from 'react'
-import { ComposerPrimitive, unstable_useComposerInput } from '@assistant-ui/react'
+import {
+  ComposerPrimitive,
+  ThreadPrimitive,
+  unstable_useComposerInput
+} from '@assistant-ui/react'
 
 import type { ChatAttachment } from '../../../../shared/runtime'
 import { AbstractIcon } from '../../components/abstract-icon'
@@ -149,16 +153,16 @@ export function Composer({
               </UiTooltip>
               {/* While a reply is streaming the same corner stops it. A turn
                   nobody wants any more is still generating and still billed. */}
-              <ComposerPrimitive.If running>
+              <ThreadPrimitive.If running>
                 <ComposerPrimitive.Cancel aria-label="Stop" className="chat-send is-stop">
                   <AbstractIcon name="stop" size={16} />
                 </ComposerPrimitive.Cancel>
-              </ComposerPrimitive.If>
-              <ComposerPrimitive.If running={false}>
+              </ThreadPrimitive.If>
+              <ThreadPrimitive.If running={false}>
                 <ComposerPrimitive.Send aria-label="Send" className="chat-send">
                   <AbstractIcon name="send" size={16} />
                 </ComposerPrimitive.Send>
-              </ComposerPrimitive.If>
+              </ThreadPrimitive.If>
             </div>
           </div>
         </div>

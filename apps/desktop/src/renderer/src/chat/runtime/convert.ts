@@ -37,6 +37,10 @@ export const ASK_TOOL = 'marvi_ask'
  * the real ones where the runtime consumes them, which is the only place the
  * mismatch could actually bite.
  */
+/** What a tool-call part may carry. assistant-ui requires JSON, not `unknown`. */
+export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue }
+export type JsonObject = { [key: string]: JsonValue }
+
 export type UiPart =
   | { type: 'text'; text: string }
   | { type: 'reasoning'; text: string }
@@ -47,8 +51,8 @@ export type UiPart =
       type: 'tool-call'
       toolCallId: string
       toolName: string
-      args?: Record<string, unknown>
-      result?: unknown
+      args?: JsonObject
+      result?: JsonValue
       isError?: boolean
     }
 
@@ -70,7 +74,7 @@ export interface UiMessage {
     status: { type: 'complete' }
     content: { type: 'text'; text: string }[]
   }[]
-  metadata?: { custom: Record<string, unknown> }
+  metadata?: { custom: JsonObject }
 }
 
 /** Roles Marvi stores that never render as their own bubble.
@@ -101,7 +105,7 @@ export function widgetPart(widget: ChatWidgetPart, fallbackId: string): UiPart {
     toolCallId: widget.id || fallbackId,
     toolName: WIDGET_TOOL,
     args: { kind: widget.kind, title: widget.title },
-    result: widget,
+    result: widget as unknown as JsonValue,
     isError: widget.status === 'error'
   }
 }
