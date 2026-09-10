@@ -233,37 +233,31 @@ def run(
     the installer are the parts that touch the network and the filesystem.
     """
     from rich.console import Console
-    from rich.panel import Panel
-    from rich.prompt import Prompt
+    from rich.prompt import IntPrompt
+
+    from .. import terminal_ui
 
     console = console or Console()
     provider_config.load_into_environ()
 
     while True:
         console.print()
-        console.print(
-            Panel.fit(
-                "[bold]Marvi setup[/bold]\n"
-                "[dim]Everything here is also a command; run `marvi setup --help`.[/dim]",
-                border_style="cyan",
-            )
-        )
+        terminal_ui.header(console, root, "SETUP")
 
         current = plan(components)
         missing = current["install"]
         console.print(_components_table(components, missing))
         console.print(_capabilities_table())
 
-        choices = ["c", "t", "q"]
         console.print(
-            "\n[bold]c[/bold] install components   "
-            "[bold]t[/bold] tools and keys   "
-            "[bold]q[/bold] quit"
+            "\n[bold cyan]1[/bold cyan] Install components   "
+            "[bold cyan]2[/bold cyan] Tools and keys   "
+            "[bold cyan]3[/bold cyan] Quit"
         )
-        answer = Prompt.ask("Choose", choices=choices, default="q", console=console)
-        if answer == "q":
+        answer = IntPrompt.ask("Choose", choices=[1, 2, 3], default=3, console=console)
+        if answer == 3:
             return 0
-        if answer == "c":
+        if answer == 1:
             _install_components(console, components, current, install, root)
         else:
             _edit_capabilities(console)
