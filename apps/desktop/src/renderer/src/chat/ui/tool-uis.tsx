@@ -52,10 +52,7 @@ export function ToolActivity({ toolName, status }: ToolCallMessagePartProps): Re
   return (
     <div className="chat-scaffold chat-inline-tool" data-conversation-scaffold="">
       {running ? (
-        <GlyphSpinner
-          ariaLabel={toolSentence(toolName, true)}
-          className="chat-working-spinner"
-        />
+        <GlyphSpinner ariaLabel={toolSentence(toolName, true)} className="chat-working-spinner" />
       ) : (
         <span aria-hidden="true" className="chat-tool-dot" />
       )}
@@ -276,4 +273,3 @@ function SecretCard({
     </form>
   )
 }
-
