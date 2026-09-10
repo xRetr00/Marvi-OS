@@ -66,7 +66,7 @@ const Reasoning = ({ text, status }: ReasoningMessagePartProps): React.JSX.Eleme
             className="chat-working-spinner"
           />
         ) : null}
-        <ActivityLabel live={streaming} text={streaming ? 'Marvi is thinking' : 'Marvi thought'} />
+        <ActivityLabel live={streaming} text={streaming ? 'Marvi is thinking' : 'Marvi thoughts'} />
         <ChevronDown
           aria-hidden="true"
           className={open ? 'chat-disclosure-caret is-open' : 'chat-disclosure-caret'}

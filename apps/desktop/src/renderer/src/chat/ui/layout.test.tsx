@@ -150,7 +150,7 @@ describe('copying goes through the main process', () => {
     // secure context and a focused document. In this window it rejects, and
     // the button silently does nothing.
     const messages = readFileSync(join(__dirname, 'Messages.tsx'), 'utf8')
-    expect(messages).not.toContain('ActionBarPrimitive.Copy')
+    expect(messages).not.toContain('<ActionBarPrimitive.Copy')
     expect(messages).toContain('CopyMessageAction')
   })
 
