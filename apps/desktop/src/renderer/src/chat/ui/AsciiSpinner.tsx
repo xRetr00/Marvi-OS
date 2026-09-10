@@ -1,81 +1,51 @@
 /**
- * Claude Code's thinking animation, in the chat page.
+ * Claude Code's thinking animation, above the prompt.
  *
  * Five Unicode glyphs -- interpunct, four-teardrop, eight-spoked, six-pointed,
- * heavy-teardrop -- played forward and then back, so the mark appears to swell
- * and settle rather than snap back to a dot. The reversal is why it reads as
- * breathing: a plain forward loop jumps from the biggest glyph to the smallest
- * every cycle and reads as a stutter.
+ * heavy-teardrop -- played forward and then back, so the mark swells and
+ * settles rather than snapping back to a dot.
  *
  * The elapsed seconds beside it are the other half of the point. A spinner
  * says "something is happening"; a spinner with a clock says "and it has been
  * happening for eleven seconds", which is the number somebody actually needs
- * before deciding whether to wait or press stop.
+ * before deciding whether to keep waiting or press stop.
+ *
+ * It is mounted only while a turn is running, and unmounted when the turn
+ * ends. That is what keeps it honest without a reset: a fresh mount starts at
+ * zero, so the clock can never show a stale count from the previous turn.
  */
 
 import { useEffect, useState } from 'react'
 
-/** Smallest to largest. Index order is the animation order. */
-export const SPINNER_FRAMES = ['·', '✢', '✳', '✶', '✽'] as const
-
-/**
- * Forward then back, without repeating either end.
- *
- * `[0,1,2,3,4,3,2,1]` rather than `[0..4,4..0]`: holding the first and last
- * frame for two ticks makes the pulse hesitate at both extremes.
- */
-export function pulseSequence(length: number): number[] {
-  const forward = Array.from({ length }, (_, index) => index)
-  return [...forward, ...forward.slice(1, -1).reverse()]
-}
-
-const SEQUENCE = pulseSequence(SPINNER_FRAMES.length)
-
-/** Roughly Claude Code's cadence: fast enough to feel alive, slow enough to read. */
-const FRAME_MS = 120
-
-export function useSpinnerFrame(active: boolean): string {
-  const [tick, setTick] = useState(0)
-
-  useEffect(() => {
-    if (!active) return
-    // Reduced motion gets the largest glyph, held still. The label and the
-    // clock still say what is happening, so nothing is lost but the movement.
-    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
-    const timer = window.setInterval(() => setTick((value) => value + 1), FRAME_MS)
-    return () => window.clearInterval(timer)
-  }, [active])
-
-  if (!active) return SPINNER_FRAMES[0]
-  return SPINNER_FRAMES[SEQUENCE[tick % SEQUENCE.length]]
-}
-
-/** Whole seconds since `startedAt`, ticking once a second. */
-export function useElapsedSeconds(active: boolean, startedAt: number): number {
-  const [now, setNow] = useState(() => Date.now())
-
-  useEffect(() => {
-    if (!active) return
-    setNow(Date.now())
-    const timer = window.setInterval(() => setNow(Date.now()), 1_000)
-    return () => window.clearInterval(timer)
-  }, [active, startedAt])
-
-  return Math.max(0, Math.floor((now - startedAt) / 1000))
-}
+import { FRAME_MS, SPINNER_FRAMES, frameAt } from './ascii-spinner'
 
 export function AsciiSpinner({
-  active,
-  label = 'Marvi is thinking',
-  startedAt
+  label = 'Marvi is thinking'
 }: {
-  active: boolean
   label?: string
-  startedAt: number
-}): React.JSX.Element | null {
-  const glyph = useSpinnerFrame(active)
-  const seconds = useElapsedSeconds(active, startedAt)
-  if (!active) return null
+}): React.JSX.Element {
+  const [tick, setTick] = useState(0)
+  const [seconds, setSeconds] = useState(0)
+
+  useEffect(() => {
+    // Reduced motion gets the largest glyph, held still. The label and the
+    // clock still say what is happening, so only the movement is lost.
+    const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    const started = Date.now()
+    const clock = window.setInterval(
+      () => setSeconds(Math.floor((Date.now() - started) / 1000)),
+      1_000
+    )
+    const frames = still
+      ? undefined
+      : window.setInterval(() => setTick((value) => value + 1), FRAME_MS)
+    return () => {
+      window.clearInterval(clock)
+      if (frames !== undefined) window.clearInterval(frames)
+    }
+  }, [])
+
+  const glyph = tick === 0 ? SPINNER_FRAMES[SPINNER_FRAMES.length - 1] : frameAt(tick)
 
   return (
     <div className="chat-ascii-spinner" role="status">

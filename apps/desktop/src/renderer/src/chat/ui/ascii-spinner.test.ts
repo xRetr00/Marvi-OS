@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { SPINNER_FRAMES, pulseSequence } from './AsciiSpinner'
+import { SPINNER_FRAMES, pulseSequence } from './ascii-spinner'
 
 /**
  * The only thing here worth asserting is the frame order, because getting it
