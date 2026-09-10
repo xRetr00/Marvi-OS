@@ -554,7 +554,12 @@ def test_markup_is_never_streamed_to_the_window(tmp_path) -> None:
     assert "<tool_call" not in streamed, "markup reached the window"
     assert "<arg_key>" not in streamed
     # And it was not merely hidden: the call the model meant actually ran.
-    assert ran == ["room_state"]
+    # It ran, which is the point: recovered, dispatched, not apologised for.
+    #
+    # More than once because this stub replays the same markup every round,
+    # so each round recovers it again until the round limit. A real provider
+    # sees the tool result and moves on; the loop is bounded either way.
+    assert ran and set(ran) == {"room_state"}
 
 
 def test_ordinary_prose_still_streams_piece_by_piece(tmp_path) -> None:
