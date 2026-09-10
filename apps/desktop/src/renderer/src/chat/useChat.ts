@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import type {
+  ChatAskPart,
   ChatAttachment,
   ChatContext,
   ChatThread,
@@ -27,6 +28,10 @@ export interface UseChat {
   setDraft: (next: string) => void
   setOverride: (next: Override) => void
   send: () => Promise<void>
+  /** Send text that did not come from the draft box -- a composer the SDK owns. */
+  sendText: (text: string) => Promise<void>
+  /** Answer an inline `clarify`/`ask_secret` card the running turn is blocked on. */
+  settleAsk: (askId: string, answer: string) => Promise<void>
   edit: (messageId: number, content: string) => Promise<void>
   regenerate: (messageId: number) => Promise<void>
   clear: () => Promise<void>
@@ -189,6 +194,45 @@ export function useChat(): UseChat {
             )
           )
           return
+        } else if (event.ask && typeof event.ask === 'object') {
+          const ask = event.ask as Record<string, unknown>
+          const part: ChatAskPart = {
+            type: 'ask',
+            id: String(ask.id ?? ''),
+            kind: ask.kind === 'secret' ? 'secret' : 'clarify',
+            question: typeof ask.question === 'string' ? ask.question : '',
+            choices: Array.isArray(ask.choices) ? (ask.choices as string[]) : [],
+            multi_select: Boolean(ask.multi_select),
+            name: typeof ask.name === 'string' ? ask.name : '',
+            why: typeof ask.why === 'string' ? ask.why : ''
+          }
+          setMessages((current) =>
+            current.map((message) =>
+              message.id === replyId ? { ...message, parts: [...message.parts, part] } : message
+            )
+          )
+          return
+        } else if (event.ask_settled && typeof event.ask_settled === 'object') {
+          // Marks the card answered rather than removing it. The turn's next
+          // round appends the tool result, and a card that vanished before
+          // that arrived would leave a visible gap mid-turn.
+          const settled = event.ask_settled as { id?: unknown }
+          const askId = String(settled.id ?? '')
+          setMessages((current) =>
+            current.map((message) =>
+              message.id === replyId
+                ? {
+                    ...message,
+                    parts: message.parts.map((part) =>
+                      part.type === 'ask' && part.id === askId
+                        ? { ...part, answered: true }
+                        : part
+                    )
+                  }
+                : message
+            )
+          )
+          return
         } else if (event.widget && typeof event.widget === 'object') {
           const widget = event.widget as ChatWidgetPart
           setMessages((current) =>
@@ -270,6 +314,18 @@ export function useChat(): UseChat {
     setDraft('')
     await runTurn(text)
   }, [draft, runTurn])
+
+  const sendText = useCallback(async (text: string) => runTurn(text), [runTurn])
+
+  const settleAsk = useCallback(async (askId: string, answer: string) => {
+    if (!answer.trim()) return
+    const sent = await window.marvi?.settleChatAsk(askId, answer)
+    if (!sent) {
+      // The turn stopped waiting -- a timeout, or a window that reconnected.
+      // Saying so is the whole point: the card looks answerable either way.
+      setNotice('That answer arrived too late. Say it in your next message instead.')
+    }
+  }, [])
 
   const edit = useCallback(
     async (messageId: number, content: string) => runTurn(content, { editMessageId: messageId }),
@@ -391,6 +447,8 @@ export function useChat(): UseChat {
     setDraft,
     setOverride,
     send,
+    sendText,
+    settleAsk,
     edit,
     regenerate,
     clear,
