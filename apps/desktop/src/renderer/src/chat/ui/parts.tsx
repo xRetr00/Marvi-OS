@@ -11,6 +11,7 @@ import { useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 
 import type {
+  EmptyMessagePartComponent,
   FileMessagePartProps,
   ImageMessagePartProps,
   ReasoningMessagePartProps,
@@ -97,13 +98,24 @@ const File = ({ filename, mimeType }: FileMessagePartProps): React.JSX.Element =
   </div>
 )
 
-/** Shown while an assistant message exists but has produced nothing yet. */
-const Empty = (): React.JSX.Element => (
-  <div className="chat-scaffold chat-stream-activity" data-conversation-scaffold="">
-    <GlyphSpinner ariaLabel="Marvi is working" className="chat-working-spinner" />
-    <ActivityLabel live text="Marvi is working" />
-  </div>
-)
+/**
+ * Shown while an assistant message exists but has produced nothing yet.
+ *
+ * It checks its own status, and that check is the whole point. The SDK renders
+ * this slot whenever a message *ends* on something that is not text or
+ * reasoning -- a reply that finished on a widget or a tool card qualifies --
+ * so a turn that ended perfectly well sat there saying "Marvi is working"
+ * forever, including after the next turn had started.
+ */
+const Empty: EmptyMessagePartComponent = ({ status }) => {
+  if (status?.type !== 'running') return null
+  return (
+    <div className="chat-scaffold chat-stream-activity" data-conversation-scaffold="">
+      <GlyphSpinner ariaLabel="Marvi is working" className="chat-working-spinner" />
+      <ActivityLabel live text="Marvi is working" />
+    </div>
+  )
+}
 
 export const MESSAGE_PART_COMPONENTS = {
   Text,
