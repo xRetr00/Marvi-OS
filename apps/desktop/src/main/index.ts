@@ -2440,9 +2440,11 @@ function startApp(): void {
           method: 'DELETE',
           signal: AbortSignal.timeout(5_000)
         })
-        if (!response.ok) return false
-        const value = (await response.json()) as { removed?: unknown }
-        return typeof value.removed === 'number'
+        // The Gateway reports how many messages went with the thread, and an
+        // empty thread is a valid delete that removes zero of them. Reading a
+        // count as the outcome made deleting an unused conversation look like
+        // a failure; the status is the outcome.
+        return response.ok
       } catch {
         return false
       }

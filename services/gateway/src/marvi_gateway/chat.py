@@ -37,6 +37,7 @@ from typing import Any
 from uuid import uuid4
 
 from . import language, latency, selfaware
+from . import inline_ask
 from .chat_widgets import (
     external_text,
     present_tool_schema,
@@ -174,7 +175,31 @@ CREATE TABLE IF NOT EXISTS attachments (
 CREATE INDEX IF NOT EXISTS attachments_thread ON attachments(thread_id, message_id);
 """
 
+#: The two tools Chat answers itself rather than handing to the voice surface.
+#: Both put a question on screen and both used to reach only the Dynamic
+#: Island, so asking in Chat lit up the voice page and left the transcript
+#: blank. See `inline_ask` for why this list is the whole of the routing.
+INLINE_TOOLS = ("clarify", "ask_secret")
+
 DEFAULT_THREAD_ID = "default"
+
+#: Titles that mean "nobody has named this yet". `append` auto-names a thread
+#: from its first user message only while it still holds one of these, so this
+#: tuple is the single definition of "unnamed" -- the SQL below reads from it
+#: rather than repeating the strings.
+PLACEHOLDER_TITLES = ("New conversation", "First conversation")
+
+
+def _clean_title(title: str) -> str:
+    """A stored title: whitespace-collapsed, capped, never empty.
+
+    This is all a user-supplied title gets. Distilling belongs to auto-naming
+    (`ChatStore._title`), which runs on a thread nobody has named.
+    """
+    compact = " ".join((title or "").split()).strip()
+    if not compact:
+        return PLACEHOLDER_TITLES[0]
+    return (compact[:120] + "…") if len(compact) > 120 else compact
 MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
 ALLOWED_DOCUMENT_TYPES = {
     "text/plain",
@@ -312,12 +337,17 @@ class ChatStore:
                 f"AND message_id IS NULL AND id IN ({marks})",
                 (message_id, thread_id, *attachment_ids),
             )
-        title = self._title(content) if role == "user" else None
+        unnamed = thread.get("title") in PLACEHOLDER_TITLES
+        # Only distil when there is actually a placeholder to replace. Asking a
+        # model to name a thread that already has a name is a wasted call and a
+        # discarded answer.
+        title = self._title(content) if role == "user" and unnamed else None
+        marks = ", ".join("?" for _ in PLACEHOLDER_TITLES)
         self._db.execute(
             "UPDATE threads SET active_message_id = ?, active_branch = ?, updated_at = ?, "
-            "title = CASE WHEN ? IS NOT NULL AND title IN ('New conversation', 'First conversation') "
+            f"title = CASE WHEN ? IS NOT NULL AND title IN ({marks}) "
             "THEN ? ELSE title END WHERE id = ?",
-            (message_id, branch, self._now(), title, title, thread_id),
+            (message_id, branch, self._now(), title, *PLACEHOLDER_TITLES, title, thread_id),
         )
         self._db.commit()
         return message_id
@@ -414,15 +444,36 @@ class ChatStore:
     def create_thread(self, title: str = "New conversation") -> dict[str, Any]:
         identifier = uuid4().hex
         now = self._now()
+        # Verbatim. `_title` distils with a model, and running the placeholder
+        # through it produced a thread already named something -- which the
+        # auto-naming in `append` then refused to touch, because it only
+        # renames threads still holding a placeholder. Naming a new thread was
+        # what broke naming every thread.
         self._db.execute(
             "INSERT INTO threads (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)",
-            (identifier, self._title(title), now, now),
+            (identifier, _clean_title(title), now, now),
         )
         self._db.commit()
         return self.get_thread(identifier)
 
     def get_thread(self, thread_id: str) -> dict[str, Any]:
         row = self._db.execute("SELECT * FROM threads WHERE id = ?", (thread_id,)).fetchone()
+        if row is None and thread_id == DEFAULT_THREAD_ID:
+            # The default thread is a fallback argument on half the methods
+            # here, so it has to exist whenever it is asked for. It used to be
+            # kept alive by refusing to delete it, which is why deleting the
+            # conversation you start in appeared to do nothing. Recreating it
+            # on demand is the same guarantee without the dead button.
+            now = self._now()
+            self._db.execute(
+                "INSERT INTO threads (id, title, created_at, updated_at, active_branch) "
+                "VALUES (?, ?, ?, ?, 'main')",
+                (DEFAULT_THREAD_ID, PLACEHOLDER_TITLES[0], now, now),
+            )
+            self._db.commit()
+            row = self._db.execute(
+                "SELECT * FROM threads WHERE id = ?", (thread_id,)
+            ).fetchone()
         if row is None:
             raise KeyError(f"unknown chat thread: {thread_id}")
         count = self._db.execute(
@@ -453,9 +504,13 @@ class ChatStore:
     ) -> dict[str, Any]:
         self.get_thread(thread_id)
         if title is not None:
+            # A title the user typed is the title they get. This used to be
+            # distilled too, so renaming a thread handed the words to a model
+            # and stored whatever came back -- the rename appeared to do
+            # nothing, or worse, something else.
             self._db.execute(
                 "UPDATE threads SET title = ?, updated_at = ? WHERE id = ?",
-                (self._title(title), self._now(), thread_id),
+                (_clean_title(title), self._now(), thread_id),
             )
         if archived is not None:
             self._db.execute(
@@ -478,14 +533,13 @@ class ChatStore:
         return self.get_thread(thread_id)
 
     def delete_thread(self, thread_id: str) -> int:
-        if thread_id == DEFAULT_THREAD_ID:
-            removed = self.clear(thread_id)
-            self._db.execute(
-                "UPDATE threads SET title = ?, updated_at = ? WHERE id = ?",
-                ("New conversation", self._now(), thread_id),
-            )
-            self._db.commit()
-            return removed
+        """Remove a thread and everything hanging off it.
+
+        Every thread, including the default one -- `get_thread` puts that back
+        the next time anything asks for it, so nothing downstream has to care
+        that it went.
+        """
+        self.get_thread(thread_id)
         attachments = self._db.execute(
             "SELECT path FROM attachments WHERE thread_id = ?", (thread_id,)
         ).fetchall()
@@ -1085,6 +1139,100 @@ class Chat:
             "arguments": arguments,
         }
 
+    def _open_inline(self, name: str, arguments: Any) -> inline_ask.InlineAsk | None:
+        """Register a question Chat will wait for, or None if it is malformed.
+
+        None falls through to the ordinary tool path, which reports the same
+        argument error the voice surface would -- a bad `clarify` call should
+        not become a card nobody can answer.
+        """
+        from secrets import token_urlsafe
+
+        from .clarify import as_shown, clean_choices
+
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments or "{}")
+            except ValueError:
+                arguments = {}
+        if not isinstance(arguments, dict):
+            return None
+
+        if name == "clarify":
+            question = " ".join(str(arguments.get("question") or "").split())
+            if not question:
+                return None
+            return inline_ask.ASKS.open(
+                inline_ask.InlineAsk(
+                    id=token_urlsafe(8),
+                    kind="clarify",
+                    question=question,
+                    choices=as_shown(clean_choices(arguments.get("choices"))),
+                    multi_select=bool(arguments.get("multi_select")),
+                    asked_at=time.time(),
+                )
+            )
+
+        from .credentials import VALID_NAME
+
+        setting = str(arguments.get("name") or "").strip().upper()
+        if not VALID_NAME.match(setting):
+            return None
+        return inline_ask.ASKS.open(
+            inline_ask.InlineAsk(
+                id=token_urlsafe(8),
+                kind="secret",
+                name=setting,
+                why=" ".join(str(arguments.get("why") or "").split()),
+                asked_at=time.time(),
+            )
+        )
+
+    @staticmethod
+    def _inline_outcome(ask: inline_ask.InlineAsk, answer: str | None) -> dict[str, Any]:
+        """What the model is told once the card is settled.
+
+        A secret answer is the word "saved", never the value -- the value went
+        desktop -> `POST /voice/secret` -> settings and was never in this
+        process's turn at all.
+        """
+        if ask.kind == "secret":
+            arguments = {"name": ask.name}
+            if answer is None:
+                return {
+                    "text": wrap_external(
+                        "tool:ask_secret",
+                        f"{ask.name} was not entered. Do not ask for the value any "
+                        "other way; say you still need it and move on.",
+                    ).text,
+                    "arguments": arguments,
+                }
+            return {
+                "text": wrap_external(
+                    "tool:ask_secret",
+                    f"{ask.name} was saved. You were not shown the value and must "
+                    "never ask for it or repeat it.",
+                ).text,
+                "arguments": arguments,
+            }
+
+        arguments = {"question": ask.question, "choices": ask.choices}
+        if answer is None:
+            return {
+                "text": wrap_external(
+                    "tool:clarify",
+                    "The question was not answered. Ask it plainly in your reply "
+                    "instead, and do not call clarify again for it.",
+                ).text,
+                "arguments": arguments,
+            }
+        # The answer is the user's words, so it arrives enveloped like any
+        # other text this process did not write.
+        return {
+            "text": wrap_external("tool:clarify", {"question": ask.question, "answer": answer}).text,
+            "arguments": arguments,
+        }
+
     def send_stream(
         self,
         message: str,
@@ -1335,6 +1483,29 @@ class Chat:
                 name = str(call.get("name") or "")
                 used.append(name)
                 yield {"tool": name}
+                if name in INLINE_TOOLS:
+                    # Chat asks in the transcript and waits here. The voice
+                    # surface is not involved and never sees the question --
+                    # which is the whole fix: reaching this branch at all means
+                    # the asker was Chat.
+                    ask = self._open_inline(name, call.get("arguments") or "{}")
+                    if ask is not None:
+                        yield {"ask": ask.model_dump()}
+                        answer = inline_ask.ASKS.wait(ask.id, stop)
+                        outcome = self._inline_outcome(ask, answer)
+                        yield {"ask_settled": {"id": ask.id, "answered": answer is not None}}
+                        # The next round rebuilds the provider messages from
+                        # the store, so appending here is what hands the answer
+                        # to the model -- there is no local list to push onto.
+                        self.store.append(
+                            "tool",
+                            outcome["text"],
+                            thread_id=thread_id,
+                            tool=name,
+                            arguments=outcome.get("arguments"),
+                            call_id=call.get("id"),
+                        )
+                        continue
                 outcome = self._run_tool(name, call.get("arguments") or "{}", thread_id)
                 if outcome.get("widget"):
                     widgets.append(outcome["widget"])

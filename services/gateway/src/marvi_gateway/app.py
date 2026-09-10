@@ -1378,6 +1378,7 @@ def create_app(
     register_computer_tools(tool_registry, computer_service)
 
     # Questions Marvi puts on screen, and the follow-up when nobody answers.
+    from . import inline_ask
     from .asking import Asking, asking_router, register_asking_tools
 
     asking_store = Asking()
@@ -1533,6 +1534,7 @@ def create_app(
         lambda: register_workspace_browser_tools(tool_registry, get_browser, provider_client)))
     app.include_router(computer_router(computer_service, runtime_store.audit))
     app.include_router(asking_router(asking_store, runtime_store.audit))
+    app.include_router(inline_ask.inline_router(inline_ask.ASKS))
     # Reachable from outside, so a proposal can be placed and settled without a
     # model in the loop -- and so a test of what happens to a proposal tests
     # that, rather than the extraction that produced it.
