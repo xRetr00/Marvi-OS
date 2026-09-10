@@ -109,6 +109,7 @@ import {
   ControlSection
 } from './components/control-surface'
 import { ConnectorsPanel } from './components/connectors/ConnectorsPanel'
+import { ChannelsPanel } from './components/channels/ChannelsPanel'
 import { ServiceLogo } from './lib/serviceLogos'
 import { McpPanel } from './components/mcp/McpPanel'
 import { CapabilityPluginsPanel } from './components/capabilities/CapabilityPluginsPanel'
@@ -246,7 +247,10 @@ const NAV_GROUPS = [
   { label: 'Core', items: ['Overview', 'Voice', 'Chat'] },
   { label: 'Context', items: ['Vision', 'Room', 'Activity', 'Resources'] },
   { label: 'Cortex', items: ['DMN', 'Graph', 'Mind'] },
-  { label: 'Capabilities', items: ['Skills', 'Cronjobs', 'Connectors', 'MCP', 'Plugins'] }
+  {
+    label: 'Capabilities',
+    items: ['Skills', 'Cronjobs', 'Connectors', 'Channels', 'MCP', 'Plugins']
+  }
 ] as const
 
 /** Behind the gear: the things you set up. */
@@ -290,6 +294,7 @@ const NAV_CODES: Record<Page, string> = {
   Skills: 'SK',
   Cronjobs: 'CJ',
   Connectors: 'CN',
+  Channels: 'CL',
   MCP: 'MC',
   Plugins: 'PL'
 }
@@ -308,6 +313,7 @@ const NAV_ICONS: Record<Page, AbstractIconName> = {
   Skills: 'skills',
   Cronjobs: 'schedules',
   Connectors: 'connectors',
+  Channels: 'channels',
   MCP: 'mcp',
   Plugins: 'plugins'
 }
@@ -881,6 +887,8 @@ function MainSurface(): React.JSX.Element {
                     <SkillsPanel />
                   ) : page === 'Connectors' ? (
                     <ConnectorsPanel />
+                  ) : page === 'Channels' ? (
+                    <ChannelsPanel />
                   ) : page === 'MCP' ? (
                     <McpPanel />
                   ) : page === 'Plugins' ? (
@@ -4997,6 +5005,7 @@ function PagePanel({ page }: { page: Page }): React.JSX.Element {
     // every sidebar Page without an `as` cast standing in for a real check.
     Skills: '',
     Connectors: '',
+    Channels: '',
     MCP: '',
     Plugins: ''
   }

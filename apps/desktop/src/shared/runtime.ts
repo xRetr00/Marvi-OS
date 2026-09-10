@@ -115,6 +115,24 @@ export interface ConnectorsPage {
   connectors: ConnectorRow[]
 }
 
+/** `GET /telegram`: the Telegram channel, from the Gateway's bridge. */
+export interface TelegramStatus {
+  configured: boolean
+  state: 'off' | 'connecting' | 'ready' | 'error'
+  detail: string
+  bot: { username: string; name: string; link: string } | null
+  owner: { name: string; username: string } | null
+  pairing: { code: string; link: string; expires_at: string } | null
+  when_away: boolean
+  thread_id: string
+}
+
+export type TelegramAction =
+  'token' | 'disconnect' | 'pair' | 'unlink' | 'when-away' | 'test' | 'identity'
+
+/** What a Telegram action answered: the new status, or why not. */
+export type TelegramResult = { ok: true; status: TelegramStatus } | { ok: false; detail: string }
+
 /** An installed MCP server, from `GET /mcp/servers`. */
 export interface McpInstalledServer {
   id: string

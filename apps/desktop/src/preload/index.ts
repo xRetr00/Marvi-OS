@@ -20,6 +20,9 @@ import type {
   AccountToolkit,
   ConnectorRow,
   ConnectorsPage,
+  TelegramAction,
+  TelegramResult,
+  TelegramStatus,
   DoctorReport,
   HardwareAnswer,
   IdentityStatus,
@@ -231,6 +234,11 @@ const marvi = {
     ipcRenderer.invoke('marvi:set-connector-scope', slug, scope),
   disconnectConnector: (connectionId: string): Promise<boolean> =>
     ipcRenderer.invoke('marvi:disconnect-connector', connectionId),
+  getTelegram: (): Promise<TelegramStatus | null> => ipcRenderer.invoke('marvi:get-telegram'),
+  telegram: (action: TelegramAction, value?: string | boolean): Promise<TelegramResult> =>
+    ipcRenderer.invoke('marvi:telegram', action, value),
+  openTelegramLink: (url: string): Promise<boolean> =>
+    ipcRenderer.invoke('marvi:open-telegram-link', url),
   getMcpServers: (): Promise<McpServersPage | null> => ipcRenderer.invoke('marvi:get-mcp-servers'),
   getMcpRegistry: (query: string, page: number): Promise<McpRegistryPage | null> =>
     ipcRenderer.invoke('marvi:get-mcp-registry', query, page),

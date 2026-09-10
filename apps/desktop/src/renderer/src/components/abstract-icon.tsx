@@ -33,6 +33,7 @@ import {
   ScanEye,
   ScanLine,
   Search,
+  Send,
   ServerCog,
   Settings,
   SlidersHorizontal,
@@ -62,6 +63,7 @@ export type AbstractIconName =
   | 'skills'
   | 'plugins'
   | 'connectors'
+  | 'channels'
   | 'mcp'
   | 'preferences'
   | 'schedules'
@@ -113,6 +115,7 @@ export const ABSTRACT_ICONS: Readonly<Record<AbstractIconName, LucideIcon>> = Ob
   skills: Braces,
   plugins: Blocks,
   connectors: Link2,
+  channels: Send,
   mcp: ServerCog,
   preferences: SlidersHorizontal,
   schedules: CalendarClock,

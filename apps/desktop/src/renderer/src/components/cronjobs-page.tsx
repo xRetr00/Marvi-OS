@@ -46,6 +46,33 @@ const KINDS = [
   }
 ]
 
+/** Where the result goes. Offered for both kinds: a reminder is worth texting too. */
+function DeliveryField({
+  onChange,
+  page,
+  value
+}: {
+  onChange: (next: string) => void
+  page: SchedulePage | null
+  value: string
+}): React.JSX.Element {
+  return (
+    <label className="cron-field">
+      <span>Delivery</span>
+      <select onChange={(event) => onChange(event.target.value)} value={value}>
+        {(page?.delivery_targets ?? [{ id: 'local', name: 'Keep it local', available: true }]).map(
+          (target) => (
+            <option disabled={!target.available} key={target.id} value={target.id}>
+              {target.name}
+              {target.available ? '' : ' — not connected'}
+            </option>
+          )
+        )}
+      </select>
+    </label>
+  )
+}
+
 export function CronjobsPage(): React.JSX.Element {
   const [page, setPage] = useState<SchedulePage | null>(null)
   const [open, setOpen] = useState(false)
@@ -204,8 +231,9 @@ export function CronjobsPage(): React.JSX.Element {
       when,
       mode,
       insist,
+      delivery,
       ...(mode === 'action' ? { message, action: action || undefined } : { prompt }),
-      ...(mode === 'agent' ? { provider, model, effort, tool_names: toolNames, delivery } : {})
+      ...(mode === 'agent' ? { provider, model, effort, tool_names: toolNames } : {})
     }
     const next = editingId
       ? await window.marvi?.updateSchedule(editingId, body)
@@ -339,6 +367,7 @@ export function CronjobsPage(): React.JSX.Element {
                   value={message}
                 />
               </label>
+              <DeliveryField onChange={setDelivery} page={page} value={delivery} />
             </>
           ) : (
             <>
@@ -414,21 +443,7 @@ export function CronjobsPage(): React.JSX.Element {
                 <summary>
                   <ChevronDown aria-hidden="true" /> Tools and where the answer goes
                 </summary>
-                <label className="cron-field">
-                  <span>Delivery</span>
-                  <select onChange={(event) => setDelivery(event.target.value)} value={delivery}>
-                    {(
-                      page?.delivery_targets ?? [
-                        { id: 'local', name: 'Keep it local', available: true }
-                      ]
-                    ).map((target) => (
-                      <option disabled={!target.available} key={target.id} value={target.id}>
-                        {target.name}
-                        {target.available ? '' : ' — not connected'}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <DeliveryField onChange={setDelivery} page={page} value={delivery} />
                 <p className="cron-tools-note">
                   {toolNames.length
                     ? `${toolNames.length} tools selected`

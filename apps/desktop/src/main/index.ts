@@ -85,6 +85,9 @@ import type {
   AssistantState,
   ConnectorRow,
   ConnectorsPage,
+  TelegramAction,
+  TelegramResult,
+  TelegramStatus,
   McpRegistryPage,
   McpServersPage,
   ModelPage,
@@ -2160,6 +2163,68 @@ function startApp(): void {
           method: 'DELETE'
         })) !== null
       )
+    })
+
+    // Capabilities > Channels > Telegram. Every route is guarded by the local
+    // token: the status carries a one-time link code while linking, and
+    // linking decides who can message Marvi from anywhere.
+    ipcMain.handle('marvi:get-telegram', async (): Promise<TelegramStatus | null> => {
+      return (await gatewayJson(
+        '/telegram',
+        { headers: localHeaders() },
+        8_000
+      )) as TelegramStatus | null
+    })
+    ipcMain.handle(
+      'marvi:telegram',
+      async (_event, action: TelegramAction, value?: unknown): Promise<TelegramResult> => {
+        const routes: Record<TelegramAction, { method: string; path: string; body?: unknown }> = {
+          token: { method: 'PUT', path: '/telegram/token', body: { token: String(value ?? '') } },
+          disconnect: { method: 'DELETE', path: '/telegram' },
+          pair: { method: 'POST', path: '/telegram/pair' },
+          unlink: { method: 'DELETE', path: '/telegram/owner' },
+          'when-away': {
+            method: 'PUT',
+            path: '/telegram/settings',
+            body: { when_away: Boolean(value) }
+          },
+          test: { method: 'POST', path: '/telegram/test' },
+          identity: { method: 'POST', path: '/telegram/identity' }
+        }
+        const route = routes[action]
+        if (!route) return { ok: false, detail: 'Unknown Telegram action' }
+        try {
+          const response = await fetch(`${gateway()}${route.path}`, {
+            method: route.method,
+            headers: { 'content-type': 'application/json', ...localHeaders() },
+            body: route.body === undefined ? undefined : JSON.stringify(route.body),
+            // Checking a token asks Telegram; the rest are local.
+            signal: AbortSignal.timeout(
+              action === 'token' || action === 'identity' ? 30_000 : 10_000
+            )
+          })
+          if (!response.ok) {
+            return {
+              ok: false,
+              detail: (await gatewayFailure(response, 'Telegram refused')).message
+            }
+          }
+          return { ok: true, status: (await response.json()) as TelegramStatus }
+        } catch (error) {
+          return { ok: false, detail: `Marvi Gateway did not answer: ${String(error)}` }
+        }
+      }
+    )
+    ipcMain.handle('marvi:open-telegram-link', async (_event, url: unknown) => {
+      // Only a t.me link to a bot, which is all this page ever offers.
+      if (
+        typeof url !== 'string' ||
+        !/^https:\/\/t\.me\/[A-Za-z0-9_]{5,64}(\?start=[A-Za-z0-9_-]{1,64})?$/.test(url)
+      ) {
+        return false
+      }
+      await shell.openExternal(url)
+      return true
     })
 
     // Capabilities > MCP. `marvi:get-mcp` above hits the older, unshaped

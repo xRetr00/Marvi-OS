@@ -19,6 +19,9 @@ import type {
   AccountToolkit,
   ConnectorRow,
   ConnectorsPage,
+  TelegramAction,
+  TelegramResult,
+  TelegramStatus,
   DoctorReport,
   HardwareAnswer,
   IdentityStatus,
@@ -156,6 +159,9 @@ export interface MarviDesktopApi {
   getConnectorStatus: (slug: string) => Promise<ConnectorRow | null>
   setConnectorScope: (slug: string, scope: 'read' | 'write' | 'admin') => Promise<boolean>
   disconnectConnector: (connectionId: string) => Promise<boolean>
+  getTelegram: () => Promise<TelegramStatus | null>
+  telegram: (action: TelegramAction, value?: string | boolean) => Promise<TelegramResult>
+  openTelegramLink: (url: string) => Promise<boolean>
   getMcpServers: () => Promise<McpServersPage | null>
   getMcpRegistry: (query: string, page: number) => Promise<McpRegistryPage | null>
   installMcpServer: (

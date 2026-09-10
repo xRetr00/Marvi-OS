@@ -5996,6 +5996,42 @@ body {
   font-size: 9px;
 }
 
+/* Capabilities > Channels. The link code is the one thing on the page read
+   off a screen and typed on a phone, so it is set large and monospaced. */
+.channel-steps {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+  color: var(--ui-muted, #9a9a9a);
+}
+
+.channel-pairing {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.channel-code {
+  padding: 6px 10px;
+  border: 1px solid var(--ui-border, #333);
+  border-radius: 6px;
+  font-size: 16px;
+  letter-spacing: 0.08em;
+  user-select: all;
+}
+
+.channel-hint {
+  color: var(--ui-muted, #9a9a9a);
+}
+
+.channel-notice {
+  margin: 0;
+  color: var(--ui-accent, #6ea8fe);
+}
+
 .face-review-owner {
   display: flex;
   align-items: center;
