@@ -13,11 +13,7 @@
  */
 
 import type { MessageState } from '@assistant-ui/react'
-import {
-  ActionBarPrimitive,
-  BranchPickerPrimitive,
-  MessagePrimitive
-} from '@assistant-ui/react'
+import { ActionBarPrimitive, BranchPickerPrimitive, MessagePrimitive } from '@assistant-ui/react'
 
 import { AbstractIcon } from '../../components/abstract-icon'
 import { MarviAvatar } from '../../components/ui/avatar'
@@ -82,30 +78,30 @@ export function UserMessage({ message }: { message: MessageState }): React.JSX.E
         ) : null}
       </div>
       <TooltipProvider>
-      <div className="chat-turn-actions">
-        <span className="chat-message-age">{formatTime(createdAt(message))}</span>
-        <BranchPicker />
-        <ActionBarPrimitive.Root className="chat-action-bar">
-          <UiTooltip label="Edit and branch from this message">
-            <ActionBarPrimitive.Edit
-              aria-label="Edit message"
-              className="chat-message-action"
-              type="button"
-            >
-              <AbstractIcon name="edit" size={14} />
-            </ActionBarPrimitive.Edit>
-          </UiTooltip>
-          <UiTooltip label="Copy message">
-            <ActionBarPrimitive.Copy
-              aria-label="Copy message"
-              className="chat-message-action"
-              type="button"
-            >
-              <AbstractIcon name="copy" size={14} />
-            </ActionBarPrimitive.Copy>
-          </UiTooltip>
-        </ActionBarPrimitive.Root>
-      </div>
+        <div className="chat-turn-actions">
+          <span className="chat-message-age">{formatTime(createdAt(message))}</span>
+          <BranchPicker />
+          <ActionBarPrimitive.Root className="chat-action-bar">
+            <UiTooltip label="Edit and branch from this message">
+              <ActionBarPrimitive.Edit
+                aria-label="Edit message"
+                className="chat-message-action"
+                type="button"
+              >
+                <AbstractIcon name="edit" size={14} />
+              </ActionBarPrimitive.Edit>
+            </UiTooltip>
+            <UiTooltip label="Copy message">
+              <ActionBarPrimitive.Copy
+                aria-label="Copy message"
+                className="chat-message-action"
+                type="button"
+              >
+                <AbstractIcon name="copy" size={14} />
+              </ActionBarPrimitive.Copy>
+            </UiTooltip>
+          </ActionBarPrimitive.Root>
+        </div>
       </TooltipProvider>
     </MessagePrimitive.Root>
   )
@@ -138,45 +134,49 @@ export function AssistantMessage({
             <ErrorText message={message} />
           </div>
         </MessagePrimitive.Error>
-        <div className="chat-turn-foot">
-        <div className="chat-turn-actions">
-          <span className="chat-message-age">{formatTime(createdAt(message))}</span>
-          <BranchPicker />
-          {readAloud?.available && !streaming && text ? (
-            <UiTooltip label={readAloud.readingId === id ? 'Stop reading' : 'Read aloud'}>
-              <button
-                aria-label={readAloud.readingId === id ? 'Stop reading' : 'Read aloud'}
-                aria-pressed={readAloud.readingId === id}
-                className="chat-message-action"
-                onClick={() => readAloud.toggle(id, text)}
-                type="button"
-              >
-                <AbstractIcon name={readAloud.readingId === id ? 'stop' : 'speaker'} size={14} />
-              </button>
-            </UiTooltip>
-          ) : null}
-          <ActionBarPrimitive.Root className="chat-action-bar" hideWhenRunning>
-            <UiTooltip label="Regenerate on a new branch">
-              <ActionBarPrimitive.Reload
-                aria-label="Regenerate response"
-                className="chat-message-action"
-                type="button"
-              >
-                <AbstractIcon name="regenerate" size={14} />
-              </ActionBarPrimitive.Reload>
-            </UiTooltip>
-            <UiTooltip label="Copy response">
-              <ActionBarPrimitive.Copy
-                aria-label="Copy response"
-                className="chat-message-action"
-                type="button"
-              >
-                <AbstractIcon name="copy" size={14} />
-              </ActionBarPrimitive.Copy>
-            </UiTooltip>
-            </ActionBarPrimitive.Root>
+        <TooltipProvider>
+          <div className="chat-turn-foot">
+            <div className="chat-turn-actions">
+              <span className="chat-message-age">{formatTime(createdAt(message))}</span>
+              <BranchPicker />
+              {readAloud?.available && !streaming && text ? (
+                <UiTooltip label={readAloud.readingId === id ? 'Stop reading' : 'Read aloud'}>
+                  <button
+                    aria-label={readAloud.readingId === id ? 'Stop reading' : 'Read aloud'}
+                    aria-pressed={readAloud.readingId === id}
+                    className="chat-message-action"
+                    onClick={() => readAloud.toggle(id, text)}
+                    type="button"
+                  >
+                    <AbstractIcon
+                      name={readAloud.readingId === id ? 'stop' : 'speaker'}
+                      size={14}
+                    />
+                  </button>
+                </UiTooltip>
+              ) : null}
+              <ActionBarPrimitive.Root className="chat-action-bar" hideWhenRunning>
+                <UiTooltip label="Regenerate on a new branch">
+                  <ActionBarPrimitive.Reload
+                    aria-label="Regenerate response"
+                    className="chat-message-action"
+                    type="button"
+                  >
+                    <AbstractIcon name="regenerate" size={14} />
+                  </ActionBarPrimitive.Reload>
+                </UiTooltip>
+                <UiTooltip label="Copy response">
+                  <ActionBarPrimitive.Copy
+                    aria-label="Copy response"
+                    className="chat-message-action"
+                    type="button"
+                  >
+                    <AbstractIcon name="copy" size={14} />
+                  </ActionBarPrimitive.Copy>
+                </UiTooltip>
+              </ActionBarPrimitive.Root>
+            </div>
           </div>
-        </div>
         </TooltipProvider>
       </div>
     </MessagePrimitive.Root>

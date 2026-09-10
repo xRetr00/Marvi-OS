@@ -1,6 +1,6 @@
 <!doctype html>
 <html><head><meta charset="UTF-8" /><title>Marvi probe</title>
-<style>html,body,#root{height:100%;margin:0}#root{display:flex}</style></head>
+<style>html,body,#root{height:100%;margin:0}#root{display:flex}#root>main.content{flex:1;min-width:0;display:flex;flex-direction:column}</style></head>
 <body><div id="root"></div>
 <script type="module">
   const now = new Date().toISOString()
@@ -15,7 +15,7 @@
       parts:[{type:'text',text:'Hey Shereef.'}], attachments:[] }
   ]
   const shapes = {
-    getChat:{ messages, available:true, threads:[thread], active_thread:'default', context:null },
+    getChat:{ messages: new URLSearchParams(location.search).get('empty') ? [] : messages, available:true, threads:[thread], active_thread:'default', context:null },
     getChatThreads:[], getModels:{providers:[]}, getProviders:{selected:'',providers:[]}
   }
   window.marvi = new Proxy({}, { get(_t,k){ const n=String(k)
