@@ -7,12 +7,8 @@
  * away from the thing that will replace it.
  */
 
-export function ActivityLabel({
-  live,
-  text
-}: {
-  live: boolean
-  text: string
-}): React.JSX.Element {
-  return <span className={live ? 'chat-scaffold-label is-live' : 'chat-scaffold-label'}>{text}</span>
+export function ActivityLabel({ live, text }: { live: boolean; text: string }): React.JSX.Element {
+  return (
+    <span className={live ? 'chat-scaffold-label is-live' : 'chat-scaffold-label'}>{text}</span>
+  )
 }

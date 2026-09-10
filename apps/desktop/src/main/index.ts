@@ -634,8 +634,39 @@ function startVoiceStack(): void {
   // And the port, which neither of the above can reach: they are scoped to
   // this install root and to this launch's own record, and a Gateway from a
   // second installation holding 8765 is deliberately left alone.
-  const reclaimed = reclaimPort(Number(gatewayBind(repoRoot).port))
+  const port = Number(gatewayBind(repoRoot).port)
+  const reclaimed = reclaimPort(port)
   if (reclaimed) desktop.warn(reclaimed)
+
+  // A port still held by a *live* Marvi is a stop, not a warning.
+  //
+  // `reclaimPort` kills an abandoned Gateway and deliberately spares one that
+  // still has a parent -- someone else's session, a second checkout. What
+  // happened next was the bug: this logged the refusal and started everything
+  // anyway. The new Gateway could not bind, so the desktop attached to the
+  // Gateway that already had the port -- another install's, with another
+  // install's settings and tools -- and nothing said so. From the outside
+  // Marvi simply behaved like a different Marvi.
+  //
+  // Reported the way a missing `uv` is reported, ten lines below: an error
+  // state with something to do about it.
+  if (reclaimed.includes('another running Marvi')) {
+    desktop.error(reclaimed)
+    publishRuntime({
+      ...offlineRuntime(app.getVersion()),
+      state: 'error',
+      components: {
+        gateway: {
+          state: 'error',
+          detail:
+            `Another Marvi is already running and holding port ${port}. This one would ` +
+            'have attached to it and used its settings. Close the other Marvi, then ' +
+            'restart this one.'
+        }
+      }
+    })
+    return
+  }
 
   const uv = findUv()
   if (!uv) {
