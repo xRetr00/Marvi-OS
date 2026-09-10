@@ -7,6 +7,8 @@ import { useReadAloud } from './useReadAloud'
 import { useMarviRuntime } from './runtime/useMarviRuntime'
 import { ConfirmationBar } from './components/ConfirmationBar'
 import { Sessions } from './components/Sessions'
+import { AsciiSpinner } from './ui/AsciiSpinner'
+import { Composer } from './ui/Composer'
 import { Thread } from './ui/Thread'
 import './chat.css'
 import './ui/ask.css'
@@ -97,34 +99,32 @@ export function Chat({ onExit }: { onExit: () => void }): React.JSX.Element {
           <div className="chat-body-area">
             <div className="chat-main">
               <Thread
-                activity={activity}
-                attachments={chat.attachments}
-                available={chat.available}
-                busy={chat.busy}
-                footer={
-                  <>
-                    {chat.pending ? (
-                      <ConfirmationBar
-                        pending={chat.pending}
-                        onResolve={(decision) => void chat.resolve(decision)}
-                      />
-                    ) : null}
-                    {chat.notice ? (
-                      <div className="chat-notice" role="alert">
-                        {chat.notice}
-                      </div>
-                    ) : null}
-                  </>
-                }
-                onFiles={(files) => void chat.addAttachments(files)}
-                onOverrideChange={chat.setOverride}
-                onRemoveAttachment={(id) => void chat.removeAttachment(id)}
-                override={chat.override}
                 readAloud={{
                   available: readAloud.available,
                   readingId: readAloud.readingId,
                   toggle: readAloud.toggle
                 }}
+              />
+              {chat.pending ? (
+                <ConfirmationBar
+                  pending={chat.pending}
+                  onResolve={(decision) => void chat.resolve(decision)}
+                />
+              ) : null}
+              {chat.notice ? (
+                <div className="chat-notice" role="alert">
+                  {chat.notice}
+                </div>
+              ) : null}
+              {chat.busy ? <AsciiSpinner label={activity} /> : null}
+              <Composer
+                attachments={chat.attachments}
+                available={chat.available}
+                busy={chat.busy}
+                onFiles={(files) => void chat.addAttachments(files)}
+                onOverrideChange={chat.setOverride}
+                onRemoveAttachment={(id) => void chat.removeAttachment(id)}
+                override={chat.override}
               />
             </div>
           </div>

@@ -191,12 +191,20 @@ def test_shared_header_uses_the_repository_version(tmp_path, capsys) -> None:
     assert "SETUP" in output
 
 
-def test_spinner_frames_force_text_presentation() -> None:
+def test_loading_text_resolves_left_to_right() -> None:
     from marvi_gateway import terminal_ui
 
-    assert terminal_ui.MARVI_SPINNER_FRAMES[0].startswith("\u00b7")
-    assert all(frame.endswith("\ufe0e") for frame in terminal_ui.MARVI_SPINNER_FRAMES)
-    assert len(terminal_ui.MARVI_SPINNER_FRAMES) == 6
+    loading = terminal_ui.TextLoading("MARVI IS THINKING...", started=0)
+    first = loading.frame(now=0)
+    resolved = loading.frame(
+        now=terminal_ui.LOADING_FRAME_SECONDS * terminal_ui.LOADING_FRAMES_PER_CHAR * 6
+    )
+    final = loading.frame(now=100)
+
+    assert first != loading.message
+    assert first[5] == " "
+    assert resolved.startswith("MARVI ")
+    assert final == loading.message
 
 
 def test_component_selection_only_installs_selected_entries(monkeypatch) -> None:

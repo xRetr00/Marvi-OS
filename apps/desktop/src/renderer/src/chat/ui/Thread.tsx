@@ -1,108 +1,85 @@
 /**
- * The transcript: viewport, messages, composer.
+ * The transcript: viewport, scroller, centred column, messages.
  *
- * `ThreadPrimitive.Viewport` owns the scroll behaviour that used to be a
- * `useEffect` chasing `scrollHeight` -- it sticks to the bottom while a reply
- * streams and lets go the moment somebody scrolls up, which is the behaviour
- * every chat client has and the one that is fiddly to write twice.
+ * The element names are not decoration, they are the contract `chat.css`
+ * already owns. `chat-thread-viewport` is the positioning context the
+ * scroll-to-bottom button anchors to, `chat-log` is the thing that actually
+ * scrolls, and `chat-thread-content` is the 720px centred column. Rendering
+ * the SDK's primitives without those wrappers is what made every message span
+ * the whole window.
+ *
+ * The composer is deliberately *not* here. It is a sibling of this viewport in
+ * `chat-main`, which is where it was before and what its own gradient assumes;
+ * putting it inside the scroll viewport made it sticky within the scroller and
+ * stretched it across the window.
  */
 
 import { ThreadPrimitive } from '@assistant-ui/react'
 
-import type { ChatAttachment } from '../../../../shared/runtime'
 import { AbstractIcon } from '../../components/abstract-icon'
 import { marviLogo } from '../../components/ui/marvi-logo'
-import { AsciiSpinner } from './AsciiSpinner'
-import { Composer } from './Composer'
 import { AssistantMessage, UserMessage } from './Messages'
 import type { ReadAloud } from './parts'
 
-/** The four openers on an empty thread. Prompts, not instructions. */
-const SUGGESTIONS = [
-  'What can you do?',
-  'Summarise my day',
-  'What did we talk about last?',
-  'Show me what you remember'
-]
+/** The three openers on an empty thread. Prompts, not instructions. */
+const STARTER_PROMPTS = [
+  { code: 'ROOM', text: 'What is happening in the room right now?' },
+  { code: 'MEMORY', text: 'What do you remember that could help me today?' },
+  { code: 'PLAN', text: 'Help me turn my next goal into a clear plan.' }
+] as const
 
-export function Thread({
-  available,
-  busy,
-  attachments,
-  onFiles,
-  onRemoveAttachment,
-  override,
-  onOverrideChange,
-  readAloud,
-  activity = 'Marvi is thinking',
-  footer
-}: {
-  available: boolean
-  busy: boolean
-  attachments: ChatAttachment[]
-  onFiles: (files: FileList | File[]) => void
-  onRemoveAttachment: (id: string) => void
-  override: { provider?: string; model?: string; effort?: string }
-  onOverrideChange: (next: { provider?: string; model?: string; effort?: string }) => void
-  readAloud?: ReadAloud
-  activity?: string
-  footer?: React.ReactNode
-}): React.JSX.Element {
+function EmptyState(): React.JSX.Element {
   return (
-    <ThreadPrimitive.Root className="chat-thread">
-      <ThreadPrimitive.Viewport className="chat-thread-viewport">
-        <ThreadPrimitive.Empty>
-          <div className="chat-empty">
-            {/* Branding, and the only place it appears at this size: an empty
-                thread has nothing else in it, and a logo over a conversation
-                in progress is a watermark nobody asked for. */}
-            <img alt="Marvi" className="chat-empty-logo" src={marviLogo} />
-            <p className="chat-empty-lead">Ask Marvi anything.</p>
-            <div className="chat-suggestions">
-              {SUGGESTIONS.map((prompt) => (
-                <ThreadPrimitive.Suggestion
-                  className="chat-suggestion"
-                  key={prompt}
-                  method="replace"
-                  prompt={prompt}
-                >
-                  {prompt}
-                </ThreadPrimitive.Suggestion>
-              ))}
-            </div>
-          </div>
-        </ThreadPrimitive.Empty>
+    <div className="chat-empty">
+      {/* Branding, and the only place it appears at this size: an empty thread
+          has nothing else in it, and a logo over a conversation in progress is
+          a watermark nobody asked for. */}
+      <img alt="" aria-hidden="true" className="chat-empty-logo" src={marviLogo} />
+      <div className="chat-empty-mark" aria-hidden="true">
+        <span>MARVI</span>
+      </div>
+      <h2>What should we work through?</h2>
+      <p>One assistant across voice, memory, tools, and the room.</p>
+      <div className="chat-starters" aria-label="Starter prompts">
+        {STARTER_PROMPTS.map((prompt) => (
+          <ThreadPrimitive.Suggestion key={prompt.code} method="replace" prompt={prompt.text}>
+            <span>{prompt.code}</span>
+            {prompt.text}
+          </ThreadPrimitive.Suggestion>
+        ))}
+      </div>
+    </div>
+  )
+}
 
-        <ThreadPrimitive.Messages>
-          {({ message }) =>
-            message.role === 'user' ? (
-              <UserMessage message={message} />
-            ) : (
-              <AssistantMessage message={message} readAloud={readAloud} />
-            )
-          }
-        </ThreadPrimitive.Messages>
-
-        <ThreadPrimitive.ViewportFooter className="chat-thread-foot">
-          <ThreadPrimitive.ScrollToBottom
-            aria-label="Scroll to the latest message"
-            className="chat-scroll-bottom"
-          >
-            <AbstractIcon name="down" size={14} />
-          </ThreadPrimitive.ScrollToBottom>
-          {footer}
-          {busy ? <AsciiSpinner label={activity} /> : null}
-          <Composer
-            attachments={attachments}
-            available={available}
-            busy={busy}
-            onFiles={onFiles}
-            onOverrideChange={onOverrideChange}
-            onRemoveAttachment={onRemoveAttachment}
-            override={override}
-          />
-        </ThreadPrimitive.ViewportFooter>
+export function Thread({ readAloud }: { readAloud?: ReadAloud }): React.JSX.Element {
+  return (
+    <ThreadPrimitive.Root className="chat-thread-viewport">
+      <ThreadPrimitive.Viewport className="chat-log">
+        <div className="chat-thread-content">
+          <ThreadPrimitive.Empty>
+            <EmptyState />
+          </ThreadPrimitive.Empty>
+          <ThreadPrimitive.Messages>
+            {({ message }) =>
+              message.role === 'user' ? (
+                <UserMessage message={message} />
+              ) : (
+                <AssistantMessage message={message} readAloud={readAloud} />
+              )
+            }
+          </ThreadPrimitive.Messages>
+        </div>
       </ThreadPrimitive.Viewport>
+      {/* Absolutely positioned against the viewport, and hidden by CSS while
+          the thread is already at the bottom -- the primitive disables itself
+          rather than unmounting. */}
+      <ThreadPrimitive.ScrollToBottom
+        aria-label="Scroll to latest message"
+        className="chat-scroll-bottom"
+      >
+        <AbstractIcon name="down" size={16} />
+      </ThreadPrimitive.ScrollToBottom>
     </ThreadPrimitive.Root>
   )
 }
