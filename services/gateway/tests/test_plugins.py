@@ -129,6 +129,29 @@ def test_an_absent_ref_follows_the_remotes_own_default(tmp_path) -> None:
     assert plugins.sources(tmp_path)[0].ref == ""
 
 
+def test_update_notifies_the_host_after_new_code_is_ready(monkeypatch, plugin_dir, tmp_path) -> None:
+    commits = iter(["old", "new"])
+    calls = []
+
+    def fake_git(args, cwd, timeout=plugins.GIT_TIMEOUT):
+        calls.append(args)
+        if args == ["rev-parse", "HEAD"]:
+            return next(commits)
+        if args == ["rev-parse", "--abbrev-ref", "HEAD"]:
+            return "main"
+        return ""
+
+    monkeypatch.setattr(plugins, "_git", fake_git)
+    monkeypatch.setattr(plugins, "sync_dependencies", lambda name, repo_root: "no dependencies")
+    updated = []
+
+    detail = plugins.update("smart_room", tmp_path, on_updated=lambda: updated.append(True))
+
+    assert detail == "updated smart_room (old to new)"
+    assert updated == [True]
+    assert ["fetch", "--depth", "1", "origin"] in calls
+
+
 # -- the boundary --------------------------------------------------------------
 
 
