@@ -34,7 +34,7 @@ def header(console: Any, root: Path, section: str) -> None:
 
     console.print(
         Panel.fit(
-            f"[bold bright_white]{MARVI_ART}[/bold bright_white]\n"
+            f"[bold #c15f3c]{MARVI_ART}[/bold #c15f3c]\n"
             f"[bold cyan]MARVI OS[/bold cyan]  [dim]v{version(root)}  |  {section}[/dim]",
             border_style="blue",
             padding=(1, 2),
@@ -49,7 +49,7 @@ def activity(console: Any, message: str) -> Iterator[None]:
     from rich.spinner import Spinner
 
     spinner = Spinner("dots", text=f"[cyan]{message}[/cyan]", style="cyan")
-    spinner.frames = list(MARVI_SPINNER_FRAMES)
+    spinner.frames = [str(frame) for frame in MARVI_SPINNER_FRAMES]
     spinner.interval = 80
     live = Live(spinner, console=console, refresh_per_second=12, transient=True)
     live.start()
