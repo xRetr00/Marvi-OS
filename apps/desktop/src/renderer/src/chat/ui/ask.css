@@ -1,51 +1,14 @@
-/* Pieces that arrived with assistant-ui and had no rule in chat.css yet:
-   the inline question cards, the branch picker, and the viewport furniture.
-   Everything else reuses the classes already defined there. */
+/* Pieces that arrived with assistant-ui and had no rule in chat.css yet.
+   Nothing here re-declares a selector chat.css already owns: the layout of the
+   viewport, the log, the centred column, the turns and the composer all stay
+   where they were. Overriding them from this file is exactly what flattened
+   the transcript into full-width strips. */
 
-.chat-thread,
-.chat-thread-viewport {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  flex: 1;
-}
-
-.chat-thread-viewport {
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-gutter: stable;
-}
-
-.chat-thread-foot {
-  position: sticky;
-  bottom: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  /* The composer sits on the page background, not on the transcript, so a
-     message scrolling under it disappears rather than showing through. */
-  background: var(--surface, #0b0b0d);
-  padding-top: 6px;
-}
-
-.chat-scroll-bottom {
-  align-self: center;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  margin-bottom: 2px;
-  border: 1px solid var(--line, #2a2a30);
-  border-radius: 50%;
-  background: var(--surface, #0b0b0d);
-  color: inherit;
-  opacity: 0.72;
-  cursor: pointer;
-}
-
-.chat-scroll-bottom:hover {
-  opacity: 1;
+/* The scroll-to-bottom primitive disables itself at the bottom rather than
+   unmounting, so it is hidden here instead of conditionally rendered. */
+.chat-scroll-bottom:disabled {
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* -- branch picker ------------------------------------------------------- */
@@ -216,8 +179,8 @@
 .ui-avatar {
   position: relative;
   display: flex;
-  height: 28px;
-  width: 28px;
+  height: 26px;
+  width: 26px;
   flex-shrink: 0;
   overflow: hidden;
   border-radius: 50%;
@@ -247,32 +210,48 @@
   background: var(--raised, #131318);
 }
 
-/* The assistant turn becomes two columns: the avatar, then everything it
-   used to hold. The user turn is unchanged and stays right-aligned. */
+/* The assistant turn gains an avatar column. `.chat-turn` is already a flex
+   column, so this only turns it on its side -- width, padding and animation
+   still come from chat.css. */
 .chat-assistant {
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
+  flex-direction: row;
+  align-items: flex-start;
   gap: 10px;
-  align-items: start;
 }
 
 .chat-turn-avatar {
   /* Nudged down to sit on the first line of prose rather than above it. */
-  margin-top: 2px;
+  margin-top: 1px;
 }
 
+/* Everything the assistant turn used to hold directly, now beside the avatar.
+   It reproduces `.chat-turn`'s own column so the gaps between prose, tool
+   lines and the action row are unchanged. */
 .chat-turn-column {
   display: flex;
-  flex-direction: column;
   min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 9px;
 }
 
+/* The action bar is a wrapper the SDK adds inside `.chat-turn-actions`.
+   Without a display it is a block, and the buttons stack vertically. */
+.chat-action-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* `.chat-empty` is a left-aligned 560px block, so the mark sits with the
+   heading rather than centred over it. */
 .chat-empty-logo {
-  width: 56px;
-  height: 56px;
-  margin-bottom: 14px;
-  border-radius: 14px;
-  opacity: 0.92;
+  display: block;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 16px;
+  border-radius: 12px;
+  opacity: 0.94;
 }
 
 /* -- thinking animation --------------------------------------------------- */
