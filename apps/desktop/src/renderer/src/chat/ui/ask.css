@@ -243,13 +243,12 @@
   gap: 2px;
 }
 
-/* `.chat-empty` is a left-aligned 560px block, so the mark sits with the
-   heading rather than centred over it. */
+/* Centred over the heading, which `.chat-empty h2` also centres. */
 .chat-empty-logo {
   display: block;
   width: 44px;
   height: 44px;
-  margin-bottom: 16px;
+  margin: 0 auto 16px;
   border-radius: 12px;
   opacity: 0.94;
 }
