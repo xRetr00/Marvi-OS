@@ -89,12 +89,65 @@ def test_a_reply_is_returned_and_remembered(store, tmp_path) -> None:
     assert roles == ["user", "assistant"]
 
 
-def test_deleting_the_reserved_conversation_resets_it_to_a_fresh_chat(store) -> None:
+def test_deleting_the_reserved_conversation_really_deletes_it(store) -> None:
+    """The default thread used to refuse to be deleted, so the Delete button on
+    the conversation you start in did nothing at all. It goes like any other --
+    the row is gone -- and comes back empty the next time anything asks."""
     store.append("user", "old message")
 
     assert store.delete_thread("default") == 1
+    rows = store._db.execute("SELECT id FROM threads WHERE id = 'default'").fetchall()
+    assert rows == []
+
     assert store.history(thread_id="default") == []
     assert store.get_thread("default")["title"] == "New conversation"
+
+
+def test_deleting_an_empty_conversation_is_still_a_delete(store) -> None:
+    """Zero messages removed is a successful delete, not a failed one."""
+    thread = store.create_thread("Nothing said here")
+
+    assert store.delete_thread(thread["id"]) == 0
+    with pytest.raises(KeyError):
+        store.get_thread(thread["id"])
+
+
+def test_a_title_the_user_typed_is_stored_as_typed(store) -> None:
+    """Renaming used to hand the words to a model and store what came back, so
+    the rename appeared to do nothing -- or something else."""
+    thread = store.create_thread()
+
+    renamed = store.update_thread(thread["id"], title="  Tax   return  2026 ")
+
+    assert renamed["title"] == "Tax return 2026"
+    assert store.get_thread(thread["id"])["title"] == "Tax return 2026"
+
+
+def test_a_new_thread_keeps_its_placeholder_so_it_can_be_auto_named(store) -> None:
+    """Distilling the placeholder at creation left the thread already named,
+    and auto-naming only renames a thread still holding a placeholder -- so
+    naming a new thread was what broke naming every thread."""
+    thread = store.create_thread()
+    assert thread["title"] == "New conversation"
+
+    store.append("user", "How do I renew my passport?", thread_id=thread["id"])
+
+    assert store.get_thread(thread["id"])["title"] != "New conversation"
+
+
+def test_auto_naming_leaves_a_thread_the_user_named_alone(store) -> None:
+    thread = store.create_thread()
+    store.update_thread(thread["id"], title="Passport stuff")
+
+    store.append("user", "How do I renew my passport?", thread_id=thread["id"])
+
+    assert store.get_thread(thread["id"])["title"] == "Passport stuff"
+
+
+def test_an_empty_title_falls_back_to_the_placeholder(store) -> None:
+    thread = store.create_thread()
+
+    assert store.update_thread(thread["id"], title="   ")["title"] == "New conversation"
 
 
 def test_history_is_replayed_so_it_is_one_conversation(store, tmp_path) -> None:

@@ -148,6 +148,19 @@ class InlineAsks:
             self._answers.clear()
 
 
+class Answer(BaseModel):
+    """What the window sends back.
+
+    Module level, not nested in the router: `from __future__ import
+    annotations` turns every annotation into a string, and FastAPI resolves
+    those against the *module* namespace. A function-local model is invisible
+    there, so the body silently became a required query parameter and every
+    answer came back 422.
+    """
+
+    answer: str = ""
+
+
 #: The process-wide registry. Chat's tool loop writes to it, the settle route
 #: reads it, and nothing else touches it.
 ASKS = InlineAsks()
@@ -156,12 +169,8 @@ ASKS = InlineAsks()
 def inline_router(store: InlineAsks) -> Any:
     """`POST /chat/ask/{id}` -- the window handing an answer back to a turn."""
     from fastapi import APIRouter, HTTPException
-    from pydantic import BaseModel as Body
 
     router = APIRouter()
-
-    class Answer(Body):
-        answer: str = ""
 
     @router.post("/chat/ask/{ask_id}")
     def settle(ask_id: str, body: Answer) -> dict[str, Any]:
