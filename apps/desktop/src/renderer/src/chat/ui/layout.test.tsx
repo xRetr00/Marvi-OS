@@ -46,7 +46,9 @@ describe('the transcript keeps the structure chat.css styles', () => {
     expect(html).toContain('chat-compose-leading')
     expect(html).toContain('chat-compose-controls')
     // `grid-area: input` only applies to a direct child of the row.
-    expect(html).toMatch(/class="chat-compose-row"><div class="chat-compose-leading">[\s\S]*?<textarea/)
+    expect(html).toMatch(
+      /class="chat-compose-row"><div class="chat-compose-leading">[\s\S]*?<textarea/
+    )
   })
 
   it('anchors the scroll-to-bottom button, and hides it at the bottom', () => {

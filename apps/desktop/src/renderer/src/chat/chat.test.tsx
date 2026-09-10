@@ -10,7 +10,6 @@ import { Sessions } from './components/Sessions'
 const at = '2026-08-17T14:05:00Z'
 const chatCss = readFileSync(join(__dirname, 'chat.css'), 'utf8').replace(/\r\n/g, '\n')
 
-
 describe('transcript visual contract', () => {
   it('keeps responses unboxed and work evidence subordinate', () => {
     const transcript = chatCss.slice(chatCss.lastIndexOf('/* Transcript hierarchy'))

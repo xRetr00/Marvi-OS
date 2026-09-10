@@ -12,11 +12,7 @@
  */
 
 import { useCallback, useRef, useState } from 'react'
-import {
-  ComposerPrimitive,
-  ThreadPrimitive,
-  unstable_useComposerInput
-} from '@assistant-ui/react'
+import { ComposerPrimitive, ThreadPrimitive, unstable_useComposerInput } from '@assistant-ui/react'
 
 import type { ChatAttachment } from '../../../../shared/runtime'
 import { AbstractIcon } from '../../components/abstract-icon'

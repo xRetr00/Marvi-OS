@@ -21,7 +21,14 @@
  */
 import { useState } from 'react'
 import { DataStream } from './ui/data-stream'
-import { HIGHEST, LOWEST, asEntries, loudest, readable, usableThreshold } from './wake-confidence-utils'
+import {
+  HIGHEST,
+  LOWEST,
+  asEntries,
+  loudest,
+  readable,
+  usableThreshold
+} from './wake-confidence-utils'
 import './wake-confidence.css'
 
 export function WakeConfidence({
@@ -71,12 +78,7 @@ export function WakeConfidence({
           type="number"
           value={typed}
         />
-        <button
-          className="wake-threshold-save"
-          disabled={!changed}
-          onClick={save}
-          type="button"
-        >
+        <button className="wake-threshold-save" disabled={!changed} onClick={save} type="button">
           Save
         </button>
       </div>
@@ -87,8 +89,8 @@ export function WakeConfidence({
       </p>
       {highest > 0 ? (
         <p className="wake-confidence-help">
-          The loudest false alarm you can see below scored {readable(highest)}. A threshold
-          above that would have stopped it.
+          The loudest false alarm you can see below scored {readable(highest)}. A threshold above
+          that would have stopped it.
         </p>
       ) : null}
       <DataStream

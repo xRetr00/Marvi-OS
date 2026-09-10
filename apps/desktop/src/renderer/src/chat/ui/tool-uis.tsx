@@ -49,10 +49,7 @@ export function WidgetToolUI({
 }
 
 /** A tool with no UI of its own. One line, past tense, no card. */
-export function ToolActivity({
-  toolName,
-  status
-}: ToolCallMessagePartProps): React.JSX.Element {
+export function ToolActivity({ toolName, status }: ToolCallMessagePartProps): React.JSX.Element {
   const running = status.type === 'running'
   return (
     <div className="chat-scaffold chat-inline-tool" data-conversation-scaffold="">

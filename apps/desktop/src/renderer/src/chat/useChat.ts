@@ -224,9 +224,7 @@ export function useChat(): UseChat {
                 ? {
                     ...message,
                     parts: message.parts.map((part) =>
-                      part.type === 'ask' && part.id === askId
-                        ? { ...part, answered: true }
-                        : part
+                      part.type === 'ask' && part.id === askId ? { ...part, answered: true } : part
                     )
                   }
                 : message

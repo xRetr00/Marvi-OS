@@ -35,7 +35,9 @@ function message(overrides: Partial<ChatMessage>): ChatMessage {
 
 describe('convertMessage', () => {
   it('carries text through as a text part', () => {
-    const converted = convertMessage(message({ content: 'hello', parts: [{ type: 'text', text: 'hello' }] }))
+    const converted = convertMessage(
+      message({ content: 'hello', parts: [{ type: 'text', text: 'hello' }] })
+    )
 
     expect(converted.role).toBe('user')
     expect(converted.content).toEqual([{ type: 'text', text: 'hello' }])
@@ -173,7 +175,13 @@ describe('convertMessage', () => {
       message({
         parts: [
           { type: 'text', text: 'see this' },
-          { type: 'attachment', attachment_id: 'a1', name: 'notes.md', media_type: 'text/markdown', size: 12 }
+          {
+            type: 'attachment',
+            attachment_id: 'a1',
+            name: 'notes.md',
+            media_type: 'text/markdown',
+            size: 12
+          }
         ],
         attachments: [
           {
@@ -234,7 +242,10 @@ describe('convertMessages', () => {
  */
 describe('the SDK accepts what we produce', () => {
   const accept = (converted: ReturnType<typeof convertMessage>): void => {
-    fromThreadMessageLike(converted as ThreadMessageLike, 'fallback', { type: 'complete', reason: 'stop' })
+    fromThreadMessageLike(converted as ThreadMessageLike, 'fallback', {
+      type: 'complete',
+      reason: 'stop'
+    })
   }
 
   it('accepts a plain user message', () => {
@@ -249,8 +260,14 @@ describe('the SDK accepts what we produce', () => {
             role: 'user',
             attachments: [
               {
-                id: 'a1', thread_id: 'default', message_id: null, name: 'notes.md',
-                media_type: 'text/markdown', size: 12, kind: 'document', created_at: at
+                id: 'a1',
+                thread_id: 'default',
+                message_id: null,
+                name: 'notes.md',
+                media_type: 'text/markdown',
+                size: 12,
+                kind: 'document',
+                created_at: at
               }
             ]
           })
@@ -288,8 +305,14 @@ describe('the SDK accepts what we produce', () => {
         role: 'assistant',
         attachments: [
           {
-            id: 'a1', thread_id: 'default', message_id: null, name: 'notes.md',
-            media_type: 'text/markdown', size: 12, kind: 'document', created_at: at
+            id: 'a1',
+            thread_id: 'default',
+            message_id: null,
+            name: 'notes.md',
+            media_type: 'text/markdown',
+            size: 12,
+            kind: 'document',
+            created_at: at
           }
         ]
       })
@@ -310,8 +333,13 @@ describe('the SDK accepts what we produce', () => {
           { type: 'tool', name: 'web_search', content: 'x' },
           { type: 'ask', id: 'q1', kind: 'clarify', question: 'Which?' },
           {
-            type: 'widget', id: 'w1', version: 1, kind: 'table', title: 'Rows',
-            status: 'complete', data: { columns: ['a'], rows: [['1']] }
+            type: 'widget',
+            id: 'w1',
+            version: 1,
+            kind: 'table',
+            title: 'Rows',
+            status: 'complete',
+            data: { columns: ['a'], rows: [['1']] }
           }
         ]
       })
@@ -321,7 +349,9 @@ describe('the SDK accepts what we produce', () => {
   })
 
   it('accepts an error row', () => {
-    expect(() => accept(convertMessage(message({ role: 'error', content: 'boom', parts: [] })))).not.toThrow()
+    expect(() =>
+      accept(convertMessage(message({ role: 'error', content: 'boom', parts: [] })))
+    ).not.toThrow()
   })
 
   it('accepts a whole converted thread', () => {

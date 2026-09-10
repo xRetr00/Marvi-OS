@@ -35,9 +35,7 @@ describe('the question Marvi puts on screen', () => {
   })
 
   it('falls back to a generic hint when the question carries none', () => {
-    const html = renderToStaticMarkup(
-      <AskingCard question={{ ...question, placeholder: '' }} />
-    )
+    const html = renderToStaticMarkup(<AskingCard question={{ ...question, placeholder: '' }} />)
     expect(html).toContain('Type your answer')
   })
 

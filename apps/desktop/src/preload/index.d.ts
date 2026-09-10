@@ -1,4 +1,11 @@
-import type { BrowserCommand, BrowserPlacement, BrowserProfileEdit, BrowserSession, BrowserStart, BrowserStatus } from '../shared/browser'
+import type {
+  BrowserCommand,
+  BrowserPlacement,
+  BrowserProfileEdit,
+  BrowserSession,
+  BrowserStart,
+  BrowserStatus
+} from '../shared/browser'
 import type {
   FaceLibrary,
   AuxiliaryPage,
@@ -213,11 +220,21 @@ export interface MarviDesktopApi {
     state: import('../shared/asking').Settled,
     answer?: string
   ) => Promise<{ ok: boolean; state: string }>
-  computerControl: (command: import('../shared/computer').ComputerCommand) => Promise<import('../shared/computer').ComputerStatus>
+  computerControl: (
+    command: import('../shared/computer').ComputerCommand
+  ) => Promise<import('../shared/computer').ComputerStatus>
   browserExportHelper: () => Promise<void>
-  browserImport: (profile: string, kind: 'cookies' | 'passwords') => Promise<{ imported: number; skipped: number } | null>
+  browserImport: (
+    profile: string,
+    kind: 'cookies' | 'passwords'
+  ) => Promise<{ imported: number; skipped: number } | null>
   placeBrowser: (placement: BrowserPlacement | null) => Promise<void>
-  browserAction: (id: string, revision: number, action: string, arguments_: Record<string, unknown>) => Promise<unknown>
+  browserAction: (
+    id: string,
+    revision: number,
+    action: string,
+    arguments_: Record<string, unknown>
+  ) => Promise<unknown>
   onBrowserReveal: (callback: () => void) => () => void
   startBrowser: (body: BrowserStart) => Promise<BrowserSession>
   browserControl: (id: string, revision: number, command: BrowserCommand) => Promise<BrowserSession>

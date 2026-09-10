@@ -3991,12 +3991,10 @@ function VoiceModelPicker({ current }: { current: string }): React.JSX.Element {
   const configured = providers?.selected
     ? rows.find((row) => row.provider === providers.selected)
     : undefined
-  const roleSelection = voiceRole && !voiceRole.auto ? `${voiceRole.provider}::${voiceRole.model}` : ''
+  const roleSelection =
+    voiceRole && !voiceRole.auto ? `${voiceRole.provider}::${voiceRole.model}` : ''
   const mainSelection = configured?.selected ? `${configured.provider}::${configured.selected}` : ''
-  const active =
-    chosen && chosen.includes('::')
-      ? chosen
-      : roleSelection || mainSelection
+  const active = chosen && chosen.includes('::') ? chosen : roleSelection || mainSelection
 
   const [activeProvider, ...activeModel] = active.split('::')
 
@@ -6659,7 +6657,12 @@ function IslandSurface(): React.JSX.Element {
   // something Marvi is holding mid-action and the user is waiting on; a
   // question is not urgent, and can wait for the turn to settle.
   const askingVisible = Boolean(asking && voice.phase !== 'confirmation')
-  const computerVisible = Boolean(computerStatus && (computerStatus.active || ['stopping', 'private', 'paused', 'unknown', 'unavailable'].includes(computerStatus.state)) && voice.phase !== 'confirmation')
+  const computerVisible = Boolean(
+    computerStatus &&
+    (computerStatus.active ||
+      ['stopping', 'private', 'paused', 'unknown', 'unavailable'].includes(computerStatus.state)) &&
+    voice.phase !== 'confirmation'
+  )
   const browserVisible = Boolean(browserSession && voice.phase === 'ready')
   const reduceMotion = useReducedMotion()
   const measureRef = useRef<HTMLDivElement>(null)
@@ -6670,7 +6673,8 @@ function IslandSurface(): React.JSX.Element {
   // idle Island, but never covers an active call or confirmation.
   const islandState = islandDisplayState(voice)
   const hasOrb = islandHasOrb(islandState)
-  const interactionMode = browserVisible || computerVisible ? 'interactive' : islandInteractionMode(islandState)
+  const interactionMode =
+    browserVisible || computerVisible ? 'interactive' : islandInteractionMode(islandState)
   const presentationKey = islandPresentationKey(islandState)
   const confirmationExpanded =
     islandState.phase === 'confirmation' && Boolean(islandState.confirmation)

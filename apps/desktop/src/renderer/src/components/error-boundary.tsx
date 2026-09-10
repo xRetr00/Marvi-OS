@@ -44,13 +44,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
 
   /** Everything somebody would need to paste into a bug report. */
   private details(error: Error): string {
-    return [
-      error.message || String(error),
-      '',
-      error.stack ?? '',
-      '',
-      this.state.stack
-    ].join('\n')
+    return [error.message || String(error), '', error.stack ?? '', '', this.state.stack].join('\n')
   }
 
   /**

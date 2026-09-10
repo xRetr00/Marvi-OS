@@ -38,7 +38,8 @@ export const ASK_TOOL = 'marvi_ask'
  * mismatch could actually bite.
  */
 /** What a tool-call part may carry. assistant-ui requires JSON, not `unknown`. */
-export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue }
+export type JsonValue =
+  string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue }
 export type JsonObject = { [key: string]: JsonValue }
 
 export type UiPart =
@@ -61,11 +62,14 @@ export interface UiMessage {
   content: UiPart[]
   id: string
   createdAt: Date
-  status?: { type: 'running' } | { type: 'complete'; reason: 'stop' } | {
-    type: 'incomplete'
-    reason: 'error'
-    error: string
-  }
+  status?:
+    | { type: 'running' }
+    | { type: 'complete'; reason: 'stop' }
+    | {
+        type: 'incomplete'
+        reason: 'error'
+        error: string
+      }
   attachments?: {
     id: string
     type: 'document'
@@ -172,7 +176,9 @@ function convertPart(part: ChatPart, message: ChatMessage, index: number): UiPar
   }
 }
 
-function convertAttachment(attachment: ChatAttachment): NonNullable<UiMessage['attachments']>[number] {
+function convertAttachment(
+  attachment: ChatAttachment
+): NonNullable<UiMessage['attachments']>[number] {
   return {
     id: attachment.id,
     type: 'document',

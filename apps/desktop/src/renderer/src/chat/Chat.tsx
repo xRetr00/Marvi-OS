@@ -43,9 +43,7 @@ export function Chat({ onExit }: { onExit: () => void }): React.JSX.Element {
     [chat.messages]
   )
   const tool = streaming ? metaValue(streaming.meta, 'tool') : ''
-  const activity = tool
-    ? `Marvi is using ${tool.replaceAll(/[_-]+/g, ' ')}`
-    : 'Marvi is thinking'
+  const activity = tool ? `Marvi is using ${tool.replaceAll(/[_-]+/g, ' ')}` : 'Marvi is thinking'
 
   // The spinner offers Escape as the way out, so Escape has to be the way out.
   useEffect(() => {

@@ -1367,35 +1367,58 @@ if (!app.requestSingleInstanceLock()) {
 function startApp(): void {
   app.whenReady().then(() => {
     app.setAppUserModelId('ai.neuretro.marvi-os')
-    browserHost = new BrowserHost(join(stateDir(), 'browser'), () => {
-      showMainWindow()
-      mainWindow?.webContents.send('marvi:browser-reveal')
-    }, (method, error) => {
-      const name = /^[A-Za-z]+\.[A-Za-z0-9]+$/.test(method) ? method : 'invalid'
-      desktop.warn(`Browser protocol failed: method=${name} error_type=${error instanceof Error ? error.name : 'unknown'}`)
-    }, async id => {
-      const status = await gatewayJson('/browser') as { sessions?: { id: string; revision: number; state: string }[] } | null
-      const current = status?.sessions?.find(s => s.id === id)
-      if (!current) throw new Error('Browser session unavailable')
-      if (current.state === 'private') return
-      const result = await gatewayJson(`/browser/${id}/control`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: current.revision, command: 'private' })
-      }, 65000) as { state?: string } | null
-      if (result?.state !== 'private') throw new Error('Private input was not acknowledged')
-    })
-    void browserHost.start().then(() => {
-      const register = async (): Promise<void> => {
-        try {
-          await fetch(`${gateway()}/browser/host`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json', ...localHeaders() },
-            body: JSON.stringify({ endpoint: browserHost?.endpoint, token: browserHost?.token }),
-            signal: AbortSignal.timeout(3000)
-          })
-        } catch { /* Gateway may still be starting. */ }
+    browserHost = new BrowserHost(
+      join(stateDir(), 'browser'),
+      () => {
+        showMainWindow()
+        mainWindow?.webContents.send('marvi:browser-reveal')
+      },
+      (method, error) => {
+        const name = /^[A-Za-z]+\.[A-Za-z0-9]+$/.test(method) ? method : 'invalid'
+        desktop.warn(
+          `Browser protocol failed: method=${name} error_type=${error instanceof Error ? error.name : 'unknown'}`
+        )
+      },
+      async (id) => {
+        const status = (await gatewayJson('/browser')) as {
+          sessions?: { id: string; revision: number; state: string }[]
+        } | null
+        const current = status?.sessions?.find((s) => s.id === id)
+        if (!current) throw new Error('Browser session unavailable')
+        if (current.state === 'private') return
+        const result = (await gatewayJson(
+          `/browser/${id}/control`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ revision: current.revision, command: 'private' })
+          },
+          65000
+        )) as { state?: string } | null
+        if (result?.state !== 'private') throw new Error('Private input was not acknowledged')
       }
-      void register()
-      browserHostPoll = setInterval(() => { void register() }, 3000)
-    }).catch(() => desktop.warn('Embedded browser host could not start'))
+    )
+    void browserHost
+      .start()
+      .then(() => {
+        const register = async (): Promise<void> => {
+          try {
+            await fetch(`${gateway()}/browser/host`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', ...localHeaders() },
+              body: JSON.stringify({ endpoint: browserHost?.endpoint, token: browserHost?.token }),
+              signal: AbortSignal.timeout(3000)
+            })
+          } catch {
+            /* Gateway may still be starting. */
+          }
+        }
+        void register()
+        browserHostPoll = setInterval(() => {
+          void register()
+        }, 3000)
+      })
+      .catch(() => desktop.warn('Embedded browser host could not start'))
     // `marvi update` launches the packaged executable with this private flag.
     // Hand off before starting services or creating windows when Marvi was
     // closed; an existing instance reaches the branch above instead.
@@ -2104,7 +2127,9 @@ function startApp(): void {
     ipcMain.handle('marvi:get-browser', () => browserRequest(''))
     ipcMain.handle('marvi:get-computer', (_event, after?: number) =>
       gatewayJson(
-        Number.isSafeInteger(after) && (after as number) >= 0 ? `/computer?after=${after}` : '/computer',
+        Number.isSafeInteger(after) && (after as number) >= 0
+          ? `/computer?after=${after}`
+          : '/computer',
         undefined,
         30_000
       )
@@ -2125,51 +2150,77 @@ function startApp(): void {
       return response.json()
     })
     ipcMain.handle('marvi:computer-control', async (_event, command) => {
-      if (!['stop', 'private', 'resume'].includes(command)) throw new Error('Invalid computer control')
+      if (!['stop', 'private', 'resume'].includes(command))
+        throw new Error('Invalid computer control')
       const response = await fetch(`${gateway()}/computer/control`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', ...localHeaders() },
-        body: JSON.stringify({ command }), signal: AbortSignal.timeout(65_000)
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...localHeaders() },
+        body: JSON.stringify({ command }),
+        signal: AbortSignal.timeout(65_000)
       })
       if (!response.ok) throw await gatewayFailure(response, 'Computer control failed')
       return response.json()
     })
-    ipcMain.handle('marvi:browser-export-helper', async event => {
-      if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error('Invalid browser caller')
+    ipcMain.handle('marvi:browser-export-helper', async (event) => {
+      if (!mainWindow || event.sender !== mainWindow.webContents)
+        throw new Error('Invalid browser caller')
       const target = join(stateDir(), 'browser', 'import-helper')
       cpSync(join(app.getAppPath(), 'resources', 'browser-import'), target, { recursive: true })
       const error = await shell.openPath(target)
       if (error) throw new Error('The exporter folder could not open')
     })
     ipcMain.handle('marvi:browser-import', async (event, profile, kind) => {
-      if (!mainWindow || event.sender !== mainWindow.webContents || !browserHost || !['cookies', 'passwords'].includes(kind)) throw new Error('Invalid import request')
-      const status = await browserRequest('') as { profiles: { id: string }[] }
-      if (!status.profiles.some(item => item.id === profile)) throw new Error('Unknown profile')
+      if (
+        !mainWindow ||
+        event.sender !== mainWindow.webContents ||
+        !browserHost ||
+        !['cookies', 'passwords'].includes(kind)
+      )
+        throw new Error('Invalid import request')
+      const status = (await browserRequest('')) as { profiles: { id: string }[] }
+      if (!status.profiles.some((item) => item.id === profile)) throw new Error('Unknown profile')
       const selection = await dialog.showOpenDialog(mainWindow, {
         title: kind === 'passwords' ? 'Import Chrome password CSV' : 'Import browser cookie JSON',
-        properties: ['openFile'], filters: [{ name: 'Browser export', extensions: [kind === 'passwords' ? 'csv' : 'json'] }]
+        properties: ['openFile'],
+        filters: [{ name: 'Browser export', extensions: [kind === 'passwords' ? 'csv' : 'json'] }]
       })
       if (selection.canceled || selection.filePaths.length !== 1) return null
-      try { return await browserHost.importProfile(profile, kind, selection.filePaths[0]) }
-      catch { throw new Error('Import failed. Check the export format and close the selected browser profile first.') }
+      try {
+        return await browserHost.importProfile(profile, kind, selection.filePaths[0])
+      } catch {
+        throw new Error(
+          'Import failed. Check the export format and close the selected browser profile first.'
+        )
+      }
     })
     ipcMain.handle('marvi:place-browser', (event, placement) => {
-      if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error('Invalid browser caller')
+      if (!mainWindow || event.sender !== mainWindow.webContents)
+        throw new Error('Invalid browser caller')
       browserHost?.place(mainWindow, placement)
     })
     ipcMain.handle('marvi:browser-action', (_event, id, revision, action, arguments_) => {
       if (typeof id !== 'string' || !/^[a-f0-9]{32}$/.test(id)) throw new Error('Invalid session')
-      if (!['navigate', 'new_tab', 'close_tab', 'back', 'reload'].includes(action)) throw new Error('Invalid browser action')
-      return browserRequest(`/${id}/action`, { revision, action, arguments: arguments_, action_id: randomBytes(16).toString('hex') })
+      if (!['navigate', 'new_tab', 'close_tab', 'back', 'reload'].includes(action))
+        throw new Error('Invalid browser action')
+      return browserRequest(`/${id}/action`, {
+        revision,
+        action,
+        arguments: arguments_,
+        action_id: randomBytes(16).toString('hex')
+      })
     })
     ipcMain.handle('marvi:start-browser', (_event, body) => browserRequest('/start', body))
     ipcMain.handle('marvi:browser-profile', (_event, body) => browserRequest('/profiles', body))
     ipcMain.handle('marvi:browser-save-download', (_event, id, artifact, destination) => {
-      if (typeof id !== 'string' || !/^[a-f0-9]{32}$/.test(id)) throw new Error('Invalid browser session')
+      if (typeof id !== 'string' || !/^[a-f0-9]{32}$/.test(id))
+        throw new Error('Invalid browser session')
       return browserRequest(`/${id}/download`, { artifact, destination })
     })
     ipcMain.handle('marvi:browser-control', (_event, id, revision, command) => {
-      if (typeof id !== 'string' || !/^[a-f0-9]{32}$/.test(id)) throw new Error('Invalid browser session')
-      if (!['pause', 'private', 'resume', 'stop', 'show', 'close'].includes(command)) throw new Error('Invalid browser command')
+      if (typeof id !== 'string' || !/^[a-f0-9]{32}$/.test(id))
+        throw new Error('Invalid browser session')
+      if (!['pause', 'private', 'resume', 'stop', 'show', 'close'].includes(command))
+        throw new Error('Invalid browser command')
       return browserRequest(`/${id}/control`, { revision, command })
     })
     ipcMain.handle('marvi:add-schedule', (_event, body) =>
@@ -3595,11 +3646,13 @@ app.on('before-quit', (event) => {
       // Chromium flushes profile storage, then run the normal shutdown path.
       void Promise.race([
         browserHost.close(),
-        new Promise<void>(resolve => setTimeout(resolve, 5000))
-      ]).catch(() => {}).finally(() => {
-        browserShutdownFinished = true
-        app.quit()
-      })
+        new Promise<void>((resolve) => setTimeout(resolve, 5000))
+      ])
+        .catch(() => {})
+        .finally(() => {
+          browserShutdownFinished = true
+          app.quit()
+        })
     }
     return
   }

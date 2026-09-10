@@ -2,3 +2,11 @@ singleQuote: true
 semi: false
 printWidth: 100
 trailingComma: none
+# Keep whatever line ending the file already has.
+#
+# The default is `lf`, so on a Windows checkout with `core.autocrlf` every CRLF
+# line in the repository became a prettier warning: 19,208 of them, on lines
+# nobody had touched. That volume is worse than no warnings at all -- it buries
+# the ones that mean something, and "0 errors, 19,208 warnings" trains everyone
+# to stop reading the output.
+endOfLine: auto

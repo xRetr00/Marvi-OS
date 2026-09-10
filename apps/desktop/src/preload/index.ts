@@ -1,5 +1,12 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { BrowserCommand, BrowserPlacement, BrowserProfileEdit, BrowserSession, BrowserStart, BrowserStatus } from '../shared/browser'
+import type {
+  BrowserCommand,
+  BrowserPlacement,
+  BrowserProfileEdit,
+  BrowserSession,
+  BrowserStart,
+  BrowserStatus
+} from '../shared/browser'
 import type {
   FaceLibrary,
   AuxiliaryPage,
@@ -167,16 +174,13 @@ const marvi = {
   getResources: (): Promise<ResourceState | null> => ipcRenderer.invoke('marvi:get-resources'),
   holdResources: (on: boolean): Promise<ResourceState | null> =>
     ipcRenderer.invoke('marvi:hold-resources', on),
-  openExternal: (url: string): Promise<boolean> =>
-    ipcRenderer.invoke('marvi:open-external', url),
-  getPersonas: (): Promise<PersonaChoice | null> =>
-    ipcRenderer.invoke('marvi:get-personas'),
+  openExternal: (url: string): Promise<boolean> => ipcRenderer.invoke('marvi:open-external', url),
+  getPersonas: (): Promise<PersonaChoice | null> => ipcRenderer.invoke('marvi:get-personas'),
   choosePersona: (name: string): Promise<PersonaChoice | null> =>
     ipcRenderer.invoke('marvi:choose-persona', name),
   getResourceHistory: (limit?: number): Promise<ResourceLedger | null> =>
     ipcRenderer.invoke('marvi:resource-history', limit ?? 240),
-  getResourceNow: (): Promise<ResourceReading | null> =>
-    ipcRenderer.invoke('marvi:resource-now'),
+  getResourceNow: (): Promise<ResourceReading | null> => ipcRenderer.invoke('marvi:resource-now'),
   setInitiative: (paused: boolean): Promise<InitiativeStatus | null> =>
     ipcRenderer.invoke('marvi:set-initiative', paused),
   setMindSettings: (patch: MindSettingsPatch): Promise<InitiativeStatus | null> =>
@@ -311,29 +315,53 @@ const marvi = {
   openMaintenanceTerminal: (action: MaintenanceAction): Promise<boolean> =>
     ipcRenderer.invoke('marvi:open-maintenance-terminal', action),
   getSchedules: (): Promise<SchedulePage | null> => ipcRenderer.invoke('marvi:get-schedules'),
-  getComputer: (after?: number): Promise<import('../shared/computer').ComputerStatus> => ipcRenderer.invoke('marvi:get-computer', after),
-  getAsking: (): Promise<import('../shared/asking').Asking> => ipcRenderer.invoke('marvi:get-asking'),
+  getComputer: (after?: number): Promise<import('../shared/computer').ComputerStatus> =>
+    ipcRenderer.invoke('marvi:get-computer', after),
+  getAsking: (): Promise<import('../shared/asking').Asking> =>
+    ipcRenderer.invoke('marvi:get-asking'),
   settleAsking: (
     id: string,
     state: import('../shared/asking').Settled,
     answer?: string
   ): Promise<{ ok: boolean; state: string }> =>
     ipcRenderer.invoke('marvi:settle-asking', id, state, answer ?? ''),
-  computerControl: (command: import('../shared/computer').ComputerCommand): Promise<import('../shared/computer').ComputerStatus> => ipcRenderer.invoke('marvi:computer-control', command),
+  computerControl: (
+    command: import('../shared/computer').ComputerCommand
+  ): Promise<import('../shared/computer').ComputerStatus> =>
+    ipcRenderer.invoke('marvi:computer-control', command),
   getBrowser: (): Promise<BrowserStatus> => ipcRenderer.invoke('marvi:get-browser'),
   browserExportHelper: (): Promise<void> => ipcRenderer.invoke('marvi:browser-export-helper'),
-  browserImport: (profile: string, kind: 'cookies' | 'passwords'): Promise<{ imported: number; skipped: number } | null> => ipcRenderer.invoke('marvi:browser-import', profile, kind),
-  placeBrowser: (placement: BrowserPlacement | null): Promise<void> => ipcRenderer.invoke('marvi:place-browser', placement),
-  browserAction: (id: string, revision: number, action: string, arguments_: Record<string, unknown>): Promise<unknown> => ipcRenderer.invoke('marvi:browser-action', id, revision, action, arguments_),
+  browserImport: (
+    profile: string,
+    kind: 'cookies' | 'passwords'
+  ): Promise<{ imported: number; skipped: number } | null> =>
+    ipcRenderer.invoke('marvi:browser-import', profile, kind),
+  placeBrowser: (placement: BrowserPlacement | null): Promise<void> =>
+    ipcRenderer.invoke('marvi:place-browser', placement),
+  browserAction: (
+    id: string,
+    revision: number,
+    action: string,
+    arguments_: Record<string, unknown>
+  ): Promise<unknown> =>
+    ipcRenderer.invoke('marvi:browser-action', id, revision, action, arguments_),
   onBrowserReveal: (callback: () => void): (() => void) => {
     ipcRenderer.on('marvi:browser-reveal', callback)
-    return () => { ipcRenderer.removeListener('marvi:browser-reveal', callback) }
+    return () => {
+      ipcRenderer.removeListener('marvi:browser-reveal', callback)
+    }
   },
-  startBrowser: (body: BrowserStart): Promise<BrowserSession> => ipcRenderer.invoke('marvi:start-browser', body),
-  browserControl: (id: string, revision: number, command: BrowserCommand): Promise<BrowserSession> =>
-    ipcRenderer.invoke('marvi:browser-control', id, revision, command),
-  browserProfile: (body: BrowserProfileEdit): Promise<unknown> => ipcRenderer.invoke('marvi:browser-profile', body),
-  browserSaveDownload: (id: string, artifact: string, destination: string): Promise<unknown> => ipcRenderer.invoke('marvi:browser-save-download', id, artifact, destination),
+  startBrowser: (body: BrowserStart): Promise<BrowserSession> =>
+    ipcRenderer.invoke('marvi:start-browser', body),
+  browserControl: (
+    id: string,
+    revision: number,
+    command: BrowserCommand
+  ): Promise<BrowserSession> => ipcRenderer.invoke('marvi:browser-control', id, revision, command),
+  browserProfile: (body: BrowserProfileEdit): Promise<unknown> =>
+    ipcRenderer.invoke('marvi:browser-profile', body),
+  browserSaveDownload: (id: string, artifact: string, destination: string): Promise<unknown> =>
+    ipcRenderer.invoke('marvi:browser-save-download', id, artifact, destination),
   addSchedule: (body: {
     name: string
     when: string
