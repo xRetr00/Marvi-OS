@@ -24,6 +24,9 @@
         selected_provider: '', selected_model: '', selected_effort: ''
       }
       const runtime = {
+        state: 'ready',
+        components: { gateway: { state: 'ready', detail: 'ok' } },
+        model: { llm: 'test-model', stt: '', tts: '' },
         assistant: { phase: 'idle', question: null, secret: null, caption: '' },
         confirmation: null, announcement: null, listening: false, speaking: false
       }
@@ -33,17 +36,32 @@
         getRuntime: runtime,
         getModels: { providers: [] },
         getProviders: { selected: '', providers: [] },
-        getAsking: { waiting: [] }
+        getAsking: { waiting: [] },
+        getUsage: { tokens: { billable: 0, cached_input: 0, input: 0, output: 0 }, billable: 0, sessions: [], days: [] },
+        getSessionUsage: { tokens: { billable: 0, cached_input: 0 } },
+        getActivity: { events: [] },
+        getEvents: { events: [] }
       }
       window.marvi = new Proxy({}, {
         get(_t, key) {
           const k = String(key)
           if (k.startsWith('on')) return () => () => {}
           if (k === 'then') return undefined
-          return async () => (k in shapes ? shapes[k] : {})
+          return async () => {
+            if (k in shapes) return shapes[k]
+            // Unknown calls answer with something that survives both
+            // `for (const x of r.events)` and `r.foo.bar` probing.
+            return new Proxy({ events: [], items: [], entries: [], waiting: [] }, {
+              get(t, prop) {
+                if (prop in t) return t[prop]
+                if (prop === Symbol.iterator) return undefined
+                return {}
+              }
+            })
+          }
         }
       })
-      await import('/src/main.tsx')
+      await import(new URLSearchParams(location.search).get('shell') ? '/src/main.tsx' : '/src/probe-main.tsx')
     </script>
   </body>
 </html>
