@@ -265,9 +265,16 @@ class ChatStore:
             if name not in columns:
                 self._db.execute(f"ALTER TABLE messages ADD COLUMN {name} {declaration}")
         thread_columns = {row["name"] for row in self._db.execute("PRAGMA table_info(threads)")}
-        for name in ("selected_provider", "selected_model", "selected_effort"):
+        # `channel` is where the conversation lives when it is not this window:
+        # "telegram" for a phone chat, empty for an ordinary thread.
+        for name in ("selected_provider", "selected_model", "selected_effort", "channel"):
             if name not in thread_columns:
                 self._db.execute(f"ALTER TABLE threads ADD COLUMN {name} TEXT NOT NULL DEFAULT ''")
+        if "channel" not in thread_columns:
+            # The first Telegram build marked its threads by title only.
+            self._db.execute(
+                "UPDATE threads SET channel = 'telegram' WHERE title LIKE 'Telegram · %'"
+            )
 
         now = self._now()
         # Retire any thread literally called `default`.
@@ -475,7 +482,7 @@ class ChatStore:
         ).fetchall()
         return [self._row(row) for row in reversed(rows)]
 
-    def create_thread(self, title: str = "New conversation") -> dict[str, Any]:
+    def create_thread(self, title: str = "New conversation", channel: str = "") -> dict[str, Any]:
         identifier = uuid4().hex
         now = self._now()
         # Verbatim. `_title` distils with a model, and running the placeholder
@@ -484,8 +491,8 @@ class ChatStore:
         # renames threads still holding a placeholder. Naming a new thread was
         # what broke naming every thread.
         self._db.execute(
-            "INSERT INTO threads (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)",
-            (identifier, _clean_title(title), now, now),
+            "INSERT INTO threads (id, title, created_at, updated_at, channel) VALUES (?, ?, ?, ?, ?)",
+            (identifier, _clean_title(title), now, now, channel),
         )
         self._db.commit()
         return self.get_thread(identifier)
@@ -513,8 +520,11 @@ class ChatStore:
         # every time anything is written, so two calls in one turn could land
         # in two different threads -- which is how a turn came to append its
         # message to one conversation and read its context from another.
+        # Never a channel's thread: the window's "current conversation" must
+        # not turn out to be the one being mirrored to somebody's phone.
         home = self._db.execute(
-            "SELECT id FROM threads WHERE archived = 0 ORDER BY created_at, rowid LIMIT 1"
+            "SELECT id FROM threads WHERE archived = 0 AND channel = '' "
+            "ORDER BY created_at, rowid LIMIT 1"
         ).fetchone()
         if home is not None:
             return str(home["id"])
@@ -540,6 +550,7 @@ class ChatStore:
             "selected_provider": row["selected_provider"],
             "selected_model": row["selected_model"],
             "selected_effort": row["selected_effort"],
+            "channel": row["channel"],
             "message_count": int(count),
         }
 

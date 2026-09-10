@@ -248,6 +248,13 @@ def pcm16_from_audio(data: bytes) -> bytes:
     return bytes(pcm)
 
 
+def _qr(link: str) -> str:
+    """The link as an SVG data URI: an image the renderer's CSP already allows."""
+    import segno
+
+    return segno.make(link, error="m").svg_data_uri(scale=6, border=2, dark="#000", light="#fff")
+
+
 def _profile_photo() -> bytes:
     """The app icon as the square JPEG Telegram wants for a profile photo."""
     from PIL import Image
@@ -367,9 +374,14 @@ class TelegramBridge:
         pairing = None
         if self._pairing and self._pairing[1] > time.time() and bot is not None:
             code, expires = self._pairing
+            link = f"https://t.me/{bot.username}?start={code}"
             pairing = {
                 "code": code,
-                "link": f"https://t.me/{bot.username}?start={code}",
+                "link": link,
+                # For the phone camera. `t.me` opened on a PC hands off to
+                # `tg://`, which only Telegram Desktop can answer -- without it
+                # Windows reports "no app associated" and nothing links.
+                "qr": _qr(link),
                 "expires_at": datetime.fromtimestamp(expires, UTC).isoformat(),
             }
         return {
@@ -591,7 +603,7 @@ class TelegramBridge:
                 return str(known)
             except KeyError:
                 pass  # deleted from the Chat sidebar; start a new one
-        made = self.chat.store.create_thread(f"Telegram · {name or 'you'}")
+        made = self.chat.store.create_thread(name or "Telegram", channel="telegram")
         threads[str(chat_id)] = made["id"]
         self.state.save()
         return str(made["id"])

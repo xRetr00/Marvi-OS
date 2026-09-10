@@ -132,6 +132,21 @@ def test_a_link_code_works_once(tmp_path) -> None:
     assert not bridge.is_owner(99)
 
 
+def test_the_link_comes_as_a_qr_code_for_the_phone(tmp_path) -> None:
+    """`t.me` on a PC needs Telegram Desktop; a phone camera needs nothing."""
+    pairing = connected(tmp_path).pair()
+    assert pairing["link"].startswith("https://t.me/marvi_bot?start=")
+    assert pairing["qr"].startswith("data:image/svg+xml")
+
+
+def test_telegram_threads_are_marked_and_never_the_windows_default(tmp_path) -> None:
+    store = ChatStore(tmp_path / "chat.sqlite3")
+    store.delete_thread(store.threads()[0]["id"])  # only a phone thread will remain
+    phone = store.create_thread("Sam", channel="telegram")
+    assert store.get_thread(phone["id"])["channel"] == "telegram"
+    assert store.resolve("default") != phone["id"]
+
+
 def test_an_expired_code_links_nobody(tmp_path) -> None:
     bridge = connected(tmp_path)
     code = bridge.pair()["code"]
@@ -479,6 +494,7 @@ async def test_link_talk_and_approve_over_the_real_sdk(
         await until(lambda: any("<b>done</b>" in s for s in fake_telegram.said()))
         thread = bridge.status()["thread_id"]
         assert [r["role"] for r in chat.store.history(thread_id=thread)] == ["user", "assistant"]
+        assert chat.store.get_thread(thread)["channel"] == "telegram"
 
         # Approve goes through the Gateway's confirmation path, then she carries on.
         before = len(fake_telegram.said())
