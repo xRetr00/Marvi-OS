@@ -21,6 +21,21 @@ MARVI_ART = (
 
 # U+FE0E requests text presentation so Windows terminals keep these Claude-style
 # frames monochrome instead of selecting an emoji glyph with a colored backdrop.
+MARVI_SPINNER_FRAMES = (
+    "\u00b7\ufe0e",  # ·
+    "\u2732\ufe0e",  # ✲
+    "\u2735\ufe0e",  # ✵
+    "\u2736\ufe0e",  # ✶
+    "\u2737\ufe0e",  # ✷
+    "\u2738\ufe0e",  # ✸
+    "\u2739\ufe0e",  # ✹
+    "\u273a\ufe0e",  # ✺
+    "\u273b\ufe0e",  # ✻
+    "\u273c\ufe0e",  # ✼
+    "\u273d\ufe0e",  # ✽
+    "\u273e\ufe0e",  # ✾
+    "\u273f\ufe0e",  # ✿
+)
 LOADING_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%&*+-"
 LOADING_FRAME_SECONDS = 0.035
 LOADING_FRAMES_PER_CHAR = 3
@@ -71,10 +86,18 @@ class TextLoading:
                 frame.append(LOADING_CHARS[(index * 17 + slot) % len(LOADING_CHARS)])
         return "".join(frame)
 
+    def spinner(self, now: float | None = None) -> str:
+        elapsed = (monotonic() if now is None else now) - self.started
+        slot = max(0, int(elapsed / LOADING_FRAME_SECONDS))
+        return MARVI_SPINNER_FRAMES[slot % len(MARVI_SPINNER_FRAMES)]
+
+    def render(self, now: float | None = None) -> str:
+        return f"{self.spinner(now)} {self.frame(now)}"
+
     def __rich_console__(self, _console: Any, _options: Any) -> Iterator[Any]:
         from rich.text import Text
 
-        yield Text(self.frame(), style=CRAIL)
+        yield Text(self.render(), style=CRAIL)
 
 
 def version(root: Path) -> str:

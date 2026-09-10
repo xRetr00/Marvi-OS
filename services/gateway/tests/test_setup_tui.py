@@ -207,6 +207,16 @@ def test_loading_text_resolves_left_to_right() -> None:
     assert final == loading.message
 
 
+def test_loading_text_includes_the_requested_spinner() -> None:
+    from marvi_gateway import terminal_ui
+
+    loading = terminal_ui.TextLoading("MARVI IS THINKING...", started=0)
+
+    assert terminal_ui.MARVI_SPINNER_FRAMES[0] in loading.render(now=0)
+    assert all(frame.endswith("\ufe0e") for frame in terminal_ui.MARVI_SPINNER_FRAMES)
+    assert len(terminal_ui.MARVI_SPINNER_FRAMES) == 13
+
+
 def test_component_selection_only_installs_selected_entries(monkeypatch) -> None:
     from io import StringIO
     from types import SimpleNamespace
