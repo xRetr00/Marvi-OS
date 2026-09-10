@@ -109,9 +109,12 @@ try:
         print(json.dumps({"fixture_cursor_capture": str(root / "cursor.png")}))
     assert cursor["session"] == "Marvi" and cursor["enabled"]
     assert cursor["theme"]["id"] == "cua.default"
-    print(json.dumps({"cursor_position": cursor.get("position"), "cursor_action": cursor.get("visual_state", {}).get("requested_action")}))
+    assert cursor["visual_state"]["requested_action"] == "navigate"
     service.control("stop")
     cursor_state(ended=True)
+    if os.environ.get("MARVI_CURSOR_VISUAL_PROOF") == "true":
+        time.sleep(0.15)
+        ImageGrab.grab(bbox=crop, include_layered_windows=True, all_screens=True).save(root / "cursor-paused.png")
     service.control("resume")
     act("get_window_state", {"pid": pid, "window_id": window})
     assert cursor_state()["enabled"]
