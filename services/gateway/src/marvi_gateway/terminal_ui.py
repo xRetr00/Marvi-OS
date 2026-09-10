@@ -19,6 +19,27 @@ MARVI_ART = (
 
 MARVI_SPINNER_FRAMES = ("\u00b7", "\u2732", "\u2733", "\u2736", "\u273b", "\u273d")
 
+# Claude's Crail / Cloudy / Pampas palette, with semantic terminal colors.
+CRAIL = "#c15f3c"
+CLOUDY = "#b1ada1"
+PAMPAS = "#f4f3ee"
+SUCCESS = "#4daA72"
+WARNING = "#d99a4a"
+ERROR = "#d85b5b"
+INFO = "#78a9c7"
+
+
+def styled(text: str, color: str, *, bold: bool = False) -> str:
+    weight = "bold " if bold else ""
+    return f"[{weight}{color}]{text}[/{weight}{color}]"
+
+
+def status_mark(status: str) -> str:
+    colors = {"ok": SUCCESS, "warn": WARNING, "fail": ERROR}
+    labels = {"ok": "OK", "warn": "WARN", "fail": "FAIL"}
+    color = colors.get(status, CLOUDY)
+    return styled(labels.get(status, status.upper()), color, bold=True)
+
 
 def version(root: Path) -> str:
     """Read the single product version source used by the repository."""
@@ -34,9 +55,10 @@ def header(console: Any, root: Path, section: str) -> None:
 
     console.print(
         Panel.fit(
-            f"[bold #c15f3c]{MARVI_ART}[/bold #c15f3c]\n"
-            f"[bold cyan]MARVI OS[/bold cyan]  [dim]v{version(root)}  |  {section}[/dim]",
-            border_style="blue",
+            f"{styled(MARVI_ART, CRAIL, bold=True)}\n"
+            f"{styled('MARVI OS', CRAIL, bold=True)}  "
+            f"{styled(f'v{version(root)}  |  {section}', CLOUDY)}",
+            border_style=CRAIL,
             padding=(1, 2),
         )
     )
@@ -48,7 +70,7 @@ def activity(console: Any, message: str) -> Iterator[None]:
     from rich.live import Live
     from rich.spinner import Spinner
 
-    spinner = Spinner("dots", text=f"[cyan]{message}[/cyan]", style="cyan")
+    spinner = Spinner("dots", text=styled(message, CRAIL), style=CRAIL)
     spinner.frames = [str(frame) for frame in MARVI_SPINNER_FRAMES]
     spinner.interval = 80
     live = Live(spinner, console=console, refresh_per_second=12, transient=True)

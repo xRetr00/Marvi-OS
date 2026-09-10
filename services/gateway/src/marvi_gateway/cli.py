@@ -102,9 +102,8 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         table.add_column("Check")
         table.add_column("Details")
         for finding in findings:
-            color = {"ok": "green", "warn": "yellow", "fail": "red"}[finding.status]
             table.add_row(
-                f"[{color}]{finding.status.upper()}[/{color}]",
+                terminal_ui.status_mark(finding.status),
                 finding.area,
                 finding.check,
                 finding.detail,

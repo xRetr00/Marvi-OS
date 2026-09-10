@@ -26,6 +26,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from .. import terminal_ui
 from ..providers import config as provider_config
 
 #: Settings that switch a capability on, or give it what it needs to work.
@@ -191,14 +192,14 @@ def _shown(setting: Setting) -> str:
     raw = os.environ.get(setting.name, "").strip()
     if not raw:
         if not setting.default:
-            return "[dim]not set[/dim]"
+            return terminal_ui.styled("not set", terminal_ui.CLOUDY)
         word = ("on" if _on(setting.default) else "off") if setting.boolean else setting.default
-        return f"[dim]{word} (default)[/dim]"
+        return terminal_ui.styled(f"{word} (default)", terminal_ui.CLOUDY)
     if setting.secret:
-        return f"[green]{provider_config.mask(raw)}[/green]"
+        return terminal_ui.styled(provider_config.mask(raw), terminal_ui.SUCCESS)
     if setting.boolean:
-        return "[green]on[/green]" if _on(raw) else "[yellow]off[/yellow]"
-    return f"[green]{raw}[/green]"
+        return terminal_ui.styled("on", terminal_ui.SUCCESS) if _on(raw) else terminal_ui.styled("off", terminal_ui.WARNING)
+    return terminal_ui.styled(raw, terminal_ui.INFO)
 
 
 def _ready(capability: Capability) -> bool:
@@ -239,8 +240,6 @@ def run(
     from rich.console import Console
     from rich.prompt import Prompt
 
-    from .. import terminal_ui
-
     console = console or Console()
     provider_config.load_into_environ()
 
@@ -255,9 +254,9 @@ def run(
         console.print(_capabilities_table())
 
         console.print(
-            "\n[bold cyan]1[/bold cyan] Install components   "
-            "[bold cyan]2[/bold cyan] Tools and keys   "
-            "[bold cyan]3[/bold cyan] Quit"
+            f"\n{terminal_ui.styled('1', terminal_ui.CRAIL, bold=True)} Install components   "
+            f"{terminal_ui.styled('2', terminal_ui.CRAIL, bold=True)} Tools and keys   "
+            f"{terminal_ui.styled('3', terminal_ui.CRAIL, bold=True)} Quit"
         )
         answer = Prompt.ask("Choose", choices=["1", "2", "3"], default="3", console=console)
         if answer == "3":
@@ -280,10 +279,10 @@ def _components_table(components: list[Any], missing: list[Any]) -> Any:
     for component in components:
         absent = component.title in names
         table.add_row(
-            "[yellow]..[/yellow]" if absent else "[green]ok[/green]",
+            terminal_ui.status_mark("warn") if absent else terminal_ui.status_mark("ok"),
             component.title,
             _gigabytes(getattr(component, "bytes", 0) or 0),
-            ", ".join(getattr(component, "needed_for", ()) or ()) or "[dim]-[/dim]",
+            ", ".join(getattr(component, "needed_for", ()) or ()) or terminal_ui.styled("-", terminal_ui.CLOUDY),
         )
     return table
 
@@ -297,7 +296,7 @@ def _capabilities_table() -> Any:
     table.add_column("Setting")
     table.add_column("Value")
     for capability in CAPABILITIES:
-        mark = "[green]ok[/green]" if _ready(capability) else "[yellow]..[/yellow]"
+        mark = terminal_ui.status_mark("ok") if _ready(capability) else terminal_ui.status_mark("warn")
         for index, setting in enumerate(capability.settings):
             table.add_row(
                 mark if index == 0 else "",
@@ -319,12 +318,12 @@ def _install_components(
         return
 
     missing = current["install"]
-    console.print("\n[bold]Select components to install[/bold]")
-    console.print("[dim]Choose one or more numbers. Enter 0 when finished.[/dim]")
+    console.print(f"\n{terminal_ui.styled('Select components to install', terminal_ui.CRAIL, bold=True)}")
+    console.print(terminal_ui.styled("Choose one or more numbers. Enter 0 when finished.", terminal_ui.CLOUDY))
     for index, entry in enumerate(missing, 1):
         console.print(
-            f"  [bold cyan]{index}[/bold cyan] {entry['title']}  "
-            f"[dim]{_gigabytes(entry['bytes'])}[/dim]"
+            f"  {terminal_ui.styled(str(index), terminal_ui.CRAIL, bold=True)} {entry['title']}  "
+            f"{terminal_ui.styled(_gigabytes(entry['bytes']), terminal_ui.CLOUDY)}"
         )
 
     choices = [str(index) for index in range(1, len(missing) + 1)] + ["0"]
@@ -336,7 +335,7 @@ def _install_components(
         selected.add(int(choice) - 1)
 
     if not selected:
-        console.print("[dim]No components selected.[/dim]")
+        console.print(terminal_ui.styled("No components selected.", terminal_ui.CLOUDY))
         return
 
     selected_entries = [missing[index] for index in sorted(selected)]
@@ -365,20 +364,20 @@ def _install_components(
             progress.update(task, completed=100)
             if not outcome.ok:
                 failed += 1
-                console.print(f"  [red]failed[/red]: {component.title} - {outcome.detail}")
+                console.print(f"  {terminal_ui.styled('FAILED', terminal_ui.ERROR, bold=True)}: {component.title} - {outcome.detail}")
     if failed:
-        console.print(f"[red]{failed} component(s) failed.[/red]")
+        console.print(terminal_ui.styled(f"{failed} component(s) failed.", terminal_ui.ERROR, bold=True))
 
 
 def _edit_capabilities(console: Any) -> None:
     """Set what a capability needs, and write it where the app will read it."""
     from rich.prompt import Confirm, Prompt
 
-    console.print("\n[bold]Tools and keys[/bold]")
+    console.print(f"\n{terminal_ui.styled('Tools and keys', terminal_ui.CRAIL, bold=True)}")
     for index, capability in enumerate(CAPABILITIES, 1):
-        mark = "[green]ready[/green]" if _ready(capability) else "[yellow]needs setup[/yellow]"
-        console.print(f"  [bold cyan]{index}[/bold cyan] {capability.title}  {mark}")
-    console.print(f"  [bold cyan]{len(CAPABILITIES) + 1}[/bold cyan] Back")
+        mark = terminal_ui.styled("READY", terminal_ui.SUCCESS, bold=True) if _ready(capability) else terminal_ui.styled("NEEDS SETUP", terminal_ui.WARNING, bold=True)
+        console.print(f"  {terminal_ui.styled(str(index), terminal_ui.CRAIL, bold=True)} {capability.title}  {mark}")
+    console.print(f"  {terminal_ui.styled(str(len(CAPABILITIES) + 1), terminal_ui.CRAIL, bold=True)} Back")
     chosen = Prompt.ask(
         "Which capability",
         choices=[str(index) for index in range(1, len(CAPABILITIES) + 2)],
@@ -420,15 +419,15 @@ def _edit_capabilities(console: Any) -> None:
             changes[setting.name] = answer.strip()
 
     if not changes:
-        console.print("[dim]Nothing changed.[/dim]")
+        console.print(terminal_ui.styled("Nothing changed.", terminal_ui.CLOUDY))
         return
     # The same file the Providers page writes, so a key set here shows up there
     # and survives a restart. Secrets never come back out of it in the clear.
     provider_config.update(changes)
     for name, value in changes.items():
         os.environ[name] = value
-    console.print(f"[green]Saved {len(changes)} setting(s).[/green]")
-    console.print("[dim]Restart Marvi for a running Gateway to pick them up.[/dim]")
+    console.print(terminal_ui.styled(f"Saved {len(changes)} setting(s).", terminal_ui.SUCCESS, bold=True))
+    console.print(terminal_ui.styled("Restart Marvi for a running Gateway to pick them up.", terminal_ui.CLOUDY))
 
 
 def _gigabytes(size: int) -> str:
