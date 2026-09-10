@@ -3487,13 +3487,7 @@ def create_app(
                 seeing,
                 recent_apps=activity.used_today() if activity.available() else None,
             ):
-                async with plugin_update_lock:
-                    detail = await anyio.to_thread.run_sync(
-                        lambda: plugins_module.update(
-                            name,
-                            REPO_ROOT,
-                            on_updated=lambda: restart_plugin(name),
-                        )
+                blocks["world"] = world
         # Connectors page polls, so no turn waits on Composio.
         if accounts is not None and accounts.available():
             try:
