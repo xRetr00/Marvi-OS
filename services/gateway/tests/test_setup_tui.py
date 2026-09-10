@@ -175,3 +175,17 @@ def test_the_screen_prints_on_a_terminal_that_cannot_do_unicode() -> None:
     offenders = sorted({ch for ch in body if ord(ch) > 127})
 
     assert not offenders, f"cannot be printed on a legacy console: {offenders}"
+
+
+def test_shared_header_uses_the_repository_version(tmp_path, capsys) -> None:
+    from rich.console import Console
+
+    from marvi_gateway import terminal_ui
+
+    (tmp_path / "VERSION").write_text("7.8.9\n", encoding="utf-8")
+    terminal_ui.header(Console(), tmp_path, "SETUP")
+
+    output = capsys.readouterr().out
+    assert "MARVI OS" in output
+    assert "v7.8.9" in output
+    assert "SETUP" in output
