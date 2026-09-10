@@ -669,15 +669,14 @@ def cmd_update(args: argparse.Namespace) -> int:
         return 1
 
     selected_channel = updates.channel()
-    if not args.check and not args.yes:
-        from .setup import tui
+    from .setup import tui
 
-        if tui.available():
-            from rich.console import Console
+    if tui.available():
+        from rich.console import Console
 
-            from . import terminal_ui
+        from . import terminal_ui
 
-            terminal_ui.header(Console(), root, "UPDATES")
+        terminal_ui.header(Console(), root, "UPDATES")
     print(f"Checking the {selected_channel} channel ...")
     result = updates.check(bootstrap, root, selected_channel)
     if result.get("error"):
