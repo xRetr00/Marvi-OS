@@ -430,3 +430,100 @@ def test_a_string_that_is_not_the_declared_shape_is_still_refused() -> None:
     for wrong in ("[1, 2]", "not json at all", '"just a string"', "42"):
         with pytest.raises(InvalidArgumentsError, match="must be dict"):
             registry.validate(spec, {"action": "click", "arguments": wrong})
+
+
+def _real_registry():
+    """The computer and browser tools, registered the way the app registers them.
+
+    Built from their own `register_*` functions rather than a hand-made
+    fixture, because the bug was in what those functions produce.
+    """
+    from marvi_gateway.browser_api import register_workspace_browser_tools
+    from marvi_gateway.computer import ComputerUse, register_computer_tools
+    from marvi_gateway.tools import ToolRegistry
+
+    registry = ToolRegistry()
+    register_computer_tools(registry, ComputerUse())
+    register_workspace_browser_tools(registry, lambda: None)
+    return registry
+
+
+#: What `schemas_from_registry` must publish for each Python type.
+PUBLISHED_AS = {
+    str: "string",
+    int: "integer",
+    float: "number",
+    bool: "boolean",
+    dict: "object",
+    list: "array",
+}
+
+
+def test_no_tool_advertises_a_type_its_own_validator_refuses() -> None:
+    """The schema and the validator have to agree, or the tool cannot be called.
+
+    `dict` and `list` were missing from the type map and fell through to
+    `"string"`. So `computer_action` declared `arguments: dict`, published it
+    as a string, and then refused the string the model dutifully sent:
+
+        23 calls to computer_action, 23 HTTP 422s, not one success in the log.
+
+    Six tools had it -- `clarify` and `room_set_light` among them.
+    """
+    from marvi_gateway.chat import schemas_from_registry
+
+    registry = _real_registry()
+    published = {row["name"]: row["parameters"] for row in schemas_from_registry(registry)}
+
+    wrong: list[str] = []
+    for spec in registry:
+        if getattr(spec, "schema", None):
+            continue  # Declares its own schema; not built from the signature.
+        properties = published[spec.name].get("properties", {})
+        for key, kind in {**spec.arguments, **spec.optional}.items():
+            want = PUBLISHED_AS.get(kind)
+            got = properties.get(key, {}).get("type")
+            if want and got != want:
+                wrong.append(f"{spec.name}.{key}: says {got!r}, validator wants {want!r}")
+    assert not wrong, "schema contradicts the validator: " + "; ".join(sorted(wrong))
+
+
+def test_every_python_type_has_a_json_type() -> None:
+    """A type missing from the map silently becomes `"string"`, which is the bug."""
+    from marvi_gateway.chat import schemas_from_registry
+    from marvi_gateway.tools import ToolRegistry, ToolSpec
+
+    registry = ToolRegistry()
+    registry.register(
+        ToolSpec(
+            name="every_type",
+            description="every type",
+            arguments={f"a_{kind.__name__}": kind for kind in PUBLISHED_AS},
+            sensitive=False,
+            handler=lambda **kwargs: kwargs,
+        )
+    )
+    properties = schemas_from_registry(registry)[0]["parameters"]["properties"]
+    for kind, published in PUBLISHED_AS.items():
+        assert properties[f"a_{kind.__name__}"]["type"] == published, kind
+    # An array with no `items` is refused outright by some providers.
+    assert properties["a_list"]["items"] == {}
+
+
+def test_the_two_biggest_tools_say_what_goes_in_their_arguments() -> None:
+    """`{"type": "object"}` alone says a shape is wanted and nothing about which.
+
+    Both take a nested `arguments` object whose real schema lives somewhere
+    else -- `computer_tools` for one, the page observation for the other -- so
+    the description has to say where to look.
+    """
+    from marvi_gateway.chat import schemas_from_registry
+
+    published = {
+        row["name"]: row["parameters"] for row in schemas_from_registry(_real_registry())
+    }
+    for name, points_at in (("computer_action", "computer_tools"), ("browser_action", "tab_id")):
+        field = published[name]["properties"]["arguments"]
+        assert field["type"] == "object", name
+        assert points_at in field.get("description", ""), name
+        assert "never a string" in field["description"], name

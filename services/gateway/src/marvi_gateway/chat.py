@@ -1529,7 +1529,25 @@ class Chat:
 
 def schemas_from_registry(registry: Any) -> list[dict[str, Any]]:
     """Describe the router's tools in the neutral shape `build_request` takes."""
-    json_types = {str: "string", int: "integer", float: "number", bool: "boolean"}
+    # `dict` and `list` were missing, and the fallback is `"string"` -- so six
+    # tools published a schema that contradicted their own validator.
+    # `computer_action` declares `arguments: dict`, advertised it as a string,
+    # and then refused the string it had asked for:
+    #
+    #     00:03:04  computer_action refused those arguments: argument
+    #               arguments must be dict
+    #
+    # Twenty-three calls, twenty-three 422s, not one success in the whole log.
+    # The model was obeying the schema exactly. `clarify`, `room_set_light`,
+    # `cronjob`, `browser_action` and `account_tool_execute` all had it too.
+    json_types = {
+        str: "string",
+        int: "integer",
+        float: "number",
+        bool: "boolean",
+        dict: "object",
+        list: "array",
+    }
     described: list[dict[str, Any]] = []
     for spec in registry:
         if getattr(spec, "schema", None):
@@ -1545,6 +1563,11 @@ def schemas_from_registry(registry: Any) -> list[dict[str, Any]]:
         properties: dict[str, dict[str, Any]] = {}
         for key, kind in {**spec.arguments, **spec.optional}.items():
             field: dict[str, Any] = {"type": json_types.get(kind, "string")}
+            # An array with no `items` is rejected outright by some providers
+            # and guessed at by the rest. Permissive rather than absent: the
+            # element type is not in the signature to read.
+            if kind is list:
+                field["items"] = {}
             # "Explicitly describe the purpose of the function and each
             # parameter (and its format)" -- OpenAI's function-calling guide.
             # Without this the model had the argument's name and nothing else.
