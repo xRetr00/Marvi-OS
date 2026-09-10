@@ -51,7 +51,22 @@ def gigabytes(count: int) -> str:
 
 
 def cmd_doctor(args: argparse.Namespace) -> int:
-    findings = doctor.run_checks()
+    from .setup import tui
+
+    interactive = tui.available()
+    console = None
+    terminal_ui = None
+    if interactive:
+        from rich.console import Console
+
+        from . import terminal_ui as terminal_ui_module
+
+        console = Console()
+        terminal_ui = terminal_ui_module
+        terminal_ui.header(console, repo_root(), "DOCTOR")
+
+    with terminal_ui.activity(console, "Checking Marvi health") if terminal_ui else contextlib.nullcontext():
+        findings = doctor.run_checks()
 
     if args.fix:
         # Automatic remedies run regardless. Confirm-kind ones are shown first,
@@ -68,24 +83,19 @@ def cmd_doctor(args: argparse.Namespace) -> int:
             print()
             include_confirmed = _confirm("Do all of that?")
             print()
-        applied = doctor.heal(findings, include_confirmed=include_confirmed)
+        with terminal_ui.activity(console, "Applying Marvi repairs") if terminal_ui else contextlib.nullcontext():
+            applied = doctor.heal(findings, include_confirmed=include_confirmed)
         for entry in applied:
             mark = "fixed" if entry["ok"] else "could not fix"
             print(f"  {mark}: {entry['check']} — {entry['outcome']}")
         if applied:
             print()
-        findings = doctor.run_checks()
+        with terminal_ui.activity(console, "Verifying Marvi repairs") if terminal_ui else contextlib.nullcontext():
+            findings = doctor.run_checks()
 
-    from .setup import tui
-
-    if not args.fix and tui.available():
-        from rich.console import Console
+    if not args.fix and console is not None:
         from rich.table import Table
 
-        console = Console()
-        from . import terminal_ui
-
-        terminal_ui.header(console, repo_root(), "DOCTOR")
         table = Table(title="Health checks", title_justify="left", header_style="bold")
         table.add_column("Status")
         table.add_column("Area")
@@ -671,14 +681,17 @@ def cmd_update(args: argparse.Namespace) -> int:
     selected_channel = updates.channel()
     from .setup import tui
 
+    console = None
     if tui.available():
         from rich.console import Console
 
         from . import terminal_ui
 
-        terminal_ui.header(Console(), root, "UPDATES")
+        console = Console()
+        terminal_ui.header(console, root, "UPDATES")
     print(f"Checking the {selected_channel} channel ...")
-    result = updates.check(bootstrap, root, selected_channel)
+    with terminal_ui.activity(console, "Checking for Marvi updates") if console else contextlib.nullcontext():
+        result = updates.check(bootstrap, root, selected_channel)
     if result.get("error"):
         print(f"Update check failed: {result['error']}", file=sys.stderr)
         return 1

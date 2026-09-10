@@ -248,7 +248,8 @@ def run(
         console.print()
         terminal_ui.header(console, root, "SETUP")
 
-        current = plan(components)
+        with terminal_ui.activity(console, "Checking Marvi setup"):
+            current = plan(components)
         missing = current["install"]
         console.print(_components_table(components, missing))
         console.print(_capabilities_table())

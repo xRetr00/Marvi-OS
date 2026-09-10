@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from pathlib import Path
+from collections.abc import Iterator
 from typing import Any
 
 
@@ -13,6 +15,8 @@ MARVI_ART = (
     "\n\u2588\u2588\u2588  \u2580\u2580  \u2588\u2588\u2588 \u2588\u2588\u2588\u2580\u2580\u2588\u2588\u2588 \u2588\u2588\u2588\u2580\u2580\u2588\u2588\u2584   \u2588\u2588\u2588\u2584\u2584\u2588\u2588\u2588   \u2588\u2588\u2588   \u2588\u2588\u2588"
     "\n\u2588\u2588\u2588      \u2588\u2588\u2588 \u2588\u2588\u2588  \u2588\u2588\u2588 \u2588\u2588\u2588  \u2580\u2588\u2588\u2588  \u2580\u2588\u2588\u2588\u2588\u2580   \u2584\u2588\u2588\u2588\u2584"
 )
+
+MARVI_SPINNER_FRAMES = ("\u00b7", "\u2732", "\u2733", "\u2736", "\u273b", "\u273d")
 
 
 def version(root: Path) -> str:
@@ -35,3 +39,20 @@ def header(console: Any, root: Path, section: str) -> None:
             padding=(1, 2),
         )
     )
+
+
+@contextmanager
+def activity(console: Any, message: str) -> Iterator[None]:
+    """Show a Claude-style Marvi spinner while an interactive task runs."""
+    from rich.live import Live
+    from rich.spinner import Spinner
+
+    spinner = Spinner("dots", text=f"[cyan]{message}[/cyan]", style="cyan")
+    spinner.frames = list(MARVI_SPINNER_FRAMES)
+    spinner.interval = 80
+    live = Live(spinner, console=console, refresh_per_second=12, transient=True)
+    live.start()
+    try:
+        yield
+    finally:
+        live.stop()
