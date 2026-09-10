@@ -1187,6 +1187,21 @@ def create_app(
     account_triggers: AccountTriggerIngest | None = None
     mcp: McpBridge | None = None
     loaded_plugins: list[plugins_module.LoadedPlugin] = []
+    plugin_update_lock = asyncio.Lock()
+
+    def restart_plugin(name: str) -> None:
+        plugin = next((item for item in loaded_plugins if item.name == name), None)
+        if plugin is None:
+            return
+        plugins_module.fire(plugin, "on_gateway_stop")
+        problems = plugins_module.fire(plugin, "on_gateway_start")
+        if problems:
+            get_logger("plugins").warning(
+                "updated plugin restarted with hook errors",
+                extra={"marvi_plugin": name, "marvi_errors": "; ".join(problems)},
+            )
+        plugins_module.note_loaded(name)
+        get_logger("plugins").info("restarted updated plugin", extra={"marvi_plugin": name})
     #: Highest room event id already journaled. None until the first poll sets a
     #: baseline, so a restart does not replay the log into the mind.
     room_cursor: int | None = None
@@ -3308,13 +3323,14 @@ def create_app(
         if server is None:
             raise HTTPException(status_code=404, detail=f"no server named {name}")
         return await anyio.to_thread.run_sync(lambda: mcp.test(server))
-
-    @app.delete("/mcp/{name}")
-    async def remove_mcp(name: str) -> dict[str, Any]:
-        from .setup import mcp
-
+            async with plugin_update_lock:
+                detail = await anyio.to_thread.run_sync(
+                    lambda: plugins_module.install(
+                        source,
+                        REPO_ROOT,
+                        on_updated=lambda: restart_plugin(name),
+                    )
         result = mcp.remove(name)
-        runtime_store.audit("setup", "mcp-remove", result)
         return result
 
     @app.get("/personas")
@@ -3441,13 +3457,13 @@ def create_app(
                 seeing,
                 recent_apps=activity.used_today() if activity.available() else None,
             ):
-                blocks["world"] = world
-        # Which accounts will actually answer.
-        #
-        # The tools were always there; whether Gmail responds depends on a
-        # connection made in a settings page months ago, and nothing said so.
-        # Six were connected on the owner's machine and the recorded failure is
-        # her telling him he had none. Read from the same 30-second cache the
+                async with plugin_update_lock:
+                    detail = await anyio.to_thread.run_sync(
+                        lambda: plugins_module.update(
+                            name,
+                            REPO_ROOT,
+                            on_updated=lambda: restart_plugin(name),
+                        )
         # Connectors page polls, so no turn waits on Composio.
         if accounts is not None and accounts.available():
             try:
