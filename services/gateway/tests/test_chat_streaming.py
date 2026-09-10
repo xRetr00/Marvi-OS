@@ -465,3 +465,50 @@ def test_a_broken_memory_store_does_not_end_the_turn(tmp_path) -> None:
     )
 
     assert list(chat.send_stream("hello"))[-1]["reply"] == "The light is on."
+
+
+def test_usage_survives_a_turn_that_called_a_tool(tmp_path: Path) -> None:
+    """A turn used to report only its final round's usage, so a tool call that
+    ended on a round with no usage reported zero -- which is what pinned the
+    context meter at 0%."""
+    store = ChatStore(tmp_path / "chat.sqlite3")
+
+    rounds = [
+        {
+            "done": True,
+            "usage": {"input": 900, "output": 30, "cached_input": 100, "billable": 930},
+        },
+        {"done": True, "usage": {"input": 1400, "output": 60, "cached_input": 300, "billable": 1460}},
+    ]
+    usage = {"input": 0, "output": 0, "cached_input": 0, "billable": 0}
+    tokens = 0
+    for event in rounds:
+        turn_usage = event["usage"]
+        round_billable = int(turn_usage.get("billable", 0))
+        usage["output"] += int(turn_usage.get("output", 0))
+        usage["billable"] += round_billable
+        usage["input"] = max(usage["input"], int(turn_usage.get("input", 0)))
+        usage["cached_input"] = max(usage["cached_input"], int(turn_usage.get("cached_input", 0)))
+        tokens += round_billable
+
+    # Spending adds up.
+    assert usage["output"] == 90
+    assert usage["billable"] == 2390
+    assert tokens == 2390
+    # Occupancy does not: each round re-sends the conversation, so the biggest
+    # prompt is how full the window got.
+    assert usage["input"] == 1400
+    assert usage["cached_input"] == 300
+
+    store.append("user", "hello")
+    store.append(
+        "assistant",
+        "hi",
+        provider="openai",
+        model="gpt-4o",
+        input_tokens=usage["input"],
+        cached_tokens=usage["cached_input"],
+    )
+
+    assert store.context()["input_tokens"] == 1400
+    assert store.context()["cached_tokens"] == 300

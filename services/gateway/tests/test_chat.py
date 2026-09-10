@@ -527,3 +527,33 @@ def test_asking_burns_the_window_even_if_the_model_stays_quiet(store, tmp_path) 
     # wrong means asking again next turn — the behaviour that makes an
     # assistant unbearable. Burning an unused window is the safe direction.
     assert chat.curiosity.may_ask() is None
+
+
+def test_editing_through_the_sentinel_finds_its_own_thread(store) -> None:
+    """The window holds whatever id the Gateway handed it. While that was the
+    `default` sentinel, every edit failed with "edited message belongs to
+    another thread" -- a real thread id can never equal the sentinel."""
+    original = store.append("user", "original")
+
+    thread_id, _ = store.fork_user(original, "edited", expected_thread_id="default")
+
+    assert thread_id == store.resolve("default")
+
+
+def test_regenerating_through_the_sentinel_finds_its_own_thread(store) -> None:
+    store.append("user", "original")
+    answer = store.append("assistant", "first answer")
+
+    thread_id, user = store.prepare_regenerate(answer, expected_thread_id="default")
+
+    assert thread_id == store.resolve("default")
+    assert user["content"] == "original"
+
+
+def test_a_genuinely_foreign_thread_is_still_refused(store) -> None:
+    """Resolving the sentinel must not turn the check into a rubber stamp."""
+    other = store.create_thread("Other")
+    message = store.append("user", "here", thread_id=other["id"])
+
+    with pytest.raises(ValueError):
+        store.fork_user(message, "edited", expected_thread_id="default")

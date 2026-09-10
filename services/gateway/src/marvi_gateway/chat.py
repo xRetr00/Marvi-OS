@@ -616,7 +616,12 @@ class ChatStore:
             raise KeyError("the edited message is not a user message")
         branch = uuid4().hex
         thread_id = str(row["thread_id"])
-        if expected_thread_id is not None and thread_id != expected_thread_id:
+        # Resolved before comparing. The window holds whatever id the Gateway
+        # handed it, and if that was still the `default` sentinel then every
+        # edit failed with "edited message belongs to another thread" -- the
+        # message's real thread id can never equal the sentinel.
+        expected = self.resolve(expected_thread_id) if expected_thread_id is not None else None
+        if expected is not None and thread_id != expected:
             raise ValueError("edited message belongs to another thread")
         original_parts = json.loads(row["parts"] or "[]")
         parts = [{"type": "text", "text": content}] + [
@@ -672,7 +677,10 @@ class ChatStore:
             ).fetchone()
         if user is None or user["role"] != "user":
             raise KeyError("regeneration requires a user turn")
-        if expected_thread_id is not None and user["thread_id"] != expected_thread_id:
+        # Resolved, for the same reason as `fork_user`: a window still holding
+        # the `default` sentinel could never match a real thread id.
+        expected = self.resolve(expected_thread_id) if expected_thread_id is not None else None
+        if expected is not None and user["thread_id"] != expected:
             raise ValueError("message belongs to another thread")
         branch = uuid4().hex
         self._db.execute(
@@ -1473,10 +1481,27 @@ class Chat:
                             continue
                         if event.get("done"):
                             turn_usage = event.get("usage") or {}
-                            usage = {
-                                key: int(turn_usage.get(key, 0)) for key in usage
-                            }
-                            tokens += usage["billable"]
+                            # Merged across tool rounds, not replaced.
+                            #
+                            # This used to rebuild the dict from the round that
+                            # had just finished, so a turn that called a tool
+                            # reported only its last round -- and a provider
+                            # that sent no usage on that round reported zero,
+                            # which is what put the context meter at 0%.
+                            #
+                            # Output and billable add up, because that is what
+                            # was spent. Input and cache do not: each round
+                            # re-sends the conversation, so the largest prompt
+                            # is how full the window actually got, and summing
+                            # them would count the same context several times.
+                            round_billable = int(turn_usage.get("billable", 0))
+                            usage["output"] += int(turn_usage.get("output", 0))
+                            usage["billable"] += round_billable
+                            usage["input"] = max(usage["input"], int(turn_usage.get("input", 0)))
+                            usage["cached_input"] = max(
+                                usage["cached_input"], int(turn_usage.get("cached_input", 0))
+                            )
+                            tokens += round_billable
             except ProviderCallError as exc:
                 logger.warning("streamed chat call failed: %s", exc)
                 yield {

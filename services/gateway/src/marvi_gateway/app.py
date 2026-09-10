@@ -2107,7 +2107,7 @@ def create_app(
             messages=messages,
             available=chat.available(),
             threads=chat.store.threads(),
-            active_thread=thread_id,
+            active_thread=chat.store.resolve(thread_id),
             context=chat.store.context(thread_id),
         )
 
@@ -2314,7 +2314,7 @@ def create_app(
             messages=[],
             available=chat.available(),
             threads=chat.store.threads(),
-            active_thread=thread_id,
+            active_thread=chat.store.resolve(thread_id),
             context=chat.store.context(thread_id),
         )
 
