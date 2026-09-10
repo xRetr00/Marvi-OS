@@ -36,7 +36,7 @@ export const WidgetToolUI: ToolCallMessagePartComponent = ({ result, status }) =
           className="chat-working-spinner"
           spinner="braille"
         />
-        <span className="chat-scaffold-label is-live">Preparing</span>
+        <span className="chat-scaffold-label is-live">Marvi is preparing a widget</span>
       </div>
     )
   }
@@ -60,7 +60,7 @@ export const ToolActivity: ToolCallMessagePartComponent = ({ toolName, status })
         <span aria-hidden="true" className="chat-tool-dot" />
       )}
       <span className={running ? 'chat-scaffold-label is-live' : 'chat-scaffold-label'}>
-        {running ? 'Using' : 'Used'} {toolLabel(toolName)}
+        {running ? 'Marvi is using' : 'Marvi used'} {toolLabel(toolName)}
       </span>
     </div>
   )

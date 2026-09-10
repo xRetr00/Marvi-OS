@@ -210,3 +210,67 @@
   opacity: 0.6;
   font-size: 11px;
 }
+
+/* -- avatar and branding -------------------------------------------------- */
+
+.ui-avatar {
+  position: relative;
+  display: flex;
+  height: 28px;
+  width: 28px;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 50%;
+}
+
+.ui-avatar-image {
+  aspect-ratio: 1 / 1;
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+}
+
+.ui-avatar-fallback {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--raised, #131318);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.marvi-avatar {
+  border: 1px solid var(--line, #2a2a30);
+  background: var(--raised, #131318);
+}
+
+/* The assistant turn becomes two columns: the avatar, then everything it
+   used to hold. The user turn is unchanged and stays right-aligned. */
+.chat-assistant {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.chat-turn-avatar {
+  /* Nudged down to sit on the first line of prose rather than above it. */
+  margin-top: 2px;
+}
+
+.chat-turn-column {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.chat-empty-logo {
+  width: 56px;
+  height: 56px;
+  margin-bottom: 14px;
+  border-radius: 14px;
+  opacity: 0.92;
+}

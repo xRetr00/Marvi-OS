@@ -57,7 +57,7 @@ const Reasoning: ReasoningMessagePartComponent = ({ text, status }) => {
           />
         ) : null}
         <span className={streaming ? 'chat-scaffold-label is-live' : 'chat-scaffold-label'}>
-          {streaming ? 'Thinking' : 'Thought'}
+          {streaming ? 'Marvi is thinking' : 'Marvi thought'}
         </span>
       </summary>
       <div className={streaming ? 'chat-reasoning-body is-live' : 'chat-reasoning-body'}>
@@ -92,7 +92,7 @@ const Empty: EmptyMessagePartComponent = () => (
       className="chat-working-spinner"
       spinner="braille"
     />
-    <span className="chat-scaffold-label is-live">Working</span>
+    <span className="chat-scaffold-label is-live">Marvi is working</span>
   </div>
 )
 
