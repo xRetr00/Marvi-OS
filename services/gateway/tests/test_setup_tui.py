@@ -192,14 +192,13 @@ def test_shared_header_uses_the_repository_version(tmp_path, capsys) -> None:
 
 
 def test_component_selection_only_installs_selected_entries(monkeypatch) -> None:
+    from io import StringIO
     from types import SimpleNamespace
+
+    from rich.console import Console
 
     answers = iter(["2", "0"])
     installed: list[str] = []
-
-    class Console:
-        def print(self, *_args, **_kwargs):
-            pass
 
     monkeypatch.setattr(
         "rich.prompt.Prompt.ask", lambda *args, **kwargs: next(answers)
@@ -222,6 +221,6 @@ def test_component_selection_only_installs_selected_entries(monkeypatch) -> None
         installed.append(component.title)
         return SimpleNamespace(ok=True, detail="installed")
 
-    tui._install_components(Console(), components, current, install, object())
+    tui._install_components(Console(file=StringIO()), components, current, install, object())
 
     assert installed == ["second"]
