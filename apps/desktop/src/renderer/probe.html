@@ -1,0 +1,42 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Marvi probe</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module">
+      // TEMP: a preload bridge that answers everything with empty data, so the
+      // renderer can be inspected outside Electron.
+      const noop = () => () => {}
+      window.marvi = new Proxy(
+        {},
+        {
+          get(_t, key) {
+            if (String(key).startsWith('on')) return noop
+            return async () => {
+              const k = String(key)
+              if (k === 'getChat')
+                return {
+                  messages: [],
+                  available: true,
+                  threads: [
+                    { id: 'default', title: 'New conversation', message_count: 0,
+                      updated_at: new Date().toISOString(), created_at: new Date().toISOString(),
+                      archived: false, active_message_id: null, active_branch: 'main',
+                      selected_provider: '', selected_model: '', selected_effort: '' }
+                  ],
+                  active_thread: 'default',
+                  context: null
+                }
+              if (k === 'getChatThreads') return []
+              return null
+            }
+          }
+        }
+      )
+      await import('/src/main.tsx')
+    </script>
+  </body>
+</html>

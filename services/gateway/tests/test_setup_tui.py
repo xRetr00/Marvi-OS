@@ -159,7 +159,7 @@ def test_an_unset_setting_with_no_default_says_so(monkeypatch) -> None:
         s for c in tui.CAPABILITIES for s in c.settings if s.name == "BRAVE_SEARCH_API_KEY"
     )
 
-    assert tui._shown(setting) == "[dim]not set[/dim]"
+    assert tui._shown(setting) == "[#b1ada1]not set[/#b1ada1]"
 
 
 def test_the_screen_prints_on_a_terminal_that_cannot_do_unicode() -> None:
