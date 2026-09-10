@@ -19,7 +19,7 @@
  */
 
 import { useState } from 'react'
-import type { ToolCallMessagePartComponent } from '@assistant-ui/react'
+import type { ToolCallMessagePartProps } from '@assistant-ui/react'
 
 import type { ChatWidgetPart } from '../../../../shared/runtime'
 import { AbstractIcon } from '../../components/abstract-icon'
@@ -27,7 +27,10 @@ import { GlyphSpinner } from '../../components/ui/glyph-spinner'
 import { WidgetStack } from '../components/WidgetStack'
 
 /** `present_widget` and every tool the Gateway derived a widget from. */
-export const WidgetToolUI: ToolCallMessagePartComponent = ({ result, status }) => {
+export function WidgetToolUI({
+  result,
+  status
+}: ToolCallMessagePartProps): React.JSX.Element | null {
   if (status.type === 'running' || result == null) {
     return (
       <div className="chat-scaffold chat-inline-tool" data-conversation-scaffold="">
@@ -46,7 +49,10 @@ export const WidgetToolUI: ToolCallMessagePartComponent = ({ result, status }) =
 }
 
 /** A tool with no UI of its own. One line, past tense, no card. */
-export const ToolActivity: ToolCallMessagePartComponent = ({ toolName, status }) => {
+export function ToolActivity({
+  toolName,
+  status
+}: ToolCallMessagePartProps): React.JSX.Element {
   const running = status.type === 'running'
   return (
     <div className="chat-scaffold chat-inline-tool" data-conversation-scaffold="">
@@ -82,7 +88,12 @@ type AskArgs = {
  * result, so the model receives it as a result rather than as a new user
  * message and never has to be told to stop and wait.
  */
-export const AskToolUI: ToolCallMessagePartComponent = ({ args, result, addResult, status }) => {
+export function AskToolUI({
+  args,
+  result,
+  addResult,
+  status
+}: ToolCallMessagePartProps): React.JSX.Element {
   const ask = (args ?? {}) as AskArgs
   const settled = result != null || status.type === 'complete'
   if (ask.kind === 'secret') {
@@ -274,6 +285,6 @@ function SecretCard({
   )
 }
 
-export function toolLabel(tool: string): string {
+function toolLabel(tool: string): string {
   return tool.replaceAll(/[_-]+/g, ' ').replace(/^\w/, (letter) => letter.toUpperCase())
 }

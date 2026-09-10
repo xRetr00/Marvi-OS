@@ -8,12 +8,10 @@
  */
 
 import type {
-  EmptyMessagePartComponent,
-  FileMessagePartComponent,
-  ImageMessagePartComponent,
-  ReasoningMessagePartComponent,
-  SourceMessagePartComponent,
-  TextMessagePartComponent
+  FileMessagePartProps,
+  ImageMessagePartProps,
+  ReasoningMessagePartProps,
+  TextMessagePartProps
 } from '@assistant-ui/react'
 
 import { GlyphSpinner } from '../../components/ui/glyph-spinner'
@@ -28,14 +26,17 @@ export interface ReadAloud {
   toggle: (id: number, content: string) => void
 }
 
-const Text: TextMessagePartComponent = ({ text }) =>
+const Text = ({ text }: TextMessagePartProps): React.JSX.Element | null =>
   text.trim() ? (
     <div className="chat-body chat-assistant-prose">
       <Markdown content={text} />
     </div>
   ) : null
 
-const Reasoning: ReasoningMessagePartComponent = ({ text, status }) => {
+const Reasoning = ({
+  text,
+  status
+}: ReasoningMessagePartProps): React.JSX.Element | null => {
   // The disclosure component owns its own open/closed state, and remounting it
   // would slam it shut on every delta -- so reasoning renders through a plain
   // details element here and the streaming state rides on a data attribute.
@@ -67,17 +68,17 @@ const Reasoning: ReasoningMessagePartComponent = ({ text, status }) => {
   )
 }
 
-const Source: SourceMessagePartComponent = () =>
+const Source = (): null =>
   // Sources render as one grouped card via the `sources` widget rather than as
   // a part each. A row of bare links under a paragraph is what the widget was
   // built to replace.
   null
 
-const Image: ImageMessagePartComponent = ({ image, filename }) => (
+const Image = ({ image, filename }: ImageMessagePartProps): React.JSX.Element => (
   <img alt={filename || ''} className="chat-inline-image" src={image} />
 )
 
-const File: FileMessagePartComponent = ({ filename, mimeType }) => (
+const File = ({ filename, mimeType }: FileMessagePartProps): React.JSX.Element => (
   <div className="chat-inline-file">
     <span className="chat-inline-file-name">{filename || 'Attachment'}</span>
     <span className="chat-inline-file-type">{mimeType}</span>
@@ -85,7 +86,7 @@ const File: FileMessagePartComponent = ({ filename, mimeType }) => (
 )
 
 /** Shown while an assistant message exists but has produced nothing yet. */
-const Empty: EmptyMessagePartComponent = () => (
+const Empty = (): React.JSX.Element => (
   <div className="chat-scaffold chat-stream-activity" data-conversation-scaffold="">
     <GlyphSpinner
       ariaLabel="Marvi is working"

@@ -76,13 +76,38 @@ def cmd_doctor(args: argparse.Namespace) -> int:
             print()
         findings = doctor.run_checks()
 
-    for finding in findings:
-        print(f"[{TICK[finding.status]}] {finding.area}/{finding.check}: {finding.detail}")
-        if finding.status != "ok" and finding.remedy.kind != "none":
-            print(f"          → {finding.remedy.action}")
-            if finding.remedy.how:
-                for line in finding.remedy.how.splitlines():
-                    print(f"            {line}")
+    from .setup import tui
+
+    if not args.fix and tui.available():
+        from rich.console import Console
+        from rich.table import Table
+
+        console = Console()
+        from . import terminal_ui
+
+        terminal_ui.header(console, repo_root(), "DOCTOR")
+        table = Table(title="Health checks", title_justify="left", header_style="bold")
+        table.add_column("Status")
+        table.add_column("Area")
+        table.add_column("Check")
+        table.add_column("Details")
+        for finding in findings:
+            color = {"ok": "green", "warn": "yellow", "fail": "red"}[finding.status]
+            table.add_row(
+                f"[{color}]{finding.status.upper()}[/{color}]",
+                finding.area,
+                finding.check,
+                finding.detail,
+            )
+        console.print(table)
+    else:
+        for finding in findings:
+            print(f"[{TICK[finding.status]}] {finding.area}/{finding.check}: {finding.detail}")
+            if finding.status != "ok" and finding.remedy.kind != "none":
+                print(f"          → {finding.remedy.action}")
+                if finding.remedy.how:
+                    for line in finding.remedy.how.splitlines():
+                        print(f"            {line}")
 
     counts = doctor.summary(findings)
     print(f"\n{counts['fail']} failing, {counts['warn']} warnings, {counts['ok']} ok")
@@ -644,6 +669,15 @@ def cmd_update(args: argparse.Namespace) -> int:
         return 1
 
     selected_channel = updates.channel()
+    if not args.check and not args.yes:
+        from .setup import tui
+
+        if tui.available():
+            from rich.console import Console
+
+            from . import terminal_ui
+
+            terminal_ui.header(Console(), root, "UPDATES")
     print(f"Checking the {selected_channel} channel ...")
     result = updates.check(bootstrap, root, selected_channel)
     if result.get("error"):

@@ -15,7 +15,7 @@
 import { Avatar as AvatarPrimitive } from 'radix-ui'
 import type { ComponentPropsWithoutRef } from 'react'
 
-import marviLogo from '../../assets/app-icon.png'
+import { marviLogo } from './marvi-logo'
 
 function classes(base: string, extra?: string): string {
   return extra ? `${base} ${extra}` : base
@@ -59,5 +59,3 @@ export function MarviAvatar({ className }: { className?: string }): React.JSX.El
     </Avatar>
   )
 }
-
-export { marviLogo }

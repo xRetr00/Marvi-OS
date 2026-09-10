@@ -11,7 +11,7 @@ import { ThreadPrimitive } from '@assistant-ui/react'
 
 import type { ChatAttachment } from '../../../../shared/runtime'
 import { AbstractIcon } from '../../components/abstract-icon'
-import { marviLogo } from '../../components/ui/avatar'
+import { marviLogo } from '../../components/ui/marvi-logo'
 import { Composer } from './Composer'
 import { AssistantMessage, UserMessage } from './Messages'
 import type { ReadAloud } from './parts'
