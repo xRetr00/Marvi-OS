@@ -1722,19 +1722,37 @@ class Chat:
             provider = completion.provider
             calls = completion.tool_calls
 
+            # A tool call the model typed out instead of making.
+            #
+            # The provider parsed none, so this reads as a finished reply --
+            # and a mis-emitted call is not a reply. It reached the chat
+            # window verbatim, `<tool_call>terminal_run <arg_key>command
+            # </arg_key>...`, as her whole answer. The tool never ran, so
+            # whatever she meant to say from its result never arrived either.
+            #
+            # Recovered rather than deleted. The model said exactly which tool
+            # and with what, and all of it survives in the text; reading it
+            # back means the tool runs and the turn continues, instead of
+            # ending in an apology for something that was recoverable.
+            if (
+                not calls
+                and not final_round
+                and (meant := tool_call_prose.recover(completion.text))
+            ):
+                logger.warning(
+                    "recovered a tool call the model wrote as text: %s", meant["name"]
+                )
+                calls = [{**meant, "id": f"recovered-{len(used)}"}]
+
             if not calls:
                 reply = completion.text.strip()
-                # A tool call the model typed out instead of making.
-                #
-                # The provider parsed no calls, so this path treats whatever
-                # came back as prose -- and a mis-emitted call is not prose. It
-                # reached the chat window verbatim, `<tool_call>terminal_run
-                # <arg_key>command</arg_key>...`, as her entire answer. The
-                # tool never ran, so the reply she was building on it never
-                # arrived either, and nothing said so.
+                # Not recoverable, and this is the last round -- so hand the
+                # failure to the model rather than showing it markup. It can
+                # retry, report, or try another way; the one thing it cannot
+                # do is act on an apology written for it.
                 if tool_call_prose.looks_typed_out(reply):
                     logger.warning(
-                        "the model wrote a tool call as text instead of calling it: %s",
+                        "a tool call written as text could not be recovered: %s",
                         tool_call_prose.reached_for(reply) or "unnamed tool",
                     )
                     reply = tool_call_prose.instead_say(reply)

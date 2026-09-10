@@ -60,6 +60,12 @@ NAMED = re.compile(
 MOSTLY = 0.5
 
 
+#: A reply that *opens* with a call tag is a call, whatever it contains.
+OPENS_WITH = re.compile(
+    r"\A\s*<\s*(?:\|[^>]{0,120}\||tool_call|tool_calls|function_call|invoke)", re.I
+)
+
+
 def looks_typed_out(text: str) -> bool:
     """Whether this reply is a tool call the model wrote instead of made."""
     if not text or "<" not in text:
@@ -70,6 +76,13 @@ def looks_typed_out(text: str) -> bool:
         # mis-emitted call always carries at least an opening and something
         # else -- a close, an argument key, a name.
         return False
+    if OPENS_WITH.match(text):
+        # The ratio below is wrong for the JSON-bodied form. A call written as
+        # `<tool_call>{"name": ..., "arguments": {...}}</tool_call>` is mostly
+        # *content*, so measuring how much markup there is rejects it -- and
+        # that is one of the two shapes this exists to catch. Something that
+        # begins with a call tag is a call; nothing else opens that way.
+        return True
     without = MARKUP.sub("", text)
     return len(without.strip()) < len(text.strip()) * MOSTLY
 
