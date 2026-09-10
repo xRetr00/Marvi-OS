@@ -94,7 +94,9 @@ describe('the user turn is a bubble, not a card', () => {
     // Floating it into the empty column left the controls stranded away from
     // the message they act on.
     expect(ui).toMatch(/\.chat-user-actions\s*\{[^}]*justify-content:\s*flex-end/)
-    expect(ui).toMatch(/\.chat-user-actions\s*\{[^}]*opacity:\s*0/)
+    // Collapsed, not just transparent: a transparent row still reserves an
+    // empty band under every bubble.
+    expect(ui).toMatch(/\.chat-user-actions\s*\{[^}]*max-height:\s*0/)
   })
 })
 

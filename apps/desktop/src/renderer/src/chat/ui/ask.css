@@ -73,24 +73,44 @@
 /* Inside the bubble, on a hairline row of its own.
    Floating them into the empty column to the left left the controls stranded
    with nothing to attach them to, and on a wide window they sat nowhere near
-   the message they act on. */
+   the message they act on.
+
+   Collapsed rather than merely transparent: `opacity: 0` still reserves the
+   row, so every bubble carried an empty band under its text whether or not
+   anyone was pointing at it. */
 .chat-user-actions {
   position: static;
   display: flex;
+  overflow: hidden;
   align-items: center;
   justify-content: flex-end;
   gap: 4px;
+  max-height: 0;
   min-height: 0;
-  margin: 7px -6px -2px 0;
-  padding-top: 6px;
-  border-top: 1px solid color-mix(in srgb, var(--ui-stroke-tertiary) 60%, transparent);
+  margin: 0 -6px 0 0;
+  padding-top: 0;
+  border-top: 1px solid transparent;
   opacity: 0;
-  transition: opacity 120ms ease-out;
+  transition:
+    max-height 140ms ease-out,
+    opacity 120ms ease-out,
+    margin-top 140ms ease-out,
+    padding-top 140ms ease-out;
 }
 
 .chat-user:hover .chat-user-actions,
 .chat-user:focus-within .chat-user-actions {
+  max-height: 30px;
+  margin-top: 7px;
+  padding-top: 6px;
+  border-top-color: color-mix(in srgb, var(--ui-stroke-tertiary) 60%, transparent);
   opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-user-actions {
+    transition: none;
+  }
 }
 
 .chat-user.is-editing {
@@ -489,9 +509,10 @@
 .chat-reasoning-body.is-live {
   max-height: 132px;
   overflow: hidden;
-  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 22px);
-  mask-image: linear-gradient(to bottom, transparent, #000 22px);
-  scroll-behavior: smooth;
+  /* Faded at the bottom, so it reads from the first line and trails off.
+     Fading the top hid the beginning of the thought and cut the end dead. */
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent);
 }
 
 /* -- the stop control ----------------------------------------------------- */
