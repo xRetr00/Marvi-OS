@@ -914,27 +914,32 @@ function rendererUrl(surface: RendererSurface): string {
 }
 
 function loadSurface(window: BrowserWindow, surface: RendererSurface): void {
-  // TEMP DIAGNOSTIC -- renderer console into the main log.
+  // Renderer console into the main log.
+  //
+  // Kept, not temporary. A render error used to reach nobody: React unmounts
+  // the tree, the window goes black, and the only description of what happened
+  // lives in a devtools console nobody had open. The boundary in the renderer
+  // shows it on screen; this is the half that puts it in a log we can ask for.
   window.webContents.on('console-message', (...args: unknown[]) => {
-    // Electron 43 passes (event, details); older versions passed
-    // (event, level, message, line, source). Handle both.
+    // Electron 43 passes (event, details); older builds passed
+    // (event, level, message, line, source). Both still occur in the wild.
     const detail = args[1] as Record<string, unknown> | number
     if (typeof detail === 'object' && detail !== null) {
-      if (String(detail.level) === 'error' || String(detail.level) === 'warning') {
-        console.error(`[renderer:${surface}] ${String(detail.message)} @ ${String(detail.sourceId)}:${String(detail.lineNumber)}`)
+      if (String(detail.level) === 'error') {
+        console.error(
+          `[renderer:${surface}] ${String(detail.message)} @ ` +
+            `${String(detail.sourceId)}:${String(detail.lineNumber)}`
+        )
       }
       return
     }
     if (Number(detail) >= 2) console.error(`[renderer:${surface}] ${String(args[2])}`)
   })
-  window.webContents.on('render-process-gone', (_e, details) => {
+  window.webContents.on('render-process-gone', (_event, details) => {
     console.error(`[renderer:${surface}] gone: ${JSON.stringify(details)}`)
   })
-  window.webContents.on('preload-error', (_e, path, error) => {
+  window.webContents.on('preload-error', (_event, path, error) => {
     console.error(`[renderer:${surface}] preload-error ${path}: ${error.message}`)
-  })
-  window.webContents.on('did-fail-load', (_e, code, description) => {
-    console.error(`[renderer:${surface}] did-fail-load ${code} ${description}`)
   })
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     void window.loadURL(rendererUrl(surface))

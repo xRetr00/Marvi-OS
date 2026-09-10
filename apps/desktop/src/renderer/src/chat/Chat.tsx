@@ -1,5 +1,5 @@
 import { useStore } from '@nanostores/react'
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { AssistantRuntimeProvider } from '@assistant-ui/react'
 
 import { useChat } from './useChat'
@@ -14,6 +14,7 @@ import { downloadTranscript } from './transcript'
 import { MessageTiming } from '../components/message-timing'
 import { $sessionMetrics, sessionTimingStats } from '../store/session-metrics'
 import { setChatContextStatus } from '../store/chat-context'
+import { metaValue } from './types'
 
 /**
  * The typed conversation surface. Same Marvi as the voice session — same
@@ -31,6 +32,29 @@ export function Chat({ onExit }: { onExit: () => void }): React.JSX.Element {
   const chat = useChat()
   const runtime = useMarviRuntime(chat)
   const readAloud = useReadAloud(chat.activeThreadId)
+
+  // What the spinner says, and since when. The streaming reply carries the
+  // tool it is currently running, so the line can name it instead of saying
+  // "thinking" through a four-second web search.
+  const streaming = useMemo(
+    () => chat.messages.find((message) => message.meta.streaming),
+    [chat.messages]
+  )
+  const tool = streaming ? metaValue(streaming.meta, 'tool') : ''
+  const activity = tool
+    ? `Marvi is using ${tool.replaceAll(/[_-]+/g, ' ')}`
+    : 'Marvi is thinking'
+  const startedAt = streaming ? new Date(streaming.at).getTime() : Date.now()
+
+  // The spinner offers Escape as the way out, so Escape has to be the way out.
+  useEffect(() => {
+    if (!chat.busy) return
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') void chat.cancel()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [chat.busy, chat.cancel])
 
   useEffect(() => {
     setChatContextStatus({
@@ -74,9 +98,11 @@ export function Chat({ onExit }: { onExit: () => void }): React.JSX.Element {
           <div className="chat-body-area">
             <div className="chat-main">
               <Thread
+                activity={activity}
                 attachments={chat.attachments}
                 available={chat.available}
                 busy={chat.busy}
+                startedAt={startedAt}
                 footer={
                   <>
                     {chat.pending ? (

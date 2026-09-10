@@ -12,6 +12,7 @@ import { ThreadPrimitive } from '@assistant-ui/react'
 import type { ChatAttachment } from '../../../../shared/runtime'
 import { AbstractIcon } from '../../components/abstract-icon'
 import { marviLogo } from '../../components/ui/marvi-logo'
+import { AsciiSpinner } from './AsciiSpinner'
 import { Composer } from './Composer'
 import { AssistantMessage, UserMessage } from './Messages'
 import type { ReadAloud } from './parts'
@@ -33,6 +34,8 @@ export function Thread({
   override,
   onOverrideChange,
   readAloud,
+  activity = 'Marvi is thinking',
+  startedAt = Date.now(),
   footer
 }: {
   available: boolean
@@ -43,6 +46,8 @@ export function Thread({
   override: { provider?: string; model?: string; effort?: string }
   onOverrideChange: (next: { provider?: string; model?: string; effort?: string }) => void
   readAloud?: ReadAloud
+  activity?: string
+  startedAt?: number
   footer?: React.ReactNode
 }): React.JSX.Element {
   return (
@@ -88,6 +93,7 @@ export function Thread({
             <AbstractIcon name="down" size={14} />
           </ThreadPrimitive.ScrollToBottom>
           {footer}
+          <AsciiSpinner active={busy} label={activity} startedAt={startedAt} />
           <Composer
             attachments={attachments}
             available={available}

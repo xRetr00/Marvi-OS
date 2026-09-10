@@ -274,3 +274,39 @@
   border-radius: 14px;
   opacity: 0.92;
 }
+
+/* -- thinking animation --------------------------------------------------- */
+
+.chat-ascii-spinner {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 2px 6px;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+.chat-ascii-glyph {
+  /* Fixed width so the line does not shuffle as the glyph changes size. */
+  display: inline-block;
+  width: 1em;
+  text-align: center;
+  color: var(--accent, #7c7cf0);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.chat-ascii-label {
+  opacity: 0.9;
+}
+
+.chat-ascii-elapsed {
+  opacity: 0.55;
+  font-variant-numeric: tabular-nums;
+}
+
+.chat-ascii-hint {
+  margin-left: auto;
+  opacity: 0.42;
+  font-size: 11px;
+}
