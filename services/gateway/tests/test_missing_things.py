@@ -169,3 +169,75 @@ def test_nothing_recoverable_is_not_invented() -> None:
     assert tool_call_prose.recover("Just a normal answer.") is None
     assert tool_call_prose.recover("Use <b>bold</b> if you like.") is None
     assert tool_call_prose.recover("") is None
+
+
+def test_a_big_failure_is_said_out_loud_once() -> None:
+    """The announcer is what still works when the rest does not.
+
+    Port conflicts, a voice engine that will not load, a camera with no
+    driver -- each stops a whole capability, each was known the moment it
+    happened, and each went to a log file for somebody to find hours later.
+    """
+    from marvi_gateway.alarms import Alarms
+
+    said: list[str] = []
+
+    class Speaker:
+        def speak(self, text: str, **_: object) -> dict[str, object]:
+            said.append(text)
+            return {"played": True}
+
+    bell = Alarms(Speaker())
+    bell._say = lambda line: said.append(line)  # no thread, no audio stack
+
+    broken = {"voice": {"state": "error", "detail": "No espeak backend found"}}
+    assert len(bell.check(broken)) == 1
+    assert "voice could not start" in said[0]
+    # The exception text is developer detail and must not be spoken.
+    assert "espeak" not in said[0]
+
+    # A broken thing stays broken, and the status path polls. Saying it every
+    # two seconds would be the thing you turn off.
+    assert bell.check(broken) == []
+    assert len(said) == 1
+
+    # Recovered, then broken again, is news again.
+    bell.check({"voice": {"state": "ready", "detail": ""}})
+    assert len(bell.check(broken)) == 1
+
+
+def test_only_a_stopped_capability_is_worth_interrupting_for() -> None:
+    """`degraded` and `starting` say so on screen, where they belong."""
+    from marvi_gateway.alarms import Alarms
+
+    bell = Alarms(object())
+    bell._say = lambda line: None
+    for quiet in ("ready", "starting", "degraded", "offline"):
+        assert bell.check({"voice": {"state": quiet, "detail": ""}}) == []
+
+
+def test_a_component_with_no_wording_is_not_invented() -> None:
+    from marvi_gateway.alarms import Alarms
+
+    bell = Alarms(object())
+    bell._say = lambda line: None
+    assert bell.check({"something_new": {"state": "error", "detail": "x"}}) == []
+
+
+def test_the_gateway_publishes_a_build_signature_not_just_a_version() -> None:
+    """Version cannot answer "is that Gateway the same build as me".
+
+    It changes on release; a nightly's code changes every hour. Two Gateways
+    four hours apart report the same version, the check passes, and the stale
+    one keeps serving with whatever was fixed in between.
+    """
+    from marvi_gateway import signature
+
+    build = signature.build()
+    assert build and len(build) == signature.SHOWN
+    assert signature.mine(build)
+    assert not signature.mine("deadbeef1234")
+    assert not signature.mine("")
+    # Stable within a process: it describes the code loaded, which cannot
+    # change while running.
+    assert signature.build() == build

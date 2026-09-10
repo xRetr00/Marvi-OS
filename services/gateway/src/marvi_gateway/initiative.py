@@ -32,6 +32,22 @@ MIND_MINUTES = 2
 #: no network beyond one DNS lookup -- and a disk filling up is worth knowing
 #: about before the thing that needed the space fails.
 MACHINE_MINUTES = 5
+
+#: How often Marvi checks herself over.
+#:
+#: Doctor only ever ran when somebody asked -- `/doctor`, or `marvi doctor` in
+#: a terminal. So a missing espeak backend, a camera with no driver, a browser
+#: engine that was never downloaded all sat there being wrong, and the way you
+#: found out was noticing Marvi behaving oddly and going to read a log.
+#:
+#: That is the wrong shape for this kind of failure. A missing config flag can
+#: wait for somebody to look; a missing dependency has already stopped a whole
+#: capability and will not fix itself.
+#:
+#: Twenty minutes, not one: the checks shell out and one of them launches
+#: Chromium. Frequent enough that a thing broken at breakfast is not still
+#: undiscovered at lunch, rare enough to be free.
+SELF_CHECK_MINUTES = 20
 #: How often a resource reading is taken. Thirty seconds: the readings that
 #: matter are taken on phase changes rather than on this timer, so this only
 #: has to be often enough to draw a line between them.
@@ -419,6 +435,47 @@ class Initiative:
             )
         return {"quiet": len(found)}
 
+    def run_self_check(self) -> dict[str, Any]:
+        """Run the doctor unasked, fix what is safe, and say what is not.
+
+        Three things, in the order they matter:
+
+        * **Heal what heals itself.** `heal` applies only the `automatic`
+          remedies; a `confirm` one -- anything that downloads, deletes or
+          costs -- is deliberately left for a person. That split already
+          existed and nothing was calling it.
+        * **Say what stopped.** A dependency that breaks a capability goes to
+          the announcer through the component status, which is the channel
+          that still works when the rest does not.
+        * **Record it.** So `/doctor` shows the same findings without waiting
+          for somebody to press it.
+        """
+        from . import doctor
+
+        findings = doctor.run_checks()
+        broken = [f for f in findings if f.status == "fail"]
+        warned = [f for f in findings if f.status == "warn"]
+
+        healed: list[dict[str, Any]] = []
+        if fixable := [f for f in findings if f.fixable]:
+            # `include_confirmed=False`: never the ones that download or
+            # destroy. Those are a person's decision and stay one.
+            healed = doctor.heal(fixable, include_confirmed=False)
+            for entry in healed:
+                logger.info("self check fixed something", extra={"marvi_fix": str(entry)})
+
+        for finding in broken + warned:
+            logger.warning(
+                "self check: %s", finding.detail,
+                extra={"marvi_check": finding.check, "marvi_area": finding.area},
+            )
+        return {
+            "checked": len(findings),
+            "failing": len(broken),
+            "warnings": len(warned),
+            "healed": len(healed),
+        }
+
     def run_machine(self) -> dict[str, Any]:
         """Let the machine notice its own condition. See `machine`.
 
@@ -684,6 +741,10 @@ class Initiative:
             self._guard("curiosity", self.run_curiosity), "interval",
             hours=CURIOSITY_HOURS, id="curiosity", max_instances=1, coalesce=True,
             next_run_time=self._first_run("curiosity", CURIOSITY_HOURS * 3600),
+        )
+        scheduler.add_job(
+            self._guard("self_check", self.run_self_check), "interval",
+            minutes=SELF_CHECK_MINUTES, id="self_check", max_instances=1, coalesce=True,
         )
         scheduler.add_job(
             self._guard("accounting", self.run_accounting), "interval",

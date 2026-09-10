@@ -1410,6 +1410,10 @@ def create_app(
     computer_service = ComputerUse(provider_client)
     register_computer_tools(tool_registry, computer_service)
 
+    from .alarms import Alarms
+
+    alarm_bell = Alarms(one_shot if announce_enabled() else None)
+
     # Questions Marvi puts on screen, and the follow-up when nobody answers.
     from . import inline_ask
     from .asking import Asking, asking_router, register_asking_tools
@@ -1838,9 +1842,20 @@ def create_app(
             "accounts": accounts_status(),
             "room": room_status(),
         }
+        # Anything newly broken gets said out loud, once. The announcer is
+        # the part that still works when the rest does not, and until now the
+        # failures nobody could miss went only to a log file. See `alarms`.
+        alarm_bell.check(components)
+
+        from . import signature
+
         return RuntimeStatus(
             product="Marvi OS",
             version=product_version,
+            # Which build this is, so a desktop finding it on the port can
+            # tell "mine" from "someone else's" -- see `signature`.
+            build=signature.build(),
+            pid=os.getpid(),
             state=overall_state(components),
             components=components,
             assistant=runtime_store.assistant,

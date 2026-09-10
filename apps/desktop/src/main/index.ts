@@ -1,4 +1,4 @@
-import { execFile, spawn } from 'node:child_process'
+import { execFile, execFileSync, spawn } from 'node:child_process'
 import { BrowserHost } from './browser-host'
 import { randomBytes } from 'node:crypto'
 import { promisify } from 'node:util'
@@ -33,7 +33,7 @@ import {
 } from './config'
 import { configure as configureLogging, desktop, installCatchers } from './logger'
 import * as ownership from './ownership'
-import { killStrays, reclaimPort } from './processes'
+import { killStrays, killTree, reclaimPort } from './processes'
 import {
   offlineRuntime,
   offlineRuntimeFrom,
@@ -561,6 +561,55 @@ function broadcastWindowState(): void {
  * sits at apps/desktop/dist/win-unpacked, so walk up until `services/gateway`
  * appears instead of guessing a fixed depth.
  */
+/** The build signature of a Gateway already listening, or null.
+ *
+ * Asked over `/health` rather than inferred: a Gateway that will not answer
+ * its own health endpoint is not one worth attaching to either.
+ */
+async function gatewayBuild(port: number): Promise<{ build: string; pid: number } | null> {
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/health`, {
+      signal: AbortSignal.timeout(4_000)
+    })
+    if (!response.ok) return null
+    const body = (await response.json()) as Record<string, unknown>
+    return { build: String(body['build'] ?? ''), pid: Number(body['pid'] ?? 0) }
+  } catch {
+    return null
+  }
+}
+
+/** The signature of the Gateway code this desktop is about to start.
+ *
+ * Computed by running the Gateway's own `signature` module rather than
+ * hashing the files again here. Two implementations of one digest, in two
+ * languages, is a drift waiting to happen -- and a drift here means every
+ * Gateway looks foreign and gets killed on every launch.
+ *
+ * Only reached when something is already on the port, so the subprocess cost
+ * is paid on the rare path rather than every start.
+ */
+function ourBuild(repoRoot: string | null): string {
+  const uv = findUv()
+  if (!uv || !repoRoot) return ''
+  try {
+    return execFileSync(
+      uv,
+      [
+        'run',
+        '--project',
+        'services/gateway',
+        'python',
+        '-c',
+        'from marvi_gateway import signature; print(signature.build())'
+      ],
+      { cwd: repoRoot, encoding: 'utf8', windowsHide: true, timeout: 30_000 }
+    ).trim()
+  } catch {
+    return ''
+  }
+}
+
 function findRepoRoot(): string | null {
   let dir = resolve(app.getAppPath())
   for (let hop = 0; hop < 8; hop++) {
@@ -572,7 +621,7 @@ function findRepoRoot(): string | null {
   return null
 }
 
-function startVoiceStack(): void {
+async function startVoiceStack(): Promise<void> {
   // Logging before anything can fail, so a startup failure is recorded rather
   // than being the one thing nothing wrote down.
   configureLogging(logsDir())
@@ -650,22 +699,50 @@ function startVoiceStack(): void {
   //
   // Reported the way a missing `uv` is reported, ten lines below: an error
   // state with something to do about it.
+  // A live Marvi on the port is not automatically a *stranger's* Marvi.
+  //
+  // Ask it what build it is. Same signature as the code about to start means
+  // it is this one, already running and healthy, and attaching is right --
+  // that is the ordinary case of a desktop restarting over its own Gateway.
+  // A different signature is a different build: another checkout, or the one
+  // an agent left behind after a test in the repo. Those get replaced, not
+  // attached to.
+  //
+  // Deliberately not a version comparison. A version changes on release and
+  // a nightly's code changes every hour, so two Gateways built four hours
+  // apart report the same version and the stale one keeps serving with
+  // whatever was fixed in between. A check that can only fail on release day
+  // is not a check.
   if (reclaimed.includes('another running Marvi')) {
-    desktop.error(reclaimed)
-    publishRuntime({
-      ...offlineRuntime(app.getVersion()),
-      state: 'error',
-      components: {
-        gateway: {
+    const theirs = await gatewayBuild(port)
+    if (theirs && theirs.build && theirs.build === ourBuild(repoRoot)) {
+      desktop.info(
+        `attaching to the Marvi already on port ${port}: same build ${theirs.build}`
+      )
+    } else {
+      const why = theirs?.build
+        ? `it is build ${theirs.build}, and this one is ${ourBuild(repoRoot)}`
+        : 'it did not answer with a build signature'
+      desktop.warn(`replacing the Marvi on port ${port}: ${why}`)
+      if (theirs?.pid && killTree(theirs.pid, true)) {
+        desktop.info(`stopped the other Gateway (process ${theirs.pid})`)
+      } else {
+        desktop.error(reclaimed)
+        publishRuntime({
+          ...offlineRuntime(app.getVersion()),
           state: 'error',
-          detail:
-            `Another Marvi is already running and holding port ${port}. This one would ` +
-            'have attached to it and used its settings. Close the other Marvi, then ' +
-            'restart this one.'
-        }
+          components: {
+            gateway: {
+              state: 'error',
+              detail:
+                `Another Marvi is holding port ${port} and could not be stopped. ` +
+                'Close it, then restart this one.'
+            }
+          }
+        })
+        return
       }
-    })
-    return
+    }
   }
 
   const uv = findUv()
@@ -1472,7 +1549,7 @@ function startApp(): void {
       (_contents, permission, origin) => allowed.has(permission) && isMarviPage(origin)
     )
 
-    startVoiceStack()
+    void startVoiceStack()
     // The updater must stop the detached listener before replacing the build
     // directory. Restore it from the newly packaged binary when Marvi comes
     // back, and do the same after any unexpected whole-process exit. The Run
