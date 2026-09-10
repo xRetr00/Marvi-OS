@@ -7,35 +7,42 @@
   <body>
     <div id="root"></div>
     <script type="module">
-      // TEMP: a preload bridge that answers everything with empty data, so the
-      // renderer can be inspected outside Electron.
-      const noop = () => () => {}
-      window.marvi = new Proxy(
-        {},
-        {
-          get(_t, key) {
-            if (String(key).startsWith('on')) return noop
-            return async () => {
-              const k = String(key)
-              if (k === 'getChat')
-                return {
-                  messages: [],
-                  available: true,
-                  threads: [
-                    { id: 'default', title: 'New conversation', message_count: 0,
-                      updated_at: new Date().toISOString(), created_at: new Date().toISOString(),
-                      archived: false, active_message_id: null, active_branch: 'main',
-                      selected_provider: '', selected_model: '', selected_effort: '' }
-                  ],
-                  active_thread: 'default',
-                  context: null
-                }
-              if (k === 'getChatThreads') return []
-              return null
-            }
-          }
+      window.__errs = []
+      window.addEventListener('error', (e) => {
+        window.__errs.push(String(e.error && e.error.stack ? e.error.stack : e.message))
+      })
+      window.addEventListener('unhandledrejection', (e) => {
+        window.__errs.push('REJECT ' + String(e.reason && e.reason.stack ? e.reason.stack : e.reason))
+      })
+
+      // TEMP: a preload bridge that answers everything with benign data, so
+      // the renderer can be inspected outside Electron.
+      const thread = {
+        id: 'default', title: 'New conversation', message_count: 0,
+        updated_at: new Date().toISOString(), created_at: new Date().toISOString(),
+        archived: false, active_message_id: null, active_branch: 'main',
+        selected_provider: '', selected_model: '', selected_effort: ''
+      }
+      const runtime = {
+        assistant: { phase: 'idle', question: null, secret: null, caption: '' },
+        confirmation: null, announcement: null, listening: false, speaking: false
+      }
+      const shapes = {
+        getChat: { messages: [], available: true, threads: [thread], active_thread: 'default', context: null },
+        getChatThreads: [],
+        getRuntime: runtime,
+        getModels: { providers: [] },
+        getProviders: { selected: '', providers: [] },
+        getAsking: { waiting: [] }
+      }
+      window.marvi = new Proxy({}, {
+        get(_t, key) {
+          const k = String(key)
+          if (k.startsWith('on')) return () => () => {}
+          if (k === 'then') return undefined
+          return async () => (k in shapes ? shapes[k] : {})
         }
-      )
+      })
       await import('/src/main.tsx')
     </script>
   </body>
