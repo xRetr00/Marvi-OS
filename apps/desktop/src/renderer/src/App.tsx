@@ -173,6 +173,7 @@ import { getHapticsMuted, haptic, setHapticsMuted } from './lib/haptics'
 import type {
   FaceLibrary,
   DeviceState,
+  AuxiliaryPage,
   IdentityStatus,
   MemoryPage,
   MemoryEntry,
@@ -3953,24 +3954,27 @@ function VoicePicker({ compact = false }: { compact?: boolean } = {}): React.JSX
  * Sits in the rig readout rather than in settings because it is the number you
  * are most likely to want to change while listening to Marvi be slow. Unlike
  * the composer's, this one is persistent: voice has no session to scope a
- * choice to, so picking here writes the provider's configured model — the same
- * value the Models page sets.
+ * choice to, so picking here writes the Voice auxiliary role rather than the
+ * global model used by the Models page.
  */
 function VoiceModelPicker({ current }: { current: string }): React.JSX.Element {
   const [page, setPage] = useState<ModelPage | null>(null)
   const [providers, setProviders] = useState<ProviderPage | null>(null)
-  const [chosen, setChosen] = useState(current)
+  const [auxiliary, setAuxiliary] = useState<AuxiliaryPage | null>(null)
+  const [chosen, setChosen] = useState('')
 
   useEffect(() => {
     let gone = false
     void (async () => {
       const [models, settings] = await Promise.all([
         window.marvi?.getModels({}),
-        window.marvi?.getProviders()
+        window.marvi?.getProviders(),
+        window.marvi?.getAuxiliary()
       ])
       if (gone) return
       setPage(models ?? null)
       setProviders(settings ?? null)
+      setAuxiliary(auxiliary ?? null)
     })()
     return () => {
       gone = true
@@ -3980,17 +3984,16 @@ function VoiceModelPicker({ current }: { current: string }): React.JSX.Element {
   const rows = page?.providers ?? []
   if (rows.length === 0) return <>{current || 'not selected'}</>
 
-  // `current` is the readout string -- "OpenRouter / vendor/model" -- not a
-  // model id, so it can never match an option. The selection comes from what
-  // each provider reports as its configured model instead, which is the same
-  // value the Models page writes.
-  const configured = rows.find((row) => row.selected)
+  const voiceRole = auxiliary?.roles.find((role) => role.key === 'voice')
+  const configured = providers?.selected
+    ? rows.find((row) => row.provider === providers.selected)
+    : undefined
+  const roleSelection = voiceRole && !voiceRole.auto ? `${voiceRole.provider}::${voiceRole.model}` : ''
+  const mainSelection = configured?.selected ? `${configured.provider}::${configured.selected}` : ''
   const active =
     chosen && chosen.includes('::')
       ? chosen
-      : configured
-        ? `${configured.provider}::${configured.selected}`
-        : ''
+      : roleSelection || mainSelection
 
   const [activeProvider, ...activeModel] = active.split('::')
 
@@ -4003,12 +4006,15 @@ function VoiceModelPicker({ current }: { current: string }): React.JSX.Element {
       onChange={(next) => {
         if (!next) return
         setChosen(`${next.provider}::${next.model}`)
-        const env = providers?.providers.find((row) => row.name === next.provider)?.env
-        if (!env?.model) return
-        const values: Record<string, string> = { [env.model]: next.model }
+        if (!voiceRole?.setting) return
         void (async () => {
-          const saved = await window.marvi?.setProviderSettings(values)
-          if (saved) setProviders(saved)
+          const saved = await window.marvi?.setProviderSettings({
+            [voiceRole.setting]: `${next.provider}/${next.model}`
+          })
+          if (!saved) return
+          setProviders(saved)
+          const updated = await window.marvi?.getAuxiliary()
+          if (updated) setAuxiliary(updated)
         })()
       }}
       placeholder={current || 'not selected'}
