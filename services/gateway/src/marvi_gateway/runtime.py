@@ -162,6 +162,16 @@ class ModelSummary(BaseModel):
 class RuntimeStatus(BaseModel):
     product: str = "Marvi OS"
     version: str
+    #: A digest of the Gateway code actually loaded. See `signature`.
+    #:
+    #: Version cannot answer the question a caller has, which is "is that
+    #: Gateway the same build as me". A version changes on release and a
+    #: nightly's code changes every hour, so two Gateways four hours apart
+    #: report the same version, the check passes, and the stale one keeps
+    #: serving with whatever was fixed in between.
+    build: str = ""
+    #: So a caller that decides to replace it knows what to stop.
+    pid: int = 0
     state: Literal["ready", "starting", "degraded", "offline", "error"]
     components: dict[str, ComponentStatus]
     assistant: AssistantState

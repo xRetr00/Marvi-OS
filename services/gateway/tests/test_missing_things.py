@@ -115,3 +115,57 @@ def test_the_harness_tells_her_to_diagnose_rather_than_offer() -> None:
     assert "Diagnosing is reading, and reading needs no permission" in said
     # It has to name the failure, not just the principle.
     assert "Want me to look into that?" in said
+
+
+def test_a_typed_out_call_is_recovered_and_run_not_apologised_for() -> None:
+    """The real fix, rather than hiding the markup.
+
+    Stripping it and saying sorry is honest and wasteful: the model named the
+    tool and its arguments, and every bit of that survives in the text. So it
+    is read back into a real call, the tool runs, and the turn continues.
+    """
+    paired = (
+        '<tool_call>terminal_run <arg_key>command</arg_key> <arg_value>Get-Process '
+        '-Name "Sidecar"</arg_value> <arg_key>shell</arg_key> '
+        "<arg_value>powershell</arg_value> </tool_call>"
+    )
+    assert tool_call_prose.recover(paired) == {
+        "name": "terminal_run",
+        "arguments": {"command": 'Get-Process -Name "Sidecar"', "shell": "powershell"},
+    }
+
+
+def test_every_dialect_a_model_might_write_is_read_back() -> None:
+    """One fix, not a case per model. Three shapes, one parser."""
+    assert tool_call_prose.recover(
+        '<tool_call>{"name": "marvi_logs", "arguments": {"lines": 40}}</tool_call>'
+    ) == {"name": "marvi_logs", "arguments": {"lines": 40}}
+
+    assert tool_call_prose.recover(
+        '<invoke name="room_state"><parameter name="deep">true</parameter></invoke>'
+    ) == {"name": "room_state", "arguments": {"deep": True}}
+
+
+def test_values_come_back_as_the_types_the_tool_declares() -> None:
+    """Markup has no types, so everything arrives as a string.
+
+    A tool declaring `lines: int` refuses `"40"` -- the same disagreement
+    `_coerce` exists for -- so a recovered call that only ever produced
+    strings would fail validation for a different reason and look like a
+    second bug.
+    """
+    got = tool_call_prose.recover(
+        '<invoke name="marvi_logs"><parameter name="n">40</parameter>'
+        '<parameter name="f">1.5</parameter>'
+        '<parameter name="b">true</parameter>'
+        '<parameter name="s">hello</parameter></invoke>'
+    )
+    assert got is not None
+    assert got["arguments"] == {"n": 40, "f": 1.5, "b": True, "s": "hello"}
+
+
+def test_nothing_recoverable_is_not_invented() -> None:
+    """Conservative on purpose: a guess that runs the wrong tool is worse."""
+    assert tool_call_prose.recover("Just a normal answer.") is None
+    assert tool_call_prose.recover("Use <b>bold</b> if you like.") is None
+    assert tool_call_prose.recover("") is None
