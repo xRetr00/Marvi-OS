@@ -21,7 +21,7 @@ import {
 
 import { AbstractIcon } from '../../components/abstract-icon'
 import { MarviAvatar } from '../../components/ui/avatar'
-import { UiTooltip } from '../../components/ui/tooltip'
+import { TooltipProvider, UiTooltip } from '../../components/ui/tooltip'
 import { formatTime } from '../time'
 import { AttachmentPreview } from '../components/AttachmentPreview'
 import { messageText } from './message-text'
@@ -81,6 +81,7 @@ export function UserMessage({ message }: { message: MessageState }): React.JSX.E
           </div>
         ) : null}
       </div>
+      <TooltipProvider>
       <div className="chat-turn-actions">
         <span className="chat-message-age">{formatTime(createdAt(message))}</span>
         <BranchPicker />
@@ -105,6 +106,7 @@ export function UserMessage({ message }: { message: MessageState }): React.JSX.E
           </UiTooltip>
         </ActionBarPrimitive.Root>
       </div>
+      </TooltipProvider>
     </MessagePrimitive.Root>
   )
 }
@@ -175,6 +177,7 @@ export function AssistantMessage({
             </ActionBarPrimitive.Root>
           </div>
         </div>
+        </TooltipProvider>
       </div>
     </MessagePrimitive.Root>
   )
