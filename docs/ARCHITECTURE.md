@@ -10,6 +10,10 @@ Timed-out actions transfer capture exclusion to SDK worker retirement; only
 acknowledged shutdown releases it. Failed retirement refuses further computer
 actions/private acknowledgment until restart. A content-free revision counter
 supports authenticated status long-polling through Electron's narrow bridge.
+Gateway also owns the `Marvi` cursor session on session-bearing Cua calls;
+session selection and cursor configuration are not delegated to the model.
+The unchanged upstream overlay draws the pointer/badge and fades it when idle.
+Stop/private input ends that session inside the existing handoff contract.
 
 The [Hermes Desktop review](HERMES-DESKTOP-BROWSER-REVIEW.md) revises the primary
 browser host to an Electron main-owned WebContentsView. That host and its narrow

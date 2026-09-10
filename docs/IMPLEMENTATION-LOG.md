@@ -1,5 +1,16 @@
 # Implementation Log
 
+## 2026-09-10 — native Marvi cursor
+
+Configured the unchanged Cua 0.24.0 pointer/theme under a Gateway-owned `Marvi`
+session. Targeted calls consistently carry that session, with 2.5-second idle
+fade and reduced-motion auto. Stop/private and failed calls end the session;
+timeouts retain worker-retirement cleanup. The native state-inspection quirk
+that re-enables disabled cursors is avoided by ending rather than toggling the
+session. Fourteen computer behavior tests pass, and the Windows fixture proves
+the visible Marvi badge, session cleanup, resume, and timeout recovery. No
+replacement Windows mouse or custom native renderer was added.
+
 ## 2026-09-09 — Island transparency, reveal, and Voice orb depth
 
 - Scoped transparent document/body/root paint and normal color-scheme to the

@@ -118,6 +118,9 @@ enable **Computer use and app control** under capabilities, and restart Marvi.
 App discovery, launch, inspection, window management and input use the local
 driver. Dynamic Island shows **Marvi is using the computer** and provides Stop,
 Private input and Resume. Browser tasks retain the embedded Playwright browser.
+Targeted computer actions display Cua's separate agent pointer with a **Marvi**
+badge. It fades when idle and is removed on Stop or Private input. Foreground
+input may still use your normal mouse pointer.
 Computer activity updates on state changes. Timed-out actions retire their old
 worker before private input can start; uncertain outcomes are shown explicitly.
 Native app-control and recovery checks pass; live voice-to-Island visual

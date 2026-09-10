@@ -4,6 +4,8 @@
 Continuation validates native app control, password-field redaction and worker
 retirement after timeouts; Island status now waits for content-free revisions.
 Live voice-to-Island visual acceptance remains open in Phase 15.
+2026-09-10: The native Marvi-labeled cursor is integrated and visually verified
+on the Windows fixture; cursor cleanup is checked on Stop and Private input.
 [Phase 15](phases/15-computer-use.md) delivers Cua Driver integration with Setup,
 Gateway app controls and Dynamic Island activity/private-input controls.
 

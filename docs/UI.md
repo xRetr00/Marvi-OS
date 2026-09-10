@@ -11,6 +11,13 @@ Computer status waits for revision changes instead of repeatedly polling while
 idle. Unknown completion is displayed explicitly; worker retirement shows
 stopping until acknowledged. Active computer controls precede ordinary asking
 cards. A failed retirement requires restart and cannot acknowledge private input.
+Computer actions use Cua's native agent pointer with the public session badge
+`Marvi`, the built-in `cua.default` theme and automatic reduced-motion handling.
+The pointer fades after 2.5 seconds idle; the badge follows Cua's own fade/hover
+behavior. Stop/private input ends the cursor session; the next admitted action
+revives it. Window-mode overlay movement does not move the user's OS pointer.
+Foreground/desktop input can still use the OS pointer. Process-only operations
+without a cursor target continue to identify activity through the Island.
 
 2026-09-08 scope correction: the primary Browser experience must embed the
 agent-controlled guest inside the desktop app using an Electron main-owned
