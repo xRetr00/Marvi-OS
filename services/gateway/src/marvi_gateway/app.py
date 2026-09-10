@@ -111,6 +111,15 @@ from .runtime import (
     TokenRejectedError,
 )
 from .screen import register_screen_tools
+from .telegram import (
+    TOKEN_SETTING as TELEGRAM_TOKEN,
+)
+from .telegram import (
+    TelegramBridge,
+    TelegramDelivery,
+    TelegramUnavailableError,
+    register_telegram_tools,
+)
 from .tools import InvalidArgumentsError, ToolRegistry, ToolSpec, UnknownToolError
 from .web import WebTools, register_web_tools
 from .workspace import Workspace, register_workspace_tools
@@ -862,6 +871,14 @@ class McpInstall(BaseModel):
     env: dict[str, str] = Field(default_factory=dict)
 
 
+class TelegramToken(BaseModel):
+    token: str = Field(min_length=1, max_length=200)
+
+
+class TelegramSettings(BaseModel):
+    when_away: bool
+
+
 def livekit_is_ready(host: str = "127.0.0.1", port: int = 7880) -> bool:
     try:
         with socket.create_connection((host, port), timeout=0.05):
@@ -1214,6 +1231,7 @@ def create_app(
     #: baseline, so a restart does not replay the log into the mind.
     room_cursor: int | None = None
     scheduler: schedule_module.Scheduler | None = None
+    telegram_bridge: TelegramBridge | None = None
     # None when a caller supplied its own tools -- a test, mostly. The memory
     # routes answer honestly rather than pretending, because a Gateway built
     # without the tool stack has no worker to hand a turn to.
@@ -1507,6 +1525,10 @@ def create_app(
             scheduler.journal = journal
             scheduler.initiative = initiative
             scheduler.start()
+        if telegram_bridge is not None:
+            # Connects in the background; an offline network or a missing token
+            # is a status on the Channels page, never a slower start.
+            await telegram_bridge.start()
         if memory is not None:
             # Off the request path and off the event loop. Nothing waits for
             # it: a recall that arrives before this finishes still works, it
@@ -1580,6 +1602,9 @@ def create_app(
                 account_triggers.stop()
             if scheduler is not None:
                 scheduler.stop()
+            if telegram_bridge is not None:
+                with contextlib.suppress(Exception):
+                    await telegram_bridge.stop()
             # Stopped in reverse, and never allowed to raise: a plugin that
             # cannot shut down cleanly must not leave the rest of the shutdown
             # undone, or its child process outlives the Gateway and holds the
@@ -2119,6 +2144,139 @@ def create_app(
             lambda: schemas_from_registry(tool_registry),
             dispatch_for_schedule,
         )
+
+    def settle_for_channel(token: str, approve: bool) -> dict[str, Any]:
+        """A confirmation tap from a messaging channel.
+
+        The same token path as `POST /confirmations`: the token is consumed
+        once, only for the arguments it was issued for. The channel has already
+        proved the tap came from the linked owner.
+        """
+        arguments = runtime_store.pending_arguments(token)
+        if arguments is None:
+            return {"status": "expired"}
+        try:
+            pending = runtime_store.take_confirmation(token, arguments)
+        except (TokenRejectedError, ArgumentsMutatedError):
+            return {"status": "expired"}
+        spec = tool_registry.get(pending.tool)
+        facts = {"tool": pending.tool, "arguments": pending.arguments}
+        if not approve:
+            runtime_store.audit("denied", pending.tool, pending.arguments, detail="via telegram")
+            runtime_store.settle_confirmation(token, caption="Action denied", action=spec.description)
+            return {"status": "denied", **facts}
+        runtime_store.audit("approved", pending.tool, pending.arguments, detail="via telegram")
+        runtime_store.settle_confirmation(token, caption="Action approved", action=spec.description)
+        ran = run_tool(spec, pending.arguments, pending.write_key).model_dump(exclude={"runtime"})
+        return {**ran, **facts}
+
+    def transcribe_for_channel(pcm: bytes) -> str:
+        """A voice note through the same local recogniser as Chat dictation."""
+        if not dictation.available():
+            raise DictationError("the local speech recogniser is not installed")
+        session = dictation.start()
+        try:
+            step = 64 * 1024
+            for start in range(0, len(pcm), step):
+                dictation.audio(session, base64.b64encode(pcm[start : start + step]).decode())
+            return str(dictation.stop(session).get("text") or "")
+        except Exception:
+            dictation.cancel(session)
+            raise
+
+    if chat is not None:
+        telegram_bridge = TelegramBridge(
+            chat,
+            journal=journal,
+            settle=settle_for_channel,
+            transcribe=transcribe_for_channel,
+            workspace=Workspace(),
+            yolo=lambda: runtime_store.assistant.yolo,
+        )
+        register_telegram_tools(tool_registry, telegram_bridge)
+        if scheduler is not None:
+            scheduler.delivery = TelegramDelivery(telegram_bridge)
+        if initiative is not None:
+            initiative.mind.messenger = telegram_bridge.text_when_away
+
+    def telegram_or_503(http_request: Request) -> TelegramBridge:
+        localauth.guard(http_request)
+        if telegram_bridge is None:
+            raise HTTPException(status_code=503, detail="Telegram is not available in this Gateway")
+        return telegram_bridge
+
+    @app.get("/telegram")
+    async def telegram_page(http_request: Request) -> dict[str, Any]:
+        """The Channels page. Guarded: while linking, it carries the one-time code."""
+        return telegram_or_503(http_request).status()
+
+    @app.put("/telegram/token")
+    async def telegram_token(body: TelegramToken, http_request: Request) -> dict[str, Any]:
+        bridge = telegram_or_503(http_request)
+        token = body.token.strip()
+        try:
+            await bridge.check(token)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except TelegramUnavailableError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        provider_config.update({TELEGRAM_TOKEN: token})
+        redactor().refresh()
+        await bridge.start()
+        runtime_store.audit("channel-configure", "telegram", {})
+        return bridge.status()
+
+    @app.delete("/telegram")
+    async def telegram_disconnect(http_request: Request) -> dict[str, Any]:
+        bridge = telegram_or_503(http_request)
+        await bridge.stop()
+        provider_config.update({TELEGRAM_TOKEN: ""})
+        runtime_store.audit("channel-disconnect", "telegram", {})
+        return bridge.status()
+
+    @app.post("/telegram/pair")
+    async def telegram_pair(http_request: Request) -> dict[str, Any]:
+        bridge = telegram_or_503(http_request)
+        try:
+            bridge.pair()
+        except TelegramUnavailableError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return bridge.status()
+
+    @app.delete("/telegram/owner")
+    async def telegram_unlink(http_request: Request) -> dict[str, Any]:
+        bridge = telegram_or_503(http_request)
+        bridge.unlink()
+        runtime_store.audit("channel-unlink", "telegram", {})
+        return bridge.status()
+
+    @app.put("/telegram/settings")
+    async def telegram_settings(body: TelegramSettings, http_request: Request) -> dict[str, Any]:
+        bridge = telegram_or_503(http_request)
+        bridge.set_when_away(body.when_away)
+        return bridge.status()
+
+    @app.post("/telegram/test")
+    async def telegram_test(http_request: Request) -> dict[str, Any]:
+        bridge = telegram_or_503(http_request)
+        try:
+            await anyio.to_thread.run_sync(
+                lambda: bridge.send("It's me — Marvi. Telegram is working.", origin="test")
+            )
+        except TelegramUnavailableError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return bridge.status()
+
+    @app.post("/telegram/identity")
+    async def telegram_identity(http_request: Request) -> dict[str, Any]:
+        bridge = telegram_or_503(http_request)
+        if not bridge.ready():
+            raise HTTPException(status_code=409, detail="Telegram is not connected")
+        try:
+            await bridge.sync_identity(force=True)
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"Telegram refused: {str(exc)[:200]}") from exc
+        return bridge.status()
 
     @app.get("/chat", response_model=ChatHistory)
     async def chat_history(thread_id: str = "default") -> ChatHistory:

@@ -499,6 +499,16 @@ class RuntimeStore:
     def pending_issued_at(self, token: str) -> float:
         return self._pending[token].issued_at
 
+    def pending_arguments(self, token: str) -> dict[str, Any] | None:
+        """The exact arguments a live token was issued for, or None.
+
+        For a channel that shows the request as text and gets back only a tap:
+        it approves what was issued, and cannot be the one to supply arguments.
+        """
+        self.expire_confirmations()
+        pending = self._pending.get(token)
+        return dict(pending.arguments) if pending is not None else None
+
     def expire_confirmations(self, now: float | None = None) -> None:
         cutoff = (now if now is not None else time.monotonic()) - CONFIRMATION_TTL_SECONDS
         expired = [

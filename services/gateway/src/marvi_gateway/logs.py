@@ -87,6 +87,8 @@ MODULE_SUBSYSTEMS: dict[str, str] = {
     "marvi_gateway.announce": "voice",
     "marvi_gateway.setup": "setup",
     "marvi_gateway.doctor": "doctor",
+    "marvi_gateway.telegram": "telegram",
+    "telegram": "telegram",
     "marvi_agent": "voice",
     # Libraries. Losing these is losing the actual cause most of the time.
     "httpx": "providers",
@@ -111,6 +113,8 @@ SECRET_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\bsk-ant-[A-Za-z0-9_\-]{16,}"),
     re.compile(r"\bghp_[A-Za-z0-9]{20,}"),
     re.compile(r"\bxox[baprs]-[A-Za-z0-9\-]{10,}"),
+    # A Telegram bot token, which the Bot API puts in every request path.
+    re.compile(r"\b\d{6,}:[A-Za-z0-9_\-]{30,}"),
     re.compile(r"(?i)\b(authorization|x-api-key)\b\s*[:=]\s*\S+"),
     re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._\-]{12,}"),
     # A key in a query string is the classic accidental disclosure.

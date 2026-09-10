@@ -864,7 +864,8 @@ def register_schedule_tools(registry: Any, scheduler: Scheduler) -> None:
                 "effort": {"type": "string", "enum": list(EFFORTS)},
                 "tool_names": {"type": "array", "items": {"type": "string"}},
                 "delivery": {"type": "string", "description": (
-                    "Delivery adapter target id; local saves output without messaging."
+                    "Where the result goes: local saves it; telegram sends it to the "
+                    "user's linked Telegram chat."
                 )},
                 "insist": {"type": "boolean"},
                 "repeat_count": {"type": "integer", "minimum": 1},

@@ -133,10 +133,12 @@ def situation() -> str:
 #: A function rather than a constant so the file is read at call time, and so
 #: the language rule arrives from the setting instead of being the word
 #: "English" written twice in two services that agreed by coincidence.
-def system_prompt() -> str:
+def system_prompt(surface: str = "chat") -> str:
+    """`surface` names the prompt file: `chat` for the window, `telegram` for
+    the phone. Same identity, memory and tools; only the medium differs."""
     from . import prompts
 
-    return prompts.text("chat", LANGUAGE=language.reply_instruction().strip())
+    return prompts.text(surface, LANGUAGE=language.reply_instruction().strip())
 
 
 SCHEMA = """
@@ -918,12 +920,12 @@ class Chat:
             logger.warning("recall unavailable: %s", exc)
             return ""
 
-    def _system(self, gap: Any = None, recalled: str = "") -> str:
+    def _system(self, gap: Any = None, recalled: str = "", surface: str = "chat") -> str:
         # Identity leads, then the chat brief. Identity is byte-identical every
         # turn, which is what makes the prefix cacheable.
         # The date leads the changing half: it is the shortest line here and the
         # one whose absence produced the most confident wrong answers.
-        brief = system_prompt() + "\n\n" + situation()
+        brief = system_prompt(surface) + "\n\n" + situation()
         if self.curiosity is not None:
             # Appended after the cacheable identity block, because this part
             # legitimately changes: it carries at most one question, and only
@@ -997,7 +999,11 @@ class Chat:
             return []
 
     def _messages(
-        self, gap: Any = None, recalled: str = "", thread_id: str = DEFAULT_THREAD_ID
+        self,
+        gap: Any = None,
+        recalled: str = "",
+        thread_id: str = DEFAULT_THREAD_ID,
+        surface: str = "chat",
     ) -> list[dict[str, Any]]:
         """The conversation, in the neutral shape `build_request` translates.
 
@@ -1013,7 +1019,9 @@ class Chat:
         APIs are close to it; `build_request` turns it into Anthropic's content
         blocks and the Responses API's items.
         """
-        wire: list[dict[str, Any]] = [{"role": "system", "content": self._system(gap, recalled)}]
+        wire: list[dict[str, Any]] = [
+            {"role": "system", "content": self._system(gap, recalled, surface)}
+        ]
         for row in self._recent(thread_id):
             if row["role"] in ("user", "assistant"):
                 content = (
@@ -1323,6 +1331,7 @@ class Chat:
         attachment_ids: list[str] | None = None,
         edit_message_id: int | None = None,
         regenerate_message_id: int | None = None,
+        surface: str = "chat",
     ) -> Iterator[dict[str, Any]]:
         """One chat turn, yielded as it happens.
 
@@ -1408,7 +1417,9 @@ class Chat:
         gap = self._curiosity_turn(text, turns)
         recalled = self._recall(text)
         schemas = list(self.tool_schemas() if self.tool_schemas else [])
-        schemas.append(present_tool_schema())
+        # Widgets are React components; a phone has nowhere to draw one.
+        if surface == "chat":
+            schemas.append(present_tool_schema())
         if self.curiosity is not None:
             schemas += curiosity_tools()
 
@@ -1446,7 +1457,7 @@ class Chat:
                     "chat", "stream", provider=provider or "", model=model or ""
                 ) as sample:
                     stream = self.client.stream_with_fallback(
-                        self._messages(gap, recalled, thread_id),
+                        self._messages(gap, recalled, thread_id, surface),
                         preferred=provider or None,
                         model=model or None,
                         effort=effort or None,

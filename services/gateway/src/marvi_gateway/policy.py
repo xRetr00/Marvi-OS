@@ -204,6 +204,9 @@ SURFACE_CEILING: dict[str, str] = {
     # behind it is the slowest on the scheduler and why this is still only a
     # ceiling: presence, the hour and the deliberator all still apply.
     "curiosity:question": "speak",
+    # Someone who is not the owner messaged the Telegram bot. Worth a glance,
+    # never a word: the name in it was typed by a stranger.
+    "telegram:stranger": "island",
 }
 
 

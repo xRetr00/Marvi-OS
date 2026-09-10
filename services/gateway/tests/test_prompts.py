@@ -37,6 +37,8 @@ REPO = Path(__file__).resolve().parents[3]
 STILL_IN_CODE: set[tuple[str, str]] = {
     # The MARVI OS banner: box-drawing characters, printed to a terminal.
     ("terminal_ui.py", "MARVI_ART"),
+    # The /help reply the Telegram bot sends a person. Never shown to a model.
+    ("telegram.py", "HELP"),
 }
 
 #: Below this, a string constant is a message or a label rather than a prompt.

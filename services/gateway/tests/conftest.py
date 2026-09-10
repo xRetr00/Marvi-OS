@@ -82,6 +82,9 @@ def isolate_marvi_home(tmp_path_factory, monkeypatch):
     # without this the next test inherits a Marvi that confirms nothing --
     # which is both a wrong result and the least obvious one to trace.
     monkeypatch.delenv("MARVI_YOLO", raising=False)
+    # A developer's real bot token would start polling Telegram from every test
+    # that builds the app.
+    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
 
     yield home
 

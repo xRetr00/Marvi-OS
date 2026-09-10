@@ -143,6 +143,11 @@ class Mind:
         # than home. Only "someone is in the room" depends on it, and only
         # because that sentence means something else entirely when you are out.
         self.presence = presence
+        #: `(sentence, event) -> bool`: say it on the phone instead. Consulted
+        #: only when the one reason not to speak was an empty room -- quiet
+        #: hours, a live call and the budget still mean silence. False means it
+        #: could not be sent, and the item is held exactly as before.
+        self.messenger: Any = None
 
     # -- how it sounds -------------------------------------------------------
 
@@ -343,12 +348,16 @@ class Mind:
             )
             wanted = self._wanted_surface(event)
             verdict = evaluate(event, world, self.settings, wanted=wanted)
+            # Nobody home to hear it, and a phone to send it to instead.
+            textable = verdict.rule == "nobody-present" and self.messenger is not None
             # Worth saying, and not sayable yet. Held rather than dropped.
+            # Held later instead, if the text does not go through.
             if (
                 self.waiting is not None
                 and SURFACES.index(wanted) >= SURFACES.index("speak")
                 and SURFACES.index(verdict.surface) < SURFACES.index("speak")
                 and not event.get("_released")
+                and not textable
             ):
                 self.waiting.hold(event, verdict.rule)
             # How much this is worth, before anything is paid to find out.
@@ -539,6 +548,16 @@ class Mind:
                     surface = "island"
                     detail = f"{detail} (speech unavailable)".strip()
 
+            texted = ""
+            if textable:
+                # `island` is what "nobody-present" downgrades speech to; a
+                # deliberation that made it quieter than that stays quieter,
+                # and is held for later as it always was.
+                if surface == "island" and self.messenger(sentence, event):
+                    texted = sentence
+                elif self.waiting is not None and not event.get("_released"):
+                    self.waiting.hold(event, verdict.rule)
+
             latency = decided_in
             said_in = (time.perf_counter() - said_started) * 1000
             decision_id = self.journal.record_decision(
@@ -551,6 +570,7 @@ class Mind:
                 latency_ms=latency,
                 tokens=tokens,
                 outcome=("spoke: " + spoken) if spoken
+                else ("texted: " + texted) if texted
                 else ("surfaced" if surface not in ("silent", "remember") else surface),
                 now=moment,
             )
