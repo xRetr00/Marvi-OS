@@ -241,3 +241,98 @@ def test_the_gateway_publishes_a_build_signature_not_just_a_version() -> None:
     # Stable within a process: it describes the code loaded, which cannot
     # change while running.
     assert signature.build() == build
+
+
+def _chat_with(dispatch) -> object:
+    import tempfile
+    from pathlib import Path
+
+    from marvi_gateway.chat import Chat, ChatStore
+
+    store = ChatStore(Path(tempfile.mkdtemp()) / "chat.sqlite3")
+    return Chat(client=None, store=store, dispatch=dispatch)
+
+
+def test_no_tool_problem_ends_the_turn() -> None:
+    """Every failure is handed back, so the model can retry or report.
+
+    A turn that dies on a tool leaves the user with nothing and the model with
+    no chance to recover -- and it is always the model that can recover, by
+    fixing an argument, choosing another tool, or saying plainly what broke.
+    """
+
+    def dispatch(name: str, arguments: dict) -> dict:
+        if name == "raises":
+            raise RuntimeError("the tool exploded")
+        if name == "refuses":
+            return {"status": "failed", "error": "no such tool"}
+        return {"status": "ok", "result": {"fine": True}}
+
+    chat = _chat_with(dispatch)
+    for name, args in (("raises", {}), ("refuses", {})):
+        outcome = chat._run_tool(name, args)
+        assert outcome["failed"], name
+        assert "did nothing" in outcome["text"], name
+        # And it never raises out of here, which is the property that matters.
+        assert outcome.get("pending_confirmation") is None
+
+
+def test_arguments_that_cannot_be_read_say_so_rather_than_becoming_empty() -> None:
+    """`{}` sent the call anyway, and the tool reported the wrong problem.
+
+    A required argument then came back as "missing argument name" -- true, and
+    misleading: the model did send a name, and the encoding was what broke. It
+    fixed the wrong thing.
+    """
+    chat = _chat_with(lambda name, arguments: {"status": "ok", "result": {}})
+
+    unreadable = chat._run_tool("some_tool", "not json at all")
+    assert unreadable["failed"]
+    assert "not valid JSON" in unreadable["text"]
+
+    wrong_shape = chat._run_tool("some_tool", [1, 2, 3])
+    assert wrong_shape["failed"]
+    assert "must be a JSON object" in wrong_shape["text"]
+
+    # A string that *is* an object still works: this must not become strict
+    # about the wrapper when the content is fine.
+    assert not chat._run_tool("some_tool", '{"a": 1}').get("failed")
+    assert not chat._run_tool("some_tool", "").get("failed")
+
+
+def test_a_process_stamp_says_whose_it_is_which_build_and_since_when() -> None:
+    """Three questions get asked of a process, and none had an answer."""
+    from marvi_gateway import signature
+
+    stamp = signature.stamp("gateway")
+    assert stamp.startswith("marvi."), "the ownership marker is the cheap test"
+
+    read = signature.parse(stamp)
+    assert read is not None
+    assert read["kind"] == "gateway"
+    assert read["build"] == signature.build()
+    assert read["mine"] is True
+    assert read["age_seconds"] >= 0
+
+    # Found inside a command line, which is where a sweep actually meets one.
+    inside = f"python.exe -m marvi_gateway --stamp {signature.stamp('sidecar')} --port 8765"
+    assert signature.ours(inside)
+    found = signature.parse(inside)
+    assert found is not None and found["kind"] == "sidecar"
+
+    # Anything else on the machine is not hers.
+    assert not signature.ours("python.exe -m something_else")
+    assert signature.parse("python.exe -m something_else") is None
+
+
+def test_a_stamp_from_another_build_is_not_mine() -> None:
+    from marvi_gateway import signature
+
+    theirs = "marvi.gateway.ffffffffffff.20260101T000000Z.999"
+    read = signature.parse(theirs)
+    assert read is not None
+    assert read["mine"] is False, "a different build must not read as the same one"
+    assert not signature.mine(theirs)
+    # And it is still recognisably Marvi's, which is what lets it be replaced
+    # rather than left alone as something unrelated.
+    assert signature.ours(theirs)

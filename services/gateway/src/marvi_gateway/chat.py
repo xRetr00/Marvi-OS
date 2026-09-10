@@ -1118,13 +1118,30 @@ class Chat:
         one outcome that must never be narrated as though it had already
         happened.
         """
+        # Unreadable arguments are handed back, not quietly replaced.
+        #
+        # These became `{}` and the call went ahead. For a tool with required
+        # arguments that surfaced later as "missing argument name", which is
+        # true and misleading -- the model sent a name, and the encoding was
+        # what broke. It then fixed the wrong thing. Saying which layer failed
+        # is the difference between one retry and several.
         if isinstance(arguments, str):
             try:
                 arguments = json.loads(arguments or "{}")
             except ValueError:
-                arguments = {}
+                return self._tool_failed(
+                    name,
+                    {},
+                    "the arguments were not valid JSON. Send them as a JSON object, "
+                    "not as a string containing one.",
+                )
         if not isinstance(arguments, dict):
-            arguments = {}
+            return self._tool_failed(
+                name,
+                {},
+                f"the arguments must be a JSON object, and a {type(arguments).__name__} "
+                "arrived. Send an object with one entry per argument.",
+            )
 
         if name == "present_widget":
             try:
