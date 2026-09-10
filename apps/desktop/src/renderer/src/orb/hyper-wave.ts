@@ -1,7 +1,9 @@
 /** Fold the original spherical particle lattice through an extra coordinate.
  * Bounded 4D rotations preserve the orb silhouette instead of replacing it. */
 export function hyperWavePoint(
-  point: readonly [number, number, number], time: number, energy: number
+  point: readonly [number, number, number],
+  time: number,
+  energy: number
 ): [number, number, number] {
   const e = Number.isFinite(energy) ? Math.max(0, Math.min(1, energy)) : 0
   const [x, y, z] = point

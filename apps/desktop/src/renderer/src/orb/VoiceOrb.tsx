@@ -6,7 +6,7 @@
 import { useEffect, useRef } from 'react'
 
 import { MOOD_FOR_PHASE, RAMPS, blend, type Ramp } from './moods'
-import { coherentWaveScale } from './wave'
+import { hyperWavePoint } from './hyper-wave'
 import { projectVoicePoint } from './projection'
 
 const N = 2000
@@ -85,43 +85,21 @@ function draw(ctx: CanvasRenderingContext2D, f: Frame): void {
   const ct = Math.cos(tilt)
   const energy = f.active ? Math.min(1, Math.max(0, f.level) * 1.35) : 0
   const dotScale = 0.72 + energy * 0.82
-  const scale = reach * 0.33
-
-  // A shaded core gives the dotted mesh volume rather than a see-through cloud.
-  const [cr, cg, cb] = blend(f.from, f.to, f.mix, 0.55)
-  const core = ctx.createRadialGradient(
-    cx - scale * 0.32,
-    cy - scale * 0.36,
-    scale * 0.04,
-    cx,
-    cy,
-    scale
-  )
-  core.addColorStop(0, `rgba(${cr},${cg},${cb},0.28)`)
-  core.addColorStop(0.6, `rgba(${cr},${cg},${cb},0.1)`)
-  core.addColorStop(1, 'rgba(0,0,0,0.55)')
-  ctx.fillStyle = core
-  ctx.beginPath()
-  ctx.arc(cx, cy, scale * 0.96, 0, Math.PI * 2)
-  ctx.fill()
+  const scale = reach * 0.28
 
   for (const point of SPHERE) {
-    const [x, y, z] = point
-    const wave = coherentWaveScale(point, f.wavePhase, energy)
-    const wx = x * wave
-    const wy = y * wave
-    const wz = z * wave
+    const [wx, wy, wz] = hyperWavePoint(point, f.wavePhase, energy)
     const x1 = wx * cyw + wz * sy
     const z1 = -wx * sy + wz * cyw
     const y1 = wy * ct - z1 * st
     const z2 = wy * st + z1 * ct
     const projected = projectVoicePoint(x1, y1, z2)
-    if (!projected.visible) continue
-    const depth = (z2 + 1) / 2
+    const depth = Math.max(0, Math.min(1, (z2 + 1.4) / 2.8))
     const px = cx + projected.x * scale
     const py = cy - projected.y * scale
     const [r, g, b] = blend(f.from, f.to, f.mix, depth)
-    const alpha = projected.light
+    // Rear dots remain faintly visible through the folded particle membrane.
+    const alpha = projected.visible ? 0.4 + projected.light * 0.6 : 0.08 + depth * 0.12
     const rad = Math.max(0.42, (0.5 + depth * 1.05) * dotScale * projected.perspective)
     ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`
     ctx.beginPath()
