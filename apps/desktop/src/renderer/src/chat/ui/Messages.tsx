@@ -24,16 +24,9 @@ import { MarviAvatar } from '../../components/ui/avatar'
 import { UiTooltip } from '../../components/ui/tooltip'
 import { formatTime } from '../time'
 import { AttachmentPreview } from '../components/AttachmentPreview'
+import { messageText } from './message-text'
 import { MESSAGE_PART_COMPONENTS } from './parts'
 import type { ReadAloud } from './parts'
-
-/** The plain text of a message, for copying and for reading aloud. */
-export function messageText(message: MessageState): string {
-  return message.content
-    .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
-    .map((part) => part.text)
-    .join('\n')
-}
 
 function createdAt(message: MessageState): string {
   return (message.createdAt ?? new Date()).toISOString()
