@@ -334,12 +334,13 @@ wordmark and JetBrains Mono for ASCII construction, labels, status, and data.
 
 ## Main control center
 
-The Voice-page dotted orb projects its existing spherical mesh through a
-perspective camera. Rear-facing points are culled; directional lighting,
-depth-dependent point size, and a shaded core communicate volume. Voice still
-drives the coherent travelling wave and phase colors. Reduced motion freezes
-rotation and audio deformation; hidden documents skip drawing. This remains
-the existing Canvas renderer, not a second voice or media runtime.
+The Voice-page orb retains its original dotted spherical lattice and phase
+colors. A smooth fourth-coordinate field, bounded XW/YW rotations, perspective,
+and a latitude-dependent twist fold the particle membrane inward as voice
+energy rises. Faint rear dots reveal layered depth; there is no solid core or
+replacement knot. Reduced motion freezes rotation and audio deformation;
+hidden documents skip drawing. This remains the existing Canvas renderer,
+not a second voice or media runtime.
 
 The main window uses a fixed shell:
 

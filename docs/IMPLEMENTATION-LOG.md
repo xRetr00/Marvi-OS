@@ -1,5 +1,17 @@
 # Implementation Log
 
+## 2026-09-10 — Preserve dotted orb with four-coordinate motion
+
+- Removed the uncommitted solid-knot prototype at the user's direction and
+  restored the original 2,000-dot orb, floor, and phase color vocabulary.
+- Added a smooth Cartesian fourth-coordinate deformation with bounded XW/YW
+  rotation, perspective, inward folds, and voice-driven twisting. Removed the
+  opaque core and kept rear particles faintly visible for layered depth.
+- Acceptance: 22 orb tests and renderer typecheck passed. Actual VoiceOrb
+  visually inspected in an isolated browser mount at 640×640; screenshot:
+  `output/playwright/dotted-4d-sep10.png`. Live audio/hardware performance has
+  not been requalified. No new dependency or copied upstream component.
+
 ## 2026-09-10 — native Marvi cursor
 
 Configured the unchanged Cua 0.24.0 pointer/theme under a Gateway-owned `Marvi`

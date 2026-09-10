@@ -8,6 +8,10 @@ surface and its native-window behavior can be proven without the voice engine.
 
 ## Delivered
 
+September 10 Voice refinement preserves the dotted orb rather than replacing
+its identity: fourth-coordinate deformation adds voice-driven folds and twists.
+The isolated renderer was visually checked; 22 orb tests and web typecheck pass.
+
 September 9 refinement: Island-only transparent canvas styling and inset-only
 shading remove outer background paint. The 320ms line-to-capsule reveal clips
 the silhouette without stretching text. Browser computed styles confirmed

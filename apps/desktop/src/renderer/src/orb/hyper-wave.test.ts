@@ -15,7 +15,7 @@ describe('four-coordinate dotted orb', () => {
           const r = Math.sqrt(1 - y * y)
           const p = hyperWavePoint([r * Math.cos(i), y, r * Math.sin(i)], t, energy)
           expect(Math.hypot(...p)).toBeLessThan(1.9)
-          expect(Math.hypot(...p)).toBeGreaterThan(0.35)
+          expect(Math.hypot(...p)).toBeGreaterThan(0.2)
         }
       }
     }
