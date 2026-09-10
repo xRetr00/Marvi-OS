@@ -32,6 +32,19 @@ def targets(result):
     return json.loads(text[text.index("\n") + 1 : text.rindex("\n")])
 
 
+def cursor_state(ended=False):
+    async def read():
+        result = await service._driver.call_tool("get_agent_cursor_state", json.dumps({"session": "Marvi"}))
+        state = json.loads(result.structured_json or result.text)
+        if ended:
+            assert result.is_error and state["refusal"]["code"] == "session_ended"
+        else:
+            assert not result.is_error, "Cursor state unavailable"
+        return state
+
+    return service._runtime_loop().submit(read(), timeout=5)
+
+
 try:
     launched = act(
         "launch_app",
@@ -82,6 +95,18 @@ try:
         {"pid": pid, "window_id": window, "element_token": button["element_token"]},
     )
     assert (root / "result.txt").read_text() == "Marvi computer fixture"
+    cursor = cursor_state()
+    assert cursor["session"] == "Marvi" and cursor["enabled"]
+    assert cursor["theme"]["id"] == "cua.default"
+    print(json.dumps({"cursor_position": cursor.get("position"), "cursor_action": cursor.get("visual_state", {}).get("requested_action")}))
+    service.control("stop")
+    cursor_state(ended=True)
+    service.control("resume")
+    act("get_window_state", {"pid": pid, "window_id": window})
+    assert cursor_state()["enabled"]
+    service.control("private")
+    cursor_state(ended=True)
+    service.control("resume")
     # Force a real in-flight observation to time out. Recovery must retire its
     # worker before private input can be acknowledged or another worker starts.
     normal_timeout = computer.ACTION_TIMEOUT
@@ -117,6 +142,8 @@ try:
                 "private_resume": True,
                 "password_canary_hidden": True,
                 "native_timeout_worker_retired": True,
+                "marvi_cursor_session": True,
+                "cursor_hidden_on_stop_and_private": True,
                 "app_close": True,
                 "timings_ms": timings,
             }

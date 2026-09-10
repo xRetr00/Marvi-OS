@@ -27,9 +27,9 @@ class Driver:
 
     async def call_tool(self, name, arguments):
         self.calls.append((name, arguments))
-        if name not in {"start_session", "set_agent_cursor_enabled", "set_agent_cursor_motion"}:
+        if name not in {"start_session", "end_session", "set_agent_cursor_enabled", "set_agent_cursor_motion"}:
             self.entered.set()
-        if self.wait and name not in {"start_session", "set_agent_cursor_enabled", "set_agent_cursor_motion"}:
+        if self.wait and name not in {"start_session", "end_session", "set_agent_cursor_enabled", "set_agent_cursor_motion"}:
             await asyncio.to_thread(self.release.wait)
         return SimpleNamespace(
             text="fixture result", images=[], is_error=False, error_code=None, degraded=False
@@ -78,7 +78,7 @@ def test_cursor_is_named_marvi_and_hidden_before_private_input(service):
         ("click", {"session": "Marvi"}),
     ]
     s.control("private")
-    assert not json.loads(d.calls[-1][1])["enabled"]
+    assert d.calls[-1] == ("end_session", '{"session": "Marvi"}')
     s.control("resume")
     s.action("list_apps", {})
     assert d.calls[-1] == ("list_apps", "{}")
@@ -98,7 +98,7 @@ def test_failed_action_still_hides_cursor(service):
     d.call_tool = fail
     with pytest.raises(RuntimeError):
         s.action("click", {})
-    assert json.loads(d.calls[-1][1]) == {"session": "Marvi", "enabled": False}
+    assert d.calls[-1] == ("end_session", '{"session": "Marvi"}')
 
 
 def test_stop_does_not_claim_issued_action_was_cancelled(service):

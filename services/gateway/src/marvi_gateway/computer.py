@@ -183,9 +183,13 @@ class ComputerUse:
 
     async def _hide_cursor(self):
         if self._driver and self._cursor_started:
-            result = await self._driver.call_tool("set_agent_cursor_enabled", json.dumps({"session": CURSOR_SESSION, "enabled": False}))
+            # 0.24.0 cursor-state inspection can re-enable a disabled cursor.
+            # Ending the run uses upstream cursor cleanup and cannot be revived
+            # by inspection; only our next explicit start_session revives it.
+            result = await self._driver.call_tool("end_session", json.dumps({"session": CURSOR_SESSION}))
             if result.is_error:
                 raise RuntimeError("Computer cursor could not be hidden")
+            self._cursor_started = False
 
     def _admit(self, action):
         with self._lock:
@@ -440,7 +444,14 @@ class ComputerUse:
                     "Something is still reading the screen; private input did not start. Try again."
                 ) from None
             if self._loop:
-                self._loop.submit(self._hide_cursor(), timeout=10)
+                try:
+                    self._loop.submit(self._hide_cursor(), timeout=10)
+                except Exception:
+                    capture_barrier.leave("computer-use")
+                    with self._lock:
+                        self._state = "paused"
+                        self._publish()
+                    raise RuntimeError("Cursor cleanup failed; private input did not start. Retry or restart Marvi.") from None
             with self._lock:
                 self._state = "private"
                 self._publish()
