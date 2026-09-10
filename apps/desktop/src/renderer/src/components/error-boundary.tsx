@@ -13,18 +13,23 @@
  * reassurance.
  */
 
-import { Component } from 'react'
-import type { ErrorInfo, ReactNode } from 'react'
+import { Component, createRef } from 'react'
+import type { ErrorInfo, ReactNode, RefObject } from 'react'
 
 import './error-boundary.css'
+
+type CopyState = 'idle' | 'copying' | 'copied' | 'failed'
 
 interface State {
   error: Error | null
   stack: string
+  copied: CopyState
 }
 
 export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
-  state: State = { error: null, stack: '' }
+  state: State = { error: null, stack: '', copied: 'idle' }
+
+  private detailsRef: RefObject<HTMLDivElement | null> = createRef()
 
   static getDerivedStateFromError(error: Error): Partial<State> {
     return { error }
@@ -37,8 +42,57 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
     this.setState({ stack: info.componentStack ?? '' })
   }
 
+  /** Everything somebody would need to paste into a bug report. */
+  private details(error: Error): string {
+    return [
+      error.message || String(error),
+      '',
+      error.stack ?? '',
+      '',
+      this.state.stack
+    ].join('\n')
+  }
+
+  /**
+   * Copy, by whichever route works.
+   *
+   * `navigator.clipboard` is the obvious one and the unreliable one here: it
+   * needs a secure context and a focused document, and the crash screen often
+   * has neither -- which is why the button silently did nothing. The main
+   * process owns a real clipboard, so it goes first and the web API is the
+   * fallback. Either way the button says what happened, because a copy button
+   * that reports nothing is indistinguishable from a broken one.
+   */
+  private copy = async (error: Error): Promise<void> => {
+    const text = this.details(error)
+    this.setState({ copied: 'copying' })
+    try {
+      if (await window.marvi?.copyText(text)) {
+        this.setState({ copied: 'copied' })
+        return
+      }
+    } catch {
+      // Fall through to the browser API.
+    }
+    try {
+      await navigator.clipboard.writeText(text)
+      this.setState({ copied: 'copied' })
+    } catch {
+      // Last resort: select it so Ctrl+C works. Nothing else is left.
+      this.setState({ copied: 'failed' })
+      const node = this.detailsRef.current
+      if (node) {
+        const range = document.createRange()
+        range.selectNodeContents(node)
+        const selection = window.getSelection()
+        selection?.removeAllRanges()
+        selection?.addRange(range)
+      }
+    }
+  }
+
   render(): ReactNode {
-    const { error, stack } = this.state
+    const { error, stack, copied } = this.state
     if (!error) return this.props.children
 
     return (
@@ -49,21 +103,27 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
             The window stopped drawing rather than showing you something wrong. The cause is below.
           </p>
           <pre className="crash-message">{error.message || String(error)}</pre>
-          {error.stack ? <pre className="crash-stack">{error.stack}</pre> : null}
-          {stack ? <pre className="crash-stack">{stack}</pre> : null}
+          <div ref={this.detailsRef}>
+            {error.stack ? <pre className="crash-stack">{error.stack}</pre> : null}
+            {stack ? <pre className="crash-stack">{stack}</pre> : null}
+          </div>
           <div className="crash-actions">
             <button onClick={() => window.location.reload()} type="button">
               RELOAD
             </button>
-            <button
-              onClick={() => void navigator.clipboard?.writeText(`${error.stack ?? error.message}\n${stack}`)}
-              type="button"
-            >
-              COPY DETAILS
+            <button onClick={() => void this.copy(error)} type="button">
+              {COPY_LABEL[copied]}
             </button>
           </div>
         </div>
       </div>
     )
   }
+}
+
+const COPY_LABEL: Record<CopyState, string> = {
+  idle: 'COPY DETAILS',
+  copying: 'COPYING…',
+  copied: 'COPIED',
+  failed: 'SELECTED — PRESS CTRL+C'
 }

@@ -191,24 +191,43 @@ function statusFor(message: ChatMessage): UiMessage['status'] {
   return { type: 'complete', reason: 'stop' }
 }
 
+/** Part types assistant-ui accepts on a *user* message.
+ *
+ * The union is enforced at runtime, not just in types: `fromThreadMessageLike`
+ * throws on anything else and React 19 then unmounts the whole tree, so a
+ * stray `source` part on a user row blanks the window. Reasoning, sources and
+ * tool calls belong to the assistant by construction anyway.
+ */
+const USER_PART_TYPES: ReadonlySet<string> = new Set(['text', 'image', 'file'])
+
 /**
  * One stored message as assistant-ui renders it.
  *
  * An `error` row becomes an assistant message carrying an error status rather
  * than a fourth role: assistant-ui has three, and a bubble that renders as an
  * error is what an error row was always trying to be.
+ *
+ * The role split below is not cosmetic. `fromThreadMessageLike` rejects a
+ * `status` on anything but an assistant message, `attachments` on anything but
+ * a user message, and unknown part types on either -- each with a throw, which
+ * with no error boundary meant a black window instead of a bad bubble.
  */
 export function convertMessage(message: ChatMessage): UiMessage {
+  const isUser = message.role === 'user'
   const content: UiPart[] = []
 
-  const reasoning = metaValue(message.meta, 'reasoning')
-  // Ahead of the answer, because that is the order it was produced in and the
-  // order the disclosure reads in.
-  if (reasoning) content.push({ type: 'reasoning', text: reasoning })
+  if (!isUser) {
+    const reasoning = metaValue(message.meta, 'reasoning')
+    // Ahead of the answer, because that is the order it was produced in and
+    // the order the disclosure reads in.
+    if (reasoning) content.push({ type: 'reasoning', text: reasoning })
+  }
 
   message.parts.forEach((part, index) => {
     const converted = convertPart(part, message, index)
-    if (converted) content.push(converted)
+    if (!converted) return
+    if (isUser && !USER_PART_TYPES.has(converted.type)) return
+    content.push(converted)
   })
 
   // A message whose parts produced nothing renderable still has to occupy a
@@ -216,14 +235,14 @@ export function convertMessage(message: ChatMessage): UiMessage {
   // would make the thinking indicator flicker in and out.
   if (!content.length && message.content) content.push({ type: 'text', text: message.content })
 
-  const attachments = message.attachments.map(convertAttachment)
+  const attachments = isUser ? message.attachments.map(convertAttachment) : []
 
   return {
-    role: message.role === 'user' ? 'user' : 'assistant',
+    role: isUser ? 'user' : 'assistant',
     content,
     id: String(message.id),
     createdAt: new Date(message.at),
-    status: statusFor(message),
+    ...(isUser ? {} : { status: statusFor(message) }),
     ...(attachments.length ? { attachments } : {}),
     metadata: {
       custom: {

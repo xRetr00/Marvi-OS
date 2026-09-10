@@ -10,6 +10,9 @@
 import { describe, expect, it } from 'vitest'
 
 import type { ChatMessage } from '../types'
+import { fromThreadMessageLike } from '@assistant-ui/react'
+import type { ThreadMessageLike } from '@assistant-ui/react'
+
 import { ASK_TOOL, WIDGET_TOOL, convertMessage, convertMessages, isRenderable } from './convert'
 
 const at = '2026-08-17T14:05:00Z'
@@ -215,5 +218,119 @@ describe('convertMessages', () => {
 
     expect(rows.filter(isRenderable).map((row) => row.id)).toEqual([1, 3])
     expect(convertMessages(rows).map((row) => row.id)).toEqual(['1', '3'])
+  })
+})
+
+/**
+ * The SDK's own acceptance check, not mine.
+ *
+ * `fromThreadMessageLike` enforces rules that no type catches: a `status` on a
+ * user message throws, `attachments` on an assistant message throws, and a
+ * user message carrying a `source`, `reasoning` or `tool-call` part throws.
+ * Each throw happened during render, and with React 19 that unmounted the
+ * whole tree -- the window went black, the shell and sidebar with it, and
+ * nothing reached any log. Asserting against the real function is the only
+ * thing that would have caught it before the app did.
+ */
+describe('the SDK accepts what we produce', () => {
+  const accept = (converted: ReturnType<typeof convertMessage>): void => {
+    fromThreadMessageLike(converted as ThreadMessageLike, 'fallback', { type: 'complete', reason: 'stop' })
+  }
+
+  it('accepts a plain user message', () => {
+    expect(() => accept(convertMessage(message({ role: 'user' })))).not.toThrow()
+  })
+
+  it('accepts a user message with attachments', () => {
+    expect(() =>
+      accept(
+        convertMessage(
+          message({
+            role: 'user',
+            attachments: [
+              {
+                id: 'a1', thread_id: 'default', message_id: null, name: 'notes.md',
+                media_type: 'text/markdown', size: 12, kind: 'document', created_at: at
+              }
+            ]
+          })
+        )
+      )
+    ).not.toThrow()
+  })
+
+  it('never puts a status on a user message', () => {
+    // The exact throw that blanked the window: "status is only supported for
+    // assistant messages".
+    expect(convertMessage(message({ role: 'user' }))).not.toHaveProperty('status')
+  })
+
+  it('drops assistant-only parts that land on a user row', () => {
+    const converted = convertMessage(
+      message({
+        role: 'user',
+        meta: { reasoning: 'should not travel' },
+        parts: [
+          { type: 'text', text: 'hi' },
+          { type: 'source', title: 'ref', url: 'https://example.com' },
+          { type: 'tool', name: 'web_search', content: 'x' }
+        ]
+      })
+    )
+
+    expect(converted.content.map((part) => part.type)).toEqual(['text'])
+    expect(() => accept(converted)).not.toThrow()
+  })
+
+  it('never puts attachments on an assistant message', () => {
+    const converted = convertMessage(
+      message({
+        role: 'assistant',
+        attachments: [
+          {
+            id: 'a1', thread_id: 'default', message_id: null, name: 'notes.md',
+            media_type: 'text/markdown', size: 12, kind: 'document', created_at: at
+          }
+        ]
+      })
+    )
+
+    expect(converted).not.toHaveProperty('attachments')
+    expect(() => accept(converted)).not.toThrow()
+  })
+
+  it('accepts an assistant message carrying every part kind we emit', () => {
+    const converted = convertMessage(
+      message({
+        role: 'assistant',
+        meta: { reasoning: 'thinking' },
+        parts: [
+          { type: 'text', text: 'here' },
+          { type: 'source', title: 'ref', url: 'https://example.com' },
+          { type: 'tool', name: 'web_search', content: 'x' },
+          { type: 'ask', id: 'q1', kind: 'clarify', question: 'Which?' },
+          {
+            type: 'widget', id: 'w1', version: 1, kind: 'table', title: 'Rows',
+            status: 'complete', data: { columns: ['a'], rows: [['1']] }
+          }
+        ]
+      })
+    )
+
+    expect(() => accept(converted)).not.toThrow()
+  })
+
+  it('accepts an error row', () => {
+    expect(() => accept(convertMessage(message({ role: 'error', content: 'boom', parts: [] })))).not.toThrow()
+  })
+
+  it('accepts a whole converted thread', () => {
+    const rows = [
+      message({ id: 1, role: 'user' }),
+      message({ id: 2, role: 'tool', content: 'raw' }),
+      message({ id: 3, role: 'assistant', meta: { streaming: true } })
+    ]
+
+    expect(() => convertMessages(rows).forEach(accept)).not.toThrow()
   })
 })
