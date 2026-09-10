@@ -160,6 +160,44 @@ describe('Sessions', () => {
     expect(html).toContain('CONTROL CENTER')
     expect(html).toContain('SESSION 00:12')
   })
+
+  it('groups Telegram conversations under their own logo', () => {
+    const thread = {
+      created_at: at,
+      updated_at: at,
+      archived: false,
+      active_message_id: 3,
+      active_branch: 'main',
+      selected_provider: '',
+      selected_model: '',
+      selected_effort: '',
+      message_count: 3
+    }
+    const html = renderToStaticMarkup(
+      <Sessions
+        sessions={[
+          { ...thread, id: 'a', title: 'Desk thread' },
+          { ...thread, id: 'b', title: 'Sam', channel: 'telegram' }
+        ]}
+        activeId="a"
+        onSelect={() => {}}
+        onNew={() => {}}
+        onRename={() => {}}
+        onArchive={() => {}}
+        onDelete={() => {}}
+        onExit={() => {}}
+        onExport={() => {}}
+        exportDisabled={false}
+        timing={null}
+      />
+    )
+    const [recent, group] = html.split('aria-label="Telegram conversations"')
+    expect(recent).toContain('Desk thread')
+    expect(recent).not.toContain('>Sam<')
+    expect(group).toContain('TELEGRAM')
+    expect(group).toContain('>Sam<')
+    expect(group).toContain('chat-session-logo')
+  })
 })
 
 describe('Markdown', () => {

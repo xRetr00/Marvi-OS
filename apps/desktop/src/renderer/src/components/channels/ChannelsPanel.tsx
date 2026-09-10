@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { BellRing, Fingerprint, Link2, Send, Unplug, Wrench } from 'lucide-react'
+import TelegramLogo from '@thesvg/react/telegram'
 
 import {
   ControlButton,
@@ -114,7 +115,7 @@ export function ChannelsPanel({
           ) : undefined
         }
         description="Long-polls Telegram from this computer. No public address, no tunnel."
-        icon={Send}
+        icon={TelegramLogo}
         title="Telegram"
       >
         {status?.detail && status.state === 'error' ? (
@@ -169,7 +170,7 @@ export function ChannelsPanel({
             }
             description={
               pairing
-                ? 'Open the link on the phone you use Telegram on, or send the command to the bot yourself. The code works once, for ten minutes.'
+                ? 'Scan the code with your phone’s camera and press Start in Telegram — or send the command to the bot yourself. The code works once, for ten minutes.'
                 : 'Marvi answers exactly one Telegram account. Link yours with a one-time code.'
             }
             icon={Link2}
@@ -177,13 +178,41 @@ export function ChannelsPanel({
           >
             {pairing ? (
               <div className="channel-pairing">
-                <code className="channel-code">/start {pairing.code}</code>
-                <ControlButton onClick={() => void window.marvi?.openTelegramLink(pairing.link)}>
-                  Open in Telegram
-                </ControlButton>
-                <span className="channel-hint">
-                  or search <strong>@{bot?.username}</strong> in Telegram
-                </span>
+                <img
+                  alt={`QR code for ${pairing.link}`}
+                  className="channel-qr"
+                  height={168}
+                  src={pairing.qr}
+                  width={168}
+                />
+                <div className="channel-pairing-manual">
+                  <span className="channel-hint">
+                    Or open <strong>@{bot?.username}</strong> in Telegram and send:
+                  </span>
+                  <div className="channel-pairing-command">
+                    <code className="channel-code">/start {pairing.code}</code>
+                    <ControlButton
+                      onClick={() => {
+                        const command = `/start ${pairing.code}`
+                        void (async () => {
+                          if (!(await window.marvi?.copyText(command))) {
+                            await navigator.clipboard.writeText(command)
+                          }
+                          setNotice('Copied — paste it into the chat with the bot.')
+                        })()
+                      }}
+                    >
+                      Copy
+                    </ControlButton>
+                  </div>
+                  {status?.desktop ? (
+                    <ControlButton
+                      onClick={() => void window.marvi?.openTelegramLink(pairing.link)}
+                    >
+                      Open Telegram Desktop
+                    </ControlButton>
+                  ) : null}
+                </div>
               </div>
             ) : null}
           </ControlRow>

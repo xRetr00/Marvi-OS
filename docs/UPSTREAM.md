@@ -19,6 +19,11 @@
   research (Imperva) informed which inbound fields are enveloped. No code taken.
 - Updates: bump `python-telegram-bot`, run `tests/test_telegram.py` (it drives the
   real SDK against a loopback fake Bot API), then one real bot on a phone.
+- Linking QR code: `segno>=1.6,<2` (BSD-3-Clause, pure Python, no dependencies),
+  unmodified, rendering the `t.me` link as an SVG data URI for the Channels page.
+  Added because `t.me` opened on a PC hands off to `tg://`, which only Telegram
+  Desktop answers. The Telegram mark in the UI is `@thesvg/react/telegram`,
+  already a desktop dependency.
 
 ## Cua Driver — 2026-09-09
 

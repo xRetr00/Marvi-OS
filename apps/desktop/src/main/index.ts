@@ -2169,11 +2169,14 @@ function startApp(): void {
     // token: the status carries a one-time link code while linking, and
     // linking decides who can message Marvi from anywhere.
     ipcMain.handle('marvi:get-telegram', async (): Promise<TelegramStatus | null> => {
-      return (await gatewayJson(
+      const body = (await gatewayJson(
         '/telegram',
         { headers: localHeaders() },
         8_000
       )) as TelegramStatus | null
+      // Whether this PC has Telegram Desktop. Only it answers `tg://`; without
+      // it a `t.me` link ends in Windows' "no app associated" dialog.
+      return body ? { ...body, desktop: app.getApplicationNameForProtocol('tg://') !== '' } : null
     })
     ipcMain.handle(
       'marvi:telegram',
@@ -2216,14 +2219,16 @@ function startApp(): void {
       }
     )
     ipcMain.handle('marvi:open-telegram-link', async (_event, url: unknown) => {
-      // Only a t.me link to a bot, which is all this page ever offers.
-      if (
-        typeof url !== 'string' ||
-        !/^https:\/\/t\.me\/[A-Za-z0-9_]{5,64}(\?start=[A-Za-z0-9_-]{1,64})?$/.test(url)
-      ) {
-        return false
-      }
-      await shell.openExternal(url)
+      // Only a t.me link to a bot, which is all this page ever offers, opened
+      // straight in Telegram Desktop rather than via a browser page that would
+      // bounce to `tg://` anyway.
+      const match =
+        typeof url === 'string'
+          ? /^https:\/\/t\.me\/([A-Za-z0-9_]{5,64})(?:\?start=([A-Za-z0-9_-]{1,64}))?$/.exec(url)
+          : null
+      if (!match || app.getApplicationNameForProtocol('tg://') === '') return false
+      const start = match[2] ? `&start=${match[2]}` : ''
+      await shell.openExternal(`tg://resolve?domain=${match[1]}${start}`)
       return true
     })
 

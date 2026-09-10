@@ -49,6 +49,7 @@ dependencies = [
     "cua-driver==0.24.0 ; sys_platform == 'win32'",
     "python-telegram-bot==22.8",
     "av>=17,<18",
+    "segno>=1.6,<2",
 ]
 
 [project.scripts]

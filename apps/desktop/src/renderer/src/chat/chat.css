@@ -1992,6 +1992,28 @@
   background: var(--ui-text-tertiary);
 }
 
+/* Telegram threads: the real mark in the dot's column, and their own group. */
+.chat-session-logo {
+  width: 10px;
+  height: 10px;
+  flex: none;
+}
+
+.chat-session-group {
+  display: flex;
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 45%;
+  flex-direction: column;
+  margin-top: 6px;
+}
+
+.chat-sessions-channel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .chat-session-list > li.active .chat-session-dot {
   background: var(--ui-accent);
   box-shadow: 0 0 0 3px var(--ui-accent-soft);

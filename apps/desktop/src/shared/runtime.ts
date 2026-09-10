@@ -122,9 +122,12 @@ export interface TelegramStatus {
   detail: string
   bot: { username: string; name: string; link: string } | null
   owner: { name: string; username: string } | null
-  pairing: { code: string; link: string; expires_at: string } | null
+  /** `qr` is an SVG data URI of `link`, for the phone's camera. */
+  pairing: { code: string; link: string; qr: string; expires_at: string } | null
   when_away: boolean
   thread_id: string
+  /** Added by Electron main: whether Telegram Desktop is installed here. */
+  desktop?: boolean
 }
 
 export type TelegramAction =
@@ -964,6 +967,8 @@ export interface ChatThread {
   selected_provider: string
   selected_model: string
   selected_effort: string
+  /** Where the thread lives besides this window: `telegram`, or empty. */
+  channel?: string
   message_count: number
 }
 

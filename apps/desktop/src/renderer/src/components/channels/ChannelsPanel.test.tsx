@@ -30,16 +30,29 @@ describe('Channels > Telegram', () => {
     expect(html).toMatch(/aria-label="Telegram bot token"[^>]*type="password"/)
   })
 
-  it('shows the one-time code while linking', () => {
-    const pairing = {
-      code: 'ABCD2345',
-      link: 'https://t.me/marvi_bot?start=ABCD2345',
-      expires_at: '2026-09-10T12:00:00+00:00'
-    }
+  const pairing = {
+    code: 'ABCD2345',
+    link: 'https://t.me/marvi_bot?start=ABCD2345',
+    qr: 'data:image/svg+xml;charset=utf-8,%3Csvg%3E%3C%2Fsvg%3E',
+    expires_at: '2026-09-10T12:00:00+00:00'
+  }
+
+  it('links by QR code and a copyable command', () => {
     const html = renderToStaticMarkup(<ChannelsPanel initial={{ ...ready, pairing }} />)
     expect(html).toContain('/start ABCD2345')
-    expect(html).toContain('Open in Telegram')
+    expect(html).toContain(`src="${pairing.qr}"`)
+    expect(html).toContain('Copy')
     expect(html).not.toContain('aria-label="Telegram bot token"')
+  })
+
+  it('offers Telegram Desktop only where it is installed', () => {
+    // Without it, the link ends in Windows' "no app associated with tg://".
+    const without = renderToStaticMarkup(<ChannelsPanel initial={{ ...ready, pairing }} />)
+    expect(without).not.toContain('Open Telegram Desktop')
+    const withIt = renderToStaticMarkup(
+      <ChannelsPanel initial={{ ...ready, pairing, desktop: true }} />
+    )
+    expect(withIt).toContain('Open Telegram Desktop')
   })
 
   it('names who is linked and offers a test and an unlink', () => {

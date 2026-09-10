@@ -1,5 +1,8 @@
-import type { ReactNode } from 'react'
+import type { ComponentType, ReactNode, SVGProps } from 'react'
 import type { LucideIcon } from 'lucide-react'
+
+/** A Lucide glyph, or a brand mark from `@thesvg/react` where the real logo matters. */
+type SectionIcon = LucideIcon | ComponentType<SVGProps<SVGSVGElement>>
 
 type Tone = 'neutral' | 'ready' | 'warning' | 'danger' | 'accent'
 
@@ -37,7 +40,7 @@ export function ControlSection({
   children: ReactNode
   className?: string
   description?: ReactNode
-  icon?: LucideIcon
+  icon?: SectionIcon
   title: string
 }): React.JSX.Element {
   return (

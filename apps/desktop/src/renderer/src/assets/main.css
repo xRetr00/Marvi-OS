@@ -6010,8 +6010,31 @@ body {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 16px;
   margin-top: 10px;
+}
+
+/* Always black on white, whatever the theme: a phone camera reads contrast,
+   not tokens. */
+.channel-qr {
+  width: 168px;
+  height: 168px;
+  padding: 6px;
+  border-radius: 8px;
+  background: #fff;
+  image-rendering: pixelated;
+}
+
+.channel-pairing-manual {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+
+.channel-pairing-command {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .channel-code {
