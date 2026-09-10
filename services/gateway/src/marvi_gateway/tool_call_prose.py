@@ -82,6 +82,86 @@ def reached_for(text: str) -> str:
     return (found.group(1) or found.group(2) or "").strip()
 
 
+#: `<arg_key>name</arg_key> <arg_value>value</arg_value>`, the paired form.
+PAIRED = re.compile(
+    r"<\s*arg_key\s*>(?P<key>.*?)</\s*arg_key\s*>\s*"
+    r"<\s*arg_value\s*>(?P<value>.*?)</\s*arg_value\s*>",
+    re.I | re.S,
+)
+
+#: `<parameter name="k">v</parameter>`, the other common shape.
+NAMED_PARAM = re.compile(
+    r"<\s*parameter\s+name\s*=\s*[\"'](?P<key>[^\"']+)[\"'][^>]*>"
+    r"(?P<value>.*?)</\s*parameter\s*>",
+    re.I | re.S,
+)
+
+
+def _typed(value: str) -> object:
+    """A value the model wrote as text, as the thing it meant.
+
+    Everything arrives as a string here because the markup has no types. A
+    tool declaring `lines: int` would refuse `"40"` -- the same disagreement
+    `_coerce` exists for -- so the obvious literals are read back.
+    """
+    said = value.strip()
+    if said.lower() in ("true", "false"):
+        return said.lower() == "true"
+    if re.fullmatch(r"-?\d+", said):
+        return int(said)
+    if re.fullmatch(r"-?\d*\.\d+", said):
+        return float(said)
+    if said[:1] in "{[":
+        import json
+
+        try:
+            return json.loads(said)
+        except ValueError:
+            return said
+    return said
+
+
+def recover(text: str) -> dict[str, object] | None:
+    """The call the model meant, as a call. None when it cannot be read.
+
+    This is the part that makes the difference between an error and a working
+    turn. Stripping the markup and apologising is honest but wasteful: the
+    model said exactly which tool it wanted and with what, and every bit of
+    that survives in the text. Reading it back means the tool actually runs
+    and the conversation continues, instead of ending in an apology for
+    something that was recoverable.
+
+    Deliberately conservative. A name that is not a plausible tool name, or
+    arguments that cannot be read at all, returns None -- and the caller hands
+    the failure to the model rather than guessing.
+    """
+    if not looks_typed_out(text):
+        return None
+    name = reached_for(text)
+    if not name:
+        # A JSON body is the other common shape:
+        # `<tool_call>{"name": "x", "arguments": {...}}</tool_call>`
+        import json
+
+        body = MARKUP.sub(" ", text).strip()
+        try:
+            parsed = json.loads(body)
+        except ValueError:
+            return None
+        if not isinstance(parsed, dict) or not parsed.get("name"):
+            return None
+        arguments = parsed.get("arguments") or parsed.get("parameters") or {}
+        return {
+            "name": str(parsed["name"]),
+            "arguments": arguments if isinstance(arguments, dict) else {},
+        }
+    arguments: dict[str, object] = {}
+    for pattern in (PAIRED, NAMED_PARAM):
+        for hit in pattern.finditer(text):
+            arguments[hit["key"].strip()] = _typed(hit["value"])
+    return {"name": name, "arguments": arguments}
+
+
 def instead_say(text: str) -> str:
     """What to show in place of the markup.
 
