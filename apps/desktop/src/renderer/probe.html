@@ -1,0 +1,33 @@
+<!doctype html>
+<html><head><meta charset="UTF-8" /><title>probe</title>
+<style>html,body,#root{height:100%;margin:0}#root{display:flex}
+#root>main.content{flex:1;min-width:0;display:flex;flex-direction:column}</style></head>
+<body><div id="root"></div>
+<script type="module">
+  const now = new Date().toISOString()
+  const th = { id:'t1', title:'Room status', message_count:4, updated_at:now, created_at:now,
+    archived:false, active_message_id:4, active_branch:'main',
+    selected_provider:'', selected_model:'', selected_effort:'' }
+  const think = 'The user wants me to check the logs for the issues we just saw - the light being off due to "bulb circuit breaker is open" and the vision module missing cv2. Let me check the logs for relevant information. Errors log shows nothing about the bulb or sidecar.'
+  const messages = [
+    { id:1, at:now, role:'user', content:"Hi Marvi What's The Room Status", meta:{}, thread_id:'t1',
+      parent_id:null, branch_id:'main', parts:[{type:'text',text:"Hi Marvi What's The Room Status"}], attachments:[] },
+    { id:2, at:now, role:'assistant', content:'Room status: presence detected, light off, vision enabled.',
+      meta:{provider:'openai', reasoning: think}, thread_id:'t1', parent_id:1, branch_id:'main',
+      parts:[{type:'text',text:'**Room status:**\n\n- **Presence**: someone is in the room\n- **Light**: off — circuit breaker is open\n- **Mode**: normal'}], attachments:[] },
+    { id:3, at:now, role:'user', content:"Still The Issues is here , If It's Still here Check Your own logs Marvi",
+      meta:{}, thread_id:'t1', parent_id:2, branch_id:'main',
+      parts:[{type:'text',text:"Still The Issues is here , If It's Still here Check Your own logs Marvi"}], attachments:[] },
+    { id:4, at:now, role:'assistant', content:'', meta:{provider:'openai', streaming:true, reasoning: think, tool:'marvi_logs'},
+      thread_id:'t1', parent_id:3, branch_id:'main', parts:[], attachments:[] }
+  ]
+  const context = { input_tokens: 14707, cached_tokens: 4096, context_window: 262144,
+    reply_reserve: 8192, messages: 4, files: 0, sources: 0, provider:'openai', model:'gpt' }
+  const shapes = { getChat:{ messages, available:true, threads:[th], active_thread:'t1', context },
+    getChatThreads:[], getModels:{providers:[]}, getProviders:{selected:'',providers:[]} }
+  window.marvi = new Proxy({}, { get(_t,k){ const n=String(k)
+    if (n.startsWith('on')) return () => () => {}
+    if (n === 'then') return undefined
+    return async () => (n in shapes ? shapes[n] : {}) } })
+  await import('/src/probe-main.tsx')
+</script></body></html>
