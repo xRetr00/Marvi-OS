@@ -11,6 +11,7 @@ import { ThreadPrimitive } from '@assistant-ui/react'
 
 import type { ChatAttachment } from '../../../../shared/runtime'
 import { AbstractIcon } from '../../components/abstract-icon'
+import { marviLogo } from '../../components/ui/avatar'
 import { Composer } from './Composer'
 import { AssistantMessage, UserMessage } from './Messages'
 import type { ReadAloud } from './parts'
@@ -49,6 +50,10 @@ export function Thread({
       <ThreadPrimitive.Viewport className="chat-thread-viewport">
         <ThreadPrimitive.Empty>
           <div className="chat-empty">
+            {/* Branding, and the only place it appears at this size: an empty
+                thread has nothing else in it, and a logo over a conversation
+                in progress is a watermark nobody asked for. */}
+            <img alt="Marvi" className="chat-empty-logo" src={marviLogo} />
             <p className="chat-empty-lead">Ask Marvi anything.</p>
             <div className="chat-suggestions">
               {SUGGESTIONS.map((prompt) => (

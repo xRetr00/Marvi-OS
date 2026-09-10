@@ -20,6 +20,7 @@ import {
 } from '@assistant-ui/react'
 
 import { AbstractIcon } from '../../components/abstract-icon'
+import { MarviAvatar } from '../../components/ui/avatar'
 import { UiTooltip } from '../../components/ui/tooltip'
 import { formatTime } from '../time'
 import { AttachmentPreview } from '../components/AttachmentPreview'
@@ -133,14 +134,16 @@ export function AssistantMessage({
       aria-label="Marvi response"
       className={failed ? 'chat-turn chat-assistant chat-failed' : 'chat-turn chat-assistant'}
     >
-      <span className="sr-only">MARVI</span>
-      <MessagePrimitive.Parts components={MESSAGE_PART_COMPONENTS} />
-      <MessagePrimitive.Error>
-        <div className="chat-error-body" role="alert">
-          <ErrorText message={message} />
-        </div>
-      </MessagePrimitive.Error>
-      <div className="chat-turn-foot">
+      <MarviAvatar className="chat-turn-avatar" />
+      <div className="chat-turn-column">
+        <span className="sr-only">MARVI</span>
+        <MessagePrimitive.Parts components={MESSAGE_PART_COMPONENTS} />
+        <MessagePrimitive.Error>
+          <div className="chat-error-body" role="alert">
+            <ErrorText message={message} />
+          </div>
+        </MessagePrimitive.Error>
+        <div className="chat-turn-foot">
         <div className="chat-turn-actions">
           <span className="chat-message-age">{formatTime(createdAt(message))}</span>
           <BranchPicker />
@@ -176,7 +179,8 @@ export function AssistantMessage({
                 <AbstractIcon name="copy" size={14} />
               </ActionBarPrimitive.Copy>
             </UiTooltip>
-          </ActionBarPrimitive.Root>
+            </ActionBarPrimitive.Root>
+          </div>
         </div>
       </div>
     </MessagePrimitive.Root>
