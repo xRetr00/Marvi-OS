@@ -98,6 +98,8 @@ try:
     assert (root / "result.txt").read_text() == "Marvi computer fixture"
     if os.environ.get("MARVI_CURSOR_VISUAL_PROOF") == "true":
         act("bring_to_front", {"pid": pid})
+        # Windows may reposition a newly shown form after its first listing.
+        fixture = next(w for w in targets(act("list_windows", {"pid": pid}))["windows"] if w["window_id"] == window)
     act("move_cursor", {"scope": "window", "x": fixture["bounds"]["x"] + 100, "y": fixture["bounds"]["y"] + 100})
     cursor = cursor_state()
     if os.environ.get("MARVI_CURSOR_VISUAL_PROOF") == "true":

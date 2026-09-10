@@ -2,6 +2,31 @@
 
 Status: implemented, acceptance checks in progress, 2026-09-09.
 
+## Native cursor — 2026-09-10
+
+Cua's built-in pointer now carries the Gateway-owned public label **Marvi**.
+The model cannot choose a different session. The native theme honors automatic
+reduced motion and a 2.5-second idle fade. Stop/private input and failed actions
+end the session, removing its cursor; resume creates a fresh named run and needs
+fresh UIA targets. Timeout cleanup remains owned by worker retirement.
+
+Fourteen computer behavior tests passed. The real Windows fixture verified the
+named native theme/session, Stop/private session termination, resume and timeout
+recovery. A fixture capture visually confirms the pointer and Marvi badge:
+
+![Native Marvi cursor on the disposable Windows fixture](../evidence/marvi-cursor-2026-09-10.png)
+
+Evidence applies to Cua 0.24.0 on the existing Windows qualification host,
+implementation `81e10f9d`. Native Windows cursor-state output currently reports
+`position: null`; position is not claimed from that field. State inspection can
+re-enable a merely disabled cursor, so handoff uses upstream `end_session`
+cleanup. The fixture's optional `MARVI_CURSOR_VISUAL_PROOF=true` mode brings only
+its own test window forward for visual inspection. Normal execution remains
+background-first. The overlay does not create a second OS input device;
+foreground/desktop actions can still affect the user's ordinary pointer.
+
+## Earlier integration evidence
+
 Continuation after the user's tool-loading and asking-card changes:
 native timeout recovery now retires the SDK worker before releasing capture
 exclusion. Requests remain bounded; a stalled retirement keeps private input
