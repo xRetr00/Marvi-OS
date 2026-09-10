@@ -1,5 +1,5 @@
 import { useStore } from '@nanostores/react'
-import { useEffect, useMemo } from 'react'
+import { useEffect } from 'react'
 import { AssistantRuntimeProvider } from '@assistant-ui/react'
 
 import { useChat } from './useChat'
@@ -7,7 +7,6 @@ import { useReadAloud } from './useReadAloud'
 import { useMarviRuntime } from './runtime/useMarviRuntime'
 import { ConfirmationBar } from './components/ConfirmationBar'
 import { Sessions } from './components/Sessions'
-import { AsciiSpinner } from './ui/AsciiSpinner'
 import { Composer } from './ui/Composer'
 import { Thread } from './ui/Thread'
 import './chat.css'
@@ -16,7 +15,6 @@ import { downloadTranscript } from './transcript'
 import { MessageTiming } from '../components/message-timing'
 import { $sessionMetrics, sessionTimingStats } from '../store/session-metrics'
 import { setChatContextStatus } from '../store/chat-context'
-import { metaValue } from './types'
 
 /**
  * The typed conversation surface. Same Marvi as the voice session — same
@@ -35,17 +33,9 @@ export function Chat({ onExit }: { onExit: () => void }): React.JSX.Element {
   const runtime = useMarviRuntime(chat)
   const readAloud = useReadAloud(chat.activeThreadId)
 
-  // What the spinner says, and since when. The streaming reply carries the
-  // tool it is currently running, so the line can name it instead of saying
-  // "thinking" through a four-second web search.
-  const streaming = useMemo(
-    () => chat.messages.find((message) => message.meta.streaming),
-    [chat.messages]
-  )
-  const tool = streaming ? metaValue(streaming.meta, 'tool') : ''
-  const activity = tool ? `Marvi is using ${tool.replaceAll(/[_-]+/g, ' ')}` : 'Marvi is thinking'
-
-  // The spinner offers Escape as the way out, so Escape has to be the way out.
+  // Escape stops a running turn. There is no longer a line on screen offering
+  // it -- the hint was noise beside a composer that already has a stop button
+  // -- but the key still works, because people who learned it will use it.
   const { busy, cancel } = chat
   useEffect(() => {
     if (!busy) return
@@ -115,7 +105,6 @@ export function Chat({ onExit }: { onExit: () => void }): React.JSX.Element {
                   {chat.notice}
                 </div>
               ) : null}
-              {chat.busy ? <AsciiSpinner label={activity} /> : null}
               <Composer
                 attachments={chat.attachments}
                 available={chat.available}

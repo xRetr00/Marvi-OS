@@ -26,7 +26,7 @@ describe('transcript visual contract', () => {
 })
 
 describe('contextSegments', () => {
-  it('shows an empty known context window as zero percent on chat entry', () => {
+  it('reports an unmeasured window as unknown rather than as empty', () => {
     const context = {
       input_tokens: 0,
       cached_tokens: 0,
@@ -39,12 +39,32 @@ describe('contextSegments', () => {
       model: 'gpt-test'
     }
 
-    expect(contextPercent(context)).toBe(0)
+    // The Gateway reports only what a provider actually sent. Zero means
+    // "nobody said", not "the window is empty", and a conversation eight turns
+    // deep was reading as untouched.
+    expect(contextPercent(context)).toBeNull()
+    expect(contextSegments(context)).toEqual([])
+  })
+
+  it('breaks a measured window down into its four parts', () => {
+    const context = {
+      input_tokens: 2000,
+      cached_tokens: 500,
+      context_window: 8000,
+      reply_reserve: 1024,
+      messages: 4,
+      files: 0,
+      sources: 0,
+      provider: 'openai',
+      model: 'gpt-test'
+    }
+
+    expect(contextPercent(context)).toBe(25)
     expect(contextSegments(context)).toEqual([
-      { id: 'prompt', label: 'Prompt', tokens: 0 },
-      { id: 'cached', label: 'Cached', tokens: 0 },
+      { id: 'prompt', label: 'Prompt', tokens: 1500 },
+      { id: 'cached', label: 'Cached', tokens: 500 },
       { id: 'reserve', label: 'Reply reserve', tokens: 1024 },
-      { id: 'available', label: 'Available', tokens: 6976 }
+      { id: 'available', label: 'Available', tokens: 4976 }
     ])
   })
 
@@ -83,7 +103,9 @@ describe('contextSegments', () => {
     ).toHaveLength(12)
   })
 
-  it('clamps invalid provider counters instead of producing a broken percentage', () => {
+  it('reports unusable provider counters as unknown, not as a percentage', () => {
+    // NaN in, no number out. Clamping it to 0 produced a confident "0%" from
+    // a counter that was broken.
     expect(
       contextPercent({
         input_tokens: Number.NaN,
@@ -96,7 +118,7 @@ describe('contextSegments', () => {
         provider: 'openai',
         model: 'gpt-test'
       })
-    ).toBe(0)
+    ).toBeNull()
   })
 })
 

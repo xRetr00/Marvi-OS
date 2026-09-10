@@ -70,26 +70,29 @@
   mask-image: none;
 }
 
-/* Beside the bubble rather than under it, and out of the way until wanted. */
+/* Inside the bubble, on a hairline row of its own.
+   Floating them into the empty column to the left left the controls stranded
+   with nothing to attach them to, and on a wide window they sat nowhere near
+   the message they act on. */
 .chat-user-actions {
   position: static;
-  grid-row: 1;
-  grid-column: 1;
+  display: flex;
+  align-items: center;
   justify-content: flex-end;
-  margin: 0;
+  gap: 4px;
+  min-height: 0;
+  margin: 7px -6px -2px 0;
+  padding-top: 6px;
+  border-top: 1px solid color-mix(in srgb, var(--ui-stroke-tertiary) 60%, transparent);
+  opacity: 0;
+  transition: opacity 120ms ease-out;
 }
 
-.chat-user-branches {
-  grid-row: 2;
-  grid-column: 2;
-  justify-self: end;
+.chat-user:hover .chat-user-actions,
+.chat-user:focus-within .chat-user-actions {
+  opacity: 1;
 }
 
-/* Editing turns the bubble into a composer, not into a form.
-   It is the same message in the same place, so it keeps the bubble's rounding
-   and sits in the bubble's column -- just wider, because you are writing in it
-   now. A bare outlined textarea with two buttons under it read as a dialog
-   that had landed in the transcript. */
 .chat-user.is-editing {
   grid-template-columns: minmax(0, 1fr);
 }
@@ -412,48 +415,13 @@
   opacity: 0.94;
 }
 
-/* -- thinking animation --------------------------------------------------- */
-
-.chat-ascii-spinner {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 4px 2px 6px;
-  font-size: 12px;
-  letter-spacing: 0.02em;
-}
-
-.chat-ascii-glyph {
-  /* Fixed width so the line does not shuffle as the glyph changes size. */
-  display: inline-block;
-  width: 1em;
-  text-align: center;
-  color: var(--accent, #7c7cf0);
-  font-size: 14px;
-  line-height: 1;
-}
-
-.chat-ascii-label {
-  opacity: 0.9;
-}
-
-.chat-ascii-elapsed {
-  opacity: 0.55;
-  font-variant-numeric: tabular-nums;
-}
-
-.chat-ascii-hint {
-  margin-left: auto;
-  opacity: 0.42;
-  font-size: 11px;
-}
 
 /* -- the live activity line ----------------------------------------------- */
 
-/* Small, dim, and shimmering rather than bold body text.
+/* Small, dim, and shimmering. Nothing else.
    A status line is the least important thing on screen while it is on screen:
-   it says the answer has not arrived yet. It used to render at body size in
-   medium weight, which made "Marvi is working" louder than the reply. */
+   it says the answer has not arrived yet. It briefly had a five-glyph spinner
+   and settling text, and both drew the eye away from the reply. */
 .chat-scaffold-label {
   font-size: 11px;
   font-weight: 400;
@@ -461,9 +429,9 @@
 }
 
 .chat-scaffold-label.is-live {
-  /* A highlight travelling along the text, in Marvi's own accent. The previous
-     version pulsed the whole line's opacity, which reads as flashing rather
-     than as working. */
+  /* A highlight travelling along the text, in Marvi's own accent. The version
+     before this pulsed the whole line's opacity, which reads as flashing
+     rather than as working. */
   background: linear-gradient(
     100deg,
     var(--ui-text-tertiary) 0%,
@@ -489,29 +457,58 @@
   }
 }
 
-.chat-ascii-label {
-  background: linear-gradient(
-    100deg,
-    var(--ui-text-secondary) 0%,
-    var(--ui-text-secondary) 38%,
-    var(--ui-accent) 50%,
-    var(--ui-text-secondary) 62%,
-    var(--ui-text-secondary) 100%
-  );
-  background-size: 260% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  -webkit-text-fill-color: transparent;
-  animation: chat-shimmer 2.4s linear infinite;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .chat-scaffold-label.is-live,
-  .chat-ascii-label {
+  .chat-scaffold-label.is-live {
     background: none;
     color: var(--ui-text-secondary);
     -webkit-text-fill-color: currentcolor;
     animation: none;
   }
+}
+
+/* -- what Marvi thought --------------------------------------------------- */
+
+/* Readable, and sized to what it holds.
+   It was 9px inside an 84px box with a visible scrollbar, which is a text
+   field, not a paragraph -- five lines of thinking arrived as a cramped panel
+   you had to scroll to read. It now runs at prose size and grows with the
+   content, and only becomes a scroller when the thinking is genuinely long. */
+.chat-reasoning-body {
+  max-height: none;
+  padding: 4px 0 6px;
+  overflow: visible;
+  color: var(--ui-text-tertiary);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+/* While it is streaming it stays a fixed window pinned to the newest lines,
+   so the answer below does not jump down the page on every token. The fade is
+   there instead of a scrollbar: a scrollbar on a paragraph that is still being
+   written invites you to fight it. */
+.chat-reasoning-body.is-live {
+  max-height: 132px;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 22px);
+  mask-image: linear-gradient(to bottom, transparent, #000 22px);
+  scroll-behavior: smooth;
+}
+
+/* -- the stop control ----------------------------------------------------- */
+
+/* Outlined, not a solid white disc.
+   Send is the affirmative control and earns the filled treatment; stop is the
+   one you press when something is going wrong, and a bright filled circle in
+   that position reads as the primary action of the page. */
+.chat-send.is-stop {
+  border: 1px solid var(--ui-stroke-primary);
+  background: transparent;
+  color: var(--ui-text-secondary);
+}
+
+.chat-send.is-stop:not(:disabled):hover,
+.chat-send.is-stop:not(:disabled):active {
+  border-color: var(--ui-danger);
+  background: color-mix(in srgb, var(--ui-danger) 14%, transparent);
+  color: var(--ui-danger);
 }

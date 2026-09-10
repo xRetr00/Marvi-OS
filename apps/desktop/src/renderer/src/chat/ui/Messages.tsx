@@ -71,31 +71,6 @@ export function UserMessage({ message }: { message: MessageState }): React.JSX.E
       data-slot="chat-user-message"
     >
       <span className="sr-only">YOU</span>
-      <TooltipProvider>
-        <div className="chat-turn-actions chat-user-actions">
-          <span className="chat-message-age">{formatTime(createdAt(message))}</span>
-          <ActionBarPrimitive.Root className="chat-action-bar">
-            <UiTooltip label="Edit and branch from this message">
-              <ActionBarPrimitive.Edit
-                aria-label="Edit message"
-                className="chat-message-action"
-                type="button"
-              >
-                <AbstractIcon name="edit" size={14} />
-              </ActionBarPrimitive.Edit>
-            </UiTooltip>
-            <UiTooltip label="Copy message">
-              <ActionBarPrimitive.Copy
-                aria-label="Copy message"
-                className="chat-message-action"
-                type="button"
-              >
-                <AbstractIcon name="copy" size={14} />
-              </ActionBarPrimitive.Copy>
-            </UiTooltip>
-          </ActionBarPrimitive.Root>
-        </div>
-      </TooltipProvider>
       <div className="chat-user-surface" data-slot="chat-user-surface">
         <div className="chat-body chat-user-text">
           <MessagePrimitive.Parts components={MESSAGE_PART_COMPONENTS} />
@@ -119,8 +94,37 @@ export function UserMessage({ message }: { message: MessageState }): React.JSX.E
             ))}
           </div>
         ) : null}
+        {/* Inside the bubble, on its own row. Floating them off to the left
+            left the actions stranded in empty space with nothing to attach
+            them to, and on a wide window they ended up nowhere near the
+            message they belonged to. */}
+        <TooltipProvider>
+          <div className="chat-turn-actions chat-user-actions">
+            <span className="chat-message-age">{formatTime(createdAt(message))}</span>
+            <BranchPicker />
+            <ActionBarPrimitive.Root className="chat-action-bar">
+              <UiTooltip label="Edit and branch from this message">
+                <ActionBarPrimitive.Edit
+                  aria-label="Edit message"
+                  className="chat-message-action"
+                  type="button"
+                >
+                  <AbstractIcon name="edit" size={13} />
+                </ActionBarPrimitive.Edit>
+              </UiTooltip>
+              <UiTooltip label="Copy message">
+                <ActionBarPrimitive.Copy
+                  aria-label="Copy message"
+                  className="chat-message-action"
+                  type="button"
+                >
+                  <AbstractIcon name="copy" size={13} />
+                </ActionBarPrimitive.Copy>
+              </UiTooltip>
+            </ActionBarPrimitive.Root>
+          </div>
+        </TooltipProvider>
       </div>
-      <BranchPicker className="chat-user-branches" />
     </MessagePrimitive.Root>
   )
 }
