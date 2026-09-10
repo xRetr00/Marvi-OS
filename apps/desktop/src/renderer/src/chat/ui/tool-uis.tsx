@@ -26,6 +26,7 @@ import { AbstractIcon } from '../../components/abstract-icon'
 import { GlyphSpinner } from '../../components/ui/glyph-spinner'
 import { WidgetStack } from '../components/WidgetStack'
 import { ActivityLabel } from './ActivityLabel'
+import { toolSentence } from './tool-verbs'
 
 /** `present_widget` and every tool the Gateway derived a widget from. */
 export function WidgetToolUI({
@@ -52,16 +53,13 @@ export function ToolActivity({ toolName, status }: ToolCallMessagePartProps): Re
     <div className="chat-scaffold chat-inline-tool" data-conversation-scaffold="">
       {running ? (
         <GlyphSpinner
-          ariaLabel={`Marvi is using ${toolLabel(toolName)}`}
+          ariaLabel={toolSentence(toolName, true)}
           className="chat-working-spinner"
         />
       ) : (
         <span aria-hidden="true" className="chat-tool-dot" />
       )}
-      <ActivityLabel
-        live={running}
-        text={`${running ? 'Marvi is using' : 'Marvi used'} ${toolLabel(toolName)}`}
-      />
+      <ActivityLabel live={running} text={toolSentence(toolName, running)} />
     </div>
   )
 }
@@ -279,6 +277,3 @@ function SecretCard({
   )
 }
 
-function toolLabel(tool: string): string {
-  return tool.replaceAll(/[_-]+/g, ' ').replace(/^\w/, (letter) => letter.toUpperCase())
-}
