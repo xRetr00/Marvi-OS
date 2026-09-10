@@ -266,6 +266,30 @@ def register_workspace_browser_tools(registry, get_service, vision_client=None):
             },
             optional={"request_confirmation": bool},
             sensitive=False,
+            # `arguments` published as `{"type": "string"}` here too, for the
+            # same reason -- `dict` was missing from the type map. A bare
+            # object is only half a fix: it says a shape is wanted and nothing
+            # about which.
+            describes={
+                "session_id": "From browser_status. Not a name you choose.",
+                "revision": (
+                    "The session's current revision from browser_status. A stale one is refused."
+                ),
+                "action": (
+                    "read, navigate, new_tab, click, fill, select, press, scroll, back, "
+                    "forward, reload, close_tab, dialog, screenshot or upload."
+                ),
+                "arguments": (
+                    "A JSON object carrying tab_id plus whatever the action needs -- an "
+                    "observed role and name, or a selector, and url/text/value/key/pixels/path "
+                    "as required. An object, never a string containing one."
+                ),
+                "action_id": (
+                    "A fresh unique id. Reuse one only to retry the same call after a "
+                    "transport failure."
+                ),
+                "request_confirmation": "True when the user should approve before this runs.",
+            },
             sensitive_when=lambda args: args.get("request_confirmation", False),
             handler=action,
         )
