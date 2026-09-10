@@ -345,26 +345,35 @@ def _install_components(
 
 def _edit_capabilities(console: Any) -> None:
     """Set what a capability needs, and write it where the app will read it."""
-    from rich.prompt import Prompt
+    from rich.prompt import Confirm, IntPrompt, Prompt
 
     keys = [c.key for c in CAPABILITIES]
     console.print("\n" + "   ".join(f"[bold]{c.key}[/bold] {c.title}" for c in CAPABILITIES))
-    chosen = Prompt.ask("Which", choices=[*keys, "back"], default="back", console=console)
-    if chosen == "back":
+    console.print("\n[bold]Tools and keys[/bold]")
+    for index, capability in enumerate(CAPABILITIES, 1):
+        mark = "[green]ready[/green]" if _ready(capability) else "[yellow]needs setup[/yellow]"
+        console.print(f"  [bold cyan]{index}[/bold cyan] {capability.title}  {mark}")
+    console.print(f"  [bold cyan]{len(CAPABILITIES) + 1}[/bold cyan] Back")
+    chosen = IntPrompt.ask(
+        "Which capability",
+        choices=list(range(1, len(CAPABILITIES) + 2)),
+        default=len(CAPABILITIES) + 1,
+        console=console,
+    )
+    if chosen == len(CAPABILITIES) + 1:
         return
 
-    capability = next(c for c in CAPABILITIES if c.key == chosen)
+    capability = CAPABILITIES[chosen - 1]
     console.print(f"\n[dim]{capability.why}[/dim]")
     changes: dict[str, str] = {}
     for setting in capability.settings:
         console.print(f"\n[bold]{setting.label}[/bold]  [dim]{setting.detail}[/dim]")
         console.print(f"  currently: {_shown(setting)}")
         if setting.boolean:
-            answer = Prompt.ask(
-                "  on, off, or leave", choices=["on", "off", ""], default="", console=console
-            )
-            if answer:
-                changes[setting.name] = "true" if answer == "on" else "false"
+            if Confirm.ask("  turn on?", default=_satisfied(setting), console=console):
+                changes[setting.name] = "true"
+            elif _satisfied(setting):
+                changes[setting.name] = "false"
             continue
         answer = Prompt.ask(
             "  value (blank to leave)",
