@@ -36,8 +36,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from . import language, latency, selfaware
-from . import inline_ask
+from . import inline_ask, language, latency, selfaware, tool_call_prose
 from .chat_widgets import (
     external_text,
     present_tool_schema,
@@ -1725,6 +1724,20 @@ class Chat:
 
             if not calls:
                 reply = completion.text.strip()
+                # A tool call the model typed out instead of making.
+                #
+                # The provider parsed no calls, so this path treats whatever
+                # came back as prose -- and a mis-emitted call is not prose. It
+                # reached the chat window verbatim, `<tool_call>terminal_run
+                # <arg_key>command</arg_key>...`, as her entire answer. The
+                # tool never ran, so the reply she was building on it never
+                # arrived either, and nothing said so.
+                if tool_call_prose.looks_typed_out(reply):
+                    logger.warning(
+                        "the model wrote a tool call as text instead of calling it: %s",
+                        tool_call_prose.reached_for(reply) or "unnamed tool",
+                    )
+                    reply = tool_call_prose.instead_say(reply)
                 parts = self.store.parts_for_text(reply)
                 for widget in widgets:
                     parts.append(widget)
