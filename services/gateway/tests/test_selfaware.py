@@ -367,3 +367,66 @@ def test_a_boolean_written_as_a_word_is_read_as_one() -> None:
 
     assert registry.validate(spec, {"on": "false"})["on"] is False
     assert registry.validate(spec, {"on": "true"})["on"] is True
+
+
+def test_a_stringified_object_is_still_that_object() -> None:
+    """The same failure as the integer one, on the two biggest tools she has.
+
+    `computer_action` was called with `arguments` as a JSON *string*. It was
+    refused, and the model -- which cannot see that its own tool-calling layer
+    stringified the nested field -- sent the identical call seven times:
+
+        00:03:04  computer_action refused those arguments: argument
+                  arguments must be dict
+        ... six more, one every 1.4 seconds ...
+        00:03:25  "The computer tools are rejecting my calls -- the arguments
+                  schema is not accepting what I am sending."
+
+    `arguments` is the nested field on both `computer_action` and
+    `browser_action`, so this took the desktop and the browser out together.
+    """
+    from marvi_gateway.tools import ToolRegistry, ToolSpec
+
+    registry = ToolRegistry()
+    spec = ToolSpec(
+        name="computer_action",
+        description="Operate Windows applications",
+        arguments={"action": str, "arguments": dict},
+        sensitive=False,
+        handler=lambda **kwargs: kwargs,
+    )
+    registry.register(spec)
+
+    accepted = registry.validate(
+        spec, {"action": "launch_app", "arguments": '{"app": "Spotify"}'}
+    )
+    assert accepted["arguments"] == {"app": "Spotify"}
+    assert isinstance(accepted["arguments"], dict)
+
+    # An object that was already an object is untouched.
+    passed = registry.validate(spec, {"action": "launch_app", "arguments": {"app": "X"}})
+    assert passed["arguments"] == {"app": "X"}
+
+
+def test_a_string_that_is_not_the_declared_shape_is_still_refused() -> None:
+    """Coercion reads a stringified object, not any string at all.
+
+    A list where a dict was asked for is a different mistake, and accepting it
+    would hide a real disagreement about what the argument means.
+    """
+    import pytest
+
+    from marvi_gateway.tools import InvalidArgumentsError, ToolRegistry, ToolSpec
+
+    registry = ToolRegistry()
+    spec = ToolSpec(
+        name="computer_action",
+        description="Operate Windows applications",
+        arguments={"action": str, "arguments": dict},
+        sensitive=False,
+        handler=lambda **kwargs: kwargs,
+    )
+
+    for wrong in ("[1, 2]", "not json at all", '"just a string"', "42"):
+        with pytest.raises(InvalidArgumentsError, match="must be dict"):
+            registry.validate(spec, {"action": "click", "arguments": wrong})
