@@ -236,6 +236,13 @@ tooltips. A recovered inference clears its prior transient error indication.
 
 ## What is not done
 
+Wake launch repair (2026-09-10): the native listener now forwards the desktop
+application directory before `--wake` for development Electron launches.
+Packaged launches use the embedded app. Six native binary tests pass, including
+paths with spaces and empty packaged overrides. The user's Windows listener
+and Run entry were switched from the development checkout to the installed
+package; acoustic detection remains outside this launcher regression check.
+
 **LiveKit and MCP reconnect in place.** Both currently recover by being
 restarted, which works but drops in-flight state. The sidecar case was the
 urgent one because a dropped sidecar meant dead tools until a manual restart.

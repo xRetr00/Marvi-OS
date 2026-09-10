@@ -118,8 +118,7 @@ fn join(confidence: f32) {
         "wake word heard ({confidence:.2}); starting {}",
         command.display()
     );
-    let mut launch = std::process::Command::new(&command);
-    launch.arg("--wake");
+    let mut launch = wake_command(&command, std::env::var_os("MARVI_APP_PATH").as_deref());
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -132,6 +131,52 @@ fn join(confidence: f32) {
     }
     if let Err(error) = launch.spawn() {
         eprintln!("could not start the app: {error}");
+    }
+}
+
+/// Development Electron needs the application directory before its flags.
+/// Packaged Marvi already embeds the app and needs only the wake flag.
+fn wake_command(command: &Path, app_path: Option<&std::ffi::OsStr>) -> std::process::Command {
+    let mut launch = std::process::Command::new(command);
+    if let Some(path) = app_path.filter(|path| !path.is_empty()) {
+        launch.arg(path);
+    }
+    launch.arg("--wake");
+    launch.env_remove("ELECTRON_RUN_AS_NODE");
+    launch
+}
+
+#[cfg(test)]
+mod wake_launch_tests {
+    use super::*;
+
+    #[test]
+    fn development_launch_includes_marvi_before_wake_flag() {
+        let command = wake_command(
+            Path::new("electron.exe"),
+            Some(std::ffi::OsStr::new(r"D:\Marvi OS\apps\desktop")),
+        );
+        assert_eq!(
+            command.get_args().collect::<Vec<_>>(),
+            vec![
+                std::ffi::OsStr::new(r"D:\Marvi OS\apps\desktop"),
+                std::ffi::OsStr::new("--wake")
+            ]
+        );
+    }
+
+    #[test]
+    fn packaged_launch_does_not_supply_an_external_app() {
+        for path in [None, Some(std::ffi::OsStr::new(""))] {
+            let command = wake_command(Path::new("Marvi-OS.exe"), path);
+            assert_eq!(
+                command.get_args().collect::<Vec<_>>(),
+                vec![std::ffi::OsStr::new("--wake")]
+            );
+            assert!(command
+                .get_envs()
+                .any(|(key, value)| key == "ELECTRON_RUN_AS_NODE" && value.is_none()));
+        }
     }
 }
 

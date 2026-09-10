@@ -183,6 +183,12 @@ inside the build directory being replaced. On the first launch of the updated
 desktop, the login registration is reconciled and the listener is restarted
 from the newly packaged binary. A user-disabled registration is left off.
 
+When the desktop starts a listener in development, it supplies both
+`MARVI_APP_COMMAND` (Electron) and `MARVI_APP_PATH` (the desktop application
+directory). The listener places that directory before `--wake`; launching
+Electron with only the flag opens the default Electron application. Packaged
+launches clear the app-path override and use the embedded Marvi application.
+
 Developers cut releases through the signed release console. With no arguments
 it asks for the target version; `-Version` supplies it for command-line use.
 Both paths delegate to `scripts/release.ps1`, so clean-main checks, the signed

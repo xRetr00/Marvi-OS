@@ -1,5 +1,16 @@
 # Implementation Log
 
+## 2026-09-10 — Fix development wake launch target
+
+- Pass the desktop app directory alongside the Electron executable to the
+  native wake host; keep it as one argument before `--wake`. Packaged launches
+  clear that override. Remove `ELECTRON_RUN_AS_NODE` from the launched app.
+- Six native binary tests passed, including development paths with spaces and
+  packaged launch arguments. No dependencies or upstream extractions added.
+- Repaired this Windows host's active listener and login registration to use
+  the installed package rather than the development checkout. Acoustic wake
+  detection was not requalified by this launcher-only change.
+
 ## 2026-09-10 — Preserve dotted orb with four-coordinate motion
 
 - Removed the uncommitted solid-knot prototype at the user's direction and

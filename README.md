@@ -23,6 +23,8 @@
 
 Marvi OS is a voice-first personal assistant that lives on your Windows desktop—not in another browser tab. Call her with a wake phrase, speak normally, interrupt whenever you need to, and return to what you were doing.
 
+Wake launches preserve the desktop application path when running from a development checkout, so calling Marvi opens the assistant instead of Electron's default screen.
+
 Most of the time, Marvi is a small quiet line at the top edge of your screen. The Dynamic Island becomes a floating capsule only when there is something worth hearing, approving, or acting on. A full control center is there when you want to chat, inspect memory, connect services, manage your room, or tune how Marvi behaves.
 
 Marvi is designed to become more useful without becoming more intrusive. She learns your preferences, remembers what matters, notices meaningful changes, and understands that silence is often the right answer.

@@ -968,6 +968,7 @@ async function wakeAutostart(
         env: {
           ...process.env,
           MARVI_APP_COMMAND: app.getPath('exe'),
+          MARVI_APP_PATH: app.isPackaged ? '' : app.getAppPath(),
           ...(device.trim() ? { MARVI_WAKE_DEVICE: device.trim() } : {})
         }
       })
