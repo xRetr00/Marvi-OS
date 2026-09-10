@@ -553,6 +553,103 @@ def check_components() -> list[Finding]:
     return findings
 
 
+#: What each capability needs at *run* time, beyond anything on disk.
+#:
+#: `check_components` verifies what the catalog downloads. It cannot see the
+#: other half: a Python module that never got installed, or a system binary a
+#: library shells out to. Those fail when the capability first tries to load,
+#: which is minutes or days after Setup said everything was fine --
+#:
+#:     could not prewarm the speech models: VoXtream2 failed to load:
+#:     [!] No espeak backend found. Install espeak-ng or espeak to your system.
+#:
+#: -- and the failure showed up as WARMING UP for ever, because nothing
+#: connected the load error to a thing you could install.
+#:
+#: `(module, capability, what it costs you, how to get it)`.
+NEEDED_AT_RUNTIME: tuple[tuple[str, str, str, str], ...] = (
+    (
+        "cv2",
+        "vision",
+        "the camera cannot be read, so presence falls back to the other sensors",
+        "opencv-python",
+    ),
+    (
+        "playwright",
+        "browser",
+        "browser tools cannot start",
+        "playwright",
+    ),
+)
+
+#: System binaries a library shells out to. Not importable, so checked on PATH.
+#:
+#: `(binary, capability, what it costs you, where to get it)`.
+BINARIES_AT_RUNTIME: tuple[tuple[str, str, str, str], ...] = (
+    (
+        "espeak-ng",
+        "voice",
+        "the VoxTream2 voice cannot load; another engine still works",
+        "Install espeak-ng from github.com/espeak-ng/espeak-ng/releases, or "
+        "choose a different voice engine in Setup.",
+    ),
+)
+
+
+def _importable(module: str) -> bool:
+    from importlib.util import find_spec
+
+    try:
+        return find_spec(module) is not None
+    except (ImportError, ValueError):
+        return False
+
+
+def check_runtime_dependencies() -> list[Finding]:
+    """The prerequisites a capability needs to actually load.
+
+    Reported as `warn` rather than `fail`: every one of these breaks a single
+    capability and leaves the rest of Marvi working, and a red cross against a
+    camera nobody uses is noise. What matters is that it is *named*, with the
+    thing to install next to it, instead of surfacing later as a load error
+    nobody can act on.
+    """
+    import shutil
+
+    findings: list[Finding] = []
+    for module, capability, cost, install in NEEDED_AT_RUNTIME:
+        if _importable(module):
+            continue
+        findings.append(
+            Finding(
+                f"{capability}: {module}",
+                capability,
+                "warn",
+                f"The {module} module is not installed, so {cost}.",
+                Remedy(
+                    kind="manual",
+                    action=f"Install {install}",
+                    how=f"Run: uv add --project services/gateway {install}",
+                ),
+                {"module": module},
+            )
+        )
+    for binary, capability, cost, how in BINARIES_AT_RUNTIME:
+        if shutil.which(binary):
+            continue
+        findings.append(
+            Finding(
+                f"{capability}: {binary}",
+                capability,
+                "warn",
+                f"{binary} is not on PATH, so {cost}.",
+                Remedy(kind="manual", action=f"Install {binary}", how=how),
+                {"binary": binary},
+            )
+        )
+    return findings
+
+
 def check_crashes() -> Finding:
     from . import breadcrumb
 
@@ -599,6 +696,7 @@ def run_checks() -> list[Finding]:
         check_logs,
         check_token_store,
         check_components,
+        check_runtime_dependencies,
         check_plugins,
         check_desktop_build,
         check_installer_log,
