@@ -527,7 +527,7 @@ def fire(loaded: LoadedPlugin, event: str) -> list[str]:
 #:
 #: Two ways to be installed and not running, and they need different answers:
 #: an import that failed (fix the plugin) and an update applied after the
-#: Gateway loaded the old code (restart Marvi).
+#: Gateway loaded the old code (restart the plugin sidecar).
 _not_running: dict[str, str] = {}
 
 
