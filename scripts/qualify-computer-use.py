@@ -95,10 +95,13 @@ try:
         {"pid": pid, "window_id": window, "element_token": button["element_token"]},
     )
     assert (root / "result.txt").read_text() == "Marvi computer fixture"
+    if os.environ.get("MARVI_CURSOR_VISUAL_PROOF") == "true":
+        act("bring_to_front", {"pid": pid})
     act("move_cursor", {"target": {"kind": "window", "pid": pid, "window_id": window}, "x": 100, "y": 100})
     cursor = cursor_state()
     if os.environ.get("MARVI_CURSOR_VISUAL_PROOF") == "true":
         from PIL import ImageGrab
+        time.sleep(0.35)
         bounds = fixture["bounds"]
         crop = (int(bounds["x"]), int(bounds["y"]), int(bounds["x"] + bounds["width"]), int(bounds["y"] + bounds["height"]))
         ImageGrab.grab(bbox=crop, include_layered_windows=True, all_screens=True).save(root / "cursor.png")
