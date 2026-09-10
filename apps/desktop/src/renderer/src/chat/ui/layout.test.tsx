@@ -90,11 +90,27 @@ describe('the user turn is a bubble, not a card', () => {
     expect(ui).toMatch(/\.chat-user-text\s*\{[^}]*max-height:\s*none/)
   })
 
-  it('places the action row and branch picker in their own cells', () => {
-    // The fixture thread is empty, so this asserts the placement rules rather
-    // than the markup: a user turn only exists once there is a message.
-    expect(ui).toMatch(/\.chat-user-actions\s*\{[^}]*grid-column:\s*1/)
-    expect(ui).toMatch(/\.chat-user-branches\s*\{[^}]*justify-self:\s*end/)
+  it('keeps the action row inside the bubble', () => {
+    // Floating it into the empty column left the controls stranded away from
+    // the message they act on.
+    expect(ui).toMatch(/\.chat-user-actions\s*\{[^}]*justify-content:\s*flex-end/)
+    expect(ui).toMatch(/\.chat-user-actions\s*\{[^}]*opacity:\s*0/)
+  })
+})
+
+describe('what Marvi thought is readable', () => {
+  it('runs at prose size rather than as a 9px field', () => {
+    expect(ui).toMatch(/\.chat-reasoning-body\s*\{[^}]*font-size:\s*11px/)
+  })
+
+  it('fades instead of showing a scrollbar while it is being written', () => {
+    expect(ui).toMatch(/\.chat-reasoning-body\.is-live\s*\{[^}]*mask-image/)
+  })
+})
+
+describe('the stop control is not the loudest thing on the page', () => {
+  it('is outlined rather than a filled disc', () => {
+    expect(ui).toMatch(/\.chat-send\.is-stop\s*\{[^}]*background:\s*transparent/)
   })
 })
 
@@ -111,6 +127,11 @@ describe('the live activity line stays quieter than the answer', () => {
 
   it('drops the animation entirely for reduced motion', () => {
     expect(ui).toMatch(/prefers-reduced-motion[\s\S]*?animation:\s*none/)
+  })
+
+  it('carries no spinner and no scrambling text', () => {
+    expect(ui).not.toContain('chat-ascii')
+    expect(html).not.toContain('esc to interrupt')
   })
 })
 
