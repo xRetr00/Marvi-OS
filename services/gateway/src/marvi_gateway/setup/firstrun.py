@@ -62,22 +62,49 @@ class Step:
 def _capability_step(
     repo_root: Path, capability: str, title: str, why: str
 ) -> Step:
+    # Every component, not only the ones with a file map.
+    #
+    # This filtered on `c.files`, and a command-kind component has none -- it
+    # owns its own download. The browser capability has exactly one component,
+    # `playwright-browsers`, which is command-kind, so the filter emptied the
+    # list and the step read "nothing to download yet" for ever, done=False,
+    # with no way to act on it. Meanwhile Chromium really was missing and the
+    # browser tools failed at `start_dependencies` with nothing to connect the
+    # two. `installer.state_of` already knows how to check a command; this
+    # simply asks it.
+    from . import installer
+
     components = catalog.for_capability(repo_root, capability)
-    downloadable = [c for c in components if c.files]
-    missing = [c for c in downloadable if not c.status()["installed"]]
-    size = sum(c.bytes_total for c in missing)
+    if not components:
+        return Step(
+            key=capability, title=title, why=why, done=True, required=False,
+            action=f"marvi setup {capability}", detail="nothing to install",
+        )
+    # `deep=True`, and the cost is the point. With `deep=False` a command
+    # component reports `installed: True, "not checked"` -- so this screen,
+    # whose entire job is to say what is missing, would have said "ready" over
+    # an engine that was not there. Measured at 1.8s for the one component
+    # that actually runs a check on Windows.
+    states = [(one, installer.state_of(one, repo_root, deep=True)) for one in components]
+    missing = [one for one, state in states if not state["installed"]]
+    size = sum(one.bytes_total for one in missing)
+    if size:
+        detail = f"{size / 1024**3:.1f} GB to download"
+    elif missing:
+        # A command component knows its own size and this does not, so say
+        # what the manifest says rather than inventing a number.
+        notes = [str(one.extra.get("note") or "") for one in missing]
+        detail = next((note for note in notes if note), "not installed")
+    else:
+        detail = "ready"
     return Step(
         key=capability,
         title=title,
         why=why,
-        done=bool(downloadable) and not missing,
+        done=not missing,
         required=False,
         action=f"marvi setup {capability}",
-        detail=(
-            f"{size / 1024**3:.1f} GB to download"
-            if size
-            else ("ready" if downloadable else "nothing to download yet")
-        ),
+        detail=detail,
     )
 
 
