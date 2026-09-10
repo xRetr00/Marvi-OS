@@ -252,11 +252,15 @@ def installed(name: str) -> bool:
     return (install_dir(name) / "plugin.yaml").is_file()
 
 
-def install(source: PluginSource, repo_root: Path) -> str:
+def install(
+    source: PluginSource,
+    repo_root: Path,
+    on_updated: Callable[[], None] | None = None,
+) -> str:
     """Clone a plugin and install its dependencies. Idempotent."""
     target = install_dir(source.name)
     if installed(source.name):
-        return update(source.name, repo_root)
+        return update(source.name, repo_root, on_updated=on_updated)
 
     target.parent.mkdir(parents=True, exist_ok=True)
     # Shallow: a plugin's history is not something Marvi needs a copy of.
@@ -272,7 +276,11 @@ def install(source: PluginSource, repo_root: Path) -> str:
     return f"installed {source.name}"
 
 
-def update(name: str, repo_root: Path) -> str:
+def update(
+    name: str,
+    repo_root: Path,
+    on_updated: Callable[[], None] | None = None,
+) -> str:
     """Fast-forward a plugin to its ref and re-check dependencies.
 
     The user's own plugin repository is the one they push to, so an update is
@@ -290,13 +298,9 @@ def update(name: str, repo_root: Path) -> str:
         return f"{name} is already up to date"
     log.info("updated plugin %s", name, extra={"marvi_from": before[:8], "marvi_to": after[:8]})
     sync_dependencies(name, repo_root)
-    # Python imported the old code when the Gateway started and will go on
-    # running it. Updating a plugin and watching nothing change is worse than
-    # an update that fails, so the new code is not silently pretended to be
-    # live -- and `on_gateway_start`, which is what starts a plugin's sidecar,
-    # has already been and gone.
-    note_not_running(name, f"updated to {after[:8]}; restart Marvi to load it")
-    return f"updated {name} ({before[:8]} to {after[:8]}) - restart Marvi to load it"
+    if on_updated is not None:
+        on_updated()
+    return f"updated {name} ({before[:8]} to {after[:8]})"
 
 
 def sync_dependencies(name: str, repo_root: Path) -> str:

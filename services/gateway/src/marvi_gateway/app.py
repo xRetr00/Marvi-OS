@@ -897,6 +897,16 @@ def load_installed_plugins() -> list[plugins_module.LoadedPlugin]:
     return found
 
 
+PLUGIN_UPDATE_INTERVAL_SECONDS = 30 * 60
+
+
+def plugin_update_interval() -> float:
+    try:
+        return max(60.0, float(os.environ.get("MARVI_PLUGIN_UPDATE_INTERVAL_SECONDS", "")))
+    except ValueError:
+        return float(PLUGIN_UPDATE_INTERVAL_SECONDS)
+
+
 #: The context blocks, least likely to change first.
 #:
 #: The order used to be whatever order the code happened to add to the dict,
