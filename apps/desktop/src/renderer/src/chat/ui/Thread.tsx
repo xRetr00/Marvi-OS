@@ -35,7 +35,6 @@ export function Thread({
   onOverrideChange,
   readAloud,
   activity = 'Marvi is thinking',
-  startedAt = Date.now(),
   footer
 }: {
   available: boolean
@@ -47,7 +46,6 @@ export function Thread({
   onOverrideChange: (next: { provider?: string; model?: string; effort?: string }) => void
   readAloud?: ReadAloud
   activity?: string
-  startedAt?: number
   footer?: React.ReactNode
 }): React.JSX.Element {
   return (
@@ -93,7 +91,7 @@ export function Thread({
             <AbstractIcon name="down" size={14} />
           </ThreadPrimitive.ScrollToBottom>
           {footer}
-          <AsciiSpinner active={busy} label={activity} startedAt={startedAt} />
+          {busy ? <AsciiSpinner label={activity} /> : null}
           <Composer
             attachments={attachments}
             available={available}

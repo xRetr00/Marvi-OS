@@ -44,7 +44,6 @@ export function Chat({ onExit }: { onExit: () => void }): React.JSX.Element {
   const activity = tool
     ? `Marvi is using ${tool.replaceAll(/[_-]+/g, ' ')}`
     : 'Marvi is thinking'
-  const startedAt = streaming ? new Date(streaming.at).getTime() : Date.now()
 
   // The spinner offers Escape as the way out, so Escape has to be the way out.
   useEffect(() => {
@@ -102,7 +101,6 @@ export function Chat({ onExit }: { onExit: () => void }): React.JSX.Element {
                 attachments={chat.attachments}
                 available={chat.available}
                 busy={chat.busy}
-                startedAt={startedAt}
                 footer={
                   <>
                     {chat.pending ? (
