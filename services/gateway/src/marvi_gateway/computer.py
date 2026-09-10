@@ -305,7 +305,7 @@ class ComputerUse:
             cancelled = False
             failed = True
             try:
-                await cursor_tool("set_agent_cursor_motion", idle_hide_ms=1000)
+                await cursor_tool("set_agent_cursor_motion", idle_hide_ms=2500)
                 await cursor_tool("set_agent_cursor_enabled", enabled=True)
                 result = await driver.call_tool(action, json.dumps({**arguments, "session": CURSOR_SESSION}))
                 failed = result.is_error

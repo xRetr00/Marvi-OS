@@ -73,7 +73,7 @@ def test_cursor_is_named_marvi_and_hidden_before_private_input(service):
     calls = [(name, json.loads(args)) for name, args in d.calls]
     assert calls == [
         ("start_session", {"session": "Marvi", "cursor_theme": {"theme_id": "cua.default", "reduced_motion": "auto"}}),
-        ("set_agent_cursor_motion", {"session": "Marvi", "idle_hide_ms": 1000}),
+        ("set_agent_cursor_motion", {"session": "Marvi", "idle_hide_ms": 2500}),
         ("set_agent_cursor_enabled", {"session": "Marvi", "enabled": True}),
         ("click", {"session": "Marvi"}),
     ]

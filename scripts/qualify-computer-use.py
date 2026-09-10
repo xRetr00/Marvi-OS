@@ -23,7 +23,7 @@ def act(name, arguments):
     timings.setdefault(name, []).append(
         round((time.perf_counter() - started) * 1000, 2)
     )
-    assert not result["is_error"], result.get("error_code")
+    assert not result["is_error"], (result.get("error_code"), result.get("observation"))
     return result
 
 
@@ -95,7 +95,14 @@ try:
         {"pid": pid, "window_id": window, "element_token": button["element_token"]},
     )
     assert (root / "result.txt").read_text() == "Marvi computer fixture"
+    act("move_cursor", {"target": {"kind": "window", "pid": pid, "window_id": window}, "x": 100, "y": 100})
     cursor = cursor_state()
+    if os.environ.get("MARVI_CURSOR_VISUAL_PROOF") == "true":
+        from PIL import ImageGrab
+        bounds = fixture["bounds"]
+        crop = (int(bounds["x"]), int(bounds["y"]), int(bounds["x"] + bounds["width"]), int(bounds["y"] + bounds["height"]))
+        ImageGrab.grab(bbox=crop, include_layered_windows=True, all_screens=True).save(root / "cursor.png")
+        print(json.dumps({"fixture_cursor_capture": str(root / "cursor.png")}))
     assert cursor["session"] == "Marvi" and cursor["enabled"]
     assert cursor["theme"]["id"] == "cua.default"
     print(json.dumps({"cursor_position": cursor.get("position"), "cursor_action": cursor.get("visual_state", {}).get("requested_action")}))
