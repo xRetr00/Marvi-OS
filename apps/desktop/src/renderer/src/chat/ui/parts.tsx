@@ -18,6 +18,7 @@ import type {
 } from '@assistant-ui/react'
 
 import { GlyphSpinner } from '../../components/ui/glyph-spinner'
+import { ActivityLabel } from './ActivityLabel'
 import { Markdown } from '../MarkdownView'
 import { AskToolUI, ToolActivity, WidgetToolUI } from './tool-uis'
 import { ASK_TOOL, WIDGET_TOOL } from '../runtime/convert'
@@ -66,9 +67,7 @@ const Reasoning = ({ text, status }: ReasoningMessagePartProps): React.JSX.Eleme
             spinner="braille"
           />
         ) : null}
-        <span className={streaming ? 'chat-scaffold-label is-live' : 'chat-scaffold-label'}>
-          {streaming ? 'Marvi is thinking' : 'Marvi thought'}
-        </span>
+        <ActivityLabel live={streaming} text={streaming ? 'Marvi is thinking' : 'Marvi thought'} />
         <ChevronDown
           aria-hidden="true"
           className={open ? 'chat-disclosure-caret is-open' : 'chat-disclosure-caret'}
@@ -106,7 +105,7 @@ const File = ({ filename, mimeType }: FileMessagePartProps): React.JSX.Element =
 const Empty = (): React.JSX.Element => (
   <div className="chat-scaffold chat-stream-activity" data-conversation-scaffold="">
     <GlyphSpinner ariaLabel="Marvi is working" className="chat-working-spinner" spinner="braille" />
-    <span className="chat-scaffold-label is-live">Marvi is working</span>
+    <ActivityLabel live text="Marvi is working" />
   </div>
 )
 

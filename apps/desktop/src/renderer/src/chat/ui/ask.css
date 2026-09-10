@@ -4,6 +4,20 @@
    transcript into full-width strips. The turn layout below IS redeclared, on
    purpose: adopting assistant-ui's message design is the point of it. */
 
+/* -- the transcript column ------------------------------------------------ */
+
+/* The turns use the page.
+   720px centred left a third of a wide window empty on each side, and with
+   both speakers inside one narrow strip a right-aligned bubble had nowhere to
+   go -- the two sides ended up looking stacked rather than opposed. The cap is
+   gone; the padding is what keeps a line of prose from running the full width
+   of a 4K monitor. */
+.chat-thread-content {
+  width: 100%;
+  max-width: none;
+  padding: clamp(24px, 4vh, 44px) clamp(24px, 4vw, 72px) 88px;
+}
+
 /* -- the message design, from assistant-ui ------------------------------- */
 
 /* A two-column grid is the whole trick. The bubble takes the second column
@@ -21,10 +35,12 @@
   margin-top: 22px;
   padding: 0;
   gap: 4px 8px;
-  /* The bubble track grows to fit its text and stops at 80% of the turn,
-     which is assistant-ui's cap -- past that a bubble stops reading as one
-     side of a conversation and starts reading as a full-width block again. */
-  grid-template-columns: minmax(56px, 1fr) minmax(0, 80%);
+  /* The bubble track grows to fit its text and stops at 62% of the turn.
+     assistant-ui uses 80% of a narrow fixed column; on a full-width page that
+     same fraction is an enormous bubble, so the cap tightens as the room
+     grows -- the point of it is that a bubble reads as one side of a
+     conversation, not as a full-width block. */
+  grid-template-columns: minmax(56px, 1fr) minmax(0, 62%);
   background: none;
 }
 
@@ -33,8 +49,13 @@
 }
 
 .chat-user-surface {
+  /* `justify-self` is what makes the bubble hug its text. A grid item
+     stretches to fill its track by default, so `width: auto` alone still
+     produced a full-track bar -- the same full-width block the bubble was
+     meant to replace, only narrower. */
   width: auto;
   max-width: 100%;
+  justify-self: end;
   padding: 9px 17px;
   border-radius: 18px;
   grid-row: 1;
@@ -64,38 +85,82 @@
   justify-self: end;
 }
 
+/* Editing turns the bubble into a composer, not into a form.
+   It is the same message in the same place, so it keeps the bubble's rounding
+   and sits in the bubble's column -- just wider, because you are writing in it
+   now. A bare outlined textarea with two buttons under it read as a dialog
+   that had landed in the transcript. */
 .chat-user.is-editing {
   grid-template-columns: minmax(0, 1fr);
 }
 
 .chat-user.is-editing .chat-user-surface {
+  display: flex;
   width: 100%;
+  flex-direction: column;
+  padding: 10px 12px 10px 16px;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--ui-bg-raised) 82%, transparent);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 14%);
   grid-column: 1;
+}
+
+.chat-user.is-editing .chat-user-surface:focus-within {
+  border-color: var(--ui-stroke-primary);
+}
+
+.chat-message-edit textarea {
+  width: 100%;
+  min-height: 24px;
+  max-height: 260px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  line-height: 19px;
+  resize: none;
+  outline: none;
 }
 
 .chat-message-edit-actions {
   display: flex;
   justify-content: flex-end;
   gap: 6px;
-  margin-top: 8px;
+  margin-top: 10px;
 }
 
 .chat-edit-cancel,
 .chat-edit-send {
-  padding: 5px 12px;
+  padding: 5px 13px;
   border: 1px solid var(--ui-stroke-secondary);
-  border-radius: 7px;
+  border-radius: 999px;
   background: none;
-  color: inherit;
+  color: var(--ui-text-secondary);
   font: inherit;
-  font-size: 10px;
-  letter-spacing: 0.06em;
+  font-size: 9px;
+  letter-spacing: 0.12em;
   cursor: pointer;
+  transition:
+    border-color 120ms ease-out,
+    color 120ms ease-out;
+}
+
+.chat-edit-cancel:hover {
+  border-color: var(--ui-stroke-primary);
+  color: var(--ui-text-primary);
 }
 
 .chat-edit-send {
-  border-color: var(--ui-accent);
+  border-color: color-mix(in srgb, var(--ui-accent) 55%, transparent);
   color: var(--ui-accent);
+}
+
+.chat-edit-send:hover {
+  border-color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent) 12%, transparent);
 }
 
 /* The scroll-to-bottom primitive disables itself at the bottom rather than
@@ -381,4 +446,72 @@
   margin-left: auto;
   opacity: 0.42;
   font-size: 11px;
+}
+
+/* -- the live activity line ----------------------------------------------- */
+
+/* Small, dim, and shimmering rather than bold body text.
+   A status line is the least important thing on screen while it is on screen:
+   it says the answer has not arrived yet. It used to render at body size in
+   medium weight, which made "Marvi is working" louder than the reply. */
+.chat-scaffold-label {
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+
+.chat-scaffold-label.is-live {
+  /* A highlight travelling along the text, in Marvi's own accent. The previous
+     version pulsed the whole line's opacity, which reads as flashing rather
+     than as working. */
+  background: linear-gradient(
+    100deg,
+    var(--ui-text-tertiary) 0%,
+    var(--ui-text-tertiary) 38%,
+    var(--ui-accent) 50%,
+    var(--ui-text-tertiary) 62%,
+    var(--ui-text-tertiary) 100%
+  );
+  background-size: 260% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: chat-shimmer 2.4s linear infinite;
+}
+
+@keyframes chat-shimmer {
+  from {
+    background-position: 160% 0;
+  }
+  to {
+    background-position: -60% 0;
+  }
+}
+
+.chat-ascii-label {
+  background: linear-gradient(
+    100deg,
+    var(--ui-text-secondary) 0%,
+    var(--ui-text-secondary) 38%,
+    var(--ui-accent) 50%,
+    var(--ui-text-secondary) 62%,
+    var(--ui-text-secondary) 100%
+  );
+  background-size: 260% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: chat-shimmer 2.4s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-scaffold-label.is-live,
+  .chat-ascii-label {
+    background: none;
+    color: var(--ui-text-secondary);
+    -webkit-text-fill-color: currentcolor;
+    animation: none;
+  }
 }

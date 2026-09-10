@@ -46,14 +46,15 @@ export function Chat({ onExit }: { onExit: () => void }): React.JSX.Element {
   const activity = tool ? `Marvi is using ${tool.replaceAll(/[_-]+/g, ' ')}` : 'Marvi is thinking'
 
   // The spinner offers Escape as the way out, so Escape has to be the way out.
+  const { busy, cancel } = chat
   useEffect(() => {
-    if (!chat.busy) return
+    if (!busy) return
     const onKey = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') void chat.cancel()
+      if (event.key === 'Escape') void cancel()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [chat.busy, chat.cancel])
+  }, [busy, cancel])
 
   useEffect(() => {
     setChatContextStatus({

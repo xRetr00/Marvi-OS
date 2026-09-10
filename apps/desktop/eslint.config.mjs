@@ -18,7 +18,14 @@ export default defineConfig(
     // suite. Reformatting someone else's tree to this project's rules makes
     // the next update a merge conflict and reports on their repository rather
     // than on this one.
-    ignores: ['**/node_modules', '**/dist', '**/out', '**/orb/engine/**', 'src/main/vendor/**', 'resources/**']
+    ignores: [
+      '**/node_modules',
+      '**/dist',
+      '**/out',
+      '**/orb/engine/**',
+      'src/main/vendor/**',
+      'resources/**'
+    ]
   },
   tseslint.configs.recommended,
   eslintPluginReact.configs.flat.recommended,

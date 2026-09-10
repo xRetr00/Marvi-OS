@@ -66,6 +66,10 @@ function BrowserViewport({
   const [lastTarget, setLastTarget] = useState<string | undefined>(undefined)
   const target = session.tabs.find((t) => t.id === tab)?.target ?? session.tabs[0]?.target
   if (target && target !== lastTarget) setLastTarget(target)
+  // What the effect below actually places. Reading the fallback here rather
+  // than inside the effect keeps it out of the dependency list, so a tab that
+  // briefly reports no target does not tear the placement down and rebuild it.
+  const placed = target || lastTarget
   /* The last rectangle we sent, so an unchanged one is not sent again.
 
      `place` is wired to a capture-phase `scroll` listener on `window`, which
@@ -97,7 +101,7 @@ function BrowserViewport({
           height > 0 && rect.width > 0
             ? {
                 id: session.id,
-                target: lastTarget,
+                target: placed,
                 bounds: {
                   x: Math.max(0, rect.left),
                   y,
@@ -131,7 +135,7 @@ function BrowserViewport({
       sent.current = ''
       void window.marvi.placeBrowser(null).catch(() => {})
     }
-  }, [session.id, target])
+  }, [session.id, placed])
   return (
     <div className="bx">
       {/* Tab strip. A browser's tabs belong at the top of the browser, not in

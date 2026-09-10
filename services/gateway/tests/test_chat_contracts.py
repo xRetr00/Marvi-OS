@@ -88,7 +88,10 @@ def test_edit_and_regenerate_preserve_original_branch(tmp_path: Path) -> None:
     assert [row["content"] for row in store.history()] == ["edited", "edited answer"]
 
     thread_id, user = store.prepare_regenerate(original_answer)
-    assert thread_id == "default"
+    # The conversation has a real id. `default` is a sentinel that resolves to
+    # it, not the id itself -- a row actually named `default` could never be
+    # deleted, because every fallback call found it again.
+    assert thread_id == store.resolve("default")
     assert user["content"] == "original"
     store.append("assistant", "second answer")
     assert [row["content"] for row in store.history()] == ["original", "second answer"]

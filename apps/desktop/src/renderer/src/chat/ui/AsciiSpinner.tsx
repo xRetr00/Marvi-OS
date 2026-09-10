@@ -18,6 +18,7 @@
 import { useEffect, useState } from 'react'
 
 import { FRAME_MS, SPINNER_FRAMES, frameAt } from './ascii-spinner'
+import { useScramble } from './scramble'
 
 export function AsciiSpinner({
   label = 'Marvi is thinking'
@@ -25,6 +26,7 @@ export function AsciiSpinner({
   label?: string
 }): React.JSX.Element {
   const [tick, setTick] = useState(0)
+  const scrambled = useScramble(label)
   const [seconds, setSeconds] = useState(0)
 
   useEffect(() => {
@@ -54,7 +56,9 @@ export function AsciiSpinner({
       <span aria-hidden="true" className="chat-ascii-glyph">
         {glyph}
       </span>
-      <span className="chat-ascii-label">{label}</span>
+      <span aria-label={label} className="chat-ascii-label">
+        <span aria-hidden="true">{scrambled}</span>
+      </span>
       <span className="chat-ascii-elapsed">{seconds}s</span>
       <span className="chat-ascii-hint">esc to interrupt</span>
     </div>

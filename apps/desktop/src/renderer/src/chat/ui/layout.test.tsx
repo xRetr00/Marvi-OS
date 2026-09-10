@@ -17,16 +17,18 @@ import { Chat } from '../Chat'
  */
 const html = renderToStaticMarkup(<Chat onExit={() => {}} />)
 const css = readFileSync(join(__dirname, '..', 'chat.css'), 'utf8')
+const ui = readFileSync(join(__dirname, 'ask.css'), 'utf8')
 
 describe('the transcript keeps the structure chat.css styles', () => {
   it('puts the scroller inside the positioned viewport', () => {
     expect(html).toMatch(/class="chat-thread-viewport"[^>]*>[\s\S]*?class="chat-log"/)
   })
 
-  it('renders the centred column that constrains every turn', () => {
-    // Without this wrapper the turns inherit the full window width.
+  it('renders the column wrapper that every turn sits in', () => {
     expect(html).toContain('chat-thread-content')
-    expect(css).toMatch(/\.chat-thread-content\s*\{[^}]*width:\s*min\(100%,\s*720px\)/)
+    // It uses the page now -- the 720px cap left a wide window mostly empty
+    // and gave a right-aligned bubble nowhere to go.
+    expect(ui).toMatch(/\.chat-thread-content\s*\{[^}]*max-width:\s*none/)
   })
 
   it('keeps the composer out of the scroll viewport', () => {
@@ -71,12 +73,11 @@ describe('the transcript keeps the structure chat.css styles', () => {
  * the contract moved with it. A user turn that is not a two-column grid is a
  * full-width card again, which is the thing this whole section exists to stop.
  */
-const ui = readFileSync(join(__dirname, 'ask.css'), 'utf8')
 
 describe('the user turn is a bubble, not a card', () => {
   it('lays the turn out in two columns so the bubble can sit right', () => {
     expect(ui).toMatch(
-      /\.chat-user\s*\{[^}]*grid-template-columns:\s*minmax\(56px,\s*1fr\)\s*minmax\(0,\s*80%\)/
+      /\.chat-user\s*\{[^}]*grid-template-columns:\s*minmax\(56px,\s*1fr\)\s*minmax\(0,\s*62%\)/
     )
   })
 
@@ -94,5 +95,28 @@ describe('the user turn is a bubble, not a card', () => {
     // than the markup: a user turn only exists once there is a message.
     expect(ui).toMatch(/\.chat-user-actions\s*\{[^}]*grid-column:\s*1/)
     expect(ui).toMatch(/\.chat-user-branches\s*\{[^}]*justify-self:\s*end/)
+  })
+})
+
+describe('the live activity line stays quieter than the answer', () => {
+  it('is small and light, not body-weight text', () => {
+    expect(ui).toMatch(/\.chat-scaffold-label\s*\{[^}]*font-size:\s*11px/)
+    expect(ui).toMatch(/\.chat-scaffold-label\s*\{[^}]*font-weight:\s*400/)
+  })
+
+  it('shimmers rather than flashing the whole line', () => {
+    expect(ui).toMatch(/\.chat-scaffold-label\.is-live\s*\{[^}]*background-clip:\s*text/)
+    expect(ui).toContain('@keyframes chat-shimmer')
+  })
+
+  it('drops the animation entirely for reduced motion', () => {
+    expect(ui).toMatch(/prefers-reduced-motion[\s\S]*?animation:\s*none/)
+  })
+})
+
+describe('the bubble hugs its text', () => {
+  it('does not stretch to fill its grid track', () => {
+    // A grid item stretches by default, which turns the bubble back into a bar.
+    expect(ui).toMatch(/\.chat-user-surface\s*\{[^}]*justify-self:\s*end/)
   })
 })

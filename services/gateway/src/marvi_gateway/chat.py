@@ -269,14 +269,44 @@ class ChatStore:
                 self._db.execute(f"ALTER TABLE threads ADD COLUMN {name} TEXT NOT NULL DEFAULT ''")
 
         now = self._now()
-        self._db.execute(
-            "INSERT OR IGNORE INTO threads "
-            "(id, title, created_at, updated_at, active_branch) VALUES (?, ?, ?, ?, 'main')",
-            (DEFAULT_THREAD_ID, "First conversation", now, now),
-        )
+        # Retire any thread literally called `default`.
+        #
+        # `default` is a sentinel meaning "the current conversation", and a row
+        # that answers to it is immortal: every call that falls back to the
+        # sentinel finds it, so deleting it does nothing and it reappears at
+        # the top of the list forever. Existing databases carry one from before
+        # that was understood, so it is given a real id here -- the
+        # conversation and its messages are kept, only its name in the table
+        # changes.
+        if self._db.execute("SELECT COUNT(*) AS n FROM threads").fetchone()["n"] == 0:
+            self._db.execute(
+                "INSERT INTO threads (id, title, created_at, updated_at, active_branch) "
+                "VALUES (?, ?, ?, ?, 'main')",
+                (uuid4().hex, PLACEHOLDER_TITLES[1], now, now),
+            )
+        legacy = self._db.execute(
+            "SELECT id FROM threads WHERE id = ?", (DEFAULT_THREAD_ID,)
+        ).fetchone()
+        if legacy is not None:
+            renamed = uuid4().hex
+            self._db.execute(
+                "UPDATE threads SET id = ? WHERE id = ?", (renamed, DEFAULT_THREAD_ID)
+            )
+            self._db.execute(
+                "UPDATE messages SET thread_id = ? WHERE thread_id = ?",
+                (renamed, DEFAULT_THREAD_ID),
+            )
+            self._db.execute(
+                "UPDATE attachments SET thread_id = ? WHERE thread_id = ?",
+                (renamed, DEFAULT_THREAD_ID),
+            )
+        first = self._db.execute(
+            "SELECT id FROM threads ORDER BY created_at LIMIT 1"
+        ).fetchone()
+        oldest = str(first["id"]) if first is not None else DEFAULT_THREAD_ID
         rows = self._db.execute(
             "SELECT id, content, parts, parent_id FROM messages WHERE thread_id = ? ORDER BY id",
-            (DEFAULT_THREAD_ID,),
+            (oldest,),
         ).fetchall()
         previous: int | None = None
         for row in rows:
@@ -291,7 +321,7 @@ class ChatStore:
         if previous is not None:
             self._db.execute(
                 "UPDATE threads SET active_message_id = ?, updated_at = ? WHERE id = ?",
-                (previous, now, DEFAULT_THREAD_ID),
+                (previous, now, oldest),
             )
 
     def close(self) -> None:
@@ -309,6 +339,7 @@ class ChatStore:
         attachment_ids: list[str] | None = None,
         **meta: Any,
     ) -> int:
+        thread_id = self.resolve(thread_id)
         thread = self.get_thread(thread_id)
         if parent_id is _PARENT_UNSET:
             parent_id = thread.get("active_message_id")
@@ -477,11 +508,15 @@ class ChatStore:
             return thread_id
         if thread_id != DEFAULT_THREAD_ID:
             raise KeyError(f"unknown chat thread: {thread_id}")
-        latest = self._db.execute(
-            "SELECT id FROM threads WHERE archived = 0 ORDER BY updated_at DESC LIMIT 1"
+        # The *oldest* conversation, not the most recent. "Most recent" moves
+        # every time anything is written, so two calls in one turn could land
+        # in two different threads -- which is how a turn came to append its
+        # message to one conversation and read its context from another.
+        home = self._db.execute(
+            "SELECT id FROM threads WHERE archived = 0 ORDER BY created_at, rowid LIMIT 1"
         ).fetchone()
-        if latest is not None:
-            return str(latest["id"])
+        if home is not None:
+            return str(home["id"])
         # There is always a conversation to be in, even after deleting the last.
         return str(self.create_thread()["id"])
 
@@ -516,6 +551,7 @@ class ChatStore:
     def update_thread(
         self, thread_id: str, *, title: str | None = None, archived: bool | None = None
     ) -> dict[str, Any]:
+        thread_id = self.resolve(thread_id)
         self.get_thread(thread_id)
         if title is not None:
             # A title the user typed is the title they get. This used to be
@@ -537,6 +573,7 @@ class ChatStore:
     def set_thread_model(
         self, thread_id: str, provider: str = "", model: str = "", effort: str = ""
     ) -> dict[str, Any]:
+        thread_id = self.resolve(thread_id)
         self.get_thread(thread_id)
         self._db.execute(
             "UPDATE threads SET selected_provider = ?, selected_model = ?, "
@@ -553,6 +590,7 @@ class ChatStore:
         the next time anything asks for it, so nothing downstream has to care
         that it went.
         """
+        thread_id = self.resolve(thread_id)
         self.get_thread(thread_id)
         attachments = self._db.execute(
             "SELECT path FROM attachments WHERE thread_id = ?", (thread_id,)
@@ -647,6 +685,7 @@ class ChatStore:
     def add_attachment(
         self, thread_id: str, name: str, media_type: str, data: bytes
     ) -> dict[str, Any]:
+        thread_id = self.resolve(thread_id)
         self.get_thread(thread_id)
         if not data or len(data) > MAX_ATTACHMENT_BYTES:
             raise ValueError("attachment must be between 1 byte and 10 MiB")
@@ -755,6 +794,7 @@ class ChatStore:
     def pending_attachments(self, thread_id: str, ids: list[str]) -> list[dict[str, Any]]:
         if not ids:
             return []
+        thread_id = self.resolve(thread_id)
         marks = ",".join("?" for _ in ids)
         rows = self._db.execute(
             f"SELECT * FROM attachments WHERE thread_id = ? AND message_id IS NULL AND id IN ({marks})",

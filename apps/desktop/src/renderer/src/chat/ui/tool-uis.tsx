@@ -25,6 +25,7 @@ import type { ChatWidgetPart } from '../../../../shared/runtime'
 import { AbstractIcon } from '../../components/abstract-icon'
 import { GlyphSpinner } from '../../components/ui/glyph-spinner'
 import { WidgetStack } from '../components/WidgetStack'
+import { ActivityLabel } from './ActivityLabel'
 
 /** `present_widget` and every tool the Gateway derived a widget from. */
 export function WidgetToolUI({
@@ -39,7 +40,7 @@ export function WidgetToolUI({
           className="chat-working-spinner"
           spinner="braille"
         />
-        <span className="chat-scaffold-label is-live">Marvi is preparing a widget</span>
+        <ActivityLabel live text="Marvi is preparing a widget" />
       </div>
     )
   }
@@ -62,9 +63,10 @@ export function ToolActivity({ toolName, status }: ToolCallMessagePartProps): Re
       ) : (
         <span aria-hidden="true" className="chat-tool-dot" />
       )}
-      <span className={running ? 'chat-scaffold-label is-live' : 'chat-scaffold-label'}>
-        {running ? 'Marvi is using' : 'Marvi used'} {toolLabel(toolName)}
-      </span>
+      <ActivityLabel
+        live={running}
+        text={`${running ? 'Marvi is using' : 'Marvi used'} ${toolLabel(toolName)}`}
+      />
     </div>
   )
 }
