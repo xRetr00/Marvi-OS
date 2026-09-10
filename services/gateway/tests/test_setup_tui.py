@@ -191,10 +191,11 @@ def test_shared_header_uses_the_repository_version(tmp_path, capsys) -> None:
     assert "SETUP" in output
 
 
-def test_spinner_frames_are_terminal_safe() -> None:
+def test_spinner_frames_force_text_presentation() -> None:
     from marvi_gateway import terminal_ui
 
-    assert all(frame.isascii() for frame in terminal_ui.MARVI_SPINNER_FRAMES)
+    assert terminal_ui.MARVI_SPINNER_FRAMES[0].startswith("\u00b7")
+    assert all(frame.endswith("\ufe0e") for frame in terminal_ui.MARVI_SPINNER_FRAMES)
     assert len(terminal_ui.MARVI_SPINNER_FRAMES) == 6
 
 
