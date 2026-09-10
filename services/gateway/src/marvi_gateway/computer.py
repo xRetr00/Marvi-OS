@@ -503,6 +503,22 @@ def register_computer_tools(registry, service):
             False,
             service.action,
             optional={"question": str, "request_confirmation": bool},
+            # A bare `{"type": "object"}` says a shape is wanted and nothing
+            # about which. The driver publishes a full schema per action -- 23
+            # of them, `type_text` requiring `text`, `click` taking
+            # `element_index` or `element_token` -- and `computer_tools` hands
+            # those over. This says where to get them and what shape to send.
+            describes={
+                "action": "One of the action names from computer_tools, exactly as spelled.",
+                "arguments": (
+                    "That action's own arguments as a JSON object, exactly as computer_tools "
+                    'describes them for it -- for example {"text": "hello"} for type_text. '
+                    "An object, never a string containing one, and never a blank object "
+                    "when the action requires fields."
+                ),
+                "question": "A question about the returned screenshot, for Vision to answer.",
+                "request_confirmation": "True when the user should approve before this runs.",
+            },
             sensitive_when=lambda args: args.get("request_confirmation", False),
         )
     )
