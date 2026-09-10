@@ -1,9 +1,10 @@
-param([string]$ResultPath)
+param([string]$ResultPath, [switch]$VisualProof)
 Add-Type -AssemblyName System.Windows.Forms
 $form = New-Object System.Windows.Forms.Form
 $form.Text = 'Marvi Computer Qualification'
 $form.Width = 520
 $form.Height = 260
+$form.TopMost = $VisualProof.IsPresent
 $inputBox = New-Object System.Windows.Forms.TextBox
 $inputBox.AccessibleName = 'Fixture input'
 $inputBox.Location = New-Object System.Drawing.Point(25,25)

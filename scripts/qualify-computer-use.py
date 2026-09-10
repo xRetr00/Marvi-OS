@@ -62,6 +62,7 @@ try:
                 str(Path(__file__).with_name("computer-fixture.ps1").resolve()),
                 "-ResultPath",
                 str(root / "result.txt"),
+                *(["-VisualProof"] if os.environ.get("MARVI_CURSOR_VISUAL_PROOF") == "true" else []),
             ],
         },
     )
@@ -97,7 +98,7 @@ try:
     assert (root / "result.txt").read_text() == "Marvi computer fixture"
     if os.environ.get("MARVI_CURSOR_VISUAL_PROOF") == "true":
         act("bring_to_front", {"pid": pid})
-    act("move_cursor", {"target": {"kind": "window", "pid": pid, "window_id": window}, "x": 100, "y": 100})
+    act("move_cursor", {"scope": "window", "x": fixture["bounds"]["x"] + 100, "y": fixture["bounds"]["y"] + 100})
     cursor = cursor_state()
     if os.environ.get("MARVI_CURSOR_VISUAL_PROOF") == "true":
         from PIL import ImageGrab
