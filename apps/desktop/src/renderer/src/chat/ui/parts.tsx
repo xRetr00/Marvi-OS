@@ -11,7 +11,7 @@ import { useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 
 import type {
-  EmptyMessagePartComponent,
+  EmptyMessagePartProps,
   FileMessagePartProps,
   ImageMessagePartProps,
   ReasoningMessagePartProps,
@@ -107,7 +107,7 @@ const File = ({ filename, mimeType }: FileMessagePartProps): React.JSX.Element =
  * so a turn that ended perfectly well sat there saying "Marvi is working"
  * forever, including after the next turn had started.
  */
-const Empty: EmptyMessagePartComponent = ({ status }) => {
+const Empty = ({ status }: EmptyMessagePartProps): React.JSX.Element | null => {
   if (status?.type !== 'running') return null
   return (
     <div className="chat-scaffold chat-stream-activity" data-conversation-scaffold="">

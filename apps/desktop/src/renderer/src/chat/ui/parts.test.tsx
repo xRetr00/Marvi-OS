@@ -25,9 +25,9 @@ describe('the working indicator', () => {
   })
 
   it('renders nothing for a turn that ended in error or was cancelled', () => {
-    expect(
-      renderToStaticMarkup(<Empty status={{ type: 'incomplete', reason: 'error' }} />)
-    ).toBe('')
+    expect(renderToStaticMarkup(<Empty status={{ type: 'incomplete', reason: 'error' }} />)).toBe(
+      ''
+    )
     expect(
       renderToStaticMarkup(<Empty status={{ type: 'incomplete', reason: 'cancelled' }} />)
     ).toBe('')
