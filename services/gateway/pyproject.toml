@@ -50,6 +50,9 @@ dependencies = [
     "python-telegram-bot==22.8",
     "av>=17,<18",
     "segno>=1.6,<2",
+    # Outside coders (Claude Code, Codex, OpenCode, Gemini CLI) over the Agent
+    # Client Protocol, Apache-2.0. See `acp_coders.py`.
+    "agent-client-protocol==0.12.1",
 ]
 
 [project.scripts]
