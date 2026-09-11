@@ -26,6 +26,7 @@ import { TooltipProvider, UiTooltip } from '../../components/ui/tooltip'
 import { formatTime } from '../time'
 import { AttachmentPreview } from '../components/AttachmentPreview'
 import { CopyMessageAction } from '../components/MessageAction'
+import { AssistantParts } from './AssistantParts'
 import { messageText } from './message-text'
 import { MESSAGE_PART_COMPONENTS } from './parts'
 import type { ReadAloud } from './parts'
@@ -172,7 +173,7 @@ export function AssistantMessage({
       <MarviAvatar className="chat-turn-avatar" />
       <div className="chat-turn-column">
         <span className="sr-only">MARVI</span>
-        <MessagePrimitive.Parts components={MESSAGE_PART_COMPONENTS} />
+        <AssistantParts message={message} />
         <MessagePrimitive.Error>
           <div className="chat-error-body" role="alert">
             <ErrorText message={message} />

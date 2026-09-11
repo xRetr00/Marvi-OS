@@ -581,3 +581,77 @@ def test_delegated_status_still_finds_outside_coder_jobs(root, monkeypatch) -> N
 
     answer = registry.get("delegated_status").handler(job="abc")
     assert answer["coder"] == "codex"
+
+
+def test_harvi_reads_the_coding_harness_and_voice_does_not() -> None:
+    """Claude Code's coding rules go to the coder, not to every voice turn.
+
+    Its shell tool alone is thirty-seven fragments -- git safety, quoting,
+    background runs, the commit and pull-request protocols. A coding agent
+    needs all of it. The voice agent would pay for it on every request and use
+    none of it, which is the payload problem deferral was built to solve.
+    """
+    from marvi_gateway import prompts
+
+    prompts.forget()
+    assert prompts.get("harvi").tool_descriptions == "coding"
+
+    for tool in ("terminal_run", "file_read", "file_edit", "file_write", "grep", "glob"):
+        coding = prompts.tool(tool, variant="coding")
+        shared = prompts.tool(tool)
+        assert coding and shared, tool
+        assert coding != shared, f"{tool}: the coding set is not being read"
+
+    shell = prompts.tool("terminal_run", variant="coding")
+    for rule in ("NEVER change the git config", "Prefer a NEW commit", "gh pr create",
+                 "background", "Use a dedicated tool"):
+        assert rule in shell, f"missing from the coding shell description: {rule!r}"
+
+
+def test_the_shared_descriptions_stay_short_for_voice() -> None:
+    """The coding set must not leak into what every other surface is sent."""
+    from marvi_gateway import prompts
+
+    prompts.forget()
+    assert len(prompts.tool("terminal_run")) < 1500
+    # `tools()` is non-recursive, so the coding folder is never mistaken for
+    # shared tools named `coding/...`.
+    assert not any("/" in name or "\\" in name for name in prompts.tools())
+
+
+def test_the_ported_descriptions_use_marvis_argument_names() -> None:
+    """Ported text, not copied text.
+
+    Claude Code's tools take `old_string`, `new_string`, `file_path` and
+    `run_in_background`. Marvi's take `old`, `new`, `path` and `background`. A
+    description naming an argument the tool does not have is worse than no
+    description: the model sends it, the call is refused, and the refusal
+    blames the model for following instructions.
+    """
+    from marvi_gateway import prompts
+
+    for tool in ("terminal_run", "file_read", "file_edit", "file_write", "grep", "glob",
+                 "process_output"):
+        said = prompts.tool(tool, variant="coding")
+        for foreign in ("old_string", "new_string", "file_path", "run_in_background"):
+            assert foreign not in said, f"{tool} still names Claude Code's {foreign!r}"
+
+
+def test_what_harvi_is_actually_handed_carries_the_coding_rules() -> None:
+    """The integration point, not the lookup: `_offered` is what Harvi sees."""
+    from types import SimpleNamespace
+
+    from marvi_gateway import prompts
+
+    prompts.forget()
+    run = runner(Script([]))
+    job = SimpleNamespace(mode="fix")
+
+    handed = {s["name"]: s["description"] for s in run._offered(job, prompts.get("harvi"))}
+    assert "NEVER change the git config" in handed["terminal_run"]
+    assert "must `file_read` the file" in handed["file_edit"]
+
+    # Jarvi drives the desktop, reads the shared set, and is not sent git rules.
+    jarvi = {s["name"]: s["description"] for s in run._offered(job, prompts.get("jarvi"))}
+    for name, said in jarvi.items():
+        assert "git config" not in said, name
