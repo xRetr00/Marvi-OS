@@ -45,6 +45,9 @@ export type JsonObject = { [key: string]: JsonValue }
 export type UiPart =
   | { type: 'text'; text: string }
   | { type: 'reasoning'; text: string; status?: { type: 'running' } }
+  /** Commentary: text written between tool calls. A `data-` part so it can be
+   * grouped with the work rather than rendered as the answer. */
+  | { type: 'data-commentary'; data: { text: string } }
   | { type: 'source'; sourceType: 'url'; id: string; url: string; title?: string }
   | { type: 'image'; image: string; filename?: string }
   | { type: 'file'; filename?: string; data: string; mimeType: string }
@@ -142,9 +145,9 @@ function convertPart(part: ChatPart, message: ChatMessage, index: number): UiPar
     case 'tool':
       return {
         type: 'tool-call',
-        toolCallId: partId(message, index),
+        toolCallId: part.id || partId(message, index),
         toolName: part.name,
-        args: {},
+        args: (part.arguments ?? {}) as JsonObject,
         // A result -- even an empty string -- is how the SDK decides a tool
         // call has finished. Setting one unconditionally made every running
         // tool render as "Marvi used ..." the moment it was called.
@@ -153,6 +156,21 @@ function convertPart(part: ChatPart, message: ChatMessage, index: number): UiPar
           : { result: part.content }),
         isError: part.status === 'failed'
       }
+    case 'reasoning':
+      return part.text.trim()
+        ? {
+            type: 'reasoning',
+            text: part.text,
+            // Only the part still being written is running. Marking every
+            // thought running would keep the whole work log "in progress"
+            // after the model had moved on to its answer.
+            ...(message.meta.streaming && index === message.parts.length - 1
+              ? { status: { type: 'running' as const } }
+              : {})
+          }
+        : null
+    case 'commentary':
+      return part.text.trim() ? { type: 'data-commentary', data: { text: part.text } } : null
     case 'ask':
       return {
         type: 'tool-call',
@@ -227,7 +245,12 @@ export function convertMessage(message: ChatMessage): UiMessage {
   const isUser = message.role === 'user'
   const content: UiPart[] = []
 
-  if (!isUser) {
+  // Replies stored before the trace existed carry their thinking as one
+  // `meta.reasoning` blob and no reasoning parts. Newer ones carry both, so the
+  // blob is only used when the parts have none -- otherwise it would duplicate
+  // every thought at the top of the reply.
+  const hasThoughtParts = message.parts.some((part) => part.type === 'reasoning')
+  if (!isUser && !hasThoughtParts) {
     const reasoning = metaValue(message.meta, 'reasoning')
     // Ahead of the answer, because that is the order it was produced in and
     // the order the disclosure reads in. The status has to be carried: parts
@@ -269,7 +292,8 @@ export function convertMessage(message: ChatMessage): UiMessage {
         threadId: message.threadId,
         provider: metaValue(message.meta, 'provider'),
         model: metaValue(message.meta, 'model'),
-        tool: metaValue(message.meta, 'tool')
+        tool: metaValue(message.meta, 'tool'),
+        workedMs: Number(message.meta.worked_ms) || 0
       }
     }
   }
