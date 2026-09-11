@@ -655,3 +655,98 @@ def test_what_harvi_is_actually_handed_carries_the_coding_rules() -> None:
     jarvi = {s["name"]: s["description"] for s in run._offered(job, prompts.get("jarvi"))}
     for name, said in jarvi.items():
         assert "git config" not in said, name
+
+
+# -- the feed the desktop reads ------------------------------------------------
+
+
+def test_a_job_keeps_a_short_live_transcript(root) -> None:
+    """What the owner sees when they open a working agent: what it said, each
+    step and whether it worked, its list, and how it ended. Never what a tool
+    returned -- that is untrusted, and it can be a whole web page."""
+    todos = [{"content": "Open the app", "status": "in_progress"}, {"content": "Read it", "status": "pending"}]
+    client = Script(
+        reply("Starting with the file.", calls=[call("todo_write", todos=todos)]),
+        reply(calls=[call("file_write", path="notes.txt", content="a secret-looking body " * 20)]),
+        reply(calls=[call("web_search", query="x")]),
+        reply("All done."),
+    )
+    tools = Tools(web_search={"status": "failed", "error": "offline"},
+                  file_write={"status": "executed", "result": {"page": "RAW TOOL OUTPUT"}})
+    run = runner(client, tools)
+
+    job = finished(run, run.start("worker", "write the notes"))
+    detail = run.job(job["id"])
+
+    kinds = [event["kind"] for event in detail["events"]]
+    assert kinds == ["said", "tool", "tool", "tool", "end"]
+    said = " ".join(event["text"] for event in detail["events"])
+    assert "Starting with the file." in said and "All done." in said
+    assert "RAW TOOL OUTPUT" not in said
+    # A long body is described, not reproduced.
+    write = detail["events"][2]
+    assert write["text"].startswith("file_write") and "notes.txt" in write["text"]
+    assert "secret-looking" not in write["text"] and "440 chars" in write["text"]
+    assert [event.get("outcome") for event in detail["events"][1:4]] == ["ok", "ok", "failed"]
+    assert detail["todos"] == todos
+
+
+def test_the_transcript_is_bounded(root, monkeypatch) -> None:
+    monkeypatch.setattr(subagents, "MAX_EVENTS", 5)
+    client = Script(*[reply(calls=[call("web_search", query=str(i))]) for i in range(8)], reply("ok"))
+    run = runner(client)
+
+    job = finished(run, run.start("worker", "x"))
+
+    events = run.job(job["id"])["events"]
+    assert len(events) == 5 and events[-1]["kind"] == "end"
+
+
+def test_the_feed_waits_for_a_change_rather_than_being_polled(root) -> None:
+    """Idle, the desktop's request waits; a change answers it at once."""
+    release = threading.Event()
+    run = runner(Script(lambda _m: (release.wait(5), reply("ok"))[1]))
+    first = run.watch(None)
+    assert [agent["key"] for agent in first["agents"]] == ["harvi", "jarvi", "talos", "worker"]
+    assert first["agents"][0]["name"] == "Harvi" and first["agents"][0]["description"]
+
+    started = time.monotonic()
+    idle = run.watch(first["revision"], timeout=0.2)
+    assert idle["revision"] == first["revision"] and time.monotonic() - started >= 0.18
+
+    answer: dict[str, Any] = {}
+    waiter = threading.Thread(target=lambda: answer.update(run.watch(first["revision"], timeout=5)))
+    waiter.start()
+    run.start("jarvi", "open notepad")
+    waiter.join(5)
+    assert answer["revision"] > first["revision"]
+    assert answer["jobs"][0]["name"] == "Jarvi" and "events" not in answer["jobs"][0]
+    release.set()
+
+
+def test_an_unknown_job_is_said_to_be_unknown(root) -> None:
+    run = runner(Script())
+    assert run.job("gone") is None
+
+
+@pytest.mark.asyncio
+async def test_the_desktop_endpoints_need_the_local_token(root, tmp_path, monkeypatch) -> None:
+    from httpx import ASGITransport, AsyncClient
+
+    app, run, _ = _gateway_with_a_sensitive_tool(tmp_path)
+    run.client = Script(lambda _m: (time.sleep(0.2), reply("ok"))[1])
+    started = run.start("worker", "x")
+    monkeypatch.setenv("MARVI_LOCAL_TOKEN", "desk")
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://marvi.local") as client:
+        refused = await client.get("/agents")
+        feed = await client.get("/agents", headers={"x-marvi-local": "desk"})
+        job = await client.get(f"/agents/jobs/{started['id']}", headers={"x-marvi-local": "desk"})
+        missing = await client.get("/agents/jobs/nope", headers={"x-marvi-local": "desk"})
+        stopped = await client.post(f"/agents/jobs/{started['id']}/stop", headers={"x-marvi-local": "desk"})
+
+    assert refused.status_code == 403
+    assert feed.status_code == 200 and feed.json()["jobs"][0]["id"] == started["id"]
+    assert job.json()["id"] == started["id"] and "events" in job.json()
+    assert missing.status_code == 404
+    assert stopped.json()["ok"] is True
+    run.wait(started["id"], 5)

@@ -65,6 +65,7 @@ import random
 import threading
 import time
 import uuid
+from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -109,6 +110,13 @@ DEFAULT_ROUNDS = 25
 REPEATS = 3
 MAX_TASK = 8_000
 MAX_RESULT = 8_000
+#: The live transcript the desktop shows, per job: the most recent steps only.
+MAX_EVENTS = 60
+#: Jobs the desktop feed lists, newest first. Older ones stay in memory and
+#: answer `delegated_status` until a restart.
+MAX_LISTED = 20
+#: How long a desktop request waits for something to change, as `/computer` does.
+WATCH_TIMEOUT = 25.0
 MODES = ("investigate", "fix")
 #: What investigate mode takes away from Harvi.
 WRITES = frozenset({"file_write", "file_edit", "file_delete"})
@@ -164,6 +172,11 @@ class Job:
     active: float = field(default_factory=time.monotonic)
     in_tool: bool = False
     read: set[str] = field(default_factory=set)
+    #: What the owner sees when they open this job: the agent's own words,
+    #: each step and whether it worked, approvals, and the ending. Never a
+    #: tool's result -- that is untrusted, and it can be a whole page.
+    events: deque[dict[str, Any]] = field(default_factory=lambda: deque(maxlen=MAX_EVENTS))
+    todos: list[dict[str, str]] = field(default_factory=list)
     steering: list[str] = field(default_factory=list)
     stop: threading.Event = field(default_factory=threading.Event)
     answered: threading.Event = field(default_factory=threading.Event)
@@ -199,12 +212,32 @@ class Job:
             "summary": self.summary,
             "progress": self.progress,
             "seconds": round((self.finished_at or time.time()) - self.started_at, 1),
+            "started_at": self.started_at,
+            "finished_at": self.finished_at or None,
             "tokens": self.tokens,
             "detail": self.detail(),
         }
         if self.state == "awaiting_approval":
             answer.update(token=self.token, action=self.action)
         return answer
+
+
+def _step(name: str, arguments: dict[str, Any]) -> str:
+    """One tool call as a line for the owner: the tool, and short arguments.
+
+    A long value is described by its length rather than shown. A file body or
+    typed text belongs in the file, not in a status panel, and the ones worth
+    reading at a glance -- a path, an action, a query -- are short.
+    """
+    parts = []
+    for key, value in arguments.items():
+        if isinstance(value, str) and len(value) > 60:
+            parts.append(f"{key}=<{len(value)} chars>")
+        elif isinstance(value, (list, dict)):
+            parts.append(f"{key}=<{len(value)} items>")
+        else:
+            parts.append(f"{key}={value}")
+    return (f"{name} " + ", ".join(parts))[:160].strip()
 
 
 def _arguments(raw: Any) -> dict[str, Any]:
@@ -245,6 +278,9 @@ class Runner:
         self._settling: set[str] = set()
         self._lock = threading.Lock()
         self._watching = False
+        #: Bumped on every change the desktop can see; `watch` waits on it.
+        self._changed = threading.Condition()
+        self._revision = 0
 
     # -- definitions -------------------------------------------------------
 
@@ -312,6 +348,7 @@ class Runner:
             )
             self._jobs[job.id] = job
             self._watch()
+        self._publish()
 
         system = definition.render()
         if agent == "harvi":
@@ -391,6 +428,8 @@ class Runner:
                     report = completion.text.strip() or "It finished without saying anything."
                     return self._end(job, "completed", "max_rounds" if final else "completed", report)
 
+                if completion.text.strip():
+                    self._note(job, "said", completion.text.strip()[:300])
                 ids = [str(one.get("id") or f"{job.id}-{round_number}-{i}") for i, one in enumerate(calls)]
                 messages.append(
                     {
@@ -412,11 +451,15 @@ class Runner:
                 for i, one in enumerate(calls):
                     name = str(one.get("name") or "")
                     arguments = _arguments(one.get("arguments"))
+                    step = self._note(job, "tool", _step(name, arguments), outcome="running")
                     job.active, job.in_tool = time.monotonic(), True
+                    failed = True
                     try:
                         said, failed = self._tool(job, name, arguments, names, root)
                     finally:
                         job.active, job.in_tool = time.monotonic(), False
+                        step["outcome"] = "failed" if failed else "ok"
+                        self._publish()
                     messages.append(
                         {"role": "tool", "tool_call_id": ids[i], "name": name, "content": said}
                     )
@@ -503,6 +546,10 @@ class Runner:
         todos = [one for one in arguments.get("todos") or [] if isinstance(one, dict)]
         doing = [str(one.get("content") or "") for one in todos if one.get("status") == "in_progress"]
         job.progress = doing[0][:160] if doing else ""
+        job.todos = [
+            {"content": str(one.get("content") or "")[:160], "status": str(one.get("status") or "pending")}
+            for one in todos[:20]
+        ]
         done = sum(1 for one in todos if one.get("status") == "completed")
         return f"List saved: {done} of {len(todos)} done." + (f" Now: {job.progress}" if job.progress else "")
 
@@ -518,6 +565,7 @@ class Runner:
             job.answered.clear()
             job.outcome = {}
             self._waiting[token] = job
+        self._note(job, "approval", f"waiting for the owner: {_step(name, arguments)}")
         log.info("sub-agent waiting for approval", extra={"marvi_job": job.id, "marvi_tool": name})
         gone_since: float | None = None
         outcome: dict[str, Any] = {}
@@ -542,6 +590,7 @@ class Runner:
                 job.state = "running"
             job.token = job.action = ""
             job.active = time.monotonic()
+        self._publish()
         return outcome
 
     def settling(self, token: str) -> None:
@@ -617,6 +666,60 @@ class Runner:
         # Queued, not delivered: it reaches the job at its next round.
         return {"ok": True, "detail": f"{job.name} will see that at its next step"}
 
+    # -- the desktop's view ------------------------------------------------
+
+    def _note(self, job: Job, kind: str, text: str, **extra: str) -> dict[str, Any]:
+        event: dict[str, Any] = {"at": time.time(), "kind": kind, "text": text, **extra}
+        with self._lock:
+            job.events.append(event)
+        self._publish()
+        return event
+
+    def _publish(self) -> None:
+        with self._changed:
+            self._revision += 1
+            self._changed.notify_all()
+
+    def overview(self) -> dict[str, Any]:
+        """The roster and the recent jobs, without transcripts."""
+        roster = [
+            {
+                "key": one.key,
+                "name": "Worker" if one.names else one.key.title(),
+                "description": one.description,
+                "when_to_use": one.when_to_use,
+                # A worker takes a new name each run, so the desktop seeds its
+                # avatar per job rather than per agent.
+                "named_per_job": bool(one.names),
+            }
+            for one in self.agents()
+        ]
+        with self._lock:
+            recent = sorted(self._jobs.values(), key=lambda job: -job.started_at)[:MAX_LISTED]
+            jobs = [job.as_dict() for job in recent]
+        return {"revision": self._revision, "agents": roster, "jobs": jobs}
+
+    def watch(self, after: int | None = None, timeout: float = WATCH_TIMEOUT) -> dict[str, Any]:
+        """The overview, once it differs from revision `after` or the wait ends."""
+        if after is not None:
+            with self._changed:
+                self._changed.wait_for(lambda: self._revision != after, timeout)
+        return self.overview()
+
+    def job(self, job_id: str) -> dict[str, Any] | None:
+        """One job with its whole task, transcript and list."""
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job is None:
+                return None
+            return {
+                **job.as_dict(),
+                "task": job.task,
+                "events": [dict(event) for event in job.events],
+                "todos": [dict(one) for one in job.todos],
+                "revision": self._revision,
+            }
+
     def wait(self, job_id: str, timeout: float) -> Job:
         job = self._jobs[job_id]
         if job.thread is not None:
@@ -630,6 +733,7 @@ class Runner:
             job.state, job.exit_reason, job.summary = state, reason, summary
             job.finished_at = time.time()
             job.progress = ""
+        self._note(job, "end", summary[:300], state=state, reason=reason)
         log.info(
             "sub-agent finished",
             extra={"marvi_job": job.id, "marvi_state": state, "marvi_reason": reason},

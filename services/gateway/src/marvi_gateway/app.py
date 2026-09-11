@@ -17,7 +17,7 @@ from urllib.parse import urlparse
 from uuid import uuid4
 
 import anyio
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from livekit import api
 from pydantic import BaseModel, Field
@@ -2154,6 +2154,31 @@ def create_app(
         granted=dispatch_granted,
     )
     app.state.subagents = subagent_runner
+
+    # The desktop's view of the sub-agents: the status-bar roster, the chat
+    # and voice cards, and a job's live transcript. Guarded like `/computer`,
+    # because a transcript says what an agent is doing on this machine.
+    @app.get("/agents")
+    async def agents_feed(
+        http_request: Request, after: int | None = Query(default=None, ge=0)
+    ) -> dict[str, Any]:
+        localauth.guard(http_request)
+        return await anyio.to_thread.run_sync(lambda: subagent_runner.watch(after))
+
+    @app.get("/agents/jobs/{job_id}")
+    async def agent_job(job_id: str, http_request: Request) -> dict[str, Any]:
+        localauth.guard(http_request)
+        found = subagent_runner.job(job_id)
+        if found is None:
+            raise HTTPException(status_code=404, detail=f"no job {job_id!r}")
+        return found
+
+    @app.post("/agents/jobs/{job_id}/stop")
+    async def stop_agent_job(job_id: str, http_request: Request) -> dict[str, Any]:
+        localauth.guard(http_request)
+        runtime_store.audit("requested", "delegate_stop", {"job": job_id}, detail="via desktop")
+        return subagent_runner.stop(job_id)
+
     # "Jarvi is using the computer" rather than Marvi, when it is Jarvi.
     computer_service.actor = lambda: subagent_runner.acting("jarvi")
     if tools is None:
