@@ -2339,6 +2339,29 @@ function startApp(): void {
         30_000
       )
     )
+    // Sub-agents: the same revision long-poll as `/computer`, so an idle
+    // status bar costs one waiting request rather than a timer.
+    ipcMain.handle('marvi:get-agents', (_event, after?: number) =>
+      gatewayJson(
+        Number.isSafeInteger(after) && (after as number) >= 0
+          ? `/agents?after=${after}`
+          : '/agents',
+        undefined,
+        30_000
+      )
+    )
+    const agentJobId = (id: unknown): string => {
+      // Job ids are eight hex characters minted by the Gateway; nothing else
+      // is allowed into the path.
+      if (typeof id !== 'string' || !/^[0-9a-f]{1,32}$/.test(id)) throw new Error('Invalid job id')
+      return id
+    }
+    ipcMain.handle('marvi:get-agent-job', (_event, id: unknown) =>
+      gatewayJson(`/agents/jobs/${agentJobId(id)}`)
+    )
+    ipcMain.handle('marvi:stop-agent-job', (_event, id: unknown) =>
+      gatewayJson(`/agents/jobs/${agentJobId(id)}/stop`, { method: 'POST' })
+    )
     ipcMain.handle('marvi:get-asking', () => gatewayJson('/asking'))
     ipcMain.handle('marvi:settle-asking', async (_event, id, state, answer) => {
       // The three the Gateway accepts. Checked here as well as there so a

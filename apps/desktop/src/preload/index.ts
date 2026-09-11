@@ -325,6 +325,12 @@ const marvi = {
   getSchedules: (): Promise<SchedulePage | null> => ipcRenderer.invoke('marvi:get-schedules'),
   getComputer: (after?: number): Promise<import('../shared/computer').ComputerStatus> =>
     ipcRenderer.invoke('marvi:get-computer', after),
+  getAgents: (after?: number): Promise<import('../shared/agents').AgentsFeed | null> =>
+    ipcRenderer.invoke('marvi:get-agents', after),
+  getAgentJob: (id: string): Promise<import('../shared/agents').AgentJobDetail | null> =>
+    ipcRenderer.invoke('marvi:get-agent-job', id),
+  stopAgentJob: (id: string): Promise<{ ok: boolean; detail?: string } | null> =>
+    ipcRenderer.invoke('marvi:stop-agent-job', id),
   getAsking: (): Promise<import('../shared/asking').Asking> =>
     ipcRenderer.invoke('marvi:get-asking'),
   settleAsking: (

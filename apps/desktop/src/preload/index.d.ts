@@ -220,6 +220,9 @@ export interface MarviDesktopApi {
   getSchedules: () => Promise<SchedulePage | null>
   getBrowser: () => Promise<BrowserStatus>
   getComputer: (after?: number) => Promise<import('../shared/computer').ComputerStatus>
+  getAgents: (after?: number) => Promise<import('../shared/agents').AgentsFeed | null>
+  getAgentJob: (id: string) => Promise<import('../shared/agents').AgentJobDetail | null>
+  stopAgentJob: (id: string) => Promise<{ ok: boolean; detail?: string } | null>
   getAsking: () => Promise<import('../shared/asking').Asking>
   settleAsking: (
     id: string,
