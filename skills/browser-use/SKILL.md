@@ -1,6 +1,6 @@
 ---
 name: browser-use
-description: How to drive the embedded browser - opening a profile, reading a page, clicking, filling forms, tabs, downloads, and handing the keyboard back for a login. Use when the user asks you to open a website, look something up on a specific site, sign in somewhere, fill in a form, buy or book something, download a file, or when a browser tool refuses or a session will not open. Not for reading a page you already have, for the desktop or other applications, or for a plain web search.
+description: How the embedded browser is driven - profiles, reading pages, clicking, forms, tabs, downloads, and handing the keyboard back for a login. Opening one page is yours with browser_open; anything that takes several steps on a site - signing in, filling a form, buying, booking, downloading - goes to Talos with delegate(agent="talos"). Read this when asked how the browser works, or when a browser tool refuses or a session will not open. Not for reading a page you already have, for the desktop or other applications, or for a plain web search.
 license: MIT
 metadata:
   author: Marvi OS
@@ -8,6 +8,11 @@ metadata:
 ---
 
 # Using the browser
+
+**In a conversation, Talos does the stepping.** Opening one page is yours with
+`browser_open`; anything that takes several actions on a site goes to
+`delegate(agent="talos", ...)` while you keep talking. What follows is how the
+work is done.
 
 The browser is a real, visible Chromium with saved profiles. The user can see
 it and can take it over. You are one of two people holding the mouse.

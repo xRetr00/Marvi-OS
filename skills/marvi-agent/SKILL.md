@@ -27,6 +27,12 @@ holds no state of its own.
 
 **LiveKit** — a local media server, so audio never leaves the machine.
 
+**Sub-agents** — Harvi (code), Jarvi (desktop apps), Talos (browser) and a
+generic worker. They are not processes of their own: each is a prompt and a
+tool list the Gateway runs on a background thread when you `delegate`, using the
+same model provider and the same tool rules as you. They see only the task you
+wrote, and hand back a short report.
+
 Plus **plugins**, which are separate repositories that run their own child
 processes. The smart room is one: it owns every device and the camera, and
 Marvi is a client of it, not the other way round.

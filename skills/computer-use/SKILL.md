@@ -1,6 +1,6 @@
 ---
 name: computer-use
-description: How to operate Windows applications directly - launching and closing apps, listing and focusing windows, reading a window's controls, clicking, typing, key presses, scrolling and window placement. Use when the user asks you to do something in an application that is not a website, to open or close a program, to find or move a window, or when a computer tool says it is disabled, busy, paused or unknown. Not for websites or anything with a URL, which belong to the browser.
+description: How Windows applications are operated through the Cua driver - launching and closing apps, windows, reading controls, clicking, typing and window placement. In a conversation you do not do this yourself - hand anything done in an application to Jarvi with delegate(agent="jarvi"); read this when asked how computer use works, or when computer_status says disabled, busy, paused or unknown. Not for websites or anything with a URL, which belong to Talos and the browser.
 license: MIT
 metadata:
   author: Marvi OS
@@ -8,6 +8,13 @@ metadata:
 ---
 
 # Using the computer
+
+**In a conversation, Jarvi does this.** Hand the job over with
+`delegate(agent="jarvi", ...)` and keep talking; a look, act and check loop run
+from a spoken turn holds the conversation silent for as long as it takes. What
+follows is how the work is done, for Jarvi and for you when you are asked how
+it works. You keep `computer_status` and `computer_control` — Stop, Private
+input and Resume are yours at any time.
 
 This drives the real desktop through the Cua Driver, in an unrestricted
 session. Everything you do here happens on the machine the user is sitting at,
@@ -32,6 +39,37 @@ Roughly what is there: `list_apps`, `list_windows`, `get_window_state`,
 `kill_app`, `bring_to_front`, `set_window_frame`, `invoke_menu`, `click`,
 `double_click`, `right_click`, `drag`, `type_text`, `press_key`, `hotkey`,
 `set_value`, `scroll`, `get_screen_size`, `get_cursor_position`, `move_cursor`.
+
+There is **no `screenshot` action and no `launch` action** — both were guessed
+in a real session and both were refused. Opening an app is `launch_app`; seeing
+the screen is `get_desktop_state` or `get_window_state`, which return the
+screenshot, and `question=` has Vision describe it.
+
+## The Marvi cursor, and why it might not appear
+
+While you act, the driver draws a second cursor on the user's screen — a pink
+arrow with a **Marvi** badge — so they can see it is you moving, not them. It
+is the whole of how "Marvi is using my computer" looks from the chair.
+
+It only appears on **pointer actions**: `move_cursor`, `click`,
+`double_click`, `right_click`, `drag`, `scroll`, `type_text`, `press_key`,
+`hotkey`, `set_value`, and reading a window. It deliberately does **not**
+appear for `launch_app`, `kill_app`, `bring_to_front`, `list_apps`,
+`list_windows` or `get_accessibility_tree` — nothing is being pointed at.
+
+So when somebody asks to *see* you use the computer, point at something:
+`get_cursor_position`, then `move_cursor` somewhere visible, then act. A demo
+made only of `launch_app` shows them an app opening and no Marvi at all, which
+is exactly what happened when this was first asked for.
+
+## The driver is not something you start
+
+The Cua Driver runs as a private worker that Marvi starts on the first action
+and stops herself. There is no daemon, no service and no process for you to
+launch. If an action fails, **never** go to the terminal to start `cua-driver`
+— that was tried, it is wrong, and a second copy fights the first. Read
+`computer_status` instead: it says whether computer use is enabled, installed,
+busy, paused or in an unknown state, and that is the whole list of reasons.
 
 ## Look, then act, then check
 
