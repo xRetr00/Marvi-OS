@@ -235,16 +235,25 @@ def _load(folder: str) -> dict[str, Prompt]:
 TOOLS = "tools"
 
 
-def tool(name: str, root: Path | None = None, variant: str = "") -> str:
+def tool(
+    name: str, root: Path | None = None, variant: str = "", fallback: bool = True
+) -> str:
     """One tool's description. Empty when it has no file yet.
 
     `variant` reads `prompts/tools/<variant>/<name>.md` first and falls back to
     the shared file, so an agent's set only has to hold the tools it describes
     differently.
+
+    `fallback=False` reads the variant and nothing else. A caller searching
+    several sets in order needs that: with the fallback, the first set it tried
+    answered with the shared description for any tool it did not hold, and the
+    search stopped there before reaching the set that did.
     """
     folder = _folder(root) / TOOLS
     candidates = [folder / variant / f"{name}.md"] if variant else []
-    for path in [*candidates, folder / f"{name}.md"]:
+    strict = variant and not fallback
+    paths = candidates if strict else [*candidates, folder / f"{name}.md"]
+    for path in paths:
         try:
             return _parse(name, path.read_text(encoding="utf-8")).body
         except OSError:

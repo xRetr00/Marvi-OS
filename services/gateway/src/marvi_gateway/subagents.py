@@ -399,7 +399,11 @@ class Runner:
         for schema in chosen:
             name = str(schema["name"])
             said = next(
-                (text for variant in order if (text := prompts.tool(name, variant=variant))),
+                (
+                    text
+                    for variant in order
+                    if (text := prompts.tool(name, variant=variant, fallback=False))
+                ),
                 "",
             )
             described.append({**schema, "description": said} if said else schema)
