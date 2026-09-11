@@ -1,13 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 
-import type {
-  ChatAskPart,
-  ChatAttachment,
-  ChatContext,
-  ChatThread,
-  ChatWidgetPart
-} from '../../../shared/runtime'
+import type { ChatAttachment, ChatContext, ChatPart, ChatThread } from '../../../shared/runtime'
 import { recordChatTurn } from '../store/session-metrics'
+import { answerText, foldEvent } from './trace'
 import { toChatMessages, type ChatMessage, type PendingConfirmation } from './types'
 
 type Override = { provider?: string; model?: string; effort?: string }
@@ -174,77 +169,12 @@ export function useChat(): UseChat {
       })
 
       const startedAt = performance.now()
-      let answer = ''
-      let reasoning = ''
+      let trace: ChatPart[] = []
       let firstTokenAt = 0
       let streamError = ''
 
       const stop = window.marvi?.onChatDelta((event) => {
-        if (typeof event.delta === 'string') {
-          if (!firstTokenAt) firstTokenAt = performance.now()
-          answer += event.delta
-        } else if (typeof event.reasoning === 'string') {
-          reasoning += event.reasoning
-        } else if (typeof event.tool === 'string') {
-          setMessages((current) =>
-            current.map((message) =>
-              message.id === replyId
-                ? { ...message, meta: { ...message.meta, tool: String(event.tool) } }
-                : message
-            )
-          )
-          return
-        } else if (event.ask && typeof event.ask === 'object') {
-          const ask = event.ask as Record<string, unknown>
-          const part: ChatAskPart = {
-            type: 'ask',
-            id: String(ask.id ?? ''),
-            kind: ask.kind === 'secret' ? 'secret' : 'clarify',
-            question: typeof ask.question === 'string' ? ask.question : '',
-            choices: Array.isArray(ask.choices) ? (ask.choices as string[]) : [],
-            multi_select: Boolean(ask.multi_select),
-            name: typeof ask.name === 'string' ? ask.name : '',
-            why: typeof ask.why === 'string' ? ask.why : ''
-          }
-          setMessages((current) =>
-            current.map((message) =>
-              message.id === replyId ? { ...message, parts: [...message.parts, part] } : message
-            )
-          )
-          return
-        } else if (event.ask_settled && typeof event.ask_settled === 'object') {
-          // Marks the card answered rather than removing it. The turn's next
-          // round appends the tool result, and a card that vanished before
-          // that arrived would leave a visible gap mid-turn.
-          const settled = event.ask_settled as { id?: unknown }
-          const askId = String(settled.id ?? '')
-          setMessages((current) =>
-            current.map((message) =>
-              message.id === replyId
-                ? {
-                    ...message,
-                    parts: message.parts.map((part) =>
-                      part.type === 'ask' && part.id === askId ? { ...part, answered: true } : part
-                    )
-                  }
-                : message
-            )
-          )
-          return
-        } else if (event.widget && typeof event.widget === 'object') {
-          const widget = event.widget as ChatWidgetPart
-          setMessages((current) =>
-            current.map((message) =>
-              message.id === replyId
-                ? {
-                    ...message,
-                    parts: [...message.parts.filter((part) => part.type !== 'text'), widget]
-                  }
-                : message
-            )
-          )
-          return
-        } else if (event.done) {
+        if (event.done) {
           if (typeof event.error === 'string') streamError = event.error
           const confirmation = event.pending_confirmation
           if (confirmation && typeof confirmation === 'object') {
@@ -255,17 +185,22 @@ export function useChat(): UseChat {
           }
           return
         }
+        if (typeof event.delta === 'string' && !firstTokenAt) firstTokenAt = performance.now()
+
+        const next = foldEvent(trace, event)
+        // Nothing this handler understands: leave the render alone rather
+        // than churning the whole message list for no change.
+        if (next === trace) return
+        trace = next
+        const parts = trace
         setMessages((current) =>
           current.map((message) =>
             message.id === replyId
               ? {
                   ...message,
-                  content: answer,
-                  parts: [
-                    { type: 'text', text: answer },
-                    ...message.parts.filter((part) => part.type !== 'text')
-                  ],
-                  meta: { ...message.meta, reasoning, streaming: true }
+                  content: answerText(parts),
+                  parts,
+                  meta: { ...message.meta, streaming: true }
                 }
               : message
           )

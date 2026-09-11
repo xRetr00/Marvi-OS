@@ -73,7 +73,19 @@ RECALL_CHARS = 1200
 # spent all of them searching and hit the wall. Bounded still, because a model
 # that loops on tools burns money and time with nothing to show, but bounded
 # where a real answer fits.
-MAX_TOOL_ROUNDS = 8
+#: How many rounds of tool calls one turn may take.
+#:
+#: Eight was a chatbot's budget, and computer use is not a chatbot task. One
+#: "show me you can use the computer" took seven rounds of real work --
+#: read the desktop, move the cursor, read it back, click, get refused for a
+#: missing `scope`, click again -- and on the eighth the model was offered no
+#: tools at all, because the last round is tool-free by design. It still had
+#: work to do, so it did the only thing left and wrote the call out as text.
+#: The limit produced the malformed call it was then blamed for.
+#:
+#: Twenty-four, matching the voice agent's `TOOL_STEPS`, so the two surfaces
+#: can finish the same task. Still bounded: a model that loops is stopped.
+MAX_TOOL_ROUNDS = 24
 #: How long a written reply may be when the model's context is not known.
 MAX_REPLY_TOKENS = 1024
 
@@ -1444,6 +1456,13 @@ class Chat:
         # Kept across tool rounds, because the thinking that led to a tool call
         # is part of the same answer as the thinking that followed it.
         reasoning: list[str] = []
+        # What Marvi did on the way to the answer, in the order she did it:
+        # thoughts, the commentary she wrote between tool calls, and each tool
+        # call with its arguments and result. Stored on the reply so the
+        # "worked for Ns" disclosure survives reopening the thread -- before
+        # this, tool calls lived only as hidden rows and commentary was thrown
+        # away with every round that ended in a tool call.
+        trace: list[dict[str, Any]] = []
         # Counted so a real turn can prove it streamed. One delta carrying the
         # whole reply and forty deltas carrying a word each produce identical
         # text, and only the count tells them apart.
@@ -1456,6 +1475,7 @@ class Chat:
             final_round = round_number == MAX_TOOL_ROUNDS - 1
             calls: list[dict[str, Any]] = []
             answer = []
+            round_reasoning: list[str] = []
             # Every round starts held: the first characters decide whether
             # this is a reply or a tool call typed out, and once a delta has
             # been yielded it is on screen for good.
@@ -1503,6 +1523,7 @@ class Chat:
                         if event.get("reasoning"):
                             reasoning_deltas += 1
                             reasoning.append(str(event["reasoning"]))
+                            round_reasoning.append(str(event["reasoning"]))
                             yield {"reasoning": event["reasoning"]}
                             continue
                         if event.get("delta"):
@@ -1596,7 +1617,11 @@ class Chat:
                     # Held to the end and not recoverable: say what happened
                     # rather than releasing markup nobody can act on.
                     if tool_call_prose.looks_typed_out(reply):
-                        reply = tool_call_prose.instead_say(reply)
+                        reply = (
+                        tool_call_prose.out_of_steps(reply, used)
+                        if final_round
+                        else tool_call_prose.instead_say(reply, used)
+                    )
                     yield {"delta": reply}
                 withholding = False
                 # The line that proves it, in one place, for a real provider:
@@ -1612,7 +1637,11 @@ class Chat:
                     (time.monotonic() - began) * 1000,
                     answered or "?",
                 )
-                parts = self.store.parts_for_text(reply)
+                _step_thought(trace, round_reasoning)
+                # The trace first, then the answer: that is the order it
+                # happened in, and it is what lets the window group the whole
+                # run of work into one disclosure above the reply.
+                parts = [*trace, *self.store.parts_for_text(reply)]
                 seen_sources = {part.get("url") for part in parts if part["type"] == "source"}
                 for widget in widgets:
                     parts.append(widget)
@@ -1631,6 +1660,7 @@ class Chat:
                     # the thinking disclosure vanished the moment the turn
                     # finished and never came back when the thread reopened.
                     reasoning="".join(reasoning),
+                    worked_ms=round((time.monotonic() - began) * 1000),
                     tokens=tokens,
                     input_tokens=usage["input"],
                     output_tokens=usage["output"],
@@ -1652,10 +1682,21 @@ class Chat:
                 }
                 return
 
+            _step_thought(trace, round_reasoning)
+            # Text a round produced before calling a tool was commentary, not
+            # the answer -- "let me check the logs". It already reached the
+            # window as deltas; this is what keeps it after the turn.
+            commentary = "".join(answer).strip()
+            if commentary:
+                trace.append({"type": "commentary", "text": commentary})
+
             for call in calls:
                 name = str(call.get("name") or "")
                 used.append(name)
+                call_id = str(call.get("id") or f"call-{len(used)}")
+                arguments = _arguments(call.get("arguments"))
                 yield {"tool": name}
+                yield {"tool_call": {"id": call_id, "name": name, "arguments": arguments}}
                 if name in INLINE_TOOLS:
                     # Chat asks in the transcript and waits here. The voice
                     # surface is not involved and never sees the question --
@@ -1664,9 +1705,9 @@ class Chat:
                     ask = self._open_inline(name, call.get("arguments") or "{}")
                     if ask is not None:
                         yield {"ask": ask.model_dump()}
-                        answer = inline_ask.ASKS.wait(ask.id, stop)
-                        outcome = self._inline_outcome(ask, answer)
-                        yield {"ask_settled": {"id": ask.id, "answered": answer is not None}}
+                        said = inline_ask.ASKS.wait(ask.id, stop)
+                        outcome = self._inline_outcome(ask, said)
+                        yield {"ask_settled": {"id": ask.id, "answered": said is not None}}
                         # The next round rebuilds the provider messages from
                         # the store, so appending here is what hands the answer
                         # to the model -- there is no local list to push onto.
@@ -1705,6 +1746,11 @@ class Chat:
                     call_id=call.get("id"),
                     failed=bool(outcome.get("failed")),
                 )
+                step = _step_tool(
+                    call_id, name, arguments, outcome.get("text", ""), bool(outcome.get("failed"))
+                )
+                trace.append(step)
+                yield {"tool_result": step}
 
         yield {
             "done": True,
@@ -1841,7 +1887,11 @@ class Chat:
                         "a tool call written as text could not be recovered: %s",
                         tool_call_prose.reached_for(reply) or "unnamed tool",
                     )
-                    reply = tool_call_prose.instead_say(reply)
+                    reply = (
+                        tool_call_prose.out_of_steps(reply, used)
+                        if final_round
+                        else tool_call_prose.instead_say(reply, used)
+                    )
                 parts = self.store.parts_for_text(reply)
                 for widget in widgets:
                     parts.append(widget)
@@ -1967,3 +2017,55 @@ def schemas_from_registry(registry: Any) -> list[dict[str, Any]]:
             }
         )
     return described
+
+
+#: How much of a tool's result the trace keeps for display. The model saw the
+#: whole thing; the disclosure is for a person skimming what happened, and a
+#: fetched page stored in full on every reply would bloat the thread for no
+#: reader.
+TRACE_RESULT_CHARS = 1_200
+
+_ENVELOPE = re.compile(r"^\[EXTERNAL DATA [^\]]*\]\n?|\n?\[END EXTERNAL DATA [^\]]*\]$")
+
+
+def _arguments(raw: Any) -> dict[str, Any]:
+    """A tool call's arguments as a dict, whatever shape the provider sent."""
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str):
+        try:
+            value = json.loads(raw or "{}")
+        except ValueError:
+            return {}
+        return value if isinstance(value, dict) else {}
+    return {}
+
+
+def _step_thought(trace: list[dict[str, Any]], chunks: list[str]) -> None:
+    """Close a round's thinking into one trace step, if it had any."""
+    text = "".join(chunks).strip()
+    if text:
+        trace.append({"type": "reasoning", "text": text})
+    chunks.clear()
+
+
+def _step_tool(
+    call_id: str, name: str, arguments: dict[str, Any], result: Any, failed: bool
+) -> dict[str, Any]:
+    """One tool call as the window shows it: what was asked, what came back.
+
+    The untrusted-data envelope is stripped for display only. It exists to tell
+    the *model* that the text came from outside; a person reading the trace
+    already knows, and the markers are noise to them.
+    """
+    text = _ENVELOPE.sub("", str(result or "")).strip()
+    if len(text) > TRACE_RESULT_CHARS:
+        text = text[:TRACE_RESULT_CHARS].rstrip() + "\u2026"
+    return {
+        "type": "tool",
+        "id": call_id,
+        "name": name,
+        "arguments": arguments,
+        "content": text,
+        "status": "failed" if failed else "complete",
+    }
