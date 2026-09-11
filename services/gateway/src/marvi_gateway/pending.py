@@ -58,6 +58,7 @@ log = get_logger("mind")
 #: when they switch her back on is the opposite of what they asked for.
 WAITING_FOR: dict[str, str] = {
     "quiet-hours": "you were asleep",
+    "asleep": "you were asleep",
     "nobody-present": "you were out",
     "conversation-active": "we were talking",
     "cooldown": "I had just said something",

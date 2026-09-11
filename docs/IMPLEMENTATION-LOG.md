@@ -1,5 +1,23 @@
 # Implementation Log
 
+## 2026-09-11 — Chat hears back from its sub-agents
+
+- Reported by the owner: in Chat, Jarvi's card turned FINISHED and Marvi never
+  said anything -- a chat turn only ran when the owner sent one. Voice already
+  had `delegated.py`.
+- Gateway: `send_stream(resume_job=...)` turns a finished job into a report
+  turn -- a background note (never shown as the owner's words, never
+  remembered, once per job) and Marvi's streamed reply. `/chat/stream` accepts
+  `resume_job`; `chat.job_status` is the sub-agent runner's status.
+- Renderer: `useChat` watches the agents feed and starts the report turn for a
+  job this thread delegated once it ends and nothing is running; background
+  notes are hidden. Agent cards show reports as plain text instead of raw
+  Markdown.
+- Tests: 5 Gateway resume tests; 5 renderer tests; chat/telegram/app/sub-agent
+  suites 172 passed; renderer 126 passed; typecheck. Real provider: given the
+  Jarvi report from the owner's screenshot, Marvi replied unprompted with a
+  one-sentence summary; history stored as user, assistant, note, assistant.
+
 ## 2026-09-11 — Outside coders over ACP (16D)
 
 - `acp_coders.py`: Claude Code, Codex, OpenCode and Gemini CLI as sub-agent
@@ -1888,3 +1906,15 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   Bot API through link, a streamed Chat turn and an Approve tap; full gateway
   suite 1788 passed; desktop typecheck, lint and vitest passed. A real bot on a
   phone is the remaining manual check.
+
+## 2026-09-11 — Telegram file sending
+
+- Cause, from the audit log: `telegram_send` was given the Smart Room visitor
+  folder and refused it as "not a file"; the tool took exactly one file.
+- `telegram_send` now takes `file` or `files` (up to 10). A folder sends its
+  newest photos (or newest files). Photos go as an inline album, other files
+  as documents; the text is the caption, or its own message past 1000 chars.
+- `logs.get_logger` now always registers `marvi.<subsystem>`; `marvi.mind` and
+  `marvi.telegram` had been falling through to gateway.log.
+- Evidence: fake-Bot-API test sends an album, a photo and a document through
+  the model-facing tool; full gateway suite 1879 passed.

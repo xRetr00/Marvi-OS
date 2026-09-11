@@ -6634,6 +6634,9 @@ function VisitorWatch(): React.JSX.Element | null {
           continue
         }
         seen.current.add(id)
+        // A popup, not a page: the main window is usually closed to the tray,
+        // and a sighting that waits for somebody to open it is not news.
+        window.marvi?.showMain()
         setSighting({
           id,
           at: String(row.entry_at ?? row.at),
@@ -6646,9 +6649,10 @@ function VisitorWatch(): React.JSX.Element | null {
       }
     }
     void look()
-    const timer = setInterval(() => {
-      if (!document.hidden) void look()
-    }, 5_000)
+    // Not paused while hidden. Hidden is the normal state of this window, and
+    // skipping the poll then meant a visitor could only ever be shown to
+    // somebody already looking at Marvi. One local request every five seconds.
+    const timer = setInterval(() => void look(), 5_000)
     return () => {
       gone = true
       clearInterval(timer)

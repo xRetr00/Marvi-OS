@@ -96,6 +96,10 @@ NOTABLE_EVENTS = frozenset(
         "room_entry",
         "room_welcome",
         "visitor_report",
+        # The burst of photographs of somebody the room could not name. The
+        # desktop's visitor popup reads `/room/events`, which only returns
+        # notable events -- so without this it never had one to show.
+        "visitor_photos",
         # What the engine actually emits when the camera sees somebody it does
         # not know: `vision.py` raises `vision_visitor_seen`, and this list
         # only ever knew `visitor_report`. Checked against the journal -- an

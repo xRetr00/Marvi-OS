@@ -210,6 +210,22 @@ SURFACE_CEILING: dict[str, str] = {
 }
 
 
+#: How loud an arrival may be, by who the room thinks it was.
+#:
+#: One ceiling for every `room_entry` made the owner shifting in his chair as
+#: loud as a stranger: "Owner entered the room" was spoken on 11 September as
+#: "there is someone in the room while you are out". The owner's real arrival
+#: already has a voice -- `room_welcome`, gated on the room having been empty --
+#: so his re-detections are a record. A guess stays glanceable; only the
+#: phone being somewhere else is worth saying out loud.
+ENTRY_CEILING: dict[str, str] = {
+    "owner": "activity",
+    "guest": "island",
+    "unidentified": "island",
+    "unknown_visitor": "speak",
+}
+
+
 @dataclass(frozen=True)
 class Verdict:
     allow: bool
@@ -312,6 +328,13 @@ class WorldState:
     #: by any rule; carried so the deliberation and the decision record can say
     #: what the moment looked like.
     doing: str = ""
+    #: The room is in sleep mode -- set by the person, not guessed by a sensor.
+    #:
+    #: The one signal this policy never read. Quiet hours are a clock, and the
+    #: owner sleeps in the morning: sleep mode went on at 08:20 and "Unidentified
+    #: entered the room" was spoken at 08:32, because quiet hours had already
+    #: ended and nothing else asked whether anybody was asleep.
+    asleep: bool = False
 
 
 def _quiet_now(settings: InitiativeSettings, now: datetime) -> bool:
@@ -361,6 +384,10 @@ def evaluate(
     #    a model phrase an untrusted event, is a restriction that bought no
     #    safety and cost the whole feature.
     ceiling = rules.surface_ceiling.get(f"{event.get('source')}:{event.get('kind')}", "activity")
+    if f"{event.get('source')}:{event.get('kind')}" == "room:room_entry":
+        payload = event.get("payload")
+        who = payload.get("classification") if isinstance(payload, dict) else None
+        ceiling = _cap(ENTRY_CEILING.get(str(who), "island"), ceiling)
     if not event.get("trusted", False) and SURFACES.index(ceiling) > SURFACES.index("speak"):
         ceiling = "speak"
 
@@ -438,6 +465,17 @@ def evaluate(
         event.get("kind") == "insistent_reminder"
         or bool((event.get("payload") or {}).get("insist"))
     )
+
+    # 6b. Sleep mode silences her, whatever the clock says.
+    #
+    #     Stronger than quiet hours and checked first, because it is the person
+    #     saying so rather than a time window guessing: someone who switched the
+    #     room to sleep does not want to hear that they turned over. Only an
+    #     insistent reminder gets through -- an alarm that cannot wake you is
+    #     not an alarm, and that is the one thing sleep mode is not asked to
+    #     stop. `pending` holds the rest and offers it once the room wakes.
+    if not insistent and world.asleep and SURFACES.index(surface) >= SURFACES.index("speak"):
+        return Verdict(True, _cap("island", ceiling), "asleep", "held while the room sleeps")
 
     # 7. Quiet hours downgrade speech to something glanceable.
     if (

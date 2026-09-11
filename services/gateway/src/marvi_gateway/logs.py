@@ -502,11 +502,11 @@ def shutdown() -> None:
 
 def get_logger(subsystem: str) -> logging.Logger:
     """A logger for a named subsystem; its file appears on first write."""
-    if subsystem in MODULE_SUBSYSTEMS.values() or subsystem == FALLBACK_SUBSYSTEM:
-        return logging.getLogger(f"marvi.{subsystem}")
-    # Unknown name: register it so routing finds it, then hand it back. This is
-    # the whole of "adding a subsystem".
-    MODULE_SUBSYSTEMS[f"marvi.{subsystem}"] = subsystem
+    # Registered every time, known name or not. A known name used to return
+    # early unregistered, so `marvi.mind` and `marvi.telegram` matched no
+    # prefix and fell through to gateway.log -- mind.log and telegram.log never
+    # got their own subsystem's lines.
+    MODULE_SUBSYSTEMS.setdefault(f"marvi.{subsystem}", subsystem)
     return logging.getLogger(f"marvi.{subsystem}")
 
 

@@ -39,6 +39,15 @@ ephemeral input state.
   available capacity, then separately exposes message, file, source, and route
   facts without pretending those counts are tokens.
 
+Handed-off work is reported back. When a `delegate` or `delegate_to_coder` job
+this thread started ends (per the `/agents` feed) and no turn is running, the
+window asks for a report turn: `POST /chat/stream` with `resume_job` and an
+empty message. The Gateway stores the job's report as a user-role row marked
+`background: job_report` (so the replayed history still alternates, and a job
+is reported once), streams Marvi's reply like any turn, skips memory and
+curiosity for it, and the window hides the note. A job the feed no longer lists
+is left alone. Closed while a job finished, the thread reports on next open.
+
 Dynamic follow-up suggestions are deliberately not part of the product
 contract. The renderer does not invent suggestion chips and the Gateway does
 not generate or persist them.

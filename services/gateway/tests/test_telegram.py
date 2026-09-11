@@ -179,6 +179,44 @@ def test_sending_needs_a_linked_owner(tmp_path) -> None:
         bridge.send("hello")
 
 
+# -- files ---------------------------------------------------------------------------------
+
+
+def jpeg(path: Path, stamp: float) -> Path:
+    import os
+
+    path.write_bytes(b"\xff\xd8\xff\xe0" + b"0" * 64)
+    os.utime(path, (stamp, stamp))
+    return path
+
+
+def test_a_folder_sends_its_newest_photos(tmp_path) -> None:
+    """The failure in the logs: a folder of visitor photos was 'not a file'."""
+    from marvi_gateway.telegram import pick_files
+
+    visits = tmp_path / "visits"
+    visits.mkdir()
+    for index in range(12):
+        jpeg(visits / f"visit-{index:02}.jpg", 1_000 + index)
+    (visits / "visit.json").write_text("{}")
+
+    chosen, left = pick_files([visits])
+
+    assert [p.name for p in chosen][:2] == ["visit-11.jpg", "visit-10.jpg"]
+    assert len(chosen) == 10 and left == 2
+    assert all(p.suffix == ".jpg" for p in chosen), "metadata stays behind when there are photos"
+
+
+def test_named_files_are_checked_before_anything_is_sent(tmp_path) -> None:
+    from marvi_gateway.telegram import pick_files
+
+    with pytest.raises(ValueError, match="does not exist"):
+        pick_files([tmp_path / "nope.jpg"])
+    (tmp_path / "empty").mkdir()
+    with pytest.raises(ValueError, match="empty folder"):
+        pick_files([tmp_path / "empty"])
+
+
 # -- cron delivery -----------------------------------------------------------------------
 
 
@@ -364,6 +402,7 @@ class FakeTelegram:
     def __init__(self) -> None:
         self.updates: list[dict[str, Any]] = []
         self.calls: list[tuple[str, dict[str, Any]]] = []
+        self.uploads: list[tuple[str, list[str], dict[str, Any]]] = []
         self.next_update = 1
         self.next_message = 100
         self.lock = threading.Lock()
@@ -415,14 +454,23 @@ class FakeTelegram:
                     return self.ok(fresh)
                 await asyncio.sleep(0.05)
             return self.ok([])
-        if method in ("sendMessage", "editMessageText"):
+        uploads = [value.filename for value in form.values() if not isinstance(value, str)]
+        if uploads:
             with self.lock:
-                self.next_message += 1
-                number = self.next_message
-            return self.ok({"message_id": number, "date": int(time.time()),
-                            "chat": {"id": int(params.get("chat_id") or OWNER), "type": "private"},
-                            "text": params.get("text", "")})
+                self.uploads.append((method, uploads, params))
+        if method in ("sendMessage", "editMessageText", "sendPhoto", "sendDocument"):
+            return self.ok(self.message(params))
+        if method == "sendMediaGroup":
+            return self.ok([self.message(params) for _ in uploads])
         return self.ok(True)
+
+    def message(self, params: dict[str, Any]) -> dict[str, Any]:
+        with self.lock:
+            self.next_message += 1
+            number = self.next_message
+        return {"message_id": number, "date": int(time.time()),
+                "chat": {"id": int(params.get("chat_id") or OWNER), "type": "private"},
+                "text": params.get("text", "")}
 
     @staticmethod
     def ok(result: Any) -> Response:
@@ -436,7 +484,11 @@ def fake_telegram():
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         port = probe.getsockname()[1]
-    server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning"))
+    # `log_config=None`: uvicorn otherwise reconfigures its loggers process-wide,
+    # and every test after this one saw `uvicorn.error` stuck at WARNING.
+    server = uvicorn.Server(
+        uvicorn.Config(app, host="127.0.0.1", port=port, log_config=None, access_log=False)
+    )
     thread = threading.Thread(target=server.run, daemon=True)
     thread.start()
     while not server.started:
@@ -509,5 +561,48 @@ async def test_link_talk_and_approve_over_the_real_sdk(
         fake_telegram.tap("cf:a:OTHER", user_id=99)
         await asyncio.sleep(0.5)
         assert ("OTHER", True) not in settled
+    finally:
+        await bridge.stop()
+
+
+@pytest.mark.asyncio
+async def test_files_reach_the_phone_as_an_album_a_photo_and_a_document(
+    tmp_path, fake_telegram, monkeypatch, configured
+) -> None:
+    """Through the tool the model calls, over the real SDK, to a Bot API."""
+    configured()
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", TOKEN)
+    state = tmp_path / "telegram.json"
+    state.write_text(json.dumps({"owner": {"id": OWNER, "name": "Sam"}, "threads": {}}))
+    visits = tmp_path / "visits"
+    visits.mkdir()
+    for index in range(3):
+        jpeg(visits / f"v{index}.jpg", 1_000 + index)
+    notes = tmp_path / "notes.txt"
+    notes.write_text("hello")
+
+    bridge = TelegramBridge(
+        recording_chat(tmp_path, []), state_path=state, base_url=fake_telegram.url,
+        workspace=SimpleNamespace(resolve=lambda name: Path(name)),
+    )
+    registry = ToolRegistry()
+    register_telegram_tools(registry, bridge)
+    send = registry.get("telegram_send")
+    await bridge.start()
+    try:
+        await until(bridge.ready)
+        album = await asyncio.to_thread(
+            registry.execute, send, {"text": "Today's visitors", "file": str(visits)}
+        )
+        assert album["files"] == ["v2.jpg", "v1.jpg", "v0.jpg"]
+        await asyncio.to_thread(registry.execute, send, {"files": [str(visits / "v0.jpg")]})
+        await asyncio.to_thread(registry.execute, send, {"text": "notes", "files": [str(notes)]})
+
+        sent = [(method, len(names)) for method, names, _ in fake_telegram.uploads
+                if method != "setMyProfilePhoto"]
+        assert sent == [("sendMediaGroup", 3), ("sendPhoto", 1), ("sendDocument", 1)]
+        media = json.loads(next(p for m, _, p in fake_telegram.uploads if m == "sendMediaGroup")["media"])
+        assert media[0]["caption"] == "Today's visitors"
+        assert "caption" not in media[1]
     finally:
         await bridge.stop()

@@ -188,6 +188,7 @@ class Mind:
         present: bool,
         at_machine: bool | None = None,
         doing: str = "",
+        asleep: bool = False,
     ) -> WorldState:
         return WorldState(
             now=now,
@@ -196,6 +197,7 @@ class Mind:
             tokens_today=self.journal.tokens_since(day_start(now)),
             at_machine=at_machine,
             doing=doing,
+            asleep=asleep,
         )
 
     def _wanted_surface(self, event: dict[str, Any]) -> str:
@@ -247,6 +249,7 @@ class Mind:
         present: bool,
         at_machine: bool | None,
         doing: str,
+        asleep: bool = False,
     ) -> list[dict[str, Any]]:
         """Events from the waiting room that may be spoken now.
 
@@ -256,7 +259,8 @@ class Mind:
         """
         if self.waiting is None:
             return []
-        world = self.world(moment, conversation_active, present, at_machine, doing)
+        # Asleep too, or the waiting room re-offers exactly what sleep held.
+        world = self.world(moment, conversation_active, present, at_machine, doing, asleep)
 
         def may_speak(event: dict[str, Any]) -> bool:
             # Held because no model would read it, and a model might now.
@@ -308,6 +312,7 @@ class Mind:
         present: bool = True,
         at_machine: bool | None = None,
         doing: str = "",
+        asleep: bool = False,
     ) -> dict[str, Any]:
         moment = now or datetime.now(UTC)
 
@@ -318,14 +323,14 @@ class Mind:
         # model -- and none of them is a reason to never say it. See
         # `pending`: the mailbox-deletion mail arrived at 03:10, was
         # downgraded for quiet hours, and was never mentioned again.
-        pending = list(self._waited_for(moment, conversation_active, present, at_machine, doing))
+        pending = list(self._waited_for(moment, conversation_active, present, at_machine, doing, asleep))
         pending += self.journal.pending(limit=MAX_EVENTS_PER_TURN)
         if not pending:
             # The cheap, normal case: nothing happened, nothing to answer for.
             logger.debug("mind tick idle", extra={"marvi_pending": 0})
             return {"considered": 0, "decisions": [], "surfaced": []}
 
-        base = self.world(moment, conversation_active, present, at_machine, doing)
+        base = self.world(moment, conversation_active, present, at_machine, doing, asleep)
         decisions: list[dict[str, Any]] = []
         surfaced: list[dict[str, Any]] = []
         logger.info(

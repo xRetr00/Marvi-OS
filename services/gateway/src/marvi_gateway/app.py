@@ -997,6 +997,22 @@ def _really_present(sidecar: Any) -> bool:
         return True
 
 
+def _room_asleep(sidecar: Any) -> bool:
+    """Whether the person has put the room to sleep.
+
+    Unknown reads as awake. The write rule in `room.read_sleep_state` fails
+    closed because a wrong write turns the light on over a sleeper; here the
+    wrong answer only decides between the island and the speaker, and going
+    silent because the room plugin is down is the worse of the two.
+    """
+    from .room import _sleep_mode_on
+
+    try:
+        return _sleep_mode_on({"state": (sidecar.state() or {}).get("state") or {}})
+    except Exception:
+        return False
+
+
 def _somewhere_else(sidecar: Any) -> bool | None:
     """Is the person away from home, as far as the room knows.
 
@@ -1403,6 +1419,7 @@ def create_app(
                     # the question "is anybody there to hear this".
                     "present": _really_present(sidecar),
                     "conversation_active": conversation.active(),
+                    "asleep": _room_asleep(sidecar),
                 }
             )
             if sidecar is not None

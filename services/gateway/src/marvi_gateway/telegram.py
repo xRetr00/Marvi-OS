@@ -255,6 +255,50 @@ def _qr(link: str) -> str:
     return segno.make(link, error="m").svg_data_uri(scale=6, border=2, dark="#000", light="#fff")
 
 
+#: What Telegram shows inline as a photo. Anything else, or anything over the
+#: photo limit, goes as a document and arrives intact.
+PHOTO_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp"}
+MAX_PHOTO_BYTES = 10 * 1024 * 1024
+MAX_DOCUMENT_BYTES = 50 * 1024 * 1024
+#: Telegram's album limit, and so the most one message can carry.
+MAX_FILES = 10
+
+
+def _is_photo(path: Path) -> bool:
+    return path.suffix.lower() in PHOTO_SUFFIXES and path.stat().st_size <= MAX_PHOTO_BYTES
+
+
+def pick_files(paths: list[Path]) -> tuple[list[Path], int]:
+    """The files to send for what the model named, and how many were left out.
+
+    A folder is taken as "the newest things in it": its newest photos if it
+    has any -- the case that failed was a folder of visitor photos -- otherwise
+    its newest files. Only files directly inside; nothing recursive.
+    """
+    chosen: list[Path] = []
+    for path in paths:
+        if path.is_dir():
+            inside = sorted(
+                (child for child in path.iterdir() if child.is_file() and not child.name.startswith(".")),
+                key=lambda child: child.stat().st_mtime, reverse=True,
+            )
+            photos = [child for child in inside if _is_photo(child)]
+            pool = photos or inside
+            if not pool:
+                raise ValueError(f"{path.name} is an empty folder")
+            chosen += pool
+        elif path.is_file():
+            chosen.append(path)
+        else:
+            raise ValueError(f"{path} does not exist")
+    for path in chosen:
+        if path.stat().st_size > MAX_DOCUMENT_BYTES:
+            raise ValueError(f"{path.name} is over 50 MB, more than a Telegram bot can send")
+    unique = list(dict.fromkeys(chosen))
+    left = max(0, len(unique) - MAX_FILES)
+    return unique[:MAX_FILES], left
+
+
 def _profile_photo() -> bytes:
     """The app icon as the square JPEG Telegram wants for a profile photo."""
     from PIL import Image
@@ -628,8 +672,15 @@ class TelegramBridge:
 
     # -- outbound, from any thread --------------------------------------------
 
-    def send(self, text: str, file: Path | None = None, origin: str = "") -> dict[str, Any]:
-        """Send the owner a message. Blocking; for tools, cron and the Mind.
+    def send(
+        self,
+        text: str,
+        file: Path | None = None,
+        origin: str = "",
+        files: list[Path] | tuple[Path, ...] = (),
+    ) -> dict[str, Any]:
+        """Send the owner a message, with up to ten files. Blocking; for tools,
+        cron and the Mind.
 
         The message is also written into the owner's thread, so a reply to a
         reminder arrives in a conversation that knows what the reminder said.
@@ -641,29 +692,80 @@ class TelegramBridge:
             raise TelegramUnavailableError("no Telegram account is linked yet")
         if self._loop is None or _on_loop(self._loop):
             raise TelegramUnavailableError("send() must not be called from the event loop")
+        attached = ([file] if file is not None else []) + list(files)
+        if len(attached) > MAX_FILES:
+            raise ValueError(f"Telegram takes at most {MAX_FILES} files in one message")
         future = asyncio.run_coroutine_threadsafe(
-            self._deliver(int(owner["id"]), text, file), self._loop
+            self._deliver(int(owner["id"]), text, attached), self._loop
         )
-        message_id = future.result(timeout=60)
+        # Ten photos over a slow uplink take a while; a text never does.
+        message_id = future.result(timeout=60 + 30 * len(attached))
         thread = self._thread_for(int(owner["id"]), owner.get("name", ""))
+        names = ", ".join(path.name for path in attached)
         self.chat.store.append(
-            "assistant", text or (file.name if file else ""), thread_id=thread,
-            surface="telegram", origin=origin or "sent",
+            "assistant",
+            "\n\n".join(filter(None, [text, f"[sent: {names}]" if names else ""])),
+            thread_id=thread, surface="telegram", origin=origin or "sent",
         )
-        return {"sent": True, "message_id": message_id}
+        return {"sent": True, "message_id": message_id, "files": [p.name for p in attached]}
 
-    async def _deliver(self, chat_id: int, text: str, file: Path | None) -> int:
-        if file is not None:
-            caption = text[:1000] or None
-            with file.open("rb") as handle:
-                sent = await self._app.bot.send_document(
-                    chat_id, document=handle, filename=file.name, caption=caption
-                )
-            rest = text[1000:]
-            if rest:
-                await self._reply(chat_id, rest)
-            return int(sent.message_id)
-        return await self._reply(chat_id, text)
+    async def _deliver(self, chat_id: int, text: str, files: list[Path]) -> int:
+        """Text, then files: photos as an album so they preview inline, anything
+        else as documents. Telegram will not mix the two in one album."""
+        from telegram.error import BadRequest
+
+        if not files:
+            return await self._reply(chat_id, text)
+        # A caption holds 1024 characters; anything longer goes first as its
+        # own message rather than being cut off under a photo.
+        caption = text if len(text) <= 1000 else ""
+        if text and not caption:
+            await self._reply(chat_id, text)
+        last = 0
+        for photo in (True, False):
+            group = [path for path in files if _is_photo(path) == photo]
+            if not group:
+                continue
+            try:
+                last = await self._send_files(chat_id, group, photo, caption, formatted=True)
+            except BadRequest as exc:
+                if not caption or "parse" not in str(exc).lower():
+                    raise
+                # The words matter more than the bold.
+                last = await self._send_files(chat_id, group, photo, caption, formatted=False)
+            caption = ""  # the caption rides on the first file only
+        return last
+
+    async def _send_files(
+        self, chat_id: int, group: list[Path], photo: bool, caption: str, formatted: bool
+    ) -> int:
+        from telegram import InputMediaDocument, InputMediaPhoto
+        from telegram.constants import ParseMode
+
+        bot = self._app.bot
+        body = (telegram_html(caption) if formatted else caption) or None
+        mode = ParseMode.HTML if formatted and caption else None
+        with contextlib.ExitStack() as stack:
+            handles = [stack.enter_context(path.open("rb")) for path in group]
+            if len(group) == 1:
+                if photo:
+                    sent = await bot.send_photo(
+                        chat_id, handles[0], filename=group[0].name, caption=body, parse_mode=mode
+                    )
+                else:
+                    sent = await bot.send_document(
+                        chat_id, handles[0], filename=group[0].name, caption=body, parse_mode=mode
+                    )
+                return int(sent.message_id)
+            kind = InputMediaPhoto if photo else InputMediaDocument
+            media = [
+                kind(handle, filename=path.name,
+                     caption=body if index == 0 else None,
+                     parse_mode=mode if index == 0 else None)
+                for index, (path, handle) in enumerate(zip(group, handles, strict=True))
+            ]
+            messages = await bot.send_media_group(chat_id, media)
+            return int(messages[-1].message_id)
 
     def text_when_away(self, sentence: str, event: dict[str, Any]) -> bool:
         """The Mind's hook: say it here instead of into an empty room.
@@ -1163,19 +1265,26 @@ class TelegramDelivery:
 def register_telegram_tools(registry: Any, bridge: TelegramBridge) -> None:
     from .tools import ToolSpec
 
-    def telegram_send(text: str = "", file: str = "") -> dict[str, Any]:
-        if not text.strip() and not file.strip():
-            raise ValueError("give text, a file, or both")
-        path = None
-        if file.strip():
+    def telegram_send(text: str = "", file: str = "", files: list | None = None) -> dict[str, Any]:
+        named = [str(item).strip() for item in [file, *(files or [])] if str(item).strip()]
+        if not text.strip() and not named:
+            raise ValueError("give text, files, or both")
+        paths: list[Path] = []
+        if named:
             if bridge.workspace is None:
                 raise ValueError("no workspace is configured to send files from")
-            path = bridge.workspace.resolve(file.strip())
-            if not path.is_file():
-                raise ValueError(f"{file} is not a file")
-            if path.stat().st_size > 50 * 1024 * 1024:
-                raise ValueError("Telegram bots can only send files up to 50 MB")
-        return bridge.send(text.strip(), file=path, origin="tool")
+            # Resolved one by one through the workspace policy, so a path the
+            # file tools may not read cannot be sent to a phone either.
+            paths, left = pick_files([bridge.workspace.resolve(name) for name in named])
+        else:
+            left = 0
+        result = bridge.send(text.strip(), files=paths, origin="tool")
+        if left:
+            result["left_out"] = left
+            result["note"] = (
+                f"Telegram carries {MAX_FILES} files per message; the {left} oldest were not sent."
+            )
+        return result
 
     def telegram_status() -> dict[str, Any]:
         status = bridge.status()
@@ -1184,12 +1293,13 @@ def register_telegram_tools(registry: Any, bridge: TelegramBridge) -> None:
 
     registry.register(ToolSpec(
         name="telegram_send",
-        description="Send the user a Telegram message, optionally with a workspace file.",
+        description="Send the user a Telegram message, optionally with files or photos.",
         arguments={},
-        optional={"text": str, "file": str},
+        optional={"text": str, "file": str, "files": list},
         describes={
-            "text": "The message, in Markdown. Short: it lands on a phone.",
-            "file": "Optional workspace path of a file to attach.",
+            "text": "The message, in Markdown. Short: it lands on a phone. Becomes the caption when files are sent.",
+            "file": "One path to attach. A folder sends its newest photos (or newest files).",
+            "files": f"Several paths to attach, up to {MAX_FILES}. Photos arrive as an album.",
         },
         # To the owner's own chat and nobody else's, so not a confirmation;
         # still an external write, so a retried call is not a second message.

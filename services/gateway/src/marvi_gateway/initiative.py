@@ -504,12 +504,13 @@ class Initiative:
         return {"noticed": len(readings)}
 
     def run_mind(self) -> dict[str, Any]:
-        present, conversation = True, False
+        present, conversation, asleep = True, False, False
         if self.room_state is not None:
             try:
                 snapshot = self.room_state()
                 present = bool(snapshot.get("present", True))
                 conversation = bool(snapshot.get("conversation_active", False))
+                asleep = bool(snapshot.get("asleep", False))
             except Exception as exc:
                 logger.warning(
                     "initiative room-state read failed; using present/idle defaults",
@@ -539,6 +540,7 @@ class Initiative:
             present=present,
             at_machine=at_machine,
             doing=doing,
+            asleep=asleep,
         )
 
     def run_reflect(self) -> dict[str, Any]:
