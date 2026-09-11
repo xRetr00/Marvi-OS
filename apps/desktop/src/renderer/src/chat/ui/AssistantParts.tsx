@@ -36,7 +36,6 @@ function currentActivity(part: Content | undefined): string {
 }
 
 export function AssistantParts({ message }: { message: MessageState }): React.JSX.Element {
-  const running = message.status?.type === 'running'
   const custom = (message.metadata?.custom ?? {}) as { workedMs?: number }
   const startedAt = (message.createdAt ?? new Date()).getTime()
   const { Image, File } = MESSAGE_PART_COMPONENTS
