@@ -6682,8 +6682,15 @@ function IslandSurface(): React.JSX.Element {
   // idle Island, but never covers an active call or confirmation.
   const islandState = islandDisplayState(voice)
   const hasOrb = islandHasOrb(islandState)
+  // The question card is a form, so the island has to take the mouse *and*
+  // keyboard focus while it is up. It was left out of this list, and the main
+  // process makes the island window focusable only in 'interactive' mode and
+  // ignores the mouse entirely in 'passive' -- so the card rendered, and every
+  // click fell through to the desktop behind it and nothing could be typed.
   const interactionMode =
-    browserVisible || computerVisible ? 'interactive' : islandInteractionMode(islandState)
+    browserVisible || computerVisible || askingVisible
+      ? 'interactive'
+      : islandInteractionMode(islandState)
   const presentationKey = islandPresentationKey(islandState)
   const confirmationExpanded =
     islandState.phase === 'confirmation' && Boolean(islandState.confirmation)

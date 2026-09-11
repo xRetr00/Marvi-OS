@@ -50,62 +50,67 @@ export function AskingCard({
     }
   }
 
+  // Inside the island's own frame, like every other island state. Rendered as
+  // a bare form it had no background, no border and no radius, so it showed
+  // as loose text over whatever was behind the island window.
   return (
-    <form
-      aria-label="A question from Marvi"
-      className="asking-card"
-      onSubmit={(event) => {
-        event.preventDefault()
-        const said = readyToSend(answer)
-        if (said) void settle('answered', said)
-      }}
-    >
-      <p className="asking-question">{question.question}</p>
-      <input
-        aria-label={question.question}
-        autoComplete="off"
-        className="asking-input"
-        disabled={busy}
-        onChange={(event) => setAnswer(event.target.value)}
-        onKeyDown={(event) => {
-          // Escape closes it, which is not an answer, and Marvi will ask once
-          // out loud. That is the intended escape hatch, not a silent no.
-          if (event.key === 'Escape' && !busy) void settle('dismissed')
+    <div className="dynamic-island island-confirmation island-asking">
+      <form
+        aria-label="A question from Marvi"
+        className="asking-card"
+        onSubmit={(event) => {
+          event.preventDefault()
+          const said = readyToSend(answer)
+          if (said) void settle('answered', said)
         }}
-        // The card only appears because Marvi just asked, so the cursor
-        // belongs in the box -- there is nothing else on it to reach.
-        autoFocus
-        placeholder={question.placeholder || 'Type your answer'}
-        type="text"
-        value={answer}
-      />
-      {failed ? (
-        <p className="asking-failed" role="alert">
-          {failed}
-        </p>
-      ) : null}
-      <div className="asking-actions">
-        <button className="asking-send" disabled={busy || !readyToSend(answer)} type="submit">
-          Send
-        </button>
-        <button
-          className="asking-later"
+      >
+        <p className="asking-question">{question.question}</p>
+        <input
+          aria-label={question.question}
+          autoComplete="off"
+          className="asking-input"
           disabled={busy}
-          onClick={() => void settle('dismissed')}
-          type="button"
-        >
-          Not now
-        </button>
-        <button
-          className="asking-never"
-          disabled={busy}
-          onClick={() => void settle('declined')}
-          title="Marvi will not ask about this again"
-          type="button"
-        >
-          Don&apos;t ask
-        </button>
-      </div>
-    </form>
+          onChange={(event) => setAnswer(event.target.value)}
+          onKeyDown={(event) => {
+            // Escape closes it, which is not an answer, and Marvi will ask once
+            // out loud. That is the intended escape hatch, not a silent no.
+            if (event.key === 'Escape' && !busy) void settle('dismissed')
+          }}
+          // The card only appears because Marvi just asked, so the cursor
+          // belongs in the box -- there is nothing else on it to reach.
+          autoFocus
+          placeholder={question.placeholder || 'Type your answer'}
+          type="text"
+          value={answer}
+        />
+        {failed ? (
+          <p className="asking-failed" role="alert">
+            {failed}
+          </p>
+        ) : null}
+        <div className="asking-actions">
+          <button className="asking-send" disabled={busy || !readyToSend(answer)} type="submit">
+            Send
+          </button>
+          <button
+            className="asking-later"
+            disabled={busy}
+            onClick={() => void settle('dismissed')}
+            type="button"
+          >
+            Not now
+          </button>
+          <button
+            className="asking-never"
+            disabled={busy}
+            onClick={() => void settle('declined')}
+            title="Marvi will not ask about this again"
+            type="button"
+          >
+            Don&apos;t ask
+          </button>
+        </div>
+      </form>
+    </div>
   )
 }

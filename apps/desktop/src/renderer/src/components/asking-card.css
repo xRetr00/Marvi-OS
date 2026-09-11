@@ -83,3 +83,14 @@
 .asking-never:hover:not(:disabled) {
   color: var(--ui-danger);
 }
+
+/* The island frame gives the card its ground; this only lets the form use
+   the island's full width, which the confirmation layout does not need. */
+.island-asking {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.island-asking .asking-card {
+  padding: 0;
+}
