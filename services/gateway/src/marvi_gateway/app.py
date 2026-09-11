@@ -880,7 +880,8 @@ class TelegramToken(BaseModel):
 
 
 class TelegramSettings(BaseModel):
-    when_away: bool
+    when_away: bool | None = None
+    voice_replies: bool | None = None
 
 
 def livekit_is_ready(host: str = "127.0.0.1", port: int = 7880) -> bool:
@@ -2276,6 +2277,8 @@ def create_app(
             transcribe=transcribe_for_channel,
             workspace=Workspace(),
             yolo=lambda: runtime_store.assistant.yolo,
+            # The same local voice as announcements and Read Aloud.
+            speak=one_shot.synthesize,
         )
         register_telegram_tools(tool_registry, telegram_bridge)
         if scheduler is not None:
@@ -2337,7 +2340,10 @@ def create_app(
     @app.put("/telegram/settings")
     async def telegram_settings(body: TelegramSettings, http_request: Request) -> dict[str, Any]:
         bridge = telegram_or_503(http_request)
-        bridge.set_when_away(body.when_away)
+        if body.when_away is not None:
+            bridge.set_when_away(body.when_away)
+        if body.voice_replies is not None:
+            bridge.set_voice_replies(body.voice_replies)
         return bridge.status()
 
     @app.post("/telegram/test")

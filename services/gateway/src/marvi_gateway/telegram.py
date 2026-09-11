@@ -255,6 +255,57 @@ def _qr(link: str) -> str:
     return segno.make(link, error="m").svg_data_uri(scale=6, border=2, dark="#000", light="#fff")
 
 
+#: How long the first part of an album waits for the rest. Telegram sends the
+#: parts back to back; a second is generous and still feels immediate.
+ALBUM_SECONDS = 1.2
+#: What `_read` says for a message with no words, so an album of them becomes
+#: one "[3 attachments]" rather than "[photo] [photo] [photo]".
+PLACEHOLDERS = {"[photo]", "[file]", "[video]"}
+#: A voice reply longer than this is a lecture; it stops at a sentence break.
+MAX_SPOKEN_CHARS = 900
+
+_FENCED = re.compile(r"```.*?(?:```|\Z)", re.S)
+_URL = re.compile(r"https?://\S+")
+
+
+def speakable(markdown: str) -> str:
+    """A reply as something to say aloud: no code, no URLs, no Markdown marks.
+
+    ponytail: regexes, like `telegram_html`. The text reply is the record; this
+    only has to sound right, and a stray symbol costs a syllable, not a message.
+    """
+    text = _FENCED.sub(" ", markdown)
+    text = _LINK.sub(r"\1", text)
+    text = _URL.sub("", text)
+    text = re.sub(r"[`*_~#>|]", "", text)
+    text = " ".join(text.split())
+    if len(text) > MAX_SPOKEN_CHARS:
+        cut = max(text.rfind(". ", 0, MAX_SPOKEN_CHARS), text.rfind("? ", 0, MAX_SPOKEN_CHARS))
+        text = text[: cut + 1] if cut > 0 else text[:MAX_SPOKEN_CHARS]
+    return text.strip()
+
+
+def ogg_opus(pcm: bytes, rate: int) -> bytes:
+    """16-bit mono PCM as OGG/Opus, the only format Telegram plays as a voice note."""
+    import av
+    import numpy as np
+
+    buffer = io.BytesIO()
+    with av.open(buffer, "w", format="ogg") as container:
+        stream = container.add_stream("libopus", rate=48_000, layout="mono")
+        frame = av.AudioFrame.from_ndarray(
+            np.frombuffer(pcm, dtype="<i2").reshape(1, -1), format="s16", layout="mono"
+        )
+        frame.sample_rate = rate
+        resampler = av.AudioResampler(format="s16", layout="mono", rate=48_000)
+        for resampled in [*resampler.resample(frame), *resampler.resample(None)]:
+            for packet in stream.encode(resampled):
+                container.mux(packet)
+        for packet in stream.encode(None):
+            container.mux(packet)
+    return buffer.getvalue()
+
+
 #: What Telegram shows inline as a photo. Anything else, or anything over the
 #: photo limit, goes as a document and arrives intact.
 PHOTO_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp"}
@@ -330,6 +381,8 @@ class _State:
             self.data = {}
         self.data.setdefault("threads", {})
         self.data.setdefault("when_away", True)
+        # A voice note gets a voice note back, as well as the text.
+        self.data.setdefault("voice_replies", True)
 
     def save(self) -> None:
         with self._lock:
@@ -354,6 +407,7 @@ class TelegramBridge:
         transcribe: Callable[[bytes], str] | None = None,
         workspace: Any = None,
         yolo: Callable[[], bool] = lambda: False,
+        speak: Callable[[str], tuple[bytes, int]] | None = None,
         state_path: Path | None = None,
         base_url: str = "",
     ) -> None:
@@ -368,6 +422,9 @@ class TelegramBridge:
         self.transcribe = transcribe
         self.workspace = workspace
         self.yolo = yolo
+        #: `(text) -> (pcm16, rate)`: Marvi's own local voice, for answering a
+        #: voice note in kind. None keeps replies text-only.
+        self.speak = speak
         self.state = _State(state_path or paths.root() / "state" / "telegram.json")
         #: A test's fake Bot API. Empty means the real one.
         self.base_url = base_url
@@ -380,6 +437,11 @@ class TelegramBridge:
         self._asks: dict[int, str] = {}
         self._choices: dict[str, list[str]] = {}
         self._warned: dict[int, float] = {}
+        #: What the chat header says while she works: typing, uploading a
+        #: photo, recording a voice note. Present only while a chat is busy.
+        self._action: dict[int, str] = {}
+        #: Album parts arriving as separate updates, gathered into one turn.
+        self._albums: dict[str, list[Any]] = {}
 
     # -- settings -------------------------------------------------------------
 
@@ -404,6 +466,10 @@ class TelegramBridge:
 
     def set_when_away(self, enabled: bool) -> None:
         self.state.data["when_away"] = bool(enabled)
+        self.state.save()
+
+    def set_voice_replies(self, enabled: bool) -> None:
+        self.state.data["voice_replies"] = bool(enabled)
         self.state.save()
 
     def unlink(self) -> None:
@@ -444,6 +510,7 @@ class TelegramBridge:
             ),
             "pairing": pairing,
             "when_away": bool(self.state.data.get("when_away", True)),
+            "voice_replies": bool(self.state.data.get("voice_replies", True)),
             "thread_id": self._owner_thread() or "",
         }
 
@@ -739,12 +806,30 @@ class TelegramBridge:
     async def _send_files(
         self, chat_id: int, group: list[Path], photo: bool, caption: str, formatted: bool
     ) -> int:
-        from telegram import InputMediaDocument, InputMediaPhoto
         from telegram.constants import ParseMode
 
         bot = self._app.bot
         body = (telegram_html(caption) if formatted else caption) or None
         mode = ParseMode.HTML if formatted and caption else None
+        # "uploading photo…" rather than "typing…" while ten photos go up.
+        action = "upload_photo" if photo else "upload_document"
+        busy = chat_id in self._action
+        if busy:
+            self._action[chat_id] = action
+        with contextlib.suppress(Exception):
+            await bot.send_chat_action(chat_id, action)
+        try:
+            return await self._upload(bot, chat_id, group, photo, body, mode)
+        finally:
+            if busy and chat_id in self._action:
+                self._action[chat_id] = "typing"
+
+    @staticmethod
+    async def _upload(
+        bot: Any, chat_id: int, group: list[Path], photo: bool, body: str | None, mode: Any
+    ) -> int:
+        from telegram import InputMediaDocument, InputMediaPhoto
+
         with contextlib.ExitStack() as stack:
             handles = [stack.enter_context(path.open("rb")) for path in group]
             if len(group) == 1:
@@ -808,12 +893,49 @@ class TelegramBridge:
         return last
 
     async def _typing(self, chat_id: int) -> None:
-        from telegram.constants import ChatAction
+        """Keep the chat header saying what she is doing.
 
+        Telegram shows a chat action for about five seconds, so it is renewed
+        every four. The action itself is read each time, so an upload or a
+        voice note mid-turn changes "typing…" to what is actually happening.
+        """
+        warned = False
         while True:
+            try:
+                await self._app.bot.send_chat_action(chat_id, self._action.get(chat_id, "typing"))
+            except Exception as exc:
+                # Once per turn, not every four seconds: a missing indicator is
+                # worth knowing about and not worth a log full of it.
+                if not warned:
+                    log.info("telegram chat action not shown: %s", exc)
+                    warned = True
+            await asyncio.sleep(4.0)
+
+    @contextlib.asynccontextmanager
+    async def _working(self, chat_id: int, message_id: int | None = None) -> Any:
+        """Everything the owner sees while Marvi works on their message.
+
+        "typing…" in the header from the moment the message lands -- not after
+        a download or a transcription has already taken seconds -- and 👀 on
+        the message itself, which is visible without opening the chat. The
+        reaction comes off when the answer is there.
+        """
+        from telegram import ReactionTypeEmoji
+
+        bot = self._app.bot
+        self._action[chat_id] = "typing"
+        typing = asyncio.create_task(self._typing(chat_id))
+        if message_id:
             with contextlib.suppress(Exception):
-                await self._app.bot.send_chat_action(chat_id, ChatAction.TYPING)
-            await asyncio.sleep(4.5)
+                await bot.set_message_reaction(chat_id, message_id, [ReactionTypeEmoji("👀")])
+        try:
+            yield
+        finally:
+            typing.cancel()
+            self._action.pop(chat_id, None)
+            if message_id:
+                with contextlib.suppress(Exception):
+                    await bot.set_message_reaction(chat_id, message_id, [])
 
     # -- inbound --------------------------------------------------------------
 
@@ -911,22 +1033,52 @@ class TelegramBridge:
             self._asks.pop(chat_id, None)
             self._choices.pop(ask, None)
             return
+        # An album is several updates that arrive together. The first part waits
+        # a moment for the rest and answers for all of them; the others only
+        # join it. Each used to be its own turn, and the second photo was told
+        # "Still on your last message".
+        group = message.media_group_id
+        if group and group in self._albums:
+            self._albums[group].append(message)
+            return
         if chat_id in self._running:
             await message.reply_text("Still on your last message. Send /stop to cancel it.")
             return
         stop = threading.Event()
         self._running[chat_id] = stop  # claimed before any await, so two messages cannot race
         try:
-            thread = self._thread_for(chat_id, user.first_name or "")
-            try:
-                text, attachments = await self._read(message, context, thread)
-            except _RefusedError as exc:
-                await message.reply_text(str(exc))
-                return
-            if text:
-                await self._turn(chat_id, thread, text, attachments, stop)
+            async with self._working(chat_id, message.message_id):
+                messages = [message]
+                if group:
+                    self._albums[group] = messages
+                    await asyncio.sleep(ALBUM_SECONDS)
+                    messages = self._albums.pop(group, messages)
+                thread = self._thread_for(chat_id, user.first_name or "")
+                try:
+                    text, attachments, spoken = await self._read_all(messages, context, thread)
+                except _RefusedError as exc:
+                    await message.reply_text(str(exc))
+                    return
+                if text:
+                    await self._turn(chat_id, thread, text, attachments, stop, voice=spoken)
         finally:
             self._running.pop(chat_id, None)
+
+    async def _read_all(
+        self, messages: list[Any], context: Any, thread: str
+    ) -> tuple[str, list[str], bool]:
+        """One turn from one message or a whole album, and whether the owner spoke it."""
+        texts: list[str] = []
+        placeholders: list[str] = []
+        attachments: list[str] = []
+        for part in messages:
+            text, found = await self._read(part, context, thread)
+            attachments += found
+            (placeholders if text in PLACEHOLDERS else texts).append(text)
+        if not any(texts) and placeholders:
+            texts = [placeholders[0] if len(placeholders) == 1 else f"[{len(placeholders)} attachments]"]
+        spoken = any(part.voice is not None and part.forward_origin is None for part in messages)
+        return "\n\n".join(texts).strip(), attachments, spoken
 
     async def _download(self, context: Any, file_id: str, size: int | None) -> bytes:
         if size and size > MAX_DOWNLOAD_BYTES:
@@ -969,6 +1121,19 @@ class TelegramBridge:
                 raise _RefusedError(f"I can't open that file: {exc}.") from exc
             attachments.append(row["id"])
 
+        # Video she cannot watch, but Telegram sends a preview frame with it,
+        # and a frame is something she can see. These used to be dropped with
+        # no reply at all.
+        moving = message.video or message.video_note or message.animation
+        if moving is not None:
+            frame = moving.thumbnail
+            if frame is None:
+                raise _RefusedError("I can't watch videos yet — send a photo or describe it.")
+            data = await self._download(context, frame.file_id, frame.file_size)
+            row = await asyncio.to_thread(store.add_attachment, thread, "frame.jpg", "image/jpeg", data)
+            attachments.append(row["id"])
+            own.append("[a video — you can only see its preview frame, so say so if it matters]")
+
         audio = message.voice or message.audio
         if audio is not None:
             if self.transcribe is None:
@@ -1010,20 +1175,40 @@ class TelegramBridge:
         if message.sticker is not None and not own:
             own.append(f"[sticker {message.sticker.emoji or ''}]".replace(" ]", "]"))
 
+        # What they were replying to. In a private chat it is their own message
+        # or hers, but hers may quote something a stranger wrote, so it rides
+        # enveloped like everything else that is not the words just typed.
+        replied = message.reply_to_message
+        if replied is not None:
+            quoted = (message.quote.text if message.quote else "") or replied.text or replied.caption or ""
+            if quoted:
+                who = "Marvi" if replied.from_user is not None and replied.from_user.is_bot else "you"
+                foreign.append((f"telegram message being replied to, written by {who}", quoted[:2000]))
+
         parts = list(own)
         if forwarded and not own:
             parts.append("I'm forwarding you this.")
         parts += [wrap_external(source, content).text for source, content in foreign]
         if not parts and attachments:
-            parts.append("[photo]" if message.photo else "[file]")
+            parts.append("[photo]" if message.photo else "[video]" if moving else "[file]")
         return "\n\n".join(parts).strip(), attachments
 
     # -- the turn -------------------------------------------------------------
 
     async def _turn(
-        self, chat_id: int, thread: str, text: str, attachments: list[str], stop: threading.Event
+        self,
+        chat_id: int,
+        thread: str,
+        text: str,
+        attachments: list[str],
+        stop: threading.Event,
+        voice: bool = False,
     ) -> None:
-        """One Chat turn, streamed into Telegram as a native draft."""
+        """One Chat turn, streamed into Telegram as a native draft.
+
+        Runs inside `_working`, which owns "typing…" and the 👀 reaction.
+        `voice` means the owner spoke; the answer then also comes back spoken.
+        """
         queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
         loop = asyncio.get_running_loop()
 
@@ -1040,7 +1225,6 @@ class TelegramBridge:
                 loop.call_soon_threadsafe(queue.put_nowait, None)
 
         threading.Thread(target=produce, name="marvi-telegram-turn", daemon=True).start()
-        typing = asyncio.create_task(self._typing(chat_id))
         draft = _Draft(self._app.bot, chat_id)
         answer, done, used = "", {}, []
         try:
@@ -1050,12 +1234,15 @@ class TelegramBridge:
                     await draft.push(answer)
                 elif "tool" in event:
                     used.append(str(event["tool"]))
+                    # Before any words, the draft says what she is doing rather
+                    # than leaving a long web search looking like nothing.
+                    if not answer.strip():
+                        await draft.push(f"⏳ {str(event['tool']).replace('_', ' ')}…", force=True)
                 elif "ask" in event:
                     await self._show_ask(chat_id, event["ask"])
                 elif event.get("done"):
                     done = event
         finally:
-            typing.cancel()
             self._asks.pop(chat_id, None)
 
         reply = str(done.get("reply") or answer).strip()
@@ -1069,6 +1256,29 @@ class TelegramBridge:
             await self._app.bot.send_message(chat_id, f"⚠️ {str(done['error'])[:500]}")
         if pending := done.get("pending_confirmation"):
             await self._show_confirmation(chat_id, pending)
+        if voice and reply and not done.get("cancelled"):
+            await self._say(chat_id, reply)
+
+    async def _say(self, chat_id: int, markdown: str) -> None:
+        """The answer again as a voice note, in Marvi's own local voice.
+
+        After the text, never instead of it: synthesis on this machine takes
+        seconds, and the words should not wait for the voice.
+        """
+        if self.speak is None or not self.state.data.get("voice_replies", True):
+            return
+        words = speakable(markdown)
+        if not words:
+            return
+        self._action[chat_id] = "record_voice"
+        try:
+            pcm, rate = await asyncio.to_thread(self.speak, words)
+            audio = await asyncio.to_thread(ogg_opus, pcm, rate)
+            await self._app.bot.send_voice(chat_id, audio, duration=round(len(pcm) / 2 / rate))
+        except Exception as exc:  # the text already arrived; a missing voice is a footnote
+            log.warning("telegram voice reply failed: %s", exc)
+        finally:
+            self._action[chat_id] = "typing"
 
     async def _show_ask(self, chat_id: int, ask: dict[str, Any]) -> None:
         from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -1166,7 +1376,8 @@ class TelegramBridge:
             stop = threading.Event()
             self._running[chat_id] = stop
             try:
-                await self._turn(chat_id, thread, "Approved.", [], stop)
+                async with self._working(chat_id):
+                    await self._turn(chat_id, thread, "Approved.", [], stop)
             finally:
                 self._running.pop(chat_id, None)
 
@@ -1184,9 +1395,9 @@ class _Draft:
         self.at = 0.0
         self.on = True
 
-    async def push(self, text: str) -> None:
+    async def push(self, text: str, force: bool = False) -> None:
         now = time.monotonic()
-        if not self.on or not text.strip() or now - self.at < DRAFT_SECONDS:
+        if not self.on or not text.strip() or (not force and now - self.at < DRAFT_SECONDS):
             return
         self.at = now
         try:

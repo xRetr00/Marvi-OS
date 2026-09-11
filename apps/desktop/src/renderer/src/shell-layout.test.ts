@@ -241,7 +241,7 @@ describe('shell layout', () => {
 
   it('shows face model residency and keeps Room state fresh', () => {
     expect(app).toContain('title="Face recognition model"')
-    expect(app).toContain("vision.face_model ?? 'buffalo_l'")
+    expect(app).toContain("vision.face_model ?? 'ArcFace R50 · SCRFD-10G'")
     expect(app).toContain("faceModelLoaded ? 'loaded' : 'not loaded'")
     expect(app).toContain("roomCommand('room_refresh', {})")
     expect(app).toContain('Auto · 4s · {lastRoomRefresh}')
