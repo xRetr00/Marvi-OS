@@ -1,4 +1,9 @@
-"""Handing a coding job to a coding agent.
+"""Handing a coding job to a coding agent -- the one-shot CLI fallback.
+
+`delegate_to_coder` runs over the Agent Client Protocol now (`acp_coders.py`),
+which streams progress, cancels properly and asks permission through Marvi.
+This module is what it falls back to when a coder has no ACP server on this
+machine: the CLI run once, waited for, and read at the end.
 
 Marvi finds her own bugs -- she reads her own logs now -- and she is not the
 thing that should fix them. Claude Code and Codex are already installed on this

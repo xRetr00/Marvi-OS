@@ -37,10 +37,10 @@ runner = app.state.subagents
 client = TestClient(app)
 
 
-def delegate(arguments: dict) -> tuple[dict, float]:
-    """`POST /tools/delegate`, settling a confirmation the way the Island does."""
+def delegate(arguments: dict, tool: str = "delegate") -> tuple[dict, float]:
+    """`POST /tools/<tool>`, settling a confirmation the way the Island does."""
     started = time.perf_counter()
-    answer = client.post("/tools/delegate", json={"arguments": arguments}).json()
+    answer = client.post(f"/tools/{tool}", json={"arguments": arguments}).json()
     if answer.get("status") == "confirmation_required":
         answer = client.post(
             f"/confirmations/{answer['token']}",
@@ -49,8 +49,9 @@ def delegate(arguments: dict) -> tuple[dict, float]:
     return answer, round((time.perf_counter() - started) * 1000, 1)
 
 
-def run(arguments: dict, timeout: float = 600) -> dict:
-    answer, answered_ms = delegate(arguments)
+def run(arguments: dict, timeout: float = 600, tool: str = "delegate") -> dict:
+    arguments = {key: value for key, value in arguments.items() if not (tool != "delegate" and key == "agent")}
+    answer, answered_ms = delegate(arguments, tool)
     assert answer.get("status") == "executed" and answer["result"]["ok"], answer
     job_id = answer["result"]["id"]
     deadline = time.monotonic() + timeout
@@ -66,7 +67,8 @@ def run(arguments: dict, timeout: float = 600) -> dict:
         time.sleep(1)
     job = runner.status(job_id)
     return {
-        "agent": arguments["agent"],
+        "agent": job["agent"],
+        "job": job_id,
         "delegate_answered_ms": answered_ms,
         "job_seconds": job["seconds"],
         "state": job["state"],
@@ -76,7 +78,7 @@ def run(arguments: dict, timeout: float = 600) -> dict:
     }
 
 
-harvi = run(
+harvi = None if "--acp" in sys.argv else run(
     {
         "agent": "harvi",
         "mode": "fix",
@@ -86,13 +88,45 @@ harvi = run(
         ),
     }
 )
-verified = subprocess.run(
-    [sys.executable, "-m", "pytest", "-q", str(fixture)], cwd=fixture, capture_output=True, text=True
-)
-tail = verified.stdout.strip().splitlines()
-harvi["independent_pytest"] = tail[-1] if tail else verified.stderr[-200:]
-harvi["calc_py"] = (fixture / "calc.py").read_text(encoding="utf-8")
-print(json.dumps(harvi), flush=True)
+if harvi is not None:
+    verified = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", str(fixture)], cwd=fixture, capture_output=True, text=True
+    )
+    tail = verified.stdout.strip().splitlines()
+    harvi["independent_pytest"] = tail[-1] if tail else verified.stderr[-200:]
+    harvi["calc_py"] = (fixture / "calc.py").read_text(encoding="utf-8")
+    print(json.dumps(harvi), flush=True)
+
+if "--acp" in sys.argv:
+    # Each installed outside coder, over ACP, on the same failing fixture.
+    from marvi_gateway import acp_coders
+
+    for coder in acp_coders.installed():
+        (fixture / "calc.py").write_text("def add(a, b):\n    return a - b\n", encoding="utf-8")
+        row = run(
+            {
+                "agent": "delegate_to_coder",
+                "coder": coder.key,
+                "mode": "fix",
+                "task": (
+                    "test_calc.py fails: add(2, 3) should be 5. Fix calc.py and run "
+                    "`python -m pytest -q` to prove it."
+                ),
+            },
+            tool="delegate_to_coder",
+        )
+        checked = subprocess.run(
+            [sys.executable, "-m", "pytest", "-q", str(fixture)], cwd=fixture, capture_output=True, text=True
+        )
+        tail = checked.stdout.strip().splitlines()
+        row["coder"] = coder.key
+        row["independent_pytest"] = tail[-1] if tail else checked.stderr[-200:]
+        row["calc_py"] = (fixture / "calc.py").read_text(encoding="utf-8")
+        row["transcript"] = [
+            f"{e['kind']}:{e.get('outcome', '')}:{e['text'][:80]}"
+            for e in (runner.job(row["job"]) or {}).get("events", [])
+        ]
+        print(json.dumps(row), flush=True)
 
 if "--jarvi" in sys.argv:
     jarvi = run(

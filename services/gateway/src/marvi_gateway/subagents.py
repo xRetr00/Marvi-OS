@@ -71,7 +71,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from . import prompts, tool_call_prose
+from . import acp_coders, prompts, tool_call_prose
 from .chat_widgets import external_text
 from .logs import get_logger
 from .untrusted import wrap_external
@@ -299,6 +299,8 @@ class Runner:
     def start(self, agent: str, task: str, mode: str = "", rounds: int = 0) -> dict[str, Any]:
         agent = (agent or "").strip().lower()
         task = (task or "").strip()
+        if agent in acp_coders.CODERS:
+            return self._start_outside(acp_coders.CODERS[agent], task, mode)
         definition = self._definition(agent)
         if definition is None:
             known = ", ".join(one.key for one in self.agents())
@@ -370,6 +372,70 @@ class Runner:
             extra={"marvi_job": job.id, "marvi_agent": agent, "marvi_mode": mode},
         )
         return answer
+
+    def _start_outside(self, coder: acp_coders.Coder, task: str, mode: str) -> dict[str, Any]:
+        """An outside coder's job: the same Job, run over ACP by `acp_coders`."""
+        if not task:
+            return {"ok": False, "detail": "nothing to hand over"}
+        if len(task) > MAX_TASK:
+            return {"ok": False, "detail": f"that task is longer than {MAX_TASK} characters"}
+        mode = (mode or "investigate").strip().lower()
+        if mode not in MODES:
+            return {"ok": False, "detail": "mode is investigate or fix"}
+        if not coder.command():
+            return {
+                "ok": False,
+                "detail": f"{coder.name} is not installed",
+                "available": [one.key for one in acp_coders.installed()],
+            }
+        root = default_root()
+        if root is None:
+            return {
+                "ok": False,
+                "detail": (
+                    "no workspace root is configured, so there is nowhere a coding agent is "
+                    "allowed to work. Set MARVI_WORKSPACE_ROOT."
+                ),
+            }
+        with self._lock:
+            live = [job for job in self._jobs.values() if job.live]
+            if len(live) >= MAX_RUNNING:
+                return {
+                    "ok": False,
+                    "detail": f"{len(live)} sub-agents are already working",
+                    "running": [job.id for job in live],
+                }
+            job = Job(
+                id=uuid.uuid4().hex[:8], agent=coder.key, name=coder.name, task=task,
+                mode=mode, rounds=0,
+            )
+            self._jobs[job.id] = job
+            self._watch()
+        self._publish()
+        # The standing brief every coder Marvi hands work to gets, then the task.
+        prompt = (
+            prompts.text("coding-agent", self.prompts_root, MODE=mode, ROOT=str(root))
+            + "\n\n---\n\n# The task\n\n"
+            + task
+        )
+        answer = job.as_dict()
+        job.thread = threading.Thread(
+            target=acp_coders.run, args=(self, job, coder, root, prompt), daemon=True,
+            name=f"marvi-coder-{job.id}",
+        )
+        job.thread.start()
+        log.info("outside coder started", extra={"marvi_job": job.id, "marvi_agent": coder.key, "marvi_mode": mode})
+        return answer
+
+    def ask_owner(self, job: Job, coder: str, kind: str, action: str) -> bool:
+        """An outside coder's permission request, through Marvi's confirmation."""
+        arguments = {"job": job.id, "coder": coder, "kind": kind, "action": action[:200]}
+        outcome = self.dispatch("coder_permission", arguments)
+        if outcome.get("status") == "confirmation_required":
+            outcome = self._await_approval(job, f"{kind}:", {"action": action[:200]}, str(outcome.get("token") or ""))
+        allowed = outcome.get("status") == "executed"
+        self._note(job, "approval", f"{'allowed' if allowed else 'refused'} {kind}: {action[:120]}")
+        return allowed
 
     def _offered(self, job: Job, definition: prompts.Prompt) -> list[dict[str, Any]]:
         allowed = set(definition.tools)
@@ -712,6 +778,16 @@ class Runner:
                 "named_per_job": bool(one.names),
             }
             for one in self.agents()
+        ] + [
+            # Outside coders Marvi can hand to over ACP, when they are installed.
+            {
+                "key": coder.key,
+                "name": coder.name,
+                "description": coder.description,
+                "when_to_use": f"When {coder.name} is asked for by name.",
+                "named_per_job": False,
+            }
+            for coder in acp_coders.installed()
         ]
         with self._lock:
             recent = sorted(self._jobs.values(), key=lambda job: -job.started_at)[:MAX_LISTED]
@@ -865,6 +941,51 @@ def register_subagent_tools(registry: Any, runner: Runner) -> None:
             arguments={"job": str, "message": str},
             sensitive=False,
             handler=lambda job, message: runner.steer(job, message),
+        )
+    )
+    def delegate_to_coder(task: str, coder: str = "claude", mode: str = "investigate") -> dict[str, Any]:
+        # Over ACP when the coder has an ACP server here; the old one-shot CLI
+        # otherwise, so a machine without the adapter still has its coder.
+        chosen = acp_coders.CODERS.get((coder or "").strip().lower())
+        if chosen is not None and chosen.command():
+            return runner.start(chosen.key, task, mode)
+        return outside.start(task, coder, mode)
+
+    registry.register(
+        ToolSpec(
+            name="delegate_to_coder",
+            description=(
+                "Hand a coding job to an outside coding agent -- Claude Code, Codex, OpenCode or "
+                "Gemini CLI -- when the owner asks for one by name, and get a job id back at once."
+            ),
+            arguments={"task": str},
+            optional={"coder": str, "mode": str},
+            describes={
+                "task": (
+                    "What to do, written for someone who cannot see this conversation: "
+                    "the symptom, where it shows, and what you already ruled out."
+                ),
+                "coder": "claude, codex, opencode or gemini. Default claude.",
+                "mode": (
+                    "investigate to look and report without changing anything (default), "
+                    "or fix to let it edit files and run commands."
+                ),
+            },
+            # It runs an agent against the user's source code. Theirs to allow.
+            sensitive=True,
+            handler=delegate_to_coder,
+        )
+    )
+    registry.register(
+        ToolSpec(
+            name="coder_permission",
+            description="Let an outside coding agent take one step that needs the owner's approval",
+            arguments={"job": str, "coder": str, "kind": str, "action": str},
+            sensitive=True,
+            # Carries an ACP permission request through the one confirmation
+            # path; approving it is the whole effect. No model is offered it.
+            internal=True,
+            handler=lambda job, coder, kind, action: {"approved": True, "job": job},
         )
     )
     registry.register(

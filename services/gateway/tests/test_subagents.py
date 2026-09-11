@@ -707,7 +707,8 @@ def test_the_feed_waits_for_a_change_rather_than_being_polled(root) -> None:
     release = threading.Event()
     run = runner(Script(lambda _m: (release.wait(5), reply("ok"))[1]))
     first = run.watch(None)
-    assert [agent["key"] for agent in first["agents"]] == ["harvi", "jarvi", "talos", "worker"]
+    # The built-ins first; installed outside coders follow them.
+    assert [agent["key"] for agent in first["agents"]][:4] == ["harvi", "jarvi", "talos", "worker"]
     assert first["agents"][0]["name"] == "Harvi" and first["agents"][0]["description"]
 
     started = time.monotonic()

@@ -68,7 +68,9 @@ class Fake:
         self.cancelled.set()
 
     async def prompt(self, session_id: str, prompt: list[Any], **_: Any) -> PromptResponse:
-        task = " ".join(getattr(block, "text", "") for block in prompt)
+        # Only the task decides, not Marvi's standing brief above it -- that
+        # brief says "refuse" and "slow" in passing.
+        task = " ".join(getattr(block, "text", "") for block in prompt).split("# The task")[-1]
         say = self.conn.session_update
         await say(session_id, update_plan([plan_entry("Look at it", status="in_progress")]))
         await say(session_id, update_agent_message_text(f"Starting in mode={self.mode}."))

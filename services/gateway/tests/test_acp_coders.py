@@ -208,3 +208,13 @@ def test_a_permission_request_waits_while_the_job_is_threaded(fake) -> None:
     run = runner(slow_tools)
     job = finished(run, run.start("fake", "ask:fetch", mode="fix"))
     assert "allowed" in job["summary"]
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows program resolution")
+def test_an_adapter_is_started_through_something_windows_can_run(monkeypatch) -> None:
+    """The first real run died with WinError 193: `which("npx")` found npm's
+    extensionless sh script. What is resolved must be a runnable file."""
+    command = acp_coders._adapter(acp_coders.CODEX_ACP, "codex")()
+    if command is None:
+        pytest.skip("codex is not installed here")
+    assert command[0].lower().endswith((".exe", ".cmd", ".bat"))

@@ -56,6 +56,10 @@ class ToolSpec:
     # booleans.
     sensitive_when: Callable[[dict[str, Any]], bool] | None = None
     external_when: Callable[[dict[str, Any]], bool] | None = None
+    #: Reachable by name and never listed. For a tool that exists only to carry
+    #: a confirmation through the Gateway's one path -- an outside coder's
+    #: permission request -- and that no model should ever be offered.
+    internal: bool = False
 
     def summary(self, arguments: dict[str, Any]) -> str:
         """One short human line for the Island and the audit trail."""
@@ -177,7 +181,10 @@ class ToolRegistry:
         return self._tools.pop(name, None) is not None
 
     def __iter__(self) -> Iterator[ToolSpec]:
-        return iter(self._tools.values())
+        # Every listing -- `/tools`, model schemas, tool search, a sub-agent's
+        # offer -- iterates here, so an internal tool is left out of all of
+        # them at once. `get` still finds it for the confirmation path.
+        return iter([spec for spec in self._tools.values() if not spec.internal])
 
     def __len__(self) -> int:
         return len(self._tools)
