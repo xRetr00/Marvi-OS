@@ -750,3 +750,42 @@ async def test_the_desktop_endpoints_need_the_local_token(root, tmp_path, monkey
     assert missing.status_code == 404
     assert stopped.json()["ok"] is True
     run.wait(started["id"], 5)
+
+
+def test_marvi_is_pointed_at_the_specialists_and_they_are_not() -> None:
+    """Marvi holds the conversation; Jarvi and Talos do the long work.
+
+    A desktop demo run in Marvi's own turn took seven rounds and exhausted her
+    tool budget. So her view of these tools is short and says to delegate --
+    and the specialists, who read the same tool names, get the full operating
+    descriptions instead of being told to hand the work to themselves.
+    """
+    from marvi_gateway import prompts
+
+    prompts.forget()
+    for tool, specialist, variant in (
+        ("computer_action", "Jarvi", "desktop"),
+        ("browser_action", "Talos", "browser"),
+    ):
+        mine = prompts.tool(tool)
+        theirs = prompts.tool(tool, variant=variant)
+        assert f"hand it to {specialist}" in mine, tool
+        assert "delegate" in mine, tool
+        assert "hand it to" not in theirs, f"{specialist} would be told to delegate to itself"
+
+    assert prompts.get("jarvi").tool_descriptions == "desktop"
+    assert prompts.get("talos").tool_descriptions == "browser"
+
+
+def test_no_specialist_is_offered_a_tool_that_tells_it_to_delegate() -> None:
+    """The fallback to the shared set must never reach a specialist's own tools."""
+    from types import SimpleNamespace
+
+    from marvi_gateway import prompts
+
+    prompts.forget()
+    run = runner(Script([]))
+    job = SimpleNamespace(mode="fix")
+    for agent in ("jarvi", "talos", "harvi"):
+        for schema in run._offered(job, prompts.get(agent)):
+            assert "hand it to" not in schema["description"], f"{agent}: {schema['name']}"
