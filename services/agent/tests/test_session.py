@@ -625,3 +625,73 @@ def test_the_voice_prompt_kept_every_rule() -> None:
         "goes to a sub-agent with delegate",
     ):
         assert rule in said, f"lost from the voice prompt: {rule!r}"
+
+
+def _stream(monkeypatch, pieces):
+    """Drive MarviVoiceAgent.llm_node with a model that says `pieces`."""
+    import asyncio
+
+    from livekit.agents import Agent, llm
+
+    from marvi_agent.session import MarviVoiceAgent
+
+    async def fake(_agent, _ctx, _tools, _settings):
+        for piece in pieces:
+            yield llm.ChatChunk(id="c1", delta=llm.ChoiceDelta(role="assistant", content=piece))
+
+    monkeypatch.setattr(Agent.default, "llm_node", fake)
+    agent = MarviVoiceAgent(tools=None)
+
+    async def collect():
+        return [chunk async for chunk in agent.llm_node(None, [], None)]
+
+    return asyncio.run(collect())
+
+
+def test_a_tool_call_spoken_as_text_becomes_a_real_call(monkeypatch) -> None:
+    """`tts_node` stopped her reading the XML aloud; the tool still never ran.
+
+    The turn ended on whatever came before the markup, and the thing she was
+    about to do did not happen. Now it is read back into a `FunctionToolCall`
+    and LiveKit runs it like any other.
+    """
+    import json
+
+    out = _stream(
+        monkeypatch,
+        [
+            "<tool_",
+            "call>computer_action <arg_key>action</arg_key> ",
+            "<arg_value>move_cursor</arg_value></tool_call>",
+        ],
+    )
+    calls = [c for chunk in out for c in (chunk.delta.tool_calls or [])]
+    spoken = "".join(chunk.delta.content or "" for chunk in out)
+
+    assert [c.name for c in calls] == ["computer_action"]
+    assert json.loads(calls[0].arguments) == {"action": "move_cursor"}
+    assert "<tool_call" not in spoken, "the markup must not reach the speaker"
+
+
+def test_ordinary_speech_still_streams_piece_by_piece(monkeypatch) -> None:
+    """Holding costs nothing for a normal answer: it releases on the first word."""
+    out = _stream(monkeypatch, ["The light ", "is on ", "now."])
+    assert [chunk.delta.content for chunk in out] == ["The light ", "is on ", "now."]
+    assert not any(chunk.delta.tool_calls for chunk in out)
+
+
+def test_the_voice_and_chat_parsers_are_the_same_file() -> None:
+    """Two packages, one parser. A fix to one must not silently miss the other.
+
+    The Agent cannot import the Gateway, so it carries its own copy -- the same
+    arrangement as its prompt reader. This is what keeps the copy honest.
+    """
+    from pathlib import Path
+
+    repo = Path(__file__).resolve().parents[3]
+    gateway = repo / "services/gateway/src/marvi_gateway/tool_call_prose.py"
+    agent = repo / "services/agent/src/marvi_agent/tool_call_prose.py"
+    assert gateway.read_bytes() == agent.read_bytes(), (
+        "tool_call_prose.py differs between the Gateway and the Agent -- copy the "
+        "changed one over the other"
+    )

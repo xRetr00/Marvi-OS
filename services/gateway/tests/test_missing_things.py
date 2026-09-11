@@ -84,7 +84,9 @@ def test_a_tool_call_written_as_text_is_not_shown_as_an_answer() -> None:
 
     said = tool_call_prose.instead_say(typed_out)
     assert "terminal_run" in said, "naming the tool is what makes it actionable"
-    assert "Nothing was done" in said, "silence would read as her having nothing to say"
+    # Says the step did not run -- about that step, not the whole turn. The
+    # first wording, "Nothing was done", was false the day it first fired.
+    assert "did not run" in said, "silence would read as her having nothing to say"
     assert "<" not in said
 
 
@@ -373,3 +375,36 @@ def test_a_stale_browser_revision_says_the_current_one() -> None:
         workspace._check("s1", 0)
     assert "revision=2" in str(refused.value), "the number that makes the next call work"
     assert "you sent revision 0" in str(refused.value)
+
+
+def test_running_out_of_steps_is_not_reported_as_doing_nothing() -> None:
+    """The message said "Nothing was done" after five real actions.
+
+    From the chat store: get_desktop_state, move_cursor, get_cursor_position,
+    click (refused for a missing scope), click again -- all ran, the cursor
+    moved. Then the eighth round offered no tools, she wrote the next call out
+    as text, and the reply claimed nothing had happened.
+    """
+    typed = (
+        "<tool_call>computer_action <arg_key>action</arg_key> "
+        "<arg_value>click</arg_value></tool_call>"
+    )
+    used = ["computer_action"] * 5
+
+    said = tool_call_prose.out_of_steps(typed, used)
+    assert "Nothing was done" not in said
+    assert "ran out of steps" in said
+    assert "computer_action (5 times)" in said, "credit what actually ran"
+    assert "So far" in said, "a sentence of its own starts with a capital"
+
+    # A call that genuinely did not run still says so -- about that step only.
+    lone = tool_call_prose.instead_say(typed, [])
+    assert "that step was not done" in lone
+    assert "Nothing was done" not in lone
+
+
+def test_chat_and_voice_have_the_same_tool_budget() -> None:
+    """Eight rounds produced the malformed call it was then blamed for."""
+    from marvi_gateway.chat import MAX_TOOL_ROUNDS
+
+    assert MAX_TOOL_ROUNDS >= 24
