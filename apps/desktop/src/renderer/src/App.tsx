@@ -98,6 +98,7 @@ import { MessageTiming } from './components/message-timing'
 import { GraphNodePanel } from './components/graph-node-panel'
 import { ArcMemoryGraph } from './components/arc-memory-graph'
 import { AboutUpdates, VersionPopover } from './components/update-controls'
+import { AgentsStatusItem } from './components/agents/agents'
 import { startUpdatePolling } from './store/update-state'
 import { TooltipProvider, UiTooltip } from './components/ui/tooltip'
 import {
@@ -667,6 +668,7 @@ function MainSurface(): React.JSX.Element {
       </div>
       <div className="statusbar-side statusbar-side-right">
         {page === 'Chat' ? <ContextStatus {...chatContextStatus} /> : null}
+        <AgentsStatusItem />
         <UiTooltip
           label={`${voice.yolo ? 'YOLO' : 'Confirm'} mode — open confirmation settings`}
           side="top"

@@ -14,7 +14,7 @@
 
 import type { PartState } from '@assistant-ui/react'
 
-import { ASK_TOOL, WIDGET_TOOL } from '../runtime/convert'
+import { ASK_TOOL, DELEGATE_TOOL, WIDGET_TOOL } from '../runtime/convert'
 
 export type WorkGroup = 'group-work'
 
@@ -28,7 +28,13 @@ export function groupWork(part: PartState): readonly WorkGroup[] | null {
       return part.name === 'commentary' ? WORK : null
     case 'tool-call':
       // Tools with a face of their own are part of the answer, not the work.
-      return part.toolName === WIDGET_TOOL || part.toolName === ASK_TOOL ? null : WORK
+      // A sub-agent's card is one: it goes on working after the reply ends,
+      // and folded into the work log nobody would see it finish.
+      return part.toolName === WIDGET_TOOL ||
+        part.toolName === ASK_TOOL ||
+        part.toolName === DELEGATE_TOOL
+        ? null
+        : WORK
     default:
       return null
   }

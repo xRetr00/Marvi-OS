@@ -47,6 +47,7 @@ import {
 } from 'lucide-react'
 
 import { compactTokens } from '../chat/context-breakdown'
+import { AgentJobsStrip } from './agents/agents'
 import { sourcesFrom } from './voice-sources'
 
 /** Sunday first, matching `getDay`. Initials rather than names, because a
@@ -125,7 +126,7 @@ export function VoiceActivityCard({ rig }: { rig?: React.ReactNode }): React.JSX
   // The pickers show even before the first poll answers: they are the part of
   // this card that is useful in an idle session.
   const empty: VoiceActivity = { calls: [], running: 0, context: { used: 0, window: 0, turns: 0 } }
-  return <ActivityView activity={activity ?? empty} rig={rig} />
+  return <ActivityView activity={activity ?? empty} agents={<AgentJobsStrip />} rig={rig} />
 }
 
 /**
@@ -137,9 +138,13 @@ export function VoiceActivityCard({ rig }: { rig?: React.ReactNode }): React.JSX
  */
 export function ActivityView({
   activity,
+  agents,
   rig
 }: {
   activity: VoiceActivity
+  /** Sub-agents Marvi handed work to, working now or just finished. A spoken
+   * "Jarvi's on it" should have a face on the page while Jarvi is on it. */
+  agents?: React.ReactNode
   /** The model and speech pickers, drawn by the page and placed here.
    *
    * They used to float loose above this card, which read as two unrelated
@@ -201,6 +206,8 @@ export function ActivityView({
           ))}
         </ul>
       ) : null}
+
+      {agents}
 
       {calls.length ? (
         <>

@@ -30,6 +30,9 @@ export const WIDGET_TOOL = 'marvi_widget'
 /** The tool name an inline `clarify`/`ask_secret` card arrives under. */
 export const ASK_TOOL = 'marvi_ask'
 
+/** The tool that hands work to a sub-agent; drawn as the agent's card. */
+export const DELEGATE_TOOL = 'delegate'
+
 /** Loose local mirrors of assistant-ui's part union.
  *
  * Written out rather than imported so this module stays testable without

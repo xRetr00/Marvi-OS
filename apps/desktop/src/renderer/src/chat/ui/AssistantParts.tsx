@@ -17,11 +17,11 @@ import { MessagePrimitive } from '@assistant-ui/react'
 
 import { GlyphSpinner } from '../../components/ui/glyph-spinner'
 import { Markdown } from '../MarkdownView'
-import { ASK_TOOL, WIDGET_TOOL } from '../runtime/convert'
+import { ASK_TOOL, DELEGATE_TOOL, WIDGET_TOOL } from '../runtime/convert'
 import { ActivityLabel } from './ActivityLabel'
 import { groupWork } from './group-work'
 import { MESSAGE_PART_COMPONENTS } from './parts'
-import { AskToolUI, WidgetToolUI } from './tool-uis'
+import { AskToolUI, DelegateToolUI, WidgetToolUI } from './tool-uis'
 import { toolSentence } from './tool-verbs'
 import { CommentaryStep, ThoughtStep, ToolStep, WorkLog } from './WorkLog'
 
@@ -77,6 +77,7 @@ export function AssistantParts({ message }: { message: MessageState }): React.JS
             const props = part as unknown as ToolCallMessagePartProps
             if (part.toolName === WIDGET_TOOL) return <WidgetToolUI {...props} />
             if (part.toolName === ASK_TOOL) return <AskToolUI {...props} />
+            if (part.toolName === DELEGATE_TOOL) return <DelegateToolUI {...props} />
             const status =
               part.status.type === 'running' ? 'running' : part.isError ? 'failed' : 'complete'
             return (

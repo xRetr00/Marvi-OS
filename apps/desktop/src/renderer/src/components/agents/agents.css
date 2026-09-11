@@ -1,0 +1,363 @@
+/* Sub-agents. Monochrome like the rest of the shell; the only colour is
+   inside an avatar's circle (docs/UI.md). The blue accent means working. */
+
+.agent-avatar {
+  flex: none;
+  border-radius: 50%;
+}
+
+/* -- status chip ---------------------------------------------------------- */
+
+.agent-chip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 7px;
+  border: 1px solid var(--ui-stroke-secondary);
+  color: var(--ui-text-secondary);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.agent-chip.is-working,
+.agent-chip.is-waiting {
+  border-color: var(--ui-accent);
+  color: var(--ui-accent);
+}
+
+.agent-chip.is-failed {
+  border-color: var(--ui-danger);
+  color: var(--ui-danger);
+}
+
+.agent-chip.is-stopped,
+.agent-chip.is-lost {
+  color: var(--ui-text-tertiary);
+}
+
+.agent-chip-pulse {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: agent-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes agent-pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-chip-pulse {
+    animation: none;
+  }
+}
+
+/* -- job card ------------------------------------------------------------- */
+
+.agent-card {
+  display: grid;
+  gap: 6px;
+  margin: 6px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--ui-stroke-secondary);
+  background: var(--ui-bg-raised);
+}
+
+.agent-card.is-working,
+.agent-card.is-waiting {
+  border-color: color-mix(in srgb, var(--ui-accent) 55%, var(--ui-stroke-secondary));
+}
+
+.agent-card.is-failed {
+  border-color: color-mix(in srgb, var(--ui-danger) 55%, var(--ui-stroke-secondary));
+}
+
+.agent-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.agent-card-head:disabled {
+  cursor: default;
+}
+
+.agent-card-who {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+
+.agent-card-who strong {
+  color: var(--ui-text-primary);
+  font-weight: 600;
+}
+
+.agent-card-who small,
+.agent-card-time {
+  color: var(--ui-text-tertiary);
+  font-size: 11px;
+}
+
+.agent-card-time {
+  font-variant-numeric: tabular-nums;
+}
+
+.agent-card-caret {
+  color: var(--ui-text-tertiary);
+  transition: transform 120ms ease-out;
+}
+
+.agent-card-head[aria-expanded='true'] .agent-card-caret {
+  transform: rotate(180deg);
+}
+
+.agent-card-line {
+  margin: 0;
+  overflow: hidden;
+  color: var(--ui-text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.agent-card-body {
+  display: grid;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--ui-stroke-tertiary);
+}
+
+.agent-card-stop {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 6px;
+  padding: 3px 9px;
+  border: 1px solid var(--ui-stroke-primary);
+  background: transparent;
+  color: var(--ui-text-primary);
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+.agent-card-stop:hover:not(:disabled) {
+  border-color: var(--ui-danger);
+  color: var(--ui-danger);
+}
+
+/* -- transcript ------------------------------------------------------------ */
+
+.agent-transcript {
+  display: grid;
+  gap: 8px;
+  max-height: 260px;
+  overflow-y: auto;
+  font-family: var(--ui-font-mono);
+  font-size: 11px;
+}
+
+.agent-transcript-task {
+  margin: 0;
+  color: var(--ui-text-secondary);
+  white-space: pre-wrap;
+}
+
+.agent-transcript-empty,
+.agents-panel-empty {
+  margin: 0;
+  color: var(--ui-text-tertiary);
+  font-size: 12px;
+}
+
+.agent-todos,
+.agent-events {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.agent-todos li {
+  display: flex;
+  gap: 6px;
+  color: var(--ui-text-secondary);
+}
+
+.agent-todos li.is-completed {
+  color: var(--ui-text-tertiary);
+  text-decoration: line-through;
+}
+
+.agent-todos li.is-in_progress {
+  color: var(--ui-accent);
+}
+
+.agent-event {
+  display: flex;
+  gap: 8px;
+  color: var(--ui-text-secondary);
+}
+
+.agent-event-mark {
+  flex: none;
+  width: 1ch;
+  color: var(--ui-text-tertiary);
+}
+
+.agent-event.is-said .agent-event-text {
+  color: var(--ui-text-primary);
+}
+
+.agent-event.is-failed .agent-event-mark,
+.agent-event.is-failed .agent-event-text {
+  color: var(--ui-danger);
+}
+
+.agent-event.is-running .agent-event-mark,
+.agent-event.is-approval .agent-event-mark {
+  color: var(--ui-accent);
+}
+
+.agent-event-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* -- status bar ------------------------------------------------------------ */
+
+.status-agents.is-working {
+  color: var(--ui-accent);
+}
+
+.status-agents-count {
+  min-width: 14px;
+  padding: 0 3px;
+  border: 1px solid currentColor;
+  font-size: 10px;
+  line-height: 13px;
+  text-align: center;
+}
+
+.agents-panel {
+  z-index: 150;
+  width: min(380px, calc(100vw - 24px));
+  max-height: min(560px, calc(100vh - 80px));
+  overflow-y: auto;
+  border: 1px solid var(--ui-stroke-primary);
+  background: var(--ui-bg-raised);
+  color: var(--ui-text-primary);
+  box-shadow: 0 12px 40px color-mix(in srgb, var(--ui-bg) 60%, transparent);
+}
+
+.agents-panel-inner {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+}
+
+.agents-panel-head {
+  display: grid;
+  gap: 2px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--ui-stroke-secondary);
+}
+
+.agents-panel-head span,
+.agents-panel-section h3 {
+  margin: 0;
+  color: var(--ui-text-tertiary);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+}
+
+.agents-panel-head small {
+  color: var(--ui-text-secondary);
+  font-size: 11px;
+}
+
+.agents-roster {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.agents-roster-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.agents-roster-row:hover,
+.agents-roster-row:focus-visible,
+.agents-roster-row[aria-expanded='true'] {
+  border-color: var(--ui-stroke-secondary);
+  background: var(--ui-bg-tertiary);
+}
+
+.agents-roster-who {
+  display: grid;
+  flex: 1;
+}
+
+.agents-roster-who small {
+  color: var(--ui-text-tertiary);
+  font-size: 11px;
+}
+
+.agents-roster-about {
+  display: grid;
+  gap: 4px;
+  padding: 4px 8px 8px 50px;
+  color: var(--ui-text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.agents-roster-about p {
+  margin: 0;
+}
+
+.agents-roster-when {
+  color: var(--ui-text-tertiary);
+}
+
+.agents-panel-section {
+  display: grid;
+  gap: 4px;
+}
+
+.agent-strip {
+  display: grid;
+  gap: 2px;
+}

@@ -21,8 +21,8 @@ import type {
 import { GlyphSpinner } from '../../components/ui/glyph-spinner'
 import { ActivityLabel } from './ActivityLabel'
 import { Markdown } from '../MarkdownView'
-import { AskToolUI, ToolActivity, WidgetToolUI } from './tool-uis'
-import { ASK_TOOL, WIDGET_TOOL } from '../runtime/convert'
+import { AskToolUI, DelegateToolUI, ToolActivity, WidgetToolUI } from './tool-uis'
+import { ASK_TOOL, DELEGATE_TOOL, WIDGET_TOOL } from '../runtime/convert'
 
 /** Read-aloud, threaded down from the page that owns the hook. */
 export interface ReadAloud {
@@ -127,7 +127,8 @@ export const MESSAGE_PART_COMPONENTS = {
   tools: {
     by_name: {
       [WIDGET_TOOL]: WidgetToolUI,
-      [ASK_TOOL]: AskToolUI
+      [ASK_TOOL]: AskToolUI,
+      [DELEGATE_TOOL]: DelegateToolUI
     },
     // Every other tool gets the one-line footnote. A tool without a designed
     // card should not invent one.

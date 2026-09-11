@@ -23,6 +23,7 @@ import type { ToolCallMessagePartProps } from '@assistant-ui/react'
 
 import type { ChatWidgetPart } from '../../../../shared/runtime'
 import { AbstractIcon } from '../../components/abstract-icon'
+import { DelegateCard } from '../../components/agents/agents'
 import { GlyphSpinner } from '../../components/ui/glyph-spinner'
 import { WidgetStack } from '../components/WidgetStack'
 import { ActivityLabel } from './ActivityLabel'
@@ -44,6 +45,19 @@ export function WidgetToolUI({
   const widget = result as ChatWidgetPart
   if (!widget || widget.type !== 'widget') return null
   return <WidgetStack parts={[widget]} />
+}
+
+/** The sub-agent `delegate` started: its face, name and live state. */
+export function DelegateToolUI({ args, result, status }: ToolCallMessagePartProps): React.JSX.Element {
+  return (
+    <div className="chat-scaffold chat-agent-tool" data-conversation-scaffold="">
+      <DelegateCard
+        args={(args ?? {}) as Record<string, unknown>}
+        result={result}
+        running={status.type === 'running'}
+      />
+    </div>
+  )
 }
 
 /** A tool with no UI of its own. One line, past tense, no card. */
