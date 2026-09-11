@@ -41,6 +41,7 @@ from . import (
     remembering,
     selfaware,
     standing,
+    subagents,
     threadwatch,
     toolsearch,
     upgrade,
@@ -2128,6 +2129,38 @@ def create_app(
             return {"status": "confirmation_required", "token": request.token}
         return run_tool(spec, checked, write_key).model_dump()
 
+    def dispatch_granted(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        """A Harvi fix job's workspace edit or command, under the approval that started it.
+
+        `delegate` with `mode=fix` is the confirmation, exactly as approving
+        `codex --sandbox workspace-write` was. `subagents.GRANTED` is the whole
+        list; validation, the workspace policy and the audit line still apply.
+        """
+        try:
+            spec = tool_registry.get(name)
+            checked = tool_registry.validate(spec, arguments)
+        except (UnknownToolError, InvalidArgumentsError) as exc:
+            return {"status": "failed", "error": str(exc)}
+        runtime_store.audit("requested", spec.name, checked, detail="under an approved Harvi fix job")
+        return run_tool(spec, checked).model_dump()
+
+    subagent_runner = subagents.Runner(
+        provider_client,
+        lambda: schemas_from_registry(tool_registry),
+        dispatch_for_chat,
+        pending=lambda token: runtime_store.pending_arguments(token) is not None,
+        # Late-bound: defined below, and only ever called after startup.
+        settle=lambda token, approve: settle_for_channel(token, approve, via="delegate_approve"),
+        granted=dispatch_granted,
+    )
+    app.state.subagents = subagent_runner
+    # "Jarvi is using the computer" rather than Marvi, when it is Jarvi.
+    computer_service.actor = lambda: subagent_runner.acting("jarvi")
+    if tools is None:
+        # After `delegate.register_delegate_tools`, so the combined
+        # `delegated_status` replaces the coder-only one.
+        subagents.register_subagent_tools(tool_registry, subagent_runner)
+
     if chat is not None:
         chat.dispatch = dispatch_for_chat
         chat.tool_schemas = lambda: schemas_from_registry(tool_registry)
@@ -2145,12 +2178,12 @@ def create_app(
             dispatch_for_schedule,
         )
 
-    def settle_for_channel(token: str, approve: bool) -> dict[str, Any]:
-        """A confirmation tap from a messaging channel.
+    def settle_for_channel(token: str, approve: bool, via: str = "telegram") -> dict[str, Any]:
+        """A confirmation answered without the arguments in hand.
 
-        The same token path as `POST /confirmations`: the token is consumed
-        once, only for the arguments it was issued for. The channel has already
-        proved the tap came from the linked owner.
+        A messaging channel's tap, or Marvi relaying a spoken answer to a
+        waiting sub-agent. The same token path as `POST /confirmations`: the
+        token is consumed once, only for the arguments it was issued for.
         """
         arguments = runtime_store.pending_arguments(token)
         if arguments is None:
@@ -2159,15 +2192,18 @@ def create_app(
             pending = runtime_store.take_confirmation(token, arguments)
         except (TokenRejectedError, ArgumentsMutatedError):
             return {"status": "expired"}
+        subagent_runner.settling(token)
         spec = tool_registry.get(pending.tool)
         facts = {"tool": pending.tool, "arguments": pending.arguments}
         if not approve:
-            runtime_store.audit("denied", pending.tool, pending.arguments, detail="via telegram")
+            runtime_store.audit("denied", pending.tool, pending.arguments, detail=f"via {via}")
             runtime_store.settle_confirmation(token, caption="Action denied", action=spec.description)
+            subagent_runner.settled(token, {"status": "denied"})
             return {"status": "denied", **facts}
-        runtime_store.audit("approved", pending.tool, pending.arguments, detail="via telegram")
+        runtime_store.audit("approved", pending.tool, pending.arguments, detail=f"via {via}")
         runtime_store.settle_confirmation(token, caption="Action approved", action=spec.description)
         ran = run_tool(spec, pending.arguments, pending.write_key).model_dump(exclude={"runtime"})
+        subagent_runner.settled(token, ran)
         return {**ran, **facts}
 
     def transcribe_for_channel(pcm: bytes) -> str:
@@ -3925,17 +3961,23 @@ def create_app(
         except TokenRejectedError as exc:
             raise HTTPException(status_code=404, detail="confirmation not found") from exc
 
+        # A sub-agent may be the one waiting on this token; it is told the
+        # outcome, since this path runs the action rather than the sub-agent.
+        subagent_runner.settling(token)
         spec = tool_registry.get(pending.tool)
         if decision.decision == "deny":
             runtime_store.audit("denied", pending.tool, pending.arguments)
             runtime_store.settle_confirmation(
                 token, caption="Action denied", action=spec.description
             )
+            subagent_runner.settled(token, {"status": "denied"})
             return ToolInvocation(status="denied", tool=pending.tool, runtime=current_status())
 
         runtime_store.audit("approved", pending.tool, pending.arguments)
         runtime_store.settle_confirmation(token, caption="Action approved", action=spec.description)
-        return await run_tool_off_the_loop(spec, pending.arguments, pending.write_key)
+        ran = await run_tool_off_the_loop(spec, pending.arguments, pending.write_key)
+        subagent_runner.settled(token, ran.model_dump(exclude={"runtime"}))
+        return ran
 
     @app.get("/memory", response_model=MemoryPage)
     async def memory_page(limit: int = 50) -> MemoryPage:

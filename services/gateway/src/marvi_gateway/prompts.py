@@ -92,10 +92,25 @@ class Prompt:
     #: A request, not an enforcement -- exactly as in `skills`. It never widens
     #: anything, and the runtime is what actually withholds a tool.
     denied_tools: tuple[str, ...] = ()
+    #: The tools a sub-agent runs with; `*` means every tool. Empty for a
+    #: brief handed to an outside coder, which brings its own.
+    tools: tuple[str, ...] = ()
+    #: Display names a run of this agent is given, one drawn per job. Empty
+    #: means the agent's own name — Harvi is always Harvi.
+    names: tuple[str, ...] = ()
+    #: Provider job role the sub-agent thinks with. Empty means `main`.
+    model: str = ""
+    #: Tool rounds before the tool-free final round. 0 means the runner's default.
+    max_rounds: int = 0
 
     @property
     def is_agent(self) -> bool:
         return bool(self.when_to_use)
+
+    @property
+    def runnable(self) -> bool:
+        """An agent `subagents.Runner` can start: it declares its own tools."""
+        return self.is_agent and bool(self.tools)
 
     @property
     def chars(self) -> int:
@@ -147,7 +162,7 @@ def _parse(key: str, text: str) -> Prompt:
     if not matched:
         raise PromptError(f"{key} has no frontmatter comment")
     meta: dict[str, str] = {}
-    lists: dict[str, list[str]] = {"variables": [], "denied-tools": []}
+    lists: dict[str, list[str]] = {"variables": [], "denied-tools": [], "tools": [], "names": []}
     listing = ""
     for raw in matched["meta"].splitlines():
         line = raw.strip()
@@ -178,6 +193,10 @@ def _parse(key: str, text: str) -> Prompt:
         body=body,
         when_to_use=meta.get("when-to-use", ""),
         denied_tools=tuple(lists["denied-tools"]),
+        tools=tuple(lists["tools"]),
+        names=tuple(lists["names"]),
+        model=meta.get("model", ""),
+        max_rounds=int(meta.get("max-rounds") or 0),
     )
 
 
