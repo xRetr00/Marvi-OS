@@ -111,7 +111,9 @@ export function AgentAvatar({
           const cell = grid[y][x]
           const [h, s, l] = palette[cell.colorIndex]
 
-          const pulse = shouldAnimate ? Math.sin(time * PULSE_SPEED + cell.phase) * PULSE_AMPLITUDE : 0
+          const pulse = shouldAnimate
+            ? Math.sin(time * PULSE_SPEED + cell.phase) * PULSE_AMPLITUDE
+            : 0
           const waveDist = (x + y) / WAVE_LENGTH
           const wave = shouldAnimate ? Math.sin(time * WAVE_SPEED + waveDist) * WAVE_AMPLITUDE : 0
           const sparkleVal = shouldAnimate ? Math.sin(time * SPARKLE_SPEED + cell.sparklePhase) : 0

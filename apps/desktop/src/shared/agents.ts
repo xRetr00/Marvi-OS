@@ -1,11 +1,6 @@
 /** The Gateway's `/agents` feed: the sub-agent roster and their jobs. */
 
-export type AgentJobState =
-  | 'running'
-  | 'awaiting_approval'
-  | 'completed'
-  | 'failed'
-  | 'interrupted'
+export type AgentJobState = 'running' | 'awaiting_approval' | 'completed' | 'failed' | 'interrupted'
 
 export interface AgentProfile {
   key: string

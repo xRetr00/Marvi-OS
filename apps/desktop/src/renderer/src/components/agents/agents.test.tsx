@@ -4,7 +4,8 @@ import { describe, expect, it } from 'vitest'
 import type { AgentJob, AgentJobDetail, AgentsFeed } from '../../../../shared/agents'
 import { groupWork } from '../../chat/ui/group-work'
 import { agentStatus, avatarSeed, elapsed } from './agent-state'
-import { AgentJobCard, AgentsPanel, receiptOf, TranscriptView } from './agents'
+import { AgentJobCard, AgentsPanel, TranscriptView } from './agents'
+import { receiptOf } from './agents-store'
 import { generateGrid, generatePalette, hashSeed } from './avatar-pattern'
 
 const job = (overrides: Partial<AgentJob> = {}): AgentJob => ({
@@ -28,9 +29,27 @@ const job = (overrides: Partial<AgentJob> = {}): AgentJob => ({
 const feed: AgentsFeed = {
   revision: 7,
   agents: [
-    { key: 'harvi', name: 'Harvi', description: "Marvi's coder.", when_to_use: 'Code.', named_per_job: false },
-    { key: 'jarvi', name: 'Jarvi', description: 'Desktop apps.', when_to_use: 'Apps.', named_per_job: false },
-    { key: 'worker', name: 'Worker', description: 'Anything long.', when_to_use: 'Jobs.', named_per_job: true }
+    {
+      key: 'harvi',
+      name: 'Harvi',
+      description: "Marvi's coder.",
+      when_to_use: 'Code.',
+      named_per_job: false
+    },
+    {
+      key: 'jarvi',
+      name: 'Jarvi',
+      description: 'Desktop apps.',
+      when_to_use: 'Apps.',
+      named_per_job: false
+    },
+    {
+      key: 'worker',
+      name: 'Worker',
+      description: 'Anything long.',
+      when_to_use: 'Jobs.',
+      named_per_job: true
+    }
   ],
   jobs: [job()]
 }
@@ -52,7 +71,9 @@ describe('agent status', () => {
   it('names every state the Gateway reports, and never guesses', () => {
     expect(agentStatus(job()).label).toBe('Working')
     expect(agentStatus(job({ state: 'awaiting_approval' })).label).toBe('Needs your approval')
-    expect(agentStatus(job({ state: 'completed', exit_reason: 'completed' })).label).toBe('Finished')
+    expect(agentStatus(job({ state: 'completed', exit_reason: 'completed' })).label).toBe(
+      'Finished'
+    )
     expect(agentStatus(job({ state: 'completed', exit_reason: 'max_rounds' })).label).toBe(
       'Finished at step limit'
     )
@@ -61,7 +82,10 @@ describe('agent status', () => {
     expect(agentStatus(job({ state: 'interrupted', exit_reason: 'stopped' })).label).toBe('Stopped')
     // Known-to-be-gone is not "still working": the stuck-card bug elsewhere.
     expect(agentStatus(null)).toMatchObject({ label: 'Lost when Marvi restarted', live: false })
-    expect(agentStatus(undefined, 'Handing over')).toMatchObject({ label: 'Handing over', live: true })
+    expect(agentStatus(undefined, 'Handing over')).toMatchObject({
+      label: 'Handing over',
+      live: true
+    })
   })
 
   it('counts time the way it is read', () => {

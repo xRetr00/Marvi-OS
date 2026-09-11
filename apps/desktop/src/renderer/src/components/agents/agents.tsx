@@ -15,7 +15,7 @@ import { useEffect, useState } from 'react'
 import type { AgentJob, AgentJobDetail, AgentProfile } from '../../../../shared/agents'
 import { AgentAvatar } from './agent-avatar'
 import { agentStatus, avatarSeed, elapsed } from './agent-state'
-import { $agents, jobById, liveJobs } from './agents-store'
+import { $agents, liveJobs, receiptOf, useAgentJob } from './agents-store'
 import './agents.css'
 
 /** What each built-in is for, in two words, under its name. */
@@ -104,7 +104,11 @@ export function TranscriptView({
           {detail.todos.map((todo, index) => (
             <li className={`is-${todo.status}`} key={index}>
               <span aria-hidden="true">
-                {todo.status === 'completed' ? '[x]' : todo.status === 'in_progress' ? '[>]' : '[ ]'}
+                {todo.status === 'completed'
+                  ? '[x]'
+                  : todo.status === 'in_progress'
+                    ? '[>]'
+                    : '[ ]'}
               </span>
               {todo.content}
             </li>

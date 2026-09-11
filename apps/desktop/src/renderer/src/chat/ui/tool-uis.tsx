@@ -48,7 +48,11 @@ export function WidgetToolUI({
 }
 
 /** The sub-agent `delegate` started: its face, name and live state. */
-export function DelegateToolUI({ args, result, status }: ToolCallMessagePartProps): React.JSX.Element {
+export function DelegateToolUI({
+  args,
+  result,
+  status
+}: ToolCallMessagePartProps): React.JSX.Element {
   return (
     <div className="chat-scaffold chat-agent-tool" data-conversation-scaffold="">
       <DelegateCard

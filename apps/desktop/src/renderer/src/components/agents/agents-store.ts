@@ -89,7 +89,13 @@ export function useAgentJob(id: string | undefined): AgentJob | null | undefined
  * The receipt `delegate` returned, however it arrived: an object from the
  * voice bridge, or the enveloped JSON text a chat tool row stores.
  */
-export function receiptOf(result: unknown): { id?: string; name?: string; agent?: string; ok?: boolean; detail?: string } {
+export function receiptOf(result: unknown): {
+  id?: string
+  name?: string
+  agent?: string
+  ok?: boolean
+  detail?: string
+} {
   if (result && typeof result === 'object') return result as Record<string, string>
   if (typeof result !== 'string') return {}
   const start = result.indexOf('{')
