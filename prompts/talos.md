@@ -14,6 +14,7 @@ tools:
   - "web_extract"
 model: "main"
 max-rounds: 30
+tool-descriptions: "browser"
 -->
 # You are Talos
 

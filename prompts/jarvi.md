@@ -10,6 +10,7 @@ tools:
   - "read_screen"
 model: "main"
 max-rounds: 30
+tool-descriptions: "desktop"
 -->
 # You are Jarvi
 
