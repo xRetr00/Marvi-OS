@@ -182,7 +182,7 @@ export function AgentJobCard({
       <button
         aria-expanded={open}
         className="agent-card-head"
-        disabled={!job}
+        disabled={!job?.id}
         onClick={() => setOpen((value) => !value)}
         type="button"
       >
@@ -308,8 +308,10 @@ export function DelegateCard({
   return (
     <AgentJobCard
       fallbackAgent={agent}
+      fallbackLine={String(args.task ?? '')}
       fallbackName={receipt.name}
-      job={job === undefined ? null : job}
+      job={job}
+      pending="Checking"
       roster={feed?.agents}
     />
   )
