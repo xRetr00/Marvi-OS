@@ -1,7 +1,8 @@
 # Phase 16 — Sub-agents: Harvi, Jarvi and Talos
 
-Status: 16A–16C implemented with automated, real-host and voice-pipeline
-evidence, 2026-09-11; 16D (ACP) not started. Not yet exercised: microphone and
+Status: 16A–16D implemented with automated, real-host and voice-pipeline
+evidence, 2026-09-11 (16D: Codex verified over ACP; Claude Code blocked on the
+host's revoked login). Not yet exercised: microphone and
 speaker audio in the loop, and Talos on the real host.
 Design approved by the owner in conversation. Plan:
 [`docs/plans/PHASE-16-SUB-AGENTS.md`](../plans/PHASE-16-SUB-AGENTS.md).
@@ -67,6 +68,44 @@ existing habits, not part of this phase.
 
 Outstanding: microphone and speaker audio in the same loop, with the Island
 visible; Talos against the embedded browser on the real host.
+
+## 16D — Outside coders over ACP — 2026-09-11
+
+`delegate_to_coder` now runs Claude Code, Codex, OpenCode or Gemini CLI as a
+sub-agent job over the Agent Client Protocol (`acp_coders.py`, SDK
+`agent-client-protocol==0.12.1`). The job is an ordinary `subagents.Job`: it
+shows in the desktop feed with its avatar and live transcript, reports to voice
+through `delegated.py`, stops with Stop (ACP `session/cancel`), and falls under
+the stall watcher. Session updates map to the transcript (messages, tool calls
+with ok/failed) and the plan to the todo list.
+
+- **Mode.** Investigate asks the agent for its read-only mode (`plan`,
+  `read-only`); fix for its edit mode (`acceptEdits`, `auto`).
+- **Permission.** Reads, searches and thinking are allowed. Edits are refused
+  in investigate and allowed under an approved fix job, as are commands;
+  anything else becomes a Marvi confirmation through the internal
+  `coder_permission` tool, so the Island, a spoken yes (`delegate_approve`) or
+  Telegram answers it and YOLO allows it. `ToolSpec.internal` keeps that tool
+  out of every listing -- no model is offered it.
+- **Fallback.** A coder with no ACP server here still runs through the old
+  one-shot CLI path in `delegate.py`.
+- **Windows.** Commands resolve to a runnable `.exe`/`.cmd`: `shutil.which("npx")`
+  returned npm's extensionless sh script and the first real run failed with
+  WinError 193 for both adapters.
+
+Evidence: 14 tests against the real SDK and a fake ACP agent subprocess
+(`tests/fixtures/fake_acp_agent.py`): report and transcript, chosen modes, fix
+grant, investigate refusal, owner confirmation park/deny, YOLO, cancel,
+refusal, start failure, roster, `delegate_to_coder` routing, internal tool
+hidden, Windows resolution. Real run (`scripts/qualify-subagents.py --acp`,
+Codex CLI 0.132.0 through `@agentclientprotocol/codex-acp@1.11.0`): fix job on
+the failing fixture completed in 36.5 s with a live transcript
+(execute → edit → execute pytest, all ok); independent pytest `1 passed`;
+`delegate_to_coder` answered in 283 ms. Claude Code 2.1.232 through
+`@agentclientprotocol/claude-agent-acp@0.76.0` reached a session and failed
+with `401 OAuth access token has been revoked` -- the host's Claude login, not
+the protocol; the job now says it needs signing in again. OpenCode and Gemini
+CLI are not installed here.
 
 ## Sub-agent UI — 2026-09-11
 

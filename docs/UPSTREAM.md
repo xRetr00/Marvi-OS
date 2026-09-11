@@ -1,5 +1,25 @@
 # Upstream Reuse Ledger
 
+## Agent Client Protocol (outside coders) — 2026-09-11
+
+- Source: https://github.com/agentclientprotocol/python-sdk and
+  https://agentclientprotocol.com. License Apache-2.0. `agent-client-protocol==0.12.1`,
+  pinned in `services/gateway/pyproject.toml` and uv.lock. Unmodified.
+- Adapters, started by `npx --yes` on first use unless already on PATH, pinned in
+  `acp_coders.py`: `@agentclientprotocol/claude-agent-acp@0.76.0` (Apache-2.0,
+  wraps the Claude Agent SDK and the owner's Claude Code login) and
+  `@agentclientprotocol/codex-acp@1.11.0` (Apache-2.0, the owner's Codex login).
+  OpenCode (`opencode acp`) and Gemini CLI (`gemini --acp`) speak ACP natively
+  and are used when installed; neither is installed on the qualification host,
+  so their commands are unverified.
+- Boundary: Marvi is the ACP client in `marvi_gateway/acp_coders.py` -- session
+  updates become the job transcript and plan, permission requests go through
+  the internal `coder_permission` confirmation, cancel is Stop. The agents run
+  with the SDK's trimmed environment, not the Gateway's.
+- Updates: bump the SDK and adapter pins together, run `tests/test_acp_coders.py`
+  (real SDK against `fixtures/fake_acp_agent.py`) and
+  `scripts/qualify-subagents.py --acp` against the installed coders.
+
 ## Sub-agent harness (Harvi, Jarvi, Talos) — 2026-09-11
 
 - No new dependency. `marvi_gateway/subagents.py` is Marvi code over the
