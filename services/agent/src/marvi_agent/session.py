@@ -927,17 +927,44 @@ def situation() -> str:
 #: bracket and a delimiter that does not otherwise appear in speech.
 _MARKUP = re.compile(r"<\s*[|｜][^>]{0,120}>")  # noqa: RUF001 - the fullwidth bar is the marker
 
+#: The start of a tool call written out as text, in the angle-bracket family.
+#:
+#: `_MARKUP` above only knows DeepSeek's `<|DSML|...>`. The other family is
+#: named tags, and it reached the speaker verbatim:
+#:
+#:     "The browser profile is stuck. Let me try to close it and reopen
+#:      <tool_call>browser_control <arg_key>command</arg_key>
+#:      <arg_value>close</arg_value> ..."
+#:
+#: -- read aloud, XML and all.
+_CALL_OPENS = re.compile(r"<\s*(?:tool_call|tool_calls|function_call|invoke)", re.I)
+
 #: How much of a chunk's tail may be held back waiting to see if it is the
-#: start of a marker. Longer than any opening this matches, short enough that
-#: holding it is inaudible.
-_CARRY = 8
+#: start of a marker. Longer than any opening this matches -- `<function_call`
+#: is fourteen characters -- short enough that holding it is inaudible.
+_CARRY = 16
 
 
 async def _without_markup(chunks: Any) -> Any:
-    """Tool-call syntax removed from a stream of spoken text."""
+    """Tool-call syntax removed from a stream of spoken text.
+
+    Once a call opener appears, **nothing after it is spoken**. Stripping only
+    the tags is not enough for this family: what is left between them is the
+    tool's name and its arguments, and "browser control command close revision
+    three" is no better out loud than the XML was. Whatever she said before the
+    opener was real speech and still gets said.
+    """
     carry = ""
     async for chunk in chunks:
         text = _MARKUP.sub("", carry + str(chunk))
+        if opened := _CALL_OPENS.search(text):
+            before = text[: opened.start()].rstrip()
+            if before:
+                yield before
+            # The rest of this turn is a call typed out, not something to say.
+            async for _ in chunks:
+                pass
+            return
         # Hold back only a tail that could still become a marker.
         cut = text.rfind("<")
         if cut >= 0 and len(text) - cut <= _CARRY:
@@ -946,7 +973,7 @@ async def _without_markup(chunks: Any) -> Any:
             carry = ""
         if text:
             yield text
-    if carry:
+    if carry and not _CALL_OPENS.search(carry):
         yield _MARKUP.sub("", carry)
 
 

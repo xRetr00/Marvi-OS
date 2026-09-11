@@ -619,5 +619,9 @@ def test_the_voice_prompt_kept_every_rule() -> None:
         "Never write a password, key, token or card number into memory",
         # The conversation ends when the person ends it.
         "call end_conversation",
+        # Asked to open Notepad, read its title and close it, a warm voice
+        # turn reached for terminal_run and computer_control rather than
+        # delegate -- the loop that used to hold the conversation silent.
+        "goes to a sub-agent with delegate",
     ):
         assert rule in said, f"lost from the voice prompt: {rule!r}"

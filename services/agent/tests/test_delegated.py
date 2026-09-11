@@ -107,6 +107,41 @@ def test_a_gateway_that_will_not_answer_never_reaches_a_turn(monkeypatch) -> Non
     assert jobs.block() == ""
 
 
+def test_a_sub_agent_waiting_for_approval_is_said_once_and_still_followed(monkeypatch) -> None:
+    """A sub-agent that needs the owner's yes is news now, not when it ends --
+    it cannot end until somebody answers. Said once per request, and the job
+    is followed on to its report."""
+    import marvi_agent.delegated as module
+
+    monkeypatch.setattr(module, "POLL_EVERY", 0.01)
+    answers = iter(
+        [
+            {"state": "running"},
+            {"state": "awaiting_approval", "token": "t1", "name": "Jarvi",
+             "detail": "Jarvi wants to run computer_action close and is waiting."},
+            {"state": "awaiting_approval", "token": "t1", "name": "Jarvi", "detail": "same"},
+            {"state": "running"},
+            {"state": "completed", "name": "Jarvi", "summary": "Notepad is closed."},
+        ]
+    )
+    jobs = Delegated()
+    jobs.attach(lambda job: next(answers, {"state": "completed", "summary": "Notepad is closed."}))
+    jobs.watch("j-7")
+
+    said: list[str] = []
+    for _ in range(300):
+        block = jobs.block()
+        if block:
+            said.append(block)
+        if any("Notepad is closed." in one for one in said):
+            break
+        time.sleep(0.01)
+
+    assert len(said) == 2
+    assert "waiting" in said[0] and "delegate_approve" in said[0]
+    assert "Notepad is closed." in said[1]
+
+
 def test_nothing_is_followed_before_there_is_a_way_to_ask() -> None:
     jobs = Delegated()
     jobs.watch("j-6")

@@ -78,6 +78,9 @@ class Delegated:
 
     def _follow(self, job: str) -> None:
         deadline = time.monotonic() + GIVE_UP_AFTER
+        #: The approval request already said, so the same one is not said
+        #: every poll while the owner decides.
+        asked = ""
         while time.monotonic() < deadline:
             time.sleep(POLL_EVERY)
             try:
@@ -86,6 +89,15 @@ class Delegated:
                 log.info("could not check job %s: %s", job, exc)
                 continue
             if not isinstance(result, dict) or result.get("state") == "running":
+                continue
+            if result.get("state") == "awaiting_approval":
+                # News now, not at the end: a sub-agent waiting on the owner
+                # cannot finish until somebody tells them it is asking.
+                token = str(result.get("token") or "")
+                if token != asked:
+                    asked = token
+                    with self._lock:
+                        self._ready.append({"job": job, **result})
                 continue
             with self._lock:
                 self._ready.append({"job": job, **result})
@@ -107,19 +119,33 @@ class Delegated:
         if not ready:
             return ""
         lines = []
+        waiting = False
         for job in ready:
-            said = str(job.get("summary") or job.get("detail") or job.get("state") or "")
-            lines.append(f"- job {job['job']}: {said[:MAX_REPORT]}")
+            if job.get("state") == "awaiting_approval":
+                waiting = True
+                said = str(job.get("detail") or "")
+            else:
+                said = str(job.get("summary") or job.get("detail") or job.get("state") or "")
+            who = f" ({job['name']})" if job.get("name") else ""
+            lines.append(f"- job {job['job']}{who}: {said[:MAX_REPORT]}")
         newline = chr(10)
         # Told what to do with it, because the failure otherwise is silence:
         # she reads a finished job, has nothing asking her about it, and says
         # nothing -- which is the same as never having been told.
-        return (
-            "# Work you handed off has finished" + newline + newline
-            + newline.join(lines) + newline + newline
-            + "Say this happened, briefly, in your next reply -- even if they "
+        told = (
+            "Say this happened, briefly, in your next reply -- even if they "
             "asked about something else, because they are waiting on it. Once "
             "is enough; it is in the conversation after that."
+        )
+        if waiting:
+            told += (
+                " A job waiting for approval is stuck until the owner answers: say in "
+                "plain words exactly what it wants to do and ask them, then pass their "
+                "yes or no to delegate_approve. Never answer for them."
+            )
+        return (
+            "# Work you handed off" + newline + newline
+            + newline.join(lines) + newline + newline + told
         )
 
 

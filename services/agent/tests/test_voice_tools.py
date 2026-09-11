@@ -563,6 +563,95 @@ def test_every_hand_written_tool_is_actually_registered() -> None:
     assert written - registered == set(), "decorated but never handed to the Agent"
 
 @pytest.mark.asyncio
+async def test_multi_step_desktop_and_browser_work_is_left_to_sub_agents() -> None:
+    """Driving the desktop from the voice turn held the conversation for half
+    a minute. Voice keeps the controls -- status, Stop, Private input, Resume,
+    a one-shot open -- and hands the stepping to Jarvi and Talos."""
+    names = [
+        "computer_status", "computer_control", "computer_tools", "computer_action",
+        "browser_status", "browser_control", "browser_open", "browser_action",
+        "browser_read_image", "browser_save_download", "delegate",
+    ]
+    tools = ToolRegistry()
+    for name in names:
+        tools.register(ToolSpec(name=name, description=name, arguments={}, sensitive=False, handler=dict))
+    app = create_app(version="0.1.0-test", tools=tools)
+    other = GatewayTools(
+        base_url="http://marvi.local",
+        client=httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://marvi.local"),
+    )
+
+    async with other._client:
+        await other.from_gateway(everything=True)
+
+    loaded = set(other._catalogue)
+    assert {"computer_status", "computer_control", "browser_status", "browser_control",
+            "browser_open", "delegate"} <= loaded
+    assert not loaded & {"computer_tools", "computer_action", "browser_action",
+                         "browser_read_image", "browser_save_download"}
+
+
+@pytest.mark.asyncio
+async def test_a_delegated_job_is_followed_to_the_next_turn(monkeypatch) -> None:
+    from marvi_agent import delegated
+
+    tools = ToolRegistry()
+    tools.register(
+        ToolSpec(
+            name="delegate",
+            description="Hand a job to a sub-agent",
+            arguments={"agent": str, "task": str},
+            sensitive=False,
+            handler=lambda agent, task: {"ok": True, "id": "abc123", "state": "running"},
+        )
+    )
+    app = create_app(version="0.1.0-test", tools=tools)
+    client = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://marvi.local")
+    voice = GatewayTools(base_url="http://marvi.local", client=client)
+    watched: list[str] = []
+    monkeypatch.setattr(delegated.jobs, "watch", watched.append)
+
+    async with client:
+        await voice._run("delegate", {"agent": "jarvi", "task": "close notepad"})
+
+    assert watched == ["abc123"]
+
+
+@pytest.mark.asyncio
+async def test_an_approved_delegation_is_followed_too(monkeypatch, tmp_path) -> None:
+    """A Harvi fix job asks first. The job id arrives from the approval, not
+    from the call -- and a job nobody follows is one whose report never comes."""
+    from marvi_agent import delegated
+
+    tools = ToolRegistry()
+    tools.register(
+        ToolSpec(
+            name="delegate",
+            description="Hand a job to a sub-agent",
+            arguments={"agent": str, "task": str},
+            optional={"mode": str},
+            sensitive=True,
+            handler=lambda agent, task, mode="": {"ok": True, "id": "fix42", "state": "running"},
+        )
+    )
+    # Its own store: Confirm mode, whatever an earlier test left persisted.
+    runtime = RuntimeStore(audit_path=tmp_path / "audit.jsonl")
+    runtime.set_yolo(False)
+    app = create_app(version="0.1.0-test", runtime=runtime, tools=tools)
+    client = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://marvi.local")
+    voice = GatewayTools(base_url="http://marvi.local", client=client)
+    watched: list[str] = []
+    monkeypatch.setattr(delegated.jobs, "watch", watched.append)
+
+    async with client:
+        asked = await voice._run("delegate", {"agent": "harvi", "task": "fix it", "mode": "fix"})
+        assert "needs confirmation" in asked and watched == []
+        await voice.approve_pending_action.__wrapped__(voice, None)
+
+    assert watched == ["fix42"]
+
+
+@pytest.mark.asyncio
 async def test_computer_tools_reach_the_voice_bridge(gateway, voice, monkeypatch):
     client, _, _ = gateway
     monkeypatch.setenv('MARVI_LOCAL_TOKEN', 'voice-computer-fixture')

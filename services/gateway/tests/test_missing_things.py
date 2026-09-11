@@ -336,3 +336,40 @@ def test_a_stamp_from_another_build_is_not_mine() -> None:
     # And it is still recognisably Marvi's, which is what lets it be replaced
     # rather than left alone as something unrelated.
     assert signature.ours(theirs)
+
+
+def test_a_wrong_action_name_is_answered_with_the_right_one() -> None:
+    """From a real session: `launch` and `screenshot`, neither of which exist.
+
+    Each refusal said only "Unknown computer action. Read computer_tools
+    first." She read computer_tools and then called `screenshot` again, because
+    nothing in a list of twenty-three names says a screenshot comes back from
+    reading a window.
+    """
+    from marvi_gateway.computer import ACTIONS, unknown_action
+
+    said = unknown_action("launch")
+    assert '"launch_app"' in said
+    shot = unknown_action("screenshot")
+    assert '"get_desktop_state"' in shot
+    assert "no separate screenshot action" in shot
+    # Near-misses are corrected too, not only the ones in the table.
+    assert '"click"' in unknown_action("clik")
+    # And every refusal carries the whole list, so no second guess is needed.
+    for name in ACTIONS:
+        assert name in said
+
+
+def test_a_stale_browser_revision_says_the_current_one() -> None:
+    """She sent `revision=0` to close and to show, twice, and never learnt 2."""
+    import pytest
+
+    from marvi_gateway.browser_workspace import BrowserWorkspace
+
+    workspace = BrowserWorkspace.__new__(BrowserWorkspace)
+    workspace.sessions = {"s1": {"id": "s1", "revision": 2, "state": "ready"}}
+    workspace._session = lambda sid: workspace.sessions[sid]
+    with pytest.raises(ValueError) as refused:
+        workspace._check("s1", 0)
+    assert "revision=2" in str(refused.value), "the number that makes the next call work"
+    assert "you sent revision 0" in str(refused.value)

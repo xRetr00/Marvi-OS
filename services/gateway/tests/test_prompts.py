@@ -154,7 +154,54 @@ def test_an_agent_prompt_declares_when_to_use_it() -> None:
     # It must not be able to talk to the room or hang up on anybody.
     assert "speak" in coding.denied_tools
     assert "end_conversation" in coding.denied_tools
-    assert prompts.agents() == [coding]
+    # The brief for outside coders declares no tools of its own: they bring
+    # theirs. It is not something the sub-agent runner can start.
+    assert not coding.runnable
+
+
+def test_the_built_in_sub_agents_are_runnable_agents() -> None:
+    """Harvi, Jarvi, Talos and the generic worker ship as prompt files."""
+    runnable = {one.key: one for one in prompts.agents() if one.runnable}
+    assert set(runnable) == {"harvi", "jarvi", "talos", "worker"}
+    # Harvi has every tool; the worker too, under a generated name.
+    assert runnable["harvi"].tools == ("*",)
+    assert runnable["worker"].tools == ("*",)
+    assert len(runnable["worker"].names) >= 4
+    assert not runnable["harvi"].names
+    assert "computer_action" in runnable["jarvi"].tools
+    assert "browser_action" in runnable["talos"].tools
+    assert runnable["harvi"].max_rounds > runnable["jarvi"].max_rounds
+    # Its harness names the coding tools it is expected to reach for.
+    for tool in ("grep", "glob", "file_read", "todo_write", "process_output"):
+        assert f"`{tool}`" in runnable["harvi"].body
+
+
+def test_agent_frontmatter_declares_tools_model_and_rounds(tmp_path) -> None:
+    folder = tmp_path / "prompts"
+    folder.mkdir()
+    (folder / "scout.md").write_text(
+        "<!--\n"
+        'name: "Agent: Scout"\n'
+        'description: "Looks around."\n'
+        'when-to-use: "When looking around."\n'
+        "tools:\n"
+        '  - "web_search"\n'
+        '  - "web_fetch"\n'
+        'model: "aux"\n'
+        "max-rounds: 40\n"
+        "-->\n"
+        "You look around.\n",
+        encoding="utf-8",
+    )
+    prompts.forget()
+    try:
+        scout = prompts.get("scout", tmp_path)
+    finally:
+        prompts.forget()
+    assert scout.tools == ("web_search", "web_fetch")
+    assert scout.model == "aux"
+    assert scout.max_rounds == 40
+    assert scout.runnable
 
 
 def test_the_coding_brief_says_what_a_delegated_agent_kept_getting_wrong() -> None:
