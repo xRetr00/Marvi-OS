@@ -8,7 +8,9 @@
  * one is armed at once. Failures back off, as the computer poll does.
  */
 
+import { useStore } from '@nanostores/react'
 import { atom, onMount } from 'nanostores'
+import { useEffect, useState } from 'react'
 
 import type { AgentJob, AgentsFeed } from '../../../../shared/agents'
 
@@ -53,4 +55,53 @@ export function liveJobs(feed: AgentsFeed | null): AgentJob[] {
   return (feed?.jobs ?? []).filter(
     (job) => job.state === 'running' || job.state === 'awaiting_approval'
   )
+}
+
+/** A job id, for a card that has only the job's receipt. */
+export function useAgentJob(id: string | undefined): AgentJob | null | undefined {
+  const feed = useStore($agents)
+  const listed = id ? jobById(feed, id) : null
+  const [fetched, setFetched] = useState<AgentJob | null | undefined>(undefined)
+  const revision = feed?.revision
+  useEffect(() => {
+    // Older than the feed's recent list: ask for it directly, once per change.
+    if (!id || listed || revision === undefined) return
+    let alive = true
+    void window.marvi
+      ?.getAgentJob?.(id)
+      .then((answer) => {
+        if (alive) setFetched(answer ?? null)
+      })
+      .catch(() => {
+        if (alive) setFetched(null)
+      })
+    return () => {
+      alive = false
+    }
+  }, [id, listed, revision])
+  if (!id) return undefined
+  if (listed) return listed
+  if (!feed) return undefined
+  return fetched
+}
+
+/**
+ * The receipt `delegate` returned, however it arrived: an object from the
+ * voice bridge, or the enveloped JSON text a chat tool row stores.
+ */
+export function receiptOf(result: unknown): { id?: string; name?: string; agent?: string; ok?: boolean; detail?: string } {
+  if (result && typeof result === 'object') return result as Record<string, string>
+  if (typeof result !== 'string') return {}
+  const start = result.indexOf('{')
+  const end = result.lastIndexOf('}')
+  if (start >= 0 && end > start) {
+    try {
+      return JSON.parse(result.slice(start, end + 1)) as Record<string, string>
+    } catch {
+      // Fall through to picking the fields out.
+    }
+  }
+  const pick = (key: string): string | undefined =>
+    new RegExp(`"${key}"\\s*:\\s*"([^"]*)"`).exec(result)?.[1]
+  return { id: pick('id'), name: pick('name'), agent: pick('agent') }
 }

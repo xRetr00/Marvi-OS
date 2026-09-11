@@ -223,54 +223,6 @@ export function AgentJobCard({
   )
 }
 
-/** A job id, for a card that has only the job's receipt. */
-export function useAgentJob(id: string | undefined): AgentJob | null | undefined {
-  const feed = useStore($agents)
-  const listed = id ? jobById(feed, id) : null
-  const [fetched, setFetched] = useState<AgentJob | null | undefined>(undefined)
-  useEffect(() => {
-    // Older than the feed's recent list: ask for it directly, once per change.
-    if (!id || listed || !feed) return
-    let alive = true
-    void window.marvi
-      ?.getAgentJob?.(id)
-      .then((answer) => {
-        if (alive) setFetched(answer ?? null)
-      })
-      .catch(() => {
-        if (alive) setFetched(null)
-      })
-    return () => {
-      alive = false
-    }
-  }, [id, listed, feed?.revision])
-  if (!id) return undefined
-  if (listed) return listed
-  if (!feed) return undefined
-  return fetched
-}
-
-/**
- * The receipt `delegate` returned, however it arrived: an object from the
- * voice bridge, or the enveloped JSON text a chat tool row stores.
- */
-export function receiptOf(result: unknown): { id?: string; name?: string; agent?: string; ok?: boolean; detail?: string } {
-  if (result && typeof result === 'object') return result as Record<string, string>
-  if (typeof result !== 'string') return {}
-  const start = result.indexOf('{')
-  const end = result.lastIndexOf('}')
-  if (start >= 0 && end > start) {
-    try {
-      return JSON.parse(result.slice(start, end + 1)) as Record<string, string>
-    } catch {
-      // Fall through to picking the fields out.
-    }
-  }
-  const pick = (key: string): string | undefined =>
-    new RegExp(`"${key}"\\s*:\\s*"([^"]*)"`).exec(result)?.[1]
-  return { id: pick('id'), name: pick('name'), agent: pick('agent') }
-}
-
 /** The card a `delegate` call draws in Chat. */
 export function DelegateCard({
   args,
