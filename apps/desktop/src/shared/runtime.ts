@@ -125,13 +125,22 @@ export interface TelegramStatus {
   /** `qr` is an SVG data URI of `link`, for the phone's camera. */
   pairing: { code: string; link: string; qr: string; expires_at: string } | null
   when_away: boolean
+  /** Answer a voice note with a voice note, in Marvi's local voice. */
+  voice_replies?: boolean
   thread_id: string
   /** Added by Electron main: whether Telegram Desktop is installed here. */
   desktop?: boolean
 }
 
 export type TelegramAction =
-  'token' | 'disconnect' | 'pair' | 'unlink' | 'when-away' | 'test' | 'identity'
+  | 'token'
+  | 'disconnect'
+  | 'pair'
+  | 'unlink'
+  | 'when-away'
+  | 'voice-replies'
+  | 'test'
+  | 'identity'
 
 /** What a Telegram action answered: the new status, or why not. */
 export type TelegramResult = { ok: true; status: TelegramStatus } | { ok: false; detail: string }

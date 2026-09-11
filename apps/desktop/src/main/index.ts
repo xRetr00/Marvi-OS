@@ -2206,6 +2206,11 @@ function startApp(): void {
             path: '/telegram/settings',
             body: { when_away: Boolean(value) }
           },
+          'voice-replies': {
+            method: 'PUT',
+            path: '/telegram/settings',
+            body: { voice_replies: Boolean(value) }
+          },
           test: { method: 'POST', path: '/telegram/test' },
           identity: { method: 'POST', path: '/telegram/identity' }
         }

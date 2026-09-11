@@ -403,6 +403,31 @@ class FakeTelegram:
         self.updates: list[dict[str, Any]] = []
         self.calls: list[tuple[str, dict[str, Any]]] = []
         self.uploads: list[tuple[str, list[str], dict[str, Any]]] = []
+        #: Downloadable files by id, served the way Telegram's file endpoint does.
+        self.files: dict[str, bytes] = {}
+
+    def owner_message(self, **fields: Any) -> None:
+        """A message from the owner carrying media rather than text."""
+        self.push(message={
+            "message_id": self.next_update, "date": int(time.time()),
+            "chat": {"id": OWNER, "type": "private", "first_name": "Sam"},
+            "from": {"id": OWNER, "is_bot": False, "first_name": "Sam"},
+            **fields,
+        })
+
+    def photo(self, file_id: str, data: bytes = b"\xff\xd8\xff\xe0jpeg") -> list[dict[str, Any]]:
+        self.files[file_id] = data
+        return [{"file_id": file_id, "file_unique_id": file_id, "width": 90, "height": 90,
+                 "file_size": len(data)}]
+
+    async def download(self, request: Request) -> Response:
+        return Response(self.files.get(request.path_params["path"], b""))
+
+    def actions(self) -> list[str]:
+        return [p.get("action", "") for m, p in self.calls if m == "sendChatAction"]
+
+    def reactions(self) -> list[str]:
+        return [p.get("reaction", "") for m, p in self.calls if m == "setMessageReaction"]
         self.next_update = 1
         self.next_message = 100
         self.lock = threading.Lock()
@@ -454,6 +479,10 @@ class FakeTelegram:
                     return self.ok(fresh)
                 await asyncio.sleep(0.05)
             return self.ok([])
+        if method == "getFile":
+            file_id = params.get("file_id", "")
+            return self.ok({"file_id": file_id, "file_unique_id": file_id,
+                            "file_size": len(self.files.get(file_id, b"")), "file_path": file_id})
         uploads = [value.filename for value in form.values() if not isinstance(value, str)]
         if uploads:
             with self.lock:
@@ -480,7 +509,10 @@ class FakeTelegram:
 @pytest.fixture
 def fake_telegram():
     fake = FakeTelegram()
-    app = Starlette(routes=[Route("/bot{token}/{method}", fake.handle, methods=["GET", "POST"])])
+    app = Starlette(routes=[
+        Route("/bot{token}/{method}", fake.handle, methods=["GET", "POST"]),
+        Route("/file/bot{token}/{path:path}", fake.download),
+    ])
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         port = probe.getsockname()[1]

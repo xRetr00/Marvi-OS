@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { BellRing, Fingerprint, Link2, Send, Unplug, Wrench } from 'lucide-react'
+import { BellRing, Fingerprint, Link2, Mic, Send, Unplug, Wrench } from 'lucide-react'
 import TelegramLogo from '@thesvg/react/telegram'
 
 import {
@@ -261,6 +261,23 @@ export function ChannelsPanel({
               description="When Marvi has something to say out loud and nobody is in the room, she texts it instead of holding it for later. Quiet hours still mean quiet."
               icon={BellRing}
               title="Text me when I'm away"
+            />
+            <ControlRow
+              action={
+                <button
+                  aria-checked={status.voice_replies !== false}
+                  className={status.voice_replies !== false ? 'mode-switch active' : 'mode-switch'}
+                  disabled={busy === 'voice-replies'}
+                  onClick={() => void run('voice-replies', status.voice_replies === false)}
+                  role="switch"
+                  type="button"
+                >
+                  {status.voice_replies !== false ? 'ON' : 'OFF'}
+                </button>
+              }
+              description="Send a voice note and she answers with one too, in her own voice made on this computer — after the text, so the words never wait."
+              icon={Mic}
+              title="Answer voice with voice"
             />
             <ControlRow
               action={
