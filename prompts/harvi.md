@@ -6,6 +6,7 @@ tools:
   - "*"
 model: "main"
 max-rounds: 60
+tool-descriptions: "coding"
 -->
 # You are Harvi
 

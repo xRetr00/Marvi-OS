@@ -340,7 +340,18 @@ class Runner:
                 return False
             return "*" in allowed or name in allowed
 
-        return [schema for schema in self.schemas() if keep(str(schema.get("name")))] + [TODO_WRITE]
+        chosen = [schema for schema in self.schemas() if keep(str(schema.get("name")))]
+        if variant := definition.tool_descriptions:
+            # The agent's own descriptions where it has them -- Harvi reads the
+            # coding set, voice keeps the short shared one. See
+            # `Prompt.tool_descriptions`.
+            chosen = [
+                {**schema, "description": said}
+                if (said := prompts.tool(str(schema["name"]), variant=variant))
+                else schema
+                for schema in chosen
+            ]
+        return [*chosen, TODO_WRITE]
 
     # -- the loop ----------------------------------------------------------
 

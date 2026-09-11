@@ -102,6 +102,17 @@ class Prompt:
     model: str = ""
     #: Tool rounds before the tool-free final round. 0 means the runner's default.
     max_rounds: int = 0
+    #: A set of richer tool descriptions this agent reads instead of the shared
+    #: ones -- `coding` means `prompts/tools/coding/`. Empty means the shared set.
+    #:
+    #: Needed because descriptions are prompt text and the shared ones are
+    #: sized for voice. Claude Code's coding tools carry about thirty
+    #: kilobytes of rules -- the shell alone is thirty-seven fragments on git
+    #: safety, quoting, background runs and the commit protocol -- and sending
+    #: that to the voice agent on every turn is the payload problem deferral
+    #: exists to solve. A coding agent needs every word of it; a voice turn
+    #: needs none. So the agent names its set, and only it pays.
+    tool_descriptions: str = ""
 
     @property
     def is_agent(self) -> bool:
@@ -197,6 +208,7 @@ def _parse(key: str, text: str) -> Prompt:
         names=tuple(lists["names"]),
         model=meta.get("model", ""),
         max_rounds=int(meta.get("max-rounds") or 0),
+        tool_descriptions=meta.get("tool-descriptions", ""),
     )
 
 
@@ -223,13 +235,21 @@ def _load(folder: str) -> dict[str, Prompt]:
 TOOLS = "tools"
 
 
-def tool(name: str, root: Path | None = None) -> str:
-    """One tool's description. Empty when it has no file yet."""
-    try:
-        text = (_folder(root) / TOOLS / f"{name}.md").read_text(encoding="utf-8")
-    except OSError:
-        return ""
-    return _parse(name, text).body
+def tool(name: str, root: Path | None = None, variant: str = "") -> str:
+    """One tool's description. Empty when it has no file yet.
+
+    `variant` reads `prompts/tools/<variant>/<name>.md` first and falls back to
+    the shared file, so an agent's set only has to hold the tools it describes
+    differently.
+    """
+    folder = _folder(root) / TOOLS
+    candidates = [folder / variant / f"{name}.md"] if variant else []
+    for path in [*candidates, folder / f"{name}.md"]:
+        try:
+            return _parse(name, path.read_text(encoding="utf-8")).body
+        except OSError:
+            continue
+    return ""
 
 
 def tools(root: Path | None = None) -> dict[str, str]:
