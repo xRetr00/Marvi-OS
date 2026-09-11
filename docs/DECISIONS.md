@@ -539,5 +539,8 @@ workspace-write` did.
 LiveKit and the Gateway policy), Cua Agent SDK's loop (bypasses per-action
 confirmation and would void Phase 15 qualification), verbatim Claude Code
 prompts (proprietary text; Harvi's harness is adapted, see `UPSTREAM.md`).
-Outside coders stay behind `delegate_to_coder`; moving them to ACP is Phase
-16D. Durable jobs and a board are Phase 17.
+Outside coders stay behind `delegate_to_coder`, which now runs them over the
+Agent Client Protocol as ordinary sub-agent jobs (Phase 16D): their
+permission requests use the same confirmation path through the internal
+`coder_permission` tool, and the one-shot CLI remains only as a fallback for a
+coder with no ACP server. Durable jobs and a board are Phase 17.

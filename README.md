@@ -41,7 +41,7 @@ Move naturally between spoken conversation and a rich typed workspace. Chat supp
 
 ### Hand it off and keep talking
 
-Ask for something that takes many steps and Marvi gives it to one of her sub-agents — **Harvi** for code, **Jarvi** for desktop apps, **Talos** for the browser (still under qualification) — and stays in the conversation with you. When the work is done she tells you what happened; if a sub-agent needs your go-ahead to send, delete or overwrite something, she asks, and so does the Island. Letting Harvi change code needs your yes once per job. Claude Code and Codex are still there when you ask for them by name.
+Ask for something that takes many steps and Marvi gives it to one of her sub-agents — **Harvi** for code, **Jarvi** for desktop apps, **Talos** for the browser (still under qualification) — and stays in the conversation with you. When the work is done she tells you what happened; if a sub-agent needs your go-ahead to send, delete or overwrite something, she asks, and so does the Island. Letting Harvi change code needs your yes once per job. Ask for Claude Code or Codex by name and Marvi hands the job to them over the Agent Client Protocol: their steps show live, Stop cancels them, and anything beyond reading and editing comes back to you to approve.
 
 ### Reach her from your phone
 

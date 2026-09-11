@@ -1,5 +1,22 @@
 # Implementation Log
 
+## 2026-09-11 — Outside coders over ACP (16D)
+
+- `acp_coders.py`: Claude Code, Codex, OpenCode and Gemini CLI as sub-agent
+  jobs over the Agent Client Protocol (`agent-client-protocol==0.12.1`;
+  adapters `@agentclientprotocol/claude-agent-acp@0.76.0` and
+  `@agentclientprotocol/codex-acp@1.11.0` via `npx`). Streamed transcript and
+  plan, read-only mode for investigate, real cancel, and permission requests
+  through the internal `coder_permission` confirmation (`ToolSpec.internal`
+  hides it from every listing). `delegate_to_coder` routes here; `delegate.py`
+  is the CLI fallback. Outside coders join the desktop roster when installed.
+- Fixed: Windows command resolution picked npm's extensionless `npx` script
+  (WinError 193); resolution now prefers `.exe`/`.cmd`/`.bat`.
+- Tests: 14 ACP tests against the real SDK and a fake ACP agent subprocess.
+  Real host: Codex fix job over ACP completed in 36.5 s, independent pytest
+  `1 passed`; Claude Code reached a session and failed on the host's revoked
+  OAuth login (`401`), now reported as needing to sign in again.
+
 ## 2026-09-11 — Sub-agent UI
 
 - Gateway: per-job live transcript (bounded, no tool results) and todo list;
@@ -11,7 +28,7 @@
   contract's one colour exception, animated only while working.
 - Tests: 38 sub-agent Gateway tests, 16 new renderer tests, desktop suite and
   typecheck. Visually checked in a mocked-feed probe (since removed); not yet
-  in the running shell. ACP (16D) still not started.
+  in the running shell.
 
 ## 2026-09-11 — Sub-agents: Harvi, Jarvi and Talos
 
