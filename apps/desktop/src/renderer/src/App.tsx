@@ -1372,7 +1372,8 @@ function RoomPanel({
     ['GESTURE', gesture],
     ['VISITORS', `${Number(vision.pending_visitors ?? 0)} PENDING`]
   ]
-  const faceModel = String(vision.face_model ?? 'buffalo_l')
+  // The sidecar reports what it loaded; this is only for one too old to say.
+  const faceModel = String(vision.face_model ?? 'ArcFace R50 · SCRFD-10G')
   const faceProvider = String(vision.face_provider ?? 'CPUExecutionProvider')
   const faceModelLoaded = vision.face_model_loaded === true
 
