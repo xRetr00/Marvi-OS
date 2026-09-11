@@ -826,3 +826,166 @@
   font-size: 11.5px;
   font-style: italic;
 }
+
+/* -- the work log ---------------------------------------------------------- */
+
+/* "Marvi worked for 12s" and everything under it.
+   Everything she did on the way to an answer, in order, on one rail: thoughts
+   dim, commentary at reading weight, tool calls as sentences you can open to
+   see what was asked and what came back. The rail is what makes it read as a
+   sequence rather than a pile. */
+.chat-work {
+  display: flex;
+  flex-direction: column;
+  margin: 2px 0 6px;
+}
+
+.chat-work-head {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  padding: 3px 6px 3px 2px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.chat-work-head:hover {
+  background: color-mix(in srgb, var(--ui-bg-raised) 70%, transparent);
+}
+
+.chat-work-dot,
+.chat-work-tool-dot {
+  display: inline-block;
+  flex: none;
+  width: 5px;
+  height: 5px;
+  margin: 0 2px;
+  border-radius: 50%;
+  background: var(--ui-text-tertiary);
+}
+
+.chat-work-time,
+.chat-work-count {
+  color: var(--ui-text-tertiary);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.chat-work-steps {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 4px 0 2px 5px;
+  padding: 2px 0 2px 16px;
+  list-style: none;
+  border-left: 1px solid var(--ui-stroke-tertiary);
+}
+
+.chat-work-step {
+  min-width: 0;
+}
+
+/* Thoughts: the quietest thing on the rail. */
+.chat-work-thought {
+  color: var(--ui-text-tertiary);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.chat-work-step.is-thought.is-live .chat-work-thought {
+  color: var(--ui-text-secondary);
+}
+
+/* Commentary is something she said, so it reads at near-body weight. */
+.chat-work-commentary {
+  color: var(--ui-text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.chat-work-thought .chat-markdown > :last-child,
+.chat-work-commentary .chat-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.chat-work-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  padding: 2px 6px 2px 0;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.chat-work-tool:disabled {
+  cursor: default;
+}
+
+.chat-work-tool:not(:disabled):hover .chat-scaffold-label {
+  color: var(--ui-text-primary);
+}
+
+.chat-work-step.is-failed .chat-work-tool-dot {
+  background: var(--ui-danger);
+}
+
+.chat-work-failed {
+  padding: 0 5px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--ui-danger) 14%, transparent);
+  color: var(--ui-danger);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* What the call was asked and what it returned. Monospace and capped, because
+   a fetched page or a log file is long and this is for checking, not reading. */
+.chat-work-detail {
+  display: grid;
+  gap: 3px;
+  margin: 5px 0 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--ui-stroke-tertiary);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ui-bg-raised) 50%, transparent);
+}
+
+.chat-work-detail-label {
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.chat-work-detail pre {
+  max-height: 220px;
+  margin: 0 0 4px;
+  overflow: auto;
+  color: var(--ui-text-secondary);
+  font-family: 'JetBrains Mono', 'Cascadia Mono', Consolas, monospace;
+  font-size: 10.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Finished steps sit back so the live one and the answer stand forward. A
+   completed call inherited the button's full-strength colour and read louder
+   than the step still running beside it. */
+.chat-work .chat-scaffold-label:not(.is-live) {
+  color: var(--ui-text-secondary);
+}

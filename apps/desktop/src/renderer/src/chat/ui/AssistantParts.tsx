@@ -41,7 +41,10 @@ export function AssistantParts({ message }: { message: MessageState }): React.JS
   const { Image, File } = MESSAGE_PART_COMPONENTS
 
   return (
-    <MessagePrimitive.GroupedParts groupBy={groupWork}>
+    // `empty`: the trailing indicator only when nothing has arrived yet. Once a
+    // work log exists its header already says what is happening, and a second
+    // "Marvi is working" under it said the same thing twice.
+    <MessagePrimitive.GroupedParts groupBy={groupWork} indicator="empty">
       {({ part, children }) => {
         switch (part.type) {
           case 'group-work': {

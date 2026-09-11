@@ -409,3 +409,99 @@ describe('a turn that is still running says so', () => {
     expect(converted.content[0]).toMatchObject({ result: 'nothing found' })
   })
 })
+
+describe('the work trace', () => {
+  const traced = message({
+    role: 'assistant',
+    meta: { reasoning: 'legacy blob', worked_ms: 12_000 },
+    parts: [
+      { type: 'reasoning', text: 'The user wants the room.' },
+      { type: 'commentary', text: 'Let me check.' },
+      {
+        type: 'tool',
+        id: 'c1',
+        name: 'room_state',
+        arguments: { detail: true },
+        content: 'off',
+        status: 'complete'
+      },
+      { type: 'text', text: 'The light is off.' }
+    ]
+  })
+
+  it('keeps thoughts, commentary and calls in the order they happened', () => {
+    expect(convertMessage(traced).content.map((part) => part.type)).toEqual([
+      'reasoning',
+      'data-commentary',
+      'tool-call',
+      'text'
+    ])
+  })
+
+  it('does not repeat the legacy reasoning blob when the parts have thoughts', () => {
+    const thoughts = convertMessage(traced).content.filter((part) => part.type === 'reasoning')
+    expect(thoughts).toHaveLength(1)
+    expect(thoughts[0]).toMatchObject({ text: 'The user wants the room.' })
+  })
+
+  it('still shows the blob for a reply stored before the trace existed', () => {
+    const old = message({
+      role: 'assistant',
+      meta: { reasoning: 'old thinking' },
+      parts: [{ type: 'text', text: 'hi' }]
+    })
+    expect(convertMessage(old).content[0]).toMatchObject({
+      type: 'reasoning',
+      text: 'old thinking'
+    })
+  })
+
+  it('gives the call its real id and arguments', () => {
+    const call = convertMessage(traced).content[2]
+    expect(call).toMatchObject({
+      toolCallId: 'c1',
+      toolName: 'room_state',
+      args: { detail: true },
+      result: 'off'
+    })
+  })
+
+  it('carries how long the work took', () => {
+    expect(convertMessage(traced).metadata?.custom.workedMs).toBe(12_000)
+  })
+
+  it('marks only the thought still being written as running', () => {
+    const live = message({
+      role: 'assistant',
+      meta: { streaming: true },
+      parts: [
+        { type: 'reasoning', text: 'first' },
+        { type: 'tool', id: 'c1', name: 'x', status: 'complete', content: 'ok' },
+        { type: 'reasoning', text: 'second' }
+      ]
+    })
+    const thoughts = convertMessage(live).content.filter((part) => part.type === 'reasoning')
+    expect(thoughts[0]).not.toHaveProperty('status')
+    expect(thoughts[1]).toMatchObject({ status: { type: 'running' } })
+  })
+
+  it('never lets commentary onto a user message', () => {
+    const user = message({
+      role: 'user',
+      parts: [
+        { type: 'text', text: 'hi' },
+        { type: 'commentary', text: 'x' }
+      ]
+    })
+    expect(convertMessage(user).content.map((part) => part.type)).toEqual(['text'])
+  })
+
+  it('is accepted by the SDK', () => {
+    expect(() =>
+      fromThreadMessageLike(convertMessage(traced) as ThreadMessageLike, 'f', {
+        type: 'complete',
+        reason: 'stop'
+      })
+    ).not.toThrow()
+  })
+})

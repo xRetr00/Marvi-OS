@@ -61,7 +61,9 @@ describe('foldEvent', () => {
     const running = run([{ tool_call: { id: 'c1', name: 'file_read', arguments: { path: 'a' } } }])
     expect(running[0]).toMatchObject({ type: 'tool', status: 'running', arguments: { path: 'a' } })
 
-    const done = foldEvent(running, { tool_result: { id: 'c1', content: 'hello', status: 'complete' } })
+    const done = foldEvent(running, {
+      tool_result: { id: 'c1', content: 'hello', status: 'complete' }
+    })
     expect(done[0]).toMatchObject({ status: 'complete', content: 'hello' })
   })
 
