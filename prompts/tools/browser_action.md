@@ -1,12 +1,10 @@
 <!--
 name: "Tool: browser_action"
-description: "Act in a ready browser session."
+description: "One quick step in a browser session, done yourself."
 -->
-Act in a ready browser session. Use its current revision and an exact tab_id. Actions:
-read, navigate, new_tab, click, fill, select, press, scroll, back, forward, reload,
-close_tab, dialog, screenshot, upload. arguments contains tab_id and observed role/name
-or selector; url/text/value/key/pixels/path as needed. Never enter passwords or OTPs:
-use browser_control private and ask the user to sign in. Decide if approval is needed
-and set request_confirmation=true. Use a unique action_id; reuse it only for transport
-retries. Read browser_status to verify completion, never claim an accepted receipt is
-success.
+One quick step in an open browser session -- read the page, follow a link. For anything
+longer -- a search across several pages, a form, a sign-in, comparing things, buying
+something -- hand it to Talos with delegate instead. You hold the conversation; Talos
+works the browser in the background, and a multi-page job run here uses up your whole
+turn. Needs the session's current revision and a tab_id from browser_status. Never type
+a password or code.

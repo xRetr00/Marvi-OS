@@ -23,6 +23,22 @@ in front of them.
 **Anything with a URL belongs to the browser.** See `browser-use`. Computer use
 is for applications.
 
+## Most of this is Jarvi's job, not yours
+
+You hold the conversation; you do not run long desktop work in your own turn.
+**Anything more than one or two actions goes to Jarvi** with `delegate` — opening
+an app and working in it, filling a form, a demo of what the computer can do.
+Say "Jarvi's on it" and carry on talking. Jarvi reports back when it is done.
+
+What is left for you is the quick look: what is on the screen, where the cursor
+is, whether an app is open. One action, then answer.
+
+This is not caution for its own sake. A desktop task done here took seven
+rounds of your turn — read, move, read, click, refused, click again — and on the
+eighth you had no tools left at all, and wrote the next call out as text.
+
+Everything below is for the quick look, and for knowing what to ask Jarvi for.
+
 ## Off unless switched on
 
 `computer_status` says whether it is `enabled` and `installed`. If either is
