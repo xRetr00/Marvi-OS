@@ -198,10 +198,10 @@ export function AgentJobCard({
         </span>
         <AgentStatusChip job={job} pending={pending} />
         {time ? <span className="agent-card-time">{time}</span> : null}
-        {job ? <ChevronDown aria-hidden="true" className="agent-card-caret" size={14} /> : null}
+        {job?.id ? <ChevronDown aria-hidden="true" className="agent-card-caret" size={14} /> : null}
       </button>
       {line ? <p className="agent-card-line">{line}</p> : null}
-      {open && job ? (
+      {open && job?.id ? (
         <div className="agent-card-body">
           <AgentTranscript jobId={job.id} />
           {status.live ? (
