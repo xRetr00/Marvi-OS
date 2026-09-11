@@ -627,28 +627,42 @@ def test_the_voice_prompt_kept_every_rule() -> None:
         assert rule in said, f"lost from the voice prompt: {rule!r}"
 
 
-def _stream(monkeypatch, pieces):
-    """Drive MarviVoiceAgent.llm_node with a model that says `pieces`."""
+def _stream(pieces):
+    """Drive the voice LLM stream with a model that says `pieces`.
+
+    Tested on `RecoveringStream`, not `llm_node`: overriding `llm_node` is
+    forbidden by `test_every_turn_reaches_the_model_once_the_session_is_open`,
+    because a gate there once discarded questions silently. Recovery does not
+    need that method, so it lives one layer down.
+    """
     import asyncio
 
-    from livekit.agents import Agent, llm
+    from livekit.agents import llm
 
-    from marvi_agent.session import MarviVoiceAgent
+    from marvi_agent.timing import RecoveringStream
 
-    async def fake(_agent, _ctx, _tools, _settings):
-        for piece in pieces:
-            yield llm.ChatChunk(id="c1", delta=llm.ChoiceDelta(role="assistant", content=piece))
+    class Inner:
+        def __init__(self) -> None:
+            self._left = [
+                llm.ChatChunk(id="c1", delta=llm.ChoiceDelta(role="assistant", content=p))
+                for p in pieces
+            ]
 
-    monkeypatch.setattr(Agent.default, "llm_node", fake)
-    agent = MarviVoiceAgent(tools=None)
+        async def __anext__(self):
+            if not self._left:
+                raise StopAsyncIteration
+            return self._left.pop(0)
+
+        async def aclose(self) -> None:
+            return None
 
     async def collect():
-        return [chunk async for chunk in agent.llm_node(None, [], None)]
+        return [chunk async for chunk in RecoveringStream(Inner())]
 
     return asyncio.run(collect())
 
 
-def test_a_tool_call_spoken_as_text_becomes_a_real_call(monkeypatch) -> None:
+def test_a_tool_call_spoken_as_text_becomes_a_real_call() -> None:
     """`tts_node` stopped her reading the XML aloud; the tool still never ran.
 
     The turn ended on whatever came before the markup, and the thing she was
@@ -658,12 +672,11 @@ def test_a_tool_call_spoken_as_text_becomes_a_real_call(monkeypatch) -> None:
     import json
 
     out = _stream(
-        monkeypatch,
         [
             "<tool_",
             "call>computer_action <arg_key>action</arg_key> ",
             "<arg_value>move_cursor</arg_value></tool_call>",
-        ],
+        ]
     )
     calls = [c for chunk in out for c in (chunk.delta.tool_calls or [])]
     spoken = "".join(chunk.delta.content or "" for chunk in out)
@@ -673,11 +686,20 @@ def test_a_tool_call_spoken_as_text_becomes_a_real_call(monkeypatch) -> None:
     assert "<tool_call" not in spoken, "the markup must not reach the speaker"
 
 
-def test_ordinary_speech_still_streams_piece_by_piece(monkeypatch) -> None:
+def test_ordinary_speech_still_streams_piece_by_piece() -> None:
     """Holding costs nothing for a normal answer: it releases on the first word."""
-    out = _stream(monkeypatch, ["The light ", "is on ", "now."])
+    out = _stream(["The light ", "is on ", "now."])
     assert [chunk.delta.content for chunk in out] == ["The light ", "is on ", "now."]
     assert not any(chunk.delta.tool_calls for chunk in out)
+
+
+def test_the_voice_llm_is_wrapped_so_recovery_always_runs() -> None:
+    """Recovery that nothing wires in is recovery that never happens."""
+    import inspect
+
+    from marvi_agent import timing
+
+    assert "RecoveringStream(" in inspect.getsource(timing.TimedLLM.chat)
 
 
 def test_the_voice_and_chat_parsers_are_the_same_file() -> None:

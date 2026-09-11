@@ -39,7 +39,6 @@ from . import (
     oncall,
     prompts,
     sidecars,
-    tool_call_prose,
 )
 from .parakeet_stt import PARAKEET_ROOT, build_stt, chosen_engine
 from .runtime import AgentConfig, build_llm, build_local_turn_detector
@@ -1026,63 +1025,6 @@ class MarviVoiceAgent(Agent):
                 ARCHITECTURE=architecture(),
             ),
             tools=(tools or GatewayTools()).as_list(),
-        )
-
-    async def llm_node(self, chat_ctx, tools, model_settings):  # type: ignore[override]
-        """The model's stream, with a typed-out tool call turned back into a call.
-
-        `tts_node` already stops her *speaking* a call written as text. That
-        was half the fix: the tool still never ran, so the turn ended on
-        whatever she had said before the markup and the thing she was about to
-        do simply did not happen. Chat recovers these; voice now does too.
-
-        Held while the reply could still be a call, released the moment it is
-        plainly prose -- so an ordinary spoken answer streams exactly as it
-        did, and only a reply that opens with a bracket waits. At the end, a
-        recoverable call becomes a real `FunctionToolCall`, which LiveKit then
-        runs like any other. See `tool_call_prose`.
-        """
-        held: list[str] = []
-        withholding = True
-        chunk_id = ""
-        async for chunk in Agent.default.llm_node(self, chat_ctx, tools, model_settings):
-            delta = getattr(chunk, "delta", None)
-            text = getattr(delta, "content", None) if delta is not None else None
-            if not withholding or not text:
-                # Real tool calls, usage, and prose already released pass untouched.
-                yield chunk
-                continue
-            chunk_id = getattr(chunk, "id", "") or chunk_id
-            held.append(text)
-            if not tool_call_prose.might_be_starting("".join(held)):
-                withholding = False
-                yield llm.ChatChunk(
-                    id=chunk_id, delta=llm.ChoiceDelta(role="assistant", content="".join(held))
-                )
-                held.clear()
-        if not held:
-            return
-        said = "".join(held)
-        meant = tool_call_prose.recover(said)
-        if meant is None:
-            # Not a call after all, or not one that can be read. Released as
-            # text; `tts_node` drops anything from a call opener onward, so the
-            # worst case is silence, never XML read aloud.
-            yield llm.ChatChunk(id=chunk_id, delta=llm.ChoiceDelta(role="assistant", content=said))
-            return
-        log.warning("recovered a tool call the model spoke as text: %s", meant["name"])
-        yield llm.ChatChunk(
-            id=chunk_id,
-            delta=llm.ChoiceDelta(
-                role="assistant",
-                tool_calls=[
-                    llm.FunctionToolCall(
-                        name=str(meant["name"]),
-                        arguments=json.dumps(meant["arguments"]),
-                        call_id=f"recovered-{time.time_ns()}",
-                    )
-                ],
-            ),
         )
 
     def tts_node(self, text, model_settings):  # type: ignore[override]
