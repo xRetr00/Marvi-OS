@@ -1,9 +1,10 @@
 <!--
 name: "Tool: computer_action"
-description: "Operate Windows applications through Cua Driver."
+description: "One quick action on the desktop, done yourself."
 -->
-Operate Windows applications through Cua Driver. Read computer_tools schemas first;
-discover apps/windows, inspect a fresh window state, then act on exact targets. Prefer
-background input; verify results. Supply question to interpret a returned screenshot
-with Vision. Never enter secrets; use computer_control private for user input. Set
-request_confirmation when user approval is needed.
+One quick action on the user's desktop -- what is on the screen, where the cursor is, a
+single click. For anything that takes more than one or two steps -- opening an app and
+working inside it, filling a form, a demo -- hand it to Jarvi with delegate instead. You
+hold the conversation; Jarvi does the long desktop work in the background, and a
+sequence run here uses up your whole turn. Read computer_tools for the exact action
+names first. Never type a password; use computer_control private.
