@@ -1,12 +1,21 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useStore } from '@nanostores/react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
-import type { ChatAttachment, ChatContext, ChatPart, ChatThread } from '../../../shared/runtime'
+import type {
+  ChatAttachment,
+  ChatContext,
+  ChatEntry,
+  ChatPart,
+  ChatThread
+} from '../../../shared/runtime'
+import { $agents } from '../components/agents/agents-store'
 import { recordChatTurn } from '../store/session-metrics'
+import { isBackground, nextJobToReport, reportedJobs } from './job-reports'
 import { answerText, foldEvent } from './trace'
 import { toChatMessages, type ChatMessage, type PendingConfirmation } from './types'
 
 type Override = { provider?: string; model?: string; effort?: string }
-type TurnContext = { editMessageId?: number; regenerateMessageId?: number }
+type TurnContext = { editMessageId?: number; regenerateMessageId?: number; resumeJob?: string }
 
 export interface UseChat {
   messages: ChatMessage[]
@@ -53,33 +62,47 @@ export function useChat(): UseChat {
   const [draft, setDraft] = useState('')
   const [override, setOverrideState] = useState<Override>({})
   const [pending, setPending] = useState<PendingConfirmation | null>(null)
+  const [reported, setReported] = useState<Set<string>>(() => new Set())
+  /** Report turns already asked for this session, so one job is asked once. */
+  const resuming = useRef(new Set<string>())
+  const feed = useStore($agents)
 
-  const load = useCallback(async (threadId: string): Promise<void> => {
-    const page = await window.marvi?.getChat(threadId)
-    if (!page) return
-    setMessages(toChatMessages(page.messages))
-    setThreads(page.threads)
-    setActiveThreadId(page.active_thread)
-    const active = page.threads.find((thread) => thread.id === page.active_thread)
-    setOverrideState(
-      active
-        ? {
-            provider: active.selected_provider || undefined,
-            model: active.selected_model || undefined,
-            effort: active.selected_effort || undefined
-          }
-        : {}
-    )
-    setAvailable(page.available)
-    setContext(page.context)
-    setAttachments([])
+  /** A page's messages, less the report notes the Gateway keeps for the model. */
+  const show = useCallback((entries: ChatEntry[]): void => {
+    const all = toChatMessages(entries)
+    setReported(reportedJobs(all))
+    setMessages(all.filter((message) => !isBackground(message)))
   }, [])
+
+  const load = useCallback(
+    async (threadId: string): Promise<void> => {
+      const page = await window.marvi?.getChat(threadId)
+      if (!page) return
+      show(page.messages)
+      setThreads(page.threads)
+      setActiveThreadId(page.active_thread)
+      const active = page.threads.find((thread) => thread.id === page.active_thread)
+      setOverrideState(
+        active
+          ? {
+              provider: active.selected_provider || undefined,
+              model: active.selected_model || undefined,
+              effort: active.selected_effort || undefined
+            }
+          : {}
+      )
+      setAvailable(page.available)
+      setContext(page.context)
+      setAttachments([])
+    },
+    [show]
+  )
 
   useEffect(() => {
     let disposed = false
     void window.marvi?.getChat().then((page) => {
       if (disposed || !page) return
-      setMessages(toChatMessages(page.messages))
+      show(page.messages)
       setThreads(page.threads)
       setActiveThreadId(page.active_thread)
       const active = page.threads.find((thread) => thread.id === page.active_thread)
@@ -98,7 +121,7 @@ export function useChat(): UseChat {
     return () => {
       disposed = true
     }
-  }, [])
+  }, [show])
 
   const setOverride = useCallback(
     (next: Override): void => {
@@ -114,7 +137,8 @@ export function useChat(): UseChat {
   const runTurn = useCallback(
     async (text: string, context: TurnContext = {}): Promise<void> => {
       const clean = text.trim()
-      if (!clean || busy) return
+      // A report turn has no text of the owner's: the Gateway supplies it.
+      if ((!clean && !context.resumeJob) || busy) return
       setBusy(true)
       setPending(null)
       setNotice('')
@@ -165,6 +189,8 @@ export function useChat(): UseChat {
           const cut = index >= 0 ? index : current.length
           return [...current.slice(0, cut), optimisticReply]
         }
+        // Marvi speaking up about finished work: no bubble from the owner.
+        if (context.resumeJob) return [...current, optimisticReply]
         return [...current, optimisticUser, optimisticReply]
       })
 
@@ -215,7 +241,9 @@ export function useChat(): UseChat {
         })
         if (firstTokenAt) recordChatTurn(firstTokenAt - startedAt)
         await load(activeThreadId)
-        if (streamError) {
+        // A report that lost a race (the job is gone or already told) is
+        // nothing to show; an error bubble would be noise the owner never asked for.
+        if (streamError && !context.resumeJob) {
           setMessages((current) => [
             ...current,
             {
@@ -240,6 +268,17 @@ export function useChat(): UseChat {
     },
     [activeThreadId, attachments, busy, load, override]
   )
+
+  // A sub-agent this conversation handed work to has finished: Marvi says what
+  // came of it, as her own turn, once nothing else is running. The feed says
+  // when a job ends; the Gateway's stored note says it was already reported.
+  useEffect(() => {
+    if (busy) return
+    const next = nextJobToReport(messages, reported, feed, resuming.current)
+    if (!next) return
+    resuming.current.add(next)
+    void runTurn('', { resumeJob: next })
+  }, [busy, feed, messages, reported, runTurn])
 
   const send = useCallback(async () => {
     const text = draft

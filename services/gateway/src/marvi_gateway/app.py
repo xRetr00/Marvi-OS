@@ -515,6 +515,9 @@ class ChatMessage(BaseModel):
     attachment_ids: list[str] = Field(default_factory=list)
     edit_message_id: int | None = None
     regenerate_message_id: int | None = None
+    #: A sub-agent job this conversation handed off, now finished: the turn is
+    #: Marvi reporting it, and `message` is empty.
+    resume_job: str | None = None
 
 
 class ChatThreadCreate(BaseModel):
@@ -2154,6 +2157,9 @@ def create_app(
         granted=dispatch_granted,
     )
     app.state.subagents = subagent_runner
+    if chat is not None:
+        # So a finished job can be reported back into the conversation that asked.
+        chat.job_status = subagent_runner.status
 
     # The desktop's view of the sub-agents: the status-bar roster, the chat
     # and voice cards, and a job's live transcript. Guarded like `/computer`,
@@ -2516,6 +2522,7 @@ def create_app(
                         attachment_ids=body.attachment_ids,
                         edit_message_id=body.edit_message_id,
                         regenerate_message_id=body.regenerate_message_id,
+                        resume_job=body.resume_job,
                     ):
                         loop.call_soon_threadsafe(queue.put_nowait, event)
                 except Exception as exc:  # pragma: no cover - defensive

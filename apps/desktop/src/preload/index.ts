@@ -294,6 +294,7 @@ const marvi = {
       attachmentIds?: string[]
       editMessageId?: number
       regenerateMessageId?: number
+      resumeJob?: string
     }
   ): Promise<boolean> =>
     ipcRenderer.invoke('marvi:stream-chat', message, override ?? {}, context ?? {}),

@@ -58,6 +58,19 @@ export function avatarSeed(agent: string, name: string, namedPerJob: boolean): s
   return namedPerJob ? `${agent}:${name}` : agent
 }
 
+/**
+ * A report as one readable line: agents write Markdown, and a two-line card
+ * showed `**What I did:** 1. **Moved the cursor**` verbatim.
+ */
+export function plain(text: string): string {
+  return text
+    .replace(/\*\*|__|`/g, '')
+    .replace(/^\s{0,3}#{1,6}\s+/gm, '')
+    .replace(/^\s*[-*]\s+/gm, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 /** `1m 04s`, `12s`. Seconds only while it is short. */
 export function elapsed(seconds: number): string {
   const whole = Math.max(0, Math.round(seconds))

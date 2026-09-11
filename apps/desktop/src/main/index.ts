@@ -2857,6 +2857,10 @@ function startApp(): void {
             attachment_ids: Array.isArray(context?.attachmentIds) ? context.attachmentIds : [],
             edit_message_id:
               typeof context?.editMessageId === 'number' ? context.editMessageId : undefined,
+            resume_job:
+              typeof context?.resumeJob === 'string' && /^[0-9a-f]{1,32}$/.test(context.resumeJob)
+                ? context.resumeJob
+                : undefined,
             regenerate_message_id:
               typeof context?.regenerateMessageId === 'number'
                 ? context.regenerateMessageId

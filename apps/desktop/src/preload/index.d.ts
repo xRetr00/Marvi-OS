@@ -203,6 +203,7 @@ export interface MarviDesktopApi {
       attachmentIds?: string[]
       editMessageId?: number
       regenerateMessageId?: number
+      resumeJob?: string
     }
   ) => Promise<boolean>
   cancelChat: () => Promise<boolean>

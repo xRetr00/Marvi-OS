@@ -899,6 +899,41 @@ class Chat:
         #: Loaded plugins, for their context lines. The room's line carries what
         #: the engine already knows about the room — including its own vision.
         self.plugins = plugins or []
+        #: A sub-agent job's status by id, for reporting it back. Set by the
+        #: Gateway to the sub-agent runner's `status`.
+        self.job_status: Callable[[str], dict[str, Any]] | None = None
+
+    def _job_report(self, job_id: str, thread_id: str) -> str | dict[str, Any]:
+        """The note that hands a finished job's report to Marvi, or why not.
+
+        Returns the note, or a finished-turn event to send instead: the job is
+        unknown, still working, or this conversation has already heard it.
+        """
+        def done(error: str = "", **extra: Any) -> dict[str, Any]:
+            return {"done": True, "reply": "", "error": error, "tokens": 0, "provider": "", **extra}
+
+        job = self.job_status(job_id) if self.job_status else {"ok": False}
+        if not job.get("ok"):
+            return done(f"no job {job_id!r} to report")
+        if job.get("state") in ("running", "awaiting_approval"):
+            return done(f"{job.get('name', 'the agent')} is still working")
+        for row in self.store.history(thread_id=thread_id):
+            meta = row["meta"] if isinstance(row["meta"], dict) else {}
+            if meta.get("background") == "job_report" and meta.get("job") == job_id:
+                return done(already=True)
+        outcome = {
+            "completed": "finished",
+            "failed": f"failed ({job.get('exit_reason') or 'error'})",
+            "interrupted": "was stopped",
+        }.get(str(job.get("state")), str(job.get("state")))
+        return (
+            "[Background note -- not from the owner] Work you handed off has " + outcome + ".\n"
+            f"{job.get('name')} ({job.get('agent')}), job {job_id}.\n"
+            f"Its report:\n{str(job.get('summary') or '')[:3000]}\n\n"
+            "Tell the owner what came of it in a sentence or two, as your next reply -- "
+            "the answer, not a list of steps. If it failed or was stopped, say so plainly "
+            "and what you would do next. Do not hand it off again unless they ask."
+        )
 
     def available(self) -> bool:
         return bool(self.client.candidates())
@@ -1355,8 +1390,13 @@ class Chat:
         edit_message_id: int | None = None,
         regenerate_message_id: int | None = None,
         surface: str = "chat",
+        resume_job: str | None = None,
     ) -> Iterator[dict[str, Any]]:
         """One chat turn, yielded as it happens.
+
+        `resume_job` is a turn nobody typed: a sub-agent this conversation
+        handed work to has finished, and Marvi says what came of it. See
+        `_job_report`.
 
         Events, in the order they can occur:
 
@@ -1382,6 +1422,12 @@ class Chat:
         """
         stop = cancelled or (lambda: False)
         text = (message or "").strip()
+        if resume_job:
+            report = self._job_report(resume_job, thread_id)
+            if isinstance(report, dict):
+                yield report
+                return
+            text = report
         if not text:
             yield {"done": True, "error": "empty message", "tokens": 0, "provider": ""}
             return
@@ -1398,7 +1444,8 @@ class Chat:
         provider = provider or str(thread["selected_provider"] or "") or None
         model = model or str(thread["selected_model"] or "") or None
         effort = effort or str(thread["selected_effort"] or "") or None
-        attachments = self.store.pending_attachments(thread_id, attachment_ids or [])
+        # A report carries no attachments; anything staged is for the owner's next turn.
+        attachments = [] if resume_job else self.store.pending_attachments(thread_id, attachment_ids or [])
         try:
             self._validate_attachments(attachments, provider, model)
         except ValueError as exc:
@@ -1434,10 +1481,19 @@ class Chat:
                 for row in attachments
             ]
             self.store.append(
-                "user", text, thread_id=thread_id, parts=parts, attachment_ids=attachment_ids
+                "user",
+                text,
+                thread_id=thread_id,
+                parts=parts,
+                attachment_ids=attachment_ids,
+                # A report is stored as a turn so the history the model replays
+                # still alternates, and marked so the window does not show it as
+                # something the owner said -- and so it is reported only once.
+                **({"background": "job_report", "job": resume_job} if resume_job else {}),
             )
         turns = sum(1 for row in self.store.history(thread_id=thread_id) if row["role"] == "user")
-        gap = self._curiosity_turn(text, turns)
+        # No curiosity question on a turn the owner did not start.
+        gap = None if resume_job else self._curiosity_turn(text, turns)
         recalled = self._recall(text)
         schemas = list(self.tool_schemas() if self.tool_schemas else [])
         # Widgets are React components; a phone has nowhere to draw one.
@@ -1666,11 +1722,12 @@ class Chat:
                     output_tokens=usage["output"],
                     cached_tokens=usage["cached_input"],
                 )
-                if self.rememberer is not None and reply:
+                if self.rememberer is not None and reply and not resume_job:
                     # Handed over, not decided here. This used to file the
                     # user's message as a subject and the whole reply as a
                     # body, every turn -- a transcript stored as facts, which
                     # is how "Hi Sharif." became a memory about the world.
+                    # Never for a report: those are not the owner's words.
                     self.rememberer.observe(text, reply)
                 yield {
                     "done": True,

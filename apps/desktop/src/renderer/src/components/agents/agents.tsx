@@ -14,7 +14,7 @@ import { useEffect, useState } from 'react'
 
 import type { AgentJob, AgentJobDetail, AgentProfile } from '../../../../shared/agents'
 import { AgentAvatar } from './agent-avatar'
-import { agentStatus, avatarSeed, elapsed } from './agent-state'
+import { agentStatus, avatarSeed, elapsed, plain } from './agent-state'
 import { $agents, liveJobs, receiptOf, useAgentJob } from './agents-store'
 import './agents.css'
 
@@ -209,7 +209,7 @@ export function AgentJobCard({
         {time ? <span className="agent-card-time">{time}</span> : null}
         {job?.id ? <ChevronDown aria-hidden="true" className="agent-card-caret" size={14} /> : null}
       </button>
-      {line ? <p className="agent-card-line">{line}</p> : null}
+      {line ? <p className="agent-card-line">{plain(line)}</p> : null}
       {open && job?.id ? (
         <div className="agent-card-body">
           <AgentTranscript jobId={job.id} />
