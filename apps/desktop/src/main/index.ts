@@ -514,6 +514,21 @@ async function gatewayJson(path: string, init?: RequestInit, timeoutMs = 10_000)
   try {
     const response = await fetch(`${gateway()}${path}`, {
       ...init,
+      // The local token on every request, not only the ones that remembered.
+      //
+      // `/computer` and `/asking` sit behind `localauth.guard` and were
+      // polled through here with no headers at all, so every poll came back
+      // 403 -- 493 of them for `/computer` in one morning. The computer
+      // island therefore never learnt Marvi was using the computer and never
+      // appeared, and the question card never learnt a question was waiting.
+      // Nothing failed loudly: `response.ok` was false and this returned
+      // null, which reads to the caller exactly like "nothing to show".
+      //
+      // Sent unconditionally because the token is per-launch, only ever goes
+      // to the loopback Gateway this process started, and costs nothing on
+      // an unguarded route -- whereas the next guarded route added and polled
+      // from here would otherwise fail the same silent way.
+      headers: { ...localHeaders(), ...(init?.headers as Record<string, string> | undefined) },
       signal: AbortSignal.timeout(timeoutMs)
     })
     return response.ok ? await response.json() : null

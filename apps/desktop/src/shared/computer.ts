@@ -7,5 +7,7 @@ export interface ComputerStatus {
   driver: string
   version: string
   revision?: number
+  /** The sub-agent driving it (Jarvi), or empty when it is Marvi herself. */
+  actor?: string
 }
 export type ComputerCommand = 'stop' | 'private' | 'resume'

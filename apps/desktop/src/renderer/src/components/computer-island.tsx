@@ -16,6 +16,7 @@ export function ComputerIsland({ status }: { status: ComputerStatus }): React.JS
     }
   }
   const paused = status.state === 'paused' || status.state === 'private'
+  const who = status.actor || 'Marvi'
   return (
     <div className="dynamic-island island-confirmation" role="status" aria-live="polite">
       <div className="confirmation-copy">
@@ -26,10 +27,10 @@ export function ComputerIsland({ status }: { status: ComputerStatus }): React.JS
             : status.state === 'unknown'
               ? 'Computer action outcome unknown'
               : status.state === 'stopping'
-                ? 'Marvi is stopping computer use'
+                ? `${who} is stopping computer use`
                 : paused
                   ? 'Computer use paused'
-                  : 'Marvi is using the computer'}
+                  : `${who} is using the computer`}
         </strong>
       </div>
       <div className="confirmation-actions">

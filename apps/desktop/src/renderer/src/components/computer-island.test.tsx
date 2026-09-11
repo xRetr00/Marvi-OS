@@ -25,6 +25,16 @@ describe('computer-use Island', () => {
     expect(html).toContain('PRIVATE INPUT')
     expect(html).toContain('STOP')
   })
+  it('names the sub-agent that is using the computer', () => {
+    const html = renderToStaticMarkup(<ComputerIsland status={{ ...status, actor: 'Jarvi' }} />)
+    expect(html).toContain('Jarvi is using the computer')
+    expect(html).toContain('STOP')
+    expect(
+      renderToStaticMarkup(
+        <ComputerIsland status={{ ...status, state: 'stopping', actor: 'Jarvi' }} />
+      )
+    ).toContain('Jarvi is stopping computer use')
+  })
   it('distinguishes stopping from acknowledged private input', () => {
     expect(
       renderToStaticMarkup(<ComputerIsland status={{ ...status, state: 'stopping' }} />)
