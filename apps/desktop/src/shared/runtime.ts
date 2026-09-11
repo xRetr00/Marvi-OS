@@ -890,9 +890,30 @@ export type ChatPart =
   | { type: 'attachment'; attachment_id: string; name: string; media_type: string; size: number }
   | { type: 'image'; attachment_id?: string; url?: string; alt?: string }
   | { type: 'file'; attachment_id?: string; name: string; media_type?: string; size?: number }
-  | { type: 'tool'; name: string; status?: string; content?: string }
+  | ChatToolPart
+  /** A round's thinking, in the order it happened relative to the tools. */
+  | { type: 'reasoning'; text: string }
+  /** Text written between tool calls -- "let me check the logs" -- which is
+   * part of the work, not part of the answer. */
+  | { type: 'commentary'; text: string }
   | ChatAskPart
   | ChatWidgetPart
+
+/**
+ * One tool call in a reply's trace: what was asked and what came back.
+ *
+ * `status` is `running` from the moment the Gateway announces the call until
+ * its result arrives, which is what lets the window say "Marvi is reading a
+ * file" while it happens rather than only after.
+ */
+export interface ChatToolPart {
+  type: 'tool'
+  name: string
+  id?: string
+  arguments?: Record<string, unknown>
+  status?: 'running' | 'complete' | 'failed' | string
+  content?: string
+}
 
 /**
  * A question the turn is blocked on, drawn in the transcript.
