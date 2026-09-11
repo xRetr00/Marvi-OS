@@ -20,8 +20,16 @@ export interface AgentStatus {
   live: boolean
 }
 
-export function agentStatus(job: Pick<AgentJob, 'state' | 'exit_reason'> | null): AgentStatus {
-  if (!job) return { label: 'Lost when Marvi restarted', tone: 'lost', live: false }
+/**
+ * `undefined` is a job not known yet -- being handed over, or the feed has not
+ * answered -- and `null` is a job the feed answered about and does not have.
+ */
+export function agentStatus(
+  job: Pick<AgentJob, 'state' | 'exit_reason'> | null | undefined,
+  pending = 'Starting'
+): AgentStatus {
+  if (job === undefined) return { label: pending, tone: 'working', live: true }
+  if (job === null) return { label: 'Lost when Marvi restarted', tone: 'lost', live: false }
   switch (job.state) {
     case 'running':
       return { label: 'Working', tone: 'working', live: true }

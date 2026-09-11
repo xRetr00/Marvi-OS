@@ -36,7 +36,7 @@ function seedFor(job: Pick<AgentJob, 'agent' | 'name'>, roster?: AgentProfile[])
 }
 
 /** Seconds that keep counting while a job is live, between feed updates. */
-function useElapsed(job: AgentJob | null): string {
+function useElapsed(job: AgentJob | null | undefined): string {
   const [now, setNow] = useState(() => Date.now())
   const live = Boolean(job && agentStatus(job).live)
   useEffect(() => {
@@ -49,8 +49,14 @@ function useElapsed(job: AgentJob | null): string {
   return elapsed(job.finished_at || live ? (end - job.started_at * 1000) / 1000 : job.seconds)
 }
 
-export function AgentStatusChip({ job }: { job: AgentJob | null }): React.JSX.Element {
-  const status = agentStatus(job)
+export function AgentStatusChip({
+  job,
+  pending
+}: {
+  job: AgentJob | null | undefined
+  pending?: string
+}): React.JSX.Element {
+  const status = agentStatus(job, pending)
   return (
     <span className={`agent-chip is-${status.tone}`} data-tone={status.tone}>
       {status.live ? <span aria-hidden="true" className="agent-chip-pulse" /> : null}
@@ -132,27 +138,32 @@ export function TranscriptView({
 /**
  * A job, as a card: face, name, what it is doing, and its state.
  *
- * `job` null means the feed has answered and does not know it -- the Gateway
- * restarted since -- which is said rather than spun on.
+ * `job` undefined is not known yet (`pending` names why); null means the feed
+ * has answered and does not know it -- the Gateway restarted since -- which is
+ * said rather than spun on.
  */
 export function AgentJobCard({
   job,
   roster,
   fallbackName,
   fallbackAgent,
+  fallbackLine,
+  pending,
   defaultOpen = false
 }: {
-  job: AgentJob | null
+  job: AgentJob | null | undefined
   roster?: AgentProfile[]
   fallbackName?: string
   fallbackAgent?: string
+  fallbackLine?: string
+  pending?: string
   defaultOpen?: boolean
 }): React.JSX.Element {
   const [open, setOpen] = useState(defaultOpen)
   const [stopping, setStopping] = useState(false)
-  const status = agentStatus(job)
-  const agent = job?.agent ?? fallbackAgent ?? 'worker'
-  const name = job?.name ?? fallbackName ?? agent
+  const status = agentStatus(job, pending)
+  const agent = job?.agent || fallbackAgent || 'worker'
+  const name = job?.name || fallbackName || agent.charAt(0).toUpperCase() + agent.slice(1)
   const time = useElapsed(job)
   const line =
     job?.state === 'awaiting_approval'
@@ -160,8 +171,8 @@ export function AgentJobCard({
         ? `Wants to run ${job.action}`
         : 'Waiting for your answer'
       : status.live
-        ? job?.progress || job?.task
-        : job?.summary || job?.task
+        ? job?.progress || job?.task || fallbackLine
+        : job?.summary || job?.task || fallbackLine
   return (
     <section
       aria-label={`${name}, ${status.label}`}
@@ -185,7 +196,7 @@ export function AgentJobCard({
           <strong>{name}</strong>
           <small>{ROLE[agent] ?? profileFor(agent, roster)?.name ?? agent}</small>
         </span>
-        <AgentStatusChip job={job} />
+        <AgentStatusChip job={job} pending={pending} />
         {time ? <span className="agent-card-time">{time}</span> : null}
         {job ? <ChevronDown aria-hidden="true" className="agent-card-caret" size={14} /> : null}
       </button>
@@ -274,27 +285,14 @@ export function DelegateCard({
   const receipt = receiptOf(result)
   const job = useAgentJob(receipt.id)
   const agent = String(receipt.agent ?? args.agent ?? 'worker')
-  if (running || (!receipt.id && receipt.ok !== false)) {
+  if (running) {
     return (
       <AgentJobCard
         fallbackAgent={agent}
-        fallbackName={agent === 'worker' ? 'A worker' : agent.charAt(0).toUpperCase() + agent.slice(1)}
-        job={{
-          id: '',
-          agent,
-          name: '',
-          mode: String(args.mode ?? ''),
-          task: String(args.task ?? ''),
-          state: 'running',
-          exit_reason: '',
-          summary: '',
-          progress: 'Handing it over',
-          seconds: 0,
-          started_at: Date.now() / 1000,
-          finished_at: null,
-          tokens: 0,
-          detail: ''
-        }}
+        fallbackLine={String(args.task ?? '')}
+        fallbackName={agent === 'worker' ? 'A worker' : undefined}
+        job={undefined}
+        pending="Handing over"
         roster={feed?.agents}
       />
     )
