@@ -26,6 +26,18 @@
   re-derive, never paste.
 - Qualification: `scripts/qualify-subagents.py` against the real Gateway,
   provider and Cua worker; see `docs/phases/16-sub-agents.md`.
+- Agent avatar: `apps/desktop/src/renderer/src/components/agents/agent-avatar.tsx`
+  and `avatar-pattern.ts` are the owner-supplied `AgentAvatar` component
+  (seeded mulberry32 6x6 pixel grid on canvas), adapted only for this renderer:
+  `"use client"` and `cn` removed, the pattern split out for tests, animation
+  gated by the caller. Original source and licence not identified; recorded as
+  supplied by the owner, 2026-09-11. Replace this line with the source URL and
+  licence if they are found.
+- UI pattern references (no code): Codex and Claude Code subagent cards stuck on
+  "running" after completion (openai/codex#23930, anthropics/claude-code#59962)
+  are why every state is the Gateway's and a vanished job reads "Lost"; one
+  expandable card per dispatch in the parent conversation follows current agent
+  UX guidance.
 
 ## python-telegram-bot and PyAV (Telegram channel) — 2026-09-10
 

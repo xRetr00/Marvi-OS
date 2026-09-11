@@ -68,6 +68,27 @@ existing habits, not part of this phase.
 Outstanding: microphone and speaker audio in the same loop, with the Island
 visible; Talos against the embedded browser on the real host.
 
+## Sub-agent UI — 2026-09-11
+
+- **Gateway feed.** Each job keeps its last 60 transcript events (its own
+  words, each step as `tool key=value` with long values reduced to their
+  length, ok/failed, approvals, the ending — never a tool's result) and its
+  todo list. `GET /agents?after=<revision>` (roster + recent 20 jobs) waits on
+  a revision like `/computer`; `GET /agents/jobs/{id}` adds the transcript;
+  `POST /agents/jobs/{id}/stop` is `delegate_stop`. All three behind
+  `localauth.guard`.
+- **Desktop.** One nanostores atom long-polls the feed while anything is
+  subscribed. Status bar agents item and popover; Chat's `delegate` card
+  (outside the folded work log); the Voice activity card's strip. Avatars per
+  the owner's design — the UI contract's single colour exception.
+- **Evidence.** 38 sub-agent Gateway tests (5 new: transcript content and
+  bounds, revision wait, unknown job, endpoint auth); 16 renderer tests (state
+  table, card states, transcript, roster, receipt parsing, work-log exclusion);
+  desktop suite and typecheck green. Visual check in a throwaway Vite probe
+  against a mocked feed: roster with expanded description, working/recent
+  lists, and handing-over, approval, stalled, lost and expanded-transcript
+  cards; no console errors. Not yet seen inside the running Electron shell.
+
 ## Refinements made while building
 
 - **Stop does not pause the computer.** A stopped job sends nothing further —

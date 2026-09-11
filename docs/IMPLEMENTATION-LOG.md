@@ -1,5 +1,18 @@
 # Implementation Log
 
+## 2026-09-11 — Sub-agent UI
+
+- Gateway: per-job live transcript (bounded, no tool results) and todo list;
+  `/agents` revision long-poll, `/agents/jobs/{id}`, `/agents/jobs/{id}/stop`,
+  all local-token guarded.
+- Desktop: status bar agents item with roster popover (descriptions on press,
+  working now, recently, transcript and Stop); Chat `delegate` card outside the
+  work log; Voice activity strip; owner-supplied seeded pixel avatars as the UI
+  contract's one colour exception, animated only while working.
+- Tests: 38 sub-agent Gateway tests, 16 new renderer tests, desktop suite and
+  typecheck. Visually checked in a mocked-feed probe (since removed); not yet
+  in the running shell. ACP (16D) still not started.
+
 ## 2026-09-11 — Sub-agents: Harvi, Jarvi and Talos
 
 - Added `marvi_gateway/subagents.py`: background sub-agent jobs over the

@@ -1,5 +1,21 @@
 # UI Contract
 
+Sub-agents: the status bar carries an agents item (count while any work) whose
+popover lists Harvi, Jarvi, Talos and the worker — pressing one shows what it
+is for — then who is working now and who finished recently. A job opens to its
+live transcript (its words, each step with ok/failed, its list, its ending; no
+raw tool output) with Stop. Chat draws a `delegate` call as the same job card
+outside the folded work log; the Voice activity card shows the working and
+just-finished jobs. States come only from the Gateway feed: Working, Needs
+your approval, Finished, Finished at step limit, Failed, Stalled, Stopped, and
+Lost when a restarted Gateway no longer knows the job.
+
+**The one colour exception:** agent avatars (`components/agents/agent-avatar.tsx`)
+are seeded full-colour pixel faces, chosen by the owner. Colour stays inside the
+avatar's circle; chips, cards and panels remain monochrome with the blue accent
+for working and the danger tone for failure. Avatars animate only while their
+agent is working, and never under reduced motion.
+
 Computer use: Dynamic Island reads `Marvi is using the computer` during active
 operations — `Jarvi is using the computer` when the Jarvi sub-agent is driving
 (the Gateway's `actor` field) — and exposes Stop/Private input. Stop shows stopping until issued

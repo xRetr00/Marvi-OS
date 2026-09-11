@@ -80,6 +80,10 @@ from .workspace import default_root
 log = get_logger("subagents")
 
 #: Tools Marvi keeps for herself. A sub-agent reports; she acts on the report.
+#: The description sets written for someone who does the work rather than
+#: hands it on. See `_offered`.
+OPERATING = ("coding", "desktop", "browser")
+
 BLOCKED = frozenset(
     {
         "delegate", "delegate_stop", "delegate_steer", "delegate_approve",
@@ -378,17 +382,28 @@ class Runner:
             return "*" in allowed or name in allowed
 
         chosen = [schema for schema in self.schemas() if keep(str(schema.get("name")))]
-        if variant := definition.tool_descriptions:
-            # The agent's own descriptions where it has them -- Harvi reads the
-            # coding set, voice keeps the short shared one. See
-            # `Prompt.tool_descriptions`.
-            chosen = [
-                {**schema, "description": said}
-                if (said := prompts.tool(str(schema["name"]), variant=variant))
-                else schema
-                for schema in chosen
-            ]
-        return [*chosen, TODO_WRITE]
+        # The operating descriptions, never Marvi's.
+        #
+        # The shared set is Marvi's view, and for the desktop and the browser
+        # it now says "hand it to Jarvi / Talos with delegate" -- which is
+        # right for her and a dead end for every sub-agent, because `delegate`
+        # is in BLOCKED. Harvi has every tool, so it was offered
+        # `computer_action` and told to delegate something it cannot delegate.
+        #
+        # So a sub-agent reads its own set first, then whichever specialist
+        # set describes the tool, and the shared one only when nobody has
+        # written anything better.
+        order = [definition.tool_descriptions] if definition.tool_descriptions else []
+        order += [variant for variant in OPERATING if variant not in order]
+        described = []
+        for schema in chosen:
+            name = str(schema["name"])
+            said = next(
+                (text for variant in order if (text := prompts.tool(name, variant=variant))),
+                "",
+            )
+            described.append({**schema, "description": said} if said else schema)
+        return [*described, TODO_WRITE]
 
     # -- the loop ----------------------------------------------------------
 
