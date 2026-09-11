@@ -370,6 +370,9 @@ class GatewayTools:
         #: while the first is still live, and the Gateway's own 120s expiry is
         #: what releases the slot if nobody ever answers.
         self._pending_at = 0.0
+        #: Which tool that token is for, so an approved delegation is followed
+        #: like an unconfirmed one.
+        self._pending_tool = ""
         #: Every tool the Gateway has, by name, whether or not it is loaded.
         #: Kept so a search can add one without another round trip.
         self._catalogue: dict[str, dict[str, Any]] = {}
@@ -504,6 +507,7 @@ class GatewayTools:
                 )
             self._pending = (str(body["token"]), arguments)
             self._pending_at = time.monotonic()
+            self._pending_tool = tool
             return (
                 "That action needs confirmation. Ask the user to approve, then call "
                 "approve_pending_action or deny_pending_action."
@@ -517,16 +521,7 @@ class GatewayTools:
             )
 
         result = body.get("result")
-        # A handed-off job is followed from here, so its answer can reach the
-        # next turn on its own. `await_delegated` covers the case where the
-        # model chooses to wait; this covers the case where it does not, which
-        # is most of them -- the job finishes, nobody asks, and the owner finds
-        # out by asking about work that completed four minutes ago.
-        if tool == "delegate_to_coder" and isinstance(result, dict) and result.get("id"):
-            from .delegated import jobs
-
-            jobs.attach(self._job_status)
-            jobs.watch(str(result["id"]))
+        self._follow(tool, result)
         if tool == SEARCH_TOOL and isinstance(result, dict):
             # The half of the search that matters. Telling the model a tool
             # exists and leaving it uncallable is worse than not having the
@@ -661,15 +656,15 @@ class GatewayTools:
         duplicate_scope="name_and_args",
     )
     async def await_delegated(self, context: RunContext, job: str) -> str:
-        """Wait for a delegated coding job and report what came back.
+        """Wait for delegated work and report what came back.
 
         Call this straight after delegating. It does not block the
         conversation: the first progress update hands control back to the model
         immediately, and the result arrives on its own whenever the job
-        finishes.
+        finishes -- or when a sub-agent stops to ask for the owner's approval.
 
         Args:
-            job: The job id that delegate_to_coder returned.
+            job: The job id that delegate or delegate_to_coder returned.
         """
         # This is the whole mechanism. `update` releases control to the LLM
         # with this sentence as the tool's synthetic return, so Marvi says it
@@ -703,6 +698,21 @@ class GatewayTools:
             "It has not been stopped; check it again later with delegated_status."
         )
 
+    def _follow(self, tool: str, result: Any) -> None:
+        """Follow a handed-off job, so its answer reaches the next turn on its own.
+
+        `await_delegated` covers the case where the model chooses to wait; this
+        covers the case where it does not, which is most of them -- the job
+        finishes, nobody asks, and the owner finds out by asking about work that
+        completed four minutes ago. Called for a delegation that ran at once and
+        for one that ran on approval: a fix job only has an id after the yes.
+        """
+        if tool in ("delegate", "delegate_to_coder") and isinstance(result, dict) and result.get("id"):
+            from .delegated import jobs
+
+            jobs.attach(self._job_status)
+            jobs.watch(str(result["id"]))
+
     async def _resolve(self, decision: str) -> tuple[int, dict[str, Any]]:
         if self._pending is None:
             raise ToolError("There is no action waiting for approval.")
@@ -718,6 +728,7 @@ class GatewayTools:
     @function_tool
     async def approve_pending_action(self, context: RunContext) -> str:
         """Approve the action currently waiting for confirmation. Only after the user says yes."""
+        tool = self._pending_tool
         status, body = await self._resolve("approve")
         if status == 404:
             raise ToolError("That confirmation already expired or was already answered.")
@@ -727,6 +738,7 @@ class GatewayTools:
             raise ToolError(f"The approval failed with status {status}.")
         if body.get("status") == "failed":
             raise ToolError(str(body.get("error", "the action failed")))
+        self._follow(tool, body.get("result"))
         return describe(body.get("result"))
 
     @function_tool
@@ -791,6 +803,23 @@ class GatewayTools:
             # removed without a replacement does not read as a missing
             # capability to the model -- it reads as one it must be able to do
             # somehow, and inventing the result is how that resolves.
+        }
+    )
+
+    #: Multi-step desktop and browser work, which voice hands to Jarvi and Talos.
+    #:
+    #: Each of these is one step of a look, act and check loop -- a second or
+    #: more apiece on the Phase 15 fixture -- and the loop ran inside the spoken
+    #: turn, so ten steps held the conversation silent for half a minute. Voice
+    #: keeps what is one step or a control: status, Stop / Private input /
+    #: Resume, and opening a page.
+    LEFT_TO_SUB_AGENTS = frozenset(
+        {
+            "computer_tools",
+            "computer_action",
+            "browser_action",
+            "browser_read_image",
+            "browser_save_download",
         }
     )
 
@@ -931,7 +960,8 @@ class GatewayTools:
         self._catalogue = {
             str(entry.get("name") or ""): entry
             for entry in catalogue
-            if str(entry.get("name") or "") and str(entry.get("name")) not in self.SPOKEN_BADLY
+            if str(entry.get("name") or "")
+            and str(entry.get("name")) not in self.SPOKEN_BADLY | self.LEFT_TO_SUB_AGENTS
         }
         # A Gateway that names no core set is one that does not know about
         # deferring, and the answer there is every tool rather than none.
