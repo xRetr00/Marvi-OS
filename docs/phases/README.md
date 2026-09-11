@@ -22,6 +22,9 @@ gates still apply.
 | 12 | [`12-pet-companion.md`](12-pet-companion.md) | in progress |
 | 13 | [`13-cron-jobs.md`](13-cron-jobs.md) | complete |
 | 14 | [Visible persistent agent browser](14-browser-computer-use.md) | implementation under qualification |
+| 15 | [`15-computer-use.md`](15-computer-use.md) | in progress |
+| 16 | [`16-sub-agents.md`](16-sub-agents.md) | in progress |
+| 17 | [`17-kanban.md`](17-kanban.md) | planned |
 
 Status vocabulary: `planned`, `scaffolded`, `in progress`, `blocked`, and
 `complete`. Only mark a phase complete when every acceptance gate has named

@@ -1,5 +1,15 @@
 # Architecture
 
+Multi-step work runs in Gateway-owned sub-agents (ADR-028,
+[Phase 16](phases/16-sub-agents.md)). `delegate` starts a background job and
+answers at once; Harvi (code), Jarvi (desktop), Talos (browser) and a generic
+worker are prompt files run by `subagents.py` over the same `ProviderClient`
+and audited dispatch as Chat, with fresh context, a blocked tool set and a
+summary-only report. A confirmation parks the job until any surface settles
+its token. The voice worker no longer loads the multi-step computer and
+browser tools; its delegated-work watcher pushes reports and approval requests
+into the next turn. Jobs are in memory until [Phase 17](phases/17-kanban.md).
+
 Computer use now uses the unchanged Cua Driver 0.24.0 private-worker SDK.
 Gateway owns its lazy connection, tool admission, Confirm/YOLO and audit under
 Electron's supervised process tree. Browser and computer private input share
@@ -66,7 +76,7 @@ flowchart TB
     Composio["Composio SDK"]
     Room["D:\\smart-room-plugin"]
     Memory["Memory service"]
-    Deep["Marvi Agent delegate"]
+    Deep["Sub-agents: Harvi, Jarvi, Talos, worker<br/>+ outside coders"]
 
     UI <--> Main
     Main -->|phase/count, gaze, hover, bounds| Pet
@@ -84,6 +94,7 @@ flowchart TB
     Tools --> Room
     Tools --> Memory
     Tools --> Deep
+    Deep -->|same audited dispatch| Tools
     Room -->|events and logs| Gateway
     Sensors -->|local activation/context| Gateway
 ```

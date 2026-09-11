@@ -39,6 +39,10 @@ Start hands-free with your own wake phrase. Marvi listens and responds in real t
 
 Move naturally between spoken conversation and a rich typed workspace. Chat supports long-running threads, branching, files, images, dictation, sources, structured results, and read-aloud—without turning Marvi into a traditional chat app.
 
+### Hand it off and keep talking
+
+Ask for something that takes many steps and Marvi gives it to one of her sub-agents — **Harvi** for code, **Jarvi** for desktop apps, **Talos** for the browser (still under qualification) — and stays in the conversation with you. When the work is done she tells you what happened; if a sub-agent needs your go-ahead to send, delete or overwrite something, she asks, and so does the Island. Letting Harvi change code needs your yes once per job. Claude Code and Codex are still there when you ask for them by name.
+
 ### Reach her from your phone
 
 Link a Telegram bot and message Marvi from anywhere. It is the same Marvi, with the same memory, tools and approvals: sensitive actions arrive as Approve and Deny buttons, voice notes are transcribed on your own computer, and each conversation also appears in Chat. The bot answers only the account you link and needs no public address. When she has something to say and nobody is in the room, she can text you instead, and scheduled jobs can deliver their results to Telegram.
@@ -122,7 +126,8 @@ see the [Hermes Desktop v0.21.0 review](docs/HERMES-DESKTOP-BROWSER-REVIEW.md).
 For computer use, run `marvi setup`, install **Computer use (Cua Driver)**,
 enable **Computer use and app control** under capabilities, and restart Marvi.
 App discovery, launch, inspection, window management and input use the local
-driver. Dynamic Island shows **Marvi is using the computer** and provides Stop,
+driver. In conversation Marvi hands multi-step desktop work to Jarvi and keeps
+talking; Dynamic Island shows **Jarvi is using the computer** and provides Stop,
 Private input and Resume. Browser tasks retain the embedded Playwright browser.
 Targeted computer actions display Cua's separate agent pointer with a **Marvi**
 badge. It fades when idle and is removed on Stop or Private input. Foreground

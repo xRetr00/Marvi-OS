@@ -1,0 +1,48 @@
+{
+ "turns": [
+  {
+   "heard": "Can you open Notepad, tell me the title of its window, and then close it?",
+   "said": "One sec.",
+   "tools": [],
+   "arguments": [],
+   "seconds": 8.44
+  },
+  {
+   "heard": "While that's going, what's seven times eight?",
+   "said": "One sec. 56. Jarvi is opening Notepad and will report the window title shortly.",
+   "tools": [
+    "delegate",
+    "terminal_run"
+   ],
+   "arguments": [
+    "{\"agent\": \"jarvi\", \"task\": \"Open Notepad on this Windows machine. Read the window title. Then close Notepad. Report back the title you found.\"}",
+    "{\"command\": \"python -c \\\"print(7*8)\\\"\", \"shell\": \"powershell\"}"
+   ],
+   "seconds": 7.25
+  },
+  {
+   "heard": "Okay, thanks.",
+   "said": "The title was *F4 - Notepad, and Jarvi closed it.",
+   "tools": [],
+   "arguments": [],
+   "seconds": 1.8
+  }
+ ],
+ "voice_has_computer_action": false,
+ "voice_has_delegate": true,
+ "jarvi_running_after_first_turn": false,
+ "jarvi_still_running_during_second_turn": true,
+ "jarvi": {
+  "state": "completed",
+  "exit_reason": "completed",
+  "seconds": 25.7,
+  "summary": "The Notepad window title was **\"*F4 - Notepad\"**. I opened Notepad, read the title from the window state, and then closed it by clicking the Close button. Notepad is no longer running."
+ },
+ "checks": {
+  "voice_lacks_computer_action": true,
+  "first_turn_delegated_to_jarvi": false,
+  "answered_while_jarvi_worked": true,
+  "jarvi_completed": true,
+  "report_said_unprompted": true
+ }
+}

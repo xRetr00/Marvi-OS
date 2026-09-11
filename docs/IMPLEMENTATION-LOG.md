@@ -1,5 +1,43 @@
 # Implementation Log
 
+## 2026-09-11 — Sub-agents: Harvi, Jarvi and Talos
+
+- Added `marvi_gateway/subagents.py`: background sub-agent jobs over the
+  existing provider client and audited dispatch, with the Hermes-style contract
+  (fresh context, blocked tools, summary-only report, final tool-free round,
+  three-identical-failures breaker, 450 s stall, stop, steer, 3 jobs / one
+  Jarvi / one Talos). Confirmation parks a job as `awaiting_approval`; the
+  Island, Telegram and `delegate_approve` all settle it through the existing
+  token path. An approved Harvi fix job runs its workspace edits and commands
+  without asking again, like `codex --sandbox workspace-write`.
+- Agents are prompt files: `prompts/harvi.md`, `jarvi.md`, `talos.md`,
+  `worker.md` (`tools`, `names`, `model`, `max-rounds` frontmatter).
+- New tools: `delegate`, `delegate_stop`, `delegate_steer`,
+  `delegate_approve`; `delegated_status` now covers both sub-agents and
+  outside coders. Coding tools: `glob`, `grep`, `process_output`, ranged
+  `file_read`, background `terminal_run`; read-before-edit for Harvi.
+- Voice no longer loads `computer_tools`, `computer_action`, `browser_action`,
+  `browser_read_image` or `browser_save_download`; it keeps status, controls
+  and `browser_open`, and delegates the rest. The delegated-work watcher pushes
+  approval requests once per token. The Island names the actor
+  (`Jarvi is using the computer`).
+- Fixed on the way: a delegation that ran on a spoken approval was never
+  followed, so an approved `delegate_to_coder` job's report never came back on
+  its own. Voice now remembers which tool a token was for.
+- Tests: 1,835 Gateway (full suite, including 29 sub-agent and 12 coding-tool
+  tests); 350 agent; 508 desktop; typecheck. Real run on the Ryzen
+  5 3600X / RTX 3060 host with OpenRouter `inclusionai/ling-3.0-flash` and Cua
+  0.24.0: Harvi fixed a failing fixture test in 8.0 s (independent pytest:
+  `1 passed`); Jarvi opened and closed Notepad in 44.3 s while `delegate`
+  answered in 30.7 ms.
+- Voice pipeline (`evals/voice_delegation.py`, production agent with text in
+  place of the recogniser): Marvi delegated to Jarvi, answered "56" while Jarvi
+  worked, and gave Jarvi's report unprompted on the next turn. Getting there
+  took a voice-prompt rule (multi-step work goes to `delegate`;
+  `computer_control` is only Stop/Private/Resume) after a warm run showed her
+  reaching for `terminal_run` instead. Microphone/speaker audio is not yet in
+  the loop.
+
 ## 2026-09-10 — Fix development wake launch target
 
 - Pass the desktop app directory alongside the Electron executable to the

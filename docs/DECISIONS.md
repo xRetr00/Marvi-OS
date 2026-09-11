@@ -508,3 +508,36 @@ same way — by a review catching it rather than a test.
 the registry listing drops hosted-only entries rather than offering something
 that cannot launch. Supporting streamable-http would change that and is its
 own decision.
+
+## ADR-028 — Sub-agents are Gateway-owned specialists on the one tool policy
+
+**Decision:** Multi-step work is handed to background sub-agents run by the
+Gateway (`subagents.py`): Harvi (code), Jarvi (desktop applications), Talos
+(browser) and a generic worker. Each is a prompt file with a tool allowlist;
+each job runs on Marvi's own provider client and audited dispatch, with a fresh
+context, a blocked tool set (memory, messages, schedules, questions, further
+delegation), and only its final report returned. The voice worker keeps the
+computer and browser controls and one-shot `browser_open`, and delegates the
+look-act-check loops.
+
+**Reason:** The voice model ran Cua's loop inside the spoken turn, at a second
+or more per step, so a ten-step task held the conversation silent for half a
+minute. The coding harness shelled out to other CLIs and its own agent never
+existed. A sub-agent returns within the turn (31 ms measured against a 44 s
+Jarvi job) and reports on a later one through the existing `delegated.py` seam.
+
+**Supersedes ADR-020 in part.** ADR-020 refused to re-couple the ambient
+runtime to Marvi Agent's core and tool schema. Sub-agents add no second core:
+they are Marvi's prompts on Marvi's provider and Marvi's single tool policy.
+Confirm and YOLO apply unchanged inside a job -- a confirmation parks the job
+until the Island, Telegram or a relayed spoken answer settles the token. The one
+standing grant is the old one: approving `delegate(harvi, mode=fix)` approves
+that job's workspace edits and commands, as approving `codex --sandbox
+workspace-write` did.
+
+**Not adopted:** generic multi-agent frameworks (a second orchestrator beside
+LiveKit and the Gateway policy), Cua Agent SDK's loop (bypasses per-action
+confirmation and would void Phase 15 qualification), verbatim Claude Code
+prompts (proprietary text; Harvi's harness is adapted, see `UPSTREAM.md`).
+Outside coders stay behind `delegate_to_coder`; moving them to ACP is Phase
+16D. Durable jobs and a board are Phase 17.

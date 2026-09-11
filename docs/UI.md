@@ -1,7 +1,8 @@
 # UI Contract
 
 Computer use: Dynamic Island reads `Marvi is using the computer` during active
-operations and exposes Stop/Private input. Stop shows stopping until issued
+operations — `Jarvi is using the computer` when the Jarvi sub-agent is driving
+(the Gateway's `actor` field) — and exposes Stop/Private input. Stop shows stopping until issued
 work drains; private input waits for capture/model delivery to finish before
 acknowledgment. Paused/private states expose Resume. Connection loss shows
 unavailable controls rather than claiming ongoing use. Confirmations retain

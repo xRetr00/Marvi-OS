@@ -1,5 +1,32 @@
 # Upstream Reuse Ledger
 
+## Sub-agent harness (Harvi, Jarvi, Talos) — 2026-09-11
+
+- No new dependency. `marvi_gateway/subagents.py` is Marvi code over the
+  existing `ProviderClient`, tool registry and confirmation store.
+- Design reference, not copied: Hermes Agent delegation (MIT,
+  https://github.com/NousResearch/hermes-agent,
+  `website/docs/user-guide/features/delegation.md`) for the contract -- fresh
+  child context, inherited tools minus a blocked set, summary-only return,
+  stop/steer, progress-based stall detection. OpenHuman
+  (https://github.com/tinyhumansai/openhuman) is GPL-3.0: its agent-harness
+  documentation informed the `awaiting_approval` state and the repeated-failure
+  circuit breaker; no code or text from it is in this repository. OpenClaw
+  sub-agents (MIT) informed the always-non-blocking start and announce.
+- Adapted text: Harvi's prompt (`prompts/harvi.md`) and the `glob`, `grep`,
+  `process_output`, `file_read` and `terminal_run` descriptions restate rules
+  from Claude Code's coding prompts as collected by
+  https://github.com/Piebald-AI/claude-code-system-prompts at commit
+  `e46a5fc17db670fba5b511ddac69bfcc362bf09f` (Claude Code v2.1.268). That
+  repository is MIT, but the prompt text it collects is Anthropic's, from
+  proprietary Claude Code, so nothing is copied verbatim: the behaviours
+  (read before edit, dedicated tools over the shell, no unrequested additions,
+  git safety, truthful reporting, todo discipline) are written in Marvi's own
+  words. Updates: diff the collection's CHANGELOG for coding-prompt changes and
+  re-derive, never paste.
+- Qualification: `scripts/qualify-subagents.py` against the real Gateway,
+  provider and Cua worker; see `docs/phases/16-sub-agents.md`.
+
 ## python-telegram-bot and PyAV (Telegram channel) — 2026-09-10
 
 - Source: https://github.com/python-telegram-bot/python-telegram-bot (docs: https://docs.python-telegram-bot.org)
