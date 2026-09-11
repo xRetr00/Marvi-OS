@@ -87,7 +87,7 @@ AREAS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("skills", "skill", ()),
     ("the screen", "screen", ()),
     ("processes", "process", ()),
-    ("coding jobs", "coding", ("delegate_to_coder", "delegated_status")),
+    ("sub-agents and coding jobs", "delegate", ("delegated_status",)),
     ("passwords and keys", "secret", ()),
     ("Marvi's own logs", "logs", ()),
     ("connected accounts", "account", ()),

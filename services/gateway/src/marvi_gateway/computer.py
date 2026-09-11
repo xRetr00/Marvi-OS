@@ -83,6 +83,65 @@ ACTIONS = frozenset(
 )
 
 
+#: Names models reach for that are not actions, and what they meant.
+#:
+#: Taken from the log, not imagined. In one conversation she called
+#: `action=launch` and `action=screenshot` -- neither exists -- and on each
+#: refusal was told only "Unknown computer action. Read computer_tools first."
+#: She read computer_tools and then called `screenshot` again, because nothing
+#: in a list of twenty-three names says that the screenshot comes back from
+#: reading a window rather than from an action of its own.
+MEANT = {
+    "launch": "launch_app",
+    "open": "launch_app",
+    "open_app": "launch_app",
+    "start": "launch_app",
+    "run": "launch_app",
+    "close": "kill_app",
+    "quit": "kill_app",
+    "screenshot": "get_desktop_state",
+    "capture": "get_desktop_state",
+    "screen": "get_desktop_state",
+    "look": "get_desktop_state",
+    "see": "get_desktop_state",
+    "type": "type_text",
+    "write": "type_text",
+    "key": "press_key",
+    "keypress": "press_key",
+    "focus": "bring_to_front",
+    "activate": "bring_to_front",
+    "move": "move_cursor",
+    "mouse": "move_cursor",
+    "windows": "list_windows",
+    "apps": "list_apps",
+    "tree": "get_accessibility_tree",
+}
+
+
+def unknown_action(action: str) -> str:
+    """A refusal that says what to do instead.
+
+    Handed back to the model, so it has to carry everything needed for the
+    next call to succeed -- the one it almost certainly meant, and the whole
+    list, so a second guess is not needed. "Read computer_tools first" costs a
+    round trip and, measured, did not stop the same wrong name coming back.
+    """
+    from difflib import get_close_matches
+
+    said = (action or "").strip().lower()
+    meant = MEANT.get(said) or next(iter(get_close_matches(said, ACTIONS, n=1, cutoff=0.6)), "")
+    hint = f' You probably meant "{meant}".' if meant else ""
+    if meant == "get_desktop_state":
+        hint += (
+            " There is no separate screenshot action: reading the desktop or a window "
+            "returns the screenshot, and passing question= has Vision describe it."
+        )
+    return (
+        f'"{action}" is not a computer action.{hint} '
+        f"The actions are: {', '.join(sorted(ACTIONS))}."
+    )
+
+
 def enabled():
     return os.environ.get("MARVI_COMPUTER_USE", "false").lower() in {"true", "1", "on", "yes"}
 
@@ -106,6 +165,9 @@ class ComputerUse:
         self._action = ""
         self._closed = False
         self._retirement_lease = None
+        #: Who is driving, for the Island: a sub-agent's name, or empty for
+        #: Marvi herself. Set by the Gateway once the sub-agent runner exists.
+        self.actor = lambda: ""
 
     def _runtime_loop(self):
         with self._lock:
@@ -126,6 +188,7 @@ class ComputerUse:
                 "driver": "cua-driver",
                 "version": VERSION,
                 "revision": self._revision,
+                "actor": self.actor(),
             }
 
     def _publish(self):
@@ -281,7 +344,7 @@ class ComputerUse:
 
     def action(self, action: str, arguments: dict, question: str = "", request_confirmation=False):
         if action not in ACTIONS:
-            raise ValueError("Unknown computer action. Read computer_tools first.")
+            raise ValueError(unknown_action(action))
         if "screenshot_out_file" in arguments:
             raise ValueError("Computer screenshots are transient; file capture is not exposed.")
         if "session" in arguments:

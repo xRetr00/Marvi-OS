@@ -155,7 +155,20 @@ class BrowserWorkspace:
     def _check(self, sid: str, revision: int) -> dict:
         session = self._session(sid)
         if session["revision"] != revision:
-            raise ValueError("Browser state changed. Read browser_status before acting.")
+            # The number that makes the next call work, in the refusal itself.
+            #
+            # This said only "Browser state changed. Read browser_status before
+            # acting." In a real session she then sent `revision=0` to `close`,
+            # was refused, sent `revision=0` to `show`, was refused, and went
+            # back to `browser_open` -- three dead ends in a row, because the
+            # thing she needed was one tool call away and nothing gave it to
+            # her. A refusal handed back to the model has to carry enough to
+            # succeed next time.
+            raise ValueError(
+                f"Browser state changed: you sent revision {revision}, and session {sid} is now at "
+                f"revision {session['revision']} ({session['state']}). Call again "
+                f"with revision={session['revision']}."
+            )
         return session
 
     def _change(self, session, state: str, detail: str):
@@ -290,10 +303,15 @@ class BrowserWorkspace:
                 ),
                 None,
             ):
+                # With the revision, which is the other half of what the next
+                # call needs. The id alone sent her straight into a stale-
+                # revision refusal with `revision=0`.
                 raise ValueError(
-                    "This profile already has a browser: session "
-                    f"{existing['id']} ({existing['state']}). Use it, or close "
-                    "it first."
+                    "This profile already has a browser open, so use it rather than "
+                    f"opening another: session_id={existing['id']}, "
+                    f"revision={existing['revision']}, state {existing['state']}. "
+                    "To go somewhere else, call browser_action with action=navigate "
+                    "and those two values."
                 )
             sid = uuid4().hex
             session = {
