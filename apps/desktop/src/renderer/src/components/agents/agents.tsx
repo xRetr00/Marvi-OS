@@ -23,7 +23,12 @@ const ROLE: Record<string, string> = {
   harvi: 'Coding',
   jarvi: 'Computer use',
   talos: 'Browser use',
-  worker: 'Long jobs'
+  worker: 'Long jobs',
+  // Outside coders Marvi reaches over the Agent Client Protocol.
+  claude: 'Outside coder · ACP',
+  codex: 'Outside coder · ACP',
+  opencode: 'Outside coder · ACP',
+  gemini: 'Outside coder · ACP'
 }
 
 function profileFor(agent: string, roster: AgentProfile[] | undefined): AgentProfile | undefined {

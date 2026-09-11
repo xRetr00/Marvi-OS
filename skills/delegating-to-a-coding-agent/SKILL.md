@@ -83,6 +83,10 @@ next. A sub-agent that came back empty is not a result.
 
 ## Outside coders
 
-Claude Code and Codex are also installed. When the user asks for one of them by
-name, use `delegate_to_coder` with the same three-part task; it asks the user
-first, and its report arrives the same way. Otherwise Harvi is your coder.
+Claude Code and Codex (and OpenCode or Gemini CLI, when installed) are reached
+over the Agent Client Protocol. When the user asks for one by name, use
+`delegate_to_coder` with the same three-part task and `coder` set to `claude`,
+`codex`, `opencode` or `gemini`. It asks the user first; after that it runs like
+any sub-agent -- its steps show live on screen, Stop cancels it, and a step it
+needs approval for comes back to you exactly like a sub-agent's, to be asked
+about and answered with `delegate_approve`. Otherwise Harvi is your coder.
