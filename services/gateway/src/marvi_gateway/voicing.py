@@ -450,12 +450,22 @@ def _machine(event: dict[str, Any], name: str, payload: dict[str, Any]) -> str:
     drive = str(_on(payload, "drive") or "")
     free = _on(payload, "free_gb")
     percent = _on(payload, "percent")
-    if kind == "disk_critical":
-        return f"{_address(name)}the {drive} drive is nearly full - {free}GB left."
-    if kind == "disk_low":
+    if kind in ("disk_critical", "disk_low"):
+        # What Marvi already did about it, and what she could still take.
+        # Both are only present for the drive she lives on; see
+        # `Initiative._make_room`.
+        freed = _on(payload, "freed_gb")
+        spare = _on(payload, "reclaimable_gb")
+        after = ""
+        if freed:
+            after += f" I cleared {freed}GB of my own."
+        if spare:
+            after += f" Unused voice engines hold {spare}GB more if you want it back."
+        if kind == "disk_critical":
+            return f"{_address(name)}the {drive} drive is nearly full - {free}GB left.{after}"
         return _choose((
-            f"{_address(name)}the {drive} drive is getting full, {free}GB left.",
-            f"Heads up{_trailing(name)} - {drive} is down to {free}GB.",
+            f"{_address(name)}the {drive} drive is getting full, {free}GB left.{after}",
+            f"Heads up{_trailing(name)} - {drive} is down to {free}GB.{after}",
         ), event)
     if kind == "battery_critical":
         return f"{_address(name)}the battery is at {percent}%. Worth plugging in."

@@ -1,10 +1,18 @@
-"""Bounded chat dictation adapter for Marvi's Parakeet STT worker.
+"""Bounded chat dictation adapter for Marvi's speech-recognition worker.
 
 The renderer captures microphone frames; this adapter owns the sidecar process
 and forwards only 16 kHz mono PCM16. It never calls an LLM and never stores
 audio. A session is explicit and short-lived so abandoning Chat cannot leave a
 GPU recognizer running forever.
+
+It listens with the recogniser selected in Settings. It used to be Parakeet v3
+whatever was chosen, so an install running Nemotron still had to keep 2.4 GB
+of Parakeet for Chat alone. Kyutai runs in its own environment and has no
+dictation path, so choosing it dictates with whichever of the other two is
+installed.
 """
+
+import os
 
 from __future__ import annotations
 
