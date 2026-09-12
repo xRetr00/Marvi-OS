@@ -34,6 +34,11 @@ from .web import assert_public_http_url
 #: instead of a timeout with the barrier left closed behind it.
 PRIVATE_WAIT_SECONDS = 30.0
 
+# Chromium can briefly hold its event loop while a context is being created,
+# especially on a cold or resource-constrained Windows runner. Status remains
+# bounded, but must tolerate that startup window instead of failing a poll.
+STATUS_TIMEOUT_SECONDS = 10.0
+
 #: What to tell somebody, per step of opening a browser.
 #:
 #: Keyed by the same `stage` the log records, so the line a person reads and
@@ -201,7 +206,7 @@ class BrowserWorkspace:
                 "private_input": capture_barrier.blocked,
             }
 
-        return self._loop.submit(read(), timeout=3)
+        return self._loop.submit(read(), timeout=STATUS_TIMEOUT_SECONDS)
 
     def profile(self, action: str, label: str = "", profile_id: str = "") -> dict:
         async def edit():
