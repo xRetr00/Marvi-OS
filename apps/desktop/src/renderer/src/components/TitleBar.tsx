@@ -21,6 +21,7 @@ import {
   type LucideIcon
 } from 'lucide-react'
 import { UiTooltip } from './ui/tooltip'
+import { LocationClock } from './location-weather'
 import type { ResourceState } from '../../../shared/runtime'
 
 interface TitleBarProps {
@@ -77,6 +78,7 @@ export function TitleBar({
             </button>
           </UiTooltip>
         ) : null}
+        <LocationClock />
         <span className="titlebar-page">{page.toUpperCase()}</span>
       </div>
       <div className="titlebar-spacer" />

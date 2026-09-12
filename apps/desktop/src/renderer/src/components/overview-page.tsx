@@ -17,6 +17,7 @@
  */
 import { Ear, Inbox, Megaphone, Mic, Radio, Server, Sparkles } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
+import { LocationWeather } from './location-weather'
 
 import type {
   DeviceState,
@@ -134,6 +135,7 @@ export function OverviewPage({
 
   return (
     <div className="ovp-page">
+      <LocationWeather />
       {/* One sentence about her, not five about the processes. */}
       <section className={`ovp-hero tone-${toneOf(runtime.state)}`}>
         <div className="ovp-hero-main">

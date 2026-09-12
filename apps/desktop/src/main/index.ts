@@ -1,5 +1,6 @@
 import { execFile, execFileSync, spawn } from 'node:child_process'
 import { BrowserHost } from './browser-host'
+import { LocationHost } from './location'
 import { randomBytes } from 'node:crypto'
 import { promisify } from 'node:util'
 
@@ -11,6 +12,7 @@ import {
   ipcMain,
   Menu,
   nativeImage,
+  powerMonitor,
   screen,
   session,
   shell,
@@ -509,6 +511,8 @@ function publishLocalToken(): void {
     desktop.warn(`could not publish the local token: ${String(error)}`)
   }
 }
+
+const locationHost = new LocationHost(app, gatewayJson)
 
 async function gatewayJson(path: string, init?: RequestInit, timeoutMs = 10_000): Promise<unknown> {
   try {
@@ -2323,6 +2327,38 @@ function startApp(): void {
       )
     })
 
+    const locationSender = (event: Electron.IpcMainInvokeEvent): void => {
+      if (!mainWindow || event.sender !== mainWindow.webContents || event.senderFrame !== mainWindow.webContents.mainFrame)
+        throw new Error('Location is available only to the control center.')
+    }
+    ipcMain.handle('marvi:get-location', (event) => {
+      locationSender(event)
+      return gatewayJson('/location')
+    })
+    ipcMain.handle('marvi:set-location', async (event, settings) => {
+      locationSender(event)
+      const result = await gatewayJson('/location', { method: 'PUT',
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(settings) })
+      return result
+    })
+    ipcMain.handle('marvi:refresh-location', (event) => {
+      locationSender(event)
+      if (!mainWindow?.isFocused()) throw new Error('Open Marvi to allow Windows location access.')
+      return locationHost.refresh(true)
+    })
+    ipcMain.handle('marvi:search-places', (event, query) => {
+      locationSender(event)
+      if (typeof query !== 'string' || query.length > 100) throw new Error('Invalid city name')
+      return gatewayJson(`/location/search?query=${encodeURIComponent(query)}`)
+    })
+    ipcMain.handle('marvi:get-weather', (event) => {
+      locationSender(event)
+      return gatewayJson('/location/weather')
+    })
+    ipcMain.handle('marvi:open-location-settings', (event) => {
+      locationSender(event)
+      return shell.openExternal('ms-settings:privacy-location')
+    })
     ipcMain.handle('marvi:get-schedules', () => gatewayJson('/schedules'))
     const browserRequest = async (path: string, body?: unknown): Promise<unknown> => {
       const response = await fetch(`${gateway()}/browser${path}`, {
@@ -3855,6 +3891,14 @@ function startApp(): void {
     islandWindow = createIslandWindow()
     syncPetWindow()
     mainWindow = createMainWindow()
+    // Browser-managed tile caching; no prefetch/offline scraping. Identify this
+    // native application to OSM even though its renderer uses a file origin.
+    session.defaultSession.webRequest.onBeforeSendHeaders(
+      { urls: ['https://tile.openstreetmap.org/*'] }, (details, callback) => {
+        callback({ requestHeaders: { ...details.requestHeaders, 'User-Agent': `Marvi-OS/${app.getVersion()} (desktop location map)` } })
+      })
+    locationHost.start()
+    powerMonitor.on('resume', () => void locationHost.refresh(false))
     startPetCursorPolling()
     const repositionPet = (): void => syncPetWindow()
     screen.on('display-added', repositionPet)
@@ -3873,6 +3917,7 @@ app.on('window-all-closed', () => {
 let browserShutdownStarted = false
 let browserShutdownFinished = false
 app.on('before-quit', (event) => {
+  locationHost.stop()
   if (browserHost && !browserShutdownFinished) {
     event.preventDefault()
     if (!browserShutdownStarted) {
