@@ -112,6 +112,8 @@ export interface MarviDesktopApi {
   setYolo: (yolo: boolean) => Promise<RuntimeStatus>
   getAudit: () => Promise<AuditEvent[]>
   getRoomEvents: () => Promise<RoomEvent[]>
+  /** Delete visitor photographs the owner has seen. Resolves to how many went. */
+  visitorPhotosSeen: (photos: string[]) => Promise<number>
   /** Which model does which job. Roles default to the main model. */
   getAuxiliary: () => Promise<AuxiliaryPage | null>
   /** Who the camera knows, and who is waiting to be named. */

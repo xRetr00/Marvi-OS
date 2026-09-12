@@ -6644,6 +6644,33 @@ function facesFacts(person: FaceLibrary['people'][number]): string {
  * events already arrive on a poll, and one more channel for a rare event is
  * not worth the second connection.
  */
+/** How long "See later" waits before asking again. */
+const VISITOR_LATER_MS = 60 * 60 * 1000
+const VISITOR_LATER_KEY = 'marvi.visitors.later'
+
+interface LaterSighting {
+  due: number
+  sighting: VisitorSighting
+}
+
+/** Sightings put off with "See later". In localStorage so a restart keeps them. */
+function laterSightings(): LaterSighting[] {
+  try {
+    const saved = JSON.parse(localStorage.getItem(VISITOR_LATER_KEY) ?? '[]')
+    return Array.isArray(saved) ? (saved as LaterSighting[]) : []
+  } catch {
+    return []
+  }
+}
+
+function saveLaterSightings(rows: LaterSighting[]): void {
+  try {
+    localStorage.setItem(VISITOR_LATER_KEY, JSON.stringify(rows))
+  } catch {
+    // Storage refused: the sighting is lost to "later", its photos are not.
+  }
+}
+
 function VisitorWatch(): React.JSX.Element | null {
   const [sighting, setSighting] = useState<VisitorSighting | null>(null)
   // Ids already shown, so closing it does not reopen on the next poll.
@@ -6651,13 +6678,31 @@ function VisitorWatch(): React.JSX.Element | null {
   // Set inside the effect: reading the clock during render is impure, and
   // this only needs to be the moment the watch actually starts.
   const started = useRef<number>(0)
+  // Mirrors `sighting` for the poll, which is a closure made once.
+  const showing = useRef(false)
+
+  useEffect(() => {
+    showing.current = sighting !== null
+  }, [sighting])
 
   useEffect(() => {
     let gone = false
     started.current = Date.now()
     const look = async (): Promise<void> => {
+      // One put off earlier, when its hour is up.
+      if (!showing.current) {
+        const later = laterSightings()
+        const due = later.find((row) => row.due <= Date.now())
+        if (due) {
+          saveLaterSightings(later.filter((row) => row !== due))
+          seen.current.add(due.sighting.id)
+          window.marvi?.showMain()
+          setSighting(due.sighting)
+          return
+        }
+      }
       const events = await window.marvi?.getRoomEvents()
-      if (gone || !events) return
+      if (gone || !events || showing.current) return
       for (const event of events) {
         const row = event as unknown as Record<string, unknown>
         if (row.type !== 'visitor_photos') continue
@@ -6696,7 +6741,22 @@ function VisitorWatch(): React.JSX.Element | null {
   }, [])
 
   if (!sighting) return null
-  return <VisitorPhotos onClose={() => setSighting(null)} sighting={sighting} />
+  return (
+    <VisitorPhotos
+      onLater={() => {
+        saveLaterSightings([
+          ...laterSightings().filter((row) => row.sighting.id !== sighting.id),
+          { due: Date.now() + VISITOR_LATER_MS, sighting }
+        ])
+        setSighting(null)
+      }}
+      onSeen={() => {
+        void window.marvi?.visitorPhotosSeen(sighting.photos.map((photo) => photo.path))
+        setSighting(null)
+      }}
+      sighting={sighting}
+    />
+  )
 }
 
 function IslandSurface(): React.JSX.Element {

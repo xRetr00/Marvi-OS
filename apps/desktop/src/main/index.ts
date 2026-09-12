@@ -3757,6 +3757,24 @@ function startApp(): void {
         return []
       }
     })
+    // Seen: the visitor photographs are deleted. The Gateway only deletes
+    // files inside the room's visits folder, whatever paths arrive here.
+    ipcMain.handle('marvi:visitor-photos-seen', async (_event, photos: unknown) => {
+      if (!Array.isArray(photos)) return 0
+      try {
+        const response = await fetch(`${gateway()}/room/visitor-photos/seen`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', ...localHeaders() },
+          body: JSON.stringify({ photos: photos.filter((p) => typeof p === 'string').slice(0, 50) }),
+          signal: AbortSignal.timeout(5_000)
+        })
+        if (!response.ok) return 0
+        const body = (await response.json()) as { deleted?: number }
+        return Number(body.deleted ?? 0)
+      } catch {
+        return 0
+      }
+    })
     // The room's write tools, through the same `/tools/{name}` path Marvi
     // uses -- so the sleep rule, local-action policy and audit line all apply
     // to a button press exactly as they do to a spoken request. The

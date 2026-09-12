@@ -13645,6 +13645,32 @@ html[data-appearance='claude-code-dark'] .control-row {
   background: var(--ui-accent);
 }
 
+.vis-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.vis-actions button {
+  padding: 6px 14px;
+  border: 1px solid var(--ui-border-subtle);
+  border-radius: 6px;
+  background: var(--ui-bg-tertiary);
+  color: var(--ui-text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.vis-actions button:hover {
+  color: var(--ui-text-primary);
+}
+
+.vis-actions .vis-seen {
+  border-color: var(--ui-accent);
+  background: var(--ui-accent);
+  color: var(--ui-bg-primary, #0e0f10);
+}
+
 .vis-empty {
   display: flex;
   align-items: center;

@@ -20,6 +20,13 @@
  * the owner's first reaction to that is that the camera's clock is broken. So
  * every time here is rendered in the machine's own zone, with the date, because
  * "when was somebody in my room" is the entire question.
+ *
+ * ## Seen, or later
+ *
+ * The photographs are for one look. **Seen** deletes them; **See later** (and
+ * closing, which is the same decision made less carefully) brings the popup
+ * back in an hour. Before this they stayed on disk forever -- 249 of them in
+ * a month -- because closing the popup was the only way out of it.
  */
 import { Camera, ChevronLeft, ChevronRight, Clock, X } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
@@ -72,11 +79,16 @@ function explain(sighting: VisitorSighting): string {
 
 export function VisitorPhotos({
   sighting,
-  onClose
+  onSeen,
+  onLater
 }: {
   sighting: VisitorSighting
-  onClose: () => void
+  /** Delete the photographs. */
+  onSeen: () => void
+  /** Keep them and ask again later. Also what closing does. */
+  onLater: () => void
 }): React.JSX.Element {
+  const onClose = onLater
   const [shown, setShown] = useState(0)
   const photos = sighting.photos ?? []
   const photo = photos[Math.min(shown, photos.length - 1)]
@@ -170,6 +182,15 @@ export function VisitorPhotos({
             </footer>
           </>
         )}
+
+        <div className="vis-actions">
+          <button className="vis-later" onClick={onLater} type="button">
+            See later
+          </button>
+          <button className="vis-seen" onClick={onSeen} type="button">
+            Seen
+          </button>
+        </div>
       </div>
     </div>
   )

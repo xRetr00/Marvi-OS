@@ -181,6 +181,8 @@ const marvi = {
   setYolo: (yolo: boolean): Promise<RuntimeStatus> => ipcRenderer.invoke('marvi:set-yolo', yolo),
   getAudit: (): Promise<AuditEvent[]> => ipcRenderer.invoke('marvi:get-audit'),
   getRoomEvents: (): Promise<RoomEvent[]> => ipcRenderer.invoke('marvi:get-room-events'),
+  visitorPhotosSeen: (photos: string[]): Promise<number> =>
+    ipcRenderer.invoke('marvi:visitor-photos-seen', photos),
   getAuxiliary: (): Promise<AuxiliaryPage | null> => ipcRenderer.invoke('marvi:get-auxiliary'),
   getRoomHealth: (): Promise<Record<string, unknown> | null> =>
     ipcRenderer.invoke('marvi:get-room-health'),
