@@ -444,3 +444,22 @@ async def test_browser_status_timeout_is_explicit():
         response = await client.get('/browser')
     assert response.status_code == 503
     assert 'busy' in response.json()['detail']
+
+
+def test_a_person_in_the_toolbar_is_not_held_to_a_stale_revision(browser):
+    """The model must read before it acts; a click on what is on screen need not.
+
+    Every toolbar action bumps the revision twice and the page polls every 1.5
+    seconds, so the second click in a row carried a number already out of date
+    -- "Navigation could not start" under every other click.
+    """
+    service, url = browser
+    sid = service.start(url=url)["id"]
+    stale = settled(service, sid)["revision"]
+    act(service, sid, "reload")
+    assert session(service, sid)["revision"] > stale
+
+    with pytest.raises(ValueError, match="Browser state changed"):
+        service.action(sid, stale, "reload", {}, "model-stale")
+    service.action(sid, stale, "reload", {}, "person-stale", True)
+    assert settled(service, sid)["state"] == "ready"
