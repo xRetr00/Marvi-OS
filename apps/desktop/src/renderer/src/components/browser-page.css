@@ -46,6 +46,52 @@
   color: var(--ui-text-primary);
 }
 
+/* A tab is now a name plus its own close button. */
+div.bx-tab {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 4px 0 0;
+  cursor: default;
+}
+
+.bx-tab-name {
+  min-width: 0;
+  padding: 6px 4px 6px 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.bx-tab-close {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ui-text-tertiary);
+  cursor: pointer;
+}
+
+.bx-tab-close svg {
+  width: 12px;
+  height: 12px;
+}
+
+.bx-tab-close:hover:not(:disabled) {
+  background: var(--ui-stroke-tertiary);
+  color: var(--ui-text-primary);
+}
+
 .bx-icon {
   display: grid;
   place-items: center;

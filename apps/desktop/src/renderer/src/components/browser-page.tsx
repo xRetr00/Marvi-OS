@@ -11,14 +11,47 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { BrowserCommand, BrowserSession, BrowserStatus } from '../../../shared/browser'
 import './browser-page.css'
 
+/** Where a new tab or an empty address goes. Not `about:blank`: a white page
+ *  with nothing on it read as a browser that had failed to load. */
+export const START_PAGE = 'https://www.google.com'
+
+/**
+ * What was typed, as somewhere a browser can go.
+ *
+ * `google.com` has no scheme and the Gateway only accepts http(s) URLs, so the
+ * address bar refused the most ordinary thing anyone types into one; words with
+ * no dot in them are a search, the way every browser treats them.
+ */
+export function toAddress(text: string): string {
+  const raw = text.trim()
+  if (!raw) return START_PAGE
+  if (/^[a-z][a-z0-9+.-]*:/i.test(raw)) return raw
+  if (!/\s/.test(raw) && /^[^\s/]+\.[a-z]{2,}(:\d+)?(\/.*)?$/i.test(raw)) return `https://${raw}`
+  return `https://www.google.com/search?q=${encodeURIComponent(raw)}`
+}
+
+/** The Gateway's own reason, without Electron's IPC wrapping around it. */
+function reasonOf(cause: unknown): string {
+  const text = cause instanceof Error ? cause.message : String(cause ?? '')
+  return text.replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
+}
+
 function BrowserViewport({
   session,
-  trailing
+  trailing,
+  covered,
+  onChanged
 }: {
   session: BrowserSession
   /* The shell's own buttons, so the tab strip and the shell header are one
      row rather than two stacked ones. A browser has a single strip. */
   trailing?: React.ReactNode
+  /* Something of ours is over the page -- the menu. The page is a native view
+     drawn above all HTML, so anything overlapping it was hidden behind it:
+     the menu showed its first row and nothing below the address bar. */
+  covered?: boolean
+  /* Ask for fresh state now rather than at the next poll. */
+  onChanged?: () => void
 }): React.JSX.Element {
   const area = useRef<HTMLDivElement>(null)
   const [tab, setTab] = useState('')
@@ -40,20 +73,20 @@ function BrowserViewport({
     setSyncedUrl(selectedTab?.url)
     setAddress(selectedTab?.url ?? '')
   }
-  const navigate = async (action: string): Promise<void> => {
+  const navigate = async (action: string, tabId?: string): Promise<void> => {
     setNavigating(true)
     setError('')
     try {
       await window.marvi.browserAction(session.id, session.revision, action, {
-        tab_id: selectedTab?.id,
-        ...(['navigate', 'new_tab'].includes(action)
-          ? { url: action === 'new_tab' ? '' : address }
-          : {})
+        tab_id: tabId ?? selectedTab?.id,
+        ...(action === 'navigate' ? { url: toAddress(address) } : {}),
+        ...(action === 'new_tab' ? { url: START_PAGE } : {})
       })
-    } catch {
-      setError(
-        'Navigation could not start. Wait for the current action or refresh the browser state.'
-      )
+      onChanged?.()
+    } catch (cause) {
+      // The Gateway's own reason, which says what to do. A fixed sentence
+      // here said the same thing whatever had actually gone wrong.
+      setError(reasonOf(cause) || 'That did not work. Try again in a moment.')
     } finally {
       setNavigating(false)
     }
@@ -122,6 +155,11 @@ function BrowserViewport({
         place()
       })
     }
+    if (covered) {
+      sent.current = ''
+      void window.marvi.placeBrowser(null).catch(() => {})
+      return undefined
+    }
     place()
     const observer = new ResizeObserver(soon)
     if (area.current) observer.observe(area.current)
@@ -135,7 +173,7 @@ function BrowserViewport({
       sent.current = ''
       void window.marvi.placeBrowser(null).catch(() => {})
     }
-  }, [session.id, placed])
+  }, [session.id, placed, covered])
   return (
     <div className="bx">
       {/* Tab strip. A browser's tabs belong at the top of the browser, not in
@@ -143,16 +181,34 @@ function BrowserViewport({
           unordered list beneath the controls. */}
       <div className="bx-tabs" role="tablist" aria-label="Browser tabs">
         {session.tabs.map((item) => (
-          <button
-            aria-selected={item.id === (tab || session.tabs[0]?.id)}
+          <div
             className={`bx-tab${item.id === (tab || session.tabs[0]?.id) ? ' is-on' : ''}`}
             key={item.id}
-            onClick={() => setTab(item.id)}
-            role="tab"
-            type="button"
           >
-            <span>{titleOf(item.url)}</span>
-          </button>
+            <button
+              aria-selected={item.id === (tab || session.tabs[0]?.id)}
+              className="bx-tab-name"
+              onClick={() => setTab(item.id)}
+              role="tab"
+              type="button"
+            >
+              <span>{titleOf(item.url)}</span>
+            </button>
+            {/* Every tab closes itself, the way every browser's does. There
+                was one close button at the far end, for whichever tab was
+                selected, and none at all with a single tab open. */}
+            {session.tabs.length > 1 ? (
+              <button
+                aria-label={`Close ${titleOf(item.url)}`}
+                className="bx-tab-close"
+                disabled={disabled}
+                onClick={() => void navigate('close_tab', item.id)}
+                type="button"
+              >
+                <X aria-hidden="true" />
+              </button>
+            ) : null}
+          </div>
         ))}
         <button
           aria-label="New tab"
@@ -164,17 +220,6 @@ function BrowserViewport({
           <Plus aria-hidden="true" />
         </button>
         <span className="bx-gap" />
-        {session.tabs.length > 1 ? (
-          <button
-            aria-label="Close tab"
-            className="bx-icon"
-            disabled={disabled}
-            onClick={() => void navigate('close_tab')}
-            type="button"
-          >
-            <X aria-hidden="true" />
-          </button>
-        ) : null}
         {trailing}
       </div>
 
@@ -264,6 +309,7 @@ export function BrowserPage({ onClose }: { onClose?: () => void } = {}): React.J
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [note, setNote] = useState('')
   const refresh = useCallback(async () => {
     try {
       setStatus(await window.marvi.getBrowser())
@@ -303,7 +349,7 @@ export function BrowserPage({ onClose }: { onClose?: () => void } = {}): React.J
       await operation()
       await refresh()
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Browser operation failed')
+      setError(reasonOf(cause) || 'Browser operation failed')
     } finally {
       setBusy(false)
     }
@@ -362,7 +408,12 @@ export function BrowserPage({ onClose }: { onClose?: () => void } = {}): React.J
       ) : null}
 
       {live ? (
-        <BrowserViewport session={live} trailing={buttons} />
+        <BrowserViewport
+          covered={menuOpen}
+          onChanged={() => void refresh()}
+          session={live}
+          trailing={buttons}
+        />
       ) : (
         <form
           className="bx-open"
@@ -371,7 +422,7 @@ export function BrowserPage({ onClose }: { onClose?: () => void } = {}): React.J
             void run(() =>
               window.marvi.startBrowser({
                 profile_id: profile,
-                url: url.trim(),
+                url: toAddress(url),
                 objective: 'Browse'
               })
             )
@@ -433,8 +484,36 @@ export function BrowserPage({ onClose }: { onClose?: () => void } = {}): React.J
               </button>
             </>
           ) : null}
+          {/* Import had been left out when the page stopped being a settings
+              form: the whole import path still worked, and no button reached it. */}
+          <button
+            onClick={() =>
+              void run(async () => {
+                const done = await window.marvi.browserImport(profile, 'passwords')
+                setNote(
+                  done ? `Imported ${done.imported} logins from Chrome (${done.skipped} skipped).` : ''
+                )
+              })
+            }
+            type="button"
+          >
+            Import Chrome passwords…
+          </button>
+          <button
+            onClick={() =>
+              void run(async () => {
+                const done = await window.marvi.browserImport(profile, 'cookies')
+                setNote(done ? `Imported ${done.imported} cookies (${done.skipped} skipped).` : '')
+              })
+            }
+            type="button"
+          >
+            Import cookies…
+          </button>
+          {note ? <p className="bx-note">{note}</p> : null}
           <p className="bx-note">
-            Logins stay in this profile when the browser closes. Sites may still ask you to sign in.
+            For Chrome passwords, open Chrome Settings, Passwords, Export passwords, then pick that
+            file here. Logins stay in this profile when the browser closes.
           </p>
         </div>
       ) : null}
