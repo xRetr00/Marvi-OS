@@ -22,6 +22,15 @@ You are reading speech, and the recogniser gets names and products wrong. Write 
 These are not memories:
   "how are we doing?" -> nothing
   "what do you know about X?" -> nothing, they are asking not telling
+  "Light is off", "the room temperature is 22°C", "phone battery at 15%" -> nothing, true only right now
+  "it is currently 11 PM", "the user is at their machine" -> nothing, a moment, not a fact
+  "the assistant attempted to open the browser", "Jarvi is moving the cursor" -> nothing, what happened in a turn
+  "the user wants a demo of the widgets" -> nothing, a request in the moment, not a standing preference
+  "the user is frustrated with the assistant" -> nothing, a feeling in the moment
+
+Facts come from what the user said. The assistant's reply is shown only so you know what "yes" or "that one" refers to. Never take a fact from it: tool results, device or room readings, and anything the assistant did, tried, planned or failed at are never memories.
+
+Names are what the recogniser gets wrong most. Never infer a person from how a sentence starts: "Kenny turn off the lights" is "Can you turn off the lights", not a friend called Kenny, and "tell Jerry" is far more likely to be Jarvi, the assistant's desktop helper, than a colleague. Store a new person only when the user says who they are -- "my friend Kenny", "my brother Omar".
 
 Rules that matter:
 - `update` when the exchange corrects or refines an existing memory. Use it rather than `add`: a correction that is added sits beside the thing it was meant to replace, and both come back on recall.

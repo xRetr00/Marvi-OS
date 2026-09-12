@@ -165,11 +165,6 @@ def _significant(text: str) -> set[str]:
 # Consolidation defaults. Deliberately conservative: forgetting the user's
 # own data is worse than keeping a little too much.
 EPISODIC_TTL_DAYS = 21
-
-#: A question about mail, which is when mail should come back from recall.
-MAIL_WORDS = re.compile(
-    r"\b(?:e-?mails?|mail|inbox|gmail|messages?|newsletter|sent me|wrote to me)\b", re.IGNORECASE
-)
 PROMOTE_AFTER_REPEATS = 3
 
 SCHEMA = """
@@ -1017,18 +1012,14 @@ class MemoryStore:
         answers = [
             entry
             for entry in found
-            if not not_a_memory(entry.get("subject") or "", entry.get("body") or "")
+            # Ingested items are somebody else's words, enveloped on the way
+            # out; judging them as Marvi's own notes would hide every email.
+            if entry.get("external")
+            or not not_a_memory(entry.get("subject") or "", entry.get("body") or "")
         ]
-        # Mail is found when mail is asked about. Unasked, marketing that the
-        # gatekeeper let through while its model was out of credits came back
-        # into ordinary turns -- a Cloudflare conference, a bank promotion.
-        if not MAIL_WORDS.search(query or ""):
-            answers = [
-                entry for entry in answers if not str(entry.get("source") or "").startswith("composio:")
-            ]
         if len(answers) != len(found):
             log.info(
-                "ignored %d recalled memor(y/ies) that were not facts, or were mail nobody asked about",
+                "ignored %d recalled memor(y/ies) that were not facts",
                 len(found) - len(answers),
             )
             found = answers

@@ -244,6 +244,11 @@ def not_a_memory(subject: str, body: str) -> str:
     did, and a conclusion drawn from such rows is no better than they were.
     """
     body = " ".join((body or "").split())
+    if "[EXTERNAL DATA" in body:
+        # Somebody else's words, copied into a memory of Marvi's own -- which
+        # strips the one property that kept them out of the standing context.
+        # An email is remembered by ingestion, as external, or not at all.
+        return "copies external data"
     if NARRATES_THE_EXCHANGE.search(body):
         return "describes the conversation"
     if ITS_OWN_DOING.search(body) or ITS_OWN_DOING.search(subject or ""):
