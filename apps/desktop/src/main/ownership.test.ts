@@ -60,7 +60,7 @@ describe('the ownership record', () => {
       startedAt: 't-1234',
       port: 8765
     })
-  })
+  }, 15_000)
 
   it('stops the previous launch by recorded identity', () => {
     const state = home()

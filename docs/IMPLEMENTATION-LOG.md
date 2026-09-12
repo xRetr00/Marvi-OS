@@ -1996,5 +1996,8 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
 - The real PocketTTS synthesis smoke test still validates generated PCM when
   its model is available, but now honors its documented skip behavior when
   the model host rejects or rate-limits the download.
+- The Windows ownership test that queries the real boot time now uses the same
+  explicit 15-second allowance as its neighboring ownership test, avoiding
+  the default five-second timeout on slower CI hosts.
 - Evidence: synchronizer unit/integration tests, version consistency check,
   desktop lint/typecheck/tests, and focused Gateway accounting/policy tests.
