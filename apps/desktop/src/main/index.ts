@@ -3765,7 +3765,9 @@ function startApp(): void {
         const response = await fetch(`${gateway()}/room/visitor-photos/seen`, {
           method: 'POST',
           headers: { 'content-type': 'application/json', ...localHeaders() },
-          body: JSON.stringify({ photos: photos.filter((p) => typeof p === 'string').slice(0, 50) }),
+          body: JSON.stringify({
+            photos: photos.filter((p) => typeof p === 'string').slice(0, 50)
+          }),
           signal: AbortSignal.timeout(5_000)
         })
         if (!response.ok) return 0

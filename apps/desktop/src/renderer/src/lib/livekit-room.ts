@@ -101,7 +101,9 @@ async function waitForVoice(attempts = 90): Promise<void> {
     if (runtime?.components?.gateway?.state === 'ready') {
       if (!voice || voice.state === 'ready') return
       // Broken rather than warming: joining would only make an empty room.
-      if (voice.state === 'error') throw new Error(voice.detail || 'The voice worker could not start')
+      if (voice.state === 'error') {
+        throw new Error(voice.detail || 'The voice worker could not start')
+      }
     }
     await new Promise((resolve) => window.setTimeout(resolve, 1_000))
   }
