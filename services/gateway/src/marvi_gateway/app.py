@@ -1658,6 +1658,7 @@ def create_app(
     watchdog.slow_requests(app)
 
     app.state.rememberer = rememberer
+    app.state.location = location_service
     # Published for the same reason, and to let a test check that the scheduler
     # was handed a client it can actually call. That was wrong for the whole
     # first day the after-turn worker existed.

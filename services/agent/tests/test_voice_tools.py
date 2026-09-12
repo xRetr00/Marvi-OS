@@ -27,6 +27,44 @@ from marvi_gateway.tools import ToolRegistry, ToolSpec  # noqa: E402
 from marvi_agent.tools import GatewayTools  # noqa: E402
 
 
+@pytest.mark.asyncio
+async def test_location_tools_follow_gateway_configuration_and_voice_budget(tmp_path, monkeypatch):
+    import time
+
+    from marvi_gateway.location import Place, Settings, register_location_tools
+
+    monkeypatch.setenv("MARVI_LOCAL_TOKEN", "voice-location-token")
+    registry = ToolRegistry()
+    app = create_app(version="0.1.0-test", tools=registry,
+                     runtime=RuntimeStore(audit_path=tmp_path / "audit.jsonl"))
+    service = app.state.location
+    register_location_tools(registry, service)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://marvi.local") as client:
+        voice = GatewayTools(base_url="http://marvi.local", client=client)
+        await voice.from_gateway()
+        off = await voice.tool_call(None, name="get_weather")
+        assert "Choose a location" in off
+        service.configure(Settings(mode="saved", saved=Place(latitude=40, longitude=31,
+            label="Test home", timezone="Europe/Istanbul")))
+        service.cache_key = (40, 31)
+        service.cached = {"fetched_at": time.time(), "timezone": "Europe/Istanbul",
+            "current": {"time": "2026-09-12T10:00", "temperature_2m": 22, "apparent_temperature": 23,
+                "relative_humidity_2m": 60, "wind_speed_10m": 5, "weather_code": 3},
+            "daily": {"time": ["2026-09-12", "2026-09-13", "2026-09-14"],
+                "temperature_2m_min": [18, 19, 20], "temperature_2m_max": [25, 26, 27],
+                "precipitation_probability_max": [10, 20, 30], "weather_code": [3, 3, 3],
+                "sunrise": ["2026-09-12T06:30"], "sunset": ["2026-09-12T19:15"]}}
+        weather = await voice.tool_call(None, name="get_weather")
+        assert "22 C" in weather and "2026-09-14" in weather and "Sunrise" in weather
+        assert "cut short" not in weather
+        assert voice.pending_token is None
+        clock = await voice.tool_call(None, name="get_local_time")
+        assert "Europe/Istanbul" in clock
+        service.configure(Settings(mode="off"))
+        disabled = await voice.tool_call(None, name="get_location")
+        assert "Test home" not in disabled
+
+
 @pytest.fixture
 def gateway(tmp_path):
     executed: list[tuple[str, dict]] = []

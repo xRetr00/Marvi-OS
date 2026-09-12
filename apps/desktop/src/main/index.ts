@@ -649,6 +649,8 @@ async function startVoiceStack(): Promise<void> {
   configureLogging(logsDir())
   installCatchers()
   desktop.info('starting the voice stack')
+  // Externally managed Gateways need the same authenticated bridge as children.
+  publishLocalToken()
   if (process.env['MARVI_MANAGE_VOICE_STACK'] === '0') {
     desktop.info('MARVI_MANAGE_VOICE_STACK=0, leaving the services alone')
     return
@@ -674,8 +676,6 @@ async function startVoiceStack(): Promise<void> {
   // Anything left running from a session that did not shut down cleanly. An
   // orphaned Gateway holds port 8765, and the new one then fails to bind for a
   // reason that looks like nothing at all.
-  publishLocalToken()
-
   // Ownership, declared before anything exists to own.
   //
   // Everything below used to infer it: a Gateway holding the port was adopted
@@ -2328,7 +2328,11 @@ function startApp(): void {
     })
 
     const locationSender = (event: Electron.IpcMainInvokeEvent): void => {
-      if (!mainWindow || event.sender !== mainWindow.webContents || event.senderFrame !== mainWindow.webContents.mainFrame)
+      if (
+        !mainWindow ||
+        event.sender !== mainWindow.webContents ||
+        event.senderFrame !== mainWindow.webContents.mainFrame
+      )
         throw new Error('Location is available only to the control center.')
     }
     ipcMain.handle('marvi:get-location', (event) => {
@@ -2337,9 +2341,17 @@ function startApp(): void {
     })
     ipcMain.handle('marvi:set-location', async (event, settings) => {
       locationSender(event)
-      const result = await gatewayJson('/location', { method: 'PUT',
-        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(settings) })
-      return result
+      await locationHost.cancelRead()
+      const response = await fetch(`${gateway()}/location`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...localHeaders() },
+        body: JSON.stringify(settings),
+        signal: AbortSignal.timeout(10_000)
+      })
+      if (response.status === 422)
+        throw new Error('Choose valid coordinates and an IANA timezone, such as Europe/Istanbul.')
+      if (!response.ok) throw new Error('Location settings could not be saved. Try again.')
+      return response.json()
     })
     ipcMain.handle('marvi:refresh-location', (event) => {
       locationSender(event)
@@ -3894,11 +3906,18 @@ function startApp(): void {
     // Browser-managed tile caching; no prefetch/offline scraping. Identify this
     // native application to OSM even though its renderer uses a file origin.
     session.defaultSession.webRequest.onBeforeSendHeaders(
-      { urls: ['https://tile.openstreetmap.org/*'] }, (details, callback) => {
-        callback({ requestHeaders: { ...details.requestHeaders, 'User-Agent': `Marvi-OS/${app.getVersion()} (desktop location map)` } })
-      })
+      { urls: ['https://tile.openstreetmap.org/*'] },
+      (details, callback) => {
+        callback({
+          requestHeaders: {
+            ...details.requestHeaders,
+            'User-Agent': `Marvi-OS/${app.getVersion()} (desktop location map)`
+          }
+        })
+      }
+    )
     locationHost.start()
-    powerMonitor.on('resume', () => void locationHost.refresh(false))
+    powerMonitor.on('resume', () => locationHost.resume())
     startPetCursorPolling()
     const repositionPet = (): void => syncPetWindow()
     screen.on('display-added', repositionPet)

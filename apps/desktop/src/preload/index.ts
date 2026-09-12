@@ -82,9 +82,12 @@ import type { PetPreferences } from '../main/pet-window'
 
 const marvi = {
   getLocation: (): Promise<LocationState | null> => ipcRenderer.invoke('marvi:get-location'),
-  setLocation: (settings: LocationSettings): Promise<LocationState | null> => ipcRenderer.invoke('marvi:set-location', settings),
-  refreshLocation: (): Promise<LocationState | null> => ipcRenderer.invoke('marvi:refresh-location'),
-  searchPlaces: (query: string): Promise<Place[] | null> => ipcRenderer.invoke('marvi:search-places', query),
+  setLocation: (settings: LocationSettings): Promise<LocationState | null> =>
+    ipcRenderer.invoke('marvi:set-location', settings),
+  refreshLocation: (): Promise<LocationState | null> =>
+    ipcRenderer.invoke('marvi:refresh-location'),
+  searchPlaces: (query: string): Promise<Place[] | null> =>
+    ipcRenderer.invoke('marvi:search-places', query),
   getWeather: (): Promise<WeatherState | null> => ipcRenderer.invoke('marvi:get-weather'),
   openLocationSettings: (): Promise<void> => ipcRenderer.invoke('marvi:open-location-settings'),
   getVersion: (): Promise<string> => ipcRenderer.invoke('marvi:get-version'),

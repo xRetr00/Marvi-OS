@@ -18,8 +18,24 @@ export interface WeatherState {
   status: 'ready' | 'stale' | 'unavailable'
   detail?: string
   data: {
-    current: { time: string; temperature_2m: number; apparent_temperature: number; relative_humidity_2m: number; weather_code: number; wind_speed_10m: number; is_day: number }
-    daily: { time: string[]; weather_code: (number | null)[]; temperature_2m_max: (number | null)[]; temperature_2m_min: (number | null)[]; precipitation_probability_max: (number | null)[]; sunrise: (string | null)[]; sunset: (string | null)[] }
+    current: {
+      time: string
+      temperature_2m: number
+      apparent_temperature: number
+      relative_humidity_2m: number
+      weather_code: number
+      wind_speed_10m: number
+      is_day: number
+    }
+    daily: {
+      time: string[]
+      weather_code: (number | null)[]
+      temperature_2m_max: (number | null)[]
+      temperature_2m_min: (number | null)[]
+      precipitation_probability_max: (number | null)[]
+      sunrise: (string | null)[]
+      sunset: (string | null)[]
+    }
     units: Record<string, string>
     timezone: string
     fetched_at: number
