@@ -76,17 +76,36 @@ function describe(cause: unknown): string {
   return String(cause)
 }
 
-async function waitForGateway(attempts = 30): Promise<void> {
+/**
+ * Wait for the Gateway *and* for a voice worker that can take the call.
+ *
+ * Waiting for the Gateway alone was not enough, and the log says exactly why:
+ *
+ *     14:08:43  desktop joins room marvi-os-bcf8548fd092
+ *     14:09:12  voice worker registered
+ *
+ * LiveKit dispatches a job when the room is created and never goes back for a
+ * worker that registers later, so that room sat empty until the person left
+ * it -- "No agent joined". The Gateway already reports voice as ready only
+ * once the worker has registered; nothing here asked.
+ */
+async function waitForVoice(attempts = 90): Promise<void> {
   for (let attempt = 0; attempt < attempts; attempt += 1) {
+    let runtime: Awaited<ReturnType<typeof window.marvi.getRuntime>> | undefined
     try {
-      const runtime = await window.marvi?.getRuntime()
-      if (runtime?.components?.gateway?.state === 'ready') return
+      runtime = await window.marvi?.getRuntime()
     } catch {
       // Not up yet. The wait below is the whole handling.
     }
+    const voice = runtime?.components?.voice
+    if (runtime?.components?.gateway?.state === 'ready') {
+      if (!voice || voice.state === 'ready') return
+      // Broken rather than warming: joining would only make an empty room.
+      if (voice.state === 'error') throw new Error(voice.detail || 'The voice worker could not start')
+    }
     await new Promise((resolve) => window.setTimeout(resolve, 1_000))
   }
-  throw new Error('Marvi Gateway did not become ready')
+  throw new Error('The voice worker did not become ready')
 }
 
 /**
@@ -132,7 +151,7 @@ export function expectDisconnect(): void {
 
 export async function connectVoiceRoom(options: { microphone?: boolean } = {}): Promise<Room> {
   deliberate = false
-  await waitForGateway()
+  await waitForVoice()
 
   // One token, now that there is something to give it to. Two attempts rather
   // than one because the Gateway can answer /runtime a moment before it can
