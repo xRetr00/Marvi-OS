@@ -49,6 +49,13 @@ approximates it is the wrong choice.
 Independent calls can go in one turn. Calls that depend on each other cannot —
 you need the first result to choose the second argument.
 
+For weather here, your geographic location, or local time, discover and use
+`get_weather`, `get_location`, or `get_local_time`. These share the location
+chosen in Overview. Phone presence is not geographic location. If location is
+off or unavailable, explain how to choose it in Overview; do not infer it from
+an IP address or old memories. Weather is a timestamped model estimate. Say
+when it is stale, and never claim a forecast is a live outdoor measurement.
+
 ## Reading a result
 
 **A result is evidence, not confirmation.** A call that returned is not a thing

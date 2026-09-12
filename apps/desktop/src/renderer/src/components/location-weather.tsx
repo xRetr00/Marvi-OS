@@ -6,7 +6,7 @@ import './location-weather.css'
 
 export function weatherLabel(code: number): string {
   if (code === 0) return 'Clear skies'
-  if (code <= 3) return ['Clear skies', 'Mostly clear', 'Partly cloudy', 'Overcast'][code] ?? 'Unknown'
+  if (code >= 1 && code <= 3) return ['Clear skies', 'Mostly clear', 'Partly cloudy', 'Overcast'][code] ?? 'Unknown'
   if ([45, 48].includes(code)) return 'Fog'
   if (code >= 51 && code <= 57) return 'Drizzle'
   if (code >= 61 && code <= 67) return 'Rain'
@@ -147,8 +147,8 @@ export function LocationWeather(): React.JSX.Element {
         <div className="weather-details"><span><Wind /> {data.current.wind_speed_10m} km/h</span><span>Humidity {data.current.relative_humidity_2m}%</span></div>
         <div className="weather-days">{data.daily.time.slice(0, 3).map((day, i) => <div key={day}>
           <span>{i === 0 ? 'Today' : new Date(`${day}T12:00:00`).toLocaleDateString(undefined, { weekday: 'short' })}</span>
-          <WeatherIcon code={data.daily.weather_code[i]} />
-          <span>{Math.round(data.daily.temperature_2m_max[i])}° <small>{Math.round(data.daily.temperature_2m_min[i])}°</small></span>
+          <WeatherIcon code={data.daily.weather_code[i] ?? -1} />
+          <span>{data.daily.temperature_2m_max[i] == null ? '—' : Math.round(data.daily.temperature_2m_max[i])}° <small>{data.daily.temperature_2m_min[i] == null ? '—' : Math.round(data.daily.temperature_2m_min[i])}°</small></span>
           <small>{data.daily.precipitation_probability_max[i] ?? '—'}% rain</small>
         </div>)}</div>
         <footer><span><ArrowUp /> {data.daily.sunrise[0]?.slice(11, 16) ?? '—'} <ArrowDown /> {data.daily.sunset[0]?.slice(11, 16) ?? '—'}</span>
@@ -194,7 +194,7 @@ export function LocationWeather(): React.JSX.Element {
           <div className="location-coordinate-fields"><label>Latitude<input name="latitude" type="number" required min={-90} max={90} step="any" /></label><label>Longitude<input name="longitude" type="number" required min={-180} max={180} step="any" /></label></div>
           <label>Timezone<input name="timezone" required defaultValue={Intl.DateTimeFormat().resolvedOptions().timeZone} placeholder="Europe/Istanbul" /></label><button disabled={busy}>Save place</button>
         </form></details>
-        <p className="location-disclosure">Weather requests share approximate coordinates with Open-Meteo. Map tiles share the viewed area with OpenStreetMap. Saved places stay on this PC; automatic positions are not stored.</p>
+        <p className="location-disclosure">Weather requests share approximate coordinates with Open-Meteo. Map tiles share the viewed area with OpenStreetMap. Saved places stay on this PC. Automatic fixes are not saved as location history; tool answers follow normal conversation retention.</p>
       </div>}
       {busy && <p className="location-feedback" role="status">Updating… Windows may ask for location permission.</p>}
       {error && <p className="location-feedback" role="alert">{error}</p>}
