@@ -133,14 +133,7 @@ export interface TelegramStatus {
 }
 
 export type TelegramAction =
-  | 'token'
-  | 'disconnect'
-  | 'pair'
-  | 'unlink'
-  | 'when-away'
-  | 'voice-replies'
-  | 'test'
-  | 'identity'
+  'token' | 'disconnect' | 'pair' | 'unlink' | 'when-away' | 'voice-replies' | 'test' | 'identity'
 
 /** What a Telegram action answered: the new status, or why not. */
 export type TelegramResult = { ok: true; status: TelegramStatus } | { ok: false; detail: string }

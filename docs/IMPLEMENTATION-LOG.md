@@ -1918,3 +1918,23 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   `marvi.telegram` had been falling through to gateway.log.
 - Evidence: fake-Bot-API test sends an album, a photo and a document through
   the model-facing tool; full gateway suite 1879 passed.
+
+## 2026-09-12 — Telegram presence, tool steps, formatting, voice replies
+
+- Visible work: "typing…" starts when a message lands (it began only after
+  download/transcription), renews every 4s, switches to upload_photo /
+  upload_document / record_voice, and the message carries 👀 until answered.
+- Tool steps: the live draft shows the last few steps in plain verbs (the
+  desktop's tool-verbs rule, ported), repeats folded; the answer ends with one
+  collapsed `<blockquote expandable>` of steps (and the YOLO note). No message
+  per tool. The Telegram brief tells the model not to narrate them.
+- Formatting: quotes (collapsed past 4 lines), aligned table columns, task
+  lists, nested bullets, rules, spoilers, code-language labels; link previews
+  off when a reply has more than one link.
+- Albums arrive as one turn (they were split, and the second photo was told to
+  wait); videos, video notes and GIFs send their preview frame (they were
+  dropped silently); a reply includes the replied-to text, enveloped.
+- Voice replies: a voice note is answered with a voice note in Marvi's local
+  voice (Announcer.synthesize → OGG/Opus via PyAV) after the text; switch on
+  Channels. Evidence: 34 Telegram tests over the real SDK and a fake Bot API;
+  gateway suite 1896 passed.

@@ -131,14 +131,22 @@ logging.getLogger("httpx").addFilter(_QuietPolling())
 
 # -- formatting ---------------------------------------------------------------
 
-_FENCE = re.compile(r"```[^\n`]*\n(.*?)(?:```|\Z)", re.S)
+_FENCE = re.compile(r"```([^\n`]*)\n(.*?)(?:```|\Z)", re.S)
 _CODE = re.compile(r"`([^`\n]+)`")
 _LINK = re.compile(r"\[([^\]\n]+)\]\((https?://[^\s)]+)\)")
 _BOLD = re.compile(r"\*\*(.+?)\*\*|__(.+?)__")
 _STRIKE = re.compile(r"~~(.+?)~~")
+_SPOILER = re.compile(r"\|\|(.+?)\|\|")
 _ITALIC = re.compile(r"(?<![\w*])\*(?!\s)([^*\n]+?)(?<!\s)\*(?![\w*])|(?<![\w_])_(?!\s)([^_\n]+?)(?<!\s)_(?![\w_])")
 _HEADING = re.compile(r"^#{1,6}\s+(.+?)\s*#*$", re.M)
+_TASK = re.compile(r"^(\s*)[-*+]\s+\[([ xX])\]\s+", re.M)
 _BULLET = re.compile(r"^(\s*)[-*+]\s+", re.M)
+_RULE = re.compile(r"^\s*([-*_])(?:\s*\1){2,}\s*$")
+_TABLE_RULE = re.compile(r"^:?-{2,}:?$")
+#: A quote longer than this many lines collapses behind "show more".
+QUOTE_LINES = 4
+#: A table column wider than this is cut with an ellipsis: a phone is narrow.
+TABLE_CELL = 22
 
 
 def _inline(text: str) -> str:
@@ -150,13 +158,18 @@ def _inline(text: str) -> str:
 
     text = _CODE.sub(keep, text)
     text = _HEADING.sub(r"**\1**", text)
-    text = _BULLET.sub(r"\1• ", text)
+    text = _TASK.sub(lambda m: m.group(1) + ("☑ " if m.group(2) in "xX" else "☐ "), text)
+    # Nested bullets keep their depth: a second level reads as a second level.
+    text = _BULLET.sub(
+        lambda m: m.group(1) + ("◦ " if len(m.group(1).expandtabs(2)) >= 2 else "• "), text
+    )
     text = html.escape(text, quote=False)
     text = _LINK.sub(
         lambda m: f'<a href="{m.group(2).replace(chr(34), "%22")}">{m.group(1)}</a>', text
     )
     text = _BOLD.sub(lambda m: f"<b>{m.group(1) or m.group(2)}</b>", text)
     text = _STRIKE.sub(r"<s>\1</s>", text)
+    text = _SPOILER.sub(r"<tg-spoiler>\1</tg-spoiler>", text)
     text = _ITALIC.sub(lambda m: f"<i>{m.group(1) or m.group(2)}</i>", text)
     return re.sub(
         "\x00(\\d+)\x00",
@@ -165,20 +178,53 @@ def _inline(text: str) -> str:
     )
 
 
+def _table(lines: list[str]) -> str:
+    """A GitHub table as aligned columns. Pipes and dashes are for editors."""
+    rows = [[cell.strip() for cell in line.strip().strip("|").split("|")] for line in lines]
+    rows = [row for row in rows if not all(_TABLE_RULE.match(cell) for cell in row if cell)]
+    if not rows:
+        return ""
+    cut = [[c if len(c) <= TABLE_CELL else c[: TABLE_CELL - 1] + "…" for c in row] for row in rows]
+    widths = [max(len(row[i]) if i < len(row) else 0 for row in cut) for i in range(max(map(len, cut)))]
+    text = "\n".join(
+        "  ".join((row[i] if i < len(row) else "").ljust(widths[i]) for i in range(len(widths))).rstrip()
+        for row in cut
+    )
+    return "<pre>" + html.escape(text, quote=False) + "</pre>"
+
+
+def _quote(lines: list[str]) -> str:
+    body = "\n".join(_inline(re.sub(r"^\s*>\s?", "", line)) for line in lines)
+    tag = "blockquote expandable" if len(lines) > QUOTE_LINES else "blockquote"
+    return f"<{tag}>{body}</blockquote>"
+
+
 def _block(text: str) -> str:
-    """Prose, with GitHub tables kept legible as preformatted text."""
+    """Prose, with tables as aligned columns, quotes as quotes, rules as rules."""
     out: list[str] = []
-    table: list[str] = []
+    run: list[str] = []
+    kind = ""
+
+    def flush() -> None:
+        if run:
+            out.append(_table(run) if kind == "table" else _quote(run))
+            run.clear()
+
     for line in text.split("\n"):
-        if line.lstrip().startswith("|"):
-            table.append(line)
-            continue
-        if table:
-            out.append("<pre>" + html.escape("\n".join(table), quote=False) + "</pre>")
-            table = []
-        out.append(_inline(line))
-    if table:
-        out.append("<pre>" + html.escape("\n".join(table), quote=False) + "</pre>")
+        stripped = line.lstrip()
+        # `||` opens a spoiler, not a table row.
+        table = stripped.startswith("|") and not stripped.startswith("||")
+        current = "table" if table else "quote" if stripped.startswith(">") else ""
+        if current != kind:
+            flush()
+            kind = current
+        if current:
+            run.append(line)
+        elif _RULE.match(line):
+            out.append("──────────")
+        else:
+            out.append(_inline(line))
+    flush()
     return "\n".join(out)
 
 
@@ -193,10 +239,128 @@ def telegram_html(markdown: str) -> str:
     position = 0
     for match in _FENCE.finditer(markdown):
         out.append(_block(markdown[position : match.start()]))
-        out.append("<pre>" + html.escape(match.group(1).rstrip("\n"), quote=False) + "</pre>")
+        code = html.escape(match.group(2).rstrip("\n"), quote=False)
+        language = re.sub(r"[^A-Za-z0-9+#-]", "", match.group(1))[:20]
+        # The language label Telegram shows above the block, when there is one.
+        out.append(
+            f'<pre><code class="language-{language}">{code}</code></pre>' if language
+            else f"<pre>{code}</pre>"
+        )
         position = match.end()
     out.append(_block(markdown[position:]))
     return "".join(out).strip()
+
+
+# -- tool activity -----------------------------------------------------------------
+#
+# The same rule as the desktop's `chat/ui/tool-verbs.ts`: the verb is usually in
+# the tool's own name, so "file_read" reads as "reading a file" without a list
+# that MCP tools would never be in. Kept in step by hand; both are short.
+
+_VERBS: dict[str, tuple[str, str]] = {
+    "action": ("using", "used"), "add": ("adding to", "added to"),
+    "control": ("using", "used"), "delete": ("deleting from", "deleted from"),
+    "edit": ("patching", "patched"), "execute": ("running", "ran"),
+    "extract": ("reading", "read"), "fetch": ("reading", "read"),
+    "find": ("searching", "searched"), "forget": ("forgetting", "forgot"),
+    "health": ("checking", "checked"), "install": ("installing", "installed"),
+    "list": ("checking", "checked"), "logs": ("reading", "read"),
+    "move": ("rescheduling", "rescheduled"), "now": ("checking", "checked"),
+    "open": ("surfing", "surfed"), "presence": ("checking", "checked"),
+    "read": ("reading", "read"), "recall": ("recalling", "recalled"),
+    "recent": ("checking", "checked"), "refresh": ("refreshing", "refreshed"),
+    "remember": ("saving to", "saved to"), "remove": ("removing from", "removed from"),
+    "run": ("running", "ran"), "save": ("saving", "saved"),
+    "search": ("searching", "searched"), "send": ("sending", "sent"),
+    "set": ("adjusting", "adjusted"), "state": ("checking", "checked"),
+    "status": ("checking", "checked"), "stop": ("stopping", "stopped"),
+    "today": ("checking", "checked"), "write": ("writing", "wrote"),
+}
+_SUBJECTS = {
+    "account": "an account", "activity": "today's activity", "browser": "the browser",
+    "calendar": "the calendar", "computer": "the computer", "file": "a file",
+    "memory": "memory", "room": "the room", "schedule": "the schedule",
+    "screen": "the screen", "skill": "a skill", "telegram": "Telegram",
+    "terminal": "the terminal", "web": "the web",
+}
+_OVERRIDES = {
+    "web_search": ("searching the web", "searched the web"),
+    "terminal_run": ("running a command", "ran a command"),
+    "read_screen": ("looking at the screen", "looked at the screen"),
+    "send_email": ("sending an email", "sent an email"),
+    "cronjob": ("scheduling a job", "scheduled a job"),
+    "note_about_user": ("making a note about you", "made a note about you"),
+    "delegate": ("handing it to a sub-agent", "handed it to a sub-agent"),
+    "account_tool_execute": ("using a connected account", "used a connected account"),
+    "account_tool_search": ("looking up account actions", "looked up account actions"),
+    "calendar_events": ("checking the calendar", "checked the calendar"),
+    "email_recent": ("checking email", "checked email"),
+    "tool_search": ("looking for the right tool", "found a tool"),
+}
+#: Steps that are not work worth listing: asking the user, drawing a widget.
+QUIET_TOOLS = {"clarify", "ask_secret", "present_widget", "remember_about_user", "forget_about_user"}
+
+
+def tool_activity(name: str, running: bool) -> str:
+    """"searching the web" / "searched the web" for `web_search`."""
+    if name in _OVERRIDES:
+        return _OVERRIDES[name][0 if running else 1]
+    parts = [part for part in re.split(r"[^a-z0-9]+", name.lower()) if part]
+    tense, rest = None, parts
+    if parts and parts[-1] in _VERBS:
+        tense, rest = _VERBS[parts[-1]], parts[:-1]
+    elif parts and parts[0] in _VERBS:
+        tense, rest = _VERBS[parts[0]], parts[1:]
+    if tense is None:
+        return f"{'using' if running else 'used'} {' '.join(parts) or 'a tool'}"
+    verb = tense[0 if running else 1]
+    return f"{verb} {_SUBJECTS.get(rest[0], ' '.join(rest))}" if rest else verb
+
+
+def _steps(names: list[str]) -> list[tuple[str, int]]:
+    """Consecutive repeats folded: three searches are one step done three times."""
+    folded: list[tuple[str, int]] = []
+    for name in names:
+        if name in QUIET_TOOLS:
+            continue
+        if folded and folded[-1][0] == name:
+            folded[-1] = (name, folded[-1][1] + 1)
+        else:
+            folded.append((name, 1))
+    return folded
+
+
+def progress(names: list[str]) -> str:
+    """The live draft while she works: the last few steps, the current one last.
+
+    One bubble that changes, not a message per tool -- ten tool calls are one
+    line updating, never ten notifications.
+    """
+    folded = _steps(names)
+    if not folded:
+        return ""
+    lines = [f"✓ {tool_activity(n, False).capitalize()}{f' x{c}' if c > 1 else ''}" for n, c in folded[-4:-1]]
+    name, count = folded[-1]
+    lines.append(f"⏳ {tool_activity(name, True).capitalize()}{f' ({count})' if count > 1 else ''}…")
+    if len(folded) > 4:
+        lines.insert(0, f"… {len(folded) - 4} earlier steps")
+    return "\n".join(lines)
+
+
+def steps_footer(names: list[str], yolo: bool = False) -> str:
+    """What she did, under the answer: collapsed, so it is there when wanted.
+
+    HTML rather than Markdown because it is Marvi's own chrome, added after the
+    model's text is converted -- nothing the model writes can reach it.
+    """
+    folded = _steps(names)
+    lines = [
+        f"✓ {html.escape(tool_activity(n, False).capitalize())}{f' x{c}' if c > 1 else ''}"
+        for n, c in folded
+    ]
+    if yolo and folded:
+        lines.append("⚡ YOLO mode — these ran without asking")
+    return f"<blockquote expandable>{chr(10).join(lines)}</blockquote>" if lines else ""
 
 
 def chunks(text: str, limit: int = CHUNK_CHARS) -> list[str]:
@@ -812,16 +976,11 @@ class TelegramBridge:
         body = (telegram_html(caption) if formatted else caption) or None
         mode = ParseMode.HTML if formatted and caption else None
         # "uploading photo…" rather than "typing…" while ten photos go up.
-        action = "upload_photo" if photo else "upload_document"
-        busy = chat_id in self._action
-        if busy:
-            self._action[chat_id] = action
-        with contextlib.suppress(Exception):
-            await bot.send_chat_action(chat_id, action)
+        await self._doing(chat_id, "upload_photo" if photo else "upload_document")
         try:
             return await self._upload(bot, chat_id, group, photo, body, mode)
         finally:
-            if busy and chat_id in self._action:
+            if chat_id in self._action:
                 self._action[chat_id] = "typing"
 
     @staticmethod
@@ -871,24 +1030,39 @@ class TelegramBridge:
 
     # -- sending helpers ------------------------------------------------------
 
-    async def _reply(self, chat_id: int, markdown: str, reply_markup: Any = None) -> int:
-        """Send a whole answer, split, formatted, with a plain-text fallback."""
+    async def _reply(
+        self, chat_id: int, markdown: str, reply_markup: Any = None, footer: str = ""
+    ) -> int:
+        """Send a whole answer, split, formatted, with a plain-text fallback.
+
+        `footer` is Marvi's own HTML (the steps she took), added to the last
+        piece after conversion so nothing the model wrote can reach it.
+        """
+        from telegram import LinkPreviewOptions
         from telegram.constants import ParseMode
         from telegram.error import BadRequest
 
         bot = self._app.bot
         pieces = chunks(markdown) or [markdown or "…"]
+        # One link gets its preview card; a reply citing five sources does not
+        # get a card for whichever one happened to be first.
+        preview = LinkPreviewOptions(is_disabled=len(_LINK.findall(markdown)) + len(_URL.findall(markdown)) > 1)
         last = 0
         for index, piece in enumerate(pieces):
-            markup = reply_markup if index == len(pieces) - 1 else None
+            final = index == len(pieces) - 1
+            markup = reply_markup if final else None
+            tail = f"\n\n{footer}" if final and footer else ""
             try:
                 sent = await bot.send_message(
-                    chat_id, telegram_html(piece), parse_mode=ParseMode.HTML, reply_markup=markup
+                    chat_id, telegram_html(piece) + tail, parse_mode=ParseMode.HTML,
+                    reply_markup=markup, link_preview_options=preview,
                 )
             except BadRequest:
                 # A formatting guess Telegram would not parse. The words matter
-                # more than the bold.
-                sent = await bot.send_message(chat_id, piece, reply_markup=markup)
+                # more than the bold, and the steps are not worth losing them.
+                sent = await bot.send_message(
+                    chat_id, piece, reply_markup=markup, link_preview_options=preview
+                )
             last = int(sent.message_id)
         return last
 
@@ -1045,12 +1219,15 @@ class TelegramBridge:
             await message.reply_text("Still on your last message. Send /stop to cancel it.")
             return
         stop = threading.Event()
-        self._running[chat_id] = stop  # claimed before any await, so two messages cannot race
+        # Both claimed before any await: the turn, so two messages cannot race,
+        # and the album, so its other parts join rather than being told to wait.
+        self._running[chat_id] = stop
+        messages = [message]
+        if group:
+            self._albums[group] = messages
         try:
             async with self._working(chat_id, message.message_id):
-                messages = [message]
                 if group:
-                    self._albums[group] = messages
                     await asyncio.sleep(ALBUM_SECONDS)
                     messages = self._albums.pop(group, messages)
                 thread = self._thread_for(chat_id, user.first_name or "")
@@ -1234,10 +1411,10 @@ class TelegramBridge:
                     await draft.push(answer)
                 elif "tool" in event:
                     used.append(str(event["tool"]))
-                    # Before any words, the draft says what she is doing rather
-                    # than leaving a long web search looking like nothing.
-                    if not answer.strip():
-                        await draft.push(f"⏳ {str(event['tool']).replace('_', ' ')}…", force=True)
+                    # Until the words start, the draft shows her steps: one
+                    # bubble updating in place, never a message per tool.
+                    if not answer.strip() and (steps := progress(used)):
+                        await draft.push(steps, force=True)
                 elif "ask" in event:
                     await self._show_ask(chat_id, event["ask"])
                 elif event.get("done"):
@@ -1248,10 +1425,8 @@ class TelegramBridge:
         reply = str(done.get("reply") or answer).strip()
         if done.get("cancelled"):
             reply = (reply + "\n\n_(stopped)_").strip()
-        if reply and used and self.yolo():
-            reply += "\n\n⚡ YOLO mode is on — actions ran without asking."
         if reply:
-            await self._reply(chat_id, reply)
+            await self._reply(chat_id, reply, footer=steps_footer(used, yolo=self.yolo()))
         if done.get("error") and not done.get("cancelled") and not reply:
             await self._app.bot.send_message(chat_id, f"⚠️ {str(done['error'])[:500]}")
         if pending := done.get("pending_confirmation"):
@@ -1270,7 +1445,7 @@ class TelegramBridge:
         words = speakable(markdown)
         if not words:
             return
-        self._action[chat_id] = "record_voice"
+        await self._doing(chat_id, "record_voice")
         try:
             pcm, rate = await asyncio.to_thread(self.speak, words)
             audio = await asyncio.to_thread(ogg_opus, pcm, rate)
@@ -1278,7 +1453,17 @@ class TelegramBridge:
         except Exception as exc:  # the text already arrived; a missing voice is a footnote
             log.warning("telegram voice reply failed: %s", exc)
         finally:
-            self._action[chat_id] = "typing"
+            # Not re-sent: the turn is ending, and a fresh "typing…" would
+            # outlive the answer by five seconds.
+            if chat_id in self._action:
+                self._action[chat_id] = "typing"
+
+    async def _doing(self, chat_id: int, action: str) -> None:
+        """Change what the header says now, not at the next four-second renewal."""
+        if chat_id in self._action:
+            self._action[chat_id] = action
+        with contextlib.suppress(Exception):
+            await self._app.bot.send_chat_action(chat_id, action)
 
     async def _show_ask(self, chat_id: int, ask: dict[str, Any]) -> None:
         from telegram import InlineKeyboardButton, InlineKeyboardMarkup

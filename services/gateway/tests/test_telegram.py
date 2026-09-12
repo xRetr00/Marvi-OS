@@ -66,8 +66,8 @@ def test_what_the_model_writes_cannot_become_markup() -> None:
 def test_code_blocks_and_tables_stay_readable() -> None:
     html = telegram_html("# Plan\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n```py\nprint('**no**')\n```")
     assert "<b>Plan</b>" in html
-    assert "<pre>| a | b |" in html
-    assert "<pre>print('**no**')</pre>" in html
+    assert "<pre>a  b\n1  2</pre>" in html, "a table reads as columns on a phone"
+    assert "<pre><code class=\"language-py\">print('**no**')</code></pre>" in html
 
 
 def test_long_replies_split_under_the_limit() -> None:
@@ -405,6 +405,9 @@ class FakeTelegram:
         self.uploads: list[tuple[str, list[str], dict[str, Any]]] = []
         #: Downloadable files by id, served the way Telegram's file endpoint does.
         self.files: dict[str, bytes] = {}
+        self.next_update = 1
+        self.next_message = 100
+        self.lock = threading.Lock()
 
     def owner_message(self, **fields: Any) -> None:
         """A message from the owner carrying media rather than text."""
@@ -427,10 +430,10 @@ class FakeTelegram:
         return [p.get("action", "") for m, p in self.calls if m == "sendChatAction"]
 
     def reactions(self) -> list[str]:
-        return [p.get("reaction", "") for m, p in self.calls if m == "setMessageReaction"]
-        self.next_update = 1
-        self.next_message = 100
-        self.lock = threading.Lock()
+        return [
+            "".join(r.get("emoji", "") for r in json.loads(p.get("reaction") or "[]"))
+            for m, p in self.calls if m == "setMessageReaction"
+        ]
 
     def push(self, **update: Any) -> None:
         with self.lock:
@@ -638,3 +641,187 @@ async def test_files_reach_the_phone_as_an_album_a_photo_and_a_document(
         assert "caption" not in media[1]
     finally:
         await bridge.stop()
+
+
+# -- presence, albums, video, replies and voice ----------------------------------------
+
+
+def test_a_reply_is_spoken_without_code_links_or_marks() -> None:
+    from marvi_gateway.telegram import speakable
+
+    said = speakable("**Done.** See [the docs](https://x.io) and `x`.\n```py\nprint(1)\n```\nhttps://y.io")
+    assert said == "Done. See the docs and x."
+
+
+def test_a_voice_reply_is_ogg_opus_telegram_can_play() -> None:
+    import numpy as np
+
+    from marvi_gateway.telegram import ogg_opus, pcm16_from_audio
+
+    tone = (np.sin(np.arange(24_000) * 2 * np.pi * 220 / 24_000) * 8000).astype("<i2").tobytes()
+    audio = ogg_opus(tone, 24_000)
+    assert audio[:4] == b"OggS"
+    assert 0.9 < len(pcm16_from_audio(audio)) / 32_000 < 1.2
+
+
+async def linked_bridge(tmp_path, fake, monkeypatch, **kwargs: Any) -> tuple[TelegramBridge, list]:
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", TOKEN)
+    state = tmp_path / "telegram.json"
+    state.write_text(json.dumps({"owner": {"id": OWNER, "name": "Sam"}, "threads": {}}))
+    seen: list[dict[str, Any]] = []
+    bridge = TelegramBridge(
+        recording_chat(tmp_path, seen), state_path=state, base_url=fake.url, **kwargs
+    )
+    await bridge.start()
+    await until(bridge.ready)
+    return bridge, seen
+
+
+@pytest.mark.asyncio
+async def test_she_is_visibly_busy_from_the_moment_a_message_lands(
+    tmp_path, fake_telegram, monkeypatch, configured
+) -> None:
+    """"typing…" in the header and 👀 on the message, gone once she answers."""
+    configured()
+    bridge, _ = await linked_bridge(tmp_path, fake_telegram, monkeypatch)
+    try:
+        fake_telegram.text("what's the time?")
+        await until(lambda: any("<b>done</b>" in s for s in fake_telegram.said()))
+        await until(lambda: len(fake_telegram.reactions()) >= 2)
+        assert "typing" in fake_telegram.actions()
+        added, removed = fake_telegram.reactions()[:2]
+        assert "👀" in added and "👀" not in removed
+    finally:
+        await bridge.stop()
+
+
+@pytest.mark.asyncio
+async def test_an_album_is_one_turn_and_a_video_is_its_preview_frame(
+    tmp_path, fake_telegram, monkeypatch, configured
+) -> None:
+    configured()
+    bridge, seen = await linked_bridge(tmp_path, fake_telegram, monkeypatch)
+    try:
+        for index in range(3):
+            fake_telegram.owner_message(
+                media_group_id="album-1", photo=fake_telegram.photo(f"p{index}"),
+                **({"caption": "who is this?"} if index == 0 else {}),
+            )
+        await until(lambda: len(seen) >= 1)
+        await asyncio.sleep(1.5)
+        assert len(seen) == 1, "three photos, one turn"
+        assert not any("Still on your last message" in s for s in fake_telegram.said())
+        thread = bridge.status()["thread_id"]
+        user = next(r for r in bridge.chat.store.history(thread_id=thread) if r["role"] == "user")
+        assert user["content"] == "who is this?"
+        assert len(user["attachments"]) == 3
+
+        fake_telegram.owner_message(video={
+            "file_id": "vid", "file_unique_id": "vid", "width": 90, "height": 90,
+            "duration": 3, "thumbnail": fake_telegram.photo("thumb")[0],
+        })
+        await until(lambda: len(seen) >= 2)
+        last = [r for r in bridge.chat.store.history(thread_id=thread) if r["role"] == "user"][-1]
+        assert "preview frame" in last["content"] and len(last["attachments"]) == 1
+    finally:
+        await bridge.stop()
+
+
+@pytest.mark.asyncio
+async def test_a_reply_carries_what_it_replies_to(
+    tmp_path, fake_telegram, monkeypatch, configured
+) -> None:
+    configured()
+    bridge, seen = await linked_bridge(tmp_path, fake_telegram, monkeypatch)
+    try:
+        fake_telegram.owner_message(text="and tomorrow?", reply_to_message={
+            "message_id": 1, "date": int(time.time()), "chat": {"id": OWNER, "type": "private"},
+            "from": {"id": 42, "is_bot": True, "first_name": "Marvi"},
+            "text": "Sunny, 24°C today.",
+        })
+        await until(lambda: len(seen) >= 1)
+        prompt = json.dumps(seen[0]["messages"][-1])
+        assert "Sunny, 24" in prompt and "written by Marvi" in prompt and "EXTERNAL DATA" in prompt
+    finally:
+        await bridge.stop()
+
+
+@pytest.mark.asyncio
+async def test_a_voice_note_is_answered_with_a_voice_note(
+    tmp_path, fake_telegram, monkeypatch, configured
+) -> None:
+    import numpy as np
+
+    from marvi_gateway.telegram import ogg_opus
+
+    configured()
+    tone = (np.sin(np.arange(16_000) * 2 * np.pi * 220 / 16_000) * 8000).astype("<i2").tobytes()
+    spoken: list[str] = []
+
+    def speak(text: str) -> tuple[bytes, int]:
+        spoken.append(text)
+        return tone, 16_000
+
+    bridge, _ = await linked_bridge(
+        tmp_path, fake_telegram, monkeypatch,
+        transcribe=lambda pcm: "turn the light on", speak=speak,
+    )
+    try:
+        fake_telegram.files["note"] = ogg_opus(tone, 16_000)
+        fake_telegram.owner_message(voice={
+            "file_id": "note", "file_unique_id": "note", "duration": 1, "mime_type": "audio/ogg",
+        })
+        await until(lambda: any(m == "sendVoice" for m, _, _ in fake_telegram.uploads))
+        assert spoken == ["On it — done."]
+        assert "record_voice" in fake_telegram.actions()
+        # Text first, then the voice: the words never wait for synthesis.
+        order = [m for m, _ in fake_telegram.calls if m in ("sendMessage", "sendVoice")]
+        assert order.index("sendVoice") > max(i for i, m in enumerate(order) if m == "sendMessage"
+                                              and i < order.index("sendVoice"))
+    finally:
+        await bridge.stop()
+
+
+# -- tool steps and formatting ----------------------------------------------------------
+
+
+def test_tool_steps_fold_repeats_and_hide_the_quiet_ones() -> None:
+    from marvi_gateway.telegram import progress, steps_footer
+
+    live = progress(["web_search", "web_search", "clarify", "file_read"])
+    assert live == "✓ Searched the web x2\n⏳ Reading a file…"
+    footer = steps_footer(["web_search", "web_search", "account_tool_execute"])
+    assert footer.startswith("<blockquote expandable>")
+    assert "Searched the web x2" in footer and "Used a connected account" in footer
+    assert steps_footer(["clarify"]) == "", "asking the user is not a step worth listing"
+
+
+def test_a_long_run_of_steps_stays_four_lines() -> None:
+    from marvi_gateway.telegram import progress
+
+    live = progress(["web_search", "file_read", "terminal_run", "memory_recall", "send_email"])
+    assert live.splitlines()[0] == "… 1 earlier steps"
+    assert len(live.splitlines()) == 5 and live.endswith("Sending an email…")
+
+
+def test_a_tool_name_cannot_become_markup_in_the_footer() -> None:
+    from marvi_gateway.telegram import steps_footer
+
+    assert "<b>" not in steps_footer(["<b>evil</b>_run"])
+
+
+def test_quotes_tables_tasks_rules_spoilers_and_code_labels() -> None:
+    html = telegram_html(
+        "- [x] done\n- [ ] todo\n  - nested\n\n> one\n> two\n\n"
+        "| Name | Score |\n|---|--:|\n| Alice | 10 |\n\n---\n||secret||\n\n```python\nx = 1\n```"
+    )
+    assert "☑ done" in html and "☐ todo" in html and "  ◦ nested" in html
+    assert "<blockquote>one\ntwo</blockquote>" in html
+    assert "<pre>Name   Score\nAlice  10</pre>" in html, "aligned columns, no pipes or dashes"
+    assert "──────────" in html and "<tg-spoiler>secret</tg-spoiler>" in html
+    assert '<pre><code class="language-python">x = 1</code></pre>' in html
+
+
+def test_a_long_quote_collapses() -> None:
+    html = telegram_html("\n".join(f"> line {i}" for i in range(6)))
+    assert html.startswith("<blockquote expandable>")
