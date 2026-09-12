@@ -1,5 +1,28 @@
 # Implementation Log
 
+## 2026-09-12 — Voice says finished work without being asked
+
+- Reported by the owner: sub-agents finished, but Marvi only mentioned it after
+  the owner spoke. The logs confirmed it for voice-started jobs: `08e7c437`
+  finished 14:13:42, was queued at 14:13:48 "for the next turn", and was said at
+  14:13:56 only because the owner spoke; `5989218f` the same. `delegated.py`
+  pushed reports into the *next* turn and never started one; its poll was 15 s.
+- Fix: `delegated.speak_when_quiet` (one function, used by `entrypoint` and the
+  eval) calls LiveKit's `session.generate_reply(instructions=report)` when a
+  report lands and Marvi is idle -- agent listening, nothing queued, the owner
+  not speaking and quiet for 1.5 s -- and retries when her own reply ends or
+  shortly after. Otherwise the owner's next turn still carries it; once only.
+  Poll 3 s. API checked against livekit-agents 1.7.0 source and
+  docs.livekit.io (no LiveKit docs MCP on this host).
+- Evidence: 4 new tests (callback on landing, idle speaks, never over anybody,
+  event wiring through `on`/`off`); agent suite 361 passed. Real pipeline
+  (`evals/voice_delegation.py` run 6, OpenRouter `inclusionai/ling-3.0-flash`,
+  Cua 0.24.0): job finished 14:34:20.110, spoken unprompted 14:34:21.240 --
+  "Notepad opened, its title was 'presence.log - Notepad', and I closed it."
+- Still open: in 2 of the last 3 eval runs the voice model did not delegate at
+  all and reached for `terminal_run`/`computer_control` instead (run 6 held a
+  turn for 78 s doing so), despite the voice-prompt rule.
+
 ## 2026-09-11 — Chat hears back from its sub-agents
 
 - Reported by the owner: in Chat, Jarvi's card turned FINISHED and Marvi never

@@ -1,0 +1,57 @@
+{
+ "turns": [
+  {
+   "heard": "Can you open Notepad, tell me the title of its window, and then close it?",
+   "said": "",
+   "tools": [
+    "computer_control",
+    "terminal_run",
+    "computer_control",
+    "terminal_run"
+   ],
+   "arguments": [
+    "{\"command\": \"private\"}",
+    "{\"command\": \"notepad\", \"shell\": \"powershell\"}",
+    "{\"command\": \"resume\"}",
+    "{\"command\": \"notepad\", \"shell\": \"powershell\"}"
+   ],
+   "seconds": 78.0
+  },
+  {
+   "heard": "While that's going, what's seven times eight?",
+   "said": "56.",
+   "tools": [],
+   "arguments": [],
+   "seconds": 3.05
+  },
+  {
+   "heard": "Okay, thanks.",
+   "said": "Sure thing.",
+   "tools": [],
+   "arguments": [],
+   "seconds": 1.62
+  }
+ ],
+ "voice_has_computer_action": false,
+ "voice_has_delegate": true,
+ "jarvi_running_after_first_turn": false,
+ "jarvi_still_running_during_second_turn": false,
+ "model_delegated": false,
+ "jarvi": {
+  "state": "completed",
+  "exit_reason": "completed",
+  "seconds": 12.0,
+  "summary": "Opened Notepad (pid 30448). Its window title was **\"presence.log - Notepad\"**. I then closed it by terminating the process."
+ },
+ "unprompted": {
+  "said": "Notepad opened, its title was \"presence.log - Notepad\", and I closed it.",
+  "seconds_after_job": 3.0
+ },
+ "checks": {
+  "voice_lacks_computer_action": true,
+  "delegated_to_jarvi": false,
+  "answered_while_jarvi_worked": false,
+  "jarvi_completed": true,
+  "report_said_unprompted": true
+ }
+}
