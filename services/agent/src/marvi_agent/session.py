@@ -1974,34 +1974,8 @@ async def marvi_session(ctx: JobContext) -> None:
 
     # Finished work, said at the next quiet moment instead of held for the
     # owner's next sentence. The logs: a job done at 14:13:42, mentioned at
-    # 14:13:56 only because they spoke. See `delegated.speak_up`.
-    news_loop = asyncio.get_running_loop()
-    quiet = {"since": time.monotonic()}
-    retry: list[asyncio.TimerHandle] = []
-
-    def _say_finished_work(*_: Any) -> None:
-        if not delegated.jobs.has_news():
-            return
-        if delegated.speak_up(session, delegated.jobs, time.monotonic() - quiet["since"]):
-            log.info("delegated: spoke up about finished work without being asked")
-            return
-        # Busy or too soon after the owner spoke: look again shortly. One timer
-        # at a time, so a long reply does not stack them up.
-        if not retry:
-            retry.append(news_loop.call_later(delegated.QUIET_FOR, _look_again))
-
-    def _look_again() -> None:
-        retry.clear()
-        _say_finished_work()
-
-    @session.on("user_state_changed")
-    def _owner_quiet(event: Any) -> None:
-        if getattr(event, "old_state", "") == "speaking":
-            quiet["since"] = time.monotonic()
-
-    # Her own reply ending is the other quiet moment worth trying.
-    session.on("agent_state_changed", _say_finished_work)
-    delegated.jobs.when_ready(lambda: news_loop.call_soon_threadsafe(_say_finished_work))
+    # 14:13:56 only because they spoke. See `delegated.speak_when_quiet`.
+    stop_speaking_up = delegated.speak_when_quiet(session, asyncio.get_running_loop())
 
     async def leave(why: str) -> None:
         """End a call nobody is in, saying so unless there is nobody to hear.
@@ -2120,9 +2094,7 @@ async def marvi_session(ctx: JobContext) -> None:
         reason = getattr(getattr(event, "reason", None), "value", "session closed")
         log.info("session closed (%s); ending the job", reason)
         # No loop to hand finished work to any more.
-        delegated.jobs.when_ready(None)
-        for timer in retry:
-            timer.cancel()
+        stop_speaking_up()
         # Released first: the replacement process is sitting in
         # `oncall.wait_until_free` and should start loading now, not after
         # whatever the rest of this shutdown takes.

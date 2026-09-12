@@ -839,15 +839,25 @@ class AccountIngest:
             self.store.finish(
                 toolkit, connection_id, cursor=state["cursor"], count=0, error=error
             )
-            log.warning(
-                "account memory sync failed",
+            # A rate limit is the service saying "later", and the next poll is
+            # later. It was logged as a failure with a full traceback, five
+            # times a day, for Google's per-minute quota on a project Marvi
+            # shares with every other Composio user.
+            limited = any(
+                marker in str(exc)
+                for marker in ("Quota exceeded", "rateLimitExceeded", "RESOURCE_EXHAUSTED", "429")
+            )
+            (log.info if limited else log.warning)(
+                "account memory sync rate limited; retrying next poll"
+                if limited
+                else "account memory sync failed",
                 extra={
                     "marvi_toolkit": toolkit,
                     "marvi_connection_id": connection_id,
                     "marvi_latency_ms": round((time.perf_counter() - started) * 1000, 2),
                     "marvi_error": str(exc)[:240],
                 },
-                exc_info=True,
+                exc_info=not limited,
             )
             return {"ingested": [], "skipped": 0, "errors": [error]}
 

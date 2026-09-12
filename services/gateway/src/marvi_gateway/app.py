@@ -1050,6 +1050,14 @@ def gateway_detail(fallback: str = "") -> str:
     return fallback
 
 
+#: How long the optional memory "reading" may take before recall answers with
+#: the search alone. See `recall_memory`.
+READING_BUDGET_SECONDS = 2.5
+
+#: How long a calendar answer for the Voice page is reused. See `calendar_upcoming`.
+CALENDAR_CACHE_SECONDS = 300.0
+
+
 def voice_state(
     *, worker_ready: bool, detail: str, in_a_call: bool, blocked: bool = False
 ) -> ComponentStatus:
@@ -1995,6 +2003,8 @@ def create_app(
             voiceactivity.live.ended(update.call_id, update.outcome or "ok", update.detail)
         return {"ok": True}
 
+    calendar_cache: dict[int, tuple[float, dict[str, Any]]] = {}
+
     @app.get("/calendar/upcoming")
     async def calendar_upcoming(limit: int = 8) -> dict[str, Any]:
         """The next few events, for the Voice page's calendar card.
@@ -2002,7 +2012,17 @@ def create_app(
         Served rather than left to the tool path because a page is not a model:
         it wants the same events every few seconds without a confirmation flow,
         an audit line, or an external-data envelope wrapped round them.
+
+        Cached for five minutes. The card asks every minute, each ask was a
+        Google Calendar call through Composio, and Google's per-minute quota
+        for that project was being exceeded -- which then failed the memory
+        sync that shares it. A calendar does not change minute to minute; a
+        stale answer is served if a fresh one fails.
         """
+        now = time.monotonic()
+        cached = calendar_cache.get(limit)
+        if cached and now - cached[0] < CALENDAR_CACHE_SECONDS:
+            return cached[1]
         try:
             spec = tool_registry.get("calendar_events")
         except Exception:
@@ -2012,8 +2032,12 @@ def create_app(
                 lambda: spec.handler(limit=max(1, min(limit, 25)))
             )
         except Exception as exc:
+            if cached:
+                return cached[1]
             return {"connected": False, "events": [], "reason": str(exc)[:160]}
-        return {"connected": True, "events": calendarview.upcoming(payload, limit)}
+        answer = {"connected": True, "events": calendarview.upcoming(payload, limit)}
+        calendar_cache[limit] = (now, answer)
+        return answer
 
     @app.get("/resources")
     async def resources() -> dict[str, Any]:
@@ -3279,7 +3303,11 @@ def create_app(
         about was, in practice, forgotten. Asked her own name, Marvi did not
         look it up; she wrote it down again, five times.
         """
-        block = memory.recall_block(text, limit=max(1, min(limit, 20)))
+        # On a worker thread: an embedding and a search, and on the loop it
+        # held up every other request -- the "event loop was blocked" lines.
+        block = await anyio.to_thread.run_sync(
+            lambda: memory.recall_block(text, limit=max(1, min(limit, 20)))
+        )
         # `read` is asked for only by the speculative prefetch, never by the
         # live fallback on the critical path -- see `reading`. A model reading
         # the memories answers the questions the search ranks wrongly (top-1
@@ -3288,14 +3316,20 @@ def create_app(
         # the prefetch window on 98% of real turns and inside no turn at all if
         # it were asked for here unconditionally.
         if read and reading.enabled():
-            found = await anyio.to_thread.run_sync(
-                lambda: memory.search(text, limit=reading.WIDTH)
-            )
-            answered = await anyio.to_thread.run_sync(
-                lambda: reading.block(cognition, text, found)
-            )
-            if answered:
-                block = answered + chr(10) * 2 + block if block else answered
+            # Bounded. "~600ms" is the healthy case; with the provider refusing
+            # (402, out of credits) and falling back model by model it took 9
+            # and 11 seconds, and a prefetch that late is no prefetch at all.
+            # Past the bound the search alone is returned, which is what the
+            # turn had before reading existed.
+            with anyio.move_on_after(READING_BUDGET_SECONDS):
+                found = await anyio.to_thread.run_sync(
+                    lambda: memory.search(text, limit=reading.WIDTH), abandon_on_cancel=True
+                )
+                answered = await anyio.to_thread.run_sync(
+                    lambda: reading.block(cognition, text, found), abandon_on_cancel=True
+                )
+                if answered:
+                    block = answered + chr(10) * 2 + block if block else answered
         # Carried on the recall the turn already asks for, rather than a second
         # request: it belongs to the same moment and a separate round trip in
         # front of a spoken reply is latency for one sentence.
