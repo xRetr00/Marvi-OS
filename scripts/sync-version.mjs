@@ -105,6 +105,7 @@ export async function synchronize(root, version, check = false) {
   const jobs = [
     ['VERSION', () => `${version}\n`],
     ['package.json', (source) => updatePackageJson(source, version)],
+    ['apps/desktop/package.json', (source) => updatePackageJson(source, version)],
     ['package-lock.json', (source) => updatePackageLock(source, version)],
     ['apps/updater/Cargo.toml', (source) => updateUpdaterWorkspace(source, version)],
     ['apps/updater/Cargo.lock', (source) => updateMarviLockPackages(source, version)],
