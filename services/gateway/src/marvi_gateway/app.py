@@ -82,6 +82,7 @@ from .identity import IdentityFiles, plan_warning, register_identity_tools
 from .ingest import AccountIngest
 from .initiative import Initiative
 from .journal import EventJournal
+from .location import LocationService, location_router, register_location_tools
 from .logs import available as available_logs
 from .logs import configure as configure_logging
 from .logs import get_logger, install_asyncio_handler, logs_dir, redactor, tail
@@ -1257,10 +1258,12 @@ def create_app(
     # routes answer honestly rather than pretending, because a Gateway built
     # without the tool stack has no worker to hand a turn to.
     rememberer: remembering.Rememberer | None = None
+    location_service = LocationService()
     if tools is not None:
         tool_registry = tools
     else:
         tool_registry = ToolRegistry()
+        register_location_tools(tool_registry, location_service)
         sidecar = RoomSidecar()
         register_room_tools(tool_registry, sidecar)
         # Installed plugins, after the built-in tools: a plugin cannot replace a
@@ -1646,6 +1649,7 @@ def create_app(
     app.include_router(computer_router(computer_service, runtime_store.audit))
     app.include_router(asking_router(asking_store, runtime_store.audit))
     app.include_router(inline_ask.inline_router(inline_ask.ASKS))
+    app.include_router(location_router(location_service, runtime_store.audit))
     # Reachable from outside, so a proposal can be placed and settled without a
     # model in the loop -- and so a test of what happens to a proposal tests
     # that, rather than the extraction that produced it.
@@ -3956,7 +3960,7 @@ def create_app(
 
     @app.post("/tools/{name}", response_model=ToolInvocation)
     async def call_tool(name: str, call: ToolCall, http_request: Request) -> ToolInvocation:
-        if name.startswith(("browser_", "computer_")):
+        if name.startswith(("browser_", "computer_")) or name in {"get_location", "get_local_time", "get_weather"}:
             localauth.guard(http_request)
         try:
             spec = tool_registry.get(name)

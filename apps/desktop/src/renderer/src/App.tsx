@@ -1339,7 +1339,10 @@ function RoomPanel({
         ? `OFF${vision.error ? ` — ${String(vision.error).toUpperCase()}` : ''}`
         : 'DISABLED'
   const people = Number(vision.person_count ?? 0)
-  const owner = vision.owner_visible ? 'OWNER VISIBLE' : 'OWNER NOT VISIBLE'
+  // "By outfit" is a weaker claim than "by face", so it says which.
+  const owner = vision.owner_visible
+    ? `OWNER VISIBLE${vision.owner_seen_by ? ` BY ${String(vision.owner_seen_by).toUpperCase()}` : ''}`
+    : 'OWNER NOT VISIBLE'
   const gesture = vision.gesture
     ? String(vision.gesture).replaceAll('_', ' ').toUpperCase()
     : 'NONE'
@@ -1370,6 +1373,12 @@ function RoomPanel({
       `${String(vision.activity ?? 'unknown').toUpperCase()} / ${String(vision.sleep_state ?? 'unknown').toUpperCase()}`
     ],
     ['GESTURE', gesture],
+    ['WHERE', vision.place ? String(vision.place).toUpperCase() : 'NOT IN A ZONE'],
+    [
+      'LIGHT LEVEL',
+      // What decides whether she may light the room to see.
+      `${Math.round(Number(vision.brightness ?? 0))} / ${vision.dark ? 'TOO DARK TO SEE' : 'CAN SEE'}`
+    ],
     ['VISITORS', `${Number(vision.pending_visitors ?? 0)} PENDING`]
   ]
   // The sidecar reports what it loaded; this is only for one too old to say.
