@@ -225,6 +225,58 @@ def test_she_never_talks_over_anybody(monkeypatch) -> None:
     assert jobs.has_news()
 
 
+class EmittingSession(FakeSession):
+    """`speak_when_quiet` subscribes through `on`/`off`, as on AgentSession."""
+
+    def __init__(self, **states: str) -> None:
+        super().__init__(**states)
+        self.handlers: dict[str, list] = {}
+
+    def on(self, event: str, callback=None):
+        self.handlers.setdefault(event, []).append(callback)
+        return callback
+
+    def off(self, event: str, callback) -> None:
+        self.handlers[event].remove(callback)
+
+    def emit(self, event: str, arg) -> None:
+        for callback in list(self.handlers.get(event, [])):
+            callback(arg)
+
+
+def test_the_wiring_speaks_when_a_report_lands_on_a_quiet_session(monkeypatch) -> None:
+    """What the eval proved missing: the wiring lived in `entrypoint` only, so
+    nothing that built its own session had it. One function, used by both."""
+    import asyncio
+    from types import SimpleNamespace
+
+    import marvi_agent.delegated as module
+
+    monkeypatch.setattr(module, "QUIET_FOR", 0.05)
+    jobs = _finished(monkeypatch)
+    session = EmittingSession(agent_state="speaking")
+
+    async def scenario() -> None:
+        detach = module.speak_when_quiet(session, asyncio.get_running_loop(), jobs)
+        await asyncio.sleep(0.06)
+        jobs.watch("j-11")
+        for _ in range(100):
+            if jobs.has_news():
+                break
+            await asyncio.sleep(0.02)
+        await asyncio.sleep(0.2)
+        # Still speaking: it waits, and says nothing over her own reply.
+        assert session.replies == []
+        session.agent_state = "listening"
+        session.emit("agent_state_changed", SimpleNamespace(old_state="speaking", new_state="listening"))
+        await asyncio.sleep(0.2)
+        assert len(session.replies) == 1 and "Notepad is closed." in session.replies[0]
+        detach()
+        assert not session.handlers["agent_state_changed"]
+
+    asyncio.run(scenario())
+
+
 def test_nothing_is_followed_before_there_is_a_way_to_ask() -> None:
     jobs = Delegated()
     jobs.watch("j-6")

@@ -40,7 +40,6 @@ AFTER = "Okay, thanks."
 
 def serve_gateway() -> object:
     import uvicorn
-
     from marvi_gateway.app import create_app
 
     app = create_app(version="voice-delegation-eval")
@@ -111,7 +110,6 @@ async def turn(session, agent, text: str) -> dict:
 async def converse(app) -> dict:
     from livekit.agents import AgentSession
     from livekit.agents.testing import fake_job_context
-
     from marvi_agent import delegated
     from marvi_agent.session import MarviVoiceAgent, _timed_llm, prefetch
     from marvi_agent.tools import GatewayTools
@@ -130,6 +128,9 @@ async def converse(app) -> dict:
             await agent.update_tools([*agent.tools, *catalogue])
         if blocks := await gateway.context_blocks():
             await agent.update_instructions(agent.instructions + "\n\n" + "\n\n".join(blocks))
+        # The same wiring `entrypoint` installs, so the unprompted report is
+        # the shipped behaviour and not something this harness lacks.
+        delegated.speak_when_quiet(session, asyncio.get_running_loop())
         loaded = {getattr(tool, "info", None) and tool.info.name for tool in agent.tools}
         evidence["voice_has_computer_action"] = "computer_action" in loaded
         evidence["voice_has_delegate"] = "delegate" in loaded
@@ -203,7 +204,7 @@ def main() -> None:
 
     app = serve_gateway()
     evidence = asyncio.run(converse(app))
-    first, second, third = evidence["turns"]
+    first, second, _ = evidence["turns"]
     evidence["checks"] = {
         "voice_lacks_computer_action": not evidence["voice_has_computer_action"],
         # Across the first two turns: a filler ("One sec.") can end the first
@@ -211,7 +212,7 @@ def main() -> None:
         "delegated_to_jarvi": any(
             name == "delegate" and "jarvi" in str(arguments).lower()
             for row in (first, second)
-            for name, arguments in zip(row["tools"], row["arguments"])
+            for name, arguments in zip(row["tools"], row["arguments"], strict=False)
         ),
         "answered_while_jarvi_worked": evidence["jarvi_still_running_during_second_turn"]
         and "56" in second["said"],

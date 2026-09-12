@@ -30,6 +30,7 @@ same. The one thing a spoken turn must never do is wait on a coding agent.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import threading
 import time
@@ -205,6 +206,53 @@ def speak_up(session: Any, delegated: Delegated, quiet_for: float) -> bool:
         return False
     session.generate_reply(instructions=block)
     return True
+
+
+def speak_when_quiet(session: Any, loop: Any, delegated: Delegated | None = None) -> Any:
+    """Wire a live session so finished work is said at the next quiet moment.
+
+    Tries when a report lands, when her own reply ends, and again shortly
+    after while she or the owner is busy. Returns the function that unwires
+    it, for when the session closes. One function rather than lines in
+    `entrypoint`, because the first eval of this built its own session, had
+    none of the wiring, and so could not tell whether it worked.
+    """
+    delegated = delegated or jobs
+    quiet = {"since": time.monotonic()}
+    retry: list[Any] = []
+
+    def attempt(*_: Any) -> None:
+        if not delegated.has_news():
+            return
+        if speak_up(session, delegated, time.monotonic() - quiet["since"]):
+            log.info("delegated: spoke up about finished work without being asked")
+            return
+        # Busy, or too soon after the owner spoke. One timer at a time, so a
+        # long reply does not stack them up.
+        if not retry:
+            retry.append(loop.call_later(QUIET_FOR, again))
+
+    def again() -> None:
+        retry.clear()
+        attempt()
+
+    def owner(event: Any) -> None:
+        if getattr(event, "old_state", "") == "speaking":
+            quiet["since"] = time.monotonic()
+
+    session.on("user_state_changed", owner)
+    session.on("agent_state_changed", attempt)
+    delegated.when_ready(lambda: loop.call_soon_threadsafe(attempt))
+
+    def detach() -> None:
+        delegated.when_ready(None)
+        for timer in retry:
+            timer.cancel()
+        for event, callback in (("user_state_changed", owner), ("agent_state_changed", attempt)):
+            with contextlib.suppress(Exception):  # already gone with the session
+                session.off(event, callback)
+
+    return detach
 
 
 #: One per worker process, which is one conversation.
