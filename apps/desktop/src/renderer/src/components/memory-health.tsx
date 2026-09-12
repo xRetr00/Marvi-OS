@@ -23,6 +23,7 @@ import { AlertTriangle, Database, Layers, Sparkles } from 'lucide-react'
 import React, { useMemo } from 'react'
 
 import type { MemoryEntry, MemoryPage } from '../../../shared/runtime'
+import { recentlyLearned } from './memory-health-utils'
 
 /**
  * A body that describes the conversation instead of the world.
@@ -55,37 +56,14 @@ function shortSource(source: string): string {
   return source
 }
 
-/** Marvi's own sources: what she wrote down, worked out, or noticed. */
-const LEARNED_FROM = new Set(['marvi', 'dreaming', 'reflection', 'conclusion'])
-/** "Recently" is three days: long enough to span a night's dreaming. */
-const RECENT_MS = 3 * 24 * 60 * 60 * 1000
-
-/**
- * What she learned lately, newest first.
- *
- * Learning happened and nothing showed it. The per-turn writer, the overnight
- * dreaming pass and the repetition pass all wrote into this store, and the page
- * only ever offered a count by source and a flat list sorted however the store
- * returned it -- so "she worked out that Shereef sleeps in the mornings" was
- * indistinguishable from the 170 things she already knew.
- */
-export function recentlyLearned(entries: MemoryEntry[], now: number = Date.now()): MemoryEntry[] {
-  return entries
-    .filter((entry) => LEARNED_FROM.has(entry.source))
-    .filter((entry) => {
-      const at = Date.parse(entry.at)
-      return !Number.isNaN(at) && now - at <= RECENT_MS
-    })
-    .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
-    .slice(0, 8)
-}
-
 function when(at: string): string {
   const moment = new Date(at)
   const today = moment.toDateString() === new Date().toDateString()
   return moment.toLocaleString(
     undefined,
-    today ? { hour: '2-digit', minute: '2-digit' } : { weekday: 'short', hour: '2-digit', minute: '2-digit' }
+    today
+      ? { hour: '2-digit', minute: '2-digit' }
+      : { weekday: 'short', hour: '2-digit', minute: '2-digit' }
   )
 }
 

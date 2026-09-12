@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { recentlyLearned } from './memory-health'
+import type { MemoryEntry } from '../../../shared/runtime'
+import { recentlyLearned } from './memory-health-utils'
 
 const at = (hoursAgo: number): string => new Date(Date.now() - hoursAgo * 3_600_000).toISOString()
-const entry = (id: number, source: string, hoursAgo: number) => ({
+const entry = (id: number, source: string, hoursAgo: number): MemoryEntry => ({
   id,
   kind: 'semantic',
   subject: `s${id}`,
