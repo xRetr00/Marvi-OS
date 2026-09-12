@@ -62,6 +62,12 @@ def recording_path() -> Path:
     return paths.root() / "latency.jsonl"
 
 
+#: Append-only and never trimmed until this; the newest samples are the ones
+#: anything reads.
+MAX_BYTES = 4 * 1024 * 1024
+KEEP_LINES = 10_000
+
+
 def record(sample: Sample) -> None:
     """Append one sample. Never raises: measurement must not break a turn."""
     try:
@@ -69,6 +75,9 @@ def record(sample: Sample) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(sample.as_dict()) + "\n")
+        if path.stat().st_size > MAX_BYTES:
+            lines = path.read_text(encoding="utf-8").splitlines()[-KEEP_LINES:]
+            path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     except OSError as exc:
         log.warning("could not record a latency sample: %s", exc)
 

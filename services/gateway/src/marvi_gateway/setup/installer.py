@@ -36,6 +36,10 @@ from typing import Any
 from ..logs import get_logger
 from .catalog import Component, FileSpec, install_root
 
+#: The checkout this module runs from: setup -> marvi_gateway -> src ->
+#: gateway -> services -> repo.
+REPO_ROOT = Path(__file__).resolve().parents[5]
+
 log = get_logger("setup")
 
 CHUNK = 1024 * 1024
@@ -517,9 +521,11 @@ def verify(component: Component) -> Outcome:
     return Outcome(component.name, bool(state["installed"]), state["detail"])
 
 
-def remove(component: Component) -> Outcome:
+def remove(component: Component, repo_root: Path | None = None) -> Outcome:
     """Delete a component. Nothing lives outside the install root, so this is
     honest rather than approximate."""
+    if component.kind == "python":
+        return _remove_environment(component, repo_root or REPO_ROOT)
     target = component.target()
     root = install_root().resolve()
     try:
@@ -542,6 +548,33 @@ def remove(component: Component) -> Outcome:
         return Outcome(component.name, False, f"could not remove: {exc}")
     log.info("removed %s", component.name)
     return Outcome(component.name, True, "removed")
+
+
+def _remove_environment(component: Component, repo_root: Path) -> Outcome:
+    """An isolated engine's own `.venv`. Never the shared one.
+
+    A Python component has no `install_to`, so `target()` fell back to a
+    directory named after the component that never exists, and removing
+    CuteTTS's 4.6 GB runtime answered "not installed" and deleted nothing.
+    """
+    if not component.extra.get("isolated"):
+        # The shared environment runs the Gateway itself.
+        return Outcome(component.name, False, "shared environment; not removable on its own")
+    project = (repo_root / component.project).resolve()
+    venv = project / ".venv"
+    if repo_root.resolve() not in project.parents:
+        return Outcome(component.name, False, f"refusing to delete {venv}, outside {repo_root}")
+    if not venv.exists():
+        return Outcome(component.name, True, "not installed", skipped=True)
+    try:
+        shutil.rmtree(venv)
+    except OSError as exc:
+        return Outcome(component.name, False, f"could not remove: {exc}")
+    log.info("removed %s", component.name)
+    return Outcome(
+        component.name, True,
+        "removed (run `marvi storage clean --caches` to free the shared package cache)",
+    )
 
 
 def plan(components: list[Component], repo_root: Path | None = None) -> dict[str, Any]:

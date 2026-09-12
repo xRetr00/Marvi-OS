@@ -458,7 +458,7 @@ def cmd_models(args: argparse.Namespace) -> int:
     if args.action == "remove":
         if not args.yes and not _confirm(f"Remove {target.title}?"):
             return 0
-        outcome = setup_module.remove(target)
+        outcome = setup_module.remove(target, root)
         print(f"{target.name}: {outcome.detail}")
         return 0 if outcome.ok else 1
     return 1

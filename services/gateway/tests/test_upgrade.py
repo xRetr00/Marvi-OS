@@ -40,13 +40,9 @@ def test_an_unknown_name_in_the_current_style_is_left_alone() -> None:
 
 
 def test_nothing_is_deleted_by_looking(tmp_path, monkeypatch) -> None:
-    """Two gigabytes of somebody's disk is a decision, not a migration.
-
-    The files are re-downloadable, but when to spend that bandwidth is theirs
-    to choose -- so this reports and `marvi models prune` removes.
-    """
+    """Reporting is not removing; the storage pass does that."""
     monkeypatch.setenv("MARVI_HOME", str(tmp_path))
-    retired = tmp_path / upgrade.RETIRED_MODELS[0]
+    retired = tmp_path / "models/tts/vibevoice-realtime-0.5b"
     retired.mkdir(parents=True)
     (retired / "model.safetensors").write_bytes(b"x" * 4096)
 
@@ -63,18 +59,21 @@ def test_an_install_with_nothing_left_over_reports_nothing(tmp_path, monkeypatch
     assert upgrade.reclaimable() == []
 
 
-def test_the_retired_path_is_the_one_that_was_actually_used() -> None:
-    """A typo here means the leftover is never found and never reclaimed."""
+def test_no_leftover_is_something_an_engine_installs_to(tmp_path, monkeypatch) -> None:
+    """The automatic pass deletes leftovers; one that is a live engine's
+    directory would delete a working voice every day."""
     from pathlib import Path
 
-    catalog = (
-        Path(__file__).resolve().parents[1]
-        / "src"
-        / "marvi_gateway"
-        / "setup"
-        / "catalog.py"
-    ).read_text(encoding="utf-8")
+    from marvi_gateway import storage
+    from marvi_gateway.setup import catalog
 
-    # The path Kokoro uses now must not be the one being reclaimed.
-    assert 'install_to="models/tts/kokoro-82m"' in catalog
-    assert "models/tts/kokoro-82m" not in upgrade.RETIRED_MODELS
+    monkeypatch.setenv("MARVI_HOME", str(tmp_path))
+    repo = Path(__file__).resolve().parents[3]
+    live = {
+        (tmp_path / component.install_to).resolve()
+        for component in catalog.load(repo)
+        if component.install_to
+    }
+    for path, _why in storage._leftover_candidates():
+        assert path.resolve() not in live, path
+        assert not any(path.resolve() in one.parents for one in live), path

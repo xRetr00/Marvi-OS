@@ -3587,7 +3587,7 @@ def create_app(
         component = setup_module.get(REPO_ROOT, name)
         if component is None:
             raise HTTPException(status_code=404, detail=f"unknown component {name}")
-        outcome = setup_module.remove(component)
+        outcome = setup_module.remove(component, REPO_ROOT)
         runtime_store.audit("setup", "remove", outcome.as_dict())
         return setup_page()
 

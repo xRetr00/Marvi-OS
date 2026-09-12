@@ -31,7 +31,7 @@ import json
 import os
 import platform
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Literal
 
@@ -302,8 +302,69 @@ def _for_this_platform(raw: dict[str, Any]) -> dict[str, Any]:
     return by_platform.get(_platform_key()) or {}
 
 
+#: Which components each speech engine runs on, by the setting that picks it.
+#:
+#: "Needed for voice" used to mean Parakeet and Kokoro whatever was selected,
+#: so an install speaking through Nemotron and VoXtream2 still had to carry
+#: 2.7 GB of engines it never loaded -- and removing them turned the voice
+#: status to "not installed". Only the selected engine is needed now; the rest
+#: are optional and `marvi storage` can reclaim them.
+ENGINE_COMPONENTS: dict[str, tuple[str, dict[str, tuple[str, ...]]]] = {
+    "MARVI_STT_ENGINE": ("parakeet-tdt", {
+        "parakeet-tdt": ("voice-stt",),
+        "nemotron-3.5": ("stt-nemotron-runtime", "stt-nemotron-cuda", "stt-nemotron-model"),
+        "kyutai-1b": ("stt-kyutai-python", "stt-kyutai-model"),
+    }),
+    "MARVI_TTS_ENGINE": ("kokoro", {
+        "kokoro": ("voice-tts",),
+        "cutetts-distill": ("tts-cute-python", "tts-cute-model"),
+        "voxtream2": ("tts-voxtream-python", "tts-voxtream-model"),
+    }),
+}
+
+
+def selected_engine(setting: str) -> str:
+    default, engines = ENGINE_COMPONENTS[setting]
+    wanted = os.environ.get(setting, "").strip().lower()
+    return wanted if wanted in engines else default
+
+
+def unselected_engine_components() -> set[str]:
+    """Component names belonging to a speech engine that is not selected."""
+    names: set[str] = set()
+    for setting, (_default, engines) in ENGINE_COMPONENTS.items():
+        chosen = selected_engine(setting)
+        for engine, parts in engines.items():
+            if engine != chosen:
+                names.update(parts)
+    return names
+
+
+def _follow_selected_engines(components: list[Component]) -> list[Component]:
+    unselected = unselected_engine_components()
+    selected = {
+        name
+        for setting, (_default, engines) in ENGINE_COMPONENTS.items()
+        for name in engines[selected_engine(setting)]
+    }
+    out = []
+    for component in components:
+        if component.name in selected and "voice" not in component.needed_for:
+            component = replace(component, needed_for=(*component.needed_for, "voice"))
+        elif component.name in unselected and "voice" in component.needed_for:
+            component = replace(
+                component, needed_for=tuple(n for n in component.needed_for if n != "voice")
+            )
+        out.append(component)
+    return out
+
+
 def load(repo_root: Path) -> list[Component]:
     """Every component Marvi knows how to install."""
+    return _follow_selected_engines(_load(repo_root))
+
+
+def _load(repo_root: Path) -> list[Component]:
     components = _voice_components(repo_root)
     path = repo_root / "config" / "components.json"
     try:

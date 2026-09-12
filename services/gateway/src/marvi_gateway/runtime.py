@@ -34,6 +34,18 @@ AssistantPhase = Literal[
 CONFIRMATION_TTL_SECONDS = 120.0
 TERMINAL_NOTIFICATION_TTL_SECONDS = 3.0
 AUDIT_TAIL_LIMIT = 200
+#: The audit is append-only and was never trimmed: 25 MB and 208,000 lines in
+#: its first 25 days, and `recent_audit` read all of it on every call. Past
+#: this size the oldest lines go; `AUDIT_KEEP_LINES` is still weeks of real
+#: actions once the polls below stop filling it.
+AUDIT_MAX_BYTES = 8 * 1024 * 1024
+AUDIT_KEEP_LINES = 30_000
+#: How far back `recent_audit` reads. 200 lines of JSON fit many times over.
+AUDIT_TAIL_BYTES = 512 * 1024
+#: Read-only room polls. The desktop asks for these every few seconds, and
+#: they were 99% of the audit (29,700 of the last 30,000 lines). A read that
+#: changes nothing is not an action; failures are still recorded.
+POLLED_READS = frozenset({"room_state", "room_health"})
 ROOM_EVENT_TTL_SECONDS = 25.0
 EXTERNAL_WRITE_TTL_SECONDS = 900.0
 
@@ -317,6 +329,8 @@ class RuntimeStore:
         detail: str | None = None,
     ) -> None:
         """Append one immutable line. Auditing never blocks the action path."""
+        if tool in POLLED_READS and event in ("requested", "executed"):
+            return
         if tool.startswith("computer_"):
             arguments = {k: v for k, v in arguments.items() if k in {"action", "command", "request_confirmation"}}
             detail = "Computer use event"
@@ -337,6 +351,11 @@ class RuntimeStore:
             self.audit_path.parent.mkdir(parents=True, exist_ok=True)
             with self.audit_path.open("a", encoding="utf-8") as handle:
                 handle.write(record.model_dump_json() + "\n")
+            # Trimmed just after an append, the one moment the size is known
+            # to have grown -- the same shape as the resource ledger.
+            if self.audit_path.stat().st_size > AUDIT_MAX_BYTES:
+                lines = self.audit_path.read_text(encoding="utf-8").splitlines()[-AUDIT_KEEP_LINES:]
+                self.audit_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
         except OSError:
             # ponytail: a failed write must not swallow the user's action.
             # Upgrade to a queued writer only if disk errors are ever observed.
@@ -344,7 +363,11 @@ class RuntimeStore:
 
     def recent_audit(self, limit: int = AUDIT_TAIL_LIMIT) -> list[AuditEvent]:
         try:
-            lines = self.audit_path.read_text(encoding="utf-8").splitlines()
+            with self.audit_path.open("rb") as handle:
+                handle.seek(0, os.SEEK_END)
+                handle.seek(max(0, handle.tell() - AUDIT_TAIL_BYTES))
+                # A partial first line is expected; it fails validation below.
+                lines = handle.read().decode("utf-8", "ignore").splitlines()
         except OSError:
             return []
         events: list[AuditEvent] = []

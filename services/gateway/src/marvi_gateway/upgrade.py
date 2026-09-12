@@ -10,82 +10,25 @@ being fixed, and the Settings pane would go on showing a choice that cannot be
 honoured. That one is rewritten here, because there is exactly one right answer
 and no judgement involved.
 
-**Two gigabytes of model nothing loads.** That is not rewritten, it is reported.
-Deleting two gigabytes of somebody's disk without asking is not a migration, it
-is a decision, and it is theirs -- the files are re-downloadable but the choice
-of when to spend the bandwidth is not Marvi's to make. So it appears as
-reclaimable space with a command beside it.
+**Model nothing loads.** Reported here; the daily storage pass removes it,
+because nothing loads it and nothing can -- see `storage.LEFTOVERS`.
 """
 
 from __future__ import annotations
 
 import logging
 import os
-from dataclasses import dataclass
-from pathlib import Path
 
-from . import paths
+from .storage import Reclaimable, leftovers
 
 log = logging.getLogger(__name__)
 
-#: What previous engines left behind.
-#:
-#: Both halves of the speech stack were replaced: VibeVoice by Kokoro, and the
-#: Nemotron export the Rust sidecar drove by a Parakeet ONNX export. Neither is
-#: loaded by anything now, and together they are the better part of five
-#: gigabytes.
-RETIRED_MODELS = (
-    "models/tts/vibevoice-realtime-0.5b",
-    "models/stt/nemotron-3.5",
-)
-
 VOICE_ENV = "MARVI_TTS_VOICE"
-
-RETIRED_WHY = {
-    "models/tts/vibevoice-realtime-0.5b": "the previous speech engine, replaced by Kokoro",
-    "models/stt/nemotron-3.5": "the previous recogniser, replaced by Parakeet",
-}
-
-
-@dataclass(frozen=True)
-class Reclaimable:
-    """A directory left behind by something Marvi no longer runs."""
-
-    path: Path
-    bytes: int
-    why: str
-
-    @property
-    def gigabytes(self) -> float:
-        return self.bytes / 1024**3
-
-
-def _size(directory: Path) -> int:
-    total = 0
-    for path in directory.rglob("*"):
-        try:
-            if path.is_file():
-                total += path.stat().st_size
-        except OSError:
-            continue
-    return total
 
 
 def reclaimable() -> list[Reclaimable]:
-    """Model directories nothing loads any more. Never deletes anything."""
-    found = []
-    for relative in RETIRED_MODELS:
-        directory = paths.root() / relative
-        if not directory.is_dir():
-            continue
-        found.append(
-            Reclaimable(
-                path=directory,
-                bytes=_size(directory),
-                why=RETIRED_WHY.get(relative, "no longer loaded"),
-            )
-        )
-    return found
+    """What previous engines left behind. Never deletes anything."""
+    return leftovers()
 
 
 def stale_voice(configured: str, offered: list[str]) -> str | None:
