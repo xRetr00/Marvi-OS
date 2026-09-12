@@ -397,7 +397,10 @@ export function LocationWeather(): React.JSX.Element {
     const kept = (settings?.places ?? []).filter((p) => p.label !== pin.label)
     const main = settings?.saved
     const saved = !main || main.label === pin.label ? pin : main
-    if (await configure({ places: [...kept, pin], saved })) setDraft(null)
+    const saving = draft
+    // Only the draft that was saved: a pin dropped while this was in flight stays.
+    if (await configure({ places: [...kept, pin], saved }))
+      setDraft((current) => (current === saving ? null : current))
   }
   const removePin = (pin: Place): void => {
     const settings = location?.settings

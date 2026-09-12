@@ -377,6 +377,7 @@
       },
       "project": "services/stt-kyutai",
       "extra": {
+        "isolated": true,
         "note": "About 3 GB of PyTorch and CUDA wheels."
       }
     },
