@@ -336,6 +336,10 @@ class RoomEventPage(BaseModel):
     events: list[dict[str, Any]]
 
 
+class VisitPhotosSeen(BaseModel):
+    photos: list[str] = Field(default_factory=list, max_length=50)
+
+
 class MemoryPage(BaseModel):
     total: int
     entries: list[dict[str, Any]]
@@ -4743,6 +4747,16 @@ def create_app(
         return RoomEventPage(
             events=sidecar.events(limit=max(1, min(limit, 200)), notable_only=notable_only)
         )
+
+    @app.post("/room/visitor-photos/seen")
+    async def visitor_photos_seen(body: VisitPhotosSeen, http_request: Request) -> dict[str, int]:
+        """The owner pressed Seen: the photographs have done their job."""
+        localauth.guard(http_request)
+        if sidecar is None:
+            return {"deleted": 0}
+        deleted = sidecar.forget_visit_photos(body.photos)
+        runtime_store.audit("executed", "visitor_photos_seen", {"deleted": deleted})
+        return {"deleted": deleted}
 
     async def _listening(base_url: str) -> bool:
         """Is anything accepting connections on this endpoint?

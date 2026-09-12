@@ -25,7 +25,10 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from .logs import get_logger
 from .retry import Policy, RetriesExhaustedError, retry
+
+logger = get_logger("room")
 
 DEFAULT_PORT = 17842
 #: The plugin's own directory name inside the plugin data root. It is the
@@ -550,6 +553,32 @@ class RoomSidecar:
                 continue
             events.append({**event, "summary": summarize_event(event)})
         return _only_when_it_changed(_collapse_bursts(events))
+
+    def forget_visit_photos(self, photos: list[str]) -> int:
+        """Delete visitor photographs the owner has seen. Returns how many went.
+
+        A path comes from the renderer, so it is checked rather than trusted:
+        only a `.jpg` directly inside the sidecar's `vision/visits` folder is
+        deleted, whatever else is asked for.
+        """
+        visits = (self.home / "vision" / "visits").resolve()
+        gone = 0
+        for raw in photos:
+            try:
+                photo = Path(raw).resolve()
+            except (OSError, ValueError):
+                continue
+            if photo.parent != visits or photo.suffix.lower() != ".jpg":
+                logger.warning("refused to delete %s: not a visitor photograph", raw)
+                continue
+            try:
+                photo.unlink()
+                gone += 1
+            except FileNotFoundError:
+                continue
+            except OSError as exc:
+                logger.info("could not delete %s (%s)", photo.name, exc)
+        return gone
 
     def latest_notable_event(self) -> dict[str, Any] | None:
         found = self.events(limit=1)

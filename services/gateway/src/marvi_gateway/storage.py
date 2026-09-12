@@ -11,7 +11,7 @@ initiative scheduler that already runs everything else.
 
 Automatic -- nothing here is anybody's data, and everything regenerates:
 
-* **Leftovers** from engines Marvi no longer has (`LEFTOVERS`).
+* **Leftovers** from engines Marvi no longer has (`_leftover_candidates`).
 * **Backups beyond the newest.** One backup per thing: making a new one deletes
   the one before it.
 * **Logs, every three days.** The previous cycle's logs are kept as `.1` so the

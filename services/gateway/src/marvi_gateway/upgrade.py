@@ -11,7 +11,7 @@ honoured. That one is rewritten here, because there is exactly one right answer
 and no judgement involved.
 
 **Model nothing loads.** Reported here; the daily storage pass removes it,
-because nothing loads it and nothing can -- see `storage.LEFTOVERS`.
+because nothing loads it and nothing can -- see `storage.leftovers`.
 """
 
 from __future__ import annotations

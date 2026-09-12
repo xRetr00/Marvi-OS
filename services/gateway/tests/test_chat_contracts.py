@@ -277,3 +277,25 @@ def test_dictation_streams_pcm_to_existing_sidecar_boundary(
     assert manager.audio(session_id, chunk)["text"] == "hello"
     assert manager.stop(session_id)["kind"] == "final"
     assert process.returncode == 0
+
+
+def test_dictation_follows_the_selected_recogniser(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Chat was locked to Parakeet v3 whatever Settings said."""
+    monkeypatch.setenv("MARVI_HOME", str(tmp_path))
+    monkeypatch.delenv("MARVI_MODEL_ROOT", raising=False)
+    nemotron = tmp_path / "models/stt/nemotron-3.5-asr-streaming-0.6b"
+    nemotron.mkdir(parents=True)
+    (nemotron / "nemotron-3.5-asr-streaming-0.6b-f16.gguf").write_bytes(b"x")
+    (tmp_path / "runtimes/parakeet-cpp/lib").mkdir(parents=True)
+    (tmp_path / "runtimes/parakeet-cpp/lib/parakeet.dll").write_bytes(b"x")
+
+    monkeypatch.setenv("MARVI_STT_ENGINE", "nemotron-3.5")
+    assert dictation.engine() == "nemotron-3.5"
+    # Selected but missing falls to what is installed, not to nothing.
+    monkeypatch.setenv("MARVI_STT_ENGINE", "parakeet-tdt")
+    assert dictation.engine() == "nemotron-3.5"
+    # Kyutai has no dictation path.
+    monkeypatch.setenv("MARVI_STT_ENGINE", "kyutai-1b")
+    assert dictation.engine() == "nemotron-3.5"
