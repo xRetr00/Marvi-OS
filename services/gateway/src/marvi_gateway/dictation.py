@@ -56,8 +56,25 @@ def worker_command() -> list[str]:
     ]
 
 
-def model_path() -> Path:
-    return paths.models_dir() / "stt" / "parakeet-tdt-0.6b-v3-onnx"
+def _installed(engine: str) -> bool:
+    if engine == "nemotron-3.5":
+        return (
+            paths.root() / "runtimes/parakeet-cpp/lib/parakeet.dll"
+        ).is_file() and (
+            paths.models_dir() / "stt/nemotron-3.5-asr-streaming-0.6b"
+            / "nemotron-3.5-asr-streaming-0.6b-f16.gguf"
+        ).is_file()
+    return (paths.models_dir() / "stt/parakeet-tdt-0.6b-v3-onnx/encoder-model.onnx").is_file()
+
+
+def engine() -> str:
+    """The recogniser to dictate with: the selected one when it can, else
+    whichever dictation-capable one is installed, else ""."""
+    selected = os.environ.get("MARVI_STT_ENGINE", "").strip().lower() or "parakeet-tdt"
+    for candidate in (selected, "nemotron-3.5", "parakeet-tdt"):
+        if candidate in ("nemotron-3.5", "parakeet-tdt") and _installed(candidate):
+            return candidate
+    return ""
 
 
 @dataclass
@@ -73,7 +90,7 @@ class DictationManager:
         self._lock = threading.Lock()
 
     def available(self) -> bool:
-        return bool(worker_command()) and (model_path() / "encoder-model.onnx").is_file()
+        return bool(worker_command()) and bool(engine())
 
     def start(self, language: str = "en-US") -> str:
         with self._lock:
@@ -82,7 +99,7 @@ class DictationManager:
                 raise DictationError("the installed Marvi speech-to-text runtime is unavailable")
             flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
             process = self._popen(
-                [*worker_command(), language],
+                [*worker_command(), language, engine()],
                 cwd=REPO_ROOT,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
