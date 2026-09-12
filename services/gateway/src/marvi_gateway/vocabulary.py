@@ -70,6 +70,12 @@ def terms(memory: Any = None, identity: Any = None) -> list[str]:
     # Her own name first: it is the one word every sentence to her may contain,
     # and the one the log showed mangled most -- Morvey, Marvey, Marvy.
     keep("Marvi")
+    # Then the helpers she hands work to, which nothing else would ever teach
+    # the recogniser. One call on 12 September heard "Jarvi" as "Jerry" and
+    # then "George", and "Claude Code" as "clothes code" -- which was then
+    # written down as the user's coding task.
+    for helper in ("Jarvi", "Harvi", "Talos", "Claude Code", "Codex"):
+        keep(helper)
 
     if memory is not None:
         try:

@@ -146,22 +146,19 @@ def test_the_veto_text_is_never_spoken() -> None:
     assert "FC 26" in said[0], f"lost the template line: {said[0]!r}"
 
 
-def test_something_she_worked_out_can_be_said_aloud() -> None:
-    """Twenty conclusions were drawn and every one stopped at a feed line.
+def test_something_she_worked_out_is_shown_not_buried_or_announced() -> None:
+    """Between the two failures, the island.
 
-    `memory:conclusion` was not in the ceiling table, so it took the default,
-    `activity`. Among the twenty:
-
-        Shereef prefers "good morning" over "good night" because his sleep
-        schedule involves going to sleep in the morning
-
-    concluded at 01:37, capped at a feed entry, and the next conversation was
-    spent correcting her about exactly that. An assistant that notices things
-    and cannot mention them is a notebook.
+    As a feed line, twenty conclusions went unseen -- among them "Shereef
+    prefers 'good morning' over 'good night'", concluded at 01:37 and then
+    corrected at length the next day. Spoken, they arrived out of nowhere in
+    the third person: "The assistant tried to create an alarm called 'BM
+    Alarm' at 04:04 but the tool rejected it". Shown on the island she has
+    mentioned it, and it can be read and corrected without interrupting.
     """
     from marvi_gateway.policy import SURFACE_CEILING
 
-    assert SURFACE_CEILING.get("memory:conclusion") == "speak"
+    assert SURFACE_CEILING.get("memory:conclusion") == "island"
     # Still a ceiling and not an instruction: reflection stays a memory write.
     assert SURFACE_CEILING.get("memory:reflection") == "remember"
 

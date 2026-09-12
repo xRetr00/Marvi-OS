@@ -2044,7 +2044,8 @@ async def marvi_session(ctx: JobContext) -> None:
 
         Call this when the user has signalled they are finished -- goodbye,
         that's all, thanks, you can go, later. Say a short farewell first.
-        Do not call it because of a pause.
+        Do not call it because of a pause. "Close it" and "close that" mean the
+        last thing opened -- an app, a page, a helper's task -- not this call.
         """
         log.info("the model is ending the conversation")
 
