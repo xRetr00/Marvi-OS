@@ -134,22 +134,27 @@ class LocationService:
             return self.status()
 
     def report(self, fix: Fix) -> dict[str, Any]:
+        # A disabled/reconfigured source cannot be revived by a late helper.
+        late = lambda: self.settings.mode != "automatic" or fix.generation != self.generation  # noqa: E731
         with self.lock:
-            # A disabled/reconfigured source cannot be revived by a late helper.
-            if self.settings.mode != "automatic" or fix.generation != self.generation:
+            if late():
                 return self.status()
-            if fix.status == "ready":
-                if any(value is None for value in (fix.latitude, fix.longitude, fix.accuracy_m, fix.timestamp)):
-                    raise ValueError("Windows returned an incomplete position.")
-                if not 0 <= time.time() - fix.timestamp < 900:
-                    raise ValueError("Windows returned an expired position.")
-                ZoneInfo(fix.timezone)
+        if fix.status == "ready":
+            if any(value is None for value in (fix.latitude, fix.longitude, fix.accuracy_m, fix.timestamp)):
+                raise ValueError("Windows returned an incomplete position.")
+            if not 0 <= time.time() - fix.timestamp < 900:
+                raise ValueError("Windows returned an expired position.")
+            ZoneInfo(fix.timezone)
+            # Named before it is published, so nobody reads "Device location"
+            # in the half second the lookup takes. Network stays outside the lock.
+            self._label_fix(fix)
+        with self.lock:
+            if late():
+                return self.status()
             self.fix = fix
             if fix.status != "ready":
                 self.cached = None
-        if fix.status == "ready":
-            self._label_fix(fix)
-        return self.status()
+            return self.status()
 
     def _coarse(self, fix: Fix) -> bool:
         return (fix.accuracy_m or 0) > COARSE_FIX_M or "IP" in fix.source

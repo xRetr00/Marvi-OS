@@ -110,13 +110,19 @@ def main() -> None:
             evidence["pinned"] = {"label": state["place"]["label"], "source": state["place"]["source"]}
             if state["place"].get("pinned"):
                 page.get_by_text("Pin, matched by", exact=False).first.wait_for()
+                # The pin's tip sits on the position dot, not somewhere near it.
+                pin = page.locator(".leaflet-marker-pane .map-pin").first.bounding_box()
+                dot = page.locator(".leaflet-overlay-pane path").last.bounding_box()
+                tip = (pin["x"] + pin["width"] / 2, pin["y"] + pin["height"] * 1.2)
+                centre = (dot["x"] + dot["width"] / 2, dot["y"] + dot["height"] / 2)
+                assert abs(tip[0] - centre[0]) < 3 and abs(tip[1] - centre[1]) < 4, (tip, centre)
             page.screenshot(path=str(output / "pinned-home.png"))
             evidence["checks"].append("Photon place search; draft pin; saved as Home; fix snaps to the pin nearby")
             box = page.locator(".location-map").bounding_box()
             page.locator(".location-map").click(position={"x": box["width"] * 0.3, "y": box["height"] * 0.4})
             page.locator(".pin-editor").wait_for()
-            page.wait_for_function("!document.querySelector('.pin-editor small').textContent.startsWith('Looking up')",
-                                   timeout=20_000)
+            # A locator, not wait_for_function: the app's CSP forbids eval.
+            page.locator(".pin-editor small").filter(has_not_text="Looking up").wait_for(timeout=20_000)
             evidence["dropped_pin_address"] = page.locator(".pin-editor small").inner_text()
             page.screenshot(path=str(output / "dropped-pin.png"))
             page.locator(".pin-editor").get_by_role("button", name="Cancel", exact=True).click()

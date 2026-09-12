@@ -230,14 +230,15 @@ function LocationMap({
     const layer = L.layerGroup().addTo(map)
     for (const pin of JSON.parse(pinKey) as Place[])
       L.marker([pin.latitude, pin.longitude], {
-        icon: L.divIcon({ className: 'map-pin', iconSize: [14, 14] }),
+        // Anchored at the teardrop's tip, not its centre: ~0.71 × size below it.
+        icon: L.divIcon({ className: 'map-pin', iconSize: [14, 14], iconAnchor: [7, 17] }),
         keyboard: false,
         title: pin.label
       })
         .bindTooltip(pin.label.split(',')[0], {
           permanent: expanded,
           direction: 'top',
-          offset: [0, -8],
+          offset: [0, -17],
           className: 'map-pin-label'
         })
         .addTo(layer)
@@ -250,7 +251,7 @@ function LocationMap({
     if (!ready || draftLat == null || draftLon == null) return
     const { L, map } = ready
     const marker = L.marker([draftLat, draftLon], {
-      icon: L.divIcon({ className: 'map-pin is-draft', iconSize: [20, 20] }),
+      icon: L.divIcon({ className: 'map-pin is-draft', iconSize: [20, 20], iconAnchor: [10, 24] }),
       draggable: true,
       autoPan: true,
       title: 'New pin: drag to adjust'

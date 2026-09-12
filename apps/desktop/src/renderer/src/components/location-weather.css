@@ -214,16 +214,23 @@
   pointer-events: none;
   z-index: 500;
 }
-.map-pin {
+/* The teardrop lives on ::after: Leaflet positions the icon with `transform`,
+   and rotating the icon itself would rotate that offset too. */
+.map-pin::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
   border-radius: 50% 50% 50% 0;
-  transform-origin: center;
   rotate: -45deg;
   background: #e0793b;
   border: 2px solid #fafaf8;
   box-shadow: 0 1px 4px rgb(0 0 0 / 0.4);
 }
-.map-pin.is-draft {
+.map-pin.is-draft::after {
   background: #d93b3b;
+}
+.map-pin.is-draft {
   cursor: grab;
 }
 .leaflet-tooltip.map-pin-label {
