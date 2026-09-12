@@ -157,11 +157,26 @@ async def converse(app) -> dict:
                 break
             await asyncio.sleep(1)
         evidence["jarvi"] = {k: job[k] for k in ("state", "exit_reason", "seconds", "summary")} if job else None
-        for _ in range(40):
-            with delegated.jobs._lock:
-                if delegated.jobs._ready:
-                    break
-            await asyncio.sleep(1)
+        # Nobody says anything now. She should speak up on her own once the
+        # report lands -- the owner's complaint was that she waited to be asked.
+        before = len(agent.chat_ctx.items)
+        finished_at = time.monotonic()
+        unprompted = ""
+        for _ in range(60):
+            await asyncio.sleep(0.5)
+            said = [
+                str(getattr(item, "text_content", "") or "")
+                for item in agent.chat_ctx.items[before:]
+                if getattr(item, "role", "") == "assistant"
+            ]
+            if any(text.strip() for text in said) and not session._activity._current_speech:
+                unprompted = " ".join(text for text in said if text.strip())
+                break
+        evidence["unprompted"] = {
+            "said": unprompted,
+            "seconds_after_job": round(time.monotonic() - finished_at, 1),
+        }
+        print(f"  (nobody spoke)\n  MARVI  {unprompted[:300] or '(nothing)'}\n", flush=True)
         evidence["turns"].append(await turn(session, agent, AFTER))
         await session.aclose()
     return evidence
@@ -193,8 +208,10 @@ def main() -> None:
         "answered_while_jarvi_worked": evidence["jarvi_still_running_during_second_turn"]
         and "56" in second["said"],
         "jarvi_completed": bool(evidence["jarvi"]) and evidence["jarvi"]["state"] == "completed",
+        # Said with nobody asking, before the owner's next turn.
         "report_said_unprompted": any(
-            word in third["said"].lower() for word in ("notepad", "closed", "title", "untitled")
+            word in evidence["unprompted"]["said"].lower()
+            for word in ("notepad", "closed", "title", "untitled")
         ),
     }
     print(json.dumps(evidence["checks"], indent=1))

@@ -142,6 +142,89 @@ def test_a_sub_agent_waiting_for_approval_is_said_once_and_still_followed(monkey
     assert "Notepad is closed." in said[1]
 
 
+class FakeSession:
+    """The four things `speak_up` reads from LiveKit's AgentSession, and the call it makes."""
+
+    def __init__(self, agent_state: str = "listening", user_state: str = "listening") -> None:
+        self.agent_state = agent_state
+        self.user_state = user_state
+        self.current_speech = None
+        self.replies: list[str] = []
+
+    def generate_reply(self, *, instructions: str) -> None:
+        self.replies.append(instructions)
+
+
+def _finished(monkeypatch, summary: str = "Notepad is closed.") -> Delegated:
+    import marvi_agent.delegated as module
+
+    monkeypatch.setattr(module, "POLL_EVERY", 0.01)
+    jobs = Delegated()
+    jobs.attach(lambda job: {"state": "completed", "name": "Jarvi", "summary": summary})
+    return jobs
+
+
+def test_she_is_told_the_moment_a_report_lands(monkeypatch) -> None:
+    """The logs showed the report waiting for the owner to speak: finished at
+    14:13:42, mentioned at 14:13:56 only because somebody said "Prezidon"."""
+    landed: list[bool] = []
+    jobs = _finished(monkeypatch)
+    jobs.when_ready(lambda: landed.append(True))
+    jobs.watch("j-8")
+    for _ in range(200):
+        if landed:
+            break
+        time.sleep(0.01)
+
+    assert landed == [True]
+    assert jobs.has_news()
+
+
+def test_an_idle_marvi_speaks_up_by_herself(monkeypatch) -> None:
+    from marvi_agent.delegated import speak_up
+
+    jobs = _finished(monkeypatch)
+    jobs.watch("j-9")
+    for _ in range(200):
+        if jobs.has_news():
+            break
+        time.sleep(0.01)
+    session = FakeSession()
+
+    assert speak_up(session, jobs, quiet_for=5.0) is True
+    assert "Notepad is closed." in session.replies[0]
+    # Said once: it is in the conversation now.
+    assert not jobs.has_news()
+    assert speak_up(session, jobs, quiet_for=5.0) is False
+
+
+def test_she_never_talks_over_anybody(monkeypatch) -> None:
+    """Busy in any way -- speaking, thinking, the owner mid-sentence or only
+    just finished (their own turn is about to start) -- and the report waits."""
+    from marvi_agent.delegated import speak_up
+
+    jobs = _finished(monkeypatch)
+    jobs.watch("j-10")
+    for _ in range(200):
+        if jobs.has_news():
+            break
+        time.sleep(0.01)
+
+    for session, quiet in (
+        (FakeSession(agent_state="speaking"), 5.0),
+        (FakeSession(agent_state="thinking"), 5.0),
+        (FakeSession(user_state="speaking"), 5.0),
+        (FakeSession(), 0.3),
+    ):
+        assert speak_up(session, jobs, quiet_for=quiet) is False, session.__dict__
+        assert session.replies == []
+    busy = FakeSession()
+    busy.current_speech = object()
+    assert speak_up(busy, jobs, quiet_for=5.0) is False
+    # Still waiting, for the next quiet moment or the owner's next turn.
+    assert jobs.has_news()
+
+
 def test_nothing_is_followed_before_there_is_a_way_to_ask() -> None:
     jobs = Delegated()
     jobs.watch("j-6")

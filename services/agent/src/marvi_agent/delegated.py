@@ -37,9 +37,15 @@ from typing import Any
 
 log = logging.getLogger("marvi.voice")
 
-#: How often to ask whether a job is done. Slow on purpose: this is work
-#: measured in minutes, and the answer reaches the next turn either way.
-POLL_EVERY = 15.0
+#: How often to ask whether a job is done. It was 15 s, on the reasoning that
+#: the answer reaches the next turn either way -- but she now speaks up as soon
+#: as it lands, so the poll is most of the delay. A loopback request is cheap.
+POLL_EVERY = 3.0
+
+#: How long the owner must have been quiet before she speaks up unprompted.
+#: Right after they stop talking their own turn is about to start, and a
+#: report dropped into that gap is two replies at once.
+QUIET_FOR = 1.5
 
 #: How long to keep asking before giving up on a job. `await_delegated` uses a
 #: shorter one because somebody is listening to it; this runs unattended.
@@ -58,10 +64,32 @@ class Delegated:
         self._watching: set[str] = set()
         self._ready: list[dict[str, Any]] = []
         self._ask: Any = None
+        self._on_ready: Any = None
 
     def attach(self, ask: Any) -> None:
         """The callable that asks the Gateway for a job's status."""
         self._ask = ask
+
+    def when_ready(self, callback: Any) -> None:
+        """Called, from the poller's thread, whenever something lands.
+
+        The session hands this to its event loop to decide whether Marvi can
+        say it now. Without it the report waited for the owner to speak.
+        """
+        self._on_ready = callback
+
+    def has_news(self) -> bool:
+        with self._lock:
+            return bool(self._ready)
+
+    def _landed(self) -> None:
+        callback = self._on_ready
+        if callback is None:
+            return
+        try:
+            callback()
+        except Exception as exc:  # a closed loop costs the push, not the poller
+            log.info("could not hand a finished job to the session: %s", exc)
 
     def watch(self, job: str) -> None:
         """Follow a job until it finishes. Safe to call twice for one job."""
@@ -98,11 +126,13 @@ class Delegated:
                     asked = token
                     with self._lock:
                         self._ready.append({"job": job, **result})
+                    self._landed()
                 continue
             with self._lock:
                 self._ready.append({"job": job, **result})
                 self._watching.discard(job)
-            log.info("delegated job %s finished; it will be mentioned next turn", job)
+            log.info("delegated job %s finished; she will say so at the next quiet moment", job)
+            self._landed()
             return
         with self._lock:
             self._watching.discard(job)
@@ -147,6 +177,34 @@ class Delegated:
             "# Work you handed off" + newline + newline
             + newline.join(lines) + newline + newline + told
         )
+
+
+def speak_up(session: Any, delegated: Delegated, quiet_for: float) -> bool:
+    """Say finished work now, if nobody is talking. True when she did.
+
+    The owner's report finished at 14:13:42 and was mentioned at 14:13:56 --
+    because they happened to say "Prezidon", not because the job was done.
+    `session.generate_reply(instructions=...)` is LiveKit's documented way for
+    an agent to speak without being spoken to (verified against
+    livekit-agents 1.7.0 and docs.livekit.io/agents/build/audio).
+
+    Waits for a genuinely idle moment: Marvi listening with nothing queued,
+    the owner not speaking and quiet for `QUIET_FOR` -- just after they stop,
+    their own turn is about to begin. When it cannot speak now the report
+    stays put, and either the next quiet moment or the owner's next turn
+    carries it, so it is never lost and never said twice.
+    """
+    if getattr(session, "agent_state", "") not in ("listening", "idle"):
+        return False
+    if getattr(session, "user_state", "") == "speaking" or quiet_for < QUIET_FOR:
+        return False
+    if getattr(session, "current_speech", None) is not None:
+        return False
+    block = delegated.block()
+    if not block:
+        return False
+    session.generate_reply(instructions=block)
+    return True
 
 
 #: One per worker process, which is one conversation.
