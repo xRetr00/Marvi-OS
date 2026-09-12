@@ -18,7 +18,13 @@ import {
   Sun,
   Wind
 } from 'lucide-react'
-import type { LocationState, Place, WeatherState } from '../../../shared/location'
+import type {
+  LocationSettings,
+  LocationState,
+  Place,
+  SearchResult,
+  WeatherState
+} from '../../../shared/location'
 import { weatherLabel } from '../../../shared/weather'
 import 'leaflet/dist/leaflet.css'
 import './location-weather.css'
@@ -85,17 +91,50 @@ export function LocationClock(): React.JSX.Element {
   )
 }
 
+type Leaflet = typeof import('leaflet')
+type CurrentPlace = NonNullable<LocationState['place']>
+export interface Draft {
+  latitude: number
+  longitude: number
+  name: string
+  address: string
+}
+
+const same = (a: Place, b: Place | null | undefined): boolean =>
+  !!b && a.latitude === b.latitude && a.longitude === b.longitude && a.label === b.label
+
+/** Street level for an exact spot; city level for an internet-provider fix. */
+function zoomFor(place: CurrentPlace): number {
+  if (place.accuracy_m == null) return 16
+  return place.accuracy_m > 5000 ? 11 : place.accuracy_m > 1000 ? 13 : 16
+}
+
 function LocationMap({
   place,
+  pins,
+  draft,
+  focus,
   expanded,
-  stale
+  stale,
+  onPick
 }: {
-  place: NonNullable<LocationState['place']>
+  place: CurrentPlace | null | undefined
+  pins: Place[]
+  draft: Draft | null
+  focus: { latitude: number; longitude: number; n: number } | null
   expanded: boolean
   stale: boolean
+  onPick: (latitude: number, longitude: number) => void
 }): React.JSX.Element {
   const container = useRef<HTMLDivElement>(null)
   const [failed, setFailed] = useState(false)
+  const [ready, setReady] = useState<{ L: Leaflet; map: import('leaflet').Map } | null>(null)
+  const pick = useRef(onPick)
+  useEffect(() => {
+    pick.current = onPick
+  }, [onPick])
+  // One map per mode. Layers below update in place, so saving a pin or a new
+  // fix never throws away where the user has panned to.
   useEffect(() => {
     let dispose: (() => void) | undefined
     let gone = false
@@ -107,16 +146,14 @@ function LocationMap({
           zoomControl: false,
           attributionControl: false,
           dragging: expanded,
-          scrollWheelZoom: false,
+          scrollWheelZoom: expanded,
           doubleClickZoom: expanded,
           touchZoom: expanded,
+          boxZoom: expanded,
           keyboard: expanded,
-          zoomAnimation: false,
+          zoomAnimation: expanded,
           fadeAnimation: false
-        }).setView(
-          [place.latitude, place.longitude],
-          place.accuracy_m && place.accuracy_m > 5000 ? 9 : 13
-        )
+        }).setView([20, 0], 2)
         const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
           maxZoom: 19,
           attribution:
@@ -127,25 +164,14 @@ function LocationMap({
         tiles.on('tileerror', () => {
           if (!gone) setFailed(true)
         })
-        if (place.accuracy_m)
-          L.circle([place.latitude, place.longitude], {
-            radius: place.accuracy_m,
-            color: '#147ec1',
-            weight: 1,
-            fillOpacity: 0.09,
-            interactive: false
-          }).addTo(map)
-        L.circleMarker([place.latitude, place.longitude], {
-          radius: 6,
-          color: '#fafaf8',
-          weight: 2,
-          fillColor: stale ? '#72767d' : '#147ec1',
-          fillOpacity: 1,
-          interactive: false
-        }).addTo(map)
-        if (expanded) L.control.zoom({ position: 'topright' }).addTo(map)
+        if (expanded) {
+          L.control.zoom({ position: 'topright' }).addTo(map)
+          L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map)
+          map.on('click', (event) => pick.current(event.latlng.lat, event.latlng.lng))
+        }
         const observer = new ResizeObserver(() => map.invalidateSize({ animate: false }))
         observer.observe(container.current)
+        setReady({ L, map })
         dispose = () => {
           observer.disconnect()
           map.remove()
@@ -156,17 +182,105 @@ function LocationMap({
       })
     return () => {
       gone = true
+      setReady(null)
       dispose?.()
     }
-  }, [place.latitude, place.longitude, place.accuracy_m, expanded, stale])
+  }, [expanded])
+
+  const lat = place?.latitude
+  const lon = place?.longitude
+  const accuracy = place?.accuracy_m ?? null
+  const zoom = place ? zoomFor(place) : 2
+  const pinLat = pins[0]?.latitude
+  const pinLon = pins[0]?.longitude
+  // Recentre only when the position itself moves, never on a routine poll.
+  useEffect(() => {
+    if (!ready) return
+    if (lat != null && lon != null) ready.map.setView([lat, lon], zoom, { animate: false })
+    else if (pinLat != null && pinLon != null) ready.map.setView([pinLat, pinLon], 15)
+  }, [ready, lat, lon, zoom, pinLat, pinLon])
+
+  useEffect(() => {
+    if (!ready || lat == null || lon == null) return
+    const { L, map } = ready
+    const layer = L.layerGroup().addTo(map)
+    if (accuracy)
+      L.circle([lat, lon], {
+        radius: accuracy,
+        color: '#147ec1',
+        weight: 1,
+        fillOpacity: 0.07,
+        interactive: false
+      }).addTo(layer)
+    L.circleMarker([lat, lon], {
+      radius: 6,
+      color: '#fafaf8',
+      weight: 2,
+      fillColor: stale ? '#72767d' : '#147ec1',
+      fillOpacity: 1,
+      interactive: false
+    }).addTo(layer)
+    return () => void layer.remove()
+  }, [ready, lat, lon, accuracy, stale])
+
+  const pinKey = JSON.stringify(pins)
+  useEffect(() => {
+    if (!ready) return
+    const { L, map } = ready
+    const layer = L.layerGroup().addTo(map)
+    for (const pin of JSON.parse(pinKey) as Place[])
+      L.marker([pin.latitude, pin.longitude], {
+        icon: L.divIcon({ className: 'map-pin', iconSize: [14, 14] }),
+        keyboard: false,
+        title: pin.label
+      })
+        .bindTooltip(pin.label.split(',')[0], {
+          permanent: expanded,
+          direction: 'top',
+          offset: [0, -8],
+          className: 'map-pin-label'
+        })
+        .addTo(layer)
+    return () => void layer.remove()
+  }, [ready, pinKey, expanded])
+
+  const draftLat = draft?.latitude
+  const draftLon = draft?.longitude
+  useEffect(() => {
+    if (!ready || draftLat == null || draftLon == null) return
+    const { L, map } = ready
+    const marker = L.marker([draftLat, draftLon], {
+      icon: L.divIcon({ className: 'map-pin is-draft', iconSize: [20, 20] }),
+      draggable: true,
+      autoPan: true,
+      title: 'New pin: drag to adjust'
+    }).addTo(map)
+    marker.on('dragend', () => {
+      const at = marker.getLatLng()
+      pick.current(at.lat, at.lng)
+    })
+    if (!map.getBounds().pad(-0.1).contains([draftLat, draftLon]))
+      map.setView([draftLat, draftLon], Math.max(map.getZoom(), 16))
+    return () => void marker.remove()
+  }, [ready, draftLat, draftLon])
+
+  useEffect(() => {
+    if (ready && focus) ready.map.setView([focus.latitude, focus.longitude], 17)
+  }, [ready, focus])
+
   return (
     <div className="location-map-wrap">
       <div
         ref={container}
         className="location-map"
         role={expanded ? 'region' : 'img'}
-        aria-label={`Map centered on ${place.label}${stale ? ', last known location' : ''}`}
+        aria-label={
+          place
+            ? `Map centered on ${place.label}${stale ? ', last known location' : ''}`
+            : 'Map. Click to drop a pin.'
+        }
       />
+      {expanded && !draft && <span className="map-hint">Click the map to drop a pin</span>}
       {failed && (
         <span className="map-unavailable">
           Some map tiles are unavailable · position remains marked
@@ -183,9 +297,14 @@ export function LocationWeather(): React.JSX.Element {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [query, setQuery] = useState('')
-  const [places, setPlaces] = useState<Place[]>([])
+  const [places, setPlaces] = useState<SearchResult[]>([])
   const [searched, setSearched] = useState(false)
+  const [draft, setDraft] = useState<Draft | null>(null)
+  const [focus, setFocus] = useState<{ latitude: number; longitude: number; n: number } | null>(
+    null
+  )
   const revision = useRef(0)
+  const lookup = useRef(0)
   const load = useCallback(async (): Promise<void> => {
     const request = ++revision.current
     try {
@@ -219,7 +338,7 @@ export function LocationWeather(): React.JSX.Element {
     }
   }, [load])
 
-  const perform = async (action: () => Promise<unknown>): Promise<void> => {
+  const perform = async (action: () => Promise<unknown>): Promise<boolean> => {
     setBusy(true)
     setError('')
     revision.current++
@@ -228,39 +347,85 @@ export function LocationWeather(): React.JSX.Element {
       if (!result) throw new Error('Gateway unavailable. Try again.')
       await load()
       window.dispatchEvent(new Event('marvi-location-changed'))
+      return true
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Location update failed.')
+      return false
     } finally {
       setBusy(false)
     }
   }
-  const select = async (
-    mode: 'automatic' | 'saved' | 'off',
-    saved = location?.settings.saved ?? null
-  ): Promise<void> => {
-    await perform(async () => {
-      setWeather(null)
-      const result = await window.marvi?.setLocation({ mode, saved })
+  const configure = (patch: Partial<LocationSettings>): Promise<boolean> => {
+    const current = location?.settings
+    const next: LocationSettings = {
+      mode: current?.mode ?? 'automatic',
+      saved: current?.saved ?? null,
+      places: current?.places ?? [],
+      ...patch
+    }
+    return perform(async () => {
+      if (patch.mode) setWeather(null)
+      const result = await window.marvi?.setLocation(next)
       if (!result) return null
       setLocation(result)
-      if (mode === 'automatic') return window.marvi?.refreshLocation()
+      if (patch.mode === 'automatic') return window.marvi?.refreshLocation()
       return result
+    })
+  }
+  // A dropped or dragged pin: name it from the address underneath.
+  const pick = useCallback((latitude: number, longitude: number): void => {
+    const request = ++lookup.current
+    setDraft((old) => ({ latitude, longitude, name: old?.name ?? '', address: '' }))
+    const named = (label: string): void => {
+      if (request === lookup.current) setDraft((old) => old && { ...old, address: label })
+    }
+    void window.marvi
+      ?.reversePlace(latitude, longitude)
+      .then((found) => named(found?.label || 'Address unavailable'))
+      .catch(() => named('Address unavailable'))
+  }, [])
+  const savePin = async (): Promise<void> => {
+    if (!draft) return
+    const settings = location?.settings
+    const pin: Place = {
+      latitude: Number(draft.latitude.toFixed(6)),
+      longitude: Number(draft.longitude.toFixed(6)),
+      label: (draft.name.trim() || draft.address || 'Pinned place').slice(0, 160),
+      timezone: place?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
+    }
+    const kept = (settings?.places ?? []).filter((p) => p.label !== pin.label)
+    const main = settings?.saved
+    const saved = !main || main.label === pin.label ? pin : main
+    if (await configure({ places: [...kept, pin], saved })) setDraft(null)
+  }
+  const removePin = (pin: Place): void => {
+    const settings = location?.settings
+    const main = same(pin, settings?.saved)
+    void configure({
+      places: (settings?.places ?? []).filter((p) => !same(pin, p)),
+      saved: main ? null : (settings?.saved ?? null),
+      ...(main && settings?.mode === 'saved' ? { mode: 'automatic' as const } : {})
     })
   }
   const data = weather?.data
   const place = location?.place
+  const pins = location?.settings.places ?? []
   const stateLabel =
     location?.settings.mode === 'saved'
       ? 'Saved place'
-      : location?.status === 'ready'
-        ? 'Device location'
-        : location?.status === 'stale'
-          ? 'Last known'
-          : location?.status === 'denied'
-            ? 'Access denied'
-            : location?.status === 'off'
-              ? 'Location off'
-              : 'Unavailable'
+      : place?.pinned && location?.status === 'ready'
+        ? place.label.split(',')[0]
+        : place?.coarse && location?.status === 'ready'
+          ? 'Approximate'
+          : location?.status === 'ready'
+            ? 'Device location'
+            : location?.status === 'stale'
+              ? 'Last known'
+              : location?.status === 'denied'
+                ? 'Access denied'
+                : location?.status === 'off'
+                  ? 'Location off'
+                  : 'Unavailable'
   return (
     <section className="location-weather" aria-label="Local weather and location">
       <article className="local-weather-card">
@@ -377,25 +542,35 @@ export function LocationWeather(): React.JSX.Element {
             <ChevronDown />
           </span>
         </button>
-        {place ? (
-          <LocationMap place={place} expanded={expanded} stale={location?.status !== 'ready'} />
+        {place || expanded ? (
+          <LocationMap
+            place={place}
+            pins={pins}
+            draft={draft}
+            focus={focus}
+            expanded={expanded}
+            stale={location?.status !== 'ready'}
+            onPick={pick}
+          />
         ) : (
           <button type="button" className="map-empty" onClick={() => setExpanded(true)}>
             <Navigation />
             <span>{busy ? 'Finding your location…' : 'Make this your corner of the world'}</span>
-            <small>Use Windows location or save a place</small>
+            <small>Use Windows location or pin a place</small>
           </button>
         )}
         <div className="map-caption">
           <strong>{place?.label ?? 'No location selected'}</strong>
           <span>
             {place
-              ? `${Math.abs(place.latitude).toFixed(3)}° ${place.latitude >= 0 ? 'N' : 'S'} · ${Math.abs(place.longitude).toFixed(3)}° ${place.longitude >= 0 ? 'E' : 'W'}`
+              ? `${Math.abs(place.latitude).toFixed(4)}° ${place.latitude >= 0 ? 'N' : 'S'} · ${Math.abs(place.longitude).toFixed(4)}° ${place.longitude >= 0 ? 'E' : 'W'}`
               : 'You control location access'}
           </span>
+          {place?.pinned && <small>{place.source}</small>}
           {place?.accuracy_m != null && (
             <small>
-              {place.source} · ±{Math.round(place.accuracy_m).toLocaleString()} m ·{' '}
+              {place.coarse ? 'Approximate · your internet provider' : place.source} · ±
+              {Math.round(place.accuracy_m).toLocaleString()} m ·{' '}
               {place.timestamp
                 ? new Date(place.timestamp * 1000).toLocaleTimeString([], {
                     hour: '2-digit',
@@ -407,56 +582,64 @@ export function LocationWeather(): React.JSX.Element {
         </div>
         {expanded && (
           <div className="location-controls">
-            <div className="location-mode-actions">
-              <button disabled={busy} type="button" onClick={() => void select('automatic')}>
-                <LocateFixed /> Use Windows location
-              </button>
-              <button
-                disabled={busy || location?.settings.mode === 'off'}
-                type="button"
-                onClick={() => void select('off')}
+            {draft && (
+              <form
+                className="pin-editor"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  void savePin()
+                }}
               >
-                Turn off
-              </button>
-            </div>
-            {location?.settings.mode === 'automatic' && (
-              <div className="location-mode-actions">
-                <button
-                  disabled={busy}
-                  type="button"
-                  onClick={() => void perform(() => window.marvi.refreshLocation())}
-                >
-                  <RefreshCw /> Refresh location
-                </button>
-                <button type="button" onClick={() => void window.marvi?.openLocationSettings()}>
-                  Windows permissions
-                </button>
-              </div>
+                <label htmlFor="pin-name">Name this pin</label>
+                <div className="location-search">
+                  <input
+                    id="pin-name"
+                    value={draft.name}
+                    maxLength={160}
+                    placeholder={draft.address.split(',')[0] || 'Home, Work, Gym…'}
+                    onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+                    autoFocus
+                  />
+                  <button disabled={busy}>Save pin</button>
+                </div>
+                <div className="location-mode-actions">
+                  {['Home', 'Work', 'School', 'Gym'].map((name) => (
+                    <button key={name} type="button" onClick={() => setDraft({ ...draft, name })}>
+                      {name}
+                    </button>
+                  ))}
+                  <button type="button" onClick={() => setDraft(null)}>
+                    Cancel
+                  </button>
+                </div>
+                <small>
+                  {draft.address || 'Looking up the address…'} · {draft.latitude.toFixed(5)},{' '}
+                  {draft.longitude.toFixed(5)} · drag the pin to adjust
+                </small>
+              </form>
             )}
-            {location?.status === 'denied' && (
-              <p>
-                Windows location access is denied. Enable it in Windows permissions, or save a place
-                below.
+            {place?.coarse && !place.pinned && !draft && (
+              <p className="location-tip">
+                This PC has no Wi-Fi or GPS, so Windows only knows your internet provider&apos;s
+                location, which is in the right city but not your street. Click the map where you
+                really are and save it as Home. Marvi will use that pin whenever Windows puts you
+                nearby.
               </p>
             )}
-            {location?.settings.mode === 'automatic' &&
-              ['unavailable', 'timeout', 'error', 'stale'].includes(location.status) && (
-                <p>Windows could not provide a fresh position. Refresh or choose a saved place.</p>
-              )}
             <form
               onSubmit={(event) => {
                 event.preventDefault()
                 void perform(async () => {
                   const result = await window.marvi?.searchPlaces(query)
                   if (!result)
-                    throw new Error('Place search unavailable. Try again or use coordinates below.')
+                    throw new Error('Place search unavailable. Try again or click the map.')
                   setPlaces(result)
                   setSearched(true)
                   return true
                 })
               }}
             >
-              <label htmlFor="location-city">Save a city</label>
+              <label htmlFor="location-city">Find a place</label>
               <div className="location-search">
                 <input
                   id="location-city"
@@ -467,84 +650,139 @@ export function LocationWeather(): React.JSX.Element {
                     setPlaces([])
                   }}
                   maxLength={100}
-                  placeholder="City or postal code"
+                  placeholder="Address, street, shop or city"
                 />
                 <button disabled={busy || query.trim().length < 2}>Search</button>
               </div>
             </form>
-            {searched && places.length === 0 && <p>No matching places. Try a nearby city.</p>}
+            {searched && places.length === 0 && <p>No matches. Try a street or a nearby city.</p>}
             <div className="location-results">
               {places.map((candidate) => (
                 <button
-                  key={`${candidate.latitude},${candidate.longitude}`}
+                  key={`${candidate.latitude},${candidate.longitude},${candidate.label}`}
                   disabled={busy}
                   type="button"
-                  onClick={() => void select('saved', candidate)}
+                  onClick={() => {
+                    lookup.current++
+                    setDraft({
+                      latitude: candidate.latitude,
+                      longitude: candidate.longitude,
+                      name: '',
+                      address: candidate.label
+                    })
+                    setPlaces([])
+                    setSearched(false)
+                  }}
                 >
                   <MapPin />
                   <span>
                     {candidate.label}
-                    <small>{candidate.timezone}</small>
+                    {candidate.kind && <small>{candidate.kind}</small>}
                   </span>
                 </button>
               ))}
             </div>
-            {location?.settings.saved && location.settings.mode !== 'saved' && (
-              <button disabled={busy} type="button" onClick={() => void select('saved')}>
-                Use saved place: {location.settings.saved.label}
-              </button>
+            {pins.length > 0 && (
+              <ul className="location-pins" aria-label="Your pinned places">
+                {pins.map((pin) => {
+                  const main = same(pin, location?.settings.saved)
+                  return (
+                    <li key={`${pin.latitude},${pin.longitude},${pin.label}`}>
+                      <button
+                        type="button"
+                        className="pin-name"
+                        title="Show on map"
+                        onClick={() =>
+                          setFocus({
+                            latitude: pin.latitude,
+                            longitude: pin.longitude,
+                            n: Date.now()
+                          })
+                        }
+                      >
+                        <MapPin /> {pin.label}
+                        {main && <small>Main</small>}
+                      </button>
+                      {!main && (
+                        <button
+                          disabled={busy}
+                          type="button"
+                          onClick={() => void configure({ saved: pin })}
+                        >
+                          Make main
+                        </button>
+                      )}
+                      <button
+                        disabled={busy}
+                        type="button"
+                        aria-label={`Remove ${pin.label}`}
+                        onClick={() => removePin(pin)}
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
             )}
-            <details>
-              <summary>Enter coordinates</summary>
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  const fields = new FormData(event.currentTarget)
-                  void select('saved', {
-                    label: String(fields.get('label')),
-                    latitude: Number(fields.get('latitude')),
-                    longitude: Number(fields.get('longitude')),
-                    timezone: String(fields.get('timezone'))
-                  })
-                }}
+            <div className="location-mode-actions">
+              {location?.settings.mode !== 'automatic' && (
+                <button
+                  disabled={busy}
+                  type="button"
+                  onClick={() => void configure({ mode: 'automatic' })}
+                >
+                  <LocateFixed /> Use Windows location
+                </button>
+              )}
+              {location?.settings.mode === 'automatic' && (
+                <button
+                  disabled={busy}
+                  type="button"
+                  onClick={() => void perform(() => window.marvi.refreshLocation())}
+                >
+                  <RefreshCw /> Refresh location
+                </button>
+              )}
+              {location?.settings.saved && location.settings.mode !== 'saved' && (
+                <button
+                  disabled={busy}
+                  type="button"
+                  onClick={() => void configure({ mode: 'saved' })}
+                >
+                  Always use {location.settings.saved.label.split(',')[0]}
+                </button>
+              )}
+              <button
+                disabled={busy || location?.settings.mode === 'off'}
+                type="button"
+                onClick={() => void configure({ mode: 'off' })}
               >
-                <label>
-                  Place name
-                  <input name="label" required maxLength={160} placeholder="Home" />
-                </label>
-                <div className="location-coordinate-fields">
-                  <label>
-                    Latitude
-                    <input name="latitude" type="number" required min={-90} max={90} step="any" />
-                  </label>
-                  <label>
-                    Longitude
-                    <input
-                      name="longitude"
-                      type="number"
-                      required
-                      min={-180}
-                      max={180}
-                      step="any"
-                    />
-                  </label>
-                </div>
-                <label>
-                  Timezone
-                  <input
-                    name="timezone"
-                    required
-                    defaultValue={Intl.DateTimeFormat().resolvedOptions().timeZone}
-                    placeholder="Europe/Istanbul"
-                  />
-                </label>
-                <button disabled={busy}>Save place</button>
-              </form>
-            </details>
+                Turn off
+              </button>
+              {location?.settings.mode === 'automatic' && (
+                <button type="button" onClick={() => void window.marvi?.openLocationSettings()}>
+                  Windows permissions
+                </button>
+              )}
+            </div>
+            {location?.status === 'denied' && (
+              <p>
+                Windows location access is denied. Enable it in Windows permissions, or pin a place
+                on the map.
+              </p>
+            )}
+            {location?.settings.mode === 'automatic' &&
+              ['unavailable', 'timeout', 'error', 'stale'].includes(location.status) && (
+                <p>
+                  Windows could not provide a fresh position. Refresh, or pin a place on the map.
+                </p>
+              )}
             <p className="location-disclosure">
-              Weather requests share approximate coordinates with Open-Meteo. Map tiles share the
-              viewed area with OpenStreetMap. Saved places stay on this PC. Automatic fixes are not
-              saved as location history; tool answers follow normal conversation retention.
+              Weather requests share approximate coordinates with Open-Meteo. Place search and pin
+              addresses are looked up with Photon (OpenStreetMap data). Map tiles share the viewed
+              area with OpenStreetMap. Pins stay on this PC. Automatic fixes are not saved as
+              location history; tool answers follow normal conversation retention.
             </p>
           </div>
         )}

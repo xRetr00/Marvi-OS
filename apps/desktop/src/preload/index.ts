@@ -1,5 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { LocationSettings, LocationState, Place, WeatherState } from '../shared/location'
+import type {
+  LocationSettings,
+  LocationState,
+  SearchResult,
+  WeatherState
+} from '../shared/location'
 import type {
   BrowserCommand,
   BrowserPlacement,
@@ -86,8 +91,10 @@ const marvi = {
     ipcRenderer.invoke('marvi:set-location', settings),
   refreshLocation: (): Promise<LocationState | null> =>
     ipcRenderer.invoke('marvi:refresh-location'),
-  searchPlaces: (query: string): Promise<Place[] | null> =>
+  searchPlaces: (query: string): Promise<SearchResult[] | null> =>
     ipcRenderer.invoke('marvi:search-places', query),
+  reversePlace: (latitude: number, longitude: number): Promise<{ label: string } | null> =>
+    ipcRenderer.invoke('marvi:reverse-place', latitude, longitude),
   getWeather: (): Promise<WeatherState | null> => ipcRenderer.invoke('marvi:get-weather'),
   openLocationSettings: (): Promise<void> => ipcRenderer.invoke('marvi:open-location-settings'),
   getVersion: (): Promise<string> => ipcRenderer.invoke('marvi:get-version'),

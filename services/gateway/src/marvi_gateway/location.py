@@ -236,6 +236,8 @@ class LocationService:
             lon, lat = feature["geometry"]["coordinates"][:2]
             props = feature.get("properties") or {}
             place = Place(latitude=lat, longitude=lon, label=_photon_label(props), timezone=timezone)
+            if any(row["label"] == place.label for row in places):
+                continue  # One shop mapped twice (node + building) is one answer.
             kind = str(props.get("osm_value") or props.get("type") or "").replace("_", " ")[:40]
             places.append({**place.model_dump(), "kind": kind})
         return places

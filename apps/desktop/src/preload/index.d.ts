@@ -1,4 +1,9 @@
-import type { LocationSettings, LocationState, Place, WeatherState } from '../shared/location'
+import type {
+  LocationSettings,
+  LocationState,
+  SearchResult,
+  WeatherState
+} from '../shared/location'
 import type {
   BrowserCommand,
   BrowserPlacement,
@@ -125,7 +130,8 @@ export interface MarviDesktopApi {
   getLocation: () => Promise<LocationState | null>
   setLocation: (settings: LocationSettings) => Promise<LocationState | null>
   refreshLocation: () => Promise<LocationState | null>
-  searchPlaces: (query: string) => Promise<Place[] | null>
+  searchPlaces: (query: string) => Promise<SearchResult[] | null>
+  reversePlace: (latitude: number, longitude: number) => Promise<{ label: string } | null>
   getWeather: () => Promise<WeatherState | null>
   openLocationSettings: () => Promise<void>
   holdResources: (on: boolean) => Promise<ResourceState | null>

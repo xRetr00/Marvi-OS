@@ -2349,7 +2349,7 @@ function startApp(): void {
         signal: AbortSignal.timeout(10_000)
       })
       if (response.status === 422)
-        throw new Error('Choose valid coordinates and an IANA timezone, such as Europe/Istanbul.')
+        throw new Error('That place could not be saved. Check its name and try again.')
       if (!response.ok) throw new Error('Location settings could not be saved. Try again.')
       return response.json()
     })
@@ -2360,8 +2360,17 @@ function startApp(): void {
     })
     ipcMain.handle('marvi:search-places', (event, query) => {
       locationSender(event)
-      if (typeof query !== 'string' || query.length > 100) throw new Error('Invalid city name')
-      return gatewayJson(`/location/search?query=${encodeURIComponent(query)}`)
+      if (typeof query !== 'string' || query.length > 100) throw new Error('Invalid place name')
+      const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
+      return gatewayJson(
+        `/location/search?query=${encodeURIComponent(query)}&timezone=${encodeURIComponent(zone)}`
+      )
+    })
+    ipcMain.handle('marvi:reverse-place', (event, latitude, longitude) => {
+      locationSender(event)
+      if (![latitude, longitude].every((n) => typeof n === 'number' && Number.isFinite(n)))
+        throw new Error('Invalid coordinates')
+      return gatewayJson(`/location/reverse?latitude=${latitude}&longitude=${longitude}`)
     })
     ipcMain.handle('marvi:get-weather', (event) => {
       locationSender(event)

@@ -80,33 +80,47 @@ def main() -> None:
             page.bring_to_front()
             errors = []
             page.on("pageerror", lambda error: errors.append(str(error)))
-            page.get_by_role("button", name="Set location", exact=True).wait_for()
             assert page.locator(".titlebar-clock").inner_text()
-            evidence["checks"].append("real preload and Overview empty state; titlebar clock")
-            page.get_by_role("button", name="Set location", exact=True).click()
-            page.get_by_label("Save a city", exact=True).fill("Istanbul")
+            # Nothing clicked: a fresh profile starts with Windows location on.
+            page.locator(".weather-now strong").wait_for(timeout=90_000)
+            page.locator('.leaflet-tile-loaded').first.wait_for()
+            state = page.evaluate("window.marvi.getLocation()")
+            evidence["native"] = {"status": state["status"], "mode": state["settings"]["mode"],
+                "label": (state.get("place") or {}).get("label"),
+                "source": (state.get("place") or {}).get("source"),
+                "accuracy_m": (state.get("place") or {}).get("accuracy_m")}
+            assert state["settings"]["mode"] == "automatic" and state["status"] == "ready", state
+            assert page.locator(".weather-days>div").count() == 3
+            page.screenshot(path=str(output / "overview.png"))
+            evidence["checks"].append("auto-start: Windows fix, reverse-geocoded label and weather with no clicks")
+            page.locator(".map-card-heading").click()
+            if state["place"].get("coarse"):
+                page.locator(".location-tip").wait_for()
+            page.get_by_label("Find a place", exact=True).fill("Düzce Üniversitesi")
             page.get_by_role("button", name="Search", exact=True).click()
             page.locator(".location-results button").first.wait_for()
             page.locator(".location-results button").first.click()
-            page.locator(".weather-now strong").wait_for()
-            page.locator('.leaflet-tile-loaded').first.wait_for()
-            assert page.locator(".leaflet-overlay-pane path").count() >= 1
-            page.locator(".map-card-heading").click()
-            page.screenshot(path=str(output / "overview.png"))
-            evidence["checks"].append("live geocoding; saved location; weather/three-day forecast; real OSM tiles and marker")
-            assert page.locator(".weather-days>div").count() == 3
-            page.locator(".map-card-heading").click()
-            page.get_by_role("button", name="Use Windows location", exact=True).click()
-            page.locator('.location-feedback[role=status]').wait_for(state='hidden', timeout=120_000)
+            page.locator(".map-pin.is-draft").wait_for()
+            page.locator(".pin-editor").get_by_role("button", name="Home", exact=True).click()
+            page.get_by_role("button", name="Save pin", exact=True).click()
+            page.locator(".location-pins li").first.wait_for()
+            page.locator(".leaflet-marker-pane .map-pin").first.wait_for()
             state = page.evaluate("window.marvi.getLocation()")
-            evidence["native"] = {"status": state["status"],
-                "source": (state.get("place") or {}).get("source"),
-                "accuracy_m": (state.get("place") or {}).get("accuracy_m")}
-            assert state["status"] == "ready", f"Native location needs qualification: {state['status']}"
-            page.locator(".weather-now strong").wait_for()
-            page.locator(".map-card-heading").click()
-            page.screenshot(path=str(output / "native-location.png"))
-            evidence["checks"].append("explicit Windows consent/read through packaged helper; weather for native fix")
+            assert state["settings"]["saved"]["label"] == "Home", state["settings"]
+            evidence["pinned"] = {"label": state["place"]["label"], "source": state["place"]["source"]}
+            if state["place"].get("pinned"):
+                page.get_by_text("Pin, matched by", exact=False).first.wait_for()
+            page.screenshot(path=str(output / "pinned-home.png"))
+            evidence["checks"].append("Photon place search; draft pin; saved as Home; fix snaps to the pin nearby")
+            box = page.locator(".location-map").bounding_box()
+            page.locator(".location-map").click(position={"x": box["width"] * 0.3, "y": box["height"] * 0.4})
+            page.locator(".pin-editor").wait_for()
+            page.wait_for_function("!document.querySelector('.pin-editor small').textContent.startsWith('Looking up')",
+                                   timeout=20_000)
+            evidence["dropped_pin_address"] = page.locator(".pin-editor small").inner_text()
+            page.screenshot(path=str(output / "dropped-pin.png"))
+            page.locator(".pin-editor").get_by_role("button", name="Cancel", exact=True).click()
+            evidence["checks"].append("click-to-pin with reverse-geocoded address")
             # Actual tool endpoint, using the per-launch token that Electron
             # wrote into this temporary profile. Never printed or persisted.
             token = (home / "state/local-token").read_text().strip()
@@ -115,9 +129,9 @@ def main() -> None:
                     result = client.post(f"/tools/{tool}", json={"arguments": {}})
                     assert result.status_code == 200 and result.json()["status"] == "executed"
             evidence["checks"].append("all three tools through real authenticated Gateway HTTP")
-            page.locator(".map-card-heading").click()
             page.get_by_role("button", name="Turn off", exact=True).click()
             page.get_by_text("No location selected", exact=True).wait_for()
+            page.locator(".map-card-heading").click()  # Collapsed: no map without a place.
             assert page.locator(".leaflet-tile").count() == 0
             assert page.locator(".weather-now").count() == 0
             evidence["checks"].append("off removes coordinates, weather and map tiles")
