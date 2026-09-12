@@ -136,6 +136,11 @@ def _visitor(event: dict[str, Any], name: str, away: bool | None) -> str:
     verdict = str(payload.get("classification") or "").strip().lower()
     why = str(payload.get("identity_reason") or "")
 
+    if verdict == "known_person" and payload.get("who"):
+        # Somebody the camera knows by name; saying "someone" about them
+        # throws away the one thing the camera actually found out.
+        return f"{_greeting(name)}{payload['who']} just came in."
+
     if verdict == "unidentified":
         if "battery" in why:
             return _choose(
@@ -517,6 +522,10 @@ def spoken(
         "vision:visitor_report",
     ):
         return _visitor(event, name, away)
+    if kind == "room:room_welcome" and str(_on(payload, "audience") or "") in ("friend", "guest"):
+        # Somebody else arriving. "Welcome back, Shereef" said to his friend
+        # is worse than silence; the room wrote the right words already.
+        return str(_on(payload, "message") or "")
     if kind in ("room:room_welcome", "room:owner_home", "presence:home", "vision:owner_seen"):
         return _home(event, name)
     if kind in ("presence:work", "presence:arrived_work"):

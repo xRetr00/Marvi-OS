@@ -1485,7 +1485,19 @@ export interface FaceLibrary {
   ok: boolean
   detail?: string
   owner: string
-  people: { name: string; owner: boolean; samples: number; at?: string }[]
+  people: {
+    name: string
+    owner: boolean
+    samples: number
+    at?: string
+    /** Captured automatically from clear frames. */
+    learned?: number
+    /** How alike this person's samples are, 0-1. Low means something else got filed. */
+    consistency?: number | null
+    last_seen?: string | null
+    newest_sample?: string | null
+    model?: string
+  }[]
   pending: {
     id: number
     at?: string

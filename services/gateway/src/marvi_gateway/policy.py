@@ -220,6 +220,8 @@ SURFACE_CEILING: dict[str, str] = {
 #: phone being somewhere else is worth saying out loud.
 ENTRY_CEILING: dict[str, str] = {
     "owner": "activity",
+    # A friend the camera named. Their welcome speaks through `room_welcome`.
+    "known_person": "island",
     "guest": "island",
     "unidentified": "island",
     "unknown_visitor": "speak",

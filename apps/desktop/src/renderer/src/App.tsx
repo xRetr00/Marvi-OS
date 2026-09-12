@@ -1851,6 +1851,7 @@ function RoomPanel({
                         <div>
                           <strong>{person.name}</strong>
                           <span>{person.owner ? 'Owner' : 'Known person'}</span>
+                          <span className="face-known-facts">{facesFacts(person)}</span>
                         </div>
                         <div className="face-known-actions">
                           <output>{person.samples} samples</output>
@@ -6607,6 +6608,31 @@ function AboutPanel({
       </ControlSection>
     </ControlPage>
   )
+}
+
+/**
+ * What says how well someone is known, beside the bare sample count: how many
+ * were captured automatically, when the camera last named them, and how alike
+ * their samples are -- a low number is the first sign a wrong face got filed.
+ */
+function facesFacts(person: FaceLibrary['people'][number]): string {
+  const facts: string[] = []
+  if (person.learned) facts.push(`${person.learned} learned`)
+  if (person.last_seen) {
+    const seen = new Date(person.last_seen)
+    if (!Number.isNaN(seen.getTime())) {
+      const today = seen.toDateString() === new Date().toDateString()
+      facts.push(
+        `seen ${seen.toLocaleString(undefined, today ? { hour: '2-digit', minute: '2-digit' } : { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`
+      )
+    }
+  } else {
+    facts.push('not seen yet')
+  }
+  if (typeof person.consistency === 'number') {
+    facts.push(`consistency ${Math.round(person.consistency * 100)}%`)
+  }
+  return facts.join(' · ')
 }
 
 /**

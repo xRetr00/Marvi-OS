@@ -93,3 +93,23 @@ def test_the_rooms_mode_is_read_into_the_snapshot() -> None:
     assert _room_asleep(awake) is False
     # Unknown is awake here: going silent because the plugin is down is worse.
     assert _room_asleep(SimpleNamespace(state=broken)) is False
+
+
+def test_a_friends_arrival_is_shown_and_their_welcome_is_their_own() -> None:
+    from marvi_gateway.voicing import spoken
+
+    verdict = evaluate(_entry("known_person"), _world(), AWAKE_HOURS, wanted="speak")
+    assert verdict.surface == "island"
+
+    welcome = {
+        "source": "room",
+        "kind": "room_welcome",
+        "payload": {"audience": "friend", "friend": "Yossif Angot", "message": "Welcome, Yossif."},
+    }
+    assert spoken(welcome, "Shereef") == "Welcome, Yossif."
+    came_in = {
+        "source": "room",
+        "kind": "room_entry",
+        "payload": {"classification": "known_person", "who": "Yossif Angot"},
+    }
+    assert "Yossif Angot just came in" in spoken(came_in, "Shereef")
