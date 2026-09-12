@@ -493,10 +493,11 @@ def cmd_storage(args: argparse.Namespace) -> int:
     print(f"Freed {report['freed_bytes'] / 1024**2:.0f} MB.")
     for line in report["removed"]:
         print(f"  {line}")
-    if args.engines:
-        if args.yes or _confirm("Remove the speech engines that are not selected?"):
-            for line in storage.remove_unused_engines(repo_root()):
-                print(f"  {line}")
+    if args.engines and (
+        args.yes or _confirm("Remove the speech engines that are not selected?")
+    ):
+        for line in storage.remove_unused_engines(repo_root()):
+            print(f"  {line}")
     if args.caches:
         for line in storage.clean_caches(force=args.force):
             print(f"  {line}")
