@@ -260,15 +260,19 @@ class _FakeProcess:
 def test_dictation_streams_pcm_to_existing_sidecar_boundary(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    model = tmp_path / "model"
-    model.mkdir()
-    (model / "encoder-model.onnx").write_bytes(b"stub")
     monkeypatch.setattr(dictation, "worker_command", lambda: ["python", "worker.py"])
-    monkeypatch.setattr(dictation, "model_path", lambda: model)
+    monkeypatch.setattr(dictation, "engine", lambda: "nemotron-3.5")
     process = _FakeProcess()
-    manager = dictation.DictationManager(popen=lambda *_args, **_kwargs: process)
+    started: list[list[str]] = []
+
+    def popen(argv, **_kwargs):
+        started.append(argv)
+        return process
+
+    manager = dictation.DictationManager(popen=popen)
 
     session_id = manager.start()
+    assert started[0][-1] == "nemotron-3.5", "the worker must be told which recogniser"
     chunk = base64.b64encode(b"\x00\x00\x01\x00").decode()
     assert manager.audio(session_id, chunk)["text"] == "hello"
     assert manager.stop(session_id)["kind"] == "final"
