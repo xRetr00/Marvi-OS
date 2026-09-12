@@ -1988,5 +1988,8 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
 - Browser status polling now allows a bounded ten-second startup window, so a
   cold Chromium context cannot intermittently fail a status request on slower
   Windows machines.
+- Logging tests now wait on an ordered log-record barrier instead of the
+  queue's racy `empty()` snapshot, which could report drained before the
+  listener finished writing an uncaught thread exception.
 - Evidence: synchronizer unit/integration tests, version consistency check,
   desktop lint/typecheck/tests, and focused Gateway accounting/policy tests.

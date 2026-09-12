@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
+import uuid
 import warnings
 
 import pytest
@@ -36,14 +38,15 @@ def read(directory, name: str) -> str:
 
 
 def settle() -> None:
-    """Wait for the queue listener to drain, since writes are off-thread."""
-    listener = logs._listener
-    if listener is not None and listener.queue is not None:
-        for _ in range(200):
-            if listener.queue.empty():
-                break
-            threading.Event().wait(0.01)
-    threading.Event().wait(0.15)
+    """Wait for a FIFO barrier, not the queue's racy `empty()` snapshot."""
+    marker = f"test-log-barrier-{uuid.uuid4().hex}"
+    logging.getLogger("marvi_gateway.logs").info(marker)
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        if marker in read(logs.logs_dir(), "gateway"):
+            return
+        threading.Event().wait(0.01)
+    pytest.fail("Logging queue did not drain")
 
 
 # -- routing -----------------------------------------------------------------
