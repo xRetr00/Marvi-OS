@@ -6,8 +6,10 @@ untrusted-content envelope. No model tool can turn location access on.
 """
 from __future__ import annotations
 
+import contextlib
 import threading
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -15,7 +17,7 @@ from zoneinfo import ZoneInfo
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from . import localauth
 from .paths import root
@@ -36,6 +38,17 @@ class Settings(BaseModel):
     mode: Literal["off", "automatic", "saved"] = "off"
     saved: Place | None = None
 
+    @model_validator(mode="after")
+    def valid_place(self) -> Settings:
+        if self.mode == "saved" and self.saved is None:
+            raise ValueError("Choose a saved place first.")
+        if self.saved:
+            try:
+                ZoneInfo(self.saved.timezone)
+            except (KeyError, ValueError) as exc:
+                raise ValueError("Unknown timezone") from exc
+        return self
+
 
 class Fix(BaseModel):
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
@@ -54,12 +67,10 @@ class LocationService:
                  geocoding_url: str = "https://geocoding-api.open-meteo.com/v1/search"):
         self.path = path or root() / "location.json"
         self.settings = Settings()
-        try:
+        with contextlib.suppress(OSError, ValueError):
             self.settings = Settings.model_validate_json(self.path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            pass
         self.lock = threading.RLock()
-        self.generation = time.time_ns()
+        self.generation = int(time.time() * 1000)  # Exact in JavaScript numbers, too.
         self.fix: Fix | None = None
         self.cached: dict[str, Any] | None = None
         self.cache_key: tuple[float, float] | None = None
@@ -118,7 +129,7 @@ class LocationService:
 
     def local_time(self) -> dict[str, Any]:
         state = self.status()
-        zone = state["place"]["timezone"] if state["place"] else None
+        zone = state["place"]["timezone"] if state["status"] == "ready" else None
         now = datetime.now(UTC).astimezone(ZoneInfo(zone)) if zone else datetime.now().astimezone()
         return {"datetime": now.isoformat(), "timezone": zone or now.tzname(),
                 "source": "selected location" if zone else "system clock"}
@@ -166,8 +177,7 @@ class LocationService:
                     response.raise_for_status()
                     body = response.json()
                 ZoneInfo(body["timezone"])
-                if not isinstance(body["current"].get("temperature_2m"), (int, float)):
-                    raise ValueError("Missing current temperature")
+                body = Forecast.model_validate(body).model_dump()
                 self.cached = {"current": body["current"], "daily": body["daily"],
                                "units": body["current_units"], "timezone": body["timezone"],
                                "fetched_at": now, "source": "Open-Meteo", "kind": "model estimate"}
@@ -179,18 +189,72 @@ class LocationService:
                 return {"status": "stale" if self.cached else "unavailable", "data": self.cached,
                         "detail": "Weather provider unavailable. Cached readings may be out of date."}
 
+    def tool_location(self) -> dict[str, Any]:
+        state = self.status()
+        return {"status": state["status"], "place": state["place"]}
+
+    def tool_weather(self) -> str:
+        result = self.weather()
+        data = result.get("data")
+        if not data:
+            return result["detail"]
+        place = self.status()["place"]
+        current, daily = data["current"], data["daily"]
+        lines = [f"{result['status'].upper()} weather for {place['label'] if place else 'previous location'}; Open-Meteo model estimate.",
+                 f"Weather valid at {current['time']} {data['timezone']}; retrieved {datetime.fromtimestamp(data['fetched_at'], UTC).isoformat()}.",
+                 f"Temperature {current['temperature_2m']} C, feels {current['apparent_temperature']} C; humidity {current['relative_humidity_2m']}%; wind {current['wind_speed_10m']} km/h; WMO weather code {current['weather_code']}."]
+        for i, day in enumerate(daily["time"]):
+            lines.append(f"{day}: {daily['temperature_2m_min'][i]}..{daily['temperature_2m_max'][i]} C, rain {daily['precipitation_probability_max'][i]}%, WMO {daily['weather_code'][i]}.")
+        lines.append(f"Sunrise {daily['sunrise'][0]}; sunset {daily['sunset'][0]}.")
+        return "\n".join(lines)
+
+
+class CurrentWeather(BaseModel):
+    model_config = ConfigDict(allow_inf_nan=False)
+    time: str
+    temperature_2m: float
+    apparent_temperature: float
+    relative_humidity_2m: float = Field(ge=0, le=100)
+    weather_code: int = Field(ge=0, le=99)
+    wind_speed_10m: float = Field(ge=0)
+    is_day: Literal[0, 1]
+
+
+class DailyWeather(BaseModel):
+    model_config = ConfigDict(allow_inf_nan=False)
+    time: list[str] = Field(min_length=1, max_length=3)
+    weather_code: list[int | None]
+    temperature_2m_max: list[float | None]
+    temperature_2m_min: list[float | None]
+    precipitation_probability_max: list[float | None]
+    sunrise: list[str | None]
+    sunset: list[str | None]
+
+    @model_validator(mode="after")
+    def matching_days(self) -> DailyWeather:
+        if any(len(values) != len(self.time) for values in self.model_dump().values()):
+            raise ValueError("Incomplete forecast")
+        return self
+
+
+class Forecast(BaseModel):
+    current: CurrentWeather
+    daily: DailyWeather
+    timezone: str
+    current_units: dict[str, str]
+
 
 def register_location_tools(registry: ToolRegistry, service: LocationService) -> None:
     for name, description, handler in (
-        ("get_location", "Read selected geographic location, coordinates, timezone, accuracy and freshness. Distinct from phone/home presence. Never invent missing location.", service.status),
+        ("get_location", "Read selected geographic location, coordinates, timezone, accuracy and freshness. Distinct from phone/home presence. Never invent missing location.", service.tool_location),
         ("get_local_time", "Read current local date and time in the selected location timezone, or the system timezone if location is off.", service.local_time),
-        ("get_weather", "Read current weather and three-day forecast for the selected location: temperature, rain probability, wind, sunrise and sunset. Report stale/unavailable data honestly; conditions are model estimates.", service.weather),
+        ("get_weather", "Read current weather and three-day forecast for the selected location: temperature, rain probability, wind, sunrise and sunset. Report stale/unavailable data honestly; conditions are model estimates.", service.tool_weather),
     ):
         registry.register(ToolSpec(name=name, description=description, arguments={}, sensitive=False,
                                   handler=lambda fn=handler: wrap_external("location-weather", fn()).model_dump()))
 
 
-def location_router(service: LocationService) -> APIRouter:
+def location_router(service: LocationService, audit: Callable[..., Any] = lambda *args: None) -> APIRouter:
     def authenticated(request: Request) -> None:
         localauth.guard(request)
 
@@ -203,7 +267,9 @@ def location_router(service: LocationService) -> APIRouter:
     @router.put("")
     def configure(body: Settings) -> dict[str, Any]:
         try:
-            return service.configure(body)
+            result = service.configure(body)
+            audit("location", "settings", {"mode": body.mode})
+            return result
         except (ValueError, KeyError) as exc:
             raise HTTPException(422, "Choose a valid place and timezone.") from exc
 

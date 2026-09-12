@@ -93,6 +93,7 @@ AREAS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("connected accounts", "account", ()),
     ("what the user is doing", "activity", ()),
     ("the terminal", "terminal", ()),
+    ("location, weather and local time", "weather", ("get_location", "get_local_time")),
 )
 
 

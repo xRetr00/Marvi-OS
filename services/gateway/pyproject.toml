@@ -17,6 +17,7 @@ dependencies = [
     "apscheduler>=3.10,<4",
     "fastapi>=0.116,<1",
     "httpx>=0.28,<1",
+    "tzdata==2026.3",
     # Memory providers are deliberately pinned. Honcho's SDK is the supported
     # adapter for both managed and self-hosted deployments. Mem0 2.x switched
     # to ADD-only extraction, which can retain contradictory corrections; the

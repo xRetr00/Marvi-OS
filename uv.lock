@@ -2385,6 +2385,7 @@ dependencies = [
     { name = "segno" },
     { name = "sentence-transformers" },
     { name = "sounddevice" },
+    { name = "tzdata" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -2418,6 +2419,7 @@ requires-dist = [
     { name = "segno", specifier = ">=1.6,<2" },
     { name = "sentence-transformers", specifier = ">=3,<6" },
     { name = "sounddevice", specifier = ">=0.5,<1" },
+    { name = "tzdata", specifier = "==2026.3" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.35,<1" },
 ]
 

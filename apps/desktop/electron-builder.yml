@@ -12,6 +12,8 @@ files:
 asarUnpack:
   - resources/**
 extraResources:
+  - from: ../location-host/target/release/marvi-location-host.exe
+    to: location-host/marvi-location-host.exe
   - from: ../pet-host/target/release/marvi-pet-host.exe
     to: pet-host/marvi-pet-host.exe
   - from: src/renderer/src/assets/pet/marvi/spritesheet.webp
