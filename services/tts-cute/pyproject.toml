@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "marvi-tts-cute"
-version = "0.1.0.dev0"
+version = "0.10.0"
 requires-python = ">=3.12,<3.13"
 dependencies = [
   "cutetts @ git+https://github.com/OPPO-Mente-Lab/CuteTTS.git@ca9dbd3b82c05f5b067466088449b93ee2aa5a0c",

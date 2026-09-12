@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "marvi-stt-kyutai"
-version = "0.1.0.dev0"
+version = "0.10.0"
 requires-python = ">=3.12,<3.13"
 # Isolated for the same reason CuteTTS and VoXtream are, and the reason is
 # measurable rather than cautious. Resolving `moshi` into the agent's

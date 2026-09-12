@@ -297,7 +297,7 @@ wheels = [
 
 [[package]]
 name = "marvi-tts-cute"
-version = "0.1.0.dev0"
+version = "0.10.0"
 source = { editable = "." }
 dependencies = [
     { name = "cutetts" },

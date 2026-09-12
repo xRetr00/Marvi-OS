@@ -1,6 +1,6 @@
 [package]
 name = "marvi-wake-host"
-version = "0.1.0"
+version = "0.10.0"
 edition = "2021"
 license = "MIT"
 description = "Listens for Marvi's name and starts her. One job, one tray icon."

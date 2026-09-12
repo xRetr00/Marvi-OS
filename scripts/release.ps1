@@ -30,9 +30,8 @@ $branch = git rev-parse --abbrev-ref HEAD
 if ($branch -ne 'main') { throw "Release must be cut from main (currently on $branch)." }
 git fetch origin
 if ($LASTEXITCODE -ne 0) { throw 'Could not fetch origin.' }
-if ((git rev-parse HEAD) -ne (git rev-parse origin/main)) {
-  throw 'Local main is not in sync with origin/main. Pull or push first.'
-}
+$head = git rev-parse HEAD
+$originHead = git rev-parse origin/main
 
 $current = (Get-Content VERSION | Select-Object -First 1).Trim()
 
@@ -58,6 +57,27 @@ if ($Version -notmatch '^\d+\.\d+\.\d+$') {
 $tag = "v$Version"
 if (git rev-parse -q --verify "refs/tags/$tag") {
   throw "Tag $tag already exists."
+}
+
+# A signing failure can happen after the release commit but before its push.
+# Permit exactly that one clean, named local commit on retry; reject every
+# other divergence so unrelated work cannot accidentally enter a release.
+if ($head -ne $originHead) {
+  git merge-base --is-ancestor origin/main HEAD
+  $ahead = if ($LASTEXITCODE -eq 0) { [int](git rev-list --count origin/main..HEAD) } else { 0 }
+  $subject = git log -1 --pretty=%s
+  if ($current -ne $Version -or $ahead -ne 1 -or $subject -ne "chore: release $tag") {
+    throw 'Local main is not in sync with origin/main and is not a retryable release commit.'
+  }
+  Write-Host "Retrying the unpushed $tag release commit." -ForegroundColor Yellow
+}
+
+# Validate signing before touching version files. Previously this guard ran
+# after the commit, leaving a clean but unpushed release commit that the script
+# itself refused to retry.
+$signingKey = git config --get user.signingkey
+if (-not $signingKey) {
+  throw "No user.signingkey configured. A release tag must be signed; set it and retry."
 }
 
 Write-Host "Releasing $current -> $Version" -ForegroundColor Cyan
@@ -171,10 +191,6 @@ function Invoke-SignedTag {
 # commit.gpgsign was true and tag.gpgsign was not, and `git tag -a` does not
 # sign. The updater treats an unsigned release tag as a warning, so nothing
 # broke — it just never verified anything either.
-$signingKey = git config --get user.signingkey
-if (-not $signingKey) {
-  throw "No user.signingkey configured. A release tag must be signed; set it and retry."
-}
 Invoke-SignedTag $tag "Marvi OS $tag"
 if ($LASTEXITCODE -ne 0) { throw "Signing $tag failed. The tag was not created." }
 

@@ -2304,7 +2304,7 @@ wheels = [
 
 [[package]]
 name = "marvi-os-agent"
-version = "0.1.0.dev0"
+version = "0.10.0"
 source = { editable = "services/agent" }
 dependencies = [
     { name = "en-core-web-sm" },
@@ -2361,7 +2361,7 @@ dev = [
 
 [[package]]
 name = "marvi-os-gateway"
-version = "0.1.0.dev0"
+version = "0.10.0"
 source = { editable = "services/gateway" }
 dependencies = [
     { name = "agent-client-protocol" },

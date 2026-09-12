@@ -1,6 +1,6 @@
 [package]
 name = "marvi-pet-host"
-version = "0.1.0"
+version = "0.10.0"
 edition = "2021"
 license = "MIT"
 description = "Focused native Windows renderer for the Marvi OS desktop pet"
