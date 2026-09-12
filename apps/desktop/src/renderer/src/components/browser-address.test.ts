@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { START_PAGE, toAddress } from './browser-page'
+import { START_PAGE, toAddress } from './browser-address'
 
 describe('the address bar', () => {
   it('turns what people type into somewhere the browser can go', () => {

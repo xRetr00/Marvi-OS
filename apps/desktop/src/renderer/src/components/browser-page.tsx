@@ -9,26 +9,8 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { BrowserCommand, BrowserSession, BrowserStatus } from '../../../shared/browser'
+import { START_PAGE, toAddress } from './browser-address'
 import './browser-page.css'
-
-/** Where a new tab or an empty address goes. Not `about:blank`: a white page
- *  with nothing on it read as a browser that had failed to load. */
-export const START_PAGE = 'https://www.google.com'
-
-/**
- * What was typed, as somewhere a browser can go.
- *
- * `google.com` has no scheme and the Gateway only accepts http(s) URLs, so the
- * address bar refused the most ordinary thing anyone types into one; words with
- * no dot in them are a search, the way every browser treats them.
- */
-export function toAddress(text: string): string {
-  const raw = text.trim()
-  if (!raw) return START_PAGE
-  if (/^[a-z][a-z0-9+.-]*:/i.test(raw)) return raw
-  if (!/\s/.test(raw) && /^[^\s/]+\.[a-z]{2,}(:\d+)?(\/.*)?$/i.test(raw)) return `https://${raw}`
-  return `https://www.google.com/search?q=${encodeURIComponent(raw)}`
-}
 
 /** The Gateway's own reason, without Electron's IPC wrapping around it. */
 function reasonOf(cause: unknown): string {
@@ -491,7 +473,9 @@ export function BrowserPage({ onClose }: { onClose?: () => void } = {}): React.J
               void run(async () => {
                 const done = await window.marvi.browserImport(profile, 'passwords')
                 setNote(
-                  done ? `Imported ${done.imported} logins from Chrome (${done.skipped} skipped).` : ''
+                  done
+                    ? `Imported ${done.imported} logins from Chrome (${done.skipped} skipped).`
+                    : ''
                 )
               })
             }
