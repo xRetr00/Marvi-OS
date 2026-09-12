@@ -1975,3 +1975,15 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   voice (Announcer.synthesize → OGG/Opus via PyAV) after the text; switch on
   Channels. Evidence: 34 Telegram tests over the real SDK and a fake Bot API;
   gateway suite 1896 passed.
+
+## 2026-09-12 — Release version synchronization
+
+- `scripts/sync-version.mjs` now synchronizes `VERSION`, npm manifests and
+  lockfiles, Python service manifests and local `uv.lock` package entries,
+  native app Cargo manifests and lockfiles, and the bootstrap Tauri metadata.
+- `scripts/release.ps1` tests and checks that full version surface before it
+  creates a signed release tag; CI independently enforces the same agreement.
+- Resource accounting now declares its direct `psutil` dependency, fixing
+  clean Gateway installs and the signed-release test environment.
+- Evidence: synchronizer unit/integration tests, version consistency check,
+  desktop lint/typecheck/tests, and focused Gateway accounting/policy tests.

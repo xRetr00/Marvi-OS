@@ -17,6 +17,9 @@ dependencies = [
     "apscheduler>=3.10,<4",
     "fastapi>=0.116,<1",
     "httpx>=0.28,<1",
+    # Resource accounting imports psutil directly. Keep it explicit so a clean
+    # Gateway-only install has the same runtime modules as the workspace.
+    "psutil>=7,<8",
     "tzdata==2026.3",
     # Memory providers are deliberately pinned. Honcho's SDK is the supported
     # adapter for both managed and self-hosted deployments. Mem0 2.x switched
