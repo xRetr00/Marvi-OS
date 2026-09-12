@@ -80,6 +80,13 @@ async def watch_the_loop(stopping: asyncio.Event) -> None:
             condition.note(busy or "busy with something on the main loop", lag, regardless=True)
 
 
+def _long_poll(request: Any) -> bool:
+    try:
+        return "after" in request.query_params
+    except Exception:
+        return False
+
+
 def slow_requests(app: Any) -> None:
     """Time every request, and say which ones dragged or failed.
 
@@ -115,7 +122,12 @@ def slow_requests(app: Any) -> None:
             condition.note(f"answering {path}", spent, failed=str(exc)[:200])
             raise
         spent = time.monotonic() - began
-        if spent >= SLOW_REQUEST:
+        # A long poll (`?after=<revision>`) is supposed to wait: it answers the
+        # moment something changes, or after 25 seconds of nothing. Timing it
+        # as slow put "/agents took 25.2s" and "/computer took 25.0s" in the
+        # error log every 25 seconds, and -- through `condition` -- let Marvi
+        # tell the user she was slow because she was "answering /agents".
+        if spent >= SLOW_REQUEST and not _long_poll(request):
             log.warning(
                 "%s took %.1fs to answer",
                 path,
