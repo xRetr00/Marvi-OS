@@ -7,8 +7,8 @@ import tempfile
 import time
 from pathlib import Path
 
+from marvi_gateway import computer
 from marvi_gateway.computer import ComputerUse
-import marvi_gateway.computer as computer
 
 os.environ["MARVI_COMPUTER_USE"] = "true"
 root = Path(tempfile.mkdtemp(prefix="marvi-computer-proof-"))

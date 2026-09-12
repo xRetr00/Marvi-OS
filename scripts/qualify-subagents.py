@@ -28,9 +28,8 @@ fixture = Path(tempfile.mkdtemp(prefix="marvi-harvi-proof-"))
 )
 os.environ["MARVI_WORKSPACE_ROOT"] = str(fixture)
 
-from fastapi.testclient import TestClient  # noqa: E402
-
-from marvi_gateway.app import create_app  # noqa: E402
+from fastapi.testclient import TestClient
+from marvi_gateway.app import create_app
 
 app = create_app(version="qualify-subagents")
 runner = app.state.subagents
@@ -90,7 +89,11 @@ harvi = None if "--acp" in sys.argv else run(
 )
 if harvi is not None:
     verified = subprocess.run(
-        [sys.executable, "-m", "pytest", "-q", str(fixture)], cwd=fixture, capture_output=True, text=True
+        [sys.executable, "-m", "pytest", "-q", str(fixture)],
+        cwd=fixture,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     tail = verified.stdout.strip().splitlines()
     harvi["independent_pytest"] = tail[-1] if tail else verified.stderr[-200:]
@@ -116,7 +119,11 @@ if "--acp" in sys.argv:
             tool="delegate_to_coder",
         )
         checked = subprocess.run(
-            [sys.executable, "-m", "pytest", "-q", str(fixture)], cwd=fixture, capture_output=True, text=True
+            [sys.executable, "-m", "pytest", "-q", str(fixture)],
+            cwd=fixture,
+            capture_output=True,
+            text=True,
+            check=False,
         )
         tail = checked.stdout.strip().splitlines()
         row["coder"] = coder.key
@@ -136,6 +143,11 @@ if "--jarvi" in sys.argv:
         },
         timeout=300,
     )
-    listed = subprocess.run(["tasklist", "/fi", "imagename eq notepad.exe"], capture_output=True, text=True)
+    listed = subprocess.run(
+        ["tasklist", "/fi", "imagename eq notepad.exe"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
     jarvi["notepad_still_running"] = "notepad.exe" in listed.stdout.lower()
     print(json.dumps(jarvi), flush=True)

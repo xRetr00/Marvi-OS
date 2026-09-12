@@ -51,7 +51,7 @@ def test_a_plain_read_is_unchanged(workspace) -> None:
 
 def test_glob_finds_by_pattern_newest_first_and_skips_dependencies(workspace) -> None:
     found = workspace.glob("**/*")
-    paths = [row for row in found["files"]]
+    paths = list(found["files"])
     assert "node_modules/dep.py" not in paths
     assert paths.index("src/voice.py") < paths.index("src/island.ts")
     assert workspace.glob("**/*.py")["files"] == ["src/voice.py"]

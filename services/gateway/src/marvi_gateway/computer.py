@@ -6,7 +6,7 @@ import asyncio
 import json
 import os
 import threading
-from contextlib import ExitStack
+from contextlib import ExitStack, suppress
 from pathlib import Path
 from typing import Literal
 
@@ -337,10 +337,9 @@ class ComputerUse:
                 self._publish()
 
         pending = asyncio.run_coroutine_threadsafe(retire(), self._runtime_loop().loop)
-        try:
+        with suppress(TimeoutError):
             pending.result(RECOVERY_TIMEOUT)
-        except TimeoutError:
-            pass  # Deliberately do not cancel cleanup or release its lease.
+        # Deliberately do not cancel cleanup or release its lease on timeout.
 
     def action(self, action: str, arguments: dict, question: str = "", request_confirmation=False):
         if action not in ACTIONS:

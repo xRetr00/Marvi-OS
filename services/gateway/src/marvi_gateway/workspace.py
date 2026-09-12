@@ -551,7 +551,7 @@ class Workspace:
         pattern: str,
         path: str = ".",
         glob: str = "",
-        type: str = "",
+        type: str = "",  # noqa: A002 - public tool schema uses ripgrep's field name
         output_mode: str = "files_with_matches",
         before: int = 0,
         after: int = 0,
@@ -775,7 +775,10 @@ class Workspace:
                 f"{len(running)} background commands are already running ({', '.join(map(str, running))}); "
                 "stop one with process_stop first"
             )
-        handle = tempfile.NamedTemporaryFile(prefix="marvi-bg-", suffix=".log", delete=False)
+        # The child owns this handle until process_output observes completion.
+        handle = tempfile.NamedTemporaryFile(  # noqa: SIM115
+            prefix="marvi-bg-", suffix=".log", delete=False
+        )
         try:
             process = subprocess.Popen(
                 argv,
@@ -897,7 +900,7 @@ def register_workspace_tools(registry, workspace: Workspace) -> None:
         pattern: str,
         path: str = ".",
         glob: str = "",
-        type: str = "",
+        type: str = "",  # noqa: A002 - public tool schema uses ripgrep's field name
         output_mode: str = "files_with_matches",
         before: int = 0,
         after: int = 0,

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+from contextlib import suppress
 from typing import Any
 
 from acp import (
@@ -78,10 +79,8 @@ class Fake:
         await say(session_id, update_tool_call("t1", status="completed"))
 
         if "slow" in task:
-            try:
+            with suppress(TimeoutError):
                 await asyncio.wait_for(self.cancelled.wait(), timeout=20)
-            except TimeoutError:
-                pass
             return PromptResponse(stop_reason="cancelled")
         if "refuse" in task:
             await say(session_id, update_agent_message_text("I will not do that."))

@@ -16,7 +16,7 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from marvi_gateway.chat import Chat, ChatStore, TRACE_RESULT_CHARS
+from marvi_gateway.chat import TRACE_RESULT_CHARS, Chat, ChatStore
 from marvi_gateway.providers import ProviderClient
 
 

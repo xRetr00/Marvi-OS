@@ -126,7 +126,7 @@ def test_a_blocked_tool_is_refused_even_when_called_by_name(root) -> None:
     finished(run, run.start("worker", "tell them"))
 
     assert tools.names() == []
-    said = [m for m in client.calls[1][0] if m.get("role") == "tool"][0]["content"]
+    said = next(m for m in client.calls[1][0] if m.get("role") == "tool")["content"]
     assert "not available" in said
 
 
@@ -322,7 +322,7 @@ def test_an_edit_is_refused_until_the_file_is_read(root) -> None:
     finished(run, run.start("harvi", "set x to 2", mode="fix"))
 
     assert tools.names() == ["file_read", "file_edit"]
-    first = [m for m in client.calls[1][0] if m.get("role") == "tool"][0]["content"]
+    first = next(m for m in client.calls[1][0] if m.get("role") == "tool")["content"]
     assert "Read a.py" in first
 
 

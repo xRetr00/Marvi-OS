@@ -148,7 +148,11 @@ def main() -> None:
             print(json.dumps(evidence, indent=2))
             browser.close()
     finally:
-        subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"], capture_output=True)
+        subprocess.run(
+            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+            capture_output=True,
+            check=False,
+        )
         process.wait(timeout=15)
         server.should_exit = True
         thread.join(timeout=5)
