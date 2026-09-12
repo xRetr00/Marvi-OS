@@ -9,8 +9,14 @@ import {
   updateNamedTomlSection,
   updatePackageLock,
   updateUpdaterWorkspace,
+  updateVersionFile,
   synchronize,
 } from "./sync-version.mjs";
+
+test("version file preserves Windows and Unix line endings", () => {
+  assert.equal(updateVersionFile("0.9.0\n", "0.10.0"), "0.10.0\n");
+  assert.equal(updateVersionFile("0.9.0\r\n", "0.10.0"), "0.10.0\r\n");
+});
 
 test("package lock changes only Marvi workspace packages", () => {
   const source =

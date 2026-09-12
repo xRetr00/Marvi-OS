@@ -39,6 +39,11 @@ export function updateTauriConfig(source, version) {
   return preserveJsonLayout(source, value);
 }
 
+export function updateVersionFile(source, version) {
+  const eol = source.includes("\r\n") ? "\r\n" : "\n";
+  return `${version}${eol}`;
+}
+
 export function updateNamedTomlSection(source, section, version) {
   const header = `[${section}]`;
   const start = source.indexOf(header);
@@ -122,7 +127,7 @@ export async function synchronize(root, version, check = false) {
     throw new Error(`version must be stable SemVer, got ${version}`);
 
   const jobs = [
-    ["VERSION", () => `${version}\n`],
+    ["VERSION", (source) => updateVersionFile(source, version)],
     ["package.json", (source) => updatePackageJson(source, version)],
     [
       "apps/desktop/package.json",

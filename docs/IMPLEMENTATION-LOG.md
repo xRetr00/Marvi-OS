@@ -1991,5 +1991,7 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
 - Logging tests now wait on an ordered log-record barrier instead of the
   queue's racy `empty()` snapshot, which could report drained before the
   listener finished writing an uncaught thread exception.
+- Version checks preserve the checked-out `VERSION` line ending, preventing a
+  correct Windows CRLF checkout from being rejected as different from LF.
 - Evidence: synchronizer unit/integration tests, version consistency check,
   desktop lint/typecheck/tests, and focused Gateway accounting/policy tests.
