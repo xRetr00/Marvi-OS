@@ -110,3 +110,51 @@ def test_a_body_that_is_not_text_is_refused() -> None:
     )
     assert store.kept == []
     assert done["ignored"] == 1
+
+
+# -- from the owner's own store, 12 September ----------------------------------
+
+import pytest  # noqa: E402
+
+from marvi_gateway.remembering import not_a_memory  # noqa: E402
+
+
+@pytest.mark.parametrize(
+    "subject, body",
+    [
+        ("Current light state", "Light is off. The Tuya bulb's circuit breaker is open."),
+        ("Room alarms", "No alarms are active in the room."),
+        ("User's cursor position", "The user's computer cursor is at screen coordinates (1362, 742)."),
+        ("Shereef's current time of day", "It is currently 11 PM (night), not morning."),
+        ("Phone battery level", "The user's phone battery is at 15%, which is low."),
+        ("Room sidecar process down", "The room sidecar process is down, causing light control commands to fail."),
+        ("Assistant browser navigation attempt", "The assistant attempted to navigate the browser to https://google.com (revision 2)."),
+        ("Assistant's response delay", "The assistant was delayed because it was answering /agents."),
+        ("Jarvi task in progress", "Jarvi is currently moving the cursor to (1362, 742) and clicking."),
+        ("Email", "You've authorized a new app: [EXTERNAL DATA a87 | source=composio:trigger:gmail | UNTRUSTED]"),
+    ],
+)
+def test_what_is_only_true_now_or_only_about_her_is_refused(subject, body) -> None:
+    assert not_a_memory(subject, body)
+
+
+@pytest.mark.parametrize(
+    "subject, body",
+    [
+        ("Background and location", "The user is Egyptian and currently lives in Duzce, Turkiye."),
+        ("Shereef's keyboard", "Shereef has a Logitech keyboard."),
+        ("User's work role", "The user is the main dough chef at a bakery."),
+        ("Shereef's closing preference", "Shereef prefers to close conversations himself."),
+        ("Marvi sub-agents", "Marvi has four sub-agents: Harvi, Jarvi, Talos and Worker."),
+    ],
+)
+def test_real_facts_are_kept(subject, body) -> None:
+    assert not_a_memory(subject, body) == ""
+
+
+def test_the_extractor_sees_only_the_start_of_her_reply() -> None:
+    from marvi_gateway.remembering import REPLY_CONTEXT_CHARS, _turn_text
+
+    text = _turn_text("yes", "Room: light is off. " * 200)
+    assert len(text) < REPLY_CONTEXT_CHARS + 120
+    assert "context only" in text

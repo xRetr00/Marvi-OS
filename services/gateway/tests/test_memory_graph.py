@@ -158,13 +158,17 @@ def test_consolidation_drops_stale_unused_episodes(memory) -> None:
     assert memory.count() == 0
 
 
-def test_consolidation_never_drops_a_memory_that_was_used(memory) -> None:
-    used = memory.remember("Something worth keeping", "", kind="episodic")
+def test_an_old_episode_expires_even_after_being_recalled(memory) -> None:
+    """Recall returns five rows on nearly every turn, so "was recalled" is not
+    "was useful": 245 of 252 real memories had been recalled, and "the
+    assistant attempted to check the room health" was immortal at strength 132.
+    What an episode taught belongs in a semantic fact, which never expires."""
+    used = memory.remember("Something that happened", "", kind="episodic")
     _age(memory, used, EPISODIC_TTL_DAYS + 10)
-    memory.search("worth keeping")  # recall reinforces it
+    memory.search("something that happened")
 
-    assert memory.consolidate()["forgotten"] == 0
-    assert memory.count() == 1
+    assert memory.consolidate()["forgotten"] == 1
+    assert memory.count() == 0
 
 
 def test_consolidation_never_drops_semantic_facts(memory) -> None:
