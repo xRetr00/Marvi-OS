@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 
 import httpx
 import pytest
+from requests import RequestException
 
 from marvi_gateway.announce import Announcer, announce_enabled
 from marvi_gateway.deliberate import Deliberator, _parse, deliberator_from_env
@@ -102,7 +103,10 @@ def test_room_welcome_reaches_the_same_standalone_announcer(journal) -> None:
 def test_pocket_tts_really_synthesises_on_cpu() -> None:
     """Marked because it loads a real model; skipped when unavailable."""
     pytest.importorskip("pocket_tts")
-    pcm, rate = Announcer().synthesize("Testing one two three.")
+    try:
+        pcm, rate = Announcer().synthesize("Testing one two three.")
+    except RequestException as exc:
+        pytest.skip(f"PocketTTS model host unavailable: {type(exc).__name__}")
 
     assert rate == 24_000
     assert len(pcm) > rate  # at least half a second of 16-bit audio

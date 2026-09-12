@@ -1993,5 +1993,8 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   listener finished writing an uncaught thread exception.
 - Version checks preserve the checked-out `VERSION` line ending, preventing a
   correct Windows CRLF checkout from being rejected as different from LF.
+- The real PocketTTS synthesis smoke test still validates generated PCM when
+  its model is available, but now honors its documented skip behavior when
+  the model host rejects or rate-limits the download.
 - Evidence: synchronizer unit/integration tests, version consistency check,
   desktop lint/typecheck/tests, and focused Gateway accounting/policy tests.
