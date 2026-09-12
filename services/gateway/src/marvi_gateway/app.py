@@ -1429,6 +1429,8 @@ def create_app(
             if sidecar is not None
             else None,
         )
+        # Rain, snow, heat: warned about through the same mind as everything else.
+        initiative.weather = location_service
         chat = Chat(
             rememberer=rememberer,
             store=ChatStore(),

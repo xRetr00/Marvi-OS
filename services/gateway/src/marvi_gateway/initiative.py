@@ -63,6 +63,8 @@ CURIOSITY_HOURS = 4
 #: standing off the GPU is only useful if it happens while the game is still
 #: loading, and `focus.SETTLED_LOOKS` means two of these before it acts.
 FOCUS_MINUTES = 1
+#: Rain warnings look three hours ahead; twenty minutes keeps the lead honest.
+WEATHER_MINUTES = 20
 REFLECT_HOURS = 6
 #: Slower than reflection on purpose. Reflection is a GROUP BY; this is a model
 #: reading eighty memories, and there is nothing to conclude from a morning.
@@ -130,6 +132,9 @@ class Initiative:
         #: `accounting.Accountant`, when one is wired. Left unset, nothing is
         #: recorded and everything else behaves exactly as it did.
         self.books: Any = None
+        #: `location.LocationService`, for weather warnings. Left unset, none.
+        self.weather: Any = None
+        self._weather_watch: Any = None
         # Desktop activity. None is normal -- ActivityWatch is optional, and
         # the mind decides without it exactly as it did before.
         self.activity = activity
@@ -233,6 +238,7 @@ class Initiative:
             ("focus", "What you are doing", self.focus is not None),
             ("accounts", "Connected accounts", self.ingest is not None),
             ("schedule", "Your schedules", True),
+            ("weather", "Weather where you are", self.weather is not None),
         ]
         return [
             {
@@ -503,6 +509,31 @@ class Initiative:
             )
         return {"noticed": len(readings)}
 
+    def run_weather(self) -> dict[str, Any]:
+        """Warn about rain, snow, storms, cold, heat, UV and wind. See `weather_watch`.
+
+        Reads the forecast `LocationService` already caches, so this adds at
+        most one Open-Meteo request per ten minutes, and only with a location.
+        """
+        if self.journal is None or self.weather is None:
+            return {"warned": 0}
+        data = self.weather.weather().get("data")
+        if not data or not data.get("hourly", {}).get("time"):
+            return {"warned": 0}
+        from . import weather_watch
+        from .paths import root as _state_root
+
+        if self._weather_watch is None:
+            self._weather_watch = weather_watch.WeatherWatch(_state_root() / "state" / "weather.json")
+        place = (self.weather.status().get("place") or {}).get("label", "")
+        fresh = self._weather_watch.fresh(weather_watch.alerts(data))
+        for alert in fresh:
+            self.journal.append(
+                "weather", alert["kind"], weather_watch.summary(alert),
+                {**alert, "place": place}, trusted=True, dedupe=False,
+            )
+        return {"warned": len(fresh)}
+
     def run_mind(self) -> dict[str, Any]:
         present, conversation, asleep = True, False, False
         if self.room_state is not None:
@@ -755,6 +786,10 @@ class Initiative:
         scheduler.add_job(
             self._guard("quiet_feeds", self.run_quiet_feeds), "interval",
             minutes=MACHINE_MINUTES, id="quiet_feeds", max_instances=1, coalesce=True,
+        )
+        scheduler.add_job(
+            self._guard("weather", self.run_weather), "interval",
+            minutes=WEATHER_MINUTES, id="weather", max_instances=1, coalesce=True,
         )
         scheduler.add_job(
             self._guard("mind", self.run_mind), "interval",

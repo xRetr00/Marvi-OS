@@ -4,15 +4,29 @@ export interface Place {
   label: string
   timezone: string
 }
+export type SearchResult = Place & { kind?: string }
 export interface LocationSettings {
   mode: 'off' | 'automatic' | 'saved'
+  /** The main pin: used in `saved` mode, and preferred when an IP fix is vague. */
   saved: Place | null
+  /** Named pins (Home, Work…) that automatic fixes snap to. */
+  places: Place[]
 }
 export interface LocationState {
   settings: LocationSettings
   generation: number
   status: 'off' | 'ready' | 'stale' | 'denied' | 'unavailable' | 'timeout' | 'error'
-  place: (Place & { accuracy_m: number | null; timestamp: number | null; source: string }) | null
+  place:
+    | (Place & {
+        accuracy_m: number | null
+        timestamp: number | null
+        source: string
+        /** Snapped to one of the user's pins. */
+        pinned?: boolean
+        /** Only the internet provider's location; city-level. */
+        coarse?: boolean
+      })
+    | null
 }
 export interface WeatherState {
   status: 'ready' | 'stale' | 'unavailable'

@@ -472,6 +472,64 @@ def _machine(event: dict[str, Any], name: str, payload: dict[str, Any]) -> str:
     return ""
 
 
+def _clock(iso: str) -> str:
+    """"2026-09-12T15:00" -> "3 PM": how a person says an hour out loud."""
+    try:
+        hour = int(iso[11:13])
+    except (TypeError, ValueError):
+        return ""
+    return "midnight" if hour == 0 else "noon" if hour == 12 else f"{hour % 12} {'AM' if hour < 12 else 'PM'}"
+
+
+def _degrees(value: Any) -> str:
+    number = int(value or 0)
+    return f"minus {-number}" if number < 0 else str(number)
+
+
+def _weather(event: dict[str, Any], name: str, p: dict[str, Any]) -> str:
+    """A warning with the thing to do about it. Numbers are ours, not a stranger's."""
+    kind = str(event.get("kind", ""))
+    start, until = _clock(str(p.get("start", ""))), _clock(str(p.get("until", "")))
+    when = "Right now" if p.get("now") else f"From {start}"
+    span = f"until at least {until}" if p.get("open_ended") else f"until about {until}"
+    short = int(p.get("hours") or 0) <= 2 and not p.get("open_ended")
+    if kind == "rain":
+        heavy = p.get("intensity") == "heavy"
+        what = {"light": "light rain", "moderate": "rain", "heavy": "heavy rain"}.get(str(p.get("intensity")), "rain")
+        advice = (f"It should pass by {until} - worth waiting it out if you can." if short and heavy
+                  else "If you can, stay in until it eases." if heavy
+                  else f"Take an umbrella, or wait - it should stop by {until}." if short
+                  else "Take an umbrella if you're heading out.")
+        line = f"{when} there's {what} {span}. {advice}"
+    elif kind == "snow":
+        line = (f"{when} it's snowing {span}. Wear a warm coat and proper shoes - "
+                "it may get slippery out there.")
+    elif kind == "storm":
+        hail = " with hail" if p.get("hail") else ""
+        line = f"{when} there's a thunderstorm{hail} {span}. Better to stay inside until it passes."
+    elif kind == "cold":
+        feels = _degrees(p.get("value"))
+        line = (f"It's going to feel like {feels} degrees around {start}. "
+                + ("That's dangerously cold - cover up fully and keep time outside short."
+                   if p.get("severe") else "Wear a proper coat, and gloves wouldn't hurt."))
+    elif kind == "hot":
+        feels = _degrees(p.get("value"))
+        line = (f"It'll feel like {feels} degrees around {start}. "
+                + ("That's dangerous heat - stay indoors in the afternoon if you can, and keep drinking water."
+                   if p.get("severe") else "Drink plenty of water and stay out of the midday sun."))
+    elif kind == "uv":
+        line = (f"The UV index reaches {p.get('value')} around {start}"
+                + (" - that's extreme." if p.get("severe") else ".")
+                + " Sunscreen and sunglasses if you're going out.")
+    elif kind == "wind":
+        line = (f"Gusts up to {p.get('value')} kilometres an hour around {start}. "
+                + ("Damaging winds - stay clear of trees and loose things outside."
+                   if p.get("severe") else "Hold on to anything loose outside."))
+    else:
+        return ""
+    return f"{name}, {line[0].lower()}{line[1:]}" if name else line
+
+
 def spoken(
     event: dict[str, Any],
     name: str = "",
@@ -512,6 +570,8 @@ def spoken(
         return _stepping_aside(event, name, payload)
     if str(event.get("source", "")) == "machine":
         return _machine(event, name, payload)
+    if str(event.get("source", "")) == "weather":
+        return _weather(event, name, payload)
     if kind in ("room:light_changed", "room:lights_changed"):
         return _lights(event, name, payload)
     if kind in (

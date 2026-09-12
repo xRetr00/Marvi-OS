@@ -69,6 +69,10 @@ MUST_BE_SAID: frozenset[str] = frozenset({
     "machine:battery_critical",
     "focus:heavy_app_started",
     "focus:heavy_app_ended",
+    # Getting caught in it is the whole cost of not being told.
+    "weather:rain",
+    "weather:snow",
+    "weather:storm",
 })
 
 
@@ -207,6 +211,15 @@ SURFACE_CEILING: dict[str, str] = {
     # Someone who is not the owner messaged the Telegram bot. Worth a glance,
     # never a word: the name in it was typed by a stranger.
     "telegram:stranger": "island",
+    # Weather worth dressing or planning for. `weather_watch` says each spell
+    # once; quiet hours, presence and the waiting room still apply.
+    "weather:rain": "speak",
+    "weather:snow": "speak",
+    "weather:storm": "speak",
+    "weather:cold": "speak",
+    "weather:hot": "speak",
+    "weather:uv": "speak",
+    "weather:wind": "speak",
 }
 
 
