@@ -67,9 +67,19 @@ QUEUE_DEPTH = 32
 SYSTEM_PROMPT = prompts.text("memory-extraction")
 
 
+#: How much of Marvi's reply the extractor sees. Enough to know what "yes"
+#: agreed to; not the tool results and room readings a long reply carries,
+#: which is where "Light is off", "revision 2" and "it is currently 11 PM"
+#: were being lifted from and filed as facts about the user.
+REPLY_CONTEXT_CHARS = 600
+
+
 def _turn_text(user: str, assistant: str) -> str:
-    user, assistant = user.strip()[:MAX_TURN_CHARS], assistant.strip()[:MAX_TURN_CHARS]
-    return f"User: {user}\n\nAssistant: {assistant}"
+    user = user.strip()[:MAX_TURN_CHARS]
+    assistant = assistant.strip()
+    if len(assistant) > REPLY_CONTEXT_CHARS:
+        assistant = assistant[:REPLY_CONTEXT_CHARS].rsplit(" ", 1)[0] + " ..."
+    return f"User: {user}\n\nAssistant (context only, not a source of facts): {assistant}"
 
 
 def _existing(store: Any, about: str = "") -> list[dict[str, Any]]:
@@ -187,6 +197,62 @@ NARRATES_THE_EXCHANGE = re.compile(
 )
 
 
+#: True now and not next week: device, room and machine state, the time.
+#:
+#: Measured on the owner's store on 12 September, where 25 memories were this
+#: kind -- "Light is off. The Tuya bulb's circuit breaker is open", "No alarms
+#: are active in the room", "The user's cursor is at screen coordinates (1362,
+#: 742)", "It is currently 11 PM" -- and every one came back on recall into
+#: turns where it had long stopped being true. "Room sidecar process down" was
+#: still being recalled, at strength 44, days after it was fixed. "Currently
+#: lives in" is exempt: that is where somebody lives.
+PASSING_STATE = re.compile(
+    r"\bcurrently\b(?! (?:lives?|living|works?|working|studies|studying|based|employed|owns?))"
+    r"|\b(?:right now|at the moment|just now|is (?:still|now) (?:starting|loading|running))\b"
+    r"|\bcurrent (?:state|status|activity|time|location|device|weather|light)\b"
+    r"|\b(?:light|lamp|bulb) is (?:on|off)\b|\bcircuit breaker\b"
+    r"|\bbattery (?:level )?(?:is )?(?:at )?\d|\b\d+% (?:battery|brightness)\b|\bare all online\b"
+    r"|\btemperature is \d|\bmode is (?:normal|off|sleep|focus|relax|reading)\b"
+    r"|\bcursor (?:is )?at\b|\bscreen coordinates\b"
+    r"|\bno alarms are active\b|\bunreported (?:visitor )?entr"
+    r"|\b(?:process|sidecar|daemon|driver|browser|gateway|agent)\b[^.]{0,40}\b(?:is|was) "
+    r"(?:down|running|not ready|starting up|not showing)\b"
+    r"|\b(?:devices?|systems?) (?:are|is) (?:all )?(?:online|up|running)\b"
+    r"|\brevision \d+\b|\bsession [0-9a-f]{12,}\b",
+    re.IGNORECASE,
+)
+
+#: The assistant's account of its own attempts, tools and delays -- 17 of them
+#: on the same day, "The assistant attempted to navigate the browser to
+#: https://google.com using session 53b2... (revision 2)" among them. What she
+#: did in a turn is the transcript's business, not memory's.
+ITS_OWN_DOING = re.compile(
+    r"^(?:the )?assistant(?:'s)? (?:attempted|tried|was delayed|is (?:taking|trying|opening|attempting|finding)"
+    r"|took|plans?|has found|demonstrated|checked its|successfully ran|will report)"
+    r"|\bthe assistant'?s? (?:computer |alarm )?tools? (?:are|is|were) (?:rejecting|failing)"
+    r"|\b(?:jarvi|harvi|talos)\b[^.]{0,60}\b(?:task|is (?:on it|opening|moving)|completed moving)\b"
+    r"|\bwas delayed because it was answering\b|\bdemo (?:attempt )?failed\b",
+    re.IGNORECASE,
+)
+
+
+def not_a_memory(subject: str, body: str) -> str:
+    """Why this is not worth keeping, or empty when it is.
+
+    Shared by the writer, recall and dreaming: a store keeps what it was given,
+    so what the writer now refuses must also stop coming back from before it
+    did, and a conclusion drawn from such rows is no better than they were.
+    """
+    body = " ".join((body or "").split())
+    if NARRATES_THE_EXCHANGE.search(body):
+        return "describes the conversation"
+    if ITS_OWN_DOING.search(body) or ITS_OWN_DOING.search(subject or ""):
+        return "describes what the assistant did"
+    if PASSING_STATE.search(f"{subject}. {body}"):
+        return "only true right now"
+    return ""
+
+
 def apply(store: Any, operations: list[dict[str, Any]]) -> dict[str, Any]:
     """Carry out what the model decided. Returns what was done, by operation.
 
@@ -220,12 +286,13 @@ def apply(store: Any, operations: list[dict[str, Any]]) -> dict[str, Any]:
         body = (raw_body or "").strip()
         subject = (raw_subject or "").strip()
         kind = "episodic" if str(operation.get("kind")) == "episodic" else "semantic"
-        if body and NARRATES_THE_EXCHANGE.search(body):
+        refused = not_a_memory(subject, body) if body and name in ("add", "update") else ""
+        if refused:
             # Loudly. The whole reason this went unnoticed for 55 memories is
             # that nothing anywhere said a word about them.
             log.warning(
-                "a proposed memory described the conversation rather than a fact; "
-                "dropped: %r",
+                "a proposed memory %s rather than a fact; dropped: %r",
+                refused if refused != "describes the conversation" else "described the conversation",
                 f"{subject}: {body}"[:160],
             )
             done["ignored"] += 1

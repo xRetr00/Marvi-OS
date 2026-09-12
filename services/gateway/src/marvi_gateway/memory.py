@@ -164,7 +164,12 @@ def _significant(text: str) -> set[str]:
 
 # Consolidation defaults. Deliberately conservative: forgetting the user's
 # own data is worse than keeping a little too much.
-EPISODIC_TTL_DAYS = 45
+EPISODIC_TTL_DAYS = 21
+
+#: A question about mail, which is when mail should come back from recall.
+MAIL_WORDS = re.compile(
+    r"\b(?:e-?mails?|mail|inbox|gmail|messages?|newsletter|sent me|wrote to me)\b", re.IGNORECASE
+)
 PROMOTE_AFTER_REPEATS = 3
 
 SCHEMA = """
@@ -1004,14 +1009,26 @@ class MemoryStore:
         # invents will not be in that pattern either. So recall refuses to
         # return them as well: a fact about the conversation is never the
         # answer to a question asked in it.
-        from .remembering import NARRATES_THE_EXCHANGE
+        from .remembering import not_a_memory
 
+        # The same refusal as the writer's, on the way out: rows written before
+        # it existed -- "Light is off", "the assistant attempted to navigate" --
+        # stay in the store until cleaned and must not come back meanwhile.
         answers = [
-            entry for entry in found if not NARRATES_THE_EXCHANGE.search(entry.get("body") or "")
+            entry
+            for entry in found
+            if not not_a_memory(entry.get("subject") or "", entry.get("body") or "")
         ]
+        # Mail is found when mail is asked about. Unasked, marketing that the
+        # gatekeeper let through while its model was out of credits came back
+        # into ordinary turns -- a Cloudflare conference, a bank promotion.
+        if not MAIL_WORDS.search(query or ""):
+            answers = [
+                entry for entry in answers if not str(entry.get("source") or "").startswith("composio:")
+            ]
         if len(answers) != len(found):
             log.info(
-                "ignored %d recalled memor(y/ies) that described the conversation",
+                "ignored %d recalled memor(y/ies) that were not facts, or were mail nobody asked about",
                 len(found) - len(answers),
             )
             found = answers
@@ -1795,16 +1812,19 @@ class MemoryStore:
         return [dict(row) for row in rows]
 
     def consolidate(self, now: datetime | None = None) -> dict[str, int]:
-        """The sleep pass: drop stale, unreinforced episodes.
+        """The sleep pass: drop old episodes. Semantic facts are never dropped.
 
-        Semantic facts and anything ever recalled are never dropped -- a memory
-        the user actually used is not noise.
+        An episode expires with its age, recalled or not. The rule used to
+        spare anything ever recalled, on the grounds that a memory somebody
+        used is not noise -- but recall returns five rows on nearly every turn,
+        so 245 of 252 memories had been "used", and "the assistant attempted
+        to check the room health" was immortal at strength 132. Being returned
+        by a search is not the same as being useful.
         """
         moment = now or datetime.now(UTC)
         cutoff = (moment - timedelta(days=EPISODIC_TTL_DAYS)).isoformat()
         forgotten = self._db.execute(
-            "DELETE FROM memories WHERE kind = 'episodic' AND at < ?"
-            " AND strength <= 1 AND last_used IS NULL",
+            "DELETE FROM memories WHERE kind = 'episodic' AND at < ?",
             (cutoff,),
         ).rowcount
         orphans = self._db.execute(

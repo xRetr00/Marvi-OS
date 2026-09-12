@@ -164,6 +164,14 @@ def dream(client: Any, memories: list[dict[str, Any]], conclusions: list[dict[st
         premises = _ids(item.get("from"), known)
         if not subject or not body or len(premises) < MIN_PREMISES:
             continue
+        from .remembering import not_a_memory
+
+        if refused := not_a_memory(subject, body):
+            # A conclusion drawn from rows that were never facts. Several were
+            # spoken aloud as news: "The assistant tried to create an alarm
+            # called 'BM Alarm' at 04:04 but the tool rejected it".
+            log.info("dreaming: dropped a conclusion that %s: %r", refused, body[:120])
+            continue
         drawn.append({"subject": subject, "body": body[:2_000], "premises": premises})
 
     links: list[dict[str, str]] = []

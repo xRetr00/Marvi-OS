@@ -198,7 +198,10 @@ SURFACE_CEILING: dict[str, str] = {
     # `speak` is a ceiling, not an instruction: salience, the cooldown, quiet
     # hours, presence and the deliberator all still stand between a conclusion
     # and a spoken word, and dreaming only runs twice a day.
-    "memory:conclusion": "speak",
+    # Shown, not said. Spoken, a conclusion arrived out of nowhere in the
+    # third person -- "The assistant tried to create an alarm..." -- and the
+    # island is where the person can see what she learned and correct it.
+    "memory:conclusion": "island",
     # Something she wants to know and cannot look up.
     #
     # `curiosity.may_ask` has always been able to name one thing worth asking
