@@ -43,8 +43,12 @@ def _rows_of(page: Any) -> list[Any]:
 #: spent on label changes.
 WANTED_TRIGGERS: dict[str, tuple[str, dict[str, Any]]] = {
     "gmail": ("GMAIL_NEW_GMAIL_MESSAGE", {"interval": 1, "labelIds": "INBOX"}),
-    "googlecalendar": ("GOOGLECALENDAR_NEW_EVENT_TRIGGER", {}),
-    "github": ("GITHUB_COMMIT_EVENT", {}),
+    # Checked against Composio's own trigger list on 12 September. The slugs
+    # here before -- GOOGLECALENDAR_NEW_EVENT_TRIGGER, which does not exist,
+    # and GITHUB_COMMIT_EVENT, which needs one owner and repo -- failed on
+    # every start. These two take no required config: they cover the account.
+    "googlecalendar": ("GOOGLECALENDAR_GOOGLE_CALENDAR_EVENT_CREATED_TRIGGER", {}),
+    "github": ("GITHUB_ISSUE_ASSIGNED_TO_ME_TRIGGER", {}),
     "slack": ("SLACK_RECEIVE_MESSAGE", {}),
 }
 
