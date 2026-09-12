@@ -1,5 +1,5 @@
-# Cuts a Marvi OS release: bumps VERSION + package.json versions, commits,
-# tags v<version>, and pushes. The tag push triggers the Release workflow.
+# Cuts a Marvi OS release: synchronizes every product manifest and lockfile,
+# commits, tags v<version>, and pushes. The tag push triggers the Release workflow.
 #
 # There is no per-release installer. The updater clones the tag and builds it
 # on the machine, so the tag itself is the payload and the workflow publishes
@@ -29,6 +29,7 @@ if ($dirty) { throw "Working tree is not clean. Commit or stash first.`n$dirty" 
 $branch = git rev-parse --abbrev-ref HEAD
 if ($branch -ne 'main') { throw "Release must be cut from main (currently on $branch)." }
 git fetch origin
+if ($LASTEXITCODE -ne 0) { throw 'Could not fetch origin.' }
 if ((git rev-parse HEAD) -ne (git rev-parse origin/main)) {
   throw 'Local main is not in sync with origin/main. Pull or push first.'
 }
@@ -61,60 +62,25 @@ if (git rev-parse -q --verify "refs/tags/$tag") {
 
 Write-Host "Releasing $current -> $Version" -ForegroundColor Cyan
 
-# VERSION is the single product version source; both package.json files mirror
-# it so npm tooling and `app.getVersion()` agree (see AGENTS.md versioning).
-Set-Content -Path VERSION -Value "$Version`n" -NoNewline
-foreach ($pkg in @('package.json', 'apps\desktop\package.json')) {
-  # Change only the top-level version. ConvertTo-Json rewrites the complete
-  # file with PowerShell-specific indentation and escapes every `&&` as a
-  # Unicode sequence, turning a release bump into an unreadable full-file diff.
-  $json = Get-Content $pkg -Raw
-  if ($json -notmatch '(?m)^  "version": "[^"]+",?$') {
-    throw "Could not find the top-level version in $pkg."
-  }
-  $updatedJson = [regex]::Replace(
-    $json,
-    '(?m)^  "version": "[^"]+"',
-    "  `"version`": `"$Version`"",
-    1
-  )
-  Set-Content -Path $pkg -Value $updatedJson -NoNewline
-}
+# One implementation owns every mirror: npm manifests and lock metadata,
+# Python service projects and uv locks, native app Cargo manifests and locks,
+# plus both Cargo and Tauri metadata for the self-updating bootstrap.
+node --test scripts/sync-version.test.mjs
+if ($LASTEXITCODE -ne 0) { throw 'Version synchronizer tests failed; no release files were changed.' }
+node scripts/sync-version.mjs $Version
+if ($LASTEXITCODE -ne 0) { throw "Could not synchronize product version $Version." }
+node scripts/sync-version.mjs --check $Version
+if ($LASTEXITCODE -ne 0) { throw "Product version $Version is still inconsistent after synchronization." }
 
-# The bootstrap ships as its own binary, so a user can be running an older one
-# than the release they installed - it is the thing that does the updating. It
-# carries the product version so `marvi-bootstrap --version` answers usefully.
-$cargo = 'apps\updater\Cargo.toml'
-$text = Get-Content $cargo -Raw
-# The guard is that the version line exists, not that it changed. Re-running a
-# release after a later step failed leaves the file already at the target
-# version, and "no change" then looked identical to "no version line" -- so a
-# retry threw "Could not find the workspace version" on a file that was fine.
-if ($text -notmatch '(?m)^version = "[^"]+"') { throw "Could not find the workspace version in $cargo." }
-$updated = [regex]::Replace($text, '(?m)^version = "[^"]+"', "version = `"$Version`"", 1)
-Set-Content -Path $cargo -Value $updated -NoNewline
-# Cargo.lock records it too; a lockfile that disagrees fails the build.
-Push-Location apps\updater
-try {
-  # Cargo reports normal resolver progress on stderr. PowerShell 7 promotes
-  # redirected native stderr to NativeCommandError under Stop; Windows
-  # PowerShell 5.1 does the same before applying the redirection. Relax error
-  # promotion only for this native command, capture its real exit code, then
-  # restore strict handling before deciding whether the command failed.
-  $previousErrorPreference = $ErrorActionPreference
-  try {
-    $ErrorActionPreference = 'Continue'
-    cargo update --workspace --offline 2>&1 | Out-Null
-    $cargoExitCode = $LASTEXITCODE
-  } finally {
-    $ErrorActionPreference = $previousErrorPreference
-  }
-  if ($cargoExitCode -ne 0) { throw "cargo update failed with code $cargoExitCode." }
-} finally {
-  Pop-Location
+# The tree was clean immediately before synchronization. Refuse to absorb a
+# concurrent, unrelated edit into the release commit.
+$versionFiles = @(git diff --name-only)
+$allowedVersionFile = '^(VERSION|package\.json|package-lock\.json|uv\.lock|apps/desktop/package\.json|apps/[^/]+/(Cargo\.toml|Cargo\.lock)|apps/updater/src-tauri/tauri\.conf\.json|services/[^/]+/(pyproject\.toml|uv\.lock))$'
+$unexpected = @($versionFiles | Where-Object { $_ -notmatch $allowedVersionFile })
+if ($unexpected) {
+  throw "Unexpected files changed while synchronizing the release:`n$($unexpected -join "`n")"
 }
-
-git add VERSION package.json apps\desktop\package.json apps\updater\Cargo.toml apps\updater\Cargo.lock
+if ($versionFiles) { git add -- $versionFiles }
 if ($LASTEXITCODE -ne 0) { throw 'Could not stage the version files.' }
 
 # PowerShell's $ErrorActionPreference does not stop on a native command's exit
@@ -224,7 +190,15 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-Host "Signed and verified $tag" -ForegroundColor Green
 git push origin main
+if ($LASTEXITCODE -ne 0) {
+  git tag -d $tag | Out-Null
+  throw "Could not push the $tag release commit. Local tag removed so the release can be retried."
+}
 git push origin $tag
+if ($LASTEXITCODE -ne 0) {
+  git tag -d $tag | Out-Null
+  throw "Could not push $tag. Local tag removed so the release can be retried."
+}
 
 Write-Host @"
 

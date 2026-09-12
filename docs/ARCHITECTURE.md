@@ -402,8 +402,12 @@ validates schemas/authentication and writes the same append-only audit event.
 
 ## Version and update architecture
 
-Product versions come from `VERSION`; builds embed the Git commit and build
-time. There are two update channels, both surfaced in Updates and About:
+Product versions come from `VERSION`; the signed-release script mirrors that
+value into npm manifests and workspace lock metadata, Python service manifests
+and uv locks, native app Cargo manifests and locks, and both Cargo and Tauri
+metadata for the bootstrap. CI rejects a tag when any mirror disagrees. Builds
+embed the Git commit and build time. There are two update channels, both
+surfaced in Updates and About:
 
 - `release` (default, opt-out): update to the latest signed `v*` tag. Never
   fast-forwards a moving branch; integrity rests on HTTPS plus (when signing is

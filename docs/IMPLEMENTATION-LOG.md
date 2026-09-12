@@ -1,5 +1,19 @@
 # Implementation Log
 
+## 2026-09-12 — Complete signed-release version synchronization
+
+- Replaced the release script's two-package special case with one deterministic
+  synchronizer for product `package.json` and `package-lock.json` metadata,
+  Gateway/Agent and optional-engine Python projects plus `uv.lock` files,
+  native app Cargo manifests and locks, and the updater's Cargo and Tauri
+  versions.
+- Added scoped transformer tests that leave third-party packages untouched, a
+  repository-wide check mode, and a release CI gate that rejects mixed-version
+  tags.
+- Made release fetch and push failures explicit and retryable; a failed push
+  removes only the newly created local tag rather than leaving the release
+  console wedged on its next run.
+
 ## 2026-09-12 — Voice says finished work without being asked
 
 - Reported by the owner: sub-agents finished, but Marvi only mentioned it after
