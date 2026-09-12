@@ -405,29 +405,28 @@ def cmd_models(args: argparse.Namespace) -> int:
     components = setup_module.load(root)
 
     if args.action == "prune":
-        # Model directories nothing loads any more. Named separately from
-        # `remove` because there is no component to name: these are left over
-        # from a version that had one, and `remove` takes a component name.
-        import shutil
+        # Leftovers from engines Marvi no longer has, plus speech engines that
+        # are not selected. The daily storage pass already removes the first
+        # kind; this is the same thing on demand, and the only way to the
+        # second. See `storage`.
+        from . import storage
 
-        from . import upgrade
-
-        leftovers = upgrade.reclaimable()
-        if not leftovers:
+        found = [(entry.path, entry.bytes, entry.why) for entry in storage.leftovers()]
+        found += [
+            (where, held, f"{component.title}, not the selected engine")
+            for component, where, held in storage.unused_engines(root)
+        ]
+        if not found:
             print("Nothing to reclaim.")
             return 0
-        for entry in leftovers:
-            print(f"  {entry.path}  {entry.gigabytes:.1f} GB — {entry.why}")
-        total = sum(entry.gigabytes for entry in leftovers)
+        for path, held, why in found:
+            print(f"  {path}  {held / 1024**3:.1f} GB — {why}")
+        total = sum(held for _path, held, _why in found) / 1024**3
         if not args.yes and not _confirm(f"Delete {total:.1f} GB?"):
             return 0
-        for entry in leftovers:
-            try:
-                shutil.rmtree(entry.path)
-                print(f"  removed {entry.path.name}")
-            except OSError as exc:
-                print(f"  could not remove {entry.path}: {exc}", file=sys.stderr)
-                return 1
+        storage.housekeep()
+        for line in storage.remove_unused_engines(root):
+            print(f"  {line}")
         return 0
 
     if args.action == "list":
@@ -462,6 +461,46 @@ def cmd_models(args: argparse.Namespace) -> int:
         print(f"{target.name}: {outcome.detail}")
         return 0 if outcome.ok else 1
     return 1
+
+
+def cmd_storage(args: argparse.Namespace) -> int:
+    """What Marvi keeps on disk, and cleaning it.
+
+    `status` sizes everything (slow on a big install: it walks every file).
+    `clean` runs the daily pass now; `--caches` adds the package caches and
+    `--engines` the speech engines that are not selected.
+    """
+    from . import paths, storage
+
+    if args.action == "status":
+        root = paths.root()
+        rows = [(item, storage.size_of(item)) for item in root.iterdir()]
+        for item, held in sorted(rows, key=lambda row: -row[1])[:15]:
+            print(f"  {held / 1024**3:7.2f} GB  {item.name}")
+        print(f"  {sum(held for _item, held in rows) / 1024**3:7.2f} GB  total "
+              "(files shared with the uv cache are counted in both)")
+        for component, where, held in storage.unused_engines(repo_root()):
+            print(f"  unused engine: {component.title}  {held / 1024**3:.1f} GB  ({where})")
+        for entry in storage.leftovers():
+            print(f"  leftover: {entry.path}  {entry.gigabytes:.1f} GB — {entry.why}")
+        last = storage.last_pass()
+        if last:
+            print(f"  last pass: freed {last.get('freed_bytes', 0) / 1024**2:.0f} MB, "
+                  f"{last.get('free_gb')} GB free")
+        return 0
+
+    report = storage.housekeep()
+    print(f"Freed {report['freed_bytes'] / 1024**2:.0f} MB.")
+    for line in report["removed"]:
+        print(f"  {line}")
+    if args.engines:
+        if args.yes or _confirm("Remove the speech engines that are not selected?"):
+            for line in storage.remove_unused_engines(repo_root()):
+                print(f"  {line}")
+    if args.caches:
+        for line in storage.clean_caches(force=args.force):
+            print(f"  {line}")
+    return 0
 
 
 def cmd_gpu(args: argparse.Namespace) -> int:
@@ -772,6 +811,18 @@ def build_parser() -> argparse.ArgumentParser:
     models.add_argument("--force", action="store_true", help="re-download even if verified")
     models.add_argument("--yes", "-y", action="store_true")
     models.set_defaults(handler=cmd_models)
+
+    storage_cmd = sub.add_parser("storage", help="what Marvi keeps on disk, and cleaning it")
+    storage_cmd.add_argument("action", nargs="?", choices=["status", "clean"], default="status")
+    storage_cmd.add_argument("--caches", action="store_true", help="also prune the uv and npm caches")
+    storage_cmd.add_argument(
+        "--engines", action="store_true", help="also remove speech engines that are not selected"
+    )
+    storage_cmd.add_argument(
+        "--force", action="store_true", help="prune uv even while Marvi's own uv processes run"
+    )
+    storage_cmd.add_argument("--yes", "-y", action="store_true")
+    storage_cmd.set_defaults(handler=cmd_storage)
 
     gpu = sub.add_parser("gpu", help="what Marvi found, and whether to use it")
     gpu.add_argument("use", nargs="?", choices=["gpu", "cpu"], help="set and remember")

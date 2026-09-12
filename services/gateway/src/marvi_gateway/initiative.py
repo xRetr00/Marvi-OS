@@ -70,6 +70,8 @@ REFLECT_HOURS = 6
 #: reading eighty memories, and there is nothing to conclude from a morning.
 DREAM_HOURS = 12
 CONSOLIDATE_HOURS = 24
+#: The storage pass. Daily; it cycles logs itself only every third day.
+STORAGE_HOURS = 24
 
 
 class Initiative:
@@ -504,10 +506,38 @@ class Initiative:
         busy = getattr(self.focus, "because", "") if self.focus is not None else ""
         readings = self._machine.look(busy_with=busy)
         for reading in readings:
+            if reading.kind in ("disk_low", "disk_critical"):
+                self._make_room(reading.payload)
             self.journal.append(
                 "machine", reading.kind, reading.summary, reading.payload, trusted=True
             )
         return {"noticed": len(readings)}
+
+    def run_storage(self) -> dict[str, Any]:
+        """Throw away what regenerates. See `storage`."""
+        from . import storage
+
+        report = storage.housekeep()
+        return {"freed_bytes": report["freed_bytes"], "removed": len(report["removed"])}
+
+    def _make_room(self, payload: dict[str, Any]) -> None:
+        """A disk just went low: clean now, and say what is left to take.
+
+        Only for the drive Marvi lives on -- cleaning her folder does nothing
+        for a full D:. The unused engines are sized, not removed: they are a
+        download to get back, so the sentence offers and a person decides.
+        """
+        from . import storage
+        from .paths import root
+
+        if str(payload.get("drive", "")).upper() != root().anchor[:1].upper():
+            return
+        try:
+            payload["freed_gb"] = round(storage.housekeep()["freed_bytes"] / 1024**3, 1)
+            unused = sum(held for _c, _w, held in storage.unused_engines())
+            payload["reclaimable_gb"] = round(unused / 1024**3, 1)
+        except Exception as exc:
+            logger.info("could not make room on a low disk (%s)", str(exc)[:160])
 
     def run_weather(self) -> dict[str, Any]:
         """Warn about rain, snow, storms, cold, heat, UV and wind. See `weather_watch`.
@@ -809,6 +839,11 @@ class Initiative:
             self._guard("consolidate", self.run_consolidate), "interval",
             hours=CONSOLIDATE_HOURS, id="consolidate", max_instances=1, coalesce=True,
             next_run_time=self._first_run("consolidate", CONSOLIDATE_HOURS * 3600),
+        )
+        scheduler.add_job(
+            self._guard("storage", self.run_storage), "interval",
+            hours=STORAGE_HOURS, id="storage", max_instances=1, coalesce=True,
+            next_run_time=self._first_run("storage", STORAGE_HOURS * 3600),
         )
         scheduler.start()
         self._scheduler = scheduler
