@@ -122,6 +122,12 @@ const MILESTONES: &[Milestone] = &[
         title: "Activating installation",
         percent: 96,
     },
+    Milestone {
+        prefix: "cleaning installer caches",
+        stage_id: "activate",
+        title: "Cleaning installer caches",
+        percent: 98,
+    },
 ];
 
 fn milestone_for(line: &str) -> Option<Milestone> {
@@ -410,7 +416,7 @@ mod tests {
     /// grepping the sources for the literal is enough to catch a rename.
     #[test]
     fn stages_match_what_the_core_emits() {
-        let sources: String = ["install.rs", "update.rs", "toolchain.rs", "builder.rs"]
+        let sources: String = ["install.rs", "update.rs", "toolchain.rs", "builder.rs", "handoff.rs"]
             .iter()
             .map(|name| {
                 std::fs::read_to_string(

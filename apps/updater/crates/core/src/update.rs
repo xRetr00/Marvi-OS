@@ -231,6 +231,9 @@ pub fn run_update(cfg: &mut UpdateConfig, progress: &mut dyn FnMut(&str)) -> Upd
                 "warning: some components did not install ({e}); run `marvi setup` to finish"
             ));
         }
+        if let Err(e) = crate::handoff::clean_caches(&root, &state, progress) {
+            progress(&format!("warning: the caches were not cleaned ({e})"));
+        }
         if let Err(e) = crate::handoff::install_cli_shim(&root, &state, progress) {
             progress(&format!(
                 "warning: the marvi command was not installed ({e})"

@@ -220,6 +220,9 @@ pub fn install(cfg: &mut InstallConfig, progress: &mut dyn FnMut(&str)) -> Insta
                 "warning: some components did not install ({e}); run `marvi setup` to finish"
             ));
         }
+        if let Err(e) = crate::handoff::clean_caches(&cfg.install_root, &cfg.state_dir, progress) {
+            progress(&format!("warning: the caches were not cleaned ({e})"));
+        }
         if let Err(e) =
             crate::handoff::install_cli_shim(&cfg.install_root, &cfg.state_dir, progress)
         {

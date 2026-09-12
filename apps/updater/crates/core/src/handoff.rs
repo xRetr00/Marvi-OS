@@ -87,6 +87,31 @@ pub fn install_essentials(
     )
 }
 
+/// Clean up after the install: prune the uv and npm caches.
+///
+/// Every update syncs the Python environments and runs `npm ci`, and both
+/// leave what they downloaded in a cache nothing ever trims. One machine
+/// reached 70 GB of uv cache this way. Pruning removes only what no
+/// environment refers to, so the next update downloads nothing it already has.
+///
+/// Here because Marvi is closed: `uv cache prune` waits for every running uv
+/// process, and while Marvi is up there always is one. Bounded all the same,
+/// so a stray process cannot hold the installer open.
+pub fn clean_caches(
+    install_root: &Path,
+    state_dir: &Path,
+    progress: &mut dyn FnMut(&str),
+) -> Result<(), String> {
+    progress("cleaning installer caches");
+    marvi(
+        install_root,
+        state_dir,
+        &["storage", "clean", "--caches"],
+        Duration::from_secs(1_800),
+        progress,
+    )
+}
+
 /// Run Marvi's own CLI out of the checkout, using the toolchain just installed.
 ///
 /// Not `marvi` from PATH: the point of provisioning `uv` was to stop depending
