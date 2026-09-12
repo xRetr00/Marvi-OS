@@ -144,6 +144,14 @@ async def converse(app) -> dict:
             job["agent"] == "jarvi" and job["state"] in ("running", "awaiting_approval")
             for job in runner.status()["jobs"]
         )
+        # The voice model does not always delegate (run 4 reached for
+        # terminal_run instead). That is recorded, and then the job is handed
+        # over through the same `delegate` tool voice calls, so the unprompted
+        # report -- the thing under test -- still gets exercised.
+        evidence["model_delegated"] = any(job["agent"] == "jarvi" for job in runner.status()["jobs"])
+        if not evidence["model_delegated"]:
+            print("  (the model did not delegate; handing Jarvi the job through the voice tool)\n", flush=True)
+            await gateway._run("delegate", {"agent": "jarvi", "task": ASK})
 
         # Wait for Jarvi, then for the voice watcher to pick the report up
         # (it polls every 15 s), exactly as a real session would.

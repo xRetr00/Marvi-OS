@@ -107,7 +107,7 @@ def browser_router(get_service, audit, activate=lambda: None) -> APIRouter:
             "browser_control",
             {"session_id": session_id, "command": body.command},
         )
-        return await call("control", session_id, body.revision, body.command)
+        return await call("control", session_id, body.revision, body.command, True)
 
     @router.post("/{session_id}/action")
     async def action(session_id: str, body: BrowserUIAction):

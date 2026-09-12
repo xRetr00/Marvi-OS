@@ -520,7 +520,11 @@ class BrowserWorkspace:
                 if self._receipts[key]["signature"] != signature:
                     raise ValueError("Action ID was already used with different arguments")
                 return self._receipts[key]["receipt"]
-            session = self._check(sid, revision)
+            # The revision guards the model, which must read the page before it
+            # acts on it. A person clicking in the toolbar is acting on what is
+            # on screen, and refusing them because a poll had not caught up yet
+            # is what put "Navigation could not start" under every second click.
+            session = self._session(sid) if manual else self._check(sid, revision)
             if session["state"] != "ready" and not (manual and session["state"] in {"paused", "cancelled"}):
                 raise ValueError(
                     "Browser is not ready. Resume it or wait for the current operation."
@@ -806,9 +810,10 @@ class BrowserWorkspace:
 
         return self._loop.submit(capture(), timeout=8)
 
-    def control(self, sid: str, revision: int, command: str) -> dict:
+    def control(self, sid: str, revision: int, command: str, manual: bool = False) -> dict:
         async def change():
-            session = self._check(sid, revision)
+            # As for `action`: the person's own menu is not held to a revision.
+            session = self._session(sid) if manual else self._check(sid, revision)
             if command not in {"pause", "private", "resume", "stop", "close", "show"}:
                 raise ValueError("Unknown browser command")
             if command == "show":
