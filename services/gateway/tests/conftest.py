@@ -85,6 +85,10 @@ def isolate_marvi_home(tmp_path_factory, monkeypatch):
     # A developer's real bot token would start polling Telegram from every test
     # that builds the app.
     monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+    # Both change what every model call and every proactive line may do, and
+    # the second reads this machine's own fullscreen state.
+    monkeypatch.delenv("MARVI_LOCAL_ONLY", raising=False)
+    monkeypatch.setenv("MARVI_RESPECT_WINDOWS_BUSY", "0")
 
     yield home
 

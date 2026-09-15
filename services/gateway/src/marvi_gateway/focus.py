@@ -109,6 +109,19 @@ def _name_of(window: dict[str, Any] | None) -> str:
     return re.sub(r"\.exe$", "", app, flags=re.IGNORECASE)
 
 
+def _notification_state() -> int:
+    """`SHQueryUserNotificationState`, or 0 when it cannot be asked."""
+    try:
+        import ctypes
+
+        state = ctypes.c_int()
+        if ctypes.windll.shell32.SHQueryUserNotificationState(ctypes.byref(state)) != 0:
+            return 0
+        return state.value
+    except Exception:
+        return 0
+
+
 def fullscreen_now() -> bool:
     """Whether a fullscreen app has the foreground, as Windows sees it.
 
@@ -116,15 +129,30 @@ def fullscreen_now() -> bool:
     the safe direction, because the consequence of a false positive here is
     Marvi standing down off the GPU when nothing needs it.
     """
-    try:
-        import ctypes
+    return _notification_state() in FULLSCREEN_STATES
 
-        state = ctypes.c_int()
-        if ctypes.windll.shell32.SHQueryUserNotificationState(ctypes.byref(state)) != 0:
-            return False
-        return state.value in FULLSCREEN_STATES
-    except Exception:
-        return False
+
+#: The same call answers a second question: whether *any* app should interrupt
+#: now. Windows holds its own toasts in these states, and a proactive line
+#: spoken over a slideshow is the same interruption with a voice.
+BUSY_STATES: dict[int, str] = {
+    2: "a fullscreen app is in front",
+    3: "a fullscreen game is running",
+    4: "you are presenting",
+}
+
+BUSY_SETTING = "MARVI_RESPECT_WINDOWS_BUSY"
+
+
+def windows_busy() -> str:
+    """Why Windows says not to interrupt right now, or "" when it may.
+
+    On by default; `MARVI_RESPECT_WINDOWS_BUSY=0` turns it off. Focus Assist
+    (Do Not Disturb) is not covered: Windows publishes no supported API for it.
+    """
+    if os.environ.get(BUSY_SETTING, "1").strip().lower() in ("0", "false", "no", "off"):
+        return ""
+    return BUSY_STATES.get(_notification_state(), "")
 
 
 def gpu_in_use() -> float | None:
