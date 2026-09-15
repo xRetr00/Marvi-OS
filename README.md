@@ -71,12 +71,16 @@ Marvi can notice an event, remember it, surface it later, or act when the moment
 - **Marvi Cortex** — inspectable memory, identity, relationships, reflections, and autonomous decisions.
 - **Connected world** — accounts, tools, skills, plugins, room devices, and editable scheduled jobs working through one assistant.
 - **Personal expression** — choose the theme, typography, window style, Island placement, speech recognition, and voice.
+- **Small conveniences** — press `Alt+Shift+M` to talk without the wake word; ask Marvi to pause the music, change the volume, read or fill your clipboard, or find something said in an old conversation. When one of her file tools changes a file, a copy is kept first so she can put it back.
+- **Open to your other tools** — `marvi mcp serve` lets Claude Code, Cursor or Codex ask what Marvi remembers, and `marvi memory export --obsidian` writes Cortex out as an Obsidian vault.
+
+Planned work that is not built yet is listed, with plans, in [`docs/backlog/`](docs/backlog/README.md).
 
 ## Your space, your rules
 
 Always-on access should never mean giving up control.
 
-Raw microphone and camera streams stay on your machine. Camera processing belongs to your local room system, and connected content is treated as information—not as an instruction Marvi is allowed to obey. When you choose a cloud model, only the text and context needed for that request are sent to that provider.
+Raw microphone and camera streams stay on your machine. Camera processing belongs to your local room system, and connected content is treated as information—not as an instruction Marvi is allowed to obey. When you choose a cloud model, only the text and context needed for that request are sent to that provider; set `MARVI_LOCAL_ONLY=1` and every model call stays on local models. While you present or have a fullscreen app in front, Marvi holds proactive speech until you are done, as Windows does with its own notifications.
 
 You decide how actions work:
 

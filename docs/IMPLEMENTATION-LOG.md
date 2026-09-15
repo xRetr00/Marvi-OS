@@ -1,5 +1,23 @@
 # Implementation Log
 
+## 2026-09-16 — Backlog recorded; ten quick wins shipped
+
+- Compared Marvi OS with Hermes Agent, OpenClaw and OpenHuman and recorded every
+  missing feature except messaging channels, with a plan each, in
+  [`docs/backlog/`](backlog/README.md) (big, medium, small).
+- Shipped ten small items from it, each with tests: file checkpoints and
+  `file_restore`; `clipboard_read`/`clipboard_write`; `media_control`; plugin
+  `pre_tool_call`/`post_tool_call` hooks; `MARVI_LOCAL_ONLY`; holding proactive
+  speech while Windows reports presenting or fullscreen; `chat_search` and
+  `GET /chat/search`; `marvi mcp serve` (Cortex recall and chat search for other
+  agents, read-only); `marvi memory export --obsidian`; the `Alt+Shift+M`
+  summon hotkey.
+- Evidence beyond tests: `marvi mcp serve` spoken to over real stdio, and
+  `memory_recall` answered by the live Gateway; clipboard read and
+  `SHQueryUserNotificationState` called on the dev host. Not exercised on the
+  host: clipboard write (clipboard held non-text data), media key presses, the
+  hotkey in a running build.
+
 ## 2026-09-12 — Complete signed-release version synchronization
 
 - Replaced the release script's two-package special case with one deterministic

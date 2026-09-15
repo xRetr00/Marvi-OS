@@ -1,5 +1,23 @@
 # Upstream Reuse Ledger
 
+## Backlog quick wins — 2026-09-16
+
+No new dependency. See [`docs/backlog/`](backlog/README.md).
+
+- `marvi mcp serve` (`mcp_serve.py`) uses the already-pinned `mcp` SDK's
+  FastMCP server (MIT, 1.29.0 in uv.lock) unchanged, over stdio. Boundary: two
+  read-only tools that forward to the Gateway's `/tools/{name}`. Updates: bump
+  with the MCP client pin and rerun `tests/test_mcp_serve.py`.
+- Clipboard, media keys (`desk.py`) and the Windows busy state (`focus.py`) are
+  direct Win32 calls through `ctypes` (stdlib): `OpenClipboard`/`GetClipboardData`,
+  `keybd_event` with the documented media virtual-key codes, and
+  `SHQueryUserNotificationState` states 2-4.
+- Design references, no code taken: Hermes Agent (MIT) checkpoints and
+  `/rollback` for `checkpoints.py`, and its `pre_tool_call`/`post_tool_call`
+  hook names for plugin tool hooks; OpenHuman (GPL-3.0) mirroring memory as an
+  Obsidian vault for `vault.py`.
+- The summon hotkey is Electron's `globalShortcut` (MIT, pinned 43.4.1).
+
 ## Agent Client Protocol (outside coders) — 2026-09-11
 
 - Source: https://github.com/agentclientprotocol/python-sdk and

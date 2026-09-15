@@ -125,8 +125,17 @@ individual path still has its own override — `MARVI_LOG_DIR`,
 | `MARVI_SURFACE_COOLDOWN` | 900 | seconds between surfacing the same thing |
 | `MARVI_DAILY_TOKEN_BUDGET` | 200000 | tokens of background thinking per day |
 | `MARVI_SPEAK_WHEN_AWAY` | off | speak to an empty room |
+| `MARVI_RESPECT_WINDOWS_BUSY` | on | hold proactive speech and the Island while Windows reports presenting or a fullscreen app; alarms still pass |
 
 Bad values are **clamped rather than obeyed**: a typo in a config file must not
 be able to switch proactivity off by accident, or leave the budget uncapped.
+
+### Privacy and input
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `MARVI_LOCAL_ONLY` | off | every model call must go to a local provider (Ollama, LM Studio, llama.cpp); cloud providers are refused. Model calls only |
+| `MARVI_SUMMON_HOTKEY` | `Alt+Shift+M` | Electron accelerator that starts a voice session like the wake word; `off` disables it |
+| `MARVI_GATEWAY_URL` | `http://127.0.0.1:8765` | also where `marvi mcp serve` sends its calls |
 
 Providers have their own table in `docs/PROVIDERS.md`.
