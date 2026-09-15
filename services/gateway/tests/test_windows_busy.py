@@ -19,7 +19,7 @@ def _world(busy: str = "") -> WorldState:
 
 def test_a_presentation_holds_speech_and_the_island() -> None:
     verdict = evaluate(REMINDER, _world("you are presenting"), AWAKE, wanted="speak")
-    assert verdict.surface == "activity" and verdict.reason == "windows-busy"
+    assert verdict.surface == "activity" and verdict.rule == "windows-busy"
     # Held, not dropped: it is offered again once the slideshow ends.
     assert "windows-busy" in WAITING_FOR
 

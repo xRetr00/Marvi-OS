@@ -189,6 +189,10 @@ class Initiative:
         settings = self.mind.settings
         if _quiet_now(settings, _dt.now(UTC)):
             return f"quiet hours, until {settings.quiet_end:02d}:00"
+        from .focus import windows_busy
+
+        if busy := windows_busy():
+            return f"Windows says not to interrupt: {busy}"
         world = self._world_now()
         if world.get("conversation_active"):
             return "you are in a call"
