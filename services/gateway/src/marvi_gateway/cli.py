@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import json
 import sys
 from functools import partial
 from pathlib import Path
@@ -584,6 +585,23 @@ def cmd_mcp(args: argparse.Namespace) -> int:
     return 1
 
 
+def cmd_memory(args: argparse.Namespace) -> int:
+    from . import paths, vault
+
+    database = paths.memory_db()
+    if not database.is_file():
+        print(f"no memory database at {database}", file=sys.stderr)
+        return 1
+    if args.obsidian:
+        counts = vault.export(database, Path(args.obsidian).expanduser())
+        print(f"wrote {counts['notes']} notes ({counts['memories']} memories, "
+              f"{counts['links']} links) to {args.obsidian}")
+        return 0
+    memories, _ = vault.read(database)
+    print(json.dumps(memories, ensure_ascii=False, indent=1))
+    return 0
+
+
 def cmd_skills(args: argparse.Namespace) -> int:
     from .setup import skills, store
 
@@ -844,6 +862,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     mcp_cmd.add_argument("--yes", "-y", action="store_true")
     mcp_cmd.set_defaults(handler=cmd_mcp)
+
+    memory_cmd = sub.add_parser("memory", help="export what Marvi remembers")
+    memory_cmd.add_argument("action", choices=["export"])
+    memory_cmd.add_argument(
+        "--obsidian", metavar="FOLDER", help="write an Obsidian vault instead of JSON to stdout"
+    )
+    memory_cmd.set_defaults(handler=cmd_memory)
 
     skills_cmd = sub.add_parser("skills", help="browse, install and remove skills")
     skills_cmd.add_argument("action", choices=["list", "browse", "install", "remove"])

@@ -301,3 +301,21 @@ def test_a_gap_memory_already_answers_is_filled_not_asked() -> None:
     assert "awake at night" in fake._known_from_memory(rhythm)
     fake.memory = SimpleNamespace(search=lambda _q, limit=5: [{"subject": "Keyboard", "body": "Logitech."}])
     assert fake._known_from_memory(rhythm) == ""
+
+
+def test_a_phone_silent_for_days_is_said(parts) -> None:
+    """The job read `room_state()["state"]`, which the app never supplied, so it
+    returned early on every run -- three days of a silent phone, no word."""
+    import json
+    from datetime import UTC, datetime, timedelta
+
+    journal, memory, mind = parts
+    old = (datetime.now(UTC) - timedelta(days=3)).isoformat()
+    state = {"location": {"home": True, "zone": "home", "source": "owntracks", "last_geofence_at": old}}
+    initiative = Initiative(
+        mind, journal, memory=memory,
+        room_state=lambda: {"present": True, "conversation_active": False, "state": json.loads(json.dumps(state))},
+    )
+    assert initiative.run_quiet_feeds()["quiet"] >= 1
+    said = [e for e in journal.pending() if e["kind"] == "feed_quiet"]
+    assert said and "Mosquitto" in said[0]["summary"]
