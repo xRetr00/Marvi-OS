@@ -329,6 +329,7 @@ class Workspace:
         target = self.resolve(relative, write=True)
         target.parent.mkdir(parents=True, exist_ok=True)
         existed = target.exists()
+        checkpoint = checkpoints.save(target, "write")
         # `newline=""` so the bytes written are the bytes given. Python's text
         # mode translates every newline to CRLF on Windows, which silently
         # rewrites the line endings of any file Marvi touches -- a one-word
