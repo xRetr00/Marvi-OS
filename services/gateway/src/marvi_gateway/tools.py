@@ -148,9 +148,37 @@ def _coerce(value: Any, expected: type) -> Any:
     return value
 
 
+#: Raised around every call. Named as Hermes Agent names them, so a plugin
+#: written for its hook contract (`plugin.yaml` + `register(ctx)`, which the
+#: Smart Room plugin already follows) needs no changes.
+TOOL_HOOKS = ("pre_tool_call", "post_tool_call")
+
+
 class ToolRegistry:
     def __init__(self) -> None:
         self._tools: dict[str, ToolSpec] = {}
+        self._hooks: dict[str, list[Callable[..., Any]]] = {}
+
+    def add_hook(self, event: str, handler: Callable[..., Any]) -> None:
+        """Observe calls. A hook sees every call and changes none of them.
+
+        # ponytail: observers only; a hook that can veto a call is a policy
+        # decision (ADR, confirmation modes) and waits for a real guardrail need.
+        """
+        if event not in TOOL_HOOKS:
+            raise ValueError(f"unknown tool hook {event!r}")
+        self._hooks.setdefault(event, []).append(handler)
+
+    def _fire(self, event: str, **payload: Any) -> None:
+        for handler in self._hooks.get(event, ()):
+            try:
+                handler(**payload)
+            except Exception as exc:  # a broken observer must not break the tool
+                from .logs import get_logger
+
+                get_logger("plugins").warning(
+                    "tool hook failed", extra={"marvi_error": f"{event}: {type(exc).__name__}: {exc}"}
+                )
 
     def register(self, spec: ToolSpec) -> None:
         """Add a tool, taking its description from `prompts/tools/` when there is one.
@@ -233,18 +261,26 @@ class ToolRegistry:
 
         started = time.perf_counter()
         failed = ""
+        result: Any = None
+        self._fire("pre_tool_call", tool_name=spec.name, args=dict(arguments), task_id="")
         try:
             # Quiesce third-party capture/terminal tools during private entry.
             # Control cannot take this lease: it waits for existing leases.
             if spec.name in {"browser_control", "browser_status", "computer_control", "computer_status"}:
-                return spec.handler(**arguments)
+                result = spec.handler(**arguments)
+                return result
             from .browser_privacy import capture_barrier
             with capture_barrier.observe():
-                return spec.handler(**arguments)
+                result = spec.handler(**arguments)
+            return result
         except Exception as exc:
             failed = f"{type(exc).__name__}: {exc}"
             raise
         finally:
+            self._fire(
+                "post_tool_call", tool_name=spec.name, args=dict(arguments), result=result,
+                error=failed, task_id="",
+            )
             observations.record(
                 "tool",
                 event="call",

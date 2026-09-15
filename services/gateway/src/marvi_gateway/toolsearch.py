@@ -94,6 +94,9 @@ AREAS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("what the user is doing", "activity", ()),
     ("the terminal", "terminal", ()),
     ("location, weather and local time", "weather", ("get_location", "get_local_time")),
+    ("the clipboard", "clipboard", ()),
+    ("music and volume", "media", ()),
+    ("past conversations", "chat", ()),
 )
 
 

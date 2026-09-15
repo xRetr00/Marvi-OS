@@ -29,7 +29,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from . import credentials
+from . import checkpoints, credentials
 from .filepolicy import Access, PathRefusedError
 from .untrusted import wrap_external
 
@@ -198,6 +198,15 @@ def _decode(raw: bytes) -> tuple[str, bytes]:
     return raw.decode("utf-8", "replace"), b""
 
 
+def _checkpointed(row: dict[str, Any] | None) -> dict[str, Any]:
+    """What a tool result says about the copy kept before it changed a file."""
+    if not row:
+        return {}
+    if "skipped" in row:
+        return {"checkpoint_skipped": row["skipped"]}
+    return {"checkpoint": row["id"]}
+
+
 def _line_ending(text: str) -> str:
     """What this file uses. CRLF when it uses any, because a file with mixed
     endings is going to be fixed by whichever editor opens it next anyway."""
@@ -340,6 +349,7 @@ class Workspace:
             "path": self.shown(target),
             "bytes": len(content.encode("utf-8")),
             "overwrote": existed,
+            **_checkpointed(checkpoint),
         }
 
     def edit(self, relative: str, old: str, new: str, replace_all: bool = False) -> dict[str, Any]:
@@ -397,6 +407,7 @@ class Workspace:
 
         count = found if replace_all else 1
         updated = text.replace(old_text, new_text, -1 if replace_all else 1)
+        checkpoint = checkpoints.save(target, "edit")
         target.write_bytes(bom + updated.encode("utf-8"))
 
         # Read it back. A write that reports success while the bytes did not
@@ -411,6 +422,7 @@ class Workspace:
             "changed": True,
             "replacements": count,
             "bytes": len(updated.encode("utf-8")),
+            **_checkpointed(checkpoint),
         }
 
     def search(
@@ -693,11 +705,30 @@ class Workspace:
             raise WorkspaceRefusedError("refusing to delete the workspace root")
         if not target.exists():
             return {"path": self.shown(target), "deleted": False}
+        checkpoint = None
         if target.is_dir():
             shutil.rmtree(target)
         else:
+            checkpoint = checkpoints.save(target, "delete")
             target.unlink()
-        return {"path": self.shown(target), "deleted": True}
+        return {"path": self.shown(target), "deleted": True, **_checkpointed(checkpoint)}
+
+    # -- checkpoints --------------------------------------------------------
+
+    def list_checkpoints(self, relative: str = "", limit: int = 20) -> list[dict[str, Any]]:
+        target = self.resolve(relative) if relative else None
+        return [
+            {**row, "path": self.shown(Path(row["path"]))}
+            for row in checkpoints.listing(target, limit)
+        ]
+
+    def restore(self, relative: str, checkpoint: str = "") -> dict[str, Any]:
+        target = self.resolve(relative, write=True)
+        try:
+            restored = checkpoints.restore(target, checkpoint)
+        except FileNotFoundError as exc:
+            raise WorkspaceRefusedError(str(exc)) from exc
+        return {"path": self.shown(target), **restored}
 
     # -- terminal ---------------------------------------------------------
 
@@ -935,6 +966,12 @@ def register_workspace_tools(registry, workspace: Workspace) -> None:
     def file_delete(path: str) -> dict[str, Any]:
         return workspace.delete(path)
 
+    def file_checkpoints(path: str = "", limit: int = 20) -> dict[str, Any]:
+        return {"checkpoints": workspace.list_checkpoints(path, limit)}
+
+    def file_restore(path: str, checkpoint: str = "") -> dict[str, Any]:
+        return workspace.restore(path, checkpoint)
+
     def terminal_run(
         command: str, timeout: int = DEFAULT_COMMAND_TIMEOUT, shell: str = "", background: bool = False
     ) -> dict[str, Any]:
@@ -1051,6 +1088,30 @@ def register_workspace_tools(registry, workspace: Workspace) -> None:
         ToolSpec(
             name="file_delete", description=("Delete one file. This cannot be undone. Read it first: if what you find does not " "match how the user described it, or you did not create it, say so instead of " "deleting. Only on an explicit request."),
             arguments={"path": str}, sensitive=True, handler=file_delete,
+        ),
+        ToolSpec(
+            name="file_checkpoints",
+            description="Copies of files kept just before Marvi's file tools changed them.",
+            arguments={},
+            optional={"path": str, "limit": int},
+            sensitive=False,
+            handler=file_checkpoints,
+            describes={
+                "path": "Only checkpoints of this file. Leave out for the newest of every file.",
+                "limit": "How many to return, newest first. Default 20.",
+            },
+        ),
+        ToolSpec(
+            name="file_restore",
+            description="Put a file back the way it was before Marvi changed it.",
+            arguments={"path": str},
+            optional={"checkpoint": str},
+            sensitive=True,
+            handler=file_restore,
+            describes={
+                "path": "The file to put back.",
+                "checkpoint": "The checkpoint id from file_checkpoints. Leave out for the newest one.",
+            },
         ),
         ToolSpec(
             name="terminal_run",

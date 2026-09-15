@@ -1324,6 +1324,9 @@ def create_app(
         register_clarify_tool(tool_registry, runtime_store)
         register_secret_tool(tool_registry, runtime_store)
         register_screen_tools(tool_registry, provider_client)
+        from .desk import register_desk_tools
+
+        register_desk_tools(tool_registry)
         # Registered last so it can see everything registered before it, and
         # given the builder rather than a snapshot: plugins and MCP servers add
         # tools after this line, and a search that could not find them would be
