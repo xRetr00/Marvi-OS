@@ -40,6 +40,18 @@ from .usage import UsageLedger
 
 logger = logging.getLogger(__name__)
 
+#: One switch that keeps every model call on this machine. Choosing a local
+#: model already did that for the calls that used the choice, but a fallback, an
+#: auxiliary role or a provider left configured could still reach the cloud.
+#: With this on, `call`, `stream` and `candidates` refuse anything that is not
+#: `access_path == "local"`. Scope: model calls only -- web search, connected
+#: accounts, Telegram and hosted memory providers are separate switches.
+LOCAL_ONLY_SETTING = "MARVI_LOCAL_ONLY"
+
+
+def local_only() -> bool:
+    return os.environ.get(LOCAL_ONLY_SETTING, "").strip().lower() in ("1", "true", "yes", "on")
+
 
 def _merge_tool_calls(pending: dict[int, dict[str, Any]], fragments: list[Any]) -> None:
     """Reassemble streamed tool calls in place.
@@ -458,6 +470,11 @@ class ProviderClient:
             raise ProviderCallError("no provider given")
         if not profile.configured():
             raise ProviderNotConfiguredError(f"{profile.name} is not configured")
+        if local_only() and profile.access_path != "local":
+            raise ProviderCallError(
+                f"{profile.name} is a cloud provider and local-only mode is on "
+                f"({LOCAL_ONLY_SETTING}); choose a local model or turn it off"
+            )
 
         resting = self.resting(profile.name)
         if resting > 0:
@@ -634,6 +651,11 @@ class ProviderClient:
             raise ProviderCallError("no provider given")
         if not profile.configured():
             raise ProviderNotConfiguredError(f"{profile.name} is not configured")
+        if local_only() and profile.access_path != "local":
+            raise ProviderCallError(
+                f"{profile.name} is a cloud provider and local-only mode is on "
+                f"({LOCAL_ONLY_SETTING}); choose a local model or turn it off"
+            )
 
         resting = self.resting(profile.name)
         if resting > 0:
@@ -841,6 +863,10 @@ class ProviderClient:
         """
         ready = [p for p in configured_profiles() if self.resting(p.name) <= 0]
         ready.sort(key=lambda p: 0 if p.access_path == "local" else 1)
+        if local_only():
+            # A cloud provider picked on the Models page does not win here: the
+            # switch is the stronger statement, and it is the newer one.
+            return [p for p in ready if p.access_path == "local"]
         preferred = preferred or os.environ.get("MARVI_PROVIDER", "").strip() or None
         if preferred:
             try:
