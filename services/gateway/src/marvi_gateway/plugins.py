@@ -79,7 +79,7 @@ PIP_TIMEOUT = 900
 
 #: The lifecycle events Marvi raises. A plugin may register for any of them; one
 #: it does not know about is simply never called.
-HOOKS = ("on_gateway_start", "on_gateway_stop")
+HOOKS = ("on_gateway_start", "on_gateway_stop", "pre_tool_call", "post_tool_call")
 
 
 class PluginError(Exception):
@@ -716,6 +716,23 @@ def bridge_tools(
         },
     )
     return registered
+
+
+def bridge_hooks(registry: Any, loaded: LoadedPlugin) -> int:
+    """Hand a plugin's tool-call hooks to the router. They observe; they cannot refuse.
+
+    Called with keyword arguments: `pre_tool_call(tool_name, args, task_id)` and
+    `post_tool_call(tool_name, args, result, error, task_id)`. A hook that raises
+    is logged and the call goes on.
+    """
+    from .tools import TOOL_HOOKS
+
+    count = 0
+    for event in TOOL_HOOKS:
+        for handler in loaded.context.hooks.get(event, []):
+            registry.add_hook(event, handler)
+            count += 1
+    return count
 
 
 def context_lines(loaded: list[LoadedPlugin], limit: int = 240) -> list[str]:

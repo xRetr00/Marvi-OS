@@ -1294,6 +1294,7 @@ def create_app(
         delegate.register_delegate_tools(tool_registry)
         loaded_plugins.extend(load_installed_plugins())
         for plugin in loaded_plugins:
+            plugins_module.bridge_hooks(tool_registry, plugin)
             # The guard is Marvi's, not the plugin's. The room plugin's own
             # handlers know nothing about the sleep rule, so bridging them
             # without it would open a second path to the light that skips the
