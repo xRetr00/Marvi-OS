@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 from httpx import ASGITransport, AsyncClient
 
 from marvi_gateway.chat import ChatStore, register_chat_search_tool
@@ -29,7 +30,9 @@ def test_it_finds_messages_across_threads_newest_first(tmp_path) -> None:
 def test_like_wildcards_are_literal(tmp_path) -> None:
     store = _store(tmp_path)
     assert len(store.search("100%")) == 1
-    assert store.search("%") == []  # a bare percent sign is not "everything"
+    # A bare percent sign is the one literal percent, not "everything".
+    assert [row["title"] for row in store.search("%")] == ["Groceries"]
+    assert store.search("_") == []
     assert store.search("   ") == []
 
 
@@ -42,6 +45,7 @@ def test_the_tool_wraps_old_replies_as_data(tmp_path) -> None:
     assert registry.execute(spec, {"query": "nowhere"})["results"] == []
 
 
+@pytest.mark.asyncio
 async def test_the_endpoint_answers(tmp_path, monkeypatch) -> None:
     from marvi_gateway.app import create_app
 
