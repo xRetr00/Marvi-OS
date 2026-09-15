@@ -284,3 +284,20 @@ def test_an_overdue_pass_runs_shortly_after_boot(parts, tmp_path, monkeypatch) -
     when = worker._first_run("dream", 12 * 3600)
 
     assert 0 < (when.timestamp() - time.time()) <= 120
+
+
+def test_a_gap_memory_already_answers_is_filled_not_asked() -> None:
+    """Her sleep schedule was in memory four times; she asked about it anyway."""
+    from types import SimpleNamespace
+
+    from marvi_gateway.curiosity import GAPS
+    from marvi_gateway.initiative import Initiative
+
+    rhythm = next(gap for gap in GAPS if gap.key == "rhythm")
+    fake = Initiative.__new__(Initiative)
+    fake.memory = SimpleNamespace(search=lambda _q, limit=5: [
+        {"subject": "User's sleep schedule", "body": "Goes to sleep in the morning and is awake at night."}
+    ])
+    assert "awake at night" in fake._known_from_memory(rhythm)
+    fake.memory = SimpleNamespace(search=lambda _q, limit=5: [{"subject": "Keyboard", "body": "Logitech."}])
+    assert fake._known_from_memory(rhythm) == ""

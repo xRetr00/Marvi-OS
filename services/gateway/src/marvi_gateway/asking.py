@@ -145,6 +145,9 @@ class Asking:
     def __init__(self, path: Any = None) -> None:
         self.path = Path(path) if path else identity_dir() / "asking.json"
         self._questions: dict[str, Question] = {}
+        #: Told `(question)` after the user settles one. Set by the app, so an
+        #: answer to one of Marvi's own questions is filed where it belongs.
+        self.on_settled: Any = None
         self._load()
 
     def _load(self) -> None:
@@ -212,6 +215,11 @@ class Asking:
         one.settled_at = time.time()
         self._save()
         log.info("question %s is now %s", question_id, state)
+        if self.on_settled is not None:
+            try:
+                self.on_settled(one)
+            except Exception as exc:  # pragma: no cover - the callback's problem
+                log.warning("could not file the answer to %s: %s", question_id, exc)
         return one
 
     def waiting(self) -> list[Question]:

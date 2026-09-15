@@ -64,38 +64,55 @@ class Gap:
     prompt: str
     #: Lower goes first. Name is 0 because everything else reads oddly without it.
     priority: int = 5
+    #: A hint for the answer box. Never an answer.
+    placeholder: str = ""
+    #: Words in a memory that already answer this, so it is not asked at all.
+    known_by: str = ""
 
 
 GAPS: tuple[Gap, ...] = (
+    # Each one small enough to answer in a few words, typed into a box. "The
+    # shape of their day -- when they start, when they wind down" became "What
+    # does your day look like -- when do you start and when do you wind down?",
+    # asked four times in six days: two questions in one, neither of them
+    # short, and the second half already in memory.
     Gap(
         "name",
         "Name",
         "their name, or what they would like to be called",
         priority=0,
+        placeholder="Your name",
+        known_by=r"\b(?:name is|called|goes by)\b",
     ),
     Gap(
         "address",
         "How to address them",
         "how they want to be addressed — pronouns, or a preferred form of their name",
         priority=1,
+        placeholder="e.g. he/him, or a nickname",
     ),
     Gap(
         "work",
         "Work",
-        "what they do for work, in enough detail to be useful context",
+        "what they do for work -- one line",
         priority=2,
+        placeholder="e.g. baker, student",
+        known_by=r"\b(?:works? (?:at|as)|job|chef|engineer|developer|studying|student)\b",
     ),
     Gap(
         "rhythm",
         "Hours and rhythm",
-        "the shape of their day — when they start, when they wind down",
+        "what time they usually start their day",
         priority=3,
+        placeholder="e.g. 4 AM",
+        known_by=r"\b(?:sleep schedule|goes to sleep|wakes? up|awake at|night owl|shift|starts? (?:work|at))\b",
     ),
     Gap(
         "preferences",
         "Standing preferences",
-        "a standing preference about how Marvi should behave for them",
+        "whether Marvi should speak up on her own or wait until asked",
         priority=4,
+        placeholder="Speak up / wait",
     ),
 )
 
@@ -234,7 +251,11 @@ class Curiosity:
         """
         if turns_this_session < MIN_TURNS_BEFORE_ASKING:
             return None
-        gaps = self.open_gaps()
+        # Never the same gap twice. The docstring always promised this and the
+        # code did not keep it: an unanswered question stayed open and came
+        # back after every cooldown -- four times for the same one. Asked once
+        # is asked; the on-screen box follows up out loud once on its own.
+        gaps = [gap for gap in self.open_gaps() if not self._row(gap.key)["asked_at"]]
         if not gaps:
             return None
         previous = self.last_asked()
@@ -300,9 +321,15 @@ class Curiosity:
         Marvi does not own is preserved below.
         """
         known = {row["key"]: row["value"] for row in self._db.execute("SELECT * FROM gaps")}
+        # What is already written under each heading stands unless this table
+        # has something newer. The table only holds what `learn` recorded, so a
+        # name typed into USER.md by hand was "open" here -- and the first gap
+        # ever filled would have rewritten it as "Not known yet."
+        written = self._sections()
         sections = []
         for gap in GAPS:
-            value = known.get(gap.key) or UNKNOWN
+            kept = written.get(gap.heading.strip().lower(), "").strip()
+            value = known.get(gap.key) or (kept if kept and kept != UNKNOWN else "") or UNKNOWN
             sections.append(f"## {gap.heading}\n\n{value}")
         body = "# About the person I work for\n\n" + "\n\n".join(sections) + "\n"
 
@@ -310,6 +337,24 @@ class Curiosity:
         if handwritten:
             body += f"\n{handwritten}\n"
         self.identity.write_user(body)
+
+    def _sections(self) -> dict[str, str]:
+        """Each `## heading` in USER.md, lower-cased, with its text as written."""
+        try:
+            existing = self.identity.read().user or ""
+        except OSError:
+            return {}
+        found: dict[str, list[str]] = {}
+        heading = ""
+        for line in existing.splitlines():
+            if line.startswith("## "):
+                heading = line[3:].strip().lower()
+                found[heading] = []
+            elif line.startswith("# "):
+                heading = ""
+            elif heading:
+                found[heading].append(line)
+        return {key: "\n".join(lines).strip() for key, lines in found.items()}
 
     def _handwritten(self) -> str:
         """Whatever the user added under their own headings, kept verbatim."""

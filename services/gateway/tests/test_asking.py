@@ -153,3 +153,15 @@ async def test_the_desktop_can_settle_a_question_and_needs_the_token(store, monk
     assert store.status(one.id)["answer"] == "Ibrahim"
     # The answer is the user's own words and must not reach the audit line.
     assert audited and "Ibrahim" not in str(audited)
+
+
+def test_an_answer_to_marvis_own_question_is_filed(tmp_path) -> None:
+    from marvi_gateway.asking import ANSWERED, Asking
+
+    filed = []
+    store = Asking(tmp_path / "asking.json")
+    store.on_settled = filed.append
+    one = store.ask("What time do you usually start your day?", about="rhythm", placeholder="e.g. 4 AM")
+    store.settle(one.id, ANSWERED, "4 AM")
+
+    assert filed and filed[0].about == "rhythm" and filed[0].answer == "4 AM"

@@ -1481,6 +1481,32 @@ def create_app(
 
     asking_store = Asking()
     register_asking_tools(tool_registry, asking_store)
+
+    def _file_curiosity_answer(one: Any) -> None:
+        """An answer to one of Marvi's own questions goes into USER.md."""
+        from .asking import ANSWERED, DECLINED
+        from .curiosity import GAPS, Curiosity
+
+        if one.about not in {gap.key for gap in GAPS} or one.state not in (ANSWERED, DECLINED):
+            return
+        wondering = Curiosity()
+        try:
+            if one.state == ANSWERED and one.answer:
+                wondering.learn(one.about, one.answer)
+            elif one.state == DECLINED:
+                wondering.decline(one.about)
+        finally:
+            wondering.close()
+
+    asking_store.on_settled = _file_curiosity_answer
+    if initiative is not None:
+        initiative.mind.asker = lambda question, event: bool(
+            asking_store.ask(
+                question,
+                about=str((event.get("payload") or {}).get("key") or ""),
+                placeholder=str((event.get("payload") or {}).get("placeholder") or ""),
+            )
+        )
     browser_lock = threading.Lock()
 
     def get_browser() -> BrowserWorkspace:

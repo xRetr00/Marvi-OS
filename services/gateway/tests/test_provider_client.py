@@ -282,6 +282,24 @@ def test_a_preferred_provider_goes_first() -> None:
     assert client.candidates(preferred="openai")[0].name == "openai"
 
 
+def test_local_only_mode_keeps_every_call_on_this_machine(monkeypatch) -> None:
+    from marvi_gateway.providers import get
+
+    monkeypatch.setenv(get("ollama").enabled_setting(), "true")
+    monkeypatch.setenv("MARVI_LOCAL_ONLY", "1")
+    client = ProviderClient(http=responder(json=openai_payload()))
+
+    # Even a cloud provider chosen on the Models page is not offered.
+    assert {p.access_path for p in client.candidates(preferred="openai")} == {"local"}
+    with pytest.raises(ProviderCallError, match="local-only"):
+        client.call(MESSAGES, provider="openai")
+    with pytest.raises(ProviderCallError, match="local-only"):
+        list(client.stream(MESSAGES, provider="openai"))
+
+    monkeypatch.setenv("MARVI_LOCAL_ONLY", "0")
+    assert client.call(MESSAGES, provider="openai").text == "ok"
+
+
 def test_an_unconfigured_provider_is_refused(monkeypatch) -> None:
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     with pytest.raises(Exception, match="not configured"):

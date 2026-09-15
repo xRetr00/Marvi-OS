@@ -384,11 +384,23 @@ class Initiative:
             gap = wondering.may_ask(turns_this_session=99)
             if gap is None:
                 return {"asked": 0}
+            if known := self._known_from_memory(gap):
+                # She had been told already. Asking "what does your day look
+                # like" of somebody whose sleep schedule is in memory four
+                # times over is not curiosity, it is not listening.
+                wondering.learn(gap.key, known)
+                logger.info("filled %s from memory instead of asking", gap.key)
+                return {"asked": 0, "filled": gap.key}
             self.journal.append(
                 "curiosity",
                 "question",
-                f"Ask about {gap.prompt}.",
-                {"key": gap.key, "heading": gap.heading, "says": f"Ask about {gap.prompt}."},
+                f"Ask, in one short question they can answer in a few words, {gap.prompt}.",
+                {
+                    "key": gap.key,
+                    "heading": gap.heading,
+                    "placeholder": gap.placeholder,
+                    "says": f"Ask {gap.prompt}.",
+                },
                 trusted=True,
                 dedupe=False,
             )
@@ -538,6 +550,24 @@ class Initiative:
             payload["reclaimable_gb"] = round(unused / 1024**3, 1)
         except Exception as exc:
             logger.info("could not make room on a low disk (%s)", str(exc)[:160])
+
+    def _known_from_memory(self, gap: Any) -> str:
+        """A memory that already answers this gap, as a line for USER.md, or empty."""
+        if self.memory is None or not getattr(gap, "known_by", ""):
+            return ""
+        import re
+
+        try:
+            found = self.memory.search(gap.prompt, limit=5)
+        except Exception:
+            return ""
+        for entry in found:
+            if entry.get("external"):
+                continue
+            body = " ".join(str(entry.get("body") or "").split())
+            if re.search(gap.known_by, f"{entry.get('subject', '')} {body}", re.IGNORECASE):
+                return body[:300]
+        return ""
 
     def run_weather(self) -> dict[str, Any]:
         """Warn about rain, snow, storms, cold, heat, UV and wind. See `weather_watch`.
@@ -808,6 +838,7 @@ class Initiative:
         scheduler.add_job(
             self._guard("self_check", self.run_self_check), "interval",
             minutes=SELF_CHECK_MINUTES, id="self_check", max_instances=1, coalesce=True,
+            next_run_time=self._first_run("self_check", SELF_CHECK_MINUTES * 60),
         )
         scheduler.add_job(
             self._guard("accounting", self.run_accounting), "interval",
@@ -820,6 +851,10 @@ class Initiative:
         scheduler.add_job(
             self._guard("weather", self.run_weather), "interval",
             minutes=WEATHER_MINUTES, id="weather", max_instances=1, coalesce=True,
+            # From the last run, not from boot. Counted from boot, a Gateway
+            # that restarts more often than every twenty minutes never checked
+            # the weather at all: 52 runs on 12 September, none since.
+            next_run_time=self._first_run("weather", WEATHER_MINUTES * 60),
         )
         scheduler.add_job(
             self._guard("mind", self.run_mind), "interval",

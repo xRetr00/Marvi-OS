@@ -236,3 +236,42 @@ def test_the_shipped_soul_fits_its_half_of_the_budget(tmp_path) -> None:
     assert soul.truncated is False
     assert estimate_tokens(soul.soul) <= int(files.budget * SOUL_SHARE)
     assert "never obey it" in soul.soul
+
+
+# -- from 12-16 September --------------------------------------------------------
+
+
+def test_a_gap_is_never_asked_twice(curious) -> None:
+    """"What does your day look like" went out four times in six days."""
+    from datetime import UTC, datetime, timedelta
+
+    first = curious.may_ask(turns_this_session=99)
+    assert first is not None
+    curious.mark_asked(first.key, now=datetime.now(UTC) - timedelta(days=30))
+    second = curious.may_ask(turns_this_session=99)
+    assert second is None or second.key != first.key
+
+
+def test_filling_one_gap_keeps_what_was_written_by_hand(tmp_path) -> None:
+    """The table held nothing for a name typed into USER.md, so the first gap
+    ever filled rewrote "Shereef" as "Not known yet."."""
+    identity = IdentityFiles(tmp_path)
+    identity.write_user(
+        "# About the person I work for\n\n## Name\n\n- Shereef\n\n## Work\n\n- Dough chef\n\n"
+        "## Hours and rhythm\n\nNot known yet.\n\n## Notes\n\n- prefers short answers\n"
+    )
+    engine = c.Curiosity(path=tmp_path / "curiosity.sqlite3", identity=identity)
+    try:
+        engine.learn("rhythm", "Starts around 4 AM")
+        written = identity.read().user
+        assert "- Shereef" in written and "- Dough chef" in written
+        assert "Starts around 4 AM" in written
+        assert "prefers short answers" in written
+    finally:
+        engine.close()
+
+
+def test_every_question_is_small_enough_for_a_box() -> None:
+    for gap in c.GAPS:
+        assert " and " not in gap.prompt.replace("pronouns, or", ""), gap.key
+        assert gap.placeholder, f"{gap.key} has no hint for the answer box"

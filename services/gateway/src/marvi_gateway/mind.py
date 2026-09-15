@@ -148,6 +148,9 @@ class Mind:
         #: hours, a live call and the budget still mean silence. False means it
         #: could not be sent, and the item is held exactly as before.
         self.messenger: Any = None
+        #: Puts a question on screen with a box to answer in. Set by the app.
+        #: `(question, event) -> bool`, True when it is on screen.
+        self.asker: Any = None
 
     # -- how it sounds -------------------------------------------------------
 
@@ -540,6 +543,23 @@ class Mind:
                 threading.Thread(
                     target=self.announcer.warm, name="marvi-warm-voice", daemon=True
                 ).start()
+            asked_on_screen = False
+            if (
+                surface in ("speak", "island")
+                and self.asker is not None
+                and f"{event.get('source')}:{event.get('kind')}" == "curiosity:question"
+            ):
+                # A question wants an answer, and a sentence said into an empty
+                # room or shown as island text has nowhere to put one -- the
+                # island showed "What does your day look like" and no way to
+                # reply. On screen with a box instead; if it is closed or left,
+                # the box's own follow-up asks once out loud.
+                try:
+                    asked_on_screen = bool(self.asker(sentence, event))
+                except Exception as exc:
+                    logger.info("could not put the question on screen: %s", str(exc)[:160])
+                if asked_on_screen:
+                    surface = "island"
             if surface == "speak" and self.announcer is not None:
                 outcome = self.announcer.speak(
                     sentence,
@@ -575,6 +595,7 @@ class Mind:
                 latency_ms=latency,
                 tokens=tokens,
                 outcome=("spoke: " + spoken) if spoken
+                else ("asked on screen: " + sentence) if asked_on_screen
                 else ("texted: " + texted) if texted
                 else ("surfaced" if surface not in ("silent", "remember") else surface),
                 now=moment,
