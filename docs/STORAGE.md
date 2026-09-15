@@ -17,7 +17,8 @@ the development machine on 12 September 2026.
 | Leftovers from retired engines | `storage._leftover_candidates` | Deleted by the daily pass |
 | `%TEMP%\marvi-*` | `storage.old_temporary` | Deleted after a day |
 | Speech engines not selected | `marvi storage clean --engines` | Asked, never automatic: each is a download to get back |
-| uv and npm caches | The installer, after every install/update; `marvi storage clean --caches` | `uv cache prune`, `npm cache verify` |
+| uv cache | The installer, after every install/update; `marvi storage clean --caches` | `uv cache clean --force` (emptied) |
+| npm cache | `marvi storage clean --caches` | `npm cache verify`; not in the update path, where `npm ci` wants it |
 
 The daily pass is `storage.housekeep`, run by the initiative scheduler as the
 `storage` job. When a disk crosses the low-space line, `machine` reports it and
@@ -26,14 +27,30 @@ the unused engines hold, to the sentence she says.
 
 `marvi storage` shows sizes; `marvi storage clean` runs the pass now.
 
-## Why the uv cache is not in the daily pass
+## The uv cache: emptied, not pruned
 
-`uv cache prune` waits for every running uv process to exit. Marvi starts her
-Gateway, Agent and sidecars through `uv run`, so while she is up the prune never
-starts (checked: it printed "Cache is currently in-use, waiting for other uv
-processes to finish" and sat there). The installer runs it instead, because
-Marvi is closed during an update. `--force` skips the wait, and is only safe
-when nothing is installing at the same time, which a daily timer cannot promise.
+Three things were checked on 12 September 2026 before settling on this.
+
+* **An update does not need the cache.** With an empty `UV_CACHE_DIR` and
+  `--offline`, `uv sync --inexact --dry-run` for the Gateway, the Agent and
+  VoXtream2 all answered "Would make no changes": the environments hold their
+  own hardlinks to every installed file, and an up-to-date lock needs nothing
+  else. A package that changed is downloaded whether the cache exists or not.
+  Only a *re*-install of something seen before -- rebuilding an environment
+  from scratch -- pays again.
+* **`prune` does not shrink it.** After a prune the cache was still 51 GB:
+  prune keeps whatever uv's index still lists, which includes every old torch
+  build. So the installer runs `uv cache clean --force` instead.
+* **Nothing cleaning the cache may run inside `uv run`.** A `uv run` holds the
+  cache lock for as long as it lives, and `uv cache prune`/`clean` wait for it.
+  A clean started from inside one -- which is anything run through `marvi`,
+  including the shim -- waits for its own parent (measured: still waiting after
+  20 s, forever in practice). The first installer step did exactly that and
+  would have stalled every update for its 30-minute timeout. The updater now
+  calls its managed `uv` directly, after its last `uv run` has exited.
+
+Not in the daily pass, because while Marvi is running her `uv run` processes
+hold the lock and her loaded DLLs are the same files as the cache's.
 
 ## Open: the Python environments and the uv cache
 
@@ -79,9 +96,9 @@ bytes. Consequences:
 2. **Build an engine's environment only when it is selected**, and offer to
    remove it when another is chosen. The catalog already knows which engine is
    selected (`catalog.ENGINE_COMPONENTS`); the installer would have to follow it.
-3. **Prune after every sync, not only at the end of an update.** `_sync_project`
-   is where a new torch build arrives; pruning there would remove the build it
-   replaced, instead of leaving it until the next update.
+3. **A cache of Marvi's own** (`UV_CACHE_DIR` under `MARVI_HOME`), so emptying it
+   cannot touch another project's cache. Moot on the development machine, where
+   nothing else uses uv; worth it before Marvi is installed anywhere else.
 4. **Move Marvi to another drive.** `MARVI_HOME` and `UV_CACHE_DIR` together,
    never one without the other (see the drive rule above).
 5. **Measure the real footprint**: count bytes by file ID, so the number

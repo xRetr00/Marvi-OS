@@ -203,7 +203,15 @@ def test_a_big_failure_is_said_out_loud_once() -> None:
     assert bell.check(broken) == []
     assert len(said) == 1
 
-    # Recovered, then broken again, is news again.
+    # A retry passing through "starting" is not a recovery: this is what made
+    # "My camera has stopped working" start 265 times, six seconds apart.
+    bell.check({"voice": {"state": "starting", "detail": ""}})
+    assert bell.check(broken) == []
+
+    # Recovered and staying recovered, then broken again, is news again.
+    from marvi_gateway.alarms import RECOVERED_AFTER_SECONDS
+
+    bell._broken_at["voice"] -= RECOVERED_AFTER_SECONDS + 1
     bell.check({"voice": {"state": "ready", "detail": ""}})
     assert len(bell.check(broken)) == 1
 

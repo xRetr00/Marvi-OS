@@ -499,7 +499,7 @@ def cmd_storage(args: argparse.Namespace) -> int:
         for line in storage.remove_unused_engines(repo_root()):
             print(f"  {line}")
     if args.caches:
-        for line in storage.clean_caches(force=args.force):
+        for line in storage.clean_caches():
             print(f"  {line}")
     return 0
 
@@ -815,12 +815,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     storage_cmd = sub.add_parser("storage", help="what Marvi keeps on disk, and cleaning it")
     storage_cmd.add_argument("action", nargs="?", choices=["status", "clean"], default="status")
-    storage_cmd.add_argument("--caches", action="store_true", help="also prune the uv and npm caches")
     storage_cmd.add_argument(
-        "--engines", action="store_true", help="also remove speech engines that are not selected"
+        "--caches", action="store_true", help="also empty the uv cache and tidy npm's"
     )
     storage_cmd.add_argument(
-        "--force", action="store_true", help="prune uv even while Marvi's own uv processes run"
+        "--engines", action="store_true", help="also remove speech engines that are not selected"
     )
     storage_cmd.add_argument("--yes", "-y", action="store_true")
     storage_cmd.set_defaults(handler=cmd_storage)

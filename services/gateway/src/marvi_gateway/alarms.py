@@ -33,6 +33,7 @@ lesser states would make the alarm ordinary, and an ordinary alarm is ignored.
 from __future__ import annotations
 
 import threading
+import time
 from typing import Any
 
 from .logs import get_logger
@@ -57,6 +58,16 @@ WORTH_SAYING = {
 #: The state that counts as broken. See the module docstring.
 BROKEN = "error"
 
+#: How long something must stay healthy before its next failure is news.
+#:
+#: One poll of "not error" used to be enough. A component that retries --
+#: vision, when its models could not load on 13 September -- passes through
+#: "starting" between attempts, so each retry read as a recovery and then as a
+#: fresh failure: "My camera has stopped working" was started 265 times that
+#: day, six seconds apart. A failure that clears for five minutes and returns
+#: is news; one that flickers is the same failure.
+RECOVERED_AFTER_SECONDS = 300.0
+
 
 class Alarms:
     """What has already been said, so it is not said again."""
@@ -64,6 +75,8 @@ class Alarms:
     def __init__(self, announcer: Any = None) -> None:
         self.announcer = announcer
         self._said: set[str] = set()
+        #: When each already-announced component was last seen broken.
+        self._broken_at: dict[str, float] = {}
         self._lock = threading.Lock()
 
     def _wording(self, name: str, detail: str) -> str:
@@ -85,11 +98,15 @@ class Alarms:
             detail = getattr(status, "detail", "") or (
                 status.get("detail", "") if isinstance(status, dict) else ""
             )
+            now = time.monotonic()
             with self._lock:
                 if state != BROKEN:
-                    # Recovered, so the next failure is news again.
-                    self._said.discard(name)
+                    # Recovered -- once it has stayed recovered. See
+                    # `RECOVERED_AFTER_SECONDS`.
+                    if now - self._broken_at.get(name, 0.0) >= RECOVERED_AFTER_SECONDS:
+                        self._said.discard(name)
                     continue
+                self._broken_at[name] = now
                 if name in self._said:
                     continue
                 line = self._wording(name, str(detail))
@@ -126,3 +143,4 @@ class Alarms:
         """For tests, and after a deliberate restart."""
         with self._lock:
             self._said.clear()
+            self._broken_at.clear()

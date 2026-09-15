@@ -87,27 +87,40 @@ pub fn install_essentials(
     )
 }
 
-/// Clean up after the install: prune the uv and npm caches.
+/// Clean up after the install: empty the uv cache.
 ///
-/// Every update syncs the Python environments and runs `npm ci`, and both
-/// leave what they downloaded in a cache nothing ever trims. One machine
-/// reached 70 GB of uv cache this way. Pruning removes only what no
-/// environment refers to, so the next update downloads nothing it already has.
+/// Every update syncs the Python environments, and uv keeps everything it ever
+/// downloaded. One machine reached 70 GB, 25 torch builds for 4 environments.
+/// `uv cache prune` did not help: it keeps whatever uv's index still lists,
+/// which is every old build.
 ///
-/// Here because Marvi is closed: `uv cache prune` waits for every running uv
-/// process, and while Marvi is up there always is one. Bounded all the same,
-/// so a stray process cannot hold the installer open.
+/// Emptying it costs an update nothing. The environments hold their own
+/// hardlinks to every installed file, and a sync against an up-to-date lock
+/// makes no changes -- checked with an empty cache and `--offline`. A package
+/// that changed is downloaded either way. What is lost is only a *re*-install
+/// of something seen before: rebuilding an environment from scratch.
+///
+/// The managed `uv` directly, never through `marvi` (which is `uv run`): a
+/// `uv run` holds the cache lock for as long as it lives, so a clean started
+/// inside one waits for its own parent. That was the first version of this,
+/// and it stalled every update for the full timeout. `--force` because
+/// nothing else can be installing: this is the only installer, and Marvi is
+/// closed.
 pub fn clean_caches(
-    install_root: &Path,
+    _install_root: &Path,
     state_dir: &Path,
     progress: &mut dyn FnMut(&str),
 ) -> Result<(), String> {
     progress("cleaning installer caches");
-    marvi(
-        install_root,
+    let uv = managed_tool_path(state_dir, Tool::Uv);
+    if !uv.exists() {
+        return Err(format!("uv is not installed at {}", uv.display()));
+    }
+    run_reporting(
+        &uv.display().to_string(),
+        &["cache", "clean", "--force"],
         state_dir,
-        &["storage", "clean", "--caches"],
-        Duration::from_secs(1_800),
+        Duration::from_secs(600),
         progress,
     )
 }

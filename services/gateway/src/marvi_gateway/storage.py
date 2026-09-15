@@ -23,10 +23,10 @@ Asked, because each is a download to get back:
 * **Speech engines that are not selected** (`unused_engines`). `marvi storage
   clean --engines` removes them; Settings can install one again.
 
-The package caches (`uv`, `npm`) are cleaned by the installer at the end of
-every update, and by `marvi storage clean --caches`. Not here: `uv cache
-prune` waits for every running `uv` process to exit, and while Marvi is up
-there always is one. See docs/STORAGE.md.
+The uv cache is emptied by the installer at the end of every update, and by
+`marvi storage clean --caches`. Not here: a running Marvi holds the files it
+would delete, and her `uv run` processes hold the cache lock. See
+docs/STORAGE.md.
 """
 
 from __future__ import annotations
@@ -265,17 +265,23 @@ def _npm() -> str | None:
     return str(bundled) if bundled.is_file() else shutil.which("npm")
 
 
-def clean_caches(force: bool = False) -> list[str]:
-    """`uv cache prune` and `npm cache verify`. Returns a line for each.
+def clean_caches() -> list[str]:
+    """Empty the uv cache and garbage-collect npm's. Returns a line for each.
 
-    Both only remove what nothing refers to. `uv cache clean` would empty the
-    cache instead, and the next update would download PyTorch again.
+    `clean`, not `prune`: prune keeps every old build uv's index still lists,
+    and left 51 GB behind. The environments keep their own hardlinks, so an
+    up-to-date sync needs nothing from the cache (see docs/STORAGE.md).
+
+    `--force` because this always runs inside `uv run` -- the `marvi` shim is
+    one -- and that holds the cache lock, so without it the clean waits for its
+    own parent. Files a running Marvi has open are skipped by Windows; close
+    her for a complete clean. The installer does this itself, directly.
     """
     from .doctor import find_uv
 
     commands = []
     if uv := find_uv():
-        commands.append(("uv", [uv, "cache", "prune", *(["--force"] if force else [])]))
+        commands.append(("uv", [uv, "cache", "clean", "--force"]))
     if npm := _npm():
         commands.append(("npm", [npm, "cache", "verify"]))
     said = []
