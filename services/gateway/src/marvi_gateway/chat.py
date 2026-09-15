@@ -2163,3 +2163,28 @@ def _step_tool(
         "content": text,
         "status": "failed" if failed else "complete",
     }
+
+
+def register_chat_search_tool(registry: Any, store: ChatStore) -> None:
+    from .tools import ToolSpec
+
+    def chat_search(query: str, limit: int = 10) -> dict[str, Any]:
+        found = store.search(query, limit)
+        if not found:
+            return {"results": [], "note": f"no past message contains {query!r}"}
+        # Old replies can quote web pages and mail; they stay data.
+        return {"results": wrap_external("chat-history", found).model_dump(), "count": len(found)}
+
+    registry.register(ToolSpec(
+        name="chat_search",
+        description="Find past conversations that mention something.",
+        arguments={"query": str},
+        optional={"limit": int},
+        sensitive=False,
+        handler=chat_search,
+        describes={
+            "query": "Words that appear in the message, such as a name or a phrase. "
+            "Matched literally, case-insensitive; use the fewest distinctive words.",
+            "limit": "How many messages to return, newest first. Default 10.",
+        },
+    ))
