@@ -529,6 +529,12 @@ def cmd_gpu(args: argparse.Namespace) -> int:
 
 
 def cmd_mcp(args: argparse.Namespace) -> int:
+    if args.action == "serve":
+        # stdout belongs to the MCP protocol from here on; nothing else prints.
+        from . import mcp_serve
+
+        return mcp_serve.main()
+
     from .setup import mcp
 
     if args.action == "list":
@@ -828,8 +834,10 @@ def build_parser() -> argparse.ArgumentParser:
     gpu.add_argument("use", nargs="?", choices=["gpu", "cpu"], help="set and remember")
     gpu.set_defaults(handler=cmd_gpu)
 
-    mcp_cmd = sub.add_parser("mcp", help="MCP servers")
-    mcp_cmd.add_argument("action", choices=["list", "add", "remove", "test"])
+    mcp_cmd = sub.add_parser(
+        "mcp", help="MCP servers; `serve` offers Marvi's memory to other agents over stdio"
+    )
+    mcp_cmd.add_argument("action", choices=["list", "add", "remove", "test", "serve"])
     mcp_cmd.add_argument("name", nargs="?")
     mcp_cmd.add_argument(
         "command", nargs="*", help="after --, the command and its arguments"
