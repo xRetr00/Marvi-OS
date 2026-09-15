@@ -311,9 +311,11 @@ class Curiosity:
             (key,),
         )
         self._db.commit()
-        self._rewrite()
+        # Cleared in the file too, not only in the table -- see `_rewrite`,
+        # which otherwise keeps whatever the heading already says.
+        self._rewrite(clear={key})
 
-    def _rewrite(self) -> None:
+    def _rewrite(self, clear: set[str] | None = None) -> None:
         """Regenerate `USER.md` from what is known.
 
         Regenerated rather than appended so the file cannot drift into a pile of
@@ -328,7 +330,7 @@ class Curiosity:
         written = self._sections()
         sections = []
         for gap in GAPS:
-            kept = written.get(gap.heading.strip().lower(), "").strip()
+            kept = "" if gap.key in (clear or set()) else written.get(gap.heading.strip().lower(), "").strip()
             value = known.get(gap.key) or (kept if kept and kept != UNKNOWN else "") or UNKNOWN
             sections.append(f"## {gap.heading}\n\n{value}")
         body = "# About the person I work for\n\n" + "\n\n".join(sections) + "\n"

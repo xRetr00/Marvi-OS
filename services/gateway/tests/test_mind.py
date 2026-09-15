@@ -414,3 +414,31 @@ def test_ignoring_repeats_can_be_switched_off(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("MARVI_DEDUPE_EVENTS", "1")
     assert InitiativeSettings.from_env().dedupe_events is True
     assert "dedupe_events" in InitiativeSettings.from_env().as_dict()
+
+
+def test_her_question_goes_on_screen_with_a_box_not_into_the_air(journal) -> None:
+    """The island showed "What does your day look like" with no way to reply."""
+    journal.append(
+        "curiosity", "question", "Ask what time they usually start their day.",
+        {"key": "rhythm", "placeholder": "e.g. 4 AM"}, trusted=True, dedupe=False,
+    )
+    spoken, asked = [], []
+
+    class Voice:
+        cold = False
+
+        def speak(self, text, **_):
+            spoken.append(text)
+            return {"played": True}
+
+    mind = Mind(
+        journal,
+        announcer=Voice(),
+        deliberate=lambda e, v: ("speak", "What time do you usually start your day?", 1),
+    )
+    mind.asker = lambda question, event: asked.append((question, event["payload"]["key"])) or True
+    mind.tick(now=NOON)
+
+    assert asked == [("What time do you usually start your day?", "rhythm")]
+    assert spoken == []
+    assert mind.why()[0]["surface"] == "island"

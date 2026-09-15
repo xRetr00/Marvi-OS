@@ -24,6 +24,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from . import salience
+from .focus import windows_busy
 from .journal import EventJournal
 from .policy import (
     SURFACES,
@@ -201,6 +202,7 @@ class Mind:
             at_machine=at_machine,
             doing=doing,
             asleep=asleep,
+            busy=windows_busy(),
         )
 
     def _wanted_surface(self, event: dict[str, Any]) -> str:

@@ -353,6 +353,9 @@ class WorldState:
     #: entered the room" was spoken at 08:32, because quiet hours had already
     #: ended and nothing else asked whether anybody was asleep.
     asleep: bool = False
+    #: Why Windows says not to interrupt -- presenting, or a fullscreen app in
+    #: front -- or "" when it may. From `focus.windows_busy`.
+    busy: str = ""
 
 
 def _quiet_now(settings: InitiativeSettings, now: datetime) -> bool:
@@ -502,6 +505,12 @@ def evaluate(
         and SURFACES.index(surface) >= SURFACES.index("speak")
     ):
         return Verdict(True, _cap("island", ceiling), "quiet-hours", "downgraded from speech")
+
+    # 7b. Windows says not to interrupt. Recorded, not shown: the Island is a
+    #     topmost window, and a capsule over a slideshow is on the projector
+    #     too. `pending` offers it again once the fullscreen app is gone.
+    if not insistent and world.busy and SURFACES.index(surface) >= SURFACES.index("island"):
+        return Verdict(True, _cap("activity", ceiling), "windows-busy", world.busy)
 
     # 8. Speaking to an empty room is noise, not initiative.
     speaking = SURFACES.index(surface) >= SURFACES.index("speak")
