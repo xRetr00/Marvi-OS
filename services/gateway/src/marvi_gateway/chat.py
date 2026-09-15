@@ -566,6 +566,43 @@ class ChatStore:
             "message_count": int(count),
         }
 
+    def search(self, query: str, limit: int = 20) -> list[dict[str, Any]]:
+        """Messages that contain `query`, newest first, archived threads included.
+
+        Old conversations were reachable only by scrolling the thread list;
+        Cortex remembers facts, not the conversation they came from.
+
+        # ponytail: LIKE scan over every message; add an FTS5 table (as
+        # memory.py has) when a history is large enough for this to be slow.
+        """
+        words = " ".join((query or "").split())
+        if not words:
+            return []
+        escaped = words.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        rows = self._db.execute(
+            "SELECT m.id, m.thread_id, m.role, m.at, m.content, t.title, t.archived "
+            "FROM messages m JOIN threads t ON t.id = m.thread_id "
+            "WHERE m.role IN ('user', 'assistant') AND m.content LIKE ? ESCAPE '\\' "
+            "ORDER BY m.id DESC LIMIT ?",
+            (f"%{escaped}%", max(1, min(int(limit), 100))),
+        ).fetchall()
+        found = []
+        for row in rows:
+            content = str(row["content"])
+            at = content.lower().find(words.lower())
+            start = max(0, at - 80)
+            snippet = content[start : at + len(words) + 80].replace("\n", " ")
+            found.append({
+                "thread_id": row["thread_id"],
+                "title": row["title"],
+                "archived": bool(row["archived"]),
+                "message_id": row["id"],
+                "role": row["role"],
+                "at": row["at"],
+                "snippet": ("…" if start else "") + snippet + ("…" if at + len(words) + 80 < len(content) else ""),
+            })
+        return found
+
     def threads(self, archived: bool = False) -> list[dict[str, Any]]:
         ids = self._db.execute(
             "SELECT id FROM threads WHERE archived = ? ORDER BY updated_at DESC", (int(archived),)

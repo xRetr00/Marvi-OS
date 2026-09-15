@@ -1459,6 +1459,9 @@ def create_app(
             # was collecting and never reading.
             plugins=loaded_plugins,
         )
+        from .chat import register_chat_search_tool
+
+        register_chat_search_tool(tool_registry, chat.store)
         mcp = McpBridge()
         if mcp.available():
             # Routed here rather than attached to the Agent so MCP tools
@@ -2452,6 +2455,10 @@ def create_app(
     @app.get("/chat/threads")
     async def chat_threads(archived: bool = False) -> dict[str, Any]:
         return {"threads": chat.store.threads(archived) if chat is not None else []}
+
+    @app.get("/chat/search")
+    async def chat_search(q: str = "", limit: int = 20) -> dict[str, Any]:
+        return {"results": chat.store.search(q, limit) if chat is not None else []}
 
     @app.post("/chat/threads")
     async def chat_thread_create(body: ChatThreadCreate) -> dict[str, Any]:
