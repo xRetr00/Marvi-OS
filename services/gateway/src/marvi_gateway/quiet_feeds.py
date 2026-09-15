@@ -57,7 +57,12 @@ FEEDS: tuple[Feed, ...] = (
         6 * 3600.0,
         # The real cause, the one time this mattered: OwnTracks reaches the
         # broker over Tailscale, and Tailscale had quietly gone offline.
-        "OwnTracks may have lost its connection -- check Tailscale and the app",
+        # Two causes on record: Tailscale offline on the phone (August), and
+        # the broker itself -- Mosquitto on this PC -- failing to start at
+        # boot because its password file lived in a folder that was deleted
+        # (September). The phone cannot tell them apart; the hint names both.
+        "OwnTracks may have lost its connection -- check the app and Tailscale, and that "
+        "the Mosquitto service on this PC is running",
     ),
     Feed("camera", "the camera", 15 * 60.0, "the vision worker may have stopped"),
     Feed("mmwave", "the presence sensor", 30 * 60.0, "the mmWave sensor may be offline"),

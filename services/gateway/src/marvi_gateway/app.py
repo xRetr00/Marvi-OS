@@ -1003,6 +1003,14 @@ def _really_present(sidecar: Any) -> bool:
         return True
 
 
+def _room_state_now(sidecar: Any) -> dict[str, Any]:
+    """The room's full state, or empty when the plugin cannot be read."""
+    try:
+        return dict((sidecar.state() or {}).get("state") or {})
+    except Exception:
+        return {}
+
+
 def _room_asleep(sidecar: Any) -> bool:
     """Whether the person has put the room to sleep.
 
@@ -1440,6 +1448,11 @@ def create_app(
                     "present": _really_present(sidecar),
                     "conversation_active": conversation.active(),
                     "asleep": _room_asleep(sidecar),
+                    # The whole room, for the jobs that read more than these
+                    # three answers. `run_quiet_feeds` reads it and found
+                    # nothing here, so it returned early on every run: the
+                    # phone went three days without a word and nothing said so.
+                    "state": _room_state_now(sidecar),
                 }
             )
             if sidecar is not None
