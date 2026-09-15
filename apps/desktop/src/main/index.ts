@@ -9,6 +9,7 @@ import {
   BrowserWindow,
   clipboard,
   dialog,
+  globalShortcut,
   ipcMain,
   Menu,
   nativeImage,
@@ -62,6 +63,7 @@ import {
 } from './pet-window'
 import { NativePetHost, petActionPage, petTaskCount, resolvePetHostPaths } from './pet-host'
 import { maintenancePowerShellArgs } from './maintenance-terminal'
+import { summonAccelerator } from './summon'
 import { restartApplication, shutdownApplication } from './lifecycle-actions'
 import { requiresVoiceWorkerRestart, restartWhenSettled } from './voice-settings'
 import {
@@ -1584,6 +1586,10 @@ function startApp(): void {
     )
 
     void startVoiceStack()
+    const summon = summonAccelerator()
+    if (summon && !globalShortcut.register(summon, requestWakeJoin)) {
+      desktop.warn(`Summon hotkey ${summon} is taken by another app; set MARVI_SUMMON_HOTKEY`)
+    }
     // The updater must stop the detached listener before replacing the build
     // directory. Restore it from the newly packaged binary when Marvi comes
     // back, and do the same after any unexpected whole-process exit. The Run
@@ -3993,6 +3999,7 @@ app.on('before-quit', (event) => {
   gatewayPoll = null
   if (wakeWatchdog) clearInterval(wakeWatchdog)
   wakeWatchdog = null
+  globalShortcut.unregisterAll()
   if (petCursorPoll) clearInterval(petCursorPoll)
   petCursorPoll = null
   if (petRestartTimer) clearTimeout(petRestartTimer)
