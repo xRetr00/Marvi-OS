@@ -1,5 +1,40 @@
 # Implementation Log
 
+## 2026-09-16 — The medium backlog tier
+
+Seven of the eleven items in `docs/backlog/medium.md`:
+
+- **Compaction (M1).** The premise was wrong in a useful way: the window was
+  never unbounded, so a long conversation did not overflow, it forgot its own
+  beginning. `Chat.compact` now folds what scrolls out into a running summary
+  that rides in front of the window; it runs after a turn, folds into itself,
+  and never touches the stored messages.
+- **Hooks that can refuse (M2).** `pre_tool_call` may block a call, a crashed
+  guardrail counts as a refusal, and four more events -- `pre_turn`,
+  `post_turn`, `on_memory_write`, `on_confirmation` -- reach plugins. A hook
+  narrows only; it can never approve.
+- **MCP writes with provenance (M4).** `memory_remember` over MCP, stored
+  untrusted and sourced to the client's own name from the live session.
+- **Privacy mode (M7).** One switch that refuses every networked tool by name,
+  keeps Telegram disconnected, forces local memory, skips update checks and
+  implies local-only models, with a PRIVATE indicator and a doctor line.
+- **Chat search in the UI (M8).** The sidebar box now searches message text,
+  backed by FTS5 over `messages` with a LIKE fallback and a one-time backfill.
+- **Credential pools (M9).** `<PROVIDER>_API_KEY_2..9`; a spent key moves to the
+  next before the provider is stood down.
+- **Tool-output measurement (M6, first half).** Every call records the size of
+  its result, so compression budgets can come from data rather than intuition.
+
+Not done, each with its reason in the backlog: the ACP-agent half of M3, image
+generation (M5, blocked on a tool-result-to-attachment contract), replayable
+runs (M10) and Focus Assist (M11).
+
+One bug worth recording: `test_privacy.py` leaked `MARVI_PRIVACY_MODE` into the
+rest of the suite -- 48 failures, all of them a Marvi correctly refusing the
+network. `set_privacy` writes the variable the same way YOLO does, so conftest
+now pins it per test, as it already pinned YOLO for exactly this reason.
+
+
 ## 2026-09-16 — Global shortcuts, and the small backlog tier
 
 - **Shortcuts.** The single summon accelerator became five actions -- talk,

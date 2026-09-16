@@ -1,160 +1,158 @@
 # Backlog — medium
 
-Extensions of subsystems Marvi already has. One milestone each.
+Extensions of subsystems Marvi already has. Seven of the eleven were built on
+2026-09-16; the four that were not say what they are waiting for.
 
-## M1. Long-chat compaction
+| # | Item | State |
+|---:|---|---|
+| M1 | Long-chat compaction | done |
+| M2 | Hooks that can refuse, and more of them | done |
+| M3 | OpenAI-compatible API and ACP agent | not started — see below |
+| M4 | MCP write access with provenance | done |
+| M5 | Image generation | blocked on a contract — see below |
+| M6 | Tool-output compression | measured; compression not built |
+| M7 | Privacy mode, the whole of it | done |
+| M8 | Chat search in the control center | done |
+| M9 | Credential pools | done |
+| M10 | Replayable runs | not started — see below |
+| M11 | Focus Assist awareness | not started — see below |
 
-**Why.** No compaction exists in `chat.py`: a long thread's history grows until
-it no longer fits the model's context window. Hermes has `/compress`; Claude
-Code compacts automatically.
+## Done
 
-**Upstream.** None needed: `ProviderClient` and an auxiliary model role.
+### M1. Long-chat compaction
 
-**Plan.**
-1. Before a turn, measure the history against the model's context window (the
-   catalog value the context meter already reads).
-2. Over a threshold (default 70%), summarise the oldest turns into one stored
-   `background: compaction` row via a `compaction` auxiliary role; keep the
-   last N turns verbatim, and the cacheable prefix untouched.
-3. The context meter shows that compaction happened; the original rows stay in
-   the database (and in `chat_search`).
-4. `/compact` in the composer to do it on demand.
+The premise in the original entry was wrong and the fix is better for it. The
+window was never unbounded: `_recent` has always kept the last `HISTORY_TURNS`
+exchanges, so a long conversation did not overflow the context — it *forgot*.
+The twenty-fifth turn could not see the first, and the person could, which is
+the version of forgetting that reads as not listening.
 
-**Done when.** A 300-turn fixture thread answers a question about turn 5 after
-compaction, and never exceeds the window.
+So: `Chat.compact` folds whatever has scrolled out into a running summary
+(`thread_summaries`), and `_messages` puts it in front of the window as
+"Earlier in this conversation: …". It runs *after* a turn, never during one, so
+the cost lands where nobody is waiting; a second pass folds into the first
+rather than starting again; and a model that fails leaves the conversation
+exactly as it was. The stored messages are untouched — compaction is what the
+model sees, not what the person's history is, and `chat_search` still finds
+every word of it.
 
-**Not planned.** Compacting voice sessions (they are short by nature).
+`chat.py`, `distil.earlier`, `prompts/conversation-earlier.md`. Tests:
+`test_compaction.py`.
 
-## M2. Hooks that can refuse, and more of them (*extends #4*)
+### M2. Hooks that can refuse, and more of them
 
-**Why.** Shipped tool hooks observe only. Guardrails ("never let any tool touch
-`D:\Finance`") need a veto, and plugins want turn and memory events too.
+`pre_tool_call` may now return `{"action": "block", "message": …}` (Hermes'
+shape) and the call is refused with that reason, recorded like any other
+failure. A hook that *crashes* refuses too — a guardrail that failed has not
+consented. It narrows only: confirmation, the room's sleep rule and every other
+guard still run, so a hook can never approve anything.
 
-**Plan.**
-1. `pre_tool_call` may return `{"action": "block", "message": ...}` (Hermes'
-   shape). A block is a refusal the model sees, recorded in the audit log.
-2. It cannot *unblock*: confirmation and the sleep guard still apply after it.
-3. New events: `pre_turn`, `post_turn`, `on_memory_write`, `on_confirmation`.
-4. A decision record in `DECISIONS.md`, because a veto hook is policy.
+Four more events: `pre_turn`, `post_turn`, `on_memory_write`,
+`on_confirmation`, raised from the turn, the memory store and the confirmation
+store. `hooks.py` holds all of it; the tool router keeps its own set so one
+test's handlers never answer for another's.
 
-**Done when.** A fixture plugin blocks `file_delete` under one folder in both
-Confirm and YOLO, and a hook that crashes still never breaks a call.
+`hooks.py`, `tools.py`, `plugins.py`, `chat.py`, `memory.py`, `runtime.py`.
+Tests: `test_hooks.py`, `test_tool_hooks.py`.
 
-## M3. Marvi as an OpenAI-compatible API and an ACP agent (*extends #8*)
+### M4. MCP write access with provenance
 
-**Why.** `marvi mcp serve` gives other agents Marvi's memory. Hermes also
-exposes an OpenAI-compatible endpoint (any chat frontend) and an ACP agent (IDE
-chat panels).
+`marvi mcp serve` now offers `memory_remember`. What it writes is stored
+`trusted=False` with `source = "mcp:<the client's own name>"`, taken from the
+MCP session rather than configured — so a fact Claude Code learned is visibly
+not a fact Marvi learned, never reaches a prompt as an instruction, and can be
+found and removed by its source. It lands on `memory_remember_external`, an
+`internal=True` Gateway tool no model is ever offered.
 
-**Upstream.** `agent-client-protocol` (already pinned, used as a client) has the
-agent side; FastAPI for `/v1/chat/completions`.
+`mcp_serve.py`, `memory.py`. Tests: `test_mcp_serve.py`.
 
-**Plan.**
-1. `POST /v1/chat/completions` on loopback, guarded by `localauth`, mapped onto
-   a Chat thread per `user` field; streaming via the existing SSE path.
-2. `marvi acp` — Marvi as an ACP agent over stdio for Zed/JetBrains, with tool
-   permission requests routed to the Island.
+### M7. Privacy mode, the whole of it
 
-**Done when.** Open WebUI and Zed both hold a conversation with Marvi, with
-approvals appearing on the Island.
+One switch, `MARVI_PRIVACY_MODE`, in Settings → Preferences with a PRIVATE
+indicator in the status bar next to the confirmation mode. On, it refuses every
+tool that reaches the network — web, connected accounts, calendar, email,
+Telegram — by name and with the way back, keeps the Telegram bridge from
+connecting at all, forces the local memory store over a hosted provider, skips
+update checks, and implies `MARVI_LOCAL_ONLY` for every model call. `marvi
+doctor` reports it, because a switched-off web search is the most convincing
+impersonation of a broken web search there is.
 
-## M4. MCP write access with provenance (*extends #8*)
+The gate is one place — the tool router — rather than nine handlers. MCP
+servers are deliberately *not* gated: they are the user's own installed
+processes and Marvi does not know what they do; doctor says exactly that.
 
-**Why.** `mcp serve` is read-only because a memory written by an outside agent
-needs a source the Cortex model can weigh.
+`privacy.py`, `tools.py`, `runtime.py`, `telegram.py`, `memory_providers.py`,
+`updates.py`, `doctor.py`, `App.tsx`. Tests: `test_privacy.py`.
 
-**Plan.** Add `memory_remember` over MCP, stored with `source = "mcp:<client
-name>"` and `trusted = false`; the Cortex page shows and filters by source;
-dreaming may promote it only after the user confirms.
+### M8. Chat search in the control center
 
-**Done when.** A memory written from Claude Code is visible, marked untrusted,
-and never reaches a prompt as instruction.
+The sidebar search box searched thread *titles*, which are auto-named from the
+first message and so rarely contain what is being looked for. It now also
+searches message text and shows an "IN MESSAGES" group with a snippet per hit;
+clicking one opens that conversation.
 
-## M5. Image generation
+Behind it, `messages_fts` — external-content FTS5 over `messages` with the same
+triggers `memory.py` uses — replaces the LIKE scan, with LIKE kept for queries
+FTS5 has no token for (`100%`, `?`). Old databases are backfilled once, tracked
+by a marker row rather than a row count: `COUNT(*)` on an external-content FTS5
+table reads the *content* table and can never report an empty index.
 
-**Why.** Hermes (FAL), OpenHuman (Seedream) generate images; Marvi cannot.
+`chat.py`, `MessageMatches.tsx`, `Sessions.tsx`. Tests: `test_chat_search.py`.
 
-**Upstream.** Provider APIs already in the catalog (OpenAI `gpt-image-*`,
-OpenRouter image models). Local diffusion does not fit beside resident voice
-models on 12 GB and is not planned.
+### M9. Credential pools
 
-**Plan.** `image_generate(prompt, size)` through `ProviderClient` with an
-`image` auxiliary role; output saved as a Chat attachment and rendered with the
-existing image tile; refused in local-only mode with a clear reason.
+`OPENROUTER_API_KEY_2` … `_9` (and the same for any provider) are a pool. A 429
+or a rejected key moves to the next one and only stands the provider down when
+every key is spent — one key's limit is not the provider's limit. A machine
+with one key behaves exactly as it did.
 
-**Done when.** Chat shows a generated image, usage is recorded per provider,
-and local-only mode refuses it.
+`providers/base.py`, `providers/client.py`. Tests: `test_provider_client.py`.
 
-## M6. Tool-output compression
+### M6, the half that is real: measurement
 
-**Why.** Big tool results (web pages, logs, file reads) are pasted whole into
-the context. OpenHuman reports up to 80% fewer tokens by compressing them; on
-the voice path tokens are latency.
+The entry's own first step was "measure first", and that is what shipped: every
+tool call now records the size of its result in `observations`, so the question
+"which tools produce the big results" has an answer drawn from what Marvi
+actually did rather than from a guess. Compression itself is deliberately not
+built yet — the budgets should come from a week of those rows, not from
+intuition, and a cap applied blindly to structured results (`computer_action`,
+`browser_action`) breaks tools rather than saving tokens.
 
-**Plan.**
-1. Measure first: per-tool result size from `observations` over a week.
-2. Per-tool budgets; over budget, keep head/tail and a structured summary from a
-   cheap auxiliary role, with a `more` handle to fetch the rest.
-3. Never compress confirmation payloads or anything the user asked to see
-   verbatim.
+## Not done, and what each is waiting for
 
-**Done when.** Median voice-turn input tokens fall measurably on the recorded
-baseline with no drop in the voice eval pass rate.
+### M3. OpenAI-compatible API and ACP agent
 
-## M7. Privacy mode, the whole of it (*extends #5*)
+Two features in one entry, and they are different sizes. The
+`/v1/chat/completions` endpoint is a day: map the request onto a Chat thread,
+stream the existing SSE path, guard it with `localauth`. Marvi *as* an ACP
+agent is not — it means implementing the agent half of the protocol
+(session/update/permission), deciding what a permission request looks like when
+the client is an IDE rather than the Island, and qualifying it against at least
+one real editor. Split them before starting; the endpoint alone is worth doing.
 
-**Why.** `MARVI_LOCAL_ONLY` covers model calls. Web search, Composio, Telegram,
-hosted memory providers and update checks still reach the network.
+### M5. Image generation
 
-**Plan.** One switch in the control center (and the status bar indicator,
-like YOLO) that sets local-only models and disables each network feature with a
-visible reason; `marvi doctor` reports what is still networked.
+Blocked on a contract, not on an API. Generating the image is one provider call;
+the problem is that a generated image has nowhere to go. Chat renders images
+from *attachment rows*, and a tool cannot create one because tool handlers do
+not know which thread they are running in. The honest fix is a small contract —
+a tool result that declares "this is a file for the current thread", which the
+chat dispatcher turns into an attachment — and that contract is worth having
+anyway (a chart, a screenshot, an exported file all want it). Do that first,
+then image generation is genuinely small.
 
-**Done when.** With privacy mode on, a packet capture of a scripted session
-shows no traffic except loopback and LAN.
+### M10. Replayable runs
 
-## M8. Chat search in the control center (*extends #7*)
+Needs a trace id threaded through `ProviderClient` and the tool router, a
+journal of calls per turn, and a drawer that replays one without executing any
+tool that has side effects. The last part is the real work: "replay" that can
+send an email is not a debugging tool, so it needs a dry-run mode the tool
+router understands. A phase, not a milestone.
 
-**Why.** Search exists as an endpoint and a tool, not in the UI; LIKE scans
-every message.
+### M11. Focus Assist awareness
 
-**Plan.** A search box above the thread list; results grouped by thread, click
-to open at the message; add an FTS5 table with triggers (as `memory.py` has)
-once a history exceeds ~50k messages.
-
-**Done when.** Typing a word finds and opens the message in an archived thread.
-
-## M9. Credential pools
-
-**Why.** One key per provider means one rate limit. Hermes rotates several.
-
-**Plan.** Allow `OPENROUTER_API_KEY_2..n`; on 429 cool down the key, not the
-provider; usage recorded per key suffix.
-
-**Done when.** A 429 on key 1 moves the next call to key 2 without a cooldown on
-the provider.
-
-## M10. Replayable runs
-
-**Why.** OpenHuman replays a run with per-call cost. Marvi has usage totals and
-logs, but cannot show "this turn: these calls, these tools, this cost".
-
-**Plan.** A per-turn trace id through `ProviderClient` and the tool router
-(observations already carries timings); an Activity drawer that shows the
-trace and re-runs it against a chosen model in a dry-run mode.
-
-**Done when.** A chat turn can be opened as a trace and replayed with a
-different model without executing any tool with side effects.
-
-## M11. Focus Assist (Do Not Disturb) awareness (*extends #6*)
-
-**Why.** Shipped #6 reads presenting and fullscreen. Windows' Focus / Do Not
-Disturb has no supported API; the undocumented WNF state
-`WNF_SHEL_QUIETHOURS_ACTIVE_PROFILE_CHANGED` is what third-party tools read.
-
-**Plan.** Spike reading it via `NtQueryWnfStateData` behind a feature flag with
-a fallback of "unknown"; if it proves stable across two Windows builds, feed it
-to the same `busy` rule.
-
-**Done when.** Turning Focus on in Windows Settings holds a reminder on the
-target host, and an unsupported build simply reports unknown.
+Still no supported API. The undocumented WNF state is readable through
+`NtQueryWnfStateData`, and reading undocumented kernel state on a machine that
+updates itself monthly is a thing to do deliberately, behind a flag, with a
+fallback of "unknown" — not as the last item of a long day. The fullscreen and
+presentation states that *are* documented already ship (see small #6).
