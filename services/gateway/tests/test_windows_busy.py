@@ -33,11 +33,22 @@ def test_not_busy_changes_nothing() -> None:
 
 
 def test_the_windows_states_and_the_switch(monkeypatch) -> None:
+    clock = {"now": 5_000.0}
+    monkeypatch.setattr(focus.time, "monotonic", lambda: clock["now"])
+    monkeypatch.setattr(focus, "_busy_reason", "", raising=False)
+    monkeypatch.setattr(focus, "_busy_at", 0.0, raising=False)
     monkeypatch.setattr(focus, "_notification_state", lambda: 4)
     monkeypatch.setenv(focus.BUSY_SETTING, "1")
     assert focus.windows_busy() == "you are presenting"
+
+    # Windows drops the flag the instant a fullscreen app loses focus, and an
+    # alt-tab emptied the waiting room into that gap: four held items spoken
+    # mid-session on 16 September. Busy lingers; see `BUSY_SETTLES_AFTER`.
     monkeypatch.setattr(focus, "_notification_state", lambda: 5)  # QUNS_ACCEPTS_NOTIFICATIONS
+    assert focus.windows_busy() == "you are presenting"
+    clock["now"] += focus.BUSY_SETTLES_AFTER + 1
     assert focus.windows_busy() == ""
+
     monkeypatch.setattr(focus, "_notification_state", lambda: 2)
     monkeypatch.setenv(focus.BUSY_SETTING, "0")
     assert focus.windows_busy() == ""
