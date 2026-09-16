@@ -3623,3 +3623,29 @@
 .chat-mentions button:hover {
   background: var(--ui-accent-soft);
 }
+
+/* Messages found by the search box ---------------------------------------- */
+
+.chat-message-matches button {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+  width: 100%;
+  text-align: left;
+}
+
+.chat-match-title {
+  font-size: 11px;
+  color: var(--ui-text-primary);
+}
+
+.chat-match-snippet {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--ui-text-secondary);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}

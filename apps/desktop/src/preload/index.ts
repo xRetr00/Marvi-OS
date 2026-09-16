@@ -81,7 +81,8 @@ import type {
   WakeStatus,
   WorkspacePolicy,
   WorkspaceUpdate,
-  FileCheckpoint
+  FileCheckpoint,
+  ChatMessageMatch
 } from '../shared/runtime'
 import type { IslandInteractionMode, IslandPlacement } from '../main/island-window'
 import type { PetPreferences } from '../main/pet-window'
@@ -193,7 +194,11 @@ const marvi = {
   ): Promise<{ autostart: boolean; running: boolean }> =>
     ipcRenderer.invoke('marvi:set-wake-autostart', enabled, device ?? ''),
   setYolo: (yolo: boolean): Promise<RuntimeStatus> => ipcRenderer.invoke('marvi:set-yolo', yolo),
+  setPrivacy: (privacy: boolean): Promise<RuntimeStatus> =>
+    ipcRenderer.invoke('marvi:set-privacy', privacy),
   getAudit: (): Promise<AuditEvent[]> => ipcRenderer.invoke('marvi:get-audit'),
+  searchChatMessages: (query: string): Promise<ChatMessageMatch[]> =>
+    ipcRenderer.invoke('marvi:search-chat-messages', query),
   searchWorkspaceFiles: (query: string): Promise<string[]> =>
     ipcRenderer.invoke('marvi:search-workspace-files', query),
   getFileCheckpoints: (): Promise<FileCheckpoint[]> =>

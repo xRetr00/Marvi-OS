@@ -6,6 +6,7 @@ import type { ChatThread } from '../../../../shared/runtime'
 import { AbstractIcon } from '../../components/abstract-icon'
 import { TooltipProvider, UiTooltip } from '../../components/ui/tooltip'
 import { formatRelative } from '../time'
+import { MessageMatches } from './MessageMatches'
 
 export function Sessions({
   sessions,
@@ -157,6 +158,8 @@ export function Sessions({
             onChange={(event) => setQuery(event.target.value)}
           />
         </label>
+
+        <MessageMatches activeId={activeId} onSelect={onSelect} query={query} />
 
         {recent.length > 0 || telegram.length === 0 ? (
           <>

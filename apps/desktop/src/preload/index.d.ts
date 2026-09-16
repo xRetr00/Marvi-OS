@@ -80,7 +80,8 @@ import type {
   WakeStatus,
   WorkspacePolicy,
   WorkspaceUpdate,
-  FileCheckpoint
+  FileCheckpoint,
+  ChatMessageMatch
 } from '../shared/runtime'
 import type { CalendarEvent, VoiceActivity } from '../renderer/src/components/voice-cards'
 import type { IslandInteractionMode, IslandPlacement } from '../main/island-window'
@@ -116,7 +117,9 @@ export interface MarviDesktopApi {
     device?: string
   ) => Promise<{ autostart: boolean; running: boolean }>
   setYolo: (yolo: boolean) => Promise<RuntimeStatus>
+  setPrivacy: (privacy: boolean) => Promise<RuntimeStatus>
   getAudit: () => Promise<AuditEvent[]>
+  searchChatMessages: (query: string) => Promise<ChatMessageMatch[]>
   searchWorkspaceFiles: (query: string) => Promise<string[]>
   getFileCheckpoints: () => Promise<FileCheckpoint[]>
   restoreFileCheckpoint: (id: string) => Promise<{ restored?: string; error?: string }>

@@ -170,6 +170,30 @@ def title(client: Any, first_message: str, fallback: str) -> str:
     return answer if 0 < len(answer) <= 60 else fallback
 
 
+EARLIER_SYSTEM = prompts.text("conversation-earlier")
+
+#: Long enough to carry a decision and its reason; short enough that a long
+#: conversation does not slowly become its own summary.
+EARLIER_TOKENS = 260
+
+
+def earlier(client: Any, transcript: str, previous: str = "") -> str:
+    """What the turns that scrolled out of a conversation were about.
+
+    Returns "" when there is no model or it says nothing useful -- in which
+    case the conversation carries on exactly as it did before, with the oldest
+    turns simply gone. A summary is an improvement on forgetting, never a
+    requirement for answering.
+    """
+    text = (transcript or "").strip()
+    if not text:
+        return previous
+    if previous:
+        text = f"The summary so far:{chr(10)}{previous}{chr(10)}{chr(10)}Since then:{chr(10)}{text}"
+    answer = ask(client, "aux", EARLIER_SYSTEM, text[:12_000], EARLIER_TOKENS)
+    return " ".join((answer or "").split())[:1200] or previous
+
+
 # -- promoting what recurs ----------------------------------------------------
 
 MEMORY_SYSTEM = prompts.text("distil-memory")

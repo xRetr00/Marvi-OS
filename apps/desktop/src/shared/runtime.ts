@@ -462,6 +462,17 @@ export interface UpdateResult {
   finishedAt?: string
 }
 
+/** One message the search box found inside a conversation. */
+export interface ChatMessageMatch {
+  thread_id: string
+  title: string
+  archived: boolean
+  message_id: number
+  role: 'user' | 'assistant'
+  at: string
+  snippet: string
+}
+
 /** A copy of a file kept just before one of Marvi's file tools changed it. */
 export interface FileCheckpoint {
   id: string
@@ -505,6 +516,8 @@ export interface AssistantState {
   detail: string | null
   level: number
   yolo: boolean
+  /** Everything that reaches the network is switched off. See privacy.py. */
+  privacy: boolean
   /** The last utterance each way, for the live transcript. Only the latest:
    * a glance while talking, not a record. */
   heard: string
@@ -1174,6 +1187,7 @@ export const DEFAULT_ASSISTANT_STATE: AssistantState = {
   detail: null,
   level: 0,
   yolo: false,
+  privacy: false,
   heard: '',
   spoken: '',
   confirmation: null,

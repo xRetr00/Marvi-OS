@@ -23,6 +23,7 @@ So the rules here are all about *not* forking behaviour:
 from __future__ import annotations
 
 import base64
+import contextlib
 import json
 import logging
 import mimetypes
@@ -186,6 +187,33 @@ CREATE TABLE IF NOT EXISTS attachments (
     created_at  TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS attachments_thread ON attachments(thread_id, message_id);
+-- What `chat_search` and the search box read. External-content FTS5 over
+-- `messages`, the same shape `memory.py` uses, because a LIKE scan over every
+-- message a person has ever sent gets slower every day they use Marvi.
+CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+-- What the turns that scrolled out of a long conversation were about. One row
+-- per thread, replaced as more falls out; `through_id` is the newest message
+-- it covers, so the next pass knows where to start.
+CREATE TABLE IF NOT EXISTS thread_summaries (
+    thread_id  TEXT PRIMARY KEY,
+    through_id INTEGER NOT NULL,
+    summary    TEXT NOT NULL,
+    at         TEXT NOT NULL
+);
+CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts
+    USING fts5(content, content='messages', content_rowid='id');
+CREATE TRIGGER IF NOT EXISTS messages_fts_ai AFTER INSERT ON messages BEGIN
+    INSERT INTO messages_fts(rowid, content) VALUES (new.id, new.content);
+END;
+CREATE TRIGGER IF NOT EXISTS messages_fts_ad AFTER DELETE ON messages BEGIN
+    INSERT INTO messages_fts(messages_fts, rowid, content)
+        VALUES ('delete', old.id, old.content);
+END;
+CREATE TRIGGER IF NOT EXISTS messages_fts_au AFTER UPDATE ON messages BEGIN
+    INSERT INTO messages_fts(messages_fts, rowid, content)
+        VALUES ('delete', old.id, old.content);
+    INSERT INTO messages_fts(rowid, content) VALUES (new.id, new.content);
+END;
 """
 
 #: The two tools Chat answers itself rather than handing to the voice surface.
@@ -304,6 +332,21 @@ class ChatStore:
                 "VALUES (?, ?, ?, ?, 'main')",
                 (uuid4().hex, PLACEHOLDER_TITLES[1], now, now),
             )
+        # Messages written before the index existed are not in it, and an
+        # empty index is indistinguishable from "nothing matched" -- the one
+        # failure a search must never have.
+        #
+        # A marker rather than a row count: `SELECT COUNT(*)` on an
+        # external-content FTS5 table reads the *content* table, so it always
+        # equals the number of messages and never reports an empty index.
+        # Filled once; after that the triggers keep it.
+        built = self._db.execute("SELECT value FROM meta WHERE key = 'fts_built'").fetchone()
+        if built is None:
+            self._db.execute("INSERT INTO messages_fts(messages_fts) VALUES ('rebuild')")
+            self._db.execute(
+                "INSERT OR REPLACE INTO meta (key, value) VALUES ('fts_built', '1')"
+            )
+
         legacy = self._db.execute(
             "SELECT id FROM threads WHERE id = ?", (DEFAULT_THREAD_ID,)
         ).fetchone()
@@ -613,20 +656,22 @@ class ChatStore:
         Old conversations were reachable only by scrolling the thread list;
         Cortex remembers facts, not the conversation they came from.
 
-        # ponytail: LIKE scan over every message; add an FTS5 table (as
-        # memory.py has) when a history is large enough for this to be slow.
+        Through the FTS5 index over `messages`, with a LIKE scan as the
+        fallback for a query FTS5 refuses to parse. The snippet is cut around
+        the first literal occurrence, so a multi-word query still lands on the
+        part of the message worth reading.
         """
         words = " ".join((query or "").split())
         if not words:
             return []
-        escaped = words.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-        rows = self._db.execute(
-            "SELECT m.id, m.thread_id, m.role, m.at, m.content, t.title, t.archived "
-            "FROM messages m JOIN threads t ON t.id = m.thread_id "
-            "WHERE m.role IN ('user', 'assistant') AND m.content LIKE ? ESCAPE '\\' "
-            "ORDER BY m.id DESC LIMIT ?",
-            (f"%{escaped}%", max(1, min(int(limit), 100))),
-        ).fetchall()
+        capped = max(1, min(int(limit), 100))
+        # A query with no letters or digits -- "100%", "?" -- has no token for
+        # FTS5 to match, so the literal scan is the only one that can answer it.
+        rows = self._fts_matches(words, capped) if any(c.isalnum() for c in words) else None
+        if rows is None:
+            # A query FTS5 will not parse -- an unbalanced quote, a bare
+            # operator -- is a query a person typed, not an error to show.
+            rows = self._like_matches(words, capped)
         found = []
         for row in rows:
             content = str(row["content"])
@@ -643,6 +688,67 @@ class ChatStore:
                 "snippet": ("…" if start else "") + snippet + ("…" if at + len(words) + 80 < len(content) else ""),
             })
         return found
+
+    #: The columns every search result needs, joined to its thread.
+    _SEARCH_COLUMNS = (
+        "SELECT m.id, m.thread_id, m.role, m.at, m.content, t.title, t.archived "
+        "FROM messages m JOIN threads t ON t.id = m.thread_id "
+    )
+
+    def _fts_matches(self, words: str, limit: int) -> list[Any] | None:
+        """Index hits, newest first, or None when FTS5 could not read the query."""
+        # Quoted as one phrase: a person searching `orange juice` means those
+        # words together, and unquoted it would be parsed as an AND of two
+        # tokens plus whatever punctuation FTS5 decides is an operator.
+        phrase = '"' + words.replace('"', '""') + '"'
+        try:
+            return self._db.execute(
+                self._SEARCH_COLUMNS
+                + "JOIN messages_fts f ON f.rowid = m.id "
+                "WHERE messages_fts MATCH ? AND m.role IN ('user', 'assistant') "
+                "ORDER BY m.id DESC LIMIT ?",
+                (phrase, limit),
+            ).fetchall()
+        except sqlite3.OperationalError:
+            return None
+
+    def _like_matches(self, words: str, limit: int) -> list[Any]:
+        """The literal scan: what answers a query FTS5 has no token for."""
+        mark = chr(92)  # the LIKE escape character, spelled once
+        escaped = (
+            words.replace(mark, mark * 2).replace("%", mark + "%").replace("_", mark + "_")
+        )
+        return self._db.execute(
+            self._SEARCH_COLUMNS
+            + "WHERE m.role IN ('user', 'assistant') AND m.content LIKE ? ESCAPE ? "
+            "ORDER BY m.id DESC LIMIT ?",
+            (f"%{escaped}%", mark, limit),
+        ).fetchall()
+
+    def summary_of(self, thread_id: str) -> dict[str, Any]:
+        """The running summary of what scrolled out, or empty."""
+        row = self._db.execute(
+            "SELECT through_id, summary FROM thread_summaries WHERE thread_id = ?",
+            (self.resolve(thread_id),),
+        ).fetchone()
+        return {"through_id": int(row["through_id"]), "summary": str(row["summary"])} if row else {}
+
+    def set_summary(self, thread_id: str, through_id: int, summary: str) -> None:
+        self._db.execute(
+            "INSERT OR REPLACE INTO thread_summaries (thread_id, through_id, summary, at)"
+            " VALUES (?, ?, ?, ?)",
+            (self.resolve(thread_id), int(through_id), summary, self._now()),
+        )
+        self._db.commit()
+
+    def dropped_rows(self, thread_id: str, kept_from: int, since_id: int) -> list[dict[str, Any]]:
+        """The messages between the last summary and the window, oldest first."""
+        rows = self._db.execute(
+            "SELECT id, role, content FROM messages WHERE thread_id = ? AND id > ? AND id < ?"
+            " AND role IN ('user', 'assistant') ORDER BY id",
+            (self.resolve(thread_id), int(since_id), int(kept_from)),
+        ).fetchall()
+        return [dict(row) for row in rows]
 
     def threads(self, archived: bool = False) -> list[dict[str, Any]]:
         ids = self._db.execute(
@@ -1112,6 +1218,39 @@ class Chat:
             return rows
         return rows[starts[-HISTORY_TURNS] :]
 
+    def compact(self, thread_id: str = DEFAULT_THREAD_ID) -> str:
+        """Fold whatever has scrolled out of the window into the summary.
+
+        Runs *after* a turn, never during one: the user has their answer, and
+        the cost lands where nobody is waiting. Cheap to call -- it returns
+        immediately unless turns have actually fallen out since last time.
+        """
+        rows = self.store.history(limit=HISTORY_ROWS, thread_id=thread_id)
+        starts = [i for i, row in enumerate(rows) if row["role"] == "user"]
+        if len(starts) <= HISTORY_TURNS:
+            return ""
+        kept_from = int(rows[starts[-HISTORY_TURNS]]["id"])
+        held = self.store.summary_of(thread_id)
+        dropped = self.store.dropped_rows(thread_id, kept_from, held.get("through_id", 0))
+        if not dropped:
+            return ""
+        transcript = "\n".join(
+            f"{'User' if row['role'] == 'user' else 'Marvi'}: {str(row['content'])[:1500]}"
+            for row in dropped
+        )
+        try:
+            # Imported here: `distil` reaches back into this module through
+            # `cognition`, and at module level that is a circular import.
+            from . import distil
+
+            summary = distil.earlier(self.client, transcript, held.get("summary", ""))
+        except Exception as exc:  # a summary is never worth failing a turn over
+            logger.warning("could not summarise what scrolled out: %s", str(exc)[:160])
+            return ""
+        if summary:
+            self.store.set_summary(thread_id, int(dropped[-1]["id"]), summary)
+        return summary
+
     def _skill_catalogue(self) -> list[str]:
         """Never raises, for the same reason `_plugin_context` does not:
         this is on the prompt path of every turn, and a malformed skill
@@ -1165,6 +1304,16 @@ class Chat:
         wire: list[dict[str, Any]] = [
             {"role": "system", "content": self._system(gap, recalled, surface)}
         ]
+        # What fell out of the window, in one line, before what is still in it.
+        # Without this a long conversation simply forgets its own beginning:
+        # the twenty-fifth turn cannot see the first, and the user can.
+        if earlier := self.store.summary_of(thread_id).get("summary"):
+            wire.append(
+                {
+                    "role": "system",
+                    "content": f"Earlier in this conversation: {earlier}",
+                }
+            )
         for row in self._recent(thread_id):
             if row["role"] in ("user", "assistant"):
                 content = (
@@ -1487,6 +1636,9 @@ class Chat:
             hooks.shared.fire(
                 "post_turn", surface=surface, thread_id=thread_id, tokens=tokens, error=error
             )
+            # After the answer, not before it: nobody is waiting on this.
+            with contextlib.suppress(Exception):
+                self.compact(thread_id)
 
     def _send_stream(
         self,
