@@ -24,7 +24,7 @@ from itertools import zip_longest
 from pathlib import Path
 from typing import Any, Literal
 
-from . import observations
+from . import hooks, observations
 from .logs import get_logger
 from .untrusted import wrap_external
 
@@ -464,6 +464,16 @@ class MemoryStore:
         )
         self._db.commit()
         memory_id = int(cursor.lastrowid or 0)
+        # A plugin that mirrors memory somewhere else needs the write, not a
+        # poll. Watchers only: nothing here can refuse a memory.
+        hooks.shared.fire(
+            "on_memory_write",
+            subject=subject,
+            body=body,
+            kind=kind,
+            source=source,
+            trusted=trusted,
+        )
         # Indexed on the way in, so a memory is searchable by meaning from the
         # moment it exists. Costs 10ms on the CPU and happens on the worker
         # thread, off the turn.
@@ -1882,6 +1892,32 @@ def register_memory_tools(
             # down; being told the alternative in the same breath is the
             # difference between it using `ask_secret` and it trying again with
             # the same value in a different sentence.
+            return {"stored": False, "error": str(exc)}
+
+    def memory_remember_external(subject: str, body: str, source: str) -> dict[str, Any]:
+        """A memory written by something that is not Marvi.
+
+        `marvi mcp serve` is the first caller: a coding agent on this machine,
+        writing what it learned about the user. Two differences from
+        `memory_remember`, and both are the point:
+
+        * **It is never trusted.** `trusted=0` is what keeps it out of the
+          prompt as an instruction and marks it in the Cortex page. Whose words
+          a fact is matters more once Marvi is not the only one writing them.
+        * **The source says who.** `mcp:claude-code`, not `marvi`, so a wrong
+          fact can be traced to the thing that wrote it and that source's
+          memories can be removed together.
+
+        Internal: no model is ever offered this. It exists so the MCP server
+        has one audited door rather than a second write path into the store.
+        """
+        who = " ".join((source or "").split())[:60] or "unknown"
+        if not who.startswith("mcp:"):
+            who = f"mcp:{who}"
+        try:
+            return {"id": memory.remember_external(subject, body, source=who, kind="semantic"),
+                    "source": who, "trusted": False}
+        except SecretInMemoryError as exc:
             return {"stored": False, "error": str(exc)}
 
     def memory_search(query: str) -> dict[str, Any]:

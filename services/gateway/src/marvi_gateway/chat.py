@@ -36,7 +36,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from . import inline_ask, language, latency, mentions, selfaware, tool_call_prose
+from . import hooks, inline_ask, language, latency, mentions, selfaware, tool_call_prose
 from .chat_widgets import (
     external_text,
     present_tool_schema,
@@ -1463,7 +1463,32 @@ class Chat:
             "arguments": arguments,
         }
 
-    def send_stream(
+    def send_stream(self, message: str = "", **options: Any) -> Iterator[dict[str, Any]]:
+        """One chat turn, with `pre_turn` and `post_turn` raised around it.
+
+        A thin wrapper so plugins see the end of a turn however it ended --
+        answered, cancelled, refused for want of a provider, or raising. The
+        turn itself is `_send_stream`, unchanged.
+        """
+        surface = str(options.get("surface", "chat"))
+        thread_id = str(options.get("thread_id", DEFAULT_THREAD_ID))
+        hooks.shared.fire("pre_turn", surface=surface, text=(message or "").strip(), thread_id=thread_id)
+        tokens, error = 0, ""
+        try:
+            for event in self._send_stream(message, **options):
+                if event.get("done"):
+                    tokens = int(event.get("tokens") or 0)
+                    error = str(event.get("error") or "")
+                yield event
+        except Exception as exc:
+            error = f"{type(exc).__name__}: {exc}"
+            raise
+        finally:
+            hooks.shared.fire(
+                "post_turn", surface=surface, thread_id=thread_id, tokens=tokens, error=error
+            )
+
+    def _send_stream(
         self,
         message: str,
         provider: str | None = None,

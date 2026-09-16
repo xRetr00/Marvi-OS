@@ -11,6 +11,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from . import hooks
 from .clarify import Question
 from .credentials import SecretRequest
 
@@ -435,6 +436,8 @@ class RuntimeStore:
         write_key: str | None = None,
     ) -> ConfirmationRequest:
         self.expire_confirmations()
+        # A plugin that wants to mirror approvals -- to a phone, a log, a
+        # second pair of eyes -- is told one was asked for. Watchers only.
         self._notification_at = None
         token = token_urlsafe(24)
         self._pending[token] = PendingConfirmation(
@@ -446,6 +449,9 @@ class RuntimeStore:
         )
         request = ConfirmationRequest(
             token=token, action=action, detail=detail, tool=tool, arguments=dict(arguments)
+        )
+        hooks.shared.fire(
+            "on_confirmation", tool=tool, arguments=dict(arguments), token=token, state="issued"
         )
         self.assistant = self.assistant.model_copy(
             update={

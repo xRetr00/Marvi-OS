@@ -38,11 +38,17 @@ def test_a_failing_tool_still_reports_to_post() -> None:
     assert seen and seen[0].startswith("ZeroDivisionError")
 
 
-def test_a_broken_hook_does_not_break_the_tool() -> None:
+def test_a_broken_watcher_does_not_break_the_tool() -> None:
+    """A `post_tool_call` watcher is exactly that; it cannot fail a call.
+
+    A broken `pre_tool_call` is the opposite case and refuses the call instead
+    -- a guardrail that crashed has not consented. See `test_hooks.py`.
+    """
+
     def broken(**_kw):
         raise RuntimeError("hook bug")
 
-    registry = _registry_with_hooks(("pre_tool_call", broken), ("post_tool_call", broken))
+    registry = _registry_with_hooks(("post_tool_call", broken))
     assert registry.execute(registry.get("double"), {"n": 1}) == 2
 
 
