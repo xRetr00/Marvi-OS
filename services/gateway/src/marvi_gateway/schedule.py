@@ -27,6 +27,7 @@ ACTIONS = {
     "remind": "Add a reminder to Marvi's trusted event journal",
     "check_accounts": "Pull new connected-account items into Marvi Cortex",
     "reflect": "Run Marvi Cortex reflection",
+    "export_memory": "Write Marvi Cortex out as an Obsidian vault",
 }
 MINIMUM_INTERVAL_MINUTES = 5
 MAX_SCHEDULES = 200
@@ -723,6 +724,28 @@ class Scheduler:
                     raise ScheduleError("reflection is not available")
                 self.initiative.run_reflect()
                 result = {"output": "Reflection completed.", "tools_used": []}
+            elif job.action == "export_memory":
+                # The folder is the job's own message, because that is the one
+                # free-text field a schedule already has. An export with
+                # nowhere to go is a job that silently does nothing.
+                from pathlib import Path
+
+                from . import paths, vault
+
+                target = (job.message or "").strip()
+                if not target:
+                    raise ScheduleError(
+                        "put the folder to export into in the job's message, "
+                        "for example D:\Notes\Marvi"
+                    )
+                counts = vault.export(paths.memory_db(), Path(target).expanduser())
+                result = {
+                    "output": (
+                        f"Exported {counts['memories']} memories as {counts['notes']} notes "
+                        f"to {target}."
+                    ),
+                    "tools_used": [],
+                }
             else:
                 raise ScheduleError(f"unknown action {job.action}")
             result["delivery_status"] = self.delivery.deliver(

@@ -1335,7 +1335,7 @@ def create_app(
         register_screen_tools(tool_registry, provider_client)
         from .desk import register_desk_tools
 
-        register_desk_tools(tool_registry)
+        register_desk_tools(tool_registry, provider_client)
         # Registered last so it can see everything registered before it, and
         # given the builder rather than a snapshot: plugins and MCP servers add
         # tools after this line, and a search that could not find them would be
