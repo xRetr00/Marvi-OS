@@ -1860,6 +1860,27 @@ function startApp(): void {
         return publishRuntime(offlineRuntimeFrom(app.getVersion(), runtimeStatus))
       }
     })
+    ipcMain.handle('marvi:get-file-checkpoints', async () => {
+      try {
+        const body = (await gatewayJson('/checkpoints?limit=20')) as { checkpoints?: unknown }
+        return Array.isArray(body?.checkpoints) ? body.checkpoints : []
+      } catch {
+        return []
+      }
+    })
+    ipcMain.handle('marvi:restore-file-checkpoint', async (event, id) => {
+      // Only Marvi's own window may press Restore, and the Gateway asks for
+      // the local token on top of that.
+      if (!mainWindow || event.sender !== mainWindow.webContents) return { error: 'Refused.' }
+      if (typeof id !== 'string') return { error: 'Refused.' }
+      try {
+        return (await gatewayJson(`/checkpoints/${encodeURIComponent(id)}/restore`, {
+          method: 'POST'
+        })) as Record<string, unknown>
+      } catch (error) {
+        return { error: error instanceof Error ? error.message : 'Marvi could not restore it.' }
+      }
+    })
     ipcMain.handle('marvi:get-audit', async () => {
       try {
         const response = await fetch(`${gateway()}/audit?limit=100`, {

@@ -80,7 +80,8 @@ import type {
   MemorySettingsUpdate,
   WakeStatus,
   WorkspacePolicy,
-  WorkspaceUpdate
+  WorkspaceUpdate,
+  FileCheckpoint
 } from '../shared/runtime'
 import type { IslandInteractionMode, IslandPlacement } from '../main/island-window'
 import type { PetPreferences } from '../main/pet-window'
@@ -193,6 +194,10 @@ const marvi = {
     ipcRenderer.invoke('marvi:set-wake-autostart', enabled, device ?? ''),
   setYolo: (yolo: boolean): Promise<RuntimeStatus> => ipcRenderer.invoke('marvi:set-yolo', yolo),
   getAudit: (): Promise<AuditEvent[]> => ipcRenderer.invoke('marvi:get-audit'),
+  getFileCheckpoints: (): Promise<FileCheckpoint[]> =>
+    ipcRenderer.invoke('marvi:get-file-checkpoints'),
+  restoreFileCheckpoint: (id: string): Promise<{ restored?: string; error?: string }> =>
+    ipcRenderer.invoke('marvi:restore-file-checkpoint', id),
   getRoomEvents: (): Promise<RoomEvent[]> => ipcRenderer.invoke('marvi:get-room-events'),
   visitorPhotosSeen: (photos: string[]): Promise<number> =>
     ipcRenderer.invoke('marvi:visitor-photos-seen', photos),

@@ -14539,3 +14539,70 @@ html[data-appearance='claude-code-dark'] .control-row {
   color: var(--ui-text-primary);
   cursor: pointer;
 }
+
+/* Files Marvi changed, on the Activity page ------------------------------- */
+
+.act-files {
+  margin: 16px 0 0;
+  padding: 12px 14px;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 8px;
+}
+
+.act-files header h3 {
+  margin: 0;
+  font-size: 12px;
+}
+
+.act-files header p,
+.act-files-said {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: var(--ui-text-secondary);
+}
+
+.act-files ul {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.act-files li {
+  display: grid;
+  gap: 10px;
+  align-items: center;
+  padding: 5px 0;
+  grid-template-columns: 44px 56px 1fr auto;
+  font-size: 11px;
+}
+
+.act-files-when,
+.act-files-what {
+  color: var(--ui-text-secondary);
+  font-family: var(--font-mono, monospace);
+}
+
+.act-files-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ui-text-primary);
+}
+
+.act-files-restore {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  padding: 3px 8px;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 5px;
+  background: transparent;
+  font-size: 10px;
+  color: var(--ui-text-primary);
+  cursor: pointer;
+}
+
+.act-files-restore:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

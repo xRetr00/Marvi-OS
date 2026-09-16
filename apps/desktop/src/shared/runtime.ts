@@ -462,6 +462,15 @@ export interface UpdateResult {
   finishedAt?: string
 }
 
+/** A copy of a file kept just before one of Marvi's file tools changed it. */
+export interface FileCheckpoint {
+  id: string
+  path: string
+  action: 'write' | 'edit' | 'delete' | 'restore' | string
+  bytes: number
+  at: string
+}
+
 export interface AuditEvent {
   at: string
   event: string

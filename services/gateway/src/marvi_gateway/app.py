@@ -4138,6 +4138,37 @@ def create_app(
         subagent_runner.settled(token, ran.model_dump(exclude={"runtime"}))
         return ran
 
+    @app.get("/checkpoints")
+    async def list_checkpoints(limit: int = 20) -> dict[str, Any]:
+        """Files Marvi changed, newest first, for the Activity page."""
+        from .workspace import Workspace
+
+        return {"checkpoints": Workspace().list_checkpoints("", max(1, min(limit, 100)))}
+
+    @app.post("/checkpoints/{checkpoint_id}/restore")
+    async def restore_checkpoint(checkpoint_id: str, http_request: Request) -> dict[str, Any]:
+        """Put one file back. The user pressing Restore is the authority here --
+        this is not the model reaching for `file_restore`, so it needs no
+        confirmation token, only the local guard that keeps a web page out."""
+        from . import checkpoints as checkpoint_store
+        from .workspace import Workspace, WorkspaceRefusedError
+
+        localauth.guard(http_request)
+        row = next(
+            (one for one in checkpoint_store.listing(None, checkpoint_store.KEEP)
+             if one["id"] == checkpoint_id),
+            None,
+        )
+        if row is None:
+            raise HTTPException(status_code=404, detail="no such checkpoint")
+        workspace_now = Workspace()
+        try:
+            restored = workspace_now.restore(row["path"], checkpoint_id)
+        except WorkspaceRefusedError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        runtime_store.audit("restored", "file_restore", {"path": row["path"], "checkpoint": checkpoint_id})
+        return restored
+
     @app.get("/memory", response_model=MemoryPage)
     async def memory_page(limit: int = 50) -> MemoryPage:
         if memory is None:

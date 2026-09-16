@@ -22,11 +22,12 @@ import {
   Clock3,
   Filter,
   History,
+  RotateCcw,
   Zap
 } from 'lucide-react'
 import React, { useEffect, useMemo, useState } from 'react'
 
-import type { AuditEvent } from '../../../shared/runtime'
+import type { AuditEvent, FileCheckpoint } from '../../../shared/runtime'
 
 type Outcome = 'ok' | 'failed' | 'refused' | 'other'
 
@@ -184,6 +185,8 @@ export function ActivityPage(): React.JSX.Element {
         </div>
       )}
 
+      <FileChanges />
+
       <div className="act-filters">
         <Filter aria-hidden="true" />
         {(['all', 'ok', 'failed', 'refused'] as const).map((choice) => (
@@ -265,5 +268,70 @@ export function ActivityPage(): React.JSX.Element {
         <History aria-hidden="true" /> Showing the last {events.length} recorded calls.
       </p>
     </div>
+  )
+}
+
+/**
+ * Files Marvi changed, and putting one back.
+ *
+ * The checkpoint exists whether or not anybody looks at it, but an undo
+ * nobody can find is not an undo: the Activity page is where a person goes
+ * after "what did she just do to my file".
+ *
+ * Restore here is the *user's* action, not the model's, so it does not raise a
+ * confirmation -- pressing the button is the confirmation. It is audited like
+ * everything else.
+ */
+function FileChanges(): React.JSX.Element | null {
+  const [rows, setRows] = useState<FileCheckpoint[]>([])
+  const [busy, setBusy] = useState('')
+  const [said, setSaid] = useState('')
+
+  const load = async (): Promise<void> => {
+    const next = (await window.marvi?.getFileCheckpoints()) ?? []
+    setRows(next)
+  }
+
+  useEffect(() => {
+    void load()
+  }, [])
+
+  if (rows.length === 0) return null
+
+  const restore = async (row: FileCheckpoint): Promise<void> => {
+    setBusy(row.id)
+    const result = await window.marvi?.restoreFileCheckpoint(row.id)
+    setBusy('')
+    setSaid(result?.error ? result.error : `Put ${row.path} back as it was.`)
+    await load()
+  }
+
+  return (
+    <section className="act-files">
+      <header>
+        <h3>Files Marvi changed</h3>
+        <p>A copy was kept just before each change. Restoring keeps a copy too.</p>
+      </header>
+      {said ? <p className="act-files-said">{said}</p> : null}
+      <ul>
+        {rows.map((row) => (
+          <li key={row.id}>
+            <span className="act-files-when">{row.at.slice(11, 16)}</span>
+            <span className="act-files-what">{row.action}</span>
+            <span className="act-files-path" title={row.path}>
+              {row.path}
+            </span>
+            <button
+              className="act-files-restore"
+              disabled={busy === row.id}
+              onClick={() => void restore(row)}
+              type="button"
+            >
+              <RotateCcw aria-hidden="true" size={12} /> Restore
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }

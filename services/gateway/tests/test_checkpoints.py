@@ -70,3 +70,38 @@ def test_old_checkpoints_are_pruned(workspace, monkeypatch) -> None:
         workspace.write("b.txt", str(n))
     assert len(workspace.list_checkpoints("b.txt", 50)) == 3
     assert len(list(checkpoints.folder().glob("*.bin"))) == 3
+
+
+# -- the Activity page's view of them -----------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_the_page_lists_changes_and_can_put_one_back(tmp_path, monkeypatch) -> None:
+    """S7: Restore from the Activity page is the user's own action."""
+    from httpx import ASGITransport, AsyncClient
+
+    from marvi_gateway.app import create_app
+    from marvi_gateway.filepolicy import ROOT_SETTING
+
+    root = tmp_path / "work"
+    root.mkdir()
+    monkeypatch.setenv(ROOT_SETTING, str(root))
+    monkeypatch.setenv("MARVI_FILE_WRITE_SCOPE", "workspace")
+    target = root / "note.md"
+    target.write_text("original\n", encoding="utf-8")
+
+    space = Workspace()
+    space.write("note.md", "changed\n")
+
+    app = create_app()
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        listed = await client.get("/checkpoints")
+        rows = listed.json()["checkpoints"]
+        assert rows and rows[0]["path"] == "note.md" and rows[0]["action"] == "write"
+
+        restored = await client.post(f"/checkpoints/{rows[0]['id']}/restore")
+        assert restored.status_code == 200
+        assert target.read_text(encoding="utf-8") == "original\n"
+
+        missing = await client.post("/checkpoints/nope/restore")
+        assert missing.status_code == 404

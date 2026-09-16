@@ -79,7 +79,8 @@ import type {
   MemorySettingsUpdate,
   WakeStatus,
   WorkspacePolicy,
-  WorkspaceUpdate
+  WorkspaceUpdate,
+  FileCheckpoint
 } from '../shared/runtime'
 import type { CalendarEvent, VoiceActivity } from '../renderer/src/components/voice-cards'
 import type { IslandInteractionMode, IslandPlacement } from '../main/island-window'
@@ -116,6 +117,8 @@ export interface MarviDesktopApi {
   ) => Promise<{ autostart: boolean; running: boolean }>
   setYolo: (yolo: boolean) => Promise<RuntimeStatus>
   getAudit: () => Promise<AuditEvent[]>
+  getFileCheckpoints: () => Promise<FileCheckpoint[]>
+  restoreFileCheckpoint: (id: string) => Promise<{ restored?: string; error?: string }>
   getRoomEvents: () => Promise<RoomEvent[]>
   /** Delete visitor photographs the owner has seen. Resolves to how many went. */
   visitorPhotosSeen: (photos: string[]) => Promise<number>
