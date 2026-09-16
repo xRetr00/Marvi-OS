@@ -11,6 +11,7 @@
  * per-conversation model picker.
  */
 
+import { pastedImages } from '../paste'
 import { useCallback, useRef, useState } from 'react'
 import { ComposerPrimitive, ThreadPrimitive, unstable_useComposerInput } from '@assistant-ui/react'
 
@@ -60,6 +61,12 @@ export function Composer({
         onDrop={(event) => {
           event.preventDefault()
           if (event.dataTransfer.files.length) onFiles?.(event.dataTransfer.files)
+        }}
+        onPaste={(event) => {
+          const images = pastedImages(Array.from(event.clipboardData?.files ?? []))
+          if (!images.length) return
+          event.preventDefault()
+          onFiles?.(images)
         }}
       >
         <div className="chat-compose-field" data-active={active ? 'true' : 'false'}>
