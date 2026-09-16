@@ -135,7 +135,7 @@ be able to switch proactivity off by accident, or leave the budget uncapped.
 | Variable | Default | Meaning |
 |---|---|---|
 | `MARVI_LOCAL_ONLY` | off | every model call must go to a local provider (Ollama, LM Studio, llama.cpp); cloud providers are refused. Model calls only |
-| `MARVI_SUMMON_HOTKEY` | `Alt+Shift+M` | Electron accelerator that starts a voice session like the wake word; `off` disables it |
+| `MARVI_SUMMON_HOTKEY` | `Alt+Shift+M` | the *default* summon shortcut only. Shortcuts are edited in the shortcuts window (title-bar key, or Settings → Preferences) and stored in `%LOCALAPPDATA%\Marvi OS\hotkeys.json`, which wins over this. `off` disables the default |
 | `MARVI_GATEWAY_URL` | `http://127.0.0.1:8765` | also where `marvi mcp serve` sends its calls |
 
 Providers have their own table in `docs/PROVIDERS.md`.

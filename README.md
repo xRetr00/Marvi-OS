@@ -71,7 +71,8 @@ Marvi can notice an event, remember it, surface it later, or act when the moment
 - **Marvi Cortex** — inspectable memory, identity, relationships, reflections, and autonomous decisions.
 - **Connected world** — accounts, tools, skills, plugins, room devices, and editable scheduled jobs working through one assistant.
 - **Personal expression** — choose the theme, typography, window style, Island placement, speech recognition, and voice.
-- **Small conveniences** — press `Alt+Shift+M` to talk without the wake word; ask Marvi to pause the music, change the volume, read or fill your clipboard, or find something said in an old conversation. When one of her file tools changes a file, a copy is kept first so she can put it back.
+- **Keyboard shortcuts** — `Alt+Shift+M` to talk without the wake word, `Alt+Shift+S` to stop her, `Alt+Shift+C` for Chat, `Alt+Shift+W` to show or hide the window, `Alt+Shift+K` for the shortcuts window itself. They work anywhere in Windows and every one of them can be changed: press the keyboard key in the title bar, or Settings → Preferences.
+- **Small conveniences** — ask Marvi to pause the music, set the volume to a number, read or fill your clipboard (a copied screenshot included), or find something said in an old conversation. Paste an image straight into Chat, point at a file or a page with `@notes.md` or `@https://…`, and export a conversation as Markdown. When one of her file tools changes a file, a copy is kept first — the Activity page lists them with a Restore button.
 - **Open to your other tools** — `marvi mcp serve` lets Claude Code, Cursor or Codex ask what Marvi remembers, and `marvi memory export --obsidian` writes Cortex out as an Obsidian vault.
 
 Planned work that is not built yet is listed, with plans, in [`docs/backlog/`](docs/backlog/README.md).

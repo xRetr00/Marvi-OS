@@ -14,7 +14,11 @@ import {
 } from '../shared/hotkeys'
 import { hotkeysPath, load, save, withBinding } from './hotkeys'
 
-const press = (key: string, held: Partial<Record<'alt' | 'ctrl' | 'shift' | 'meta', boolean>> = {}, code?: string) => ({
+const press = (
+  key: string,
+  held: Partial<Record<'alt' | 'ctrl' | 'shift' | 'meta', boolean>> = {},
+  code?: string
+): { key: string; code?: string; altKey: boolean; ctrlKey: boolean; shiftKey: boolean; metaKey: boolean } => ({
   key,
   code,
   altKey: Boolean(held.alt),

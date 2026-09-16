@@ -31,10 +31,16 @@ what was checked beyond them.
 | 7 | Chat search: `GET /chat/search` and `chat_search` tool over every thread | `chat.py`, `app.py` | `test_chat_search.py` | — |
 | 8 | `marvi mcp serve`: Cortex recall and chat search offered to Claude Code, Cursor, Codex over MCP stdio (read-only) | `mcp_serve.py`, `cli.py` | `test_mcp_serve.py` (real MCP session) | real stdio run; `memory_recall` answered by the live Gateway |
 | 9 | `marvi memory export --obsidian DIR`: one note per subject, relations as `[[links]]` | `vault.py`, `cli.py` | `test_vault.py` | — |
-| 10 | Summon hotkey (`Alt+Shift+M`, `MARVI_SUMMON_HOTKEY`) starting voice the way the wake word does | `apps/desktop/src/main/summon.ts`, `index.ts` | `summon.test.ts`, typecheck | not pressed in a running build |
+| 10 | Global hotkeys: five actions, editable in the shortcuts window (title-bar key, or Settings → Preferences), saved to `hotkeys.json` | `apps/desktop/src/main/hotkeys.ts`, `shared/hotkeys.ts`, `components/hotkeys-window.tsx` | `hotkeys.test.ts`, `hotkeys-window.test.tsx` | real Electron: all five registered and fired from real Windows key presses |
 
 Follow-ups each of these left are listed in the tier files, marked
 *extends #n*.
+
+## Then the small tier — 2026-09-16
+
+Eight of the ten items in [small.md](small.md) were built the same day; the
+table there says which, and the two that were not say why. The summon hotkey
+(#10 above) grew into the full shortcut system in the same pass.
 
 ## How an item is written
 

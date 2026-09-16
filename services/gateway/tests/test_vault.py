@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from marvi_gateway import cli, vault
 from marvi_gateway.memory import MemoryStore
 

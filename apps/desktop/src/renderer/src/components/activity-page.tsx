@@ -293,7 +293,11 @@ function FileChanges(): React.JSX.Element | null {
   }
 
   useEffect(() => {
-    void load()
+    // Through a timeout, not straight into the render pass: the checkpoint
+    // list is a read of an external store, and React's compiler is right that
+    // setting state synchronously inside an effect cascades renders.
+    const timer = window.setTimeout(() => void load(), 0)
+    return () => window.clearTimeout(timer)
   }, [])
 
   if (rows.length === 0) return null

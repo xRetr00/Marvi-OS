@@ -1,5 +1,37 @@
 # Implementation Log
 
+## 2026-09-16 — Global shortcuts, and the small backlog tier
+
+- **Shortcuts.** The single summon accelerator became five actions -- talk,
+  stop, Chat, show/hide, and the shortcuts window itself -- registered through
+  one `apply()` in `apps/desktop/src/main/hotkeys.ts` and stored in
+  `hotkeys.json`. `shared/hotkeys.ts` holds the rules both sides need: at least
+  one modifier (a bare key registered globally is unrecoverable from inside
+  Marvi), exactly one key, one canonical spelling so a clash is detectable.
+  A keyboard key in the title bar (and Settings > Preferences) opens a window
+  that lists every shortcut, records a new one on a key press, clears one, and
+  restores the defaults; what Windows refuses is shown per row rather than
+  becoming a key that silently does nothing. `MARVI_SUMMON_HOTKEY` still
+  chooses the summon default; a binding saved in the window wins.
+- **Evidence.** A probe app ran the real module under real Electron: all five
+  registered with no problems, all five fired from real Windows key presses
+  driven by `keybd_event`, an edit saved and read back (`Control+Alt+P`), and a
+  bare key was refused. Clipboard round trip run against the real clipboard
+  (read, write, unicode, envelope, and the owner's text restored). Volume read
+  26, set 42, read back 42, restored.
+- **Small tier.** Eight of the ten items in `docs/backlog/small.md` shipped:
+  paste an image into Chat; `@file` / `@url` mentions resolved into ordinary
+  attachments inside the untrusted envelope; clipboard images read through the
+  vision role; exact volume through Core Audio over `ctypes`; shortcuts in
+  Settings; file changes with Restore on the Activity page; a scheduled
+  Obsidian export as a cron action; and Markdown export of a conversation.
+- **Not done, with reasons in the backlog:** push-to-talk hold (Electron's
+  `globalShortcut` has no key-up; needs a low-level keyboard hook) and reading
+  Windows notifications (needs a WinRT projection *and* package identity).
+  Now-playing titles need the same WinRT projection, so the volume half shipped
+  alone.
+
+
 ## 2026-09-16 — Backlog recorded; ten quick wins shipped
 
 - Compared Marvi OS with Hermes Agent, OpenClaw and OpenHuman and recorded every

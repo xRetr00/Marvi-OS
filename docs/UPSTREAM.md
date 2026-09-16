@@ -16,7 +16,18 @@ No new dependency. See [`docs/backlog/`](backlog/README.md).
   `/rollback` for `checkpoints.py`, and its `pre_tool_call`/`post_tool_call`
   hook names for plugin tool hooks; OpenHuman (GPL-3.0) mirroring memory as an
   Obsidian vault for `vault.py`.
-- The summon hotkey is Electron's `globalShortcut` (MIT, pinned 43.4.1).
+- Global shortcuts are Electron's `globalShortcut` (MIT, pinned 43.4.1); the
+  shortcuts window and the accelerator rules are Marvi's own
+  (`apps/desktop/src/{shared,main}/hotkeys.ts`).
+- Volume reading and setting (`desk.py`) call Core Audio's
+  `IMMDeviceEnumerator` / `IAudioEndpointVolume` directly through `ctypes`
+  vtable slots. `pycaw` (MIT) is the packaged equivalent and was not added:
+  it brings `comtypes` for what is forty lines here. Revisit if more of
+  Core Audio is needed than volume and mute.
+- Now-playing titles and Windows notification listening both need a WinRT
+  projection (`winrt-Windows.Media.Control`, `winrt-Windows.UI.Notifications`)
+  which is not a dependency; the notification listener additionally needs
+  package identity. Both are recorded as blocked in `docs/backlog/small.md`.
 
 ## Agent Client Protocol (outside coders) — 2026-09-11
 

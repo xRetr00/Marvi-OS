@@ -199,8 +199,8 @@ Lucide glyphs, matching the pinned upstream shell. Interactive children opt out
 of the drag region. Close still hides to tray per the always-on contract; quit
 stays on the tray menu.
 
-Three compact product controls sit immediately before Settings: haptics,
-restart, and shutdown. Haptics mute persists on the machine and suppresses all
+Four compact product controls sit immediately before Settings: keyboard
+shortcuts, haptics, restart, and shutdown. Haptics mute persists on the machine and suppresses all
 feedback patterns. Restart and shutdown arm on the first press and require a
 second press within three seconds, preventing a stray click from ending an
 active session. Both cross the narrow preload bridge into Electron main.
@@ -209,6 +209,23 @@ renderer. Restart then schedules an Electron relaunch and enters the normal quit
 path; shutdown enters that quit path directly. The existing synchronous teardown
 stops the Gateway and every supervised child-process tree before either action
 completes.
+
+## Keyboard shortcuts window
+
+The keyboard key in the title bar (and Settings > Preferences > Keyboard
+shortcuts) opens one modal listing every global shortcut: what it does, the
+combination as `kbd` chips, a record button and a clear button, with Restore
+defaults in the footer. Recording is modal to the keyboard -- the combination
+being recorded is captured before the page can act on it -- and Escape cancels
+the recording before it cancels the window.
+
+Electron main stays authoritative. The window shows the bindings main reports
+and the reason any one of them is inactive ("Another app is using this
+combination", "Another Marvi shortcut already uses this"), so a shortcut that
+does nothing always says why. A combination with no modifier, or with two keys,
+is refused with the reason rather than stored. Bindings live in
+`%LOCALAPPDATA%\Marvi OS\hotkeys.json`; the defaults are Alt+Shift+M, S, C, W
+and K.
 
 The shell adds the the predecessor assistant-derived chrome pieces, adapted to the Marvi OS
 contract: a glyph spinner (`unicode-animations`), a decode-text CONNECTING
