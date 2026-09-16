@@ -736,7 +736,7 @@ class Scheduler:
                 if not target:
                     raise ScheduleError(
                         "put the folder to export into in the job's message, "
-                        "for example D:\Notes\Marvi"
+                        r"for example D:\Notes\Marvi"
                     )
                 counts = vault.export(paths.memory_db(), Path(target).expanduser())
                 result = {

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from marvi_gateway import cli, vault
 from marvi_gateway.memory import MemoryStore
 
@@ -47,3 +49,32 @@ def test_the_cli_writes_the_vault(tmp_path, monkeypatch, capsys) -> None:
     assert "wrote 4 notes" in capsys.readouterr().out
     assert cli.main(["memory", "export"]) == 0
     assert "Prefers tea" in capsys.readouterr().out
+
+
+def test_a_scheduled_export_writes_the_vault(tmp_path, monkeypatch) -> None:
+    """S8: the nightly vault is the cron action, not a second implementation."""
+    from marvi_gateway import schedule as schedule_module
+
+    monkeypatch.setenv("MARVI_MEMORY_DB", str(_memory(tmp_path)))
+    store = schedule_module.ScheduleStore(tmp_path / "schedules.db")
+    scheduler = schedule_module.Scheduler(store)
+    target = tmp_path / "vault"
+
+    job = store.add("Nightly notes", "export_memory", "cron", "0 3 * * *", str(target))
+    ran = scheduler.fire(job.id)
+
+    assert "Exported 3 memories" in ran["output"]
+    assert (target / "Marvi Cortex.md").is_file()
+
+
+def test_an_export_with_nowhere_to_go_says_so(tmp_path, monkeypatch) -> None:
+    from marvi_gateway import schedule as schedule_module
+
+    monkeypatch.setenv("MARVI_MEMORY_DB", str(_memory(tmp_path)))
+    store = schedule_module.ScheduleStore(tmp_path / "schedules.db")
+    scheduler = schedule_module.Scheduler(store)
+    job = store.add("No folder", "export_memory", "cron", "0 3 * * *")
+
+    # A failing job is recorded, not raised: one bad job must not stop the rest.
+    ran = scheduler.fire(job.id)
+    assert ran["ok"] is False and "folder" in ran["detail"]
