@@ -443,7 +443,7 @@ class Initiative:
                 # about four silent feeds because the sidecar is down would be
                 # four ways of saying one thing.
                 return {"quiet": 0}
-            ages = quiet_feeds.ages_from(presence.signals(state))
+            ages = quiet_feeds.ages_from(presence.signals(state), state)
         except Exception as exc:
             logger.info("could not check for quiet feeds (%s)", str(exc)[:160])
             return {"quiet": 0}

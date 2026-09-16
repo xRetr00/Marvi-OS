@@ -1986,6 +1986,19 @@ def register_memory_tools(
     )
     registry.register(
         ToolSpec(
+            name="memory_remember_external",
+            description=(
+                "Write one fact learned by something other than Marvi. Stored untrusted, with "
+                "the writer as its source. Internal: reached by the MCP server, never by a model."
+            ),
+            arguments={"subject": str, "body": str, "source": str},
+            sensitive=False,
+            internal=True,
+            handler=memory_remember_external,
+        )
+    )
+    registry.register(
+        ToolSpec(
             name="memory_search",
             description=(
                 "Compatibility alias for memory_recall. Prefer memory_recall in new calls; this name "

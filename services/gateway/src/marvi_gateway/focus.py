@@ -49,6 +49,7 @@ and as a fallback on a machine with no NVIDIA telemetry to read.
 from __future__ import annotations
 
 import os
+import time
 import re
 import threading
 from dataclasses import dataclass
@@ -152,7 +153,35 @@ def windows_busy() -> str:
     """
     if os.environ.get(BUSY_SETTING, "1").strip().lower() in ("0", "false", "no", "off"):
         return ""
-    return BUSY_STATES.get(_notification_state(), "")
+    return _settled_busy(BUSY_STATES.get(_notification_state(), ""))
+
+
+#: How long "busy" lingers after Windows stops reporting it.
+#:
+#: The state drops the instant a fullscreen app loses focus -- alt-tab, a
+#: notification, a click on a second monitor -- and everything held for it was
+#: released into that gap. On 16 September four held items were spoken in the
+#: middle of a fullscreen session, each opening with "While you were presenting
+#: or in a fullscreen app", which is a strange thing to hear while presenting.
+BUSY_SETTLES_AFTER = 180.0
+
+#: The last busy reason seen, and when. Module state: there is one desktop.
+_busy_reason = ""
+_busy_at = 0.0
+
+
+def _settled_busy(reason: str) -> str:
+    """`reason` while Windows says busy, and for a few minutes after it stops."""
+    global _busy_reason, _busy_at
+
+    now = time.monotonic()
+    if reason:
+        _busy_reason, _busy_at = reason, now
+        return reason
+    if _busy_reason and now - _busy_at < BUSY_SETTLES_AFTER:
+        return _busy_reason
+    _busy_reason = ""
+    return ""
 
 
 def gpu_in_use() -> float | None:

@@ -135,12 +135,52 @@ class Watcher:
         self._told.clear()
 
 
-def ages_from(signals: list[Any]) -> dict[str, float | None]:
-    """Seconds since each presence signal last spoke.
+#: Where a feed's own heartbeat lives, for the two whose signal timestamp
+#: measures something else entirely.
+#:
+#: mmWave stamps "last_seen" when it *sees somebody*, and its own docstring
+#: says it misses a person sitting still -- so an evening at the desk read as
+#: "I have not heard from the presence sensor in 33 minutes", eight times on
+#: 16 September, while the device was polling every few seconds and online.
+#: Bluetooth stamps the last advert from the phone, and a sleeping phone stops
+#: advertising, so it went the same way. What answers "has this feed stopped"
+#: is the device's own health, which the room already records.
+HEARTBEATS: dict[str, tuple[str, tuple[str, ...]]] = {
+    "mmwave": ("tuya_he20", ("last_poll", "last_success", "last_seen")),
+    "bluetooth": ("esp32", ("last_seen", "last_poll")),
+}
+
+
+def _age_of(value: Any, now: float) -> float | None:
+    from .presence import _age
+
+    return _age(value, now)
+
+
+def ages_from(signals: list[Any], state: dict[str, Any] | None = None) -> dict[str, float | None]:
+    """Seconds since each feed last spoke.
 
     Reuses `presence.signals`, which has already normalised four differently
-    shaped blobs and -- since the ISO fix -- actually measures their ages. This
-    is the same data the room reads; the only new thing is looking at *how old*
-    rather than at what it says.
+    shaped blobs and -- since the ISO fix -- actually measures their ages. For
+    the two feeds whose timestamp records a sighting rather than a heartbeat,
+    the device's own health is read instead. See `HEARTBEATS`.
     """
-    return {signal.source: signal.age for signal in signals}
+    import time
+
+    ages = {signal.source: signal.age for signal in signals}
+    devices = (state or {}).get("devices") or {}
+    now = time.time()
+    for feed, (device, fields) in HEARTBEATS.items():
+        row = devices.get(device)
+        if not isinstance(row, dict):
+            continue
+        spoke = next(
+            (age for field in fields if (age := _age_of(row.get(field), now)) is not None), None
+        )
+        # An offline device with no timestamp at all is genuinely quiet; one
+        # that is online and has never stamped anything is not evidence.
+        if spoke is not None:
+            ages[feed] = spoke
+        elif row.get("online"):
+            ages[feed] = 0.0
+    return ages

@@ -561,7 +561,14 @@ def spoken(
     # is alarming, "while you were out, ..." is somebody who waited for you.
     if waited := str(event.get("_waited_because") or ""):
         line = spoken({**event, "_waited_because": ""}, name, away=away)
-        return f"While {waited} - {line[0].lower() + line[1:]}" if line else ""
+        if not line:
+            return ""
+        # The name keeps its capital. Lower-casing the first character turned
+        # every one of these into "While you were out - shereef, ...".
+        opening = line if line[:1].isupper() and line.split(",")[0] == name else (
+            line[0].lower() + line[1:]
+        )
+        return f"While {waited} — {opening}"
 
     # Somebody else's words, spoken from a template and never from a model.
     if kind in ("accounts:gmail:gmail", "accounts:email"):

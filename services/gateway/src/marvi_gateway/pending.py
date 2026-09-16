@@ -68,7 +68,7 @@ WAITING_FOR: dict[str, str] = {
     # to say "the card is yours" is the one thing guaranteed to ruin what she
     # was standing aside for.
     "resources": "something else had the machine",
-    "windows-busy": "you were presenting or in a fullscreen app",
+    "windows-busy": "you were in a fullscreen app",
 }
 
 #: After this, it is history rather than news. The journal still has it.
