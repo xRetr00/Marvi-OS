@@ -154,31 +154,26 @@ def _coerce(value: Any, expected: type) -> Any:
 TOOL_HOOKS = ("pre_tool_call", "post_tool_call")
 
 
+class ToolBlockedError(ToolRouterError):
+    """A plugin's `pre_tool_call` hook refused this call."""
+
+
 class ToolRegistry:
     def __init__(self) -> None:
         self._tools: dict[str, ToolSpec] = {}
-        self._hooks: dict[str, list[Callable[..., Any]]] = {}
+        from .hooks import Hooks
+
+        #: This registry's own handlers. See `hooks.py` for what a hook may do:
+        #: `pre_tool_call` may refuse a call, everything else only watches.
+        self.hooks = Hooks()
 
     def add_hook(self, event: str, handler: Callable[..., Any]) -> None:
-        """Observe calls. A hook sees every call and changes none of them.
-
-        # ponytail: observers only; a hook that can veto a call is a policy
-        # decision (ADR, confirmation modes) and waits for a real guardrail need.
-        """
         if event not in TOOL_HOOKS:
             raise ValueError(f"unknown tool hook {event!r}")
-        self._hooks.setdefault(event, []).append(handler)
+        self.hooks.register(event, handler)
 
     def _fire(self, event: str, **payload: Any) -> None:
-        for handler in self._hooks.get(event, ()):
-            try:
-                handler(**payload)
-            except Exception as exc:  # a broken observer must not break the tool
-                from .logs import get_logger
-
-                get_logger("plugins").warning(
-                    "tool hook failed", extra={"marvi_error": f"{event}: {type(exc).__name__}: {exc}"}
-                )
+        self.hooks.fire(event, **payload)
 
     def register(self, spec: ToolSpec) -> None:
         """Add a tool, taking its description from `prompts/tools/` when there is one.
@@ -262,7 +257,12 @@ class ToolRegistry:
         started = time.perf_counter()
         failed = ""
         result: Any = None
-        self._fire("pre_tool_call", tool_name=spec.name, args=dict(arguments), task_id="")
+        refused = self.hooks.veto("pre_tool_call", tool_name=spec.name, args=dict(arguments), task_id="")
+        if refused:
+            # Recorded like any other failure, so the Activity page shows the
+            # refusal rather than a call that never happened.
+            observations.record("tool", event="call", name=spec.name, ms=0.0, failed=f"blocked: {refused}")
+            raise ToolBlockedError(refused)
         try:
             # Quiesce third-party capture/terminal tools during private entry.
             # Control cannot take this lease: it waits for existing leases.
