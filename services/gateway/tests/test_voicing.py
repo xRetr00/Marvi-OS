@@ -129,3 +129,18 @@ def test_every_line_is_speakable(source: str, kind: str) -> None:
     assert line[0].isupper() and line.rstrip().endswith((".", "?"))
     for junk in ("_", "{", "}", "%", ":", "—", "None"):
         assert junk not in line, f"{junk!r} would be read aloud"
+
+
+def test_a_held_line_keeps_the_name_capitalised() -> None:
+    """It used to read: While you were out - shereef, I have not heard..."""
+    from marvi_gateway.voicing import spoken
+
+    event = {
+        "source": "system",
+        "kind": "feed_quiet",
+        "summary": "I have not heard from your phone in 6 hours.",
+        "_waited_because": "you were in a fullscreen app",
+    }
+    line = spoken(event, "Shereef")
+    assert line.startswith("While you were in a fullscreen app —")
+    assert "shereef" not in line and "Shereef" in line

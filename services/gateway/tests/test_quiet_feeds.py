@@ -64,3 +64,52 @@ def test_the_sentence_scales_its_units() -> None:
     assert "minutes" in Quiet(BY_ID["camera"], 20 * 60.0).sentence()
     assert "hours" in Quiet(BY_ID["phone"], 9 * 3600.0).sentence()
     assert "days" in Quiet(BY_ID["phone"], 5 * 86400.0).sentence()
+
+
+# -- 16 September: eight false alarms in a day ----------------------------------
+
+
+def test_a_sensor_that_sees_nobody_is_not_a_sensor_that_stopped() -> None:
+    """mmWave stamps when it sees somebody and misses a person sitting still;
+    Bluetooth stamps the phone's last advert and a sleeping phone stops. Both
+    read as dead feeds through an evening at the desk."""
+    from types import SimpleNamespace
+
+    from marvi_gateway import quiet_feeds
+
+    signals = [
+        SimpleNamespace(source="mmwave", age=3_000.0),
+        SimpleNamespace(source="bluetooth", age=20_000.0),
+        SimpleNamespace(source="camera", age=1.0),
+        SimpleNamespace(source="phone", age=30_000.0),
+    ]
+    state = {
+        "devices": {
+            "tuya_he20": {"online": True, "last_poll": _now_iso()},
+            "esp32": {"online": True, "last_seen": _now_iso()},
+        }
+    }
+    ages = quiet_feeds.ages_from(signals, state)
+    assert ages["mmwave"] < 60 and ages["bluetooth"] < 60
+    assert ages["phone"] == 30_000.0, "the phone's own timestamp is the right one"
+    assert [q.feed.id for q in quiet_feeds.Watcher().look(ages)] == ["phone"]
+
+
+def test_a_sensor_whose_device_really_stopped_is_still_reported() -> None:
+    from datetime import UTC, datetime, timedelta
+    from types import SimpleNamespace
+
+    from marvi_gateway import quiet_feeds
+
+    long_ago = (datetime.now(UTC) - timedelta(hours=4)).isoformat()
+    ages = quiet_feeds.ages_from(
+        [SimpleNamespace(source="mmwave", age=10.0)],
+        {"devices": {"tuya_he20": {"online": False, "last_poll": long_ago}}},
+    )
+    assert ages["mmwave"] > 3 * 3600
+
+
+def _now_iso() -> str:
+    from datetime import UTC, datetime
+
+    return datetime.now(UTC).isoformat()

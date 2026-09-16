@@ -14,6 +14,7 @@ from typing import Any, Protocol, runtime_checkable
 
 import httpx
 
+from . import privacy
 from .logs import get_logger
 from .memory import MemoryStore
 from .untrusted import wrap_external
@@ -428,6 +429,10 @@ class MemoryRuntime:
 
     @property
     def provider_name(self) -> str:
+        if privacy.on():
+            # The local store, whatever is configured: a hosted provider means
+            # the user's memories live on somebody else's disk.
+            return LOCAL
         selected = os.environ.get(PROVIDER_SETTING, LOCAL).strip().lower() or LOCAL
         return selected if selected in PROVIDERS else LOCAL
 

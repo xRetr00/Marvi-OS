@@ -491,3 +491,54 @@ async def test_soul_and_user_both_reach_the_voice_worker(tmp_path, monkeypatch) 
     assert "Shereef, who builds Marvi." in joined, "USER.md never reached the prompt"
     # Labelled, so a block of prose about a person is not read as a note.
     assert "true on every turn" in joined
+
+
+# -- credential pools ---------------------------------------------------------
+
+
+def test_a_second_key_is_used_before_the_provider_is_stood_down(monkeypatch) -> None:
+    """M9: one key hitting its limit is not the provider hitting its limit."""
+    monkeypatch.setenv("OPENAI_API_KEY", "first")
+    monkeypatch.setenv("OPENAI_API_KEY_2", "second")
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.headers.get("authorization", ""))
+        if len(seen) == 1:
+            return httpx.Response(429, json={})
+        return httpx.Response(200, json=openai_payload())
+
+    client = ProviderClient(http=httpx.Client(transport=httpx.MockTransport(handler)))
+
+    with pytest.raises(ProviderCallError, match="rate limited"):
+        client.call(MESSAGES, provider="openai")
+    # Not resting: there is another key to try.
+    assert client.resting("openai") == 0
+    assert client.call(MESSAGES, provider="openai").text == "ok"
+    assert seen == ["Bearer first", "Bearer second"]
+
+
+def test_the_provider_rests_once_every_key_is_spent(monkeypatch) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "only")
+    client = ProviderClient(http=responder(status=429))
+
+    with pytest.raises(ProviderCallError):
+        client.call(MESSAGES, provider="openai")
+
+    assert client.resting("openai") > 0
+
+
+def test_the_pool_is_the_numbered_variables_in_order(monkeypatch) -> None:
+    from marvi_gateway.providers import get
+
+    monkeypatch.setenv("OPENAI_API_KEY", "a")
+    monkeypatch.setenv("OPENAI_API_KEY_3", "c")
+    monkeypatch.setenv("OPENAI_API_KEY_2", "b")
+    assert get("openai").keys() == ["a", "b", "c"]
+    assert get("openai").api_key() == "a"
+    assert get("openai").api_key(2) == "c"
+    # One key is the old behaviour exactly.
+    monkeypatch.delenv("OPENAI_API_KEY_2")
+    monkeypatch.delenv("OPENAI_API_KEY_3")
+    assert get("openai").keys() == ["a"]
+    assert get("openai").api_key(5) == "a"

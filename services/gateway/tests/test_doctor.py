@@ -281,3 +281,20 @@ def test_every_finding_serialises_for_the_page(isolated) -> None:
         for finding in client.get("/doctor").json()["findings"]:
             assert set(finding) >= {"check", "area", "status", "detail", "remedy"}
             assert set(finding["remedy"]) >= {"kind", "action", "how", "runnable"}
+
+
+def test_models_for_an_engine_nobody_selected_are_not_a_complaint(monkeypatch) -> None:
+    """Nemotron and VoXtream2 are installed and loaded; Parakeet and Kokoro are
+    not, on purpose. The self-check warned about 5 GB of them every 20 minutes."""
+    from marvi_gateway import doctor
+    from marvi_gateway.setup import catalog
+
+    monkeypatch.setenv("MARVI_STT_ENGINE", "nemotron-3.5")
+    monkeypatch.setenv("MARVI_TTS_ENGINE", "voxtream2")
+    unselected = catalog.unselected_engine_components()
+    assert {"voice-stt", "voice-tts"} <= unselected
+
+    by_name = {f.check: f for f in doctor.check_components()}
+    for name in ("voice-stt", "voice-tts"):
+        if name in by_name:
+            assert by_name[name].status == "ok", f"{name} still complains"

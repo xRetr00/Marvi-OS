@@ -55,3 +55,14 @@ def test_a_broken_watcher_does_not_break_the_tool() -> None:
 def test_unknown_events_are_refused_by_the_router() -> None:
     with pytest.raises(ValueError):
         ToolRegistry().add_hook("on_everything", lambda **_: None)
+
+
+def test_every_call_records_what_it_cost_the_context() -> None:
+    """M6 starts with measuring: which tools produce the big results."""
+    from marvi_gateway.tools import _result_size
+
+    assert _result_size(None) == 0
+    assert _result_size("twelve chars") == 12
+    assert _result_size({"files": ["a", "b"]}) == len('{"files": ["a", "b"]}')
+    # Anything that will not serialise is still measured, never an exception.
+    assert _result_size(object()) > 0

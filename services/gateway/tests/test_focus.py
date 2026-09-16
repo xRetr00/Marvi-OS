@@ -151,3 +151,21 @@ def test_she_says_something_a_person_would_say() -> None:
 def test_a_name_the_list_knows_is_said_properly() -> None:
     assert pretty("fc26") == "FC 26"
     assert pretty("Discord") == "Discord"
+
+
+def test_busy_lingers_so_an_alt_tab_does_not_release_everything(monkeypatch) -> None:
+    """Windows drops the flag the moment a fullscreen app loses focus, and the
+    waiting room emptied into that gap: four held items spoken mid-session,
+    each opening "While you were presenting or in a fullscreen app"."""
+    from marvi_gateway import focus
+
+    clock = {"now": 1_000.0}
+    monkeypatch.setattr(focus.time, "monotonic", lambda: clock["now"])
+    monkeypatch.setattr(focus, "_busy_reason", "", raising=False)
+    monkeypatch.setattr(focus, "_busy_at", 0.0, raising=False)
+
+    assert focus._settled_busy("a fullscreen app is running") == "a fullscreen app is running"
+    clock["now"] += 5
+    assert focus._settled_busy("") == "a fullscreen app is running", "released on an alt-tab"
+    clock["now"] += focus.BUSY_SETTLES_AFTER
+    assert focus._settled_busy("") == ""

@@ -78,3 +78,36 @@ def test_exporting_a_thread_that_is_not_there_is_an_error(tmp_path) -> None:
 
     with _pytest.raises(KeyError):
         _store(tmp_path).export_markdown("no-such-thread")
+
+
+def test_the_index_answers_and_is_backfilled_for_an_old_database(tmp_path) -> None:
+    """M8: FTS5 over messages, filled once for a history that predates it."""
+    import sqlite3
+
+    store = _store(tmp_path)
+    # The index is real, and it is what the search reads.
+    assert store._fts_matches("alexandria", 10) is not None
+    assert len(store._fts_matches("alexandria", 10)) == 2
+    # A word that only a stemmer or a LIKE would find is not invented.
+    assert store._fts_matches("zzz", 10) == []
+
+    # An older database: drop the index and its triggers, then reopen.
+    store._db.executescript(
+        "DROP TRIGGER messages_fts_ai; DROP TRIGGER messages_fts_ad;"
+        " DROP TRIGGER messages_fts_au; DROP TABLE messages_fts; DROP TABLE meta;"
+    )
+    store._db.commit()
+    store._db.close()
+
+    reopened = ChatStore(tmp_path / "chat.db")
+    assert len(reopened.search("alexandria")) == 2  # backfilled on open
+    assert sqlite3.complete_statement("SELECT 1;")  # sanity: sqlite3 is itself
+
+
+def test_a_query_with_quotes_in_it_is_still_just_words(tmp_path) -> None:
+    """FTS5 reads `"` as syntax; the search quotes the whole phrase so a person
+    typing one gets a search rather than an error."""
+    store = _store(tmp_path)
+    assert store._fts_matches('hotel"', 10) is not None  # parsed, not refused
+    assert len(store.search("hotel")) == 2
+    assert store.search('"') == []
