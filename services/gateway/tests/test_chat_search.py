@@ -56,3 +56,25 @@ async def test_the_endpoint_answers(tmp_path, monkeypatch) -> None:
         response = await client.get("/chat/search", params={"q": "orange"})
     assert response.status_code == 200
     assert response.json()["results"][0]["title"] == "Groceries"
+
+
+def test_a_thread_exports_as_markdown(tmp_path) -> None:
+    """S9: the conversation as it was read, with its sources kept."""
+    store = _store(tmp_path)
+    trip = next(t["id"] for t in store.threads(archived=True) if t["title"] == "Trip planning")
+
+    exported = store.export_markdown(trip)
+
+    assert exported["title"] == "Trip planning"
+    body = exported["markdown"]
+    assert body.startswith("# Trip planning")
+    assert "## You ·" in body and "## Marvi ·" in body
+    assert "Book the hotel in Alexandria" in body
+    assert body.endswith("\n")
+
+
+def test_exporting_a_thread_that_is_not_there_is_an_error(tmp_path) -> None:
+    import pytest as _pytest
+
+    with _pytest.raises(KeyError):
+        _store(tmp_path).export_markdown("no-such-thread")
