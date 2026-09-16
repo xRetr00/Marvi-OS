@@ -84,6 +84,7 @@ import type {
 } from '../shared/runtime'
 import type { IslandInteractionMode, IslandPlacement } from '../main/island-window'
 import type { PetPreferences } from '../main/pet-window'
+import type { HotkeyAction, HotkeyReport } from '../shared/hotkeys'
 
 const marvi = {
   getLocation: (): Promise<LocationState | null> => ipcRenderer.invoke('marvi:get-location'),
@@ -142,6 +143,18 @@ const marvi = {
     ipcRenderer.invoke('marvi:get-island-placement'),
   setIslandPlacement: (placement: IslandPlacement): Promise<IslandPlacement> =>
     ipcRenderer.invoke('marvi:set-island-placement', placement),
+  getHotkeys: (): Promise<HotkeyReport> => ipcRenderer.invoke('marvi:get-hotkeys'),
+  setHotkey: (action: HotkeyAction, accelerator: string): Promise<HotkeyReport> =>
+    ipcRenderer.invoke('marvi:set-hotkey', action, accelerator),
+  resetHotkeys: (): Promise<HotkeyReport> => ipcRenderer.invoke('marvi:reset-hotkeys'),
+  /** A global hotkey fired. 'stop' and 'hotkeys' are the renderer's to act on;
+   *  the rest main handles itself. */
+  onHotkey: (listener: (action: HotkeyAction) => void): (() => void) => {
+    const wrapped = (_event: Electron.IpcRendererEvent, action: HotkeyAction): void =>
+      listener(action)
+    ipcRenderer.on('marvi:hotkey', wrapped)
+    return () => ipcRenderer.removeListener('marvi:hotkey', wrapped)
+  },
   getPetPreferences: (): Promise<PetPreferences> => ipcRenderer.invoke('marvi:get-pet-preferences'),
   setPetPreferences: (preferences: PetPreferences): Promise<PetPreferences> =>
     ipcRenderer.invoke('marvi:set-pet-preferences', preferences),

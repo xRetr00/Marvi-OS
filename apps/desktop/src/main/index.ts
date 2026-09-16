@@ -9,7 +9,6 @@ import {
   BrowserWindow,
   clipboard,
   dialog,
-  globalShortcut,
   ipcMain,
   Menu,
   nativeImage,
@@ -63,7 +62,13 @@ import {
 } from './pet-window'
 import { NativePetHost, petActionPage, petTaskCount, resolvePetHostPaths } from './pet-host'
 import { maintenancePowerShellArgs } from './maintenance-terminal'
-import { summonAccelerator } from './summon'
+import {
+  HOTKEY_DEFINITIONS,
+  type HotkeyAction,
+  type HotkeyBindings,
+  type HotkeyState
+} from '../shared/hotkeys'
+import * as hotkeys from './hotkeys'
 import { restartApplication, shutdownApplication } from './lifecycle-actions'
 import { requiresVoiceWorkerRestart, restartWhenSettled } from './voice-settings'
 import {
@@ -1300,7 +1305,7 @@ function showMainWindow(): void {
   mainWindow.focus()
 }
 
-function navigateMainWindow(page: 'Voice' | 'Activity'): void {
+function navigateMainWindow(page: 'Voice' | 'Activity' | 'Chat'): void {
   showMainWindow()
   const window = mainWindow
   if (!window || window.isDestroyed()) return
@@ -1308,6 +1313,62 @@ function navigateMainWindow(page: 'Voice' | 'Activity'): void {
   if (window.webContents.isLoadingMainFrame()) window.webContents.once('did-finish-load', send)
   else send()
 }
+
+/** What each hotkey is bound to right now, and what Windows said about it. */
+let hotkeyBindings: HotkeyBindings = hotkeysModuleDefaults()
+let hotkeyProblems: HotkeyState['problems'] = {}
+
+function hotkeysModuleDefaults(): HotkeyBindings {
+  const bindings = {} as HotkeyBindings
+  for (const definition of HOTKEY_DEFINITIONS) bindings[definition.id] = definition.fallback
+  return bindings
+}
+
+/** Tell both surfaces a hotkey fired. The Island is told as well as the
+ *  window because Stop has to work while only the Island is on screen. */
+function announceHotkey(action: HotkeyAction): void {
+  for (const window of [mainWindow, islandWindow]) {
+    if (window && !window.isDestroyed()) window.webContents.send('marvi:hotkey', action)
+  }
+}
+
+/**
+ * Show the window, or hide it when it is already the focused window.
+ *
+ * Toggling on *focus* rather than visibility: a window sitting behind three
+ * others is visible by Electron's reckoning, and a person pressing the key
+ * then means "bring it here", not "hide it".
+ */
+function toggleMainWindow(): void {
+  if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible() && mainWindow.isFocused()) {
+    mainWindow.hide()
+    return
+  }
+  showMainWindow()
+}
+
+function hotkeyHandlers(): Partial<Record<HotkeyAction, () => void>> {
+  return {
+    summon: () => requestWakeJoin(),
+    stop: () => announceHotkey('stop'),
+    chat: () => navigateMainWindow('Chat'),
+    window: () => toggleMainWindow(),
+    hotkeys: () => {
+      showMainWindow()
+      announceHotkey('hotkeys')
+    }
+  }
+}
+
+function applyHotkeys(): HotkeyState {
+  const state = hotkeys.apply(hotkeyBindings, hotkeyHandlers())
+  hotkeyProblems = state.problems
+  for (const [action, problem] of Object.entries(state.problems)) {
+    desktop.warn(`Hotkey ${action} (${hotkeyBindings[action as HotkeyAction]}) is not active: ${problem}`)
+  }
+  return state
+}
+
 
 function publishRuntime(next: RuntimeStatus): RuntimeStatus {
   runtimeStatus = next
@@ -1586,10 +1647,8 @@ function startApp(): void {
     )
 
     void startVoiceStack()
-    const summon = summonAccelerator()
-    if (summon && !globalShortcut.register(summon, requestWakeJoin)) {
-      desktop.warn(`Summon hotkey ${summon} is taken by another app; set MARVI_SUMMON_HOTKEY`)
-    }
+    hotkeyBindings = hotkeys.load(stateDir())
+    applyHotkeys()
     // The updater must stop the detached listener before replacing the build
     // directory. Restore it from the newly packaged binary when Marvi comes
     // back, and do the same after any unexpected whole-process exit. The Run
@@ -1715,6 +1774,35 @@ function startApp(): void {
       }
       return islandPlacement
     })
+    ipcMain.handle('marvi:get-hotkeys', () => ({
+      bindings: hotkeyBindings,
+      problems: hotkeyProblems
+    }))
+    ipcMain.handle('marvi:set-hotkey', (event, action, accelerator) => {
+      if (!mainWindow || event.sender !== mainWindow.webContents) {
+        return { bindings: hotkeyBindings, problems: hotkeyProblems, error: 'Refused.' }
+      }
+      const attempt = hotkeys.withBinding(
+        hotkeyBindings,
+        action as HotkeyAction,
+        typeof accelerator === 'string' ? accelerator : ''
+      )
+      if (attempt.error) {
+        return { bindings: hotkeyBindings, problems: hotkeyProblems, error: attempt.error }
+      }
+      hotkeyBindings = attempt.bindings
+      hotkeys.save(stateDir(), hotkeyBindings)
+      return { ...applyHotkeys(), error: '' }
+    })
+    ipcMain.handle('marvi:reset-hotkeys', (event) => {
+      if (!mainWindow || event.sender !== mainWindow.webContents) {
+        return { bindings: hotkeyBindings, problems: hotkeyProblems, error: 'Refused.' }
+      }
+      hotkeyBindings = hotkeysModuleDefaults()
+      hotkeys.save(stateDir(), hotkeyBindings)
+      return { ...applyHotkeys(), error: '' }
+    })
+
     ipcMain.handle('marvi:get-pet-preferences', () => petPreferences)
     ipcMain.handle('marvi:set-pet-preferences', (event, value) => {
       if (!mainWindow || event.sender !== mainWindow.webContents) return petPreferences
@@ -3999,7 +4087,7 @@ app.on('before-quit', (event) => {
   gatewayPoll = null
   if (wakeWatchdog) clearInterval(wakeWatchdog)
   wakeWatchdog = null
-  globalShortcut.unregisterAll()
+  hotkeys.release()
   if (petCursorPoll) clearInterval(petCursorPoll)
   petCursorPoll = null
   if (petRestartTimer) clearTimeout(petRestartTimer)

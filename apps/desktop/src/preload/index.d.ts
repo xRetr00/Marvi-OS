@@ -84,6 +84,7 @@ import type {
 import type { CalendarEvent, VoiceActivity } from '../renderer/src/components/voice-cards'
 import type { IslandInteractionMode, IslandPlacement } from '../main/island-window'
 import type { PetPreferences } from '../main/pet-window'
+import type { HotkeyAction, HotkeyReport } from '../shared/hotkeys'
 
 export interface MarviDesktopApi {
   getVersion: () => Promise<string>
@@ -98,6 +99,10 @@ export interface MarviDesktopApi {
   getDisplays: () => Promise<Array<{ id: number; label: string; primary: boolean }>>
   getIslandPlacement: () => Promise<IslandPlacement>
   setIslandPlacement: (placement: IslandPlacement) => Promise<IslandPlacement>
+  getHotkeys: () => Promise<HotkeyReport>
+  setHotkey: (action: HotkeyAction, accelerator: string) => Promise<HotkeyReport>
+  resetHotkeys: () => Promise<HotkeyReport>
+  onHotkey: (listener: (action: HotkeyAction) => void) => () => void
   getPetPreferences: () => Promise<PetPreferences>
   setPetPreferences: (preferences: PetPreferences) => Promise<PetPreferences>
   onPetLookDirection: (listener: (direction: number | null) => void) => () => void

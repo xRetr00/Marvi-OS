@@ -85,6 +85,7 @@ import { VoiceOrb } from './orb'
 import { ElectricGazeBackground } from './components/ElectricGazeBackground'
 import { HapticsProvider } from './components/HapticsProvider'
 import { TitleBar } from './components/TitleBar'
+import { HotkeysWindow } from './components/hotkeys-window'
 import {
   ShellContextMenu,
   type ShellMenuAction,
@@ -375,6 +376,7 @@ function MainSurface(): React.JSX.Element {
   // It is a pane beside the conversation now, the way it is when you watch
   // somebody drive a browser next to a chat.
   const [browsing, setBrowsing] = useState(false)
+  const [hotkeysOpen, setHotkeysOpen] = useState(false)
   useEffect(() => window.marvi.onBrowserReveal?.(() => setBrowsing(true)), [])
   const [collapsed, setCollapsed] = useState(false)
   const [settings, setSettings] = useState<SettingsPage | null>(null)
@@ -399,6 +401,17 @@ function MainSurface(): React.JSX.Element {
       window.marvi?.onNavigate((next) => {
         setSettings(null)
         setPage(next)
+      }),
+    []
+  )
+
+  // The two hotkeys main cannot carry out by itself: stopping a live session
+  // lives in the voice store, and the shortcuts window is a renderer surface.
+  useEffect(
+    () =>
+      window.marvi?.onHotkey((action) => {
+        if (action === 'stop') void stopVoice()
+        if (action === 'hotkeys') setHotkeysOpen(true)
       }),
     []
   )
@@ -696,6 +709,7 @@ function MainSurface(): React.JSX.Element {
       <div className="app-shell">
         <TitleBar
           browserOpen={browsing}
+          onHotkeys={() => setHotkeysOpen(true)}
           hapticsMuted={hapticsMuted}
           onRestart={() => void window.marvi?.restartAll()}
           onSettings={() => setSettings('Preferences')}
@@ -923,6 +937,8 @@ function MainSurface(): React.JSX.Element {
             version={version}
           />
         ) : null}
+
+        {hotkeysOpen ? <HotkeysWindow onClose={() => setHotkeysOpen(false)} /> : null}
 
         <ConnectingOverlay />
         <BootFailureOverlay />

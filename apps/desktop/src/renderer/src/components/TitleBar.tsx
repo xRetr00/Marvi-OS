@@ -11,6 +11,7 @@ import { haptic } from '../lib/haptics'
 import {
   Gauge,
   Globe,
+  Keyboard,
   PanelLeftClose,
   PanelLeftOpen,
   Power,
@@ -41,11 +42,14 @@ interface TitleBarProps {
    *  conversation to sit beside -- see `App`. */
   onToggleBrowser?: () => void
   browserOpen?: boolean
+  /** Opens the keyboard shortcuts window. */
+  onHotkeys: () => void
 }
 
 export function TitleBar({
   browserOpen = false,
   hapticsMuted,
+  onHotkeys,
   onRestart,
   onSettings,
   onShutdown,
@@ -103,6 +107,19 @@ export function TitleBar({
           </UiTooltip>
         ) : null}
         <LowResourceButton />
+        <UiTooltip label="Keyboard shortcuts" side="bottom">
+          <button
+            aria-label="Keyboard shortcuts"
+            className="titlebar-control hotkeys"
+            onClick={() => {
+              haptic('tap')
+              onHotkeys()
+            }}
+            type="button"
+          >
+            <Keyboard aria-hidden="true" />
+          </button>
+        </UiTooltip>
         <UiTooltip label={hapticsMuted ? 'Unmute haptics' : 'Mute haptics'} side="bottom">
           <button
             aria-label={hapticsMuted ? 'Unmute haptics' : 'Mute haptics'}

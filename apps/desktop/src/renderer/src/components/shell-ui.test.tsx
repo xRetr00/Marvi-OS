@@ -17,6 +17,7 @@ afterEach(() => {
 describe('TitleBar', () => {
   const lifecycleProps = {
     hapticsMuted: false,
+    onHotkeys: () => {},
     onRestart: () => {},
     onShutdown: () => {},
     onToggleHaptics: () => {}
@@ -38,8 +39,10 @@ describe('TitleBar', () => {
     expect(html).not.toContain('aria-label="Minimize"')
     expect(html).not.toContain('aria-label="Maximize"')
     expect(html).not.toContain('aria-label="Close"')
-    // Five: haptics, restart, shutdown, settings, and the low-resource gauge.
-    expect(html.match(/<svg/g)).toHaveLength(5)
+    // Six: haptics, restart, shutdown, settings, the low-resource gauge and
+    // the keyboard-shortcuts key.
+    expect(html.match(/<svg/g)).toHaveLength(6)
+    expect(html).toContain('aria-label="Keyboard shortcuts"')
     expect(html).toContain('aria-label="Low-resource mode"')
     expect(html).toContain('aria-label="Mute haptics"')
     expect(html).toContain('aria-label="Restart Marvi and all services"')

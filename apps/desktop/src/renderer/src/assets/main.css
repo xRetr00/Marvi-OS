@@ -14371,3 +14371,171 @@ html[data-appearance='claude-code-dark'] .control-row {
 .chat-shell {
   display: contents;
 }
+
+/* Keyboard shortcuts window ------------------------------------------------ */
+
+.hotkeys-modal {
+  width: min(560px, 100%);
+}
+
+.connector-modal-head h3 svg {
+  vertical-align: -3px;
+  margin-right: 6px;
+}
+
+.hotkeys-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hotkeys-row {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--ui-stroke-secondary);
+}
+
+.hotkeys-row:last-child {
+  border-bottom: 0;
+}
+
+.hotkeys-what {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.hotkeys-label {
+  font-size: 12px;
+  color: var(--ui-text-primary);
+}
+
+.hotkeys-description,
+.hotkeys-note {
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--ui-text-secondary);
+}
+
+.hotkeys-problem,
+.hotkeys-error {
+  font-size: 11px;
+  color: var(--ui-status-warn, #d08a3a);
+}
+
+.hotkeys-error {
+  margin: 10px 0 0;
+}
+
+.hotkeys-controls {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.hotkeys-record {
+  min-width: 148px;
+  padding: 6px 10px;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ui-text-primary);
+  cursor: pointer;
+}
+
+.hotkeys-record:hover,
+.hotkeys-record.is-listening {
+  border-color: var(--ui-text-primary);
+}
+
+.hotkeys-record.is-listening {
+  /* Recording is the one moment this window is modal to the keyboard; say so
+     rather than leaving the field looking merely focused. */
+  animation: hotkeys-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes hotkeys-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hotkeys-record.is-listening {
+    animation: none;
+  }
+}
+
+.hotkeys-listening {
+  font-size: 11px;
+  color: var(--ui-text-secondary);
+}
+
+.hotkeys-combo {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+}
+
+.hotkeys-combo kbd {
+  padding: 2px 6px;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 4px;
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--ui-text-primary);
+}
+
+.hotkeys-off {
+  font-size: 11px;
+  color: var(--ui-text-secondary);
+}
+
+.hotkeys-clear {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ui-text-secondary);
+  cursor: pointer;
+  place-items: center;
+}
+
+.hotkeys-clear:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.hotkeys-foot {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16px;
+}
+
+.hotkeys-reset {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 10px;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 6px;
+  background: transparent;
+  font-size: 11px;
+  color: var(--ui-text-primary);
+  cursor: pointer;
+}
