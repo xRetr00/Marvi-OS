@@ -101,6 +101,15 @@ export function Sessions({
                 <AbstractIcon name="archive" size={13} />
               </button>
             </UiTooltip>
+            <UiTooltip label="Export as Markdown">
+              <button
+                aria-label="Export thread as Markdown"
+                type="button"
+                onClick={() => void window.marvi?.exportChatThread(session.id)}
+              >
+                <AbstractIcon name="download" size={13} />
+              </button>
+            </UiTooltip>
             <UiTooltip label="Delete thread">
               <button aria-label="Delete thread" type="button" onClick={() => onDelete(session.id)}>
                 <AbstractIcon name="close" size={13} />
