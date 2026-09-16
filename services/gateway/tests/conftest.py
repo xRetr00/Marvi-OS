@@ -85,9 +85,14 @@ def isolate_marvi_home(tmp_path_factory, monkeypatch):
     # A developer's real bot token would start polling Telegram from every test
     # that builds the app.
     monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
-    # Both change what every model call and every proactive line may do, and
-    # the second reads this machine's own fullscreen state.
+    # All three change what every model call and every proactive line may do,
+    # and the last reads this machine's own fullscreen state.
+    #
+    # `MARVI_PRIVACY_MODE` is set into the environment by `set_privacy`, the
+    # same way YOLO is -- so a test that turns it on leaks a Marvi that refuses
+    # the network into every test after it. Forty-eight of them, once.
     monkeypatch.delenv("MARVI_LOCAL_ONLY", raising=False)
+    monkeypatch.setenv("MARVI_PRIVACY_MODE", "0")
     monkeypatch.setenv("MARVI_RESPECT_WINDOWS_BUSY", "0")
 
     yield home

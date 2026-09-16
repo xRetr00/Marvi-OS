@@ -2166,7 +2166,10 @@ def create_app(
 
     @app.put("/runtime/mode", response_model=RuntimeStatus)
     async def set_mode(update: ModeUpdate) -> RuntimeStatus:
-        runtime_store.set_yolo(update.yolo)
+        if update.yolo is not None:
+            runtime_store.set_yolo(update.yolo)
+        if update.privacy is not None:
+            runtime_store.set_privacy(update.privacy)
         return current_status()
 
     async def run_tool_off_the_loop(

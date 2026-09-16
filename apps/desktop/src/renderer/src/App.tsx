@@ -37,6 +37,7 @@ import {
   Server,
   Settings,
   ShieldAlert,
+  ShieldCheck,
   ShieldOff,
   Sparkles,
   Stethoscope,
@@ -683,6 +684,21 @@ function MainSurface(): React.JSX.Element {
       <div className="statusbar-side statusbar-side-right">
         {page === 'Chat' ? <ContextStatus {...chatContextStatus} /> : null}
         <AgentsStatusItem />
+        {/* Only when it is on. A Marvi that cannot search the web looks broken
+            unless the reason is on screen next to the other modes. */}
+        {voice.privacy ? (
+          <UiTooltip label="Privacy mode — nothing leaves this machine" side="top">
+            <button
+              aria-label="Privacy mode is on"
+              className="status-item status-mode"
+              onClick={() => setSettings('Preferences')}
+              type="button"
+            >
+              <ShieldCheck aria-hidden="true" className="status-mode-icon is-confirm" />
+              <span>PRIVATE</span>
+            </button>
+          </UiTooltip>
+        ) : null}
         <UiTooltip
           label={`${voice.yolo ? 'YOLO' : 'Confirm'} mode — open confirmation settings`}
           side="top"
@@ -6506,6 +6522,9 @@ function PreferencesPanel({
   const setYolo = (enabled: boolean): void => {
     void window.marvi?.setYolo(enabled).then(applyRuntimeState)
   }
+  const setPrivacy = (enabled: boolean): void => {
+    void window.marvi?.setPrivacy(enabled).then(applyRuntimeState)
+  }
 
   return (
     <ControlPage
@@ -6551,6 +6570,24 @@ function PreferencesPanel({
           }
           description="Confirm asks before actions when the model decides approval is needed. YOLO bypasses every prompt."
           title="Action approval"
+        />
+      </ControlSection>
+
+      <ControlSection icon={ShieldCheck} title="Privacy mode">
+        <ControlRow
+          action={
+            <button
+              aria-checked={runtime.assistant.privacy}
+              className={runtime.assistant.privacy ? 'mode-switch active' : 'mode-switch'}
+              onClick={() => setPrivacy(!runtime.assistant.privacy)}
+              role="switch"
+              type="button"
+            >
+              {runtime.assistant.privacy ? 'On · nothing leaves' : 'Off · normal'}
+            </button>
+          }
+          description="Switches off web search, connected accounts, Telegram, hosted memory and update checks, and requires a local model for every call. Your own MCP servers are not affected."
+          title="Keep everything on this machine"
         />
       </ControlSection>
 

@@ -50,7 +50,13 @@ LOCAL_ONLY_SETTING = "MARVI_LOCAL_ONLY"
 
 
 def local_only() -> bool:
-    return os.environ.get(LOCAL_ONLY_SETTING, "").strip().lower() in ("1", "true", "yes", "on")
+    from ..privacy import on as privacy_on
+
+    # Privacy mode is the bigger switch and implies this one; see `privacy.py`.
+    return (
+        os.environ.get(LOCAL_ONLY_SETTING, "").strip().lower() in ("1", "true", "yes", "on")
+        or privacy_on()
+    )
 
 
 def _merge_tool_calls(pending: dict[int, dict[str, Any]], fragments: list[Any]) -> None:
@@ -208,6 +214,8 @@ class ProviderClient:
     #: The last standing announced per provider, so a warning is written when
     #: something changes rather than every time it is asked about.
     _announced: dict[str, str] = field(default_factory=dict)
+    #: Which key of a provider's pool is in use. See `next_key`.
+    _key_index: dict[str, int] = field(default_factory=dict)
 
     # -- connections ---------------------------------------------------------
 
@@ -273,6 +281,30 @@ class ProviderClient:
             for name, entry in list(self._cooldowns.items())
         ]
         return sorted((row for row in found if row[1] > 0), key=lambda row: row[1])
+
+    def next_key(self, profile: ProviderProfile, reason: str) -> bool:
+        """Move to this provider's next key. False when there is not one.
+
+        A rate limit belongs to the key that hit it, not to the provider: with
+        a second key configured, the right answer is to use it rather than to
+        go quiet for five minutes. Only when every key in the pool has been
+        tried does `stand_down` apply to the provider itself.
+        """
+        pool = profile.keys()
+        if len(pool) < 2:
+            return False
+        used = self._key_index.get(profile.name, 0)
+        if used + 1 >= len(pool):
+            return False
+        self._key_index[profile.name] = used + 1
+        logger.warning(
+            "%s key %d of %d is %s; trying the next one",
+            profile.name, used + 1, len(pool), reason,
+        )
+        return True
+
+    def key_index(self, name: str) -> int:
+        return self._key_index.get(name, 0)
 
     def stand_down(self, name: str, seconds: float, reason: str) -> None:
         seconds = max(1.0, min(float(seconds), MAX_COOLDOWN_SECONDS))
@@ -527,14 +559,19 @@ class ProviderClient:
             raise ProviderCallError(f"{profile.name} request build failed: {exc}") from exc
         client = self._client()
         try:
-            response = client.post(profile.endpoint(), json=body, headers=profile.headers())
+            response = client.post(profile.endpoint(), json=body, headers=profile.headers(self.key_index(profile.name)))
             if response.status_code == 429:
                 wait = self._retry_after(response)
-                self.stand_down(profile.name, wait, "rate limited or window exhausted")
+                # The limit belongs to the key, not the provider: with another
+                # key configured, the provider is fine and this one is spent.
+                if not self.next_key(profile, "rate limited"):
+                    self.stand_down(profile.name, wait, "rate limited or window exhausted")
                 raise ProviderCallError(f"{profile.name} is rate limited")
             if response.status_code in (401, 403):
-                # A dead credential will not fix itself on retry.
-                self.stand_down(profile.name, MAX_COOLDOWN_SECONDS, "authentication rejected")
+                # A dead credential will not fix itself on retry -- but the
+                # next key in the pool is a different credential.
+                if not self.next_key(profile, "rejected"):
+                    self.stand_down(profile.name, MAX_COOLDOWN_SECONDS, "authentication rejected")
                 raise ProviderCallError(f"{profile.name} rejected the credential")
             if 400 <= response.status_code < 500 and response.status_code != 408:
                 if self._reasoning_is_mandatory(response) and "reasoning" in body:
@@ -558,7 +595,7 @@ class ProviderClient:
                     )
                     body.pop("reasoning", None)
                     response = client.post(
-                        profile.endpoint(), json=body, headers=profile.headers()
+                        profile.endpoint(), json=body, headers=profile.headers(self.key_index(profile.name))
                     )
                 if 400 <= response.status_code < 500 and response.status_code != 408:
                     raise self._reject(profile, response, body=response.text)
@@ -713,11 +750,12 @@ class ProviderClient:
         pending_calls: dict[int, dict[str, Any]] = {}
         try:
             with client.stream(
-                "POST", profile.endpoint(), json=body, headers=profile.headers()
+                "POST", profile.endpoint(), json=body, headers=profile.headers(self.key_index(profile.name))
             ) as response:
                 if response.status_code == 429:
                     wait = self._retry_after(response)
-                    self.stand_down(profile.name, wait, "rate limited or window exhausted")
+                    if not self.next_key(profile, "rate limited"):
+                        self.stand_down(profile.name, wait, "rate limited or window exhausted")
                     raise ProviderCallError(f"{profile.name} is rate limited")
                 if response.status_code in (401, 403):
                     self.stand_down(profile.name, MAX_COOLDOWN_SECONDS, "authentication rejected")

@@ -189,6 +189,32 @@ def check_provider_settings() -> Finding:
     return Finding("provider settings", "configuration", "ok", str(path))
 
 
+def check_privacy_mode() -> Finding:
+    """Say when privacy mode is the reason something is not working.
+
+    Doctor exists for "why is Marvi broken", and a switched-off web search is
+    the most convincing impersonation of a broken web search there is. It is
+    reported as `ok` rather than `warn`: the user asked for this.
+    """
+    from . import privacy
+
+    if not privacy.on():
+        return Finding("privacy mode", "configuration", "ok", "off; the network is available")
+    off = "web search, connected accounts, Telegram, hosted memory and update checks"
+    return Finding(
+        "privacy mode",
+        "configuration",
+        "ok",
+        f"on: {off} are switched off, and every model call must be local. "
+        "MCP servers are your own installed processes and are not gated.",
+        Remedy(
+            kind="manual",
+            action="Turn privacy mode off",
+            how="Settings > Preferences > Privacy mode, when you want these back.",
+        ),
+    )
+
+
 def check_identity() -> Finding:
     files = IdentityFiles()
     identity = files.read()
@@ -522,9 +548,18 @@ def check_components() -> list[Finding]:
 
     root = repo_root()
     findings: list[Finding] = []
+    # Parakeet and Kokoro on an install that speaks through Nemotron and
+    # VoXtream2: 5 GB of models nothing loads. The self-check warned about all
+    # three every twenty minutes, in a log read to find real faults.
+    unselected = catalog.unselected_engine_components()
     for component in catalog.load(root):
         if not component.files:
             # Described but not yet fetchable; nothing to verify.
+            continue
+        if component.name in unselected:
+            findings.append(
+                Finding(component.name, "components", "ok", "another speech engine is selected")
+            )
             continue
         state = component.status()
         if state["installed"]:
@@ -687,6 +722,7 @@ def run_checks() -> list[Finding]:
         check_uv,
         check_git,
         check_provider_settings,
+        check_privacy_mode,
         check_identity,
         check_providers,
         check_provider_reachable,

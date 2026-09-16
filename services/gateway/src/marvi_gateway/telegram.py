@@ -50,6 +50,7 @@ from pathlib import Path
 from typing import Any
 
 from . import inline_ask, paths
+from . import privacy
 from .logs import get_logger
 from .untrusted import wrap_external
 
@@ -703,6 +704,10 @@ class TelegramBridge:
     async def start(self) -> None:
         """Connect in the background. Never raises and never delays startup."""
         await self.stop()
+        if privacy.on():
+            # Not "no token": the token is fine and the switch is the reason.
+            self._phase, self._detail = "off", "privacy mode is on"
+            return
         token = self.token()
         if not token:
             self._phase, self._detail = "off", "no bot token"

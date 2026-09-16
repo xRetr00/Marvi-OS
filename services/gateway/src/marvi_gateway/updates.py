@@ -15,6 +15,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from . import privacy
 from . import paths
 
 UPDATE_FLAG = "--update"
@@ -45,6 +46,9 @@ def channel() -> str:
 
 def check(bootstrap: Path, install_root: Path, selected_channel: str) -> dict[str, Any]:
     """Ask the bootstrap what an update would do without changing the checkout."""
+    if privacy.on():
+        # An update check is a request to GitHub saying this machine exists.
+        return {"ok": False, "detail": privacy.refusal("updates"), "privacy_mode": "on"}
     flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     try:
         completed = subprocess.run(

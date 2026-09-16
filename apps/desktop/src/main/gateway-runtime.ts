@@ -168,6 +168,7 @@ export function normalizeRuntimeStatus(value: unknown): RuntimeStatus | null {
       detail: typeof assistant.detail === 'string' ? assistant.detail : null,
       level: Math.max(0, Math.min(1, assistant.level)),
       yolo: assistant.yolo,
+      privacy: assistant.privacy === true,
       heard: typeof assistant.heard === 'string' ? assistant.heard : '',
       spoken: typeof assistant.spoken === 'string' ? assistant.spoken : '',
       confirmation,
@@ -207,6 +208,7 @@ export function reconcileRuntimeStatus(
     assistant: {
       ...current.assistant,
       yolo: gateway.assistant.yolo,
+      privacy: gateway.assistant.privacy === true,
       confirmation: gateway.assistant.confirmation,
       roomEvent: gateway.assistant.roomEvent,
       announcement: gateway.assistant.announcement,
@@ -226,6 +228,10 @@ export function offlineRuntimeFrom(version: string, current: RuntimeStatus): Run
   const offline = offlineRuntime(version)
   return {
     ...offline,
-    assistant: { ...offline.assistant, yolo: current.assistant.yolo }
+    assistant: {
+      ...offline.assistant,
+      yolo: current.assistant.yolo,
+      privacy: current.assistant.privacy
+    }
   }
 }

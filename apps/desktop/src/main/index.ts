@@ -1823,6 +1823,19 @@ function startApp(): void {
       refreshTrayMenu()
       return petPreferences
     })
+    ipcMain.handle('marvi:set-privacy', async (_event, privacy) => {
+      if (typeof privacy !== 'boolean') return runtimeStatus
+      try {
+        return publishRuntime(
+          await gatewayRequest('/runtime/mode', {
+            method: 'PUT',
+            body: JSON.stringify({ privacy })
+          })
+        )
+      } catch {
+        return publishRuntime(offlineRuntimeFrom(app.getVersion(), runtimeStatus))
+      }
+    })
     ipcMain.handle('marvi:set-yolo', async (_event, yolo) => {
       if (typeof yolo !== 'boolean') return runtimeStatus
       try {
@@ -1861,6 +1874,17 @@ function startApp(): void {
       }
     })
     /** Workspace files matching what is being typed after an `@`. */
+    ipcMain.handle('marvi:search-chat-messages', async (_event, query) => {
+      if (typeof query !== 'string' || query.trim().length < 2) return []
+      try {
+        const body = (await gatewayJson(
+          `/chat/search?q=${encodeURIComponent(query.trim())}&limit=8`
+        )) as { results?: unknown }
+        return Array.isArray(body?.results) ? body.results : []
+      } catch {
+        return []
+      }
+    })
     ipcMain.handle('marvi:search-workspace-files', async (_event, query) => {
       if (typeof query !== 'string') return []
       try {

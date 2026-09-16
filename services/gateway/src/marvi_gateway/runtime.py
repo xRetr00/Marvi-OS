@@ -68,13 +68,17 @@ def _remembered_yolo() -> bool:
 def _remember_yolo(enabled: bool) -> None:
     """Never raises. A mode that changed but could not be written down is
     still the mode; failing the request over it would be worse."""
-    os.environ[YOLO_SETTING] = "true" if enabled else "false"
+    _remember_switch(YOLO_SETTING, enabled)
+
+
+def _remember_switch(setting: str, enabled: bool) -> None:
+    os.environ[setting] = "true" if enabled else "false"
     try:
         from .providers import config as provider_config
 
-        provider_config.update({YOLO_SETTING: "true" if enabled else ""})
+        provider_config.update({setting: "true" if enabled else ""})
     except Exception as exc:  # pragma: no cover - depends on the filesystem
-        logger.warning("could not save the YOLO setting: %s", exc)
+        logger.warning("could not save the %s setting: %s", setting, exc)
 
 
 def default_audit_path() -> Path:
@@ -134,6 +138,10 @@ class AssistantState(BaseModel):
     detail: str | None = None
     level: float = Field(default=0.0, ge=0.0, le=1.0)
     yolo: bool = False
+    #: Everything that reaches the network is switched off. Shown like YOLO,
+    #: because a Marvi that cannot search is a Marvi somebody will file a bug
+    #: about unless the reason is on screen.
+    privacy: bool = False
     #: The last utterance each way, for the live transcript on the Voice page.
     #: Deliberately only the latest: this is a glance while talking, not a
     #: record. Chat is where a transcript belongs.
@@ -196,7 +204,9 @@ class RuntimeStatus(BaseModel):
 
 
 class ModeUpdate(BaseModel):
-    yolo: bool
+    yolo: bool | None = None
+    #: One switch for everything that leaves this machine. See `privacy.py`.
+    privacy: bool | None = None
 
 
 class ConfirmationDecision(BaseModel):
@@ -256,7 +266,9 @@ class RuntimeStore:
         # how Marvi behaves and it lived only in memory: every restart put it
         # quietly back to confirm. Believing you are in YOLO and not being is
         # the mild version; the other direction is worse.
-        self.assistant = AssistantState(yolo=_remembered_yolo())
+        from . import privacy
+
+        self.assistant = AssistantState(yolo=_remembered_yolo(), privacy=privacy.on())
         self.audit_path = audit_path or default_audit_path()
         self._pending: dict[str, PendingConfirmation] = {}
         self._notification_at: float | None = None
@@ -295,6 +307,20 @@ class RuntimeStore:
         self._external_writes[key] = (time.monotonic(), result)
 
     # -- mode ---------------------------------------------------------------
+
+    def set_privacy(self, enabled: bool) -> AssistantState:
+        """Everything that reaches the network, off in one move.
+
+        Stored where the other standing choices are, so it survives a restart:
+        a privacy switch that quietly turns itself off overnight is worse than
+        no switch, because the user believes it is still on.
+        """
+        from . import privacy
+
+        _remember_switch(privacy.SETTING, enabled)
+        self.assistant = self.assistant.model_copy(update={"privacy": enabled})
+        self.audit("privacy_mode", "runtime", {"on": enabled})
+        return self.assistant
 
     def set_yolo(self, enabled: bool) -> AssistantState:
         self.assistant = self.assistant.model_copy(update={"yolo": enabled})

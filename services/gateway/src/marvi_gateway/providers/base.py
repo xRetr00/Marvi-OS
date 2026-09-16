@@ -194,7 +194,30 @@ class ProviderProfile:
                 return configured.rstrip("/")
         return self.default_base_url.rstrip("/")
 
-    def api_key(self) -> str | None:
+    def keys(self) -> list[str]:
+        """Every key configured for this provider, in the order to try them.
+
+        One key is one rate limit. A person with two keys for the same
+        provider had no way to say so, so a 429 on the first meant Marvi stood
+        the whole provider down while a perfectly good second key sat unused.
+        Hermes calls this a credential pool; here it is a numbered suffix on
+        the variable that already exists:
+
+            OPENROUTER_API_KEY      the one everybody has
+            OPENROUTER_API_KEY_2    the second, and so on to _9
+
+        No new setting to learn, and a machine with one key behaves exactly as
+        it did.
+        """
+        found: list[str] = []
+        for name in self.key_env:
+            for variable in (name, *(f"{name}_{n}" for n in range(2, 10))):
+                value = os.environ.get(variable, "").strip()
+                if value and value not in found:
+                    found.append(value)
+        return found
+
+    def api_key(self, index: int = 0) -> str | None:
         # An OAuth provider's credential is a token Marvi obtained and keeps
         # fresh, not something typed into a settings file. The hook is set by
         # `oauth.py` on import; keeping it a hook is what stops this module
@@ -203,11 +226,10 @@ class ProviderProfile:
             token = _token_hook(self.name)
             if token:
                 return token
-        for name in self.key_env:
-            value = os.environ.get(name, "").strip()
-            if value:
-                return value
-        return None
+        pool = self.keys()
+        if not pool:
+            return None
+        return pool[index % len(pool)]
 
     def enabled_setting(self) -> str:
         """Where a local provider records that it was actually connected."""
@@ -292,9 +314,9 @@ class ProviderProfile:
 
     # -- request shaping -----------------------------------------------------
 
-    def headers(self) -> dict[str, str]:
+    def headers(self, key_index: int = 0) -> dict[str, str]:
         headers = {"content-type": "application/json", **self.default_headers}
-        key = self.api_key()
+        key = self.api_key(key_index)
         if not key:
             return headers
         if self.api_mode == "anthropic":
