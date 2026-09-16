@@ -2895,6 +2895,38 @@ function startApp(): void {
         return null
       }
     })
+    /**
+     * Save one conversation as Markdown, wherever the user says.
+     *
+     * The renderer cannot write files and should not learn how; it asks, main
+     * fetches the Markdown the Gateway renders and puts up the native save
+     * dialog. Cancelling is a normal outcome, not an error.
+     */
+    ipcMain.handle('marvi:export-chat-thread', async (_event, id) => {
+      if (typeof id !== 'string') return { saved: '' }
+      let exported: { title?: string; markdown?: string } | null = null
+      try {
+        exported = (await gatewayJson(
+          `/chat/threads/${encodeURIComponent(id)}/export`
+        )) as { title?: string; markdown?: string }
+      } catch {
+        return { saved: '', error: 'Marvi could not read that conversation.' }
+      }
+      if (!exported?.markdown) return { saved: '', error: 'That conversation is empty.' }
+      const safe = (exported.title || 'conversation').replace(/[\/:*?"<>|]+/g, '-').slice(0, 80)
+      const chosen = await dialog.showSaveDialog({
+        title: 'Export conversation',
+        defaultPath: `${safe}.md`,
+        filters: [{ name: 'Markdown', extensions: ['md'] }]
+      })
+      if (chosen.canceled || !chosen.filePath) return { saved: '' }
+      try {
+        writeFileSync(chosen.filePath, exported.markdown, 'utf8')
+      } catch (error) {
+        return { saved: '', error: error instanceof Error ? error.message : 'Could not write it.' }
+      }
+      return { saved: chosen.filePath }
+    })
     ipcMain.handle('marvi:delete-chat-thread', async (_event, id) => {
       if (typeof id !== 'string') return false
       try {

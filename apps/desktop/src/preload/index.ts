@@ -294,6 +294,8 @@ const marvi = {
     id: string,
     selection: { provider?: string; model?: string; effort?: string }
   ): Promise<ChatThread | null> => ipcRenderer.invoke('marvi:set-chat-thread-model', id, selection),
+  exportChatThread: (id: string): Promise<{ saved: string; error?: string }> =>
+    ipcRenderer.invoke('marvi:export-chat-thread', id),
   deleteChatThread: (id: string): Promise<boolean> =>
     ipcRenderer.invoke('marvi:delete-chat-thread', id),
   settleChatAsk: (id: string, answer: string): Promise<boolean> =>

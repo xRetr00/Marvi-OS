@@ -2469,6 +2469,15 @@ def create_app(
     async def chat_threads(archived: bool = False) -> dict[str, Any]:
         return {"threads": chat.store.threads(archived) if chat is not None else []}
 
+    @app.get("/chat/threads/{thread_id}/export")
+    async def chat_thread_export(thread_id: str) -> dict[str, Any]:
+        if chat is None:
+            raise HTTPException(status_code=503, detail="chat is not available")
+        try:
+            return chat.store.export_markdown(thread_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
     @app.get("/chat/search")
     async def chat_search(q: str = "", limit: int = 20) -> dict[str, Any]:
         return {"results": chat.store.search(q, limit) if chat is not None else []}

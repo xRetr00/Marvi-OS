@@ -566,6 +566,47 @@ class ChatStore:
             "message_count": int(count),
         }
 
+    def export_markdown(self, thread_id: str, limit: int = 500) -> dict[str, Any]:
+        """One conversation as Markdown: the branch that is actually on screen.
+
+        The visible branch rather than every row, because an export is the
+        conversation the user had -- the ones they edited away are history of
+        the editing, not of the conversation, and interleaving them reads as
+        Marvi answering the same question four times.
+
+        Sources and attachments are listed under the message that carried them:
+        a transcript that silently drops what a reply was based on is the part
+        people notice missing a month later.
+        """
+        thread = self.get_thread(thread_id)
+        lines = [
+            f"# {thread['title']}",
+            "",
+            f"*Marvi OS conversation, {thread['created_at'][:10]} to {thread['updated_at'][:10]},"
+            f" {thread['message_count']} messages.*",
+            "",
+        ]
+        for message in self.history(limit=limit, thread_id=thread_id):
+            who = "You" if message["role"] == "user" else "Marvi"
+            lines += [f"## {who} · {str(message['at'])[:19].replace('T', ' ')}", ""]
+            text = str(message.get("content") or "").strip()
+            lines += [text or "*(no text)*", ""]
+            sources = [
+                part for part in message.get("parts") or [] if part.get("type") == "source"
+            ]
+            if sources:
+                lines.append("**Sources**")
+                for part in sources:
+                    title = str(part.get("title") or part.get("url") or "source")
+                    url = str(part.get("url") or "")
+                    lines.append(f"- [{title}]({url})" if url else f"- {title}")
+                lines.append("")
+            if message.get("attachments"):
+                lines.append("**Attachments**")
+                lines += [f"- {one.get('name')}" for one in message["attachments"]]
+                lines.append("")
+        return {"title": thread["title"], "markdown": "\n".join(lines).rstrip() + "\n"}
+
     def search(self, query: str, limit: int = 20) -> list[dict[str, Any]]:
         """Messages that contain `query`, newest first, archived threads included.
 
