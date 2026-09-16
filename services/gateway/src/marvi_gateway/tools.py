@@ -158,6 +158,23 @@ class ToolBlockedError(ToolRouterError):
     """A plugin's `pre_tool_call` hook refused this call."""
 
 
+def _result_size(result: Any) -> int:
+    """Roughly how many characters this result will cost in a prompt.
+
+    Rough on purpose: the exact number depends on the surface that renders
+    it, and a measurement needing the surface cannot be taken here -- which
+    is the one place every call already passes.
+    """
+    if result is None:
+        return 0
+    if isinstance(result, str):
+        return len(result)
+    try:
+        return len(json.dumps(result, default=str))
+    except (TypeError, ValueError):
+        return len(str(result))
+
+
 class ToolRegistry:
     def __init__(self) -> None:
         self._tools: dict[str, ToolSpec] = {}
@@ -257,6 +274,13 @@ class ToolRegistry:
         started = time.perf_counter()
         failed = ""
         result: Any = None
+        from . import privacy
+
+        # Privacy mode, in one place rather than in nine handlers: everything
+        # that reaches the network refuses by name. MCP servers are a person's
+        # own installed processes and are not gated here; `marvi doctor` says so.
+        if privacy.on() and (feature := privacy.feature_of(spec.name)):
+            raise ToolBlockedError(privacy.refusal(feature))
         refused = self.hooks.veto("pre_tool_call", tool_name=spec.name, args=dict(arguments), task_id="")
         if refused:
             # Recorded like any other failure, so the Activity page shows the
@@ -287,4 +311,8 @@ class ToolRegistry:
                 name=spec.name,
                 ms=round((time.perf_counter() - started) * 1000, 1),
                 failed=failed,
+                # How much of the context this call spent. Recorded because
+                # doing anything about oversized tool output starts with
+                # knowing which tools produce it.
+                chars=_result_size(result),
             )
