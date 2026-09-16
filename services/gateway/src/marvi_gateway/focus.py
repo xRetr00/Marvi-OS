@@ -49,9 +49,9 @@ and as a fallback on a machine with no NVIDIA telemetry to read.
 from __future__ import annotations
 
 import os
-import time
 import re
 import threading
+import time
 from dataclasses import dataclass
 from typing import Any
 

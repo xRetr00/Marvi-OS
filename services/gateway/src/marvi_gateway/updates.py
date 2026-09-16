@@ -15,8 +15,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from . import privacy
-from . import paths
+from . import paths, privacy
 
 UPDATE_FLAG = "--update"
 

@@ -71,13 +71,11 @@ async def test_a_memory_written_from_outside_carries_who_wrote_it() -> None:
     wrote = next(one for one in seen if one["path"].endswith("memory_remember_external"))
     assert wrote["body"]["arguments"]["source"] == "mcp:test-client"
     # The Gateway tool it calls is internal: no model is ever offered it.
-    from marvi_gateway.memory import register_memory_tools
-    from marvi_gateway.tools import ToolRegistry
-
-    from tempfile import mkdtemp
     from pathlib import Path
+    from tempfile import mkdtemp
 
-    from marvi_gateway.memory import MemoryStore
+    from marvi_gateway.memory import MemoryStore, register_memory_tools
+    from marvi_gateway.tools import ToolRegistry
 
     registry = ToolRegistry()
     register_memory_tools(registry, MemoryStore(Path(mkdtemp()) / "m.db"))

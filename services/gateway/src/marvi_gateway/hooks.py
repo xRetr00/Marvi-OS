@@ -47,10 +47,6 @@ EVENTS = (
 CAN_BLOCK = ("pre_tool_call",)
 
 
-class Blocked(Exception):
-    """A plugin refused this call."""
-
-
 class Hooks:
     """One set of handlers. Instances rather than a module global so a test --
     and the tool registry -- can have their own without leaking into the next."""

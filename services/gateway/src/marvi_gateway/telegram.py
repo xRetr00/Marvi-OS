@@ -49,8 +49,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from . import inline_ask, paths
-from . import privacy
+from . import inline_ask, paths, privacy
 from .logs import get_logger
 from .untrusted import wrap_external
 
