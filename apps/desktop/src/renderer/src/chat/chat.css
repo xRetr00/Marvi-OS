@@ -3592,3 +3592,34 @@
     padding-inline: 6px;
   }
 }
+
+/* `@` file suggestions above the composer ---------------------------------- */
+
+.chat-mentions {
+  display: flex;
+  flex-direction: column;
+  margin: 0 0 6px;
+  padding: 4px;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 8px;
+  background: var(--ui-bg);
+  list-style: none;
+}
+
+.chat-mentions button {
+  display: block;
+  width: 100%;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  color: var(--ui-text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.chat-mentions button:hover {
+  background: var(--ui-accent-soft);
+}

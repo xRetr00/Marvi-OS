@@ -36,7 +36,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from . import inline_ask, language, latency, selfaware, tool_call_prose
+from . import inline_ask, language, latency, mentions, selfaware, tool_call_prose
 from .chat_widgets import (
     external_text,
     present_tool_schema,
@@ -962,6 +962,8 @@ class Chat:
         memory: Any = None,
         curiosity: Curiosity | None = None,
         plugins: list[Any] | None = None,
+        workspace: Any = None,
+        web: Any = None,
     ) -> None:
         self.store = store or ChatStore()
         self.client = client or ProviderClient()
@@ -977,6 +979,11 @@ class Chat:
         #: Loaded plugins, for their context lines. The room's line carries what
         #: the engine already knows about the room — including its own vision.
         self.plugins = plugins or []
+        #: What `@notes.md` and `@https://…` in a message are read through. Both
+        #: are optional: without them a mention is reported as unreadable rather
+        #: than quietly dropped.
+        self.workspace = workspace
+        self.web = web
         #: A sub-agent job's status by id, for reporting it back. Set by the
         #: Gateway to the sub-agent runner's `status`.
         self.job_status: Callable[[str], dict[str, Any]] | None = None
@@ -1523,6 +1530,13 @@ class Chat:
         model = model or str(thread["selected_model"] or "") or None
         effort = effort or str(thread["selected_effort"] or "") or None
         # A report carries no attachments; anything staged is for the owner's next turn.
+        mention_notes: list[str] = []
+        if not resume_job and edit_message_id is None and regenerate_message_id is None:
+            mentioned, mention_notes = mentions.resolve(
+                text, thread_id, self.store, self.workspace, self.web
+            )
+            if mentioned:
+                attachment_ids = [*(attachment_ids or []), *mentioned]
         attachments = [] if resume_job else self.store.pending_attachments(thread_id, attachment_ids or [])
         try:
             self._validate_attachments(attachments, provider, model)
@@ -1573,6 +1587,15 @@ class Chat:
         # No curiosity question on a turn the owner did not start.
         gap = None if resume_job else self._curiosity_turn(text, turns)
         recalled = self._recall(text)
+        if mention_notes:
+            # Told to Marvi rather than printed at the user: a mention that
+            # could not be read is something she should mention, in her own
+            # words, in the reply they are already waiting for.
+            recalled = (recalled + "\n\n" if recalled else "") + (
+                "The user named these with @ and they could not be read: "
+                + "; ".join(mention_notes)
+                + ". Say so plainly in your reply."
+            )
         schemas = list(self.tool_schemas() if self.tool_schemas else [])
         # Widgets are React components; a phone has nowhere to draw one.
         if surface == "chat":

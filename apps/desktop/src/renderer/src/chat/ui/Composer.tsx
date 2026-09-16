@@ -19,6 +19,7 @@ import type { ChatAttachment } from '../../../../shared/runtime'
 import { AbstractIcon } from '../../components/abstract-icon'
 import { GlyphSpinner } from '../../components/ui/glyph-spinner'
 import { TooltipProvider, UiTooltip } from '../../components/ui/tooltip'
+import { MentionSuggestions } from '../components/MentionSuggestions'
 import { PendingAttachment } from '../components/PendingAttachment'
 import { SessionModel } from './SessionModel'
 import { useDictation } from '../useDictation'
@@ -69,6 +70,11 @@ export function Composer({
           onFiles?.(images)
         }}
       >
+        <MentionSuggestions
+          active={focused}
+          onPick={(next) => composer.setText(next)}
+          text={composer.value}
+        />
         <div className="chat-compose-field" data-active={active ? 'true' : 'false'}>
           {attachments.length ? (
             <div className="chat-attachments" aria-label="Pending attachments">

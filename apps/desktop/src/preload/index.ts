@@ -194,6 +194,8 @@ const marvi = {
     ipcRenderer.invoke('marvi:set-wake-autostart', enabled, device ?? ''),
   setYolo: (yolo: boolean): Promise<RuntimeStatus> => ipcRenderer.invoke('marvi:set-yolo', yolo),
   getAudit: (): Promise<AuditEvent[]> => ipcRenderer.invoke('marvi:get-audit'),
+  searchWorkspaceFiles: (query: string): Promise<string[]> =>
+    ipcRenderer.invoke('marvi:search-workspace-files', query),
   getFileCheckpoints: (): Promise<FileCheckpoint[]> =>
     ipcRenderer.invoke('marvi:get-file-checkpoints'),
   restoreFileCheckpoint: (id: string): Promise<{ restored?: string; error?: string }> =>

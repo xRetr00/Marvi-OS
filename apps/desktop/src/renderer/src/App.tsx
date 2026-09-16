@@ -22,6 +22,7 @@ import {
   Languages,
   Lightbulb,
   Info,
+  Keyboard,
   Mic,
   Pause,
   PackageCheck,
@@ -931,6 +932,7 @@ function MainSurface(): React.JSX.Element {
         {settings ? (
           <SettingsShell
             onClose={() => setSettings(null)}
+            onHotkeys={() => setHotkeysOpen(true)}
             onNavigate={setSettings}
             page={settings}
             runtime={runtime}
@@ -5067,12 +5069,14 @@ function SettingsShell({
   runtime,
   version,
   onNavigate,
+  onHotkeys,
   onClose
 }: {
   page: SettingsPage
   runtime: RuntimeStatus
   version: string
   onNavigate: (next: SettingsPage) => void
+  onHotkeys: () => void
   onClose: () => void
 }): React.JSX.Element {
   const voiceOpen = (SETTINGS_VOICE_PAGES as readonly string[]).includes(page)
@@ -5231,7 +5235,7 @@ function SettingsShell({
             ) : page === 'Desktop companion' ? (
               <AppearancePanel section="companion" />
             ) : page === 'Preferences' ? (
-              <PreferencesPanel runtime={runtime} />
+              <PreferencesPanel onHotkeys={onHotkeys} runtime={runtime} />
             ) : (
               <AboutPanel fallbackVersion={version} runtime={runtime} />
             )}
@@ -6492,7 +6496,13 @@ function AppearanceChoices({
   )
 }
 
-function PreferencesPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
+function PreferencesPanel({
+  runtime,
+  onHotkeys
+}: {
+  runtime: RuntimeStatus
+  onHotkeys: () => void
+}): React.JSX.Element {
   const setYolo = (enabled: boolean): void => {
     void window.marvi?.setYolo(enabled).then(applyRuntimeState)
   }
@@ -6512,6 +6522,18 @@ function PreferencesPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.El
           </p>
         </div>
         <ServiceHealth compact />
+      </ControlSection>
+
+      <ControlSection icon={Keyboard} title="Keyboard shortcuts">
+        <ControlRow
+          action={
+            <button className="mode-switch" onClick={onHotkeys} type="button">
+              Open
+            </button>
+          }
+          description="Talk to Marvi, stop her, open Chat or show the window — from anywhere in Windows, whether or not Marvi has focus."
+          title="Global shortcuts"
+        />
       </ControlSection>
 
       <ControlSection icon={ShieldAlert} title="Confirmation mode">

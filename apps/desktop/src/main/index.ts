@@ -1860,6 +1860,22 @@ function startApp(): void {
         return publishRuntime(offlineRuntimeFrom(app.getVersion(), runtimeStatus))
       }
     })
+    /** Workspace files matching what is being typed after an `@`. */
+    ipcMain.handle('marvi:search-workspace-files', async (_event, query) => {
+      if (typeof query !== 'string') return []
+      try {
+        const body = (await gatewayJson('/tools/file_search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ arguments: { name: `*${query}*`, limit: 8 } })
+        })) as { result?: { matches?: { path?: string }[] } }
+        return (body?.result?.matches ?? [])
+          .map((match) => String(match.path ?? ''))
+          .filter(Boolean)
+      } catch {
+        return []
+      }
+    })
     ipcMain.handle('marvi:get-file-checkpoints', async () => {
       try {
         const body = (await gatewayJson('/checkpoints?limit=20')) as { checkpoints?: unknown }
@@ -2934,7 +2950,7 @@ function startApp(): void {
         return { saved: '', error: 'Marvi could not read that conversation.' }
       }
       if (!exported?.markdown) return { saved: '', error: 'That conversation is empty.' }
-      const safe = (exported.title || 'conversation').replace(/[\/:*?"<>|]+/g, '-').slice(0, 80)
+      const safe = (exported.title || 'conversation').replace(/[\\/:*?"<>|]+/g, '-').slice(0, 80)
       const chosen = await dialog.showSaveDialog({
         title: 'Export conversation',
         defaultPath: `${safe}.md`,

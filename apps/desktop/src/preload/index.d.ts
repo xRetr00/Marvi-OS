@@ -117,6 +117,7 @@ export interface MarviDesktopApi {
   ) => Promise<{ autostart: boolean; running: boolean }>
   setYolo: (yolo: boolean) => Promise<RuntimeStatus>
   getAudit: () => Promise<AuditEvent[]>
+  searchWorkspaceFiles: (query: string) => Promise<string[]>
   getFileCheckpoints: () => Promise<FileCheckpoint[]>
   restoreFileCheckpoint: (id: string) => Promise<{ restored?: string; error?: string }>
   getRoomEvents: () => Promise<RoomEvent[]>

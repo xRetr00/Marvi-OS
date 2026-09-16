@@ -1471,6 +1471,10 @@ def create_app(
             # engine already knows, including its own vision block, which Marvi
             # was collecting and never reading.
             plugins=loaded_plugins,
+            # `@notes.md` and `@https://...` in a typed message are read
+            # through the same workspace policy and web adapter as the tools.
+            workspace=workspace,
+            web=WebTools(),
         )
         from .chat import register_chat_search_tool
 
