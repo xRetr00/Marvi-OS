@@ -69,6 +69,7 @@ from pathlib import Path
 from typing import Any
 
 from . import paths
+from .hooks import EVENTS as RUNTIME_EVENTS
 from .logs import get_logger
 
 log = get_logger("plugins")
@@ -78,8 +79,9 @@ GIT_TIMEOUT = 300
 PIP_TIMEOUT = 900
 
 #: The lifecycle events Marvi raises. A plugin may register for any of them; one
-#: it does not know about is simply never called.
-HOOKS = ("on_gateway_start", "on_gateway_stop", "pre_tool_call", "post_tool_call")
+#: it does not know about is simply never called. The runtime ones -- tool
+#: calls, turns, memory writes, confirmations -- are defined in `hooks.py`.
+HOOKS = ("on_gateway_start", "on_gateway_stop", *RUNTIME_EVENTS)
 
 
 class PluginError(Exception):
@@ -719,18 +721,31 @@ def bridge_tools(
 
 
 def bridge_hooks(registry: Any, loaded: LoadedPlugin) -> int:
-    """Hand a plugin's tool-call hooks to the router. They observe; they cannot refuse.
+    """Hand a plugin's hooks to the places that raise them.
 
-    Called with keyword arguments: `pre_tool_call(tool_name, args, task_id)` and
-    `post_tool_call(tool_name, args, result, error, task_id)`. A hook that raises
-    is logged and the call goes on.
+    Tool-call hooks go to the router, because it owns the call; the rest go to
+    the shared set in `hooks.py`. Both are called with keyword arguments:
+
+        pre_tool_call(tool_name, args, task_id)   -> may return
+                                                     {"action": "block", "message": ...}
+        post_tool_call(tool_name, args, result, error, task_id)
+        pre_turn(surface, text, thread_id)
+        post_turn(surface, thread_id, tokens, error)
+        on_memory_write(subject, body, kind, source, trusted)
+        on_confirmation(tool, arguments, token, state)
+
+    Only `pre_tool_call` may refuse; see `hooks.py` for why.
     """
+    from . import hooks as runtime_hooks
     from .tools import TOOL_HOOKS
 
     count = 0
-    for event in TOOL_HOOKS:
+    for event in runtime_hooks.EVENTS:
         for handler in loaded.context.hooks.get(event, []):
-            registry.add_hook(event, handler)
+            if event in TOOL_HOOKS:
+                registry.add_hook(event, handler)
+            else:
+                runtime_hooks.shared.register(event, handler)
             count += 1
     return count
 
