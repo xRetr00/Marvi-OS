@@ -302,10 +302,12 @@ def register_sandbox_tools(registry: Any) -> None:
             description="Run a short Python snippet in a scratch directory, under limits.",
             arguments={"code": str},
             optional={"timeout": int},
-            # Not gated: it cannot write to the workspace, cannot outlive its
-            # timeout and cannot take the machine down. What it *can* do --
-            # read files as the user -- is what `file_read` does unconfirmed
-            # too, so a confirmation here would buy nothing and cost every use.
+            # Not gated. Inside a container it can reach nothing at all. Outside
+            # one the most it can do -- read files as the user -- is what
+            # `file_read` does unconfirmed too, so a confirmation here would buy
+            # nothing and cost every use. What it can never do either way is
+            # write to the workspace, outlive its timeout, or take the machine
+            # down, and those are the things a tap would be protecting.
             sensitive=False,
             handler=code_run,
             describes={

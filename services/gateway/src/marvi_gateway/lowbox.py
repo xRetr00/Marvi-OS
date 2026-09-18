@@ -174,31 +174,70 @@ def _sid() -> tuple[ctypes.c_void_p, str]:
     return sid, written
 
 
-def _grant(path: Path, sid_text: str, rights: str) -> bool:
-    """Name the container in a directory's permissions. True if it took.
-
-    `icacls` rather than `SetEntriesInAcl`: the same operation in one line that
-    a person can read, run by hand, and undo (`/remove`). Inheritance does the
-    walking, so this does not touch every file in a Python installation.
-    """
+def _icacls(arguments: list[str], why: str) -> bool:
+    """One `icacls` run. False, with the reason logged, if Windows said no."""
     done = subprocess.run(
-        ["icacls", str(path), "/grant", f"*{sid_text}:(OI)(CI){rights}", "/Q"],
-        capture_output=True,
-        text=True,
-        timeout=60,
-        check=False,
+        ["icacls", *arguments], capture_output=True, text=True, timeout=180, check=False
     )
     if done.returncode != 0:
-        log.info(
-            "the sandbox could not be given %s on %s: %s",
-            rights, path, (done.stderr or done.stdout or "").strip()[:200],
-        )
+        log.info("the sandbox could not %s: %s", why, (done.stderr or done.stdout or "").strip()[:200])
     return done.returncode == 0
 
 
-def _environment(values: dict[str, str]) -> ctypes.Array:
+def _grant(path: Path, sid_text: str, rights: str, existing: bool = False) -> bool:
+    """Name the container in a directory's permissions. True if it took.
+
+    `icacls` rather than `SetEntriesInAcl`: the same operation in one line a
+    person can read, run by hand, and undo.
+
+    `existing` is for a directory that already has files in it, and it costs a
+    second pass for a reason worth writing down. `(OI)(CI)` are *container*
+    inheritance flags; `icacls /T` silently drops an ACE carrying them when it
+    reaches a file, so the one command that looks like it does both does
+    neither. Measured on this machine: the interpreter's directory took the
+    inheritable ACE, every file under it took nothing, and the container then
+    failed to start with `permission denied (os error 5)` -- from the loader,
+    not from Python, which is the confusing kind of failure.
+
+    So: the inheritable ACE on the directory, for files that arrive later, and
+    a plain one walked over the files that are already there.
+    """
+    if not _icacls(
+        [str(path), "/grant", f"*{sid_text}:(OI)(CI){rights}", "/Q"],
+        f"be given {rights} on {path}",
+    ):
+        return False
+    if not existing:
+        return True
+    # `/C` so one unreadable file does not fail the whole tree. ~1.6s for the
+    # 3,800 files of a CPython installation, once.
+    return _icacls(
+        [str(path), "/grant", f"*{sid_text}:{rights}", "/T", "/C", "/Q"],
+        f"be given {rights} on what is already inside {path}",
+    )
+
+
+#: What the child is told, beyond its own scratch paths.
+#:
+#: The profile variables are not a convenience: **without them CreateProcessW
+#: refuses the container with `ERROR_ENVVAR_NOT_FOUND` (203)**, because it
+#: redirects each of these into the container's own per-package folder and has
+#: to read the original to do it. A minimal block gets you 203 and no clue.
+#:
+#: Their *values* are paths the snippet cannot open anyway -- that is the whole
+#: point of the container -- so what leaks is the shape of a home directory,
+#: not its contents.
+_NEEDED = ("SYSTEMROOT", "SYSTEMDRIVE", "WINDIR", "USERPROFILE", "APPDATA",
+           "LOCALAPPDATA", "ALLUSERSPROFILE", "PROGRAMDATA")
+
+
+def _environment(scratch: Path) -> ctypes.Array:
     """A `CREATE_UNICODE_ENVIRONMENT` block: `K=V\\0K=V\\0\\0`."""
-    joined = "".join(f"{key}={value}\0" for key, value in values.items()) + "\0"
+    values = {name: os.environ[name] for name in _NEEDED if os.environ.get(name)}
+    values["TEMP"] = values["TMP"] = str(scratch)
+    joined = "".join(
+        f"{key}={value}\0" for key, value in sorted(values.items(), key=lambda kv: kv[0].upper())
+    ) + "\0"
     return ctypes.create_unicode_buffer(joined)
 
 
@@ -218,7 +257,7 @@ def available(python: Path) -> tuple[bool, str]:
         return False, str(exc)
     try:
         for root in _interpreter_roots(python):
-            if not _grant(root, text, "(RX)"):
+            if not _grant(root, text, "(RX)", existing=True):
                 return False, (
                     f"Windows would not let Marvi grant read access on {root} -- a Python "
                     "installed for every user needs an administrator to do that once"
@@ -318,11 +357,7 @@ def run(
             | CREATE_SUSPENDED
             | CREATE_UNICODE_ENVIRONMENT
             | CREATE_NO_WINDOW,
-            _environment({
-                "SYSTEMROOT": os.environ.get("SYSTEMROOT", ""),
-                "TEMP": str(scratch),
-                "TMP": str(scratch),
-            }),
+            _environment(scratch),
             ctypes.c_wchar_p(str(scratch)),
             ctypes.byref(started),
             ctypes.byref(information),
@@ -355,7 +390,7 @@ def run(
         return {
             "exit_code": 1 if timed_out else int(code.value),
             "stdout": _read(scratch / "stdout.txt"),
-            "stderr": _read(scratch / "stderr.txt"),
+            "stderr": _without_launcher_noise(_read(scratch / "stderr.txt")),
             "timed_out": timed_out,
         }
     finally:
@@ -364,6 +399,27 @@ def run(
         if attributes is not None:
             kernel32.DeleteProcThreadAttributeList(attributes)
         advapi32.FreeSid(sid)
+
+
+#: A line the launcher writes, not the snippet.
+#:
+#: A `python.exe` inside a virtual environment built by `uv` is a trampoline
+#: that finds the real interpreter and runs it. Inside the container it cannot
+#: read its own image path back, says so on stderr, falls back, and works. The
+#: snippet is fine and its own stderr is untouched -- but a line about a file
+#: nobody mentioned, on every single successful run, reads like a failure.
+#:
+#: Removed by exact prefix and only at the start, so a snippet that prints
+#: these words itself still gets them back.
+_LAUNCHER_NOISE = "Failed to find real location of "
+
+
+def _without_launcher_noise(text: str) -> str:
+    kept = [
+        line for line in text.splitlines(keepends=True)
+        if not line.startswith(_LAUNCHER_NOISE)
+    ]
+    return "".join(kept)
 
 
 def _read(path: Path) -> str:
