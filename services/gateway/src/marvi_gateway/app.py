@@ -23,6 +23,7 @@ from livekit import api
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
+from . import audiocapture as audiocapture_module
 from . import automations as automations_module
 from . import (
     auxiliary,
@@ -55,6 +56,7 @@ from . import (
     connected as connected_accounts,
 )
 from . import doctor as doctor_module
+from . import meetings as meetings_module
 from . import plugins as plugins_module
 from . import room as room_module
 from . import runs as runs_module
@@ -1289,6 +1291,12 @@ def create_app(
     # thing a board can show, and a crash leaves exactly that.
     jobs_store.recover()
     rules = automations_module.Automations()
+    meetings = meetings_module.Meetings()
+    # Same correction, and a sharper one: a meeting that still says "recording"
+    # after a restart is not recording, and leaving it saying so would make the
+    # indicator a lie in the one direction that matters.
+    meetings.recover()
+    meetings.board = jobs_store
     if tools is not None:
         tool_registry = tools
     else:
@@ -1353,6 +1361,7 @@ def create_app(
         from .sandbox import register_sandbox_tools
 
         register_job_tools(tool_registry, jobs_store)
+        meetings_module.register_meeting_tools(tool_registry, meetings)
         register_sandbox_tools(tool_registry)
         from .trimming import register_more_tool
 
@@ -1374,6 +1383,7 @@ def create_app(
         # this function than the ingest is. Without it `gatekeeping` keeps
         # everything, which is the safe direction but not the useful one.
         ingest.cognition = cognition
+        meetings.client = cognition
         # So a summary can say "Shereef" rather than "the user". Read once at
         # startup: it changes about as often as the person does.
         with contextlib.suppress(Exception):
@@ -4452,6 +4462,62 @@ def create_app(
             lambda: rules.fire("webhook", dict(body or {}), rule_id=rule_id)
         )
         return {"ran": done}
+
+    # -- meetings ---------------------------------------------------------------
+
+    # The same local recogniser a voice note goes through. Nothing about a
+    # meeting reaches a provider except the summary, and that one is auxiliary.
+    meetings.transcribe = transcribe_for_channel
+
+    @app.get("/meetings")
+    async def list_meetings(limit: int = 20) -> dict[str, Any]:
+        can, why = audiocapture_module.available()
+        return {
+            "meetings": meetings.all(limit),
+            "now": meetings.now(),
+            "consent": meetings.consent(),
+            "can_record": can,
+            "why_not": why,
+        }
+
+    @app.get("/meetings/{meeting_id}")
+    async def read_meeting(meeting_id: str) -> dict[str, Any]:
+        try:
+            return meetings.get(meeting_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.post("/meetings/consent")
+    async def accept_meeting_consent(http_request: Request) -> dict[str, Any]:
+        """The owner has read the notice. Asked for once, ever."""
+        localauth.guard(http_request)
+        return meetings.accept_consent()
+
+    @app.post("/meetings")
+    async def start_meeting(body: dict[str, Any], http_request: Request) -> dict[str, Any]:
+        """Begin recording. The only route that opens a microphone for this."""
+        localauth.guard(http_request)
+        try:
+            return meetings.start(str(body.get("title") or ""), str(body.get("calendar_id") or ""))
+        except meetings_module.ConsentNeededError as exc:
+            # 428: the request is fine, something has to happen first.
+            raise HTTPException(status_code=428, detail=str(exc)) from exc
+        except meetings_module.MeetingError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/meetings/{meeting_id}/stop")
+    async def stop_meeting(meeting_id: str, http_request: Request) -> dict[str, Any]:
+        localauth.guard(http_request)
+        try:
+            return meetings.stop(meeting_id)
+        except meetings_module.MeetingError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.delete("/meetings/{meeting_id}")
+    async def forget_meeting(meeting_id: str, http_request: Request) -> dict[str, Any]:
+        """Forget it, recordings included. There is no undo and there is no bin."""
+        localauth.guard(http_request)
+        return {"removed": meetings.remove(meeting_id)}
 
     @app.get("/runs")
     async def list_runs(limit: int = 20) -> dict[str, Any]:
