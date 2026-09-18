@@ -1,5 +1,16 @@
 # Implementation Log
 
+## 2026-09-18 — Commerce and travel chat cards
+
+- Extended the existing Gateway-validated `present_widget` contract with six
+  display-only card kinds: receipt, cart, order status, booking, stays, and
+  flight tracker. Added bounded field validation, public source links, and
+  Marvi-styled renderers in Chat. The model-facing tool description names each
+  shape and requires evidence for claims about completed actions or live status.
+- No commerce/travel transaction is performed by rendering these cards. They
+  are marked as supplied details so a model-provided value is not mistaken for
+  a verified purchase, reservation, or live flight feed.
+
 ## 2026-09-18 — Chat failure and navigation polish
 
 - Provider startup errors and stored error rows now render as a single compact

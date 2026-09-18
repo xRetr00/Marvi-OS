@@ -8,6 +8,11 @@ surface and its native-window behavior can be proven without the voice engine.
 
 ## Delivered
 
+September 18 Chat gained six Gateway-validated, display-only commerce and
+travel cards through its existing assistant-ui tool UI path. The cards use
+bounded fields and optional public source links; checkout and reservation
+actions are not wired to a renderer card.
+
 September 18 chat polish: provider failures show a retryable summary with
 technical details on demand, long threads have a turn map, and the external
 coder roster uses TheSVG Claude Code and Codex marks. Desktop web typecheck

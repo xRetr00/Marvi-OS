@@ -1,5 +1,19 @@
 # Upstream Reuse Ledger
 
+## Commerce and travel generative cards — 2026-09-18
+
+- [assistant-ui Generative UI](https://www.assistant-ui.com/docs/tools/generative-ui)
+  and the [receipt](https://www.assistant-ui.com/elements/generative-receipt),
+  [cart](https://www.assistant-ui.com/elements/generative-cart),
+  [order tracking](https://www.assistant-ui.com/elements/generative-order-status),
+  [booking](https://www.assistant-ui.com/elements/generative-booking),
+  [stays](https://www.assistant-ui.com/elements/generative-stays), and
+  [flight tracker](https://www.assistant-ui.com/elements/generative-flight-tracker)
+  examples were consulted on 2026-09-18 (MIT reference designs). Marvi adapts
+  their information hierarchy in its existing assistant-ui tool UI path. No
+  example code, generic JSON renderer, or frontend action registry was copied.
+  Update by reviewing these pages when the pinned assistant-ui runtime changes.
+
 ## Chat UI references — 2026-09-18
 
 - [assistant-ui Error state](https://www.assistant-ui.com/elements/error-state)
