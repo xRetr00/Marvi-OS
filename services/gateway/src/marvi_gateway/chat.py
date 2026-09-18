@@ -2500,7 +2500,11 @@ def schemas_from_registry(registry: Any) -> list[dict[str, Any]]:
 #: reader.
 TRACE_RESULT_CHARS = 1_200
 
-_ENVELOPE = re.compile(r"^\[EXTERNAL DATA [^\]]*\]\n?|\n?\[END EXTERNAL DATA [^\]]*\]$")
+# Unanchored on purpose: the model-facing text is not always exactly one
+# envelope -- a tool result can carry a trusted note, such as an evidence ID,
+# either side of it -- and anchoring let the opening marker survive into the
+# trace the moment anything preceded it.
+_ENVELOPE = re.compile(r"\[EXTERNAL DATA [^\]]*\]\n?|\n?\[END EXTERNAL DATA [^\]]*\]")
 
 
 def _arguments(raw: Any) -> dict[str, Any]:

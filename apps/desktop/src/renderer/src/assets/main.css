@@ -14,6 +14,13 @@
   --ui-accent-soft: rgb(20 126 193 / 14%);
   --ui-danger: #d85b5b;
   --shadow-nous: 0 1px 1px rgb(0 0 0 / 46%), 0 10px 28px rgb(0 0 0 / 36%);
+
+  /* ponytail: aliases live only here — the themes below override the tokens these
+     reference, so each appearance resolves them without redeclaring the aliases. */
+  --ui-border-subtle: var(--ui-stroke-secondary);
+  --ui-bg-primary: var(--ui-bg);
+  --ui-bg-secondary: var(--ui-bg-raised);
+  --ui-bg-tertiary: #121214;
 }
 
 html[data-appearance='anthropic-dark'] {
@@ -7640,7 +7647,7 @@ body {
 
 .account-configure label {
   grid-column: 1 / -1;
-  color: var(--muted);
+  color: var(--ui-text-secondary);
   font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
