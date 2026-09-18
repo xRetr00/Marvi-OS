@@ -196,6 +196,7 @@ export function AgentJobCard({
         type="button"
       >
         <AgentAvatar
+          agentKey={agent}
           animated={status.live}
           label={`${name}'s avatar`}
           seed={seedFor({ agent, name }, roster)}
@@ -353,6 +354,7 @@ export function AgentsPanel({ feed }: { feed: ReturnType<typeof $agents.get> }):
                 type="button"
               >
                 <AgentAvatar
+                  agentKey={agent.key}
                   animated={Boolean(working)}
                   label={`${agent.name}'s avatar`}
                   seed={working ? seedFor(working, feed.agents) : agent.key}

@@ -6,6 +6,15 @@
   border-radius: 50%;
 }
 
+.agent-brand-logo {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 50%;
+  background: var(--ui-bg-raised);
+}
+
 /* -- status chip ---------------------------------------------------------- */
 
 .agent-chip {

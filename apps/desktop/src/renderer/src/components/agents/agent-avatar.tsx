@@ -15,6 +15,8 @@
  */
 
 import { useEffect, useRef } from 'react'
+import ClaudeCode from '@thesvg/react/claude-code'
+import Codex from '@thesvg/react/codex'
 
 import { generateGrid, generatePalette, hashSeed, GRID_SIZE } from './avatar-pattern'
 
@@ -27,6 +29,7 @@ export type AgentAvatarProps = Omit<React.CanvasHTMLAttributes<HTMLCanvasElement
   animated?: boolean
   /** Accessible name; defaults to the seed. */
   label?: string
+  agentKey?: string
 }
 
 /** Pulse: each pixel oscillates lightness independently */
@@ -58,6 +61,7 @@ export function AgentAvatar({
   size = 64,
   animated = true,
   label,
+  agentKey,
   className,
   ...props
 }: AgentAvatarProps): React.JSX.Element {
@@ -65,6 +69,7 @@ export function AgentAvatar({
   const rafRef = useRef<number>(0)
 
   useEffect(() => {
+    if (agentKey === 'claude' || agentKey === 'codex') return
     const canvas = canvasRef.current
     const ctx = canvas?.getContext('2d')
     if (!canvas || !ctx) return
@@ -170,7 +175,13 @@ export function AgentAvatar({
       cancelAnimationFrame(rafRef.current)
       motionQuery.removeEventListener('change', handleMotionChange)
     }
-  }, [seed, size, animated])
+  }, [seed, size, animated, agentKey])
+
+  if (agentKey === 'claude' || agentKey === 'codex') {
+    return <span aria-label={label ?? agentKey} className="agent-brand-logo" role="img" style={{ height: size, width: size }}>
+      {agentKey === 'claude' ? <ClaudeCode aria-hidden="true" variant="color" width={size * 0.68} height={size * 0.68} /> : <Codex aria-hidden="true" variant="dark" width={size * 0.68} height={size * 0.68} />}
+    </span>
+  }
 
   return (
     <canvas
