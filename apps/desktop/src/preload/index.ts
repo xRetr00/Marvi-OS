@@ -375,7 +375,8 @@ const marvi = {
     ipcRenderer.invoke('marvi:open-maintenance-terminal', action),
   getSchedules: (): Promise<SchedulePage | null> => ipcRenderer.invoke('marvi:get-schedules'),
   /** The board. With `after`, the Gateway holds the request until it changes. */
-  getJobs: (after?: number): Promise<JobBoard | null> => ipcRenderer.invoke('marvi:get-jobs', after),
+  getJobs: (after?: number): Promise<JobBoard | null> =>
+    ipcRenderer.invoke('marvi:get-jobs', after),
   getJob: (id: string): Promise<JobCard | null> => ipcRenderer.invoke('marvi:get-job', id),
   addJob: (body: { title: string; body?: string; assignee?: string }): Promise<JobCard | null> =>
     ipcRenderer.invoke('marvi:add-job', body),

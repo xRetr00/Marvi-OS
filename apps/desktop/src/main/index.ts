@@ -1364,11 +1364,12 @@ function applyHotkeys(): HotkeyState {
   const state = hotkeys.apply(hotkeyBindings, hotkeyHandlers())
   hotkeyProblems = state.problems
   for (const [action, problem] of Object.entries(state.problems)) {
-    desktop.warn(`Hotkey ${action} (${hotkeyBindings[action as HotkeyAction]}) is not active: ${problem}`)
+    desktop.warn(
+      `Hotkey ${action} (${hotkeyBindings[action as HotkeyAction]}) is not active: ${problem}`
+    )
   }
   return state
 }
-
 
 function publishRuntime(next: RuntimeStatus): RuntimeStatus {
   runtimeStatus = next
@@ -3029,9 +3030,10 @@ function startApp(): void {
       if (typeof id !== 'string') return { saved: '' }
       let exported: { title?: string; markdown?: string } | null = null
       try {
-        exported = (await gatewayJson(
-          `/chat/threads/${encodeURIComponent(id)}/export`
-        )) as { title?: string; markdown?: string }
+        exported = (await gatewayJson(`/chat/threads/${encodeURIComponent(id)}/export`)) as {
+          title?: string
+          markdown?: string
+        }
       } catch {
         return { saved: '', error: 'Marvi could not read that conversation.' }
       }

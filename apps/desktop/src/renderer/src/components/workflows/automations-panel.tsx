@@ -78,8 +78,8 @@ export function AutomationsPanel(): React.JSX.Element {
         <div>
           <h3>Rules</h3>
           <p>
-            When something happens, do one thing — matched exactly, with no model deciding
-            whether today is different. Actions still go through confirmation.
+            When something happens, do one thing — matched exactly, with no model deciding whether
+            today is different. Actions still go through confirmation.
           </p>
         </div>
         <button className="cron-new" onClick={() => setOpen(!open)} type="button">
@@ -277,8 +277,8 @@ function RuleForm({
           value={args}
         />
         <small>
-          <code>{'{field}'}</code> is filled from the event — into a slot you wrote, never as a
-          new one.
+          <code>{'{field}'}</code> is filled from the event — into a slot you wrote, never as a new
+          one.
         </small>
       </label>
       {error ? <p className="cron-error">{error}</p> : null}

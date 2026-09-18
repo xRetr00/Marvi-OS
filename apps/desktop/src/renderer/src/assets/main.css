@@ -14662,7 +14662,7 @@ html[data-appearance='claude-code-dark'] .control-row {
 .wf-rules {
   margin: 0 0 34px;
   padding: 16px 0 0;
-  border-top: 1px solid var(--ui-border-subtle);
+  border-top: 1px solid var(--ui-stroke-secondary);
 }
 
 .wf-proposed {
@@ -14671,7 +14671,7 @@ html[data-appearance='claude-code-dark'] .control-row {
   gap: 7px;
   margin: 0 0 12px;
   padding: 8px 11px;
-  border: 1px dashed var(--ui-border-subtle);
+  border: 1px dashed var(--ui-stroke-secondary);
   border-radius: 6px;
   color: var(--ui-text-tertiary);
   font-size: 10px;
@@ -14696,13 +14696,13 @@ html[data-appearance='claude-code-dark'] .control-row {
   justify-content: space-between;
   gap: 12px;
   padding: 11px 13px;
-  border: 1px solid var(--ui-border-subtle);
+  border: 1px solid var(--ui-stroke-secondary);
   border-radius: 8px;
-  background: var(--ui-bg-secondary);
+  background: var(--ui-bg-raised);
 }
 
 .wf-rule-list > li.is-on {
-  border-color: color-mix(in srgb, var(--ui-accent) 28%, var(--ui-border-subtle));
+  border-color: color-mix(in srgb, var(--ui-accent) 28%, var(--ui-stroke-secondary));
 }
 
 .wf-rule-main {
@@ -14721,9 +14721,9 @@ html[data-appearance='claude-code-dark'] .control-row {
   height: 16px;
   margin-top: 2px;
   padding: 2px;
-  border: 1px solid var(--ui-border-subtle);
+  border: 1px solid var(--ui-stroke-secondary);
   border-radius: 999px;
-  background: var(--ui-bg-tertiary);
+  background: var(--ui-bg-tertiary, var(--ui-bg-raised));
   cursor: pointer;
   transition: background 140ms ease, border-color 140ms ease;
 }
@@ -14776,7 +14776,7 @@ html[data-appearance='claude-code-dark'] .control-row {
 .wf-hook code {
   padding: 1px 4px;
   border-radius: 3px;
-  background: var(--ui-bg-tertiary);
+  background: var(--ui-bg-tertiary, var(--ui-bg-raised));
   color: var(--ui-text-secondary);
   font-family: var(--ui-font-mono, monospace);
   font-size: 9px;
@@ -14825,9 +14825,9 @@ html[data-appearance='claude-code-dark'] .control-row {
   align-items: center;
   gap: 5px;
   padding: 5px 9px;
-  border: 1px solid var(--ui-border-subtle);
+  border: 1px solid var(--ui-stroke-secondary);
   border-radius: 6px;
-  background: var(--ui-bg-tertiary);
+  background: var(--ui-bg-tertiary, var(--ui-bg-raised));
   color: var(--ui-text-secondary);
   cursor: pointer;
   font-family: inherit;
@@ -14850,7 +14850,7 @@ html[data-appearance='claude-code-dark'] .control-row {
 
 .wf-empty-row {
   padding: 16px 13px;
-  border: 1px dashed var(--ui-border-subtle);
+  border: 1px dashed var(--ui-stroke-secondary);
   border-radius: 8px;
   color: var(--ui-text-tertiary);
   font-size: 10px;
@@ -14864,9 +14864,9 @@ html[data-appearance='claude-code-dark'] .control-row {
   gap: 10px;
   margin: 0 0 12px;
   padding: 14px;
-  border: 1px solid var(--ui-border-subtle);
+  border: 1px solid var(--ui-stroke-secondary);
   border-radius: 8px;
-  background: var(--ui-bg-secondary);
+  background: var(--ui-bg-raised);
 }
 
 .wf-form label {
@@ -14886,9 +14886,9 @@ html[data-appearance='claude-code-dark'] .control-row {
 .wf-form select,
 .wf-say input {
   padding: 7px 9px;
-  border: 1px solid var(--ui-border-subtle);
+  border: 1px solid var(--ui-stroke-secondary);
   border-radius: 6px;
-  background: var(--ui-bg-primary);
+  background: var(--ui-bg-primary, var(--ui-bg));
   color: var(--ui-text-primary);
   font-family: inherit;
   font-size: 11px;
@@ -14914,7 +14914,7 @@ html[data-appearance='claude-code-dark'] .control-row {
 
 .wf-board {
   padding: 16px 0 0;
-  border-top: 1px solid var(--ui-border-subtle);
+  border-top: 1px solid var(--ui-stroke-secondary);
 }
 
 .wf-columns {
@@ -14929,15 +14929,15 @@ html[data-appearance='claude-code-dark'] .control-row {
   flex-direction: column;
   gap: 6px;
   padding: 9px;
-  border: 1px solid var(--ui-border-subtle);
+  border: 1px solid var(--ui-stroke-secondary);
   border-radius: 8px;
-  background: var(--ui-bg-secondary);
+  background: var(--ui-bg-raised);
 }
 
 /* The two columns that want something from you, and nothing else, carry it. */
 .wf-column.is-wanted {
   border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent);
-  background: color-mix(in srgb, var(--ui-accent) 5%, var(--ui-bg-secondary));
+  background: color-mix(in srgb, var(--ui-accent) 5%, var(--ui-bg-raised));
 }
 
 .wf-column > header {
@@ -14974,9 +14974,9 @@ html[data-appearance='claude-code-dark'] .control-row {
   width: 100%;
   gap: 3px;
   padding: 8px 9px;
-  border: 1px solid var(--ui-border-subtle);
+  border: 1px solid var(--ui-stroke-secondary);
   border-radius: 6px;
-  background: var(--ui-bg-primary);
+  background: var(--ui-bg-primary, var(--ui-bg));
   cursor: pointer;
   font-family: inherit;
   text-align: left;
@@ -15052,7 +15052,7 @@ html[data-appearance='claude-code-dark'] .control-row {
   flex-wrap: wrap;
   gap: 7px;
   padding: 7px 9px;
-  border: 1px solid var(--ui-border-subtle);
+  border: 1px solid var(--ui-stroke-secondary);
   border-radius: 6px;
   color: var(--ui-text-secondary);
   font-size: 10px;

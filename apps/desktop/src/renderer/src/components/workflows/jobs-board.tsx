@@ -68,7 +68,8 @@ export function JobsBoard(): React.JSX.Element {
     if (card) setOpen(card)
   }, [])
 
-  const waiting = (board?.columns?.awaiting_approval?.length ?? 0) + (board?.columns?.blocked?.length ?? 0)
+  const waiting =
+    (board?.columns?.awaiting_approval?.length ?? 0) + (board?.columns?.blocked?.length ?? 0)
 
   return (
     <div className="wf-board">
@@ -76,15 +77,11 @@ export function JobsBoard(): React.JSX.Element {
         <div>
           <h3>Jobs</h3>
           <p>
-            Everything handed to a sub-agent or written down for later. Cards survive a
-            restart; one interrupted by a restart says so.
+            Everything handed to a sub-agent or written down for later. Cards survive a restart; one
+            interrupted by a restart says so.
           </p>
         </div>
-        {waiting > 0 ? (
-          <span className="wf-waiting">
-            {waiting} waiting on you
-          </span>
-        ) : null}
+        {waiting > 0 ? <span className="wf-waiting">{waiting} waiting on you</span> : null}
       </header>
 
       <div className="wf-columns">
@@ -151,11 +148,25 @@ function JobDrawer({
   }
 
   return (
-    <div className="connector-modal-shell" onClick={(event) => {
-      if (event.target === event.currentTarget) onClose()
-    }} role="presentation">
-      <div aria-label={card.title} aria-modal="true" className="connector-modal wf-drawer" role="dialog">
-        <button aria-label="Close" className="connector-modal-close" onClick={onClose} type="button">
+    <div
+      className="connector-modal-shell"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose()
+      }}
+      role="presentation"
+    >
+      <div
+        aria-label={card.title}
+        aria-modal="true"
+        className="connector-modal wf-drawer"
+        role="dialog"
+      >
+        <button
+          aria-label="Close"
+          className="connector-modal-close"
+          onClick={onClose}
+          type="button"
+        >
           <X aria-hidden="true" size={14} />
         </button>
         <header className="connector-modal-head">
@@ -180,7 +191,9 @@ function JobDrawer({
                   <span className="wf-run-when">{run.started_at.slice(11, 16)}</span>
                   <span className="wf-run-reason">{run.exit_reason || 'running'}</span>
                   {run.summary ? <span className="wf-run-summary">{run.summary}</span> : null}
-                  {run.tokens ? <span className="wf-run-tokens">{run.tokens.toLocaleString()}</span> : null}
+                  {run.tokens ? (
+                    <span className="wf-run-tokens">{run.tokens.toLocaleString()}</span>
+                  ) : null}
                 </li>
               ))}
             </ul>
@@ -222,7 +235,11 @@ function JobDrawer({
         <footer className="wf-drawer-foot">
           {live ? (
             <button
-              onClick={() => void window.marvi?.updateJob(card.id, { status: 'cancelled' }).then(() => onChanged(card.id))}
+              onClick={() =>
+                void window.marvi
+                  ?.updateJob(card.id, { status: 'cancelled' })
+                  .then(() => onChanged(card.id))
+              }
               type="button"
             >
               Cancel job
@@ -230,7 +247,11 @@ function JobDrawer({
           ) : null}
           {card.status !== 'done' ? (
             <button
-              onClick={() => void window.marvi?.updateJob(card.id, { status: 'done' }).then(() => onChanged(card.id))}
+              onClick={() =>
+                void window.marvi
+                  ?.updateJob(card.id, { status: 'done' })
+                  .then(() => onChanged(card.id))
+              }
               type="button"
             >
               Mark done
