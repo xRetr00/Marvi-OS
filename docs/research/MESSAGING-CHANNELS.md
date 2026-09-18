@@ -11,7 +11,6 @@ writing protocol code ourselves?
 (long polling, a WebSocket, or a linked device). That means no public webhook,
 no tunnel, and no cloud relay, so it fits Marvi's local-only rule. Each
 channel is a thin adapter in Gateway built on one maintained library.
-The five channels can be built with maintained libraries.
 
 ## The five channels
 

@@ -427,7 +427,7 @@ def test_computer_status_carries_the_actor() -> None:
 
 def test_a_long_tool_is_not_a_stall(root, monkeypatch) -> None:
     """A test suite in the foreground may run ten minutes. Inside a tool the
-    patience is longer, as Hermes's is: 1,200 seconds against 450."""
+    stall allowance is longer than the ordinary idle allowance."""
     monkeypatch.setattr(subagents, "STALL_SECONDS", 0.05)
     monkeypatch.setattr(subagents, "STALL_IN_TOOL", 5.0)
     monkeypatch.setattr(subagents, "WATCH_EVERY", 0.02)

@@ -35,7 +35,7 @@ In **Confirm** mode, Marvi asks before actions that need your approval. In **YOL
 
 ## Get Marvi OS
 
-Marvi OS is available for Windows and is under active development. [Download the latest release](https://github.com/xRetr00/Marvi-OS/releases/latest) to get started.
+Made for Windows. [Download Marvi OS](https://github.com/xRetr00/Marvi-OS/releases/latest) and make more room for what matters.
 
 <p align="center">
   <strong>Voice. Vision. Memory. Action.</strong><br>

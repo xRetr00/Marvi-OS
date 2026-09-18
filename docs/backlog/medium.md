@@ -41,8 +41,9 @@ every word of it.
 
 ### M2. Hooks that can refuse, and more of them
 
-`pre_tool_call` may return `{"action": "block", "message": …}` and the call is refused with that reason, recorded like any other
-failure. A granted hook that *crashes* refuses too — a guardrail that failed
+`pre_tool_call` may return `{"action": "block", "message": …}`. The call is
+refused with that reason and recorded like any other failure. A granted hook
+that *crashes* refuses too — a guardrail that failed
 has not consented. It narrows only: confirmation, the room's sleep rule and
 every other guard still run, so a hook can never approve anything.
 

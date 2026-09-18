@@ -148,7 +148,7 @@ def _coerce(value: Any, expected: type) -> Any:
     return value
 
 
-#: Raised around every call. Named as Hermes Agent names them, so a plugin
+#: Raised around every call. A plugin
 #: written for its hook contract (`plugin.yaml` + `register(ctx)`, which the
 #: Smart Room plugin already follows) needs no changes.
 TOOL_HOOKS = ("pre_tool_call", "post_tool_call")
@@ -184,10 +184,14 @@ class ToolRegistry:
         #: `pre_tool_call` may refuse a call, everything else only watches.
         self.hooks = Hooks()
 
-    def add_hook(self, event: str, handler: Callable[..., Any]) -> None:
+    def add_hook(
+        self, event: str, handler: Callable[..., Any], *, guard: bool = False, who: str = ""
+    ) -> None:
+        """Watch every call. `guard=True` -- which only the user grants, in
+        `MARVI_HOOK_GUARDS` -- also lets this handler refuse one."""
         if event not in TOOL_HOOKS:
             raise ValueError(f"unknown tool hook {event!r}")
-        self.hooks.register(event, handler)
+        self.hooks.register(event, handler, guard=guard, who=who)
 
     def _fire(self, event: str, **payload: Any) -> None:
         self.hooks.fire(event, **payload)

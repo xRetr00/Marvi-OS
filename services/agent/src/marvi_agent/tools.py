@@ -537,7 +537,6 @@ class GatewayTools:
 
     # -- the bridge ---------------------------------------------------------
     #
-    # `tool_call` is taken from Hermes Agent, which pairs `tool_search` with a
     # `tool_call` bridge rather than making the model do a two-step. Two things
     # measured here say the same thing.
     #

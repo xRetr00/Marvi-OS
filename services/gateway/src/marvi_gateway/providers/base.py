@@ -200,7 +200,7 @@ class ProviderProfile:
         One key is one rate limit. A person with two keys for the same
         provider had no way to say so, so a 429 on the first meant Marvi stood
         the whole provider down while a perfectly good second key sat unused.
-        Hermes calls this a credential pool; here it is a numbered suffix on
+        Here it is a numbered suffix on
         the variable that already exists:
 
             OPENROUTER_API_KEY      the one everybody has
@@ -280,6 +280,18 @@ class ProviderProfile:
         if self.reasoning.style != "effort":
             return ""
         return self.effort_env or f"MARVI_{self.name.replace('-', '_').upper()}_EFFORT"
+
+    #: Which model draws a picture for this provider. A default, overridable
+    #: per provider with `MARVI_<NAME>_IMAGE_MODEL` -- image model names change
+    #: faster than anything else in the catalogue, so this must be settable
+    #: without a release.
+    def image_model(self) -> str:
+        import os
+
+        setting = f"MARVI_{self.name.replace('-', '_').upper()}_IMAGE_MODEL"
+        if chosen := os.environ.get(setting, "").strip():
+            return chosen
+        return "gpt-image-1" if self.name == "openai" else "openai/gpt-image-1"
 
     def model_for(self, job: Literal["main", "aux", "vision"] = "main") -> str:
         """Which model answers this job when nothing named one.

@@ -3,7 +3,7 @@
 Marvi could always read a file or fetch a page -- as a tool call, after
 deciding to, which costs a round trip and sometimes does not happen at all
 ("I don't have access to that file"). Naming the thing in the message is the
-shorter path, and it is how Hermes' context references and every coding agent's
+shorter path, and it is how many coding agents'
 `@` work (design reference only; nothing is copied).
 
 Two rules the implementation exists to keep:

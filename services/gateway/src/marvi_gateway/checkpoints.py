@@ -2,7 +2,6 @@
 
 `file_write`, `file_edit` and `file_delete` said "this cannot be undone", and
 from a voice turn or a Harvi job that was literally true: the old bytes were
-gone the moment the tool returned. Hermes Agent answers the same problem with a
 shadow git store and `/rollback` (MIT, design reference only, no code taken).
 
 This is the smaller version of that idea. Before one of Marvi's own file tools

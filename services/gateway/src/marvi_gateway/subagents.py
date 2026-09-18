@@ -24,9 +24,7 @@ a name drawn for the run.
 
 ## The contract
 
-Taken from Hermes Agent's `delegate_task` (MIT), whose documented behaviour it
-follows rather than whose code it copies -- that code is bound to Hermes's own
-agent class:
+The job contract:
 
 * **A fresh context.** The job sees its task and its prompt, never the
   conversation. Marvi writes the task for someone who was not there.
@@ -103,7 +101,7 @@ SINGLE = frozenset({"jarvi", "talos"})
 #: No model answer and no tool result for this long means stuck.
 STALL_SECONDS = 450.0
 #: Inside one tool call the patience is longer: a foreground test suite may
-#: legitimately run `terminal_run`'s full ten minutes. Hermes's numbers.
+#: legitimately run `terminal_run`'s full ten minutes.
 STALL_IN_TOOL = 1200.0
 WATCH_EVERY = 15.0
 #: How long a vanished confirmation token may stay unexplained before it is

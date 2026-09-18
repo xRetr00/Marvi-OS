@@ -136,7 +136,6 @@ def test_tool_schemas_are_voice_sized_and_hide_transport(voice) -> None:
         # Zed it called `process_list`, then `memory_unlink`, reporting success
         # both times.
         "forget",
-        # The bridge, from Hermes Agent. See `tool_call`.
         "tool_call",
         "approve_pending_action",
         "deny_pending_action",

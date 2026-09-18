@@ -171,7 +171,7 @@ NARRATES_THE_EXCHANGE = re.compile(
     # A speech verb, not merely the word "assistant". Written the broad way
     # first, and a dry run over the real store showed what that costs:
     #
-    #   "The backend infrastructure of the assistant system is named Hermes"
+    #   "The backend infrastructure of the assistant system is named after a previous internal codename"
     #   "Gmail requires re-authentication, and the assistant cannot check email"
     #
     # Both real facts, both about the assistant rather than about something it

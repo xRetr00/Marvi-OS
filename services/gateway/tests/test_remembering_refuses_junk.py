@@ -70,8 +70,8 @@ REAL = [
     # are facts *about* the assistant rather than narration of something it
     # said, and losing them is the cost of matching the word "assistant"
     # instead of matching somebody speaking.
-    ("Hermes infrastructure",
-     "The backend infrastructure of the assistant system is named Hermes, "
+    ("Assistant infrastructure",
+     "The backend infrastructure of the assistant system is named after a previous internal codename, "
      "which has remained constant despite multiple rebrandings."),
     ("Gmail authentication barrier",
      "Gmail requires re-authentication, and the assistant cannot check email "

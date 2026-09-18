@@ -31,7 +31,6 @@ import { recentlyLearned } from './memory-health-utils'
  * Deliberately the same rule as `remembering.NARRATES_THE_EXCHANGE` on the
  * Gateway, and deliberately about a *speech act* rather than the word
  * "assistant": "the backend infrastructure of the assistant system is named
- * Hermes" is a fact, and a broader pattern threw it away.
  */
 const NARRATES =
   /\bthe (?:user|assistant) (?:said|asked|replied|responded|confirmed|mentioned|stated|indicated|greeted|told)\b|\b(?:which|this) indicates\b|\bmarvi (?:interpreted|responded|replied|said)\b/i

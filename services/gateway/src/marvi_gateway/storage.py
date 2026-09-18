@@ -64,7 +64,7 @@ LOG_FILE = re.compile(r"\.log(\.\d+)?$")
 #:
 #:     memory.sqlite3.before-dedup-20260907   -> memory.sqlite3
 #:     faces.sqlite3.20260912.bak             -> faces.sqlite3
-#:     smart_room.before-hermes-move-2026...  -> smart_room
+#:     smart_room.before-storage-move-2026...  -> smart_room
 #:     vision-backup-20260904-113413          -> vision
 BACKUP = re.compile(r"^(?P<base>.+?)(?:\.before-.+|-backup-.+|\.\d{8}\.bak|\.bak)$")
 

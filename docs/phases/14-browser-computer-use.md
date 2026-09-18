@@ -17,7 +17,7 @@ Windows-MCP is not a selected dependency.
 ## Scope correction — embedded desktop browser, 2026-09-08
 
 The user requires the agent-controlled browser inside the desktop app. The
-miss in the native-window choice and revised delivery gates. An Electron
+native-window choice missed this requirement. An Electron
 main-owned WebContentsView is required for the primary desktop experience.
 The native Playwright workspace below is groundwork and an explicit fallback;
 it does not satisfy embedded-browser acceptance. The embedded host and Gateway

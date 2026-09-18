@@ -353,8 +353,7 @@ async def test_deferring_can_be_turned_back_on(monkeypatch) -> None:
 
 
 async def test_the_bridge_calls_a_tool_that_is_not_loaded() -> None:
-    r"""Taken from Hermes Agent, which pairs `tool_search` with a `tool_call`
-    bridge instead of making the model do a two-step. The model already emits
+    r"""The bridge avoids making the model do a two-step. The model already emits
     it: LiveKit logged `unknown AI function \`tool_call\`` twice in one sweep,
     reaching for a bridge by the name the convention gave it, into nothing."""
     import httpx
