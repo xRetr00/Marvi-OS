@@ -35,7 +35,6 @@ import type { ReadAloud } from './parts'
 function createdAt(message: MessageState): string {
   return (message.createdAt ?? new Date()).toISOString()
 }
-
 function BranchPicker({ className }: { className?: string }): React.JSX.Element {
   return (
     <BranchPickerPrimitive.Root

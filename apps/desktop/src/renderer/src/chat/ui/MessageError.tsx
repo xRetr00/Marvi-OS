@@ -12,7 +12,7 @@ export function describeFailure(raw: string): { title: string; detail: string; t
     } catch { /* The provider may send truncated JSON. Keep the original text. */ }
   }
   if (/credits|quota|insufficient balance/i.test(detail))
-    return { title: 'Provider credits are exhausted', detail: detail.replace(/https?:\/\/\S+/g, '').trim(), technical }
+    return { title: 'Provider credits are exhausted', detail: 'Add credits to the provider account or choose a model with a lower cost, then retry.', technical }
   if (/rate.limit|too many requests|\b429\b/i.test(detail))
     return { title: 'Provider is busy', detail: 'The provider is limiting requests. Try again shortly.', technical }
   if (/unauthorized|invalid.api.key|\b401\b|\b403\b/i.test(detail))
@@ -29,7 +29,7 @@ export function MessageError({ error }: { error: string }): React.JSX.Element {
   return (
     <MessagePrimitive.Error>
       <div className="chat-failure" role="alert">
-        <AbstractIcon name="info" size={16} />
+        <AbstractIcon name="about" size={16} />
         <div className="chat-failure-content">
           <strong>{failure.title}</strong>
           <p>{failure.detail}</p>

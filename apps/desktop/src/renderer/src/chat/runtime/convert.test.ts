@@ -151,6 +151,14 @@ describe('convertMessage', () => {
       reason: 'error',
       error: 'the provider refused'
     })
+    expect(converted.content).toEqual([])
+  })
+
+  it('treats a provider startup failure stored as assistant text as one error', () => {
+    const raw = 'No provider could start a stream; last error: provider rejected (402)'
+    const converted = convertMessage(message({ role: 'assistant', content: raw, parts: [{ type: 'text', text: raw }] }))
+    expect(converted.status).toMatchObject({ type: 'incomplete', reason: 'error' })
+    expect(converted.content).toEqual([])
   })
 
   it('marks a streaming reply as running', () => {

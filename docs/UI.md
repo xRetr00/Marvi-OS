@@ -1,5 +1,13 @@
 # UI Contract
 
+Chat failures occupy one compact danger-tinted card in the failed turn, with a
+plain-language summary, expandable technical detail, and a retry action. Raw
+provider payloads are not repeated as answer text. Long conversations show a
+right-gutter conversation map with one keyboard-accessible tick per user turn;
+the active and visible turns are distinguished and selecting a tick scrolls to
+that turn. Claude Code and Codex use their local TheSVG brand marks in both the
+roster and job cards; Marvi's internal agents keep their pixel avatars.
+
 Sub-agents: the status bar carries an agents item (count while any work) whose
 popover lists Harvi, Jarvi, Talos and the worker — pressing one shows what it
 is for — then who is working now and who finished recently. A job opens to its

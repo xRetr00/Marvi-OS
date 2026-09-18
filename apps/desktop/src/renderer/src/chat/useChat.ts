@@ -307,7 +307,7 @@ export function useChat(): UseChat {
   const regenerate = useCallback(
     async (messageId: number) => {
       const message = messages.find((entry) => entry.id === messageId)
-      const user = message ? userAncestor(messages, message) : undefined
+      const user = message ? userAncestor(messages, message) ?? (message.role === 'error' ? [...messages].reverse().find((entry) => entry.role === 'user') : undefined) : undefined
       if (user) await runTurn(user.content, { regenerateMessageId: messageId })
     },
     [messages, runTurn]
