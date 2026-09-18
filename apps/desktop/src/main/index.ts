@@ -2536,6 +2536,68 @@ function startApp(): void {
       return shell.openExternal('ms-settings:privacy-location')
     })
     ipcMain.handle('marvi:get-schedules', () => gatewayJson('/schedules'))
+    // The board, and the rules that fill it. `/jobs?after=` is a long poll the
+    // Gateway holds for 25s, so this one waits longer than the usual 10.
+    ipcMain.handle('marvi:get-jobs', (_event, after?: number) =>
+      typeof after === 'number' && after >= 0
+        ? gatewayJson(`/jobs?after=${encodeURIComponent(String(after))}`, undefined, 40_000)
+        : gatewayJson('/jobs')
+    )
+    ipcMain.handle('marvi:get-job', (_event, id) =>
+      gatewayJson(`/jobs/${encodeURIComponent(String(id))}`)
+    )
+    ipcMain.handle('marvi:add-job', (_event, body) =>
+      gatewayJson('/jobs', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+    )
+    ipcMain.handle('marvi:update-job', (_event, id, body) =>
+      gatewayJson(`/jobs/${encodeURIComponent(String(id))}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+    )
+    ipcMain.handle('marvi:comment-on-job', (_event, id, body) =>
+      gatewayJson(`/jobs/${encodeURIComponent(String(id))}/comments`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ body })
+      })
+    )
+    ipcMain.handle('marvi:get-automations', () => gatewayJson('/automations'))
+    ipcMain.handle('marvi:add-automation', (_event, body) =>
+      gatewayJson('/automations', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+    )
+    ipcMain.handle('marvi:set-automation-enabled', (_event, id, enabled) =>
+      gatewayJson(`/automations/${encodeURIComponent(String(id))}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ enabled: Boolean(enabled) })
+      })
+    )
+    ipcMain.handle('marvi:remove-automation', (_event, id) =>
+      gatewayJson(`/automations/${encodeURIComponent(String(id))}`, { method: 'DELETE' })
+    )
+    // A dry run does whatever the rule does, so it gets the same room a real
+    // firing would: minutes, not the default ten seconds.
+    ipcMain.handle('marvi:run-automation', (_event, id, event) =>
+      gatewayJson(
+        `/automations/${encodeURIComponent(String(id))}/run`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ event: event ?? {} })
+        },
+        5 * 60_000
+      )
+    )
     const browserRequest = async (path: string, body?: unknown): Promise<unknown> => {
       const response = await fetch(`${gateway()}/browser${path}`, {
         method: body === undefined ? 'GET' : 'POST',

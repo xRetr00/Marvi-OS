@@ -14,6 +14,10 @@ import type {
   BrowserStatus
 } from '../shared/browser'
 import type {
+  AutomationPage,
+  AutomationRule,
+  JobBoard,
+  JobCard,
   FaceLibrary,
   AuxiliaryPage,
   AssistantState,
@@ -370,6 +374,33 @@ const marvi = {
   openMaintenanceTerminal: (action: MaintenanceAction): Promise<boolean> =>
     ipcRenderer.invoke('marvi:open-maintenance-terminal', action),
   getSchedules: (): Promise<SchedulePage | null> => ipcRenderer.invoke('marvi:get-schedules'),
+  /** The board. With `after`, the Gateway holds the request until it changes. */
+  getJobs: (after?: number): Promise<JobBoard | null> => ipcRenderer.invoke('marvi:get-jobs', after),
+  getJob: (id: string): Promise<JobCard | null> => ipcRenderer.invoke('marvi:get-job', id),
+  addJob: (body: { title: string; body?: string; assignee?: string }): Promise<JobCard | null> =>
+    ipcRenderer.invoke('marvi:add-job', body),
+  updateJob: (
+    id: string,
+    body: { status?: string; reason?: string; title?: string; body?: string }
+  ): Promise<JobCard | null> => ipcRenderer.invoke('marvi:update-job', id, body),
+  commentOnJob: (id: string, body: string): Promise<{ steered: boolean } | null> =>
+    ipcRenderer.invoke('marvi:comment-on-job', id, body),
+  getAutomations: (): Promise<AutomationPage | null> => ipcRenderer.invoke('marvi:get-automations'),
+  addAutomation: (body: {
+    name: string
+    trigger: string
+    action: string
+    arguments?: Record<string, unknown>
+    match?: Record<string, unknown>
+    enabled?: boolean
+  }): Promise<AutomationRule | null> => ipcRenderer.invoke('marvi:add-automation', body),
+  setAutomationEnabled: (id: string, enabled: boolean): Promise<AutomationRule | null> =>
+    ipcRenderer.invoke('marvi:set-automation-enabled', id, enabled),
+  removeAutomation: (id: string): Promise<{ removed: boolean } | null> =>
+    ipcRenderer.invoke('marvi:remove-automation', id),
+  /** Fire one rule by hand with a made-up event: the dry run. */
+  runAutomation: (id: string, event: Record<string, unknown>): Promise<unknown> =>
+    ipcRenderer.invoke('marvi:run-automation', id, event),
   getComputer: (after?: number): Promise<import('../shared/computer').ComputerStatus> =>
     ipcRenderer.invoke('marvi:get-computer', after),
   getAgents: (after?: number): Promise<import('../shared/agents').AgentsFeed | null> =>

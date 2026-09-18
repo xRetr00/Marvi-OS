@@ -56,6 +56,7 @@ from . import (
 from . import doctor as doctor_module
 from . import plugins as plugins_module
 from . import room as room_module
+from . import automations as automations_module
 from . import runs as runs_module
 from . import schedule as schedule_module
 from . import setup as setup_module
@@ -1341,7 +1342,16 @@ def create_app(
         from .imagery import register_image_tools
 
         register_image_tools(tool_registry, provider_client)
+        from .automations import Automations
+        from .jobs import JobsStore, register_job_tools
         from .sandbox import register_sandbox_tools
+
+        jobs_store = JobsStore()
+        # A card that says "running" when nothing is running is the most
+        # misleading thing a board can show, and a crash leaves exactly that.
+        jobs_store.recover()
+        register_job_tools(tool_registry, jobs_store)
+        rules = Automations()
 
         register_sandbox_tools(tool_registry)
         from .trimming import register_more_tool
@@ -2272,6 +2282,8 @@ def create_app(
         # Late-bound: defined below, and only ever called after startup.
         settle=lambda token, approve: settle_for_channel(token, approve, via="delegate_approve"),
         granted=dispatch_granted,
+        # Cards outlive the process; the registry inside the runner does not.
+        board=jobs_store if tools is None else None,
     )
     app.state.subagents = subagent_runner
     if chat is not None:
@@ -4271,6 +4283,157 @@ def create_app(
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         runtime_store.audit("restored", "file_restore", {"path": row["path"], "checkpoint": checkpoint_id})
         return restored
+
+    # -- the board ------------------------------------------------------------
+
+    def run_tool_for_automation(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        """One automation's action, through the same door every tool uses.
+
+        Confirm mode still asks, YOLO still does not, the audit log still
+        records it. An automation is a way to *ask* for a tool call without
+        typing it, never a way around the rules that govern one.
+        """
+        spec = tool_registry.get(name)
+        checked = tool_registry.validate(spec, arguments)
+        runtime_store.audit("requested", spec.name, checked, detail="automation")
+        if spec.is_sensitive(checked) and not runtime_store.assistant.yolo:
+            request = runtime_store.issue_confirmation(
+                tool=spec.name,
+                arguments=checked,
+                action=spec.description,
+                detail=f"{spec.summary(checked)} (an automation asked)",
+            )
+            return {"status": "confirmation_required", "token": request.token}
+        return {"status": "executed", "result": tool_registry.execute(spec, checked)}
+
+    rules.call = run_tool_for_automation
+
+    @app.get("/jobs")
+    async def list_jobs(after: int = -1) -> dict[str, Any]:
+        """The board. With `after`, waits for the next change before answering.
+
+        The window holds this open rather than polling on a timer: a board that
+        repaints every two seconds is one nobody can read while it changes.
+        """
+        if after >= 0:
+            await anyio.to_thread.run_sync(lambda: jobs_store.wait(after))
+        return jobs_store.board()
+
+    @app.get("/jobs/{job_id}")
+    async def read_job(job_id: str) -> dict[str, Any]:
+        try:
+            return jobs_store.get(job_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.post("/jobs")
+    async def make_job(body: dict[str, Any], http_request: Request) -> dict[str, Any]:
+        localauth.guard(http_request)
+        return jobs_store.add(
+            str(body.get("title") or ""),
+            str(body.get("body") or ""),
+            assignee=str(body.get("assignee") or "owner"),
+            created_by="owner",
+        )
+
+    @app.patch("/jobs/{job_id}")
+    async def change_job(job_id: str, body: dict[str, Any], http_request: Request) -> dict[str, Any]:
+        localauth.guard(http_request)
+        try:
+            if "title" in body or "body" in body:
+                jobs_store.edit(job_id, body.get("title"), body.get("body"))
+            if status := str(body.get("status") or ""):
+                return jobs_store.set_status(job_id, status, str(body.get("reason") or ""))
+            return jobs_store.get(job_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.delete("/jobs/{job_id}")
+    async def drop_job(job_id: str, http_request: Request) -> dict[str, Any]:
+        localauth.guard(http_request)
+        return {"removed": jobs_store.remove(job_id)}
+
+    @app.post("/jobs/{job_id}/comments")
+    async def comment_on_job(
+        job_id: str, body: dict[str, Any], http_request: Request
+    ) -> dict[str, Any]:
+        """A comment. On a live card it is also a steer -- the owner's words
+        reach the job that is running rather than sitting under it."""
+        localauth.guard(http_request)
+        try:
+            return jobs_store.comment(job_id, str(body.get("body") or ""), "owner")
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    # -- automations ------------------------------------------------------------
+
+    @app.get("/automations")
+    async def list_automations() -> dict[str, Any]:
+        return {"automations": rules.all(), "triggers": list(automations_module.TRIGGERS)}
+
+    @app.post("/automations")
+    async def make_automation(body: dict[str, Any], http_request: Request) -> dict[str, Any]:
+        localauth.guard(http_request)
+        try:
+            return rules.add(
+                str(body.get("name") or ""),
+                str(body.get("trigger") or ""),
+                str(body.get("action") or ""),
+                body.get("arguments") or {},
+                body.get("match") or {},
+                enabled=bool(body.get("enabled")),
+                proposed_by="owner",
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.patch("/automations/{rule_id}")
+    async def change_automation(
+        rule_id: str, body: dict[str, Any], http_request: Request
+    ) -> dict[str, Any]:
+        localauth.guard(http_request)
+        try:
+            return rules.set_enabled(rule_id, bool(body.get("enabled")))
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.delete("/automations/{rule_id}")
+    async def drop_automation(rule_id: str, http_request: Request) -> dict[str, Any]:
+        localauth.guard(http_request)
+        return {"removed": rules.remove(rule_id)}
+
+    @app.post("/automations/{rule_id}/run")
+    async def run_automation(
+        rule_id: str, body: dict[str, Any], http_request: Request
+    ) -> dict[str, Any]:
+        """Fire one rule by hand, with a made-up event: the dry run."""
+        localauth.guard(http_request)
+        try:
+            rule = rules.get(rule_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        done = await anyio.to_thread.run_sync(
+            lambda: rules.fire(rule["trigger"], dict(body.get("event") or {}), rule_id=rule_id)
+        )
+        return {"ran": done}
+
+    @app.post("/hooks/{rule_id}")
+    async def fire_webhook(rule_id: str, body: dict[str, Any], http_request: Request) -> dict[str, Any]:
+        """A local program setting off one rule.
+
+        The secret is the whole authentication, and the payload is untrusted:
+        it can fill fields the rule declared and nothing else.
+        """
+        secret = http_request.headers.get("x-marvi-secret", "")
+        rule = rules.by_secret(rule_id, secret)
+        if rule is None:
+            raise HTTPException(status_code=404, detail="no such hook")
+        done = await anyio.to_thread.run_sync(
+            lambda: rules.fire("webhook", dict(body or {}), rule_id=rule_id)
+        )
+        return {"ran": done}
 
     @app.get("/runs")
     async def list_runs(limit: int = 20) -> dict[str, Any]:
