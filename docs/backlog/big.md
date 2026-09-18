@@ -60,7 +60,7 @@ device ends its session within one second.
 **Not planned.** Native app-store apps; push notifications through a vendor
 relay; anything that needs a public URL.
 
-## B3. Sandboxed code execution
+## B3. Sandboxed code execution — shipped 2026-09-18
 
 **Why.** `terminal_run` runs on the host with the user's rights. OpenClaw has sandboxing.
 Marvi has no place to run code it does not trust.
@@ -84,7 +84,21 @@ host, and a normal pandas script runs.
 
 **Not planned.** Containers; remote sandboxes; GPU inside the sandbox.
 
-## B4. Command checkpoints (*extends #1*)
+**Shipped.** `sandbox.py`, tool `code_run`, `test_sandbox.py`. A Job Object with
+`PROCESS_MEMORY`, `ACTIVE_PROCESS` and `KILL_ON_JOB_CLOSE` caps memory at 512 MB
+and the tree at four processes; the child runs `python -I` in a scratch
+directory that is deleted after, with a preamble that removes `socket`, and its
+output comes back enveloped as untrusted.
+
+**One thing the plan promised that this does not.** The AppContainer token. A
+Job Object limits *resources*; it is not a security boundary, and code in one
+can still read `%USERPROFILE%`. The tool's description and its module docstring
+both say so in those words rather than implying a sandbox it does not have.
+Reaching the rest of the acceptance -- the script that tries to read the home
+directory being stopped by the OS -- needs the AppContainer token, and that is
+the next piece of this item rather than a detail of it.
+
+## B4. Command checkpoints (*extends #1*) — shipped 2026-09-18
 
 **Why.** Shipped checkpoints cover Marvi's file tools only. A `terminal_run`
 `git reset --hard`, `rm`, `Move-Item` or `>` redirect still destroys work with
@@ -106,6 +120,13 @@ no copy.
 brings back the folder byte-for-byte, and the user's `.git` has no new objects.
 
 **Not planned.** Checkpointing programs Marvi did not start.
+
+**Shipped.** `treecheck.py`, wired into `workspace.run`, `test_treecheck.py`.
+A bare repository per workspace root under the checkpoint store, addressed by
+the SHA-256 of the root path, with `GIT_DIR`/`GIT_WORK_TREE` pointing at it, so
+the user's own `.git` gains nothing. `looks_destructive` classifies the
+PowerShell verbs as well as the Unix ones; `file_checkpoints` lists file and
+tree snapshots together and `file_restore` takes either kind.
 
 ## B5. Meeting assistant
 
@@ -133,7 +154,7 @@ usable, with voice latency unaffected during the call.
 **Not planned.** A bot that joins the call as a participant; cloud
 transcription; recording without the indicator.
 
-## B6. Automations and inbound webhooks
+## B6. Automations and inbound webhooks — shipped 2026-09-18
 
 **Why.** Cron, Composio triggers and the Mind exist, but the user cannot write
 "when X, do Y", and nothing outside can poke Marvi. OpenHuman has workflows,
@@ -159,6 +180,14 @@ and a webhook from a local script both run through confirmation, survive a
 restart, and show their runs.
 
 **Not planned.** A visual flow editor; branching workflows; public webhooks.
+
+**Shipped.** `automations.py`, the `/automations` and `/hooks/{id}` routes, the
+Workflows page, `test_automations.py`. Every action runs through
+`run_tool_for_automation`, which is the ordinary validate → audit → confirm →
+execute path, so a sensitive action fired by a webhook still waits for the user.
+A rule Marvi proposes is written disabled whatever `enabled` says, and one rule
+may fire sixty times an hour before it is rate-limited and told so in its own
+history.
 
 ## B7. macOS and Linux builds
 

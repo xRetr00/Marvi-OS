@@ -752,6 +752,52 @@ Plugins is for third-party/extension plugins and is presently an empty shell —
 Settings > Plugins remains the page for Marvi's own bundled services (Smart
 Room and others).
 
+## Workflows view
+
+Capabilities > Workflows is one page for the two halves of "Marvi did something
+without me sitting there": the rules that set work off, and the board of what
+that work became. They are on one page because the question people arrive with
+spans both -- what is running, and why has nothing happened since Tuesday.
+
+**Rules.** One row per automation, with a switch, a plain-English sentence of
+what it does ("when a local program calls a URL · if kind is mail · then
+`file_write`"), when it last ran and what happened. A rule Marvi proposed is
+banded above the list saying it arrived switched off; Marvi cannot turn one on.
+A webhook rule shows its `POST /hooks/{id}` path, and its secret only after an
+explicit Show. The dry run fires the rule once by hand with an empty event and
+reports the result inline, including "nothing matched" when the condition did
+not hold -- never silence.
+
+**The board.** One column per state, in the order a job travels through them:
+To do, Running, Needs you, Blocked, Done, Failed. **Needs you** and **Blocked**
+are the only elements on the page that carry the accent colour, and only while
+they hold cards: they are the two states that want something from the person,
+and a board where everything is coloured says nothing. A blocked card says why
+in words ("waiting on an answer", "the Gateway restarted while it ran"), never
+by field name. A card opens a drawer with every attempt, comment and
+transition; a comment on a live card is a steer that reaches the running
+sub-agent, and the drawer says so rather than leaving it to be discovered.
+
+The board does not repaint on a timer. It holds `GET /jobs?after=<revision>`
+open and repaints when the Gateway says something changed; the only interval in
+the page is a three-second back-off for a Gateway that is not answering.
+
+## Chat composer commands
+
+A `/` at the **start** of the draft opens the command list; a slash anywhere
+else is a slash ("and/or", a path, a date). Arrow keys and Enter choose;
+`data-highlighted` means the pointer and the keys highlight the same row. The
+list stays open while the argument is typed, because `/goal buy milk before six`
+is one command and a list that vanished at the space would leave no way to run
+it.
+
+A command is only here if typing English cannot already do it. `/compress`
+folds what has scrolled out of the window into the conversation's summary,
+`/goal` puts the line on the jobs board, `/new` starts a conversation. Each
+clears the draft itself and says what happened in one line above the field --
+a command that leaves `/compress` sitting in the box looks like something still
+to send.
+
 ## Memory view
 
 Memory shows what is stored, how much, and where each entry came from. An entry

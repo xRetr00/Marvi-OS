@@ -52,6 +52,32 @@ No new dependency. See [`docs/backlog/`](backlog/README.md).
   which is not a dependency; the notification listener additionally needs
   package identity. Both are recorded as blocked in `docs/backlog/small.md`.
 
+## Big backlog tier: B3, B4, B6 and the jobs board — 2026-09-18
+
+No new dependency. Four subsystems, all built on things already required.
+
+- **Workspace snapshots** (`treecheck.py`) use **git itself**, which Marvi
+  already requires, as a bare repository per workspace root under the
+  checkpoint store. `GIT_DIR` and `GIT_WORK_TREE` point the index at Marvi's
+  own store, so the user's `.git` gains no objects and their staged changes are
+  untouched. One wrinkle worth recording because it cost an hour: `git init
+  --bare` refuses to run with `GIT_WORK_TREE` set, so the repository is created
+  with a clean environment and then told `core.bare false`.
+- **The code sandbox** (`sandbox.py`) uses **Windows Job Objects** through
+  `ctypes` — `JOBOBJECT_EXTENDED_LIMIT_INFORMATION` with
+  `JOB_OBJECT_LIMIT_PROCESS_MEMORY`, `ACTIVE_PROCESS` and `KILL_ON_JOB_CLOSE`.
+  These are documented Win32 with a compatibility promise, unlike the WNF read
+  above. **It is not a security boundary**: a Job Object limits resources, and
+  code inside one can still read the user's files. The AppContainer token that
+  would make it a boundary is not built; the tool says so in its own
+  description rather than implying a sandbox it does not have.
+- **The jobs board** (`jobs.py`) and **automations** (`automations.py`) are
+  SQLite plus `threading.Condition` for the long poll. OpenHuman's board
+  (GPL-3.0) and OpenClaw's webhooks were read as **design references only**; no
+  code was taken from either, and neither is a dependency.
+- Webhook secrets are compared with `hmac.compare_digest` and the signature
+  helper is `hmac` + `hashlib`, both stdlib.
+
 ## Medium backlog tier — 2026-09-18
 
 No new dependency.

@@ -1,5 +1,52 @@
 # Implementation Log
 
+## 2026-09-18 — Three big items, the board, and the Workflows page
+
+- **B4, workspace snapshots** (`treecheck.py`). `terminal_run` classifies its
+  command first, and a destructive one gets a shadow-git snapshot of the whole
+  workspace before it runs -- PowerShell verbs included, which is what the flat
+  file checkpoints never covered. The store is a bare repository per root under
+  the checkpoint directory; the user's `.git` gains nothing. `file_checkpoints`
+  now lists file and tree snapshots together and `file_restore` takes either.
+- **B3, the code sandbox** (`sandbox.py`). `code_run` puts a `python -I` in a
+  Job Object capped at 512 MB and four processes, in a scratch directory that
+  is deleted after, with `socket` removed from the child. Its output comes back
+  as untrusted. **It is not a security boundary and says so**: a Job Object
+  limits resources, not reach, and the AppContainer token that would make it a
+  boundary is the unbuilt half of that item. Claiming otherwise in a tool
+  description is how somebody runs something they should not have.
+- **Phase 17, the jobs board** (`jobs.py`). Cards, attempts, comments and
+  transitions as rows rather than a dictionary that dies with the process, so
+  "Harvi is fixing the failing test" is still true after a restart -- and a card
+  left running by a dead Gateway is corrected to failed with `restart`, said
+  plainly rather than left spinning. `subagents.py` opens and closes a card for
+  every job it runs, so nothing has to remember to file one.
+- **B6, automations** (`automations.py`). "When X happens, do Y", matched with
+  no model in the loop. Every action goes through the ordinary tool path, so a
+  sensitive one still waits for the user -- an automation *asks for* a tool
+  call, it never gets a private way to make one. Marvi can propose a rule; the
+  proposal is written disabled whatever it says, because a model that can write
+  its own standing instructions can quietly grant itself anything.
+- **The Workflows page.** The rules and the board in one place, because the
+  question people actually ask spans both: what is running, and why has nothing
+  happened since Tuesday. The board holds `GET /jobs?after=` open rather than
+  repainting on a timer, and the only colour on the page is on the two columns
+  that want something from the person.
+- **Slash commands in the composer**, on assistant-ui's trigger popover with a
+  matcher of Marvi's own: the default one stops at the first space, which is
+  right for `@file` and wrong for `/goal buy milk before six`. Three commands,
+  and the bar for a fourth is that typing English cannot already do it --
+  `/compress` folds what has scrolled out of the window (new endpoint),
+  `/goal` puts the line on the board, `/new` starts a conversation.
+- **B7 planned**: macOS and Linux builds, reversing the entry that was under
+  Rejected. The plan says what actually blocks it -- five Rust hosts against
+  `windows-sys`, WNF, Core Audio, Job Objects and an NSIS updater -- and starts
+  with a capability table, because a port that fails at the moment of use is
+  worse than one that greys the control out and says why.
+- Gateway suite and the desktop web typecheck green; 31 new tests across
+  `test_treecheck.py`, `test_sandbox.py`, `test_jobs.py`, `test_automations.py`,
+  `commands.test.ts` and `workflows-page.test.tsx`.
+
 ## 2026-09-18 — Commerce and travel chat cards
 
 - Extended the existing Gateway-validated `present_widget` contract with six

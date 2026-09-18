@@ -89,6 +89,11 @@ quietly ignored.
 | `MARVI_INSTALL_ROOT` | `%LOCALAPPDATA%\Marvi-OS` |
 | `MARVI_IDENTITY_DIR` | `%LOCALAPPDATA%\Marvi OS` |
 
+Three stores have no variable because nothing has needed to move them: the
+jobs board (`jobs.sqlite3`), the automation rules (`automations.sqlite3`), and
+the workspace snapshot store (`checkpoints\store`, one bare git repository
+per workspace root). All three sit beside the files above, under `MARVI_HOME`.
+
 ### Logging and identity
 
 | Variable | Default | Meaning |
