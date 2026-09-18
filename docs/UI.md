@@ -1,11 +1,12 @@
 # UI Contract
 
-Chat's validated widget vocabulary includes display-only receipt, cart, order
-status, booking, stay, and flight tracker cards. The Gateway caps text and
-items, drops unknown fields and private URLs, and persists structured data for
-replay. Cards label their contents as supplied details and link to a public
-source when one is present. They never claim that drawing a card itself bought,
-booked, or checked anything live, and they expose no transaction actions.
+Chat's validated widget vocabulary includes receipt, cart, order status,
+booking, stay, and flight tracker cards. These six kinds require an evidence ID
+from a successful tool call in the same turn. The Gateway compares each displayed
+fact with that result, caps fields, drops unknown fields and private URLs, and
+persists structured data plus tool provenance for replay. The card identifies
+the source tool and links to a public source when present. Rendering a card
+does not itself perform a purchase, reservation, or live lookup.
 
 Chat failures occupy one compact danger-tinted card in the failed turn, with a
 plain-language summary, expandable technical detail, and a retry action. Raw

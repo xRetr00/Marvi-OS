@@ -31,9 +31,7 @@ def responder(body: str, status: int = 200, seen: list | None = None) -> httpx.C
     def handler(request: httpx.Request) -> httpx.Response:
         if seen is not None:
             seen.append(str(request.url))
-        return httpx.Response(
-            status, text=body, headers={"content-type": "text/event-stream"}
-        )
+        return httpx.Response(status, text=body, headers={"content-type": "text/event-stream"})
 
     return httpx.Client(transport=httpx.MockTransport(handler))
 
@@ -72,6 +70,44 @@ def test_each_token_arrives_on_its_own(tmp_path) -> None:
     deltas = [e["delta"] for e in events if "delta" in e]
 
     assert deltas == ["The ", "light ", "is on."]
+
+
+def test_successful_tool_result_can_become_a_factual_card(tmp_path) -> None:
+    result = {
+        "order_id": "A123",
+        "status": "Shipped",
+        "source_url": "https://example.com/orders/A123",
+    }
+    chat = chat_with(
+        tmp_path, ANSWER, dispatch=lambda name, args: {"status": "ok", "result": result}
+    )
+    evidence: dict = {}
+    first = chat._run_tool("account_tool_execute", {"tool": "orders.get"}, evidence=evidence)
+    evidence_id = next(iter(evidence))
+    assert evidence_id in first["text"]
+    shown = chat._run_tool(
+        "present_widget",
+        {
+            "kind": "order_status",
+            "title": "Order update",
+            "evidence_id": evidence_id,
+            "data": result,
+        },
+        evidence=evidence,
+    )
+    assert shown["widget"]["data"]["status"] == "Shipped"
+    assert shown["widget"]["provenance"]["tool"] == "account_tool_execute"
+    refused = chat._run_tool(
+        "present_widget",
+        {
+            "kind": "order_status",
+            "title": "Order update",
+            "evidence_id": evidence_id,
+            "data": {**result, "status": "Delivered"},
+        },
+        evidence=evidence,
+    )
+    assert refused["failed"] is True
 
 
 def test_the_reply_is_assembled_for_the_transcript(tmp_path) -> None:
@@ -126,8 +162,7 @@ def test_a_tool_call_is_reassembled_from_its_fragments(tmp_path) -> None:
         '"function":{"name":"set_light"}}]}}]}',
         '{"choices":[{"delta":{"tool_calls":[{"index":0,'
         '"function":{"arguments":"{\\"on\\":"}}]}}]}',
-        '{"choices":[{"delta":{"tool_calls":[{"index":0,'
-        '"function":{"arguments":"true}"}}]}}]}',
+        '{"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"true}"}}]}}]}',
     )
 
     events = list(chat_with(tmp_path, body, dispatch=dispatch).send_stream("light on"))
@@ -161,9 +196,7 @@ def test_a_confirmation_stops_the_turn(tmp_path) -> None:
 def test_an_empty_message_ends_immediately(tmp_path) -> None:
     events = list(chat_with(tmp_path, ANSWER).send_stream("   "))
 
-    assert events == [
-        {"done": True, "error": "empty message", "tokens": 0, "provider": ""}
-    ]
+    assert events == [{"done": True, "error": "empty message", "tokens": 0, "provider": ""}]
 
 
 def test_a_provider_that_cannot_start_is_reported(tmp_path) -> None:
@@ -286,9 +319,7 @@ def rounds(bodies: list, *replies: str) -> httpx.Client:
 
     def handler(request: httpx.Request) -> httpx.Response:
         bodies.append(json.loads(request.content))
-        return httpx.Response(
-            200, text=next(seen), headers={"content-type": "text/event-stream"}
-        )
+        return httpx.Response(200, text=next(seen), headers={"content-type": "text/event-stream"})
 
     return httpx.Client(transport=httpx.MockTransport(handler))
 
@@ -479,7 +510,10 @@ def test_usage_survives_a_turn_that_called_a_tool(tmp_path: Path) -> None:
             "done": True,
             "usage": {"input": 900, "output": 30, "cached_input": 100, "billable": 930},
         },
-        {"done": True, "usage": {"input": 1400, "output": 60, "cached_input": 300, "billable": 1460}},
+        {
+            "done": True,
+            "usage": {"input": 1400, "output": 60, "cached_input": 300, "billable": 1460},
+        },
     ]
     usage = {"input": 0, "output": 0, "cached_input": 0, "billable": 0}
     tokens = 0

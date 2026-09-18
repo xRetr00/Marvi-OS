@@ -65,10 +65,10 @@ Chat shows provider failures in a retryable card and offers a conversation map
 for navigating longer threads. The Sub-agents panel identifies Claude Code and
 Codex with their respective logos.
 
-Chat can also show structured receipts, carts, order progress, reservations,
-stays, and flights when details are supplied. These cards present information;
-they do not place orders, make reservations, or fetch live flight data by
-themselves.
+When a connected tool returns relevant data, Chat can show structured receipts,
+carts, order progress, reservations, stays, and flights. The Gateway ties each
+card's facts to that tool result. The underlying account or browser tool does
+the task or lookup; drawing the card performs no second action.
 
 Voice is being qualified against real speaker and microphone behavior. Local wake detection, speech recognition, synthesis, interruption handling, and a local LiveKit session are implemented; the [voice phase](docs/phases/03-full-duplex-voice.md) records the remaining streaming and soak gates.
 

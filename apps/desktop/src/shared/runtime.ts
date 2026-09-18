@@ -982,6 +982,7 @@ export interface ChatWidgetPart {
   title: string
   status: 'complete' | 'loading' | 'error'
   data: Record<string, unknown>
+  provenance?: { tool: string; evidence_id: string }
 }
 
 export interface ChatContext {

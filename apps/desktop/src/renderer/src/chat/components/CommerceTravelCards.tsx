@@ -51,7 +51,9 @@ function Card({
     <section aria-label={widget.title} className="chat-widget-flat chat-transaction-card">
       <div className="chat-transaction-head">
         <span className="chat-widget-label">{widget.title}</span>
-        <span className="chat-transaction-origin">SUPPLIED DETAILS</span>
+        <span className="chat-transaction-origin">
+          {widget.provenance ? `RESULT · ${widget.provenance.tool}` : 'SUPPLIED DETAILS'}
+        </span>
       </div>
       {children}
       {source(value(widget.data, 'source_url'))}

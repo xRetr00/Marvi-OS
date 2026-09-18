@@ -9,7 +9,12 @@ import pytest
 
 from marvi_gateway import dictation
 from marvi_gateway.chat import Chat, ChatStore
-from marvi_gateway.chat_widgets import source_parts, validate_widget, widget_for_tool
+from marvi_gateway.chat_widgets import (
+    source_parts,
+    validate_evidenced_widget,
+    validate_widget,
+    widget_for_tool,
+)
 from marvi_gateway.providers import get as provider_get
 from marvi_gateway.providers.base import Usage
 from marvi_gateway.providers.client import Completion
@@ -208,6 +213,28 @@ def test_transaction_cards_require_real_fields() -> None:
                 "data": {"flight": "AB123", "status": "On time"},
             }
         )
+
+
+def test_transaction_card_must_match_a_tool_result_from_this_turn() -> None:
+    arguments = {
+        "kind": "order_status",
+        "title": "Order update",
+        "evidence_id": "tool-1",
+        "data": {
+            "order_id": "A123",
+            "status": "Shipped",
+            "source_url": "https://example.com/orders/A123",
+        },
+    }
+    evidence = {"tool-1": {"tool": "account_tool_execute", "result": arguments["data"]}}
+    card = validate_evidenced_widget(arguments, evidence)
+    assert card["provenance"] == {"tool": "account_tool_execute", "evidence_id": "tool-1"}
+    with pytest.raises(ValueError, match="not present"):
+        validate_evidenced_widget(
+            {**arguments, "data": {**arguments["data"], "status": "Delivered"}}, evidence
+        )
+    with pytest.raises(ValueError, match="evidence ID"):
+        validate_evidenced_widget(arguments, {})
 
 
 def test_context_reports_provider_usage_without_estimating(tmp_path: Path) -> None:

@@ -44,7 +44,9 @@ def present_tool_schema() -> dict[str, Any]:
             "tables, metrics, timelines, weather, documents, galleries, sources, progress, "
             "receipts, carts, order status, reservations, stays, or flights. "
             "Commerce and travel widgets only display supplied details; never imply that "
-            "this tool purchased, booked, or checked live status. "
+            "this tool purchased, booked, or checked live status. When a successful "
+            "account, browser, or web tool returns commerce or travel facts, call "
+            "present_widget with that result's evidence_id to show the matching card. "
             "do not use it for ordinary prose. This only displays data and performs no action."
         ),
         "parameters": {
@@ -105,7 +107,9 @@ EVIDENCE_KINDS = frozenset(
 )
 
 
-def validate_evidenced_widget(arguments: dict[str, Any], evidence: dict[str, Any]) -> dict[str, Any]:
+def validate_evidenced_widget(
+    arguments: dict[str, Any], evidence: dict[str, Any]
+) -> dict[str, Any]:
     """Bind factual cards to a successful tool result from this turn."""
     widget = validate_widget(arguments)
     if widget["kind"] not in EVIDENCE_KINDS:
@@ -116,7 +120,10 @@ def validate_evidenced_widget(arguments: dict[str, Any], evidence: dict[str, Any
     source = evidence[evidence_id]
     # Compare against the result, not against the user's prompt or the model's
     # own arguments. A URL alone does not verify the status or amount.
-    haystack = " ".join(json.dumps(source, ensure_ascii=False, default=str).casefold().split())
+    haystack = " ".join(
+        json.dumps(source.get("result"), ensure_ascii=False, default=str).casefold().split()
+    )
+
     def check(value: Any) -> None:
         if isinstance(value, dict):
             for item in value.values():
@@ -128,6 +135,7 @@ def validate_evidenced_widget(arguments: dict[str, Any], evidence: dict[str, Any
             needle = " ".join(value.casefold().split())
             if needle not in haystack:
                 raise ValueError("a card fact is not present in the referenced tool result")
+
     check(widget["data"])
     widget["provenance"] = {"tool": source["tool"], "evidence_id": evidence_id}
     return widget

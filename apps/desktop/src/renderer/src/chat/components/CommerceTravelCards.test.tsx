@@ -51,4 +51,12 @@ describe('commerce and travel cards', () => {
       )
     ).not.toContain('href=')
   })
+
+  it('identifies the tool that supplied verified card data', () => {
+    const card = widget('order_status', { order_id: 'A123', status: 'Shipped' })
+    card.provenance = { tool: 'account_tool_execute', evidence_id: 'tool-1' }
+    expect(renderToStaticMarkup(<WidgetStack parts={[card]} />)).toContain(
+      'RESULT · account_tool_execute'
+    )
+  })
 })

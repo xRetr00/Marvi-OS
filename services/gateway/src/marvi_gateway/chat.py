@@ -242,6 +242,8 @@ def _clean_title(title: str) -> str:
     if not compact:
         return PLACEHOLDER_TITLES[0]
     return (compact[:120] + "…") if len(compact) > 120 else compact
+
+
 MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
 ALLOWED_DOCUMENT_TYPES = {
     "text/plain",
@@ -344,18 +346,14 @@ class ChatStore:
         built = self._db.execute("SELECT value FROM meta WHERE key = 'fts_built'").fetchone()
         if built is None:
             self._db.execute("INSERT INTO messages_fts(messages_fts) VALUES ('rebuild')")
-            self._db.execute(
-                "INSERT OR REPLACE INTO meta (key, value) VALUES ('fts_built', '1')"
-            )
+            self._db.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('fts_built', '1')")
 
         legacy = self._db.execute(
             "SELECT id FROM threads WHERE id = ?", (DEFAULT_THREAD_ID,)
         ).fetchone()
         if legacy is not None:
             renamed = uuid4().hex
-            self._db.execute(
-                "UPDATE threads SET id = ? WHERE id = ?", (renamed, DEFAULT_THREAD_ID)
-            )
+            self._db.execute("UPDATE threads SET id = ? WHERE id = ?", (renamed, DEFAULT_THREAD_ID))
             self._db.execute(
                 "UPDATE messages SET thread_id = ? WHERE thread_id = ?",
                 (renamed, DEFAULT_THREAD_ID),
@@ -364,9 +362,7 @@ class ChatStore:
                 "UPDATE attachments SET thread_id = ? WHERE thread_id = ?",
                 (renamed, DEFAULT_THREAD_ID),
             )
-        first = self._db.execute(
-            "SELECT id FROM threads ORDER BY created_at LIMIT 1"
-        ).fetchone()
+        first = self._db.execute("SELECT id FROM threads ORDER BY created_at LIMIT 1").fetchone()
         oldest = str(first["id"]) if first is not None else DEFAULT_THREAD_ID
         rows = self._db.execute(
             "SELECT id, content, parts, parent_id FROM messages WHERE thread_id = ? ORDER BY id",
@@ -635,9 +631,7 @@ class ChatStore:
             lines += [f"## {who} · {str(message['at'])[:19].replace('T', ' ')}", ""]
             text = str(message.get("content") or "").strip()
             lines += [text or "*(no text)*", ""]
-            sources = [
-                part for part in message.get("parts") or [] if part.get("type") == "source"
-            ]
+            sources = [part for part in message.get("parts") or [] if part.get("type") == "source"]
             if sources:
                 lines.append("**Sources**")
                 for part in sources:
@@ -679,15 +673,19 @@ class ChatStore:
             at = content.lower().find(words.lower())
             start = max(0, at - 80)
             snippet = content[start : at + len(words) + 80].replace("\n", " ")
-            found.append({
-                "thread_id": row["thread_id"],
-                "title": row["title"],
-                "archived": bool(row["archived"]),
-                "message_id": row["id"],
-                "role": row["role"],
-                "at": row["at"],
-                "snippet": ("…" if start else "") + snippet + ("…" if at + len(words) + 80 < len(content) else ""),
-            })
+            found.append(
+                {
+                    "thread_id": row["thread_id"],
+                    "title": row["title"],
+                    "archived": bool(row["archived"]),
+                    "message_id": row["id"],
+                    "role": row["role"],
+                    "at": row["at"],
+                    "snippet": ("…" if start else "")
+                    + snippet
+                    + ("…" if at + len(words) + 80 < len(content) else ""),
+                }
+            )
         return found
 
     #: The columns every search result needs, joined to its thread.
@@ -704,8 +702,7 @@ class ChatStore:
         phrase = '"' + words.replace('"', '""') + '"'
         try:
             return self._db.execute(
-                self._SEARCH_COLUMNS
-                + "JOIN messages_fts f ON f.rowid = m.id "
+                self._SEARCH_COLUMNS + "JOIN messages_fts f ON f.rowid = m.id "
                 "WHERE messages_fts MATCH ? AND m.role IN ('user', 'assistant') "
                 "ORDER BY m.id DESC LIMIT ?",
                 (phrase, limit),
@@ -716,9 +713,7 @@ class ChatStore:
     def _like_matches(self, words: str, limit: int) -> list[Any]:
         """The literal scan: what answers a query FTS5 has no token for."""
         mark = chr(92)  # the LIKE escape character, spelled once
-        escaped = (
-            words.replace(mark, mark * 2).replace("%", mark + "%").replace("_", mark + "_")
-        )
+        escaped = words.replace(mark, mark * 2).replace("%", mark + "%").replace("_", mark + "_")
         return self._db.execute(
             self._SEARCH_COLUMNS
             + "WHERE m.role IN ('user', 'assistant') AND m.content LIKE ? ESCAPE ? "
@@ -1113,6 +1108,7 @@ class Chat:
         Returns the note, or a finished-turn event to send instead: the job is
         unknown, still working, or this conversation has already heard it.
         """
+
         def done(error: str = "", **extra: Any) -> dict[str, Any]:
             return {"done": True, "reply": "", "error": error, "tokens": 0, "provider": "", **extra}
 
@@ -1422,7 +1418,10 @@ class Chat:
         return gap
 
     def _run_tool(
-        self, name: str, arguments: Any, thread_id: str = DEFAULT_THREAD_ID,
+        self,
+        name: str,
+        arguments: Any,
+        thread_id: str = DEFAULT_THREAD_ID,
         evidence: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Dispatch one tool call and describe what happened.
@@ -1535,8 +1534,8 @@ class Chat:
             evidence[evidence_id] = {"tool": name, "result": external_payload(result)}
             evidence_note = f"Successful tool result evidence ID: {evidence_id}.\n"
         return {
-            "text": evidence_note + (external_text(result)
-            or wrap_external(f"tool:{name}", result).text),
+            "text": evidence_note
+            + (external_text(result) or wrap_external(f"tool:{name}", result).text),
             "widget": widget,
             # A tool that made a file -- a generated image, a chart, an export
             # -- hands it over here. See `produced`.
@@ -1674,7 +1673,9 @@ class Chat:
         # The answer is the user's words, so it arrives enveloped like any
         # other text this process did not write.
         return {
-            "text": wrap_external("tool:clarify", {"question": ask.question, "answer": answer}).text,
+            "text": wrap_external(
+                "tool:clarify", {"question": ask.question, "answer": answer}
+            ).text,
             "arguments": arguments,
         }
 
@@ -1710,8 +1711,9 @@ class Chat:
         # and replayed against another model. See `runs.py`.
         trace = runs.new_trace()
         self._trace = trace
-        runs.step(trace, "asked", surface=surface, text=(message or "").strip()[:2000],
-                  thread=thread_id)
+        runs.step(
+            trace, "asked", surface=surface, text=(message or "").strip()[:2000], thread=thread_id
+        )
         tokens, error = 0, ""
         try:
             for event in self._send_stream(
@@ -1818,7 +1820,9 @@ class Chat:
             )
             if mentioned:
                 attachment_ids = [*(attachment_ids or []), *mentioned]
-        attachments = [] if resume_job else self.store.pending_attachments(thread_id, attachment_ids or [])
+        attachments = (
+            [] if resume_job else self.store.pending_attachments(thread_id, attachment_ids or [])
+        )
         try:
             self._validate_attachments(attachments, provider, model)
         except ValueError as exc:
@@ -2059,10 +2063,10 @@ class Chat:
                     # rather than releasing markup nobody can act on.
                     if tool_call_prose.looks_typed_out(reply):
                         reply = (
-                        tool_call_prose.out_of_steps(reply, used)
-                        if final_round
-                        else tool_call_prose.instead_say(reply, used)
-                    )
+                            tool_call_prose.out_of_steps(reply, used)
+                            if final_round
+                            else tool_call_prose.instead_say(reply, used)
+                        )
                     yield {"delta": reply}
                 withholding = False
                 # The line that proves it, in one place, for a real provider:
@@ -2322,9 +2326,7 @@ class Chat:
                 and not final_round
                 and (meant := tool_call_prose.recover(completion.text))
             ):
-                logger.warning(
-                    "recovered a tool call the model wrote as text: %s", meant["name"]
-                )
+                logger.warning("recovered a tool call the model wrote as text: %s", meant["name"])
                 calls = [{**meant, "id": f"recovered-{len(used)}"}]
 
             if not calls:
@@ -2534,16 +2536,18 @@ def register_chat_search_tool(registry: Any, store: ChatStore) -> None:
         # Old replies can quote web pages and mail; they stay data.
         return {"results": wrap_external("chat-history", found).model_dump(), "count": len(found)}
 
-    registry.register(ToolSpec(
-        name="chat_search",
-        description="Find past conversations that mention something.",
-        arguments={"query": str},
-        optional={"limit": int},
-        sensitive=False,
-        handler=chat_search,
-        describes={
-            "query": "Words that appear in the message, such as a name or a phrase. "
-            "Matched literally, case-insensitive; use the fewest distinctive words.",
-            "limit": "How many messages to return, newest first. Default 10.",
-        },
-    ))
+    registry.register(
+        ToolSpec(
+            name="chat_search",
+            description="Find past conversations that mention something.",
+            arguments={"query": str},
+            optional={"limit": int},
+            sensitive=False,
+            handler=chat_search,
+            describes={
+                "query": "Words that appear in the message, such as a name or a phrase. "
+                "Matched literally, case-insensitive; use the fewest distinctive words.",
+                "limit": "How many messages to return, newest first. Default 10.",
+            },
+        )
+    )
