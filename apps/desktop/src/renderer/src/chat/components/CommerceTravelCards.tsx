@@ -1,6 +1,12 @@
 import type { ChatWidgetPart } from '../../../../shared/runtime'
 
 type Data = Record<string, unknown>
+const origin = (tool?: string): string => {
+  if (tool === 'account_tool_execute') return 'CONNECTED ACCOUNT'
+  if (tool?.startsWith('browser_')) return 'BROWSER RESULT'
+  if (tool?.startsWith('web_')) return 'WEB RESULT'
+  return tool ? 'TOOL RESULT' : 'SUPPLIED DETAILS'
+}
 const value = (data: Data, key: string): string =>
   typeof data[key] === 'string' ? (data[key] as string) : ''
 const list = (data: Data, key: string): Data[] =>
@@ -51,9 +57,7 @@ function Card({
     <section aria-label={widget.title} className="chat-widget-flat chat-transaction-card">
       <div className="chat-transaction-head">
         <span className="chat-widget-label">{widget.title}</span>
-        <span className="chat-transaction-origin">
-          {widget.provenance ? `RESULT · ${widget.provenance.tool}` : 'SUPPLIED DETAILS'}
-        </span>
+        <span className="chat-transaction-origin">{origin(widget.provenance?.tool)}</span>
       </div>
       {children}
       {source(value(widget.data, 'source_url'))}
