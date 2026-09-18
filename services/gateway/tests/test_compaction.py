@@ -102,3 +102,25 @@ def test_the_originals_are_never_touched(tmp_path) -> None:
     ).fetchone()["n"]
     assert rows == (HISTORY_TURNS + 4) * 2
     assert len(store.search("question 0")) == 1  # still findable
+
+
+def test_the_turn_wrapper_takes_the_arguments_the_gateway_passes(tmp_path) -> None:
+    """The regression that hid behind 2,029 passing tests.
+
+    `/chat/stream` calls `send_stream(message, provider, model, effort, ...)`
+    positionally. Wrapping the turn for hooks and compaction with a
+    `**options` signature broke the chat window and nothing failed, because
+    every test passed keywords.
+    """
+    import inspect
+
+    from marvi_gateway.chat import Chat
+
+    taken = list(inspect.signature(Chat.send_stream).parameters)
+    assert taken[:5] == ["self", "message", "provider", "model", "effort"]
+    assert taken == list(inspect.signature(Chat._send_stream).parameters)
+
+    # And it really runs that way, not just declares it.
+    store = ChatStore(tmp_path / "chat.db")
+    events = list(Chat(store=store).send_stream("hello", "openai", "gpt-5.2", "low"))
+    assert events and events[-1]["done"] is True

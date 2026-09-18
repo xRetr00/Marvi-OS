@@ -734,19 +734,27 @@ def bridge_hooks(registry: Any, loaded: LoadedPlugin) -> int:
         on_memory_write(subject, body, kind, source, trusted)
         on_confirmation(tool, arguments, token, state)
 
-    Only `pre_tool_call` may refuse; see `hooks.py` for why.
+    Only `pre_tool_call` can refuse anything, and only for a plugin the user
+    has named in `MARVI_HOOK_GUARDS`. Everything else watches. See `hooks.py`.
     """
     from . import hooks as runtime_hooks
     from .tools import TOOL_HOOKS
 
+    # Asked once per load rather than per call, so a plugin cannot be granted
+    # guard status halfway through a Gateway's life without a restart -- which
+    # is the same rule every other trust decision here follows.
+    guard = runtime_hooks.may_block(loaded.name)
     count = 0
     for event in runtime_hooks.EVENTS:
         for handler in loaded.context.hooks.get(event, []):
+            blocking = guard and event in runtime_hooks.CAN_BLOCK
             if event in TOOL_HOOKS:
-                registry.add_hook(event, handler)
+                registry.add_hook(event, handler, guard=blocking, who=loaded.name)
             else:
-                runtime_hooks.shared.register(event, handler)
+                runtime_hooks.shared.register(event, handler, who=loaded.name)
             count += 1
+    if guard:
+        log.info("plugin %s may refuse tool calls", loaded.name)
     return count
 
 

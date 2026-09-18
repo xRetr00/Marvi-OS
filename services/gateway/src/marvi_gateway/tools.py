@@ -148,9 +148,8 @@ def _coerce(value: Any, expected: type) -> Any:
     return value
 
 
-#: Raised around every call. A plugin
-#: written for its hook contract (`plugin.yaml` + `register(ctx)`, which the
-#: Smart Room plugin already follows) needs no changes.
+#: Raised around every call. Plugins use the `plugin.yaml` and `register(ctx)`
+#: hook contract, which the Smart Room plugin already follows.
 TOOL_HOOKS = ("pre_tool_call", "post_tool_call")
 
 

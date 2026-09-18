@@ -16,6 +16,8 @@ from typing import Any, Literal
 from urllib.parse import urlparse
 from uuid import uuid4
 
+from . import openai_api
+
 import anyio
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
@@ -1336,6 +1338,9 @@ def create_app(
         from .desk import register_desk_tools
 
         register_desk_tools(tool_registry, provider_client)
+        from .imagery import register_image_tools
+
+        register_image_tools(tool_registry, provider_client)
         # Registered last so it can see everything registered before it, and
         # given the builder rather than a snapshot: plugins and MCP servers add
         # tools after this line, and a search that could not find them would be
@@ -2673,6 +2678,91 @@ def create_app(
             events(),
             media_type="text/event-stream",
             # Nothing between here and the window may hold a chunk back.
+            headers={"cache-control": "no-cache", "x-accel-buffering": "no"},
+        )
+
+    # -- the OpenAI-shaped door ------------------------------------------------
+
+    @app.get("/v1/models")
+    async def openai_models(http_request: Request) -> dict[str, Any]:
+        localauth.guard(http_request)
+        return {
+            "object": "list",
+            "data": [
+                {
+                    "id": openai_api.MODEL_ID,
+                    "object": "model",
+                    "created": 0,
+                    "owned_by": "marvi",
+                }
+            ],
+        }
+
+    @app.post("/v1/chat/completions")
+    async def openai_completions(body: dict[str, Any], http_request: Request) -> Any:
+        """Marvi, for anything that speaks OpenAI.
+
+        What answers is the whole assistant -- identity, memory, tools,
+        confirmation -- not a bare model. See `openai_api.py` for the three
+        places this deliberately does not pretend to be OpenAI.
+        """
+        localauth.guard(http_request)
+        if chat is None:
+            raise HTTPException(status_code=503, detail="chat is not available")
+        message = openai_api.last_user_message(body.get("messages"))
+        if not message:
+            raise HTTPException(status_code=400, detail="no user message")
+        caller = str(body.get("user") or openai_api.DEFAULT_USER)
+        thread = chat.store.thread_named(openai_api.thread_name(caller))
+
+        if not body.get("stream"):
+            reply, tokens = "", 0
+            for event in await anyio.to_thread.run_sync(
+                lambda: list(chat.send_stream(message, thread_id=thread, surface="api"))
+            ):
+                if event.get("done"):
+                    reply, tokens = str(event.get("reply") or reply), int(event.get("tokens") or 0)
+                    if error := str(event.get("error") or ""):
+                        raise HTTPException(status_code=502, detail=error)
+                elif delta := str(event.get("delta") or ""):
+                    reply += delta
+            return openai_api.completion(reply, tokens)
+
+        # Streaming: the turn runs on a worker thread, as `/chat/stream` does,
+        # because it is synchronous and would otherwise stall the event loop.
+        queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
+        loop = asyncio.get_running_loop()
+
+        def produce() -> None:
+            try:
+                for event in chat.send_stream(message, thread_id=thread, surface="api"):
+                    loop.call_soon_threadsafe(queue.put_nowait, event)
+            except Exception as exc:  # pragma: no cover - defensive
+                loop.call_soon_threadsafe(queue.put_nowait, {"done": True, "error": str(exc)})
+            finally:
+                loop.call_soon_threadsafe(queue.put_nowait, None)
+
+        await anyio.to_thread.run_sync(lambda: threading.Thread(target=produce).start())
+
+        async def lines() -> AsyncIterator[str]:
+            # One id for the whole stream, which is what a client uses to tie
+            # the chunks together.
+            chunk_id = f"chatcmpl-{uuid4().hex[:24]}"
+            while True:
+                event = await queue.get()
+                if event is None:
+                    break
+                if delta := str(event.get("delta") or ""):
+                    yield openai_api.chunk(delta, chunk_id=chunk_id)
+                if event.get("done"):
+                    if error := str(event.get("error") or ""):
+                        yield openai_api.chunk(f" [Marvi: {error}]", chunk_id=chunk_id)
+                    yield openai_api.chunk("", done=True, chunk_id=chunk_id)
+            yield "data: [DONE]" + chr(10) + chr(10)
+
+        return StreamingResponse(
+            lines(),
+            media_type="text/event-stream",
             headers={"cache-control": "no-cache", "x-accel-buffering": "no"},
         )
 

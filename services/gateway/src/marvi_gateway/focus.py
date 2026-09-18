@@ -145,6 +145,51 @@ BUSY_STATES: dict[int, str] = {
 BUSY_SETTING = "MARVI_RESPECT_WINDOWS_BUSY"
 
 
+#: Focus Assist, as far as Windows will admit to it.
+#:
+#: There is no supported API. The state lives in WNF -- kernel state with no
+#: header, no documentation and no promise -- and `NtQueryWnfStateData` reads
+#: it. On this machine the state name resolves and publishes *nothing*
+#: (`STATUS_SUCCESS`, zero bytes), which is what a machine that has never
+#: turned Focus Assist on looks like and is indistinguishable from a build that
+#: publishes it elsewhere.
+#:
+#: So this is deliberately timid: a definite 1 or 2 in a four-byte payload is
+#: read as Focus being on, and *everything else* -- no data, a different size, a
+#: value nobody has seen, an error, a future Windows that moved it -- is
+#: "unknown", which changes nothing. An undocumented read may be wrong; it may
+#: not be the reason Marvi went quiet.
+FOCUS_ASSIST_STATE = 0xD83063EA3BE5075
+FOCUS_ASSIST_SETTING = "MARVI_READ_FOCUS_ASSIST"
+FOCUS_ASSIST_PROFILES = {1: "Focus Assist is on (priority only)", 2: "Focus Assist is on (alarms only)"}
+
+
+def focus_assist() -> str:
+    """Why Focus Assist says not to interrupt, or "" for off or unknown."""
+    if os.environ.get(FOCUS_ASSIST_SETTING, "1").strip().lower() in ("0", "false", "no", "off"):
+        return ""
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        buffer = (ctypes.c_byte * 8)()
+        size = wintypes.ULONG(ctypes.sizeof(buffer))
+        stamp = wintypes.ULONG(0)
+        status = ctypes.WinDLL("ntdll").NtQueryWnfStateData(
+            ctypes.byref(ctypes.c_ulonglong(FOCUS_ASSIST_STATE)),
+            None,
+            None,
+            ctypes.byref(stamp),
+            ctypes.byref(buffer),
+            ctypes.byref(size),
+        )
+        if status != 0 or size.value != 4:
+            return ""
+        return FOCUS_ASSIST_PROFILES.get(int.from_bytes(bytes(buffer)[:4], "little"), "")
+    except Exception:
+        return ""
+
+
 def windows_busy() -> str:
     """Why Windows says not to interrupt right now, or "" when it may.
 
@@ -153,7 +198,9 @@ def windows_busy() -> str:
     """
     if os.environ.get(BUSY_SETTING, "1").strip().lower() in ("0", "false", "no", "off"):
         return ""
-    return _settled_busy(BUSY_STATES.get(_notification_state(), ""))
+    # Focus Assist first: it is the person saying "not now" rather than a
+    # guess from what is on screen. Unknown reads change nothing.
+    return _settled_busy(focus_assist() or BUSY_STATES.get(_notification_state(), ""))
 
 
 #: How long "busy" lingers after Windows stops reporting it.
