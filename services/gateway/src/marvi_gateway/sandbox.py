@@ -11,21 +11,28 @@ everything in it when the job handle closes. The interpreter runs isolated
 (`-I`): no user site packages, no `PYTHON*` environment, no implicit sys.path
 from the caller.
 
-## What this is not
+## The boundary, when there is one
 
-**It is not a security boundary against hostile code.** A Job Object limits
-*resources*; it does not stop a determined script reading `%USERPROFILE%` or
-reaching the network -- `ctypes` alone defeats any in-interpreter guard. Doing
-that properly needs an AppContainer (a lowbox token, a capability set, and a
-per-call firewall rule), which is its own piece of work and is recorded as such
-in `docs/backlog/big.md`.
+A Job Object limits what a snippet can *spend*. It does not limit what a
+snippet can *reach*: `ctypes` walks past any guard written inside the
+interpreter, so on its own this is a scratch pad that cannot run away with the
+machine, not a place to run something a stranger sent.
 
-So the honest description, and the one the tool gives the model, is: a scratch
-pad that cannot run away with the machine. Marvi's own experiments, a bit of
-arithmetic, a data file reshaped. Not a place to run something a stranger sent.
+`lowbox.py` is the other half -- an **AppContainer**, where the kernel refuses
+the handle rather than a wrapper refusing the call, and a token with no
+capabilities means Windows Firewall drops the connection. When one is available
+the snippet runs inside it and `isolation` says `appcontainer`. When it is not
+-- an interpreter installed for every user, a machine where the profile cannot
+be made, `MARVI_SANDBOX_APPCONTAINER=0` -- this falls back to the Job Object
+alone, `isolation` says `job`, and `isolation_detail` says why.
 
-The network guard below follows from that: it stops a snippet reaching out *by
-accident*, which is the common case, and says plainly that it is not a wall.
+**The result always says which one ran.** A sandbox that quietly stops being a
+boundary is worse than one that never claimed to be: the second is at least
+believed accurately.
+
+The `PREAMBLE` below stays either way. Inside a container it is redundant;
+outside one it turns "it quietly tried to download something" into an error
+somebody can read, which is the common case and not an attack.
 """
 
 from __future__ import annotations
@@ -40,6 +47,7 @@ from ctypes import wintypes
 from pathlib import Path
 from typing import Any
 
+from . import lowbox
 from .logs import get_logger
 
 log = get_logger("gateway")
@@ -149,6 +157,33 @@ def _job(memory: int = MEMORY_LIMIT, processes: int = PROCESS_LIMIT) -> Any:
     return handle
 
 
+#: Whether a container can be had here, worked out once. `None` until asked:
+#: the answer costs a profile creation and two permission grants, and it does
+#: not change while the Gateway is up.
+_CONTAINER: tuple[bool, str] | None = None
+
+
+def isolation(python: Path | None = None) -> tuple[bool, str]:
+    """`(a container is available, why not)`. Asked once per process."""
+    global _CONTAINER
+    if _CONTAINER is None:
+        try:
+            _CONTAINER = lowbox.available(python or Path(sys.executable))
+        except Exception as exc:  # a machine that cannot answer has not got one
+            _CONTAINER = (False, f"{type(exc).__name__}: {exc}"[:200])
+        log.info(
+            "the code sandbox %s",
+            "has an AppContainer" if _CONTAINER[0] else f"has no AppContainer: {_CONTAINER[1]}",
+        )
+    return _CONTAINER
+
+
+def forget_isolation() -> None:
+    """Ask again next time. For tests, and for a setting changed while running."""
+    global _CONTAINER
+    _CONTAINER = None
+
+
 def run(code: str, timeout: int = DEFAULT_TIMEOUT, memory: int = MEMORY_LIMIT) -> dict[str, Any]:
     """Run one snippet and report what it printed. Never raises for the snippet.
 
@@ -161,8 +196,14 @@ def run(code: str, timeout: int = DEFAULT_TIMEOUT, memory: int = MEMORY_LIMIT) -
     scratch = Path(tempfile.mkdtemp(prefix="marvi-sandbox-"))
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True) if os.name == "nt" else None
     handle = _job(memory)
+    boxed, why = isolation()
     try:
         (scratch / "snippet.py").write_text(PREAMBLE + "\n" + code, encoding="utf-8")
+        if boxed:
+            return _finish(
+                lowbox.run(Path(sys.executable), ["-I", "snippet.py"], scratch, seconds, handle),
+                scratch, seconds, memory, "appcontainer", "",
+            )
         started = subprocess.Popen(
             # `-I` is the isolation that costs nothing: no user site packages,
             # no `PYTHON*` variables, no cwd on `sys.path`.
@@ -192,27 +233,53 @@ def run(code: str, timeout: int = DEFAULT_TIMEOUT, memory: int = MEMORY_LIMIT) -
             started.kill()
             out, err = started.communicate()
             timed_out = True
-        made = sorted(
-            one.name for one in scratch.iterdir() if one.is_file() and one.name != "snippet.py"
-        )
-        return {
-            "exit_code": started.returncode,
-            "stdout": (out or "")[:MAX_OUTPUT],
-            "stderr": (err or "")[:MAX_OUTPUT],
-            "timed_out": timed_out,
-            "files_made": made,
-            "limits": {
-                "seconds": seconds,
-                "memory_mb": memory // (1024 * 1024),
-                "processes": PROCESS_LIMIT,
-                "network": "blocked for ordinary use; not a security boundary",
+        return _finish(
+            {
+                "exit_code": started.returncode,
+                "stdout": out or "",
+                "stderr": err or "",
+                "timed_out": timed_out,
             },
-        }
+            scratch, seconds, memory, "job", why,
+        )
     finally:
         if handle and kernel32:
             # Closing the handle kills anything still in the job.
             kernel32.CloseHandle(handle)
         shutil.rmtree(scratch, ignore_errors=True)
+
+
+#: Files the sandbox itself made, which are not the snippet's doing.
+_OURS = {"snippet.py", "stdout.txt", "stderr.txt"}
+
+
+def _finish(
+    ran: dict[str, Any], scratch: Path, seconds: int, memory: int, how: str, why: str
+) -> dict[str, Any]:
+    """One shape of answer, whichever way the snippet was run."""
+    return {
+        "exit_code": ran["exit_code"],
+        "stdout": str(ran["stdout"])[:MAX_OUTPUT],
+        "stderr": str(ran["stderr"])[:MAX_OUTPUT],
+        "timed_out": ran["timed_out"],
+        "files_made": sorted(
+            one.name for one in scratch.iterdir() if one.is_file() and one.name not in _OURS
+        ),
+        "limits": {
+            "seconds": seconds,
+            "memory_mb": memory // (1024 * 1024),
+            "processes": PROCESS_LIMIT,
+            # Said plainly and differently, because the difference is the whole
+            # point: one of these is a wall and the other is a fence.
+            "isolation": how,
+            "network": (
+                "blocked by Windows: the container has no network capability"
+                if how == "appcontainer"
+                else "blocked for ordinary use; not a security boundary"
+            ),
+            **({"isolation_detail": why} if why else {}),
+        },
+    }
 
 
 def register_sandbox_tools(registry: Any) -> None:
