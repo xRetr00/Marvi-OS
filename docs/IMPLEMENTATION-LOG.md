@@ -1,5 +1,39 @@
 # Implementation Log
 
+## 2026-09-18 — The medium tier finished, and a veto made opt-in
+
+- **Hook refusal is a grant, not a claim.** Installing a plugin no longer hands
+  it a veto over Marvi's tools: it watches until the user names it in
+  `MARVI_HOOK_GUARDS`, and a block from an ungranted plugin is logged once --
+  with the setting that would allow it -- and ignored. Same rule as
+  `register_tool`, which has always been a request.
+- **M3 (endpoint).** `POST /v1/chat/completions` and `GET /v1/models` behind
+  `localauth`. Driven end to end with the real `openai` package over a socket,
+  which is how the missing `prompts/api.md` was found: every call had been
+  raising a 500 from inside the turn while unit tests passed, because they
+  never got that far. The ACP-agent half stays a phase, and the backlog says
+  why.
+- **M5 (image generation), and the contract under it.** A tool can hand back
+  `{"produced": {name, media_type, data}}` and the chat dispatcher -- which
+  knows the thread, as a handler never does -- turns it into an attachment.
+  `image_generate` is the first user; the owner-supplied `ImageGeneration`
+  effect stands in at the image's size while it draws.
+- **M6 (compression).** 12,000 characters per tool result, the rest readable
+  through `tool_more`. Strings only, so shapes survive; drivers, confirmations
+  and widget tools are never trimmed.
+- **M10 (replayable runs).** One trace id per turn, every step journalled, and
+  `POST /runs/{trace}/replay` which *answers* tools from the recording instead
+  of calling them. A replay cannot act, and says so in its own result.
+- **M11 (Focus Assist).** Read from undocumented WNF state, timidly: a definite
+  profile counts, anything unclear changes nothing. Unconfirmed on this machine
+  -- the state publishes zero bytes until Focus Assist is switched on once.
+
+One regression found and fixed: wrapping the turn for hooks and compaction
+(2026-09-16) changed `send_stream` to `**options`, and `/chat/stream` calls it
+positionally -- so the chat window was broken while 2,029 tests passed. The
+signature is spelled out again and a test asserts it matches `_send_stream`.
+
+
 ## 2026-09-16 — The medium backlog tier
 
 Seven of the eleven items in `docs/backlog/medium.md`:

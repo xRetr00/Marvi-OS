@@ -1,21 +1,21 @@
 # Backlog — medium
 
-Extensions of subsystems Marvi already has. Seven of the eleven were built on
-2026-09-16; the four that were not say what they are waiting for.
+Extensions of subsystems Marvi already has. **All eleven are built** — seven on
+2026-09-16, the last four on 2026-09-18.
 
 | # | Item | State |
 |---:|---|---|
 | M1 | Long-chat compaction | done |
-| M2 | Hooks that can refuse, and more of them | done |
-| M3 | OpenAI-compatible API and ACP agent | not started — see below |
+| M2 | Hooks that can refuse, and more of them | done (refusal is opt-in) |
+| M3 | OpenAI-compatible API and ACP agent | endpoint done; ACP agent is its own phase |
 | M4 | MCP write access with provenance | done |
-| M5 | Image generation | blocked on a contract — see below |
-| M6 | Tool-output compression | measured; compression not built |
+| M5 | Image generation | done, with the file contract it needed |
+| M6 | Tool-output compression | done |
 | M7 | Privacy mode, the whole of it | done |
 | M8 | Chat search in the control center | done |
 | M9 | Credential pools | done |
-| M10 | Replayable runs | not started — see below |
-| M11 | Focus Assist awareness | not started — see below |
+| M10 | Replayable runs | done |
+| M11 | Focus Assist awareness | done, unconfirmed on this machine |
 
 ## Done
 
@@ -124,41 +124,101 @@ built yet — the budgets should come from a week of those rows, not from
 intuition, and a cap applied blindly to structured results (`computer_action`,
 `browser_action`) breaks tools rather than saving tokens.
 
-## Not done, and what each is waiting for
+## The last four — 2026-09-18
 
-### M3. OpenAI-compatible API and ACP agent
+### M3. The endpoint, and why the ACP agent is not here
 
-Two features in one entry, and they are different sizes. The
-`/v1/chat/completions` endpoint is a day: map the request onto a Chat thread,
-stream the existing SSE path, guard it with `localauth`. Marvi *as* an ACP
-agent is not — it means implementing the agent half of the protocol
-(session/update/permission), deciding what a permission request looks like when
-the client is an IDE rather than the Island, and qualifying it against at least
-one real editor. Split them before starting; the endpoint alone is worth doing.
+`POST /v1/chat/completions` and `GET /v1/models`, behind `localauth` on
+loopback. Streaming and non-streaming both answer; reasoning is dropped rather
+than merged, because a client that cannot tell it from the answer would put a
+model's private working in front of a user. `user` names a thread, so two
+scripts keep two conversations. `model` is ignored and the docstring says so:
+the model is whatever the Models page chose.
 
-### M5. Image generation
+Driven end to end with the real `openai` package over a real socket — which is
+how the missing `prompts/api.md` was found. Every call through the endpoint had
+been raising a 500 from deep inside the turn while the unit tests passed,
+because they never got that far. There is now a test for the brief.
 
-Blocked on a contract, not on an API. Generating the image is one provider call;
-the problem is that a generated image has nowhere to go. Chat renders images
-from *attachment rows*, and a tool cannot create one because tool handlers do
-not know which thread they are running in. The honest fix is a small contract —
-a tool result that declares "this is a file for the current thread", which the
-chat dispatcher turns into an attachment — and that contract is worth having
-anyway (a chart, a screenshot, an exported file all want it). Do that first,
-then image generation is genuinely small.
+**The ACP agent half is deliberately not here.** Being an ACP *client* (which
+Marvi is) is answering an agent; being an ACP *agent* is implementing
+session/update/permission, deciding what a permission request means when the
+approver is an IDE rather than the Island, and qualifying it against a real
+editor. That is a phase with its own acceptance gates, not the back half of a
+medium item — and pretending otherwise is how a half-implemented protocol ships.
+
+`openai_api.py`, `app.py`, `prompts/api.md`. Tests: `test_openai_api.py`.
+
+### M5. Image generation, and the contract under it
+
+The blocker was real and is now gone. A tool can hand back a file:
+
+    {"produced": {"name": ..., "media_type": ..., "data": <base64>}}
+
+and `chat._keep_produced` — which knows the thread, as a tool handler never
+does — turns it into an ordinary attachment. `image_generate` is the first user
+of it; a chart, a screenshot or an export will be the next.
+
+The generation itself is the OpenAI images shape (`/images/generations`), the
+one OpenAI, OpenRouter and most compatible gateways answer; a provider without
+it is told so by name. Local diffusion is not attempted: it does not fit beside
+the resident voice models on 12 GB. Privacy mode and local-only both refuse it.
+
+While it draws, Chat shows the owner-supplied `ImageGeneration` effect at the
+image's size with the prompt underneath — a wait of several seconds that
+produces nothing until it produces everything deserves better than a spinner.
+
+`imagery.py`, `chat.py`, `ImageGeneration.tsx`. Tests: `test_imagery.py`,
+`ImageGeneration.test.tsx`.
+
+### M6. The compression itself
+
+Now that the sizes are recorded, the cap is real: one result may put 12,000
+characters in front of the model (`MARVI_TOOL_RESULT_CAP`, `0` to switch it
+off), and what is cut stays readable through `tool_more`.
+
+Two rules make it safe. Only *string* values are shortened, so keys, numbers,
+lists and nesting survive and a widget reading `result["sources"][0]["url"]`
+still finds it. And anything Marvi's own code parses rather than reads — the
+browser and computer drivers, confirmations, the widget tool, sub-agent control
+— is never trimmed at all. The budget is shared across a result's fields, so a
+dict of ten long strings is not ten times the cap.
+
+`trimming.py`, `tools.py`. Tests: `test_trimming.py`.
 
 ### M10. Replayable runs
 
-Needs a trace id threaded through `ProviderClient` and the tool router, a
-journal of calls per turn, and a drawer that replays one without executing any
-tool that has side effects. The last part is the real work: "replay" that can
-send an email is not a debugging tool, so it needs a dry-run mode the tool
-router understands. A phase, not a milestone.
+Every turn now carries one trace id, and each thing it does — what was asked,
+each tool with its arguments and result, the answer and its tokens — is
+appended to the observation journal under it. `GET /runs` lists recent turns,
+`GET /runs/{trace}` reads one in order.
 
-### M11. Focus Assist awareness
+**Replay is a dry run, and that is the design.** `POST /runs/{trace}/replay`
+runs the recorded question against a model again and *answers* each tool from
+the recording rather than calling it; a tool the model invents gets a note
+saying there is nothing to answer it with. Nothing reaches the world, nothing is
+stored in the conversation, and the result says so in a field. What comes back
+is a comparison — what it did then, what this model does now, and whether the
+tools match — which is the question worth asking when a reply was strange.
 
-Still no supported API. The undocumented WNF state is readable through
-`NtQueryWnfStateData`, and reading undocumented kernel state on a machine that
-updates itself monthly is a thing to do deliberately, behind a flag, with a
-fallback of "unknown" — not as the last item of a long day. The fullscreen and
-presentation states that *are* documented already ship (see small #6).
+`runs.py`, `chat.py`, `app.py`. Tests: `test_runs.py`.
+
+### M11. Focus Assist, timidly
+
+There is still no supported API, so this reads WNF — kernel state with no
+header and no promise — through `NtQueryWnfStateData`. On this machine the
+state name resolves and publishes *zero bytes*, which is what a machine that
+has never switched Focus Assist on looks like and is indistinguishable from a
+Windows build that moved it.
+
+So the reading is deliberately timid: a four-byte 1 or 2 counts as Focus being
+on and joins the existing busy rule; everything else — no data, another size, an
+unknown value, an error, a future Windows — is "unknown" and changes nothing.
+`MARVI_READ_FOCUS_ASSIST=0` switches it off.
+
+**Unconfirmed on this machine.** Verifying it needs Focus Assist switched on
+once in Windows Settings and the reading checked; that is the owner's setting to
+change, not Marvi's. Until then the code is correct-by-construction and untested
+against a live profile.
+
+`focus.py`. Tests: `test_windows_busy.py`.

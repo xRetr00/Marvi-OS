@@ -27,6 +27,29 @@ No new dependency. See [`docs/backlog/`](backlog/README.md).
   which is not a dependency; the notification listener additionally needs
   package identity. Both are recorded as blocked in `docs/backlog/small.md`.
 
+## Medium backlog tier — 2026-09-18
+
+No new dependency.
+
+- The OpenAI-compatible endpoint (`openai_api.py`) implements the published
+  request and response shapes of `POST /v1/chat/completions` and
+  `GET /v1/models`; no OpenAI code or SDK is involved on the serving side. It
+  was *verified* with the `openai` package 2.54.0, which is already installed
+  as a transitive dependency of the memory providers and is not imported by
+  Marvi.
+- `image_generate` (`imagery.py`) calls the same providers' documented
+  `/images/generations` endpoint over the existing `httpx` client.
+- Focus Assist (`focus.py`) reads the WNF state
+  `WNF_SHEL_QUIETHOURS_ACTIVE_PROFILE_CHANGED` through `ntdll`'s
+  `NtQueryWnfStateData`. This is **undocumented kernel state**, not an API with
+  a compatibility promise: the reader accepts only a four-byte 1 or 2 and
+  treats everything else as unknown, so a Windows build that moves or changes
+  it degrades to the behaviour Marvi had before. Re-check after a major Windows
+  release; `MARVI_READ_FOCUS_ASSIST=0` switches it off.
+- The `ImageGeneration` placeholder component was supplied by the project owner
+  and adapted to Marvi's monochrome tokens and reduced-motion rule. Original
+  source and licence not identified; recorded as owner-supplied, 2026-09-18.
+
 ## Agent Client Protocol (outside coders) — 2026-09-11
 
 - Source: https://github.com/agentclientprotocol/python-sdk and

@@ -106,7 +106,7 @@ def test_a_real_turn_records_its_steps(tmp_path, monkeypatch) -> None:
 
     list(Chat(store=store).send_stream("hello there", thread_id=thread))
 
-    rows = [row for row in observations.read("run", limit=50)]
+    rows = observations.read("run", limit=50)
     kinds = {row["event"] for row in rows}
     assert {"asked", "answered"} <= kinds
     asked = next(row for row in rows if row["event"] == "asked")
