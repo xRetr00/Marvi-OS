@@ -725,6 +725,18 @@ class ChatStore:
             (f"%{escaped}%", mark, limit),
         ).fetchall()
 
+    def thread_named(self, title: str) -> str:
+        """The id of the thread with this title, made if it is not there yet.
+
+        For callers that are programs rather than people: an API client keeps
+        one conversation, found by the name it was given, so a script has a
+        history and two scripts do not share one.
+        """
+        row = self._db.execute(
+            "SELECT id FROM threads WHERE title = ? ORDER BY created_at LIMIT 1", (title,)
+        ).fetchone()
+        return str(row["id"]) if row else str(self.create_thread(title)["id"])
+
     def summary_of(self, thread_id: str) -> dict[str, Any]:
         """The running summary of what scrolled out, or empty."""
         row = self._db.execute(
@@ -1512,10 +1524,50 @@ class Chat:
             "text": external_text(result)
             or wrap_external(f"tool:{name}", result).text,
             "widget": widget,
+            # A tool that made a file -- a generated image, a chart, an export
+            # -- hands it over here. See `produced`.
+            "produced": self._keep_produced(name, result, thread_id),
             "pending_confirmation": None,
             # Carried back so the transcript can remind the model what it
             # asked for, not just what came back.
             "arguments": arguments,
+        }
+
+    def _keep_produced(self, name: str, result: Any, thread_id: str) -> dict[str, Any] | None:
+        """Turn a file a tool made into an attachment on this conversation.
+
+        The contract a tool opts into, by returning
+
+            {"produced": {"name": ..., "media_type": ..., "data": <base64>}}
+
+        Why it lives here rather than in the tool: attachments belong to a
+        thread, and a tool handler has no idea which one it is running in --
+        which is exactly why image generation had nowhere to put its image.
+        The dispatcher does know, so the contract is "hand me the bytes" and
+        the placing is Marvi's.
+
+        Never fatal. A tool that made a file and could not store it has still
+        done its work, and the turn says what happened rather than failing.
+        """
+        produced = result.get("produced") if isinstance(result, dict) else None
+        if not isinstance(produced, dict) or not produced.get("data"):
+            return None
+        try:
+            row = self.store.add_attachment(
+                thread_id,
+                str(produced.get("name") or f"{name}-output"),
+                str(produced.get("media_type") or ""),
+                base64.b64decode(str(produced["data"]), validate=True),
+            )
+        except Exception as exc:
+            logger.warning("%s made a file that could not be kept: %s", name, str(exc)[:160])
+            return None
+        return {
+            "type": "attachment",
+            "attachment_id": row["id"],
+            "name": row["name"],
+            "media_type": row["media_type"],
+            "size": row["size"],
         }
 
     def _open_inline(self, name: str, arguments: Any) -> inline_ask.InlineAsk | None:
@@ -1612,19 +1664,49 @@ class Chat:
             "arguments": arguments,
         }
 
-    def send_stream(self, message: str = "", **options: Any) -> Iterator[dict[str, Any]]:
+    def send_stream(
+        self,
+        message: str,
+        provider: str | None = None,
+        model: str | None = None,
+        effort: str | None = None,
+        cancelled: Callable[[], bool] | None = None,
+        thread_id: str = DEFAULT_THREAD_ID,
+        attachment_ids: list[str] | None = None,
+        edit_message_id: int | None = None,
+        regenerate_message_id: int | None = None,
+        surface: str = "chat",
+        resume_job: str | None = None,
+    ) -> Iterator[dict[str, Any]]:
         """One chat turn, with `pre_turn` and `post_turn` raised around it.
 
+        The same signature `_send_stream` has, spelled out rather than
+        `**options`: `/chat/stream` passes provider, model and effort
+        positionally, and a wrapper that only took keywords broke the chat
+        window while every test still passed. See the regression test.
+
         A thin wrapper so plugins see the end of a turn however it ended --
-        answered, cancelled, refused for want of a provider, or raising. The
-        turn itself is `_send_stream`, unchanged.
+        answered, cancelled, refused for want of a provider, or raising -- and
+        so compaction happens after the answer rather than during it.
         """
-        surface = str(options.get("surface", "chat"))
-        thread_id = str(options.get("thread_id", DEFAULT_THREAD_ID))
-        hooks.shared.fire("pre_turn", surface=surface, text=(message or "").strip(), thread_id=thread_id)
+        hooks.shared.fire(
+            "pre_turn", surface=surface, text=(message or "").strip(), thread_id=thread_id
+        )
         tokens, error = 0, ""
         try:
-            for event in self._send_stream(message, **options):
+            for event in self._send_stream(
+                message,
+                provider,
+                model,
+                effort,
+                cancelled,
+                thread_id,
+                attachment_ids,
+                edit_message_id,
+                regenerate_message_id,
+                surface,
+                resume_job,
+            ):
                 if event.get("done"):
                     tokens = int(event.get("tokens") or 0)
                     error = str(event.get("error") or "")
@@ -1787,6 +1869,8 @@ class Chat:
         answered_model = model or ""
         usage = {"input": 0, "output": 0, "cached_input": 0, "billable": 0}
         widgets: list[dict[str, Any]] = []
+        #: Files the tools made this turn, as attachment parts. See `_keep_produced`.
+        produced: list[dict[str, Any]] = []
         # Kept across tool rounds, because the thinking that led to a tool call
         # is part of the same answer as the thinking that followed it.
         reasoning: list[str] = []
@@ -1975,7 +2059,7 @@ class Chat:
                 # The trace first, then the answer: that is the order it
                 # happened in, and it is what lets the window group the whole
                 # run of work into one disclosure above the reply.
-                parts = [*trace, *self.store.parts_for_text(reply)]
+                parts = [*trace, *produced, *self.store.parts_for_text(reply)]
                 seen_sources = {part.get("url") for part in parts if part["type"] == "source"}
                 for widget in widgets:
                     parts.append(widget)
@@ -2059,6 +2143,12 @@ class Chat:
                 if outcome.get("widget"):
                     widgets.append(outcome["widget"])
                     yield {"widget": outcome["widget"]}
+                if outcome.get("produced"):
+                    # Shown as it lands rather than at the end of the turn: a
+                    # generated image is the answer, and waiting for the prose
+                    # about it is waiting for nothing.
+                    produced.append(outcome["produced"])
+                    yield {"attachment": outcome["produced"]}
                 if outcome.get("pending_confirmation"):
                     yield {
                         "done": True,
@@ -2150,6 +2240,8 @@ class Chat:
         used: list[str] = []
         tokens = 0
         widgets: list[dict[str, Any]] = []
+        #: Files the tools made this turn, as attachment parts. See `_keep_produced`.
+        produced: list[dict[str, Any]] = []
 
         for round_number in range(MAX_TOOL_ROUNDS):
             # The last round is offered no tools, so the model has to answer
@@ -2258,6 +2350,8 @@ class Chat:
                 used.append(name)
                 if outcome.get("widget"):
                     widgets.append(outcome["widget"])
+                if outcome.get("produced"):
+                    produced.append(outcome["produced"])
                 if outcome.get("pending_confirmation"):
                     return ChatTurn(
                         reply=str(outcome.get("text") or ""),

@@ -12,12 +12,13 @@
  * dispatched by tool name below instead.
  */
 
+import { ImageGeneration, prettySize } from '../components/ImageGeneration'
 import type { MessageState, ToolCallMessagePartProps } from '@assistant-ui/react'
 import { MessagePrimitive } from '@assistant-ui/react'
 
 import { GlyphSpinner } from '../../components/ui/glyph-spinner'
 import { Markdown } from '../MarkdownView'
-import { ASK_TOOL, DELEGATE_TOOL, WIDGET_TOOL } from '../runtime/convert'
+import { ASK_TOOL, DELEGATE_TOOL, IMAGE_TOOL, WIDGET_TOOL } from '../runtime/convert'
 import { ActivityLabel } from './ActivityLabel'
 import { groupWork } from './group-work'
 import { MESSAGE_PART_COMPONENTS } from './parts'
@@ -78,6 +79,17 @@ export function AssistantParts({ message }: { message: MessageState }): React.JS
             if (part.toolName === WIDGET_TOOL) return <WidgetToolUI {...props} />
             if (part.toolName === ASK_TOOL) return <AskToolUI {...props} />
             if (part.toolName === DELEGATE_TOOL) return <DelegateToolUI {...props} />
+            // A picture takes seconds and arrives all at once, so the wait gets
+            // a placeholder the size of the image rather than a spinner.
+            if (part.toolName === IMAGE_TOOL && part.status.type === 'running') {
+              const args = (part.args ?? {}) as { prompt?: string; size?: string }
+              return (
+                <ImageGeneration
+                  prompt={args.prompt || 'the picture you asked for'}
+                  resolution={prettySize(args.size)}
+                />
+              )
+            }
             const status =
               part.status.type === 'running' ? 'running' : part.isError ? 'failed' : 'complete'
             return (

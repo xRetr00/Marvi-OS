@@ -30,6 +30,9 @@ export const WIDGET_TOOL = 'marvi_widget'
 /** The tool name an inline `clarify`/`ask_secret` card arrives under. */
 export const ASK_TOOL = 'marvi_ask'
 
+/** Drawing a picture; while it runs the wait is drawn at the image's size. */
+export const IMAGE_TOOL = 'image_generate'
+
 /** The tool that hands work to a sub-agent; drawn as the agent's card. */
 export const DELEGATE_TOOL = 'delegate'
 

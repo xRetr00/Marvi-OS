@@ -3649,3 +3649,96 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
+
+/* A picture being drawn ---------------------------------------------------- */
+
+.igWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.igCanvas {
+  position: relative;
+  display: grid;
+  overflow: hidden;
+  width: min(320px, 100%);
+  aspect-ratio: 1;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 10px;
+  background: var(--ui-bg-secondary, rgb(255 255 255 / 3%));
+  place-items: center;
+}
+
+/* The grain: a still dot field, so the canvas reads as "not yet an image"
+   rather than as an empty box. */
+.igDots {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(var(--ui-stroke-secondary) 1px, transparent 1px);
+  background-size: 7px 7px;
+  opacity: 0.55;
+}
+
+/* The pass: one soft band travelling down, which is the only moving part. */
+.igGlow {
+  position: absolute;
+  left: -20%;
+  width: 140%;
+  height: 38%;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    var(--ui-accent-soft, rgb(255 255 255 / 10%)),
+    transparent
+  );
+  animation: ig-sweep 2.4s ease-in-out infinite;
+}
+
+@keyframes ig-sweep {
+  0% {
+    top: -40%;
+  }
+
+  100% {
+    top: 100%;
+  }
+}
+
+.igRes {
+  position: relative;
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--ui-text-secondary);
+}
+
+.igMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: min(320px, 100%);
+}
+
+.igLabel {
+  font-size: 11px;
+  color: var(--ui-text-primary);
+}
+
+.igPrompt {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--ui-text-secondary);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .igGlow {
+    animation: none;
+    top: 31%;
+  }
+}

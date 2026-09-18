@@ -537,7 +537,7 @@ class GatewayTools:
 
     # -- the bridge ---------------------------------------------------------
     #
-    # `tool_call` bridge rather than making the model do a two-step. Two things
+    # A `tool_call` bridge avoids making the model do a two-step. Two things
     # measured here say the same thing.
     #
     # First, the model already emits it. Twice in one sweep LiveKit logged
