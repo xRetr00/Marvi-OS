@@ -203,7 +203,11 @@ def _structured_card_kind(record: dict[str, Any]) -> str | None:
     if {"venue", "date", "time"} <= keys:
         return "booking"
     if {"merchant", "total", "items"} <= keys:
-        return "receipt" if str(record.get("status", "")).lower() in {"paid", "purchased", "completed"} else "cart"
+        return (
+            "receipt"
+            if str(record.get("status", "")).lower() in {"paid", "purchased", "completed"}
+            else "cart"
+        )
     if {"total", "items"} <= keys:
         return "cart"
     if {"name", "location", "price"} <= keys:

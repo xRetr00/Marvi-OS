@@ -101,7 +101,8 @@ def test_successful_tool_result_can_become_a_factual_card(tmp_path) -> None:
     page_root = tmp_path / "page"
     page_root.mkdir()
     page_chat = chat_with(
-        page_root, ANSWER,
+        page_root,
+        ANSWER,
         dispatch=lambda name, args: {"status": "ok", "result": {"text": "Order A123: Shipped"}},
     )
     page_evidence: dict = {}
@@ -109,8 +110,12 @@ def test_successful_tool_result_can_become_a_factual_card(tmp_path) -> None:
     page_id = next(iter(page_evidence))
     shown = page_chat._run_tool(
         "present_widget",
-        {"kind": "order_status", "title": "Order update", "evidence_id": page_id,
-         "data": {"order_id": "A123", "status": "Shipped"}},
+        {
+            "kind": "order_status",
+            "title": "Order update",
+            "evidence_id": page_id,
+            "data": {"order_id": "A123", "status": "Shipped"},
+        },
         evidence=page_evidence,
     )
     assert shown["widget"]["provenance"]["tool"] == "browser_action"

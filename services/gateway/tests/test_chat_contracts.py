@@ -238,9 +238,21 @@ def test_transaction_card_must_match_a_tool_result_from_this_turn() -> None:
 
 
 def test_structured_connected_account_result_automatically_gets_a_card() -> None:
-    order = {"order_id": "A123", "status": "Shipped", "source_url": "https://example.com/orders/A123"}
-    assert widget_for_tool("account_tool_execute", {"tool": "ORDERS_GET", "result": order})["kind"] == "order_status"
-    assert widget_for_tool("account_tool_execute", {"tool": "ORDERS_GET", "result": {"status": "Shipped"}}) is None
+    order = {
+        "order_id": "A123",
+        "status": "Shipped",
+        "source_url": "https://example.com/orders/A123",
+    }
+    assert (
+        widget_for_tool("account_tool_execute", {"tool": "ORDERS_GET", "result": order})["kind"]
+        == "order_status"
+    )
+    assert (
+        widget_for_tool(
+            "account_tool_execute", {"tool": "ORDERS_GET", "result": {"status": "Shipped"}}
+        )
+        is None
+    )
     assert widget_for_tool("browser_status", order) is None
 
 

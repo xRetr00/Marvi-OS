@@ -1533,9 +1533,24 @@ class Chat:
         evidence_note = ""
         if evidence is not None and result is not None:
             evidence_id = uuid4().hex
-            evidence[evidence_id] = {"tool": name, "result": external_payload(result), "shown": bool(widget and widget.get("kind") in {"receipt", "cart", "order_status", "booking", "stays", "flight_tracker"})}
+            evidence[evidence_id] = {
+                "tool": name,
+                "result": external_payload(result),
+                "shown": bool(
+                    widget
+                    and widget.get("kind")
+                    in {"receipt", "cart", "order_status", "booking", "stays", "flight_tracker"}
+                ),
+            }
             evidence_note = f"Successful tool result evidence ID: {evidence_id}.\n"
-            if widget and widget.get("kind") in {"receipt", "cart", "order_status", "booking", "stays", "flight_tracker"}:
+            if widget and widget.get("kind") in {
+                "receipt",
+                "cart",
+                "order_status",
+                "booking",
+                "stays",
+                "flight_tracker",
+            }:
                 widget["provenance"] = {"tool": name, "evidence_id": evidence_id}
                 evidence_note += "A matching card was already shown for this result.\n"
         return {
