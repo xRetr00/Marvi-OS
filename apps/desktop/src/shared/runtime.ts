@@ -973,6 +973,12 @@ export interface ChatWidgetPart {
     | 'gallery'
     | 'document'
     | 'status'
+    | 'receipt'
+    | 'cart'
+    | 'order_status'
+    | 'booking'
+    | 'stays'
+    | 'flight_tracker'
   title: string
   status: 'complete' | 'loading' | 'error'
   data: Record<string, unknown>

@@ -23,6 +23,12 @@ WIDGET_KINDS = (
     "gallery",
     "document",
     "status",
+    "receipt",
+    "cart",
+    "order_status",
+    "booking",
+    "stays",
+    "flight_tracker",
 )
 MAX_ITEMS = 50
 MAX_COLUMNS = 12
@@ -35,7 +41,10 @@ def present_tool_schema() -> dict[str, Any]:
         "name": "present_widget",
         "description": (
             "Present structured information as a Marvi UI widget. Use it for comparisons, "
-            "tables, metrics, timelines, weather, documents, galleries, sources, or progress; "
+            "tables, metrics, timelines, weather, documents, galleries, sources, progress, "
+            "receipts, carts, order status, reservations, stays, or flights. "
+            "Commerce and travel widgets only display supplied details; never imply that "
+            "this tool purchased, booked, or checked live status. "
             "do not use it for ordinary prose. This only displays data and performs no action."
         ),
         "parameters": {
@@ -43,7 +52,21 @@ def present_tool_schema() -> dict[str, Any]:
             "properties": {
                 "kind": {"type": "string", "enum": list(WIDGET_KINDS)},
                 "title": {"type": "string", "maxLength": 120},
-                "data": {"type": "object"},
+                "data": {
+                    "type": "object",
+                    "description": (
+                        "Fields by kind: receipt {merchant,total,items:[{name,quantity,price}],"
+                        "order_id?,date?,delivery?}; cart {total,items:[{name,quantity,price}],"
+                        "merchant?,subtotal?,tax?}; order_status {order_id,status,merchant?,"
+                        "eta?,updated_at?,events?:[{at,label,detail}]}; booking {venue,date,time,"
+                        "party_size?,status?,reference?,address?}; stays {name,location,dates?,"
+                        "price?,rating?,detail?}; flight_tracker {flight,origin,destination,"
+                        "status,airline?,departure?,arrival?,gate?,terminal?,updated_at?}. "
+                        "Each accepts source_url for a public source. All values are display text; "
+                        "only show confirmed transaction or live travel status when supported by "
+                        "tool evidence. Other kinds retain their existing data shapes."
+                    ),
+                },
             },
             "required": ["kind", "title", "data"],
             "additionalProperties": False,
@@ -245,6 +268,59 @@ def _status(data: dict[str, Any]) -> dict[str, Any]:
     return {"items": _items(data, ("label", "detail", "status"), 24)}
 
 
+def _fields(data: dict[str, Any], required: tuple[str, ...], optional: tuple[str, ...]) -> dict[str, Any]:
+    clean = {key: _text(data.get(key), 200) for key in (*required, *optional)}
+    for key in required:
+        if not clean[key]:
+            raise ValueError(f"widget needs {key}")
+    url = data.get("source_url")
+    clean["source_url"] = str(url) if _public_url(url) else ""
+    return clean
+
+
+def _commerce_items(data: dict[str, Any]) -> list[dict[str, str]]:
+    rows = _items(data, ("name", "quantity", "price"), 20)
+    return [row for row in rows if row["name"]]
+
+
+def _receipt(data: dict[str, Any]) -> dict[str, Any]:
+    clean = _fields(data, ("merchant", "total"), ("order_id", "date", "delivery", "currency"))
+    clean["items"] = _commerce_items(data)
+    if not clean["items"]:
+        raise ValueError("receipt needs items")
+    return clean
+
+
+def _cart(data: dict[str, Any]) -> dict[str, Any]:
+    clean = _fields(data, ("total",), ("merchant", "subtotal", "tax", "currency"))
+    clean["items"] = _commerce_items(data)
+    if not clean["items"]:
+        raise ValueError("cart needs items")
+    return clean
+
+
+def _order_status(data: dict[str, Any]) -> dict[str, Any]:
+    clean = _fields(data, ("order_id", "status"), ("merchant", "eta", "updated_at"))
+    clean["events"] = _items({"items": data["events"]}, ("at", "label", "detail"), 12) if isinstance(data.get("events"), list) and data["events"] else []
+    return clean
+
+
+def _booking(data: dict[str, Any]) -> dict[str, Any]:
+    return _fields(data, ("venue", "date", "time"), ("party_size", "status", "reference", "address"))
+
+
+def _stays(data: dict[str, Any]) -> dict[str, Any]:
+    return _fields(data, ("name", "location"), ("dates", "price", "rating", "detail"))
+
+
+def _flight_tracker(data: dict[str, Any]) -> dict[str, Any]:
+    return _fields(
+        data,
+        ("flight", "origin", "destination", "status"),
+        ("airline", "departure", "arrival", "gate", "terminal", "updated_at"),
+    )
+
+
 _VALIDATORS = {
     "sources": _sources,
     "metrics": _metrics,
@@ -255,4 +331,10 @@ _VALIDATORS = {
     "gallery": _gallery,
     "document": _document,
     "status": _status,
+    "receipt": _receipt,
+    "cart": _cart,
+    "order_status": _order_status,
+    "booking": _booking,
+    "stays": _stays,
+    "flight_tracker": _flight_tracker,
 }

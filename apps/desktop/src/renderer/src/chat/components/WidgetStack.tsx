@@ -1,4 +1,5 @@
 import type { ChatPart, ChatWidgetPart } from '../../../../shared/runtime'
+import { CommerceTravelCard } from './CommerceTravelCards'
 
 type Item = Record<string, string>
 
@@ -29,6 +30,10 @@ export function WidgetStack({ parts }: { parts: readonly ChatPart[] }): React.JS
 }
 
 function Widget({ widget }: { widget: ChatWidgetPart }): React.JSX.Element {
+  if (
+    ['receipt', 'cart', 'order_status', 'booking', 'stays', 'flight_tracker'].includes(widget.kind)
+  )
+    return <CommerceTravelCard widget={widget} />
   const rows = items(widget.data)
   if (widget.kind === 'sources') return <Sources rows={rows} title={widget.title} />
   if (widget.kind === 'table') return <DataTable data={widget.data} title={widget.title} />
