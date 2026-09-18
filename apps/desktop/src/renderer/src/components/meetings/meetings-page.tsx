@@ -81,8 +81,8 @@ export function MeetingsPage(): React.JSX.Element {
         <div>
           <h2>Meetings</h2>
           <p>
-            Marvi records your microphone and what your speakers are playing, transcribes both
-            here, and tells you what was decided. You start every recording; she never does.
+            Marvi records your microphone and what your speakers are playing, transcribes both here,
+            and tells you what was decided. You start every recording; she never does.
           </p>
         </div>
       </header>
@@ -99,9 +99,14 @@ export function MeetingsPage(): React.JSX.Element {
             <div>
               <strong>Recording</strong>
               <span>
-                {Math.floor(live.seconds / 60)}:{String(Math.floor(live.seconds % 60)).padStart(2, '0')}
+                {Math.floor(live.seconds / 60)}:
+                {String(Math.floor(live.seconds % 60)).padStart(2, '0')}
                 {' · '}
-                {live.hearing_you ? <Ear aria-hidden="true" size={11} /> : <EarOff aria-hidden="true" size={11} />}
+                {live.hearing_you ? (
+                  <Ear aria-hidden="true" size={11} />
+                ) : (
+                  <EarOff aria-hidden="true" size={11} />
+                )}
                 {live.hearing_you ? ' hearing you' : ' not hearing you'}
                 {' · '}
                 {live.hearing_them ? ' hearing them' : ' not hearing them'}
@@ -123,7 +128,12 @@ export function MeetingsPage(): React.JSX.Element {
               placeholder="What is this meeting?"
               value={title}
             />
-            <button className="cron-new" disabled={page ? !page.can_record : true} onClick={() => void start()} type="button">
+            <button
+              className="cron-new"
+              disabled={page ? !page.can_record : true}
+              onClick={() => void start()}
+              type="button"
+            >
               <Disc aria-hidden="true" />
               Record
             </button>
@@ -153,15 +163,17 @@ export function MeetingsPage(): React.JSX.Element {
               >
                 Notes
               </button>
-              <button aria-label={`Forget ${one.title}`} onClick={() => void forget(one.id)} type="button">
+              <button
+                aria-label={`Forget ${one.title}`}
+                onClick={() => void forget(one.id)}
+                type="button"
+              >
                 <Trash2 aria-hidden="true" size={12} />
               </button>
             </div>
           </li>
         ))}
-        {meetings.length === 0 ? (
-          <li className="wf-empty-row">Nothing recorded yet.</li>
-        ) : null}
+        {meetings.length === 0 ? <li className="wf-empty-row">Nothing recorded yet.</li> : null}
       </ul>
 
       {notice && page ? (
@@ -192,7 +204,12 @@ function ConsentNotice({
 }): React.JSX.Element {
   return (
     <div className="connector-modal-shell" role="presentation">
-      <div aria-label="Before recording" aria-modal="true" className="connector-modal" role="dialog">
+      <div
+        aria-label="Before recording"
+        aria-modal="true"
+        className="connector-modal"
+        role="dialog"
+      >
         <header className="connector-modal-head">
           <div>
             <h3>Before recording</h3>
@@ -217,7 +234,13 @@ function ConsentNotice({
 }
 
 /** One meeting: the summary, what was settled, what is owed, and the record. */
-function Notes({ meeting, onClose }: { meeting: MeetingCard; onClose: () => void }): React.JSX.Element {
+function Notes({
+  meeting,
+  onClose
+}: {
+  meeting: MeetingCard
+  onClose: () => void
+}): React.JSX.Element {
   return (
     <div
       className="connector-modal-shell"
@@ -226,7 +249,12 @@ function Notes({ meeting, onClose }: { meeting: MeetingCard; onClose: () => void
       }}
       role="presentation"
     >
-      <div aria-label={meeting.title} aria-modal="true" className="connector-modal wf-drawer" role="dialog">
+      <div
+        aria-label={meeting.title}
+        aria-modal="true"
+        className="connector-modal wf-drawer"
+        role="dialog"
+      >
         <header className="connector-modal-head">
           <div>
             <h3>{meeting.title}</h3>

@@ -1598,3 +1598,39 @@ export interface AutomationPage {
   automations: AutomationRule[]
   triggers: string[]
 }
+
+/** Whether Marvi is recording a meeting right now. The indicator reads this. */
+export interface RecordingNow {
+  recording: boolean
+  id: string
+  seconds: number
+  /** So "recording with a muted microphone" is visible rather than discovered. */
+  hearing_you: boolean
+  hearing_them: boolean
+}
+
+/** One meeting: what was said, what was decided, what is now owed. */
+export interface MeetingCard {
+  id: string
+  title: string
+  /** `recording`, `transcribing`, `ready` or `failed`. */
+  state: string
+  detail: string
+  started_at: string
+  ended_at: string
+  seconds: number
+  summary: string
+  decisions: string[]
+  actions: string[]
+  /** Only on one meeting read by id; the list leaves them out. */
+  turns?: { at_seconds: number; speaker: string; text: string }[]
+}
+
+export interface MeetingsPage {
+  meetings: MeetingCard[]
+  now: RecordingNow | { recording: false }
+  /** The notice, and whether it has been accepted. Recording refuses until it has. */
+  consent: { notice: string; accepted: boolean; accepted_at: string }
+  can_record: boolean
+  why_not: string
+}

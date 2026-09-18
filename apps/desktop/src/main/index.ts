@@ -2547,6 +2547,33 @@ function startApp(): void {
         3 * 60_000
       )
     )
+    // The indicator polls this one, so it stays cheap and never long-polls.
+    ipcMain.handle('marvi:get-meeting-now', async () => {
+      const page = (await gatewayJson('/meetings?limit=1')) as { now?: unknown } | null
+      return page?.now ?? null
+    })
+    ipcMain.handle('marvi:get-meetings', () => gatewayJson('/meetings'))
+    ipcMain.handle('marvi:get-meeting', (_event, id) =>
+      gatewayJson(`/meetings/${encodeURIComponent(String(id))}`)
+    )
+    ipcMain.handle('marvi:start-meeting', (_event, title) =>
+      gatewayJson('/meetings', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ title })
+      })
+    )
+    // Stopping hands the recording to the transcriber and returns; the work
+    // itself happens in the Gateway, so this is not the call that waits for it.
+    ipcMain.handle('marvi:stop-meeting', (_event, id) =>
+      gatewayJson(`/meetings/${encodeURIComponent(String(id))}/stop`, { method: 'POST' })
+    )
+    ipcMain.handle('marvi:accept-meeting-consent', () =>
+      gatewayJson('/meetings/consent', { method: 'POST' })
+    )
+    ipcMain.handle('marvi:forget-meeting', (_event, id) =>
+      gatewayJson(`/meetings/${encodeURIComponent(String(id))}`, { method: 'DELETE' })
+    )
     ipcMain.handle('marvi:get-jobs', (_event, after?: number) =>
       typeof after === 'number' && after >= 0
         ? gatewayJson(`/jobs?after=${encodeURIComponent(String(after))}`, undefined, 40_000)

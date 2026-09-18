@@ -120,6 +120,8 @@ import { CapabilityPluginsPanel } from './components/capabilities/CapabilityPlug
 import { ActivityPage } from './components/activity-page'
 import { MemoryHealth } from './components/memory-health'
 import { CronjobsPage } from './components/cronjobs-page'
+import { MeetingsPage } from './components/meetings/meetings-page'
+import { RecordingDot } from './components/meetings/recording-dot'
 import { WorkflowsPage } from './components/workflows/workflows-page'
 import { BrowserPage } from './components/browser-page'
 import { PersonaPicker } from './components/persona-picker'
@@ -250,7 +252,7 @@ import { $voices, refreshVoices } from './store/voices'
  */
 const NAV_GROUPS = [
   { label: 'Core', items: ['Overview', 'Voice', 'Chat'] },
-  { label: 'Context', items: ['Vision', 'Room', 'Activity', 'Resources'] },
+  { label: 'Context', items: ['Vision', 'Room', 'Activity', 'Meetings', 'Resources'] },
   { label: 'Cortex', items: ['DMN', 'Graph', 'Mind'] },
   {
     label: 'Capabilities',
@@ -292,6 +294,7 @@ const NAV_CODES: Record<Page, string> = {
   Vision: 'VI',
   Room: 'RM',
   Activity: 'AC',
+  Meetings: 'ME',
   Resources: 'RS',
   DMN: 'DM',
   Graph: 'GR',
@@ -312,6 +315,7 @@ const NAV_ICONS: Record<Page, AbstractIconName> = {
   Vision: 'vision',
   Room: 'room',
   Activity: 'activity',
+  Meetings: 'meetings',
   Resources: 'overview',
   DMN: 'identity',
   Graph: 'memory',
@@ -686,6 +690,7 @@ function MainSurface(): React.JSX.Element {
       </div>
       <div className="statusbar-side statusbar-side-right">
         {page === 'Chat' ? <ContextStatus {...chatContextStatus} /> : null}
+        <RecordingDot onOpen={() => navigate('Meetings')} />
         <AgentsStatusItem />
         {/* Only when it is on. A Marvi that cannot search the web looks broken
             unless the reason is on screen next to the other modes. */}
@@ -917,6 +922,8 @@ function MainSurface(): React.JSX.Element {
                     <MindPage />
                   ) : page === 'Resources' ? (
                     <ResourcesPage />
+                  ) : page === 'Meetings' ? (
+                    <MeetingsPage />
                   ) : page === 'Cronjobs' ? (
                     <CronjobsPage />
                   ) : page === 'Workflows' ? (
@@ -5046,6 +5053,7 @@ function PagePanel({ page }: { page: Page }): React.JSX.Element {
     Chat: '',
     Room: '',
     Activity: 'Local event and tool history.',
+    Meetings: '',
     Cronjobs: '',
     Workflows: '',
     Resources: '',

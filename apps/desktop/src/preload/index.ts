@@ -14,6 +14,9 @@ import type {
   BrowserStatus
 } from '../shared/browser'
 import type {
+  MeetingCard,
+  MeetingsPage,
+  RecordingNow,
   AutomationPage,
   AutomationRule,
   JobBoard,
@@ -374,6 +377,20 @@ const marvi = {
   openMaintenanceTerminal: (action: MaintenanceAction): Promise<boolean> =>
     ipcRenderer.invoke('marvi:open-maintenance-terminal', action),
   getSchedules: (): Promise<SchedulePage | null> => ipcRenderer.invoke('marvi:get-schedules'),
+  /** Whether a meeting is being recorded. Polled by the status-bar indicator. */
+  getMeetingNow: (): Promise<RecordingNow | null> => ipcRenderer.invoke('marvi:get-meeting-now'),
+  getMeetings: (): Promise<MeetingsPage | null> => ipcRenderer.invoke('marvi:get-meetings'),
+  getMeeting: (id: string): Promise<MeetingCard | null> =>
+    ipcRenderer.invoke('marvi:get-meeting', id),
+  /** The only call that opens a microphone for a meeting. */
+  startMeeting: (title: string): Promise<MeetingCard | null> =>
+    ipcRenderer.invoke('marvi:start-meeting', title),
+  stopMeeting: (id: string): Promise<MeetingCard | null> =>
+    ipcRenderer.invoke('marvi:stop-meeting', id),
+  acceptMeetingConsent: (): Promise<{ accepted: boolean } | null> =>
+    ipcRenderer.invoke('marvi:accept-meeting-consent'),
+  forgetMeeting: (id: string): Promise<{ removed: boolean } | null> =>
+    ipcRenderer.invoke('marvi:forget-meeting', id),
   /** Fold what scrolled out of this conversation into its running summary. */
   compactThread: (id: string): Promise<{ folded: boolean; summary: string } | null> =>
     ipcRenderer.invoke('marvi:compact-thread', id),

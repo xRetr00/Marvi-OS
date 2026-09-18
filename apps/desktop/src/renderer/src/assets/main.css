@@ -15110,3 +15110,155 @@ html[data-appearance='claude-code-dark'] .control-row {
     transition: none;
   }
 }
+
+/* Meetings: the recorder, and what it came back with. Monochrome per docs/UI.md;
+   the one red thing on screen is the recording dot, because that is the one
+   thing a person must never fail to notice. */
+
+.mt-start {
+  margin: 0 0 20px;
+}
+
+.mt-begin {
+  display: flex;
+  gap: 8px;
+}
+
+.mt-begin input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 6px;
+  background: var(--ui-bg-primary, var(--ui-bg));
+  color: var(--ui-text-primary);
+  font-family: inherit;
+  font-size: 11px;
+}
+
+.mt-begin input:focus-visible {
+  border-color: var(--ui-accent);
+  outline: none;
+}
+
+.mt-live {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 13px;
+  border: 1px solid color-mix(in srgb, var(--ui-danger) 40%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ui-danger) 6%, transparent);
+}
+
+.mt-live > div {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+}
+
+.mt-live strong {
+  color: var(--ui-danger);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.mt-live span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+.mt-live-dot,
+.status-recording-dot {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  color: var(--ui-danger);
+  animation: mt-pulse 2s ease-in-out infinite;
+}
+
+@keyframes mt-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* A recording indicator that moves is one people notice; one that moves under
+   reduced motion is one people asked not to have. It stays red either way. */
+@media (prefers-reduced-motion: reduce) {
+  .mt-live-dot,
+  .status-recording-dot {
+    animation: none;
+  }
+}
+
+.status-recording {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  border: 1px solid color-mix(in srgb, var(--ui-danger) 38%, transparent);
+  border-radius: 999px;
+  background: none;
+  color: var(--ui-danger);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+.status-recording:hover {
+  background: color-mix(in srgb, var(--ui-danger) 10%, transparent);
+}
+
+.status-recording-dot {
+  width: 10px;
+  height: 10px;
+}
+
+.status-recording-deaf {
+  color: var(--ui-text-tertiary);
+  text-transform: uppercase;
+}
+
+/* What was said ----------------------------------------------------------- */
+
+.mt-turns {
+  display: grid;
+  gap: 4px;
+  max-height: 46vh;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.mt-turns > li {
+  display: grid;
+  gap: 2px 8px;
+  grid-template-columns: auto auto 1fr;
+  align-items: baseline;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--ui-stroke-tertiary);
+}
+
+.mt-at {
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+.wf-who.is-you {
+  color: var(--ui-accent);
+}
+
+.mt-said {
+  color: var(--ui-text-secondary);
+  font-size: 10px;
+  line-height: 1.55;
+}

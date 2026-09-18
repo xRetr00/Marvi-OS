@@ -13,6 +13,9 @@ import type {
   BrowserStatus
 } from '../shared/browser'
 import type {
+  MeetingCard,
+  MeetingsPage,
+  RecordingNow,
   AutomationPage,
   AutomationRule,
   JobBoard,
@@ -251,6 +254,15 @@ export interface MarviDesktopApi {
   copyText: (text: string) => Promise<boolean>
   openMaintenanceTerminal: (action: MaintenanceAction) => Promise<boolean>
   getSchedules: () => Promise<SchedulePage | null>
+  /** Whether a meeting is being recorded. Polled by the status-bar indicator. */
+  getMeetingNow: () => Promise<RecordingNow | null>
+  getMeetings: () => Promise<MeetingsPage | null>
+  getMeeting: (id: string) => Promise<MeetingCard | null>
+  /** The only call that opens a microphone for a meeting. */
+  startMeeting: (title: string) => Promise<MeetingCard | null>
+  stopMeeting: (id: string) => Promise<MeetingCard | null>
+  acceptMeetingConsent: () => Promise<{ accepted: boolean } | null>
+  forgetMeeting: (id: string) => Promise<{ removed: boolean } | null>
   /** Fold what scrolled out of this conversation into its running summary. */
   compactThread: (id: string) => Promise<{ folded: boolean; summary: string } | null>
   /** The board. With `after`, the Gateway holds the request until it changes. */
