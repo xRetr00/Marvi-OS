@@ -210,6 +210,20 @@ def test_a_rejected_credential_cools_down_hard() -> None:
     assert client.resting("openai") > 3600
 
 
+@pytest.mark.parametrize("stream", [False, True])
+def test_a_forbidden_request_does_not_disable_other_models(stream: bool) -> None:
+    client = ProviderClient(
+        http=responder(status=403, json={"error": {"message": "model access denied"}})
+    )
+    with pytest.raises(ProviderCallError, match="model access denied"):
+        if stream:
+            list(client.stream(MESSAGES, provider="openai"))
+        else:
+            client.call(MESSAGES, provider="openai")
+
+    assert client.resting("openai") == 0.0
+
+
 def test_a_resting_provider_is_not_called_again() -> None:
     client = ProviderClient(http=responder(status=429, headers={"retry-after": "60"}))
     with pytest.raises(ProviderCallError):

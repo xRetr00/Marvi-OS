@@ -225,6 +225,10 @@ of showing a button that cannot work. 22 tests.
 limit structure, its rolling windows where it has them, and whether they are
 readable at all. Cooldown state and its reason are shown on the card. A 429 with
 `Retry-After` already stands the provider down and fails over.
+HTTP 401 disables a rejected credential; HTTP 403 reports the refused request
+without disabling the entire provider, since model access and guardrail rules
+can return 403 while other models remain usable. This was verified with both
+completion and streaming tests after a 2026-09-18 OpenRouter refusal.
 
 **Step 8 — providers page. Done.** Grouped by access path, because that is what
 determines how a provider bills and fails. Connect, edit the model, and

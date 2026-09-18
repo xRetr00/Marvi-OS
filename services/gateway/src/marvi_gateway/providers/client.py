@@ -567,7 +567,7 @@ class ProviderClient:
                 if not self.next_key(profile, "rate limited"):
                     self.stand_down(profile.name, wait, "rate limited or window exhausted")
                 raise ProviderCallError(f"{profile.name} is rate limited")
-            if response.status_code in (401, 403):
+            if response.status_code == 401:
                 # A dead credential will not fix itself on retry -- but the
                 # next key in the pool is a different credential.
                 if not self.next_key(profile, "rejected"):
@@ -757,8 +757,9 @@ class ProviderClient:
                     if not self.next_key(profile, "rate limited"):
                         self.stand_down(profile.name, wait, "rate limited or window exhausted")
                     raise ProviderCallError(f"{profile.name} is rate limited")
-                if response.status_code in (401, 403):
-                    self.stand_down(profile.name, MAX_COOLDOWN_SECONDS, "authentication rejected")
+                if response.status_code == 401:
+                    if not self.next_key(profile, "rejected"):
+                        self.stand_down(profile.name, MAX_COOLDOWN_SECONDS, "authentication rejected")
                     raise ProviderCallError(f"{profile.name} rejected the credential")
                 if 400 <= response.status_code < 500 and response.status_code != 408:
                     # Streamed, so the body has not been read yet.
