@@ -8,6 +8,8 @@ like not listening.
 
 from __future__ import annotations
 
+import pytest
+
 from marvi_gateway.chat import HISTORY_TURNS, Chat, ChatStore
 
 
@@ -124,3 +126,30 @@ def test_the_turn_wrapper_takes_the_arguments_the_gateway_passes(tmp_path) -> No
     store = ChatStore(tmp_path / "chat.db")
     events = list(Chat(store=store).send_stream("hello", "openai", "gpt-5.2", "low"))
     assert events and events[-1]["done"] is True
+
+
+@pytest.mark.asyncio
+async def test_folding_can_be_asked_for_by_hand(monkeypatch, tmp_path) -> None:
+    """`/compress` in the chat composer.
+
+    Folding happens by itself after a turn. The reason to ask for it is the
+    moment before a long one -- and asking twice has to be safe, because the
+    composer has no way to know whether anything has scrolled out since.
+    """
+    from httpx import ASGITransport, AsyncClient
+
+    from marvi_gateway.app import create_app
+
+    monkeypatch.setenv("MARVI_HOME", str(tmp_path))
+    app = create_app()
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        made = await client.post("/chat/threads", json={"title": "Long one"})
+        thread = made.json()["id"]
+
+        folded = await client.post(f"/chat/threads/{thread}/compact")
+
+        assert folded.status_code == 200
+        # Nothing has scrolled out of a new thread, so it says so rather than
+        # calling a model to summarise nothing.
+        assert folded.json() == {"folded": False, "summary": ""}
+        assert (await client.post(f"/chat/threads/{thread}/compact")).status_code == 200

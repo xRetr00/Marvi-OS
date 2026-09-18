@@ -3783,3 +3783,60 @@
     top: 31%;
   }
 }
+
+/* Slash commands ---------------------------------------------------------- */
+
+/* Sits above the field, like the mention list, so it opens over the transcript
+   rather than off the bottom of the window. */
+.chat-slash {
+  display: flex;
+  flex-direction: column;
+  margin: 0 0 6px;
+  padding: 4px;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 8px;
+  background: var(--ui-bg);
+}
+
+.chat-slash button {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+  width: 100%;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ui-text-primary);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+
+/* The primitive sets this while the keys are being used, so the pointer and
+   the arrow keys highlight the same row rather than two different ones. */
+.chat-slash button:hover,
+.chat-slash button[data-highlighted] {
+  background: var(--ui-accent-soft);
+}
+
+.chat-slash-name {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+}
+
+.chat-slash-what {
+  color: var(--ui-text-tertiary);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.chat-slash-said {
+  margin: 0 0 6px;
+  padding: 5px 9px;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 8px;
+  color: var(--ui-text-secondary);
+  font-size: 10px;
+}

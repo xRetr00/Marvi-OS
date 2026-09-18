@@ -111,9 +111,11 @@ export function Chat({ onExit }: { onExit: () => void }): React.JSX.Element {
                 available={chat.available}
                 busy={chat.busy}
                 onFiles={(files) => void chat.addAttachments(files)}
+                onNewThread={() => void chat.createThread()}
                 onOverrideChange={chat.setOverride}
                 onRemoveAttachment={(id) => void chat.removeAttachment(id)}
                 override={chat.override}
+                threadId={chat.activeThreadId}
               />
             </div>
           </div>

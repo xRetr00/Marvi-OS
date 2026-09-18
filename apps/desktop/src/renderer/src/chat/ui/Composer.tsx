@@ -13,12 +13,18 @@
 
 import { pastedImages } from '../paste'
 import { useCallback, useRef, useState } from 'react'
-import { ComposerPrimitive, ThreadPrimitive, unstable_useComposerInput } from '@assistant-ui/react'
+import {
+  ComposerPrimitive,
+  ThreadPrimitive,
+  unstable_useComposerInput,
+  unstable_useSlashCommandAdapter
+} from '@assistant-ui/react'
 
 import type { ChatAttachment } from '../../../../shared/runtime'
 import { AbstractIcon } from '../../components/abstract-icon'
 import { GlyphSpinner } from '../../components/ui/glyph-spinner'
 import { TooltipProvider, UiTooltip } from '../../components/ui/tooltip'
+import { commandArgument, SLASH_COMMANDS, slashTrigger } from '../commands'
 import { MentionSuggestions } from '../components/MentionSuggestions'
 import { PendingAttachment } from '../components/PendingAttachment'
 import { SessionModel } from './SessionModel'
@@ -31,7 +37,9 @@ export function Composer({
   onFiles,
   onRemoveAttachment,
   override,
-  onOverrideChange
+  onOverrideChange,
+  threadId,
+  onNewThread
 }: {
   available: boolean
   busy: boolean
@@ -40,6 +48,9 @@ export function Composer({
   onRemoveAttachment?: (id: string) => void
   override?: { provider?: string; model?: string; effort?: string }
   onOverrideChange?: (next: { provider?: string; model?: string; effort?: string }) => void
+  /** Which conversation `/compress` folds. */
+  threadId?: string
+  onNewThread?: () => void
 }): React.JSX.Element {
   const fileInput = useRef<HTMLInputElement | null>(null)
   const [focused, setFocused] = useState(false)
@@ -53,129 +64,200 @@ export function Composer({
   )
   const dictation = useDictation(appendDictation)
   const active = focused || busy || Boolean(composer.value.trim())
+  const [said, setSaid] = useState('')
+
+  // Each command clears the draft itself rather than leaving `/compress`
+  // sitting in the field looking like something still to send.
+  const run = useCallback(
+    async (id: string, work: (argument: string) => Promise<string>) => {
+      const argument = commandArgument(composer.value, id)
+      composer.setText('')
+      setSaid(await work(argument))
+    },
+    [composer]
+  )
+  const slash = unstable_useSlashCommandAdapter({
+    commands: SLASH_COMMANDS.map((command) => ({
+      id: command.id,
+      label: `/${command.id}${command.argument ? ` ${command.argument}` : ''}`,
+      description: command.description,
+      execute: () => {
+        if (command.id === 'new') {
+          void run(command.id, async () => {
+            onNewThread?.()
+            return ''
+          })
+        } else if (command.id === 'compress') {
+          void run(command.id, async () => {
+            const done = await window.marvi?.compactThread(threadId ?? 'default')
+            if (!done) return 'The Gateway could not fold this conversation.'
+            return done.folded
+              ? 'Folded what had scrolled out into the summary.'
+              : 'Nothing has scrolled out of the window yet.'
+          })
+        } else {
+          void run(command.id, async (argument) => {
+            if (!argument) return 'A goal needs words: /goal and then what the job is.'
+            const card = await window.marvi?.addJob({ title: argument, assignee: 'owner' })
+            return card ? `On the board: ${card.title}` : 'The Gateway would not take that card.'
+          })
+        }
+      }
+    }))
+  })
 
   return (
     <TooltipProvider>
-      <ComposerPrimitive.Root
-        className="chat-compose"
-        onDragOver={(event) => event.preventDefault()}
-        onDrop={(event) => {
-          event.preventDefault()
-          if (event.dataTransfer.files.length) onFiles?.(event.dataTransfer.files)
-        }}
-        onPaste={(event) => {
-          const images = pastedImages(Array.from(event.clipboardData?.files ?? []))
-          if (!images.length) return
-          event.preventDefault()
-          onFiles?.(images)
-        }}
-      >
-        <MentionSuggestions
-          active={focused}
-          onPick={(next) => composer.setText(next)}
-          text={composer.value}
-        />
-        <div className="chat-compose-field" data-active={active ? 'true' : 'false'}>
-          {attachments.length ? (
-            <div className="chat-attachments" aria-label="Pending attachments">
-              {attachments.map((attachment) => (
-                <PendingAttachment
-                  attachment={attachment}
-                  key={attachment.id}
-                  onRemove={() => onRemoveAttachment?.(attachment.id)}
+      <ComposerPrimitive.Unstable_TriggerPopoverRoot>
+        <ComposerPrimitive.Root
+          className="chat-compose"
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={(event) => {
+            event.preventDefault()
+            if (event.dataTransfer.files.length) onFiles?.(event.dataTransfer.files)
+          }}
+          onPaste={(event) => {
+            const images = pastedImages(Array.from(event.clipboardData?.files ?? []))
+            if (!images.length) return
+            event.preventDefault()
+            onFiles?.(images)
+          }}
+        >
+          <ComposerPrimitive.Unstable_TriggerPopover
+            adapter={slash.adapter}
+            aria-label="Commands"
+            char="/"
+            className="chat-slash"
+            matcher={slashTrigger}
+          >
+            <ComposerPrimitive.Unstable_TriggerPopover.Action {...slash.action} />
+            <ComposerPrimitive.Unstable_TriggerPopoverItems>
+              {(items) =>
+                items.map((item, index) => (
+                  <ComposerPrimitive.Unstable_TriggerPopoverItem
+                    index={index}
+                    item={item}
+                    key={item.id}
+                  >
+                    <span className="chat-slash-name">{item.label}</span>
+                    <span className="chat-slash-what">{item.description}</span>
+                  </ComposerPrimitive.Unstable_TriggerPopoverItem>
+                ))
+              }
+            </ComposerPrimitive.Unstable_TriggerPopoverItems>
+          </ComposerPrimitive.Unstable_TriggerPopover>
+          {said ? (
+            <p className="chat-slash-said" role="status">
+              {said}
+            </p>
+          ) : null}
+          <MentionSuggestions
+            active={focused}
+            onPick={(next) => composer.setText(next)}
+            text={composer.value}
+          />
+          <div className="chat-compose-field" data-active={active ? 'true' : 'false'}>
+            {attachments.length ? (
+              <div className="chat-attachments" aria-label="Pending attachments">
+                {attachments.map((attachment) => (
+                  <PendingAttachment
+                    attachment={attachment}
+                    key={attachment.id}
+                    onRemove={() => onRemoveAttachment?.(attachment.id)}
+                  />
+                ))}
+              </div>
+            ) : null}
+            {dictation.error ? (
+              <div className="chat-dictation-error" role="alert">
+                {dictation.error}
+              </div>
+            ) : null}
+            <div className="chat-compose-row">
+              <div className="chat-compose-leading">
+                <input
+                  ref={fileInput}
+                  className="chat-file-input"
+                  type="file"
+                  multiple
+                  accept="image/png,image/jpeg,image/webp,image/gif,text/plain,text/markdown,text/csv,application/json,application/pdf,.docx,.xlsx,.pptx"
+                  onChange={(event) => {
+                    if (event.target.files?.length) onFiles?.(event.target.files)
+                    event.target.value = ''
+                  }}
                 />
-              ))}
-            </div>
-          ) : null}
-          {dictation.error ? (
-            <div className="chat-dictation-error" role="alert">
-              {dictation.error}
-            </div>
-          ) : null}
-          <div className="chat-compose-row">
-            <div className="chat-compose-leading">
-              <input
-                ref={fileInput}
-                className="chat-file-input"
-                type="file"
-                multiple
-                accept="image/png,image/jpeg,image/webp,image/gif,text/plain,text/markdown,text/csv,application/json,application/pdf,.docx,.xlsx,.pptx"
-                onChange={(event) => {
-                  if (event.target.files?.length) onFiles?.(event.target.files)
-                  event.target.value = ''
-                }}
+                <UiTooltip label="Attach images or documents">
+                  <button
+                    aria-label="Attach images or documents"
+                    className="chat-compose-tool"
+                    disabled={busy}
+                    onClick={() => fileInput.current?.click()}
+                    type="button"
+                  >
+                    <AbstractIcon name="plus" size={15} />
+                  </button>
+                </UiTooltip>
+              </div>
+              <ComposerPrimitive.Input
+                aria-label="Message Marvi"
+                enterKeyHint="send"
+                maxRows={9}
+                onBlur={() => setFocused(false)}
+                onFocus={() => setFocused(true)}
+                placeholder={available ? 'Send a message…' : 'Connect a provider to chat'}
+                rows={1}
               />
-              <UiTooltip label="Attach images or documents">
-                <button
-                  aria-label="Attach images or documents"
-                  className="chat-compose-tool"
-                  disabled={busy}
-                  onClick={() => fileInput.current?.click()}
-                  type="button"
-                >
-                  <AbstractIcon name="plus" size={15} />
-                </button>
-              </UiTooltip>
-            </div>
-            <ComposerPrimitive.Input
-              aria-label="Message Marvi"
-              enterKeyHint="send"
-              maxRows={9}
-              onBlur={() => setFocused(false)}
-              onFocus={() => setFocused(true)}
-              placeholder={available ? 'Send a message…' : 'Connect a provider to chat'}
-              rows={1}
-            />
-            <div className="chat-compose-controls">
-              {onOverrideChange ? (
-                <SessionModel value={override ?? {}} onChange={onOverrideChange} />
-              ) : null}
-              <UiTooltip
-                label={
-                  dictation.starting
-                    ? 'Starting dictation'
-                    : dictation.active
-                      ? 'Stop dictation'
-                      : 'Dictate message'
-                }
-              >
-                <button
-                  aria-label={
+              <div className="chat-compose-controls">
+                {onOverrideChange ? (
+                  <SessionModel value={override ?? {}} onChange={onOverrideChange} />
+                ) : null}
+                <UiTooltip
+                  label={
                     dictation.starting
                       ? 'Starting dictation'
                       : dictation.active
                         ? 'Stop dictation'
                         : 'Dictate message'
                   }
-                  aria-pressed={dictation.active}
-                  className={dictation.active ? 'chat-compose-tool active' : 'chat-compose-tool'}
-                  disabled={busy || dictation.starting}
-                  onClick={() => void (dictation.active ? dictation.stop() : dictation.start())}
-                  type="button"
                 >
-                  {dictation.starting ? (
-                    <GlyphSpinner ariaLabel="Starting dictation" />
-                  ) : (
-                    <AbstractIcon name={dictation.active ? 'stop' : 'microphone'} size={15} />
-                  )}
-                </button>
-              </UiTooltip>
-              {/* While a reply is streaming the same corner stops it. A turn
+                  <button
+                    aria-label={
+                      dictation.starting
+                        ? 'Starting dictation'
+                        : dictation.active
+                          ? 'Stop dictation'
+                          : 'Dictate message'
+                    }
+                    aria-pressed={dictation.active}
+                    className={dictation.active ? 'chat-compose-tool active' : 'chat-compose-tool'}
+                    disabled={busy || dictation.starting}
+                    onClick={() => void (dictation.active ? dictation.stop() : dictation.start())}
+                    type="button"
+                  >
+                    {dictation.starting ? (
+                      <GlyphSpinner ariaLabel="Starting dictation" />
+                    ) : (
+                      <AbstractIcon name={dictation.active ? 'stop' : 'microphone'} size={15} />
+                    )}
+                  </button>
+                </UiTooltip>
+                {/* While a reply is streaming the same corner stops it. A turn
                   nobody wants any more is still generating and still billed. */}
-              <ThreadPrimitive.If running>
-                <ComposerPrimitive.Cancel aria-label="Stop" className="chat-send is-stop">
-                  <AbstractIcon name="stop" size={16} />
-                </ComposerPrimitive.Cancel>
-              </ThreadPrimitive.If>
-              <ThreadPrimitive.If running={false}>
-                <ComposerPrimitive.Send aria-label="Send" className="chat-send">
-                  <AbstractIcon name="send" size={16} />
-                </ComposerPrimitive.Send>
-              </ThreadPrimitive.If>
+                <ThreadPrimitive.If running>
+                  <ComposerPrimitive.Cancel aria-label="Stop" className="chat-send is-stop">
+                    <AbstractIcon name="stop" size={16} />
+                  </ComposerPrimitive.Cancel>
+                </ThreadPrimitive.If>
+                <ThreadPrimitive.If running={false}>
+                  <ComposerPrimitive.Send aria-label="Send" className="chat-send">
+                    <AbstractIcon name="send" size={16} />
+                  </ComposerPrimitive.Send>
+                </ThreadPrimitive.If>
+              </div>
             </div>
           </div>
-        </div>
-      </ComposerPrimitive.Root>
+        </ComposerPrimitive.Root>
+      </ComposerPrimitive.Unstable_TriggerPopoverRoot>
     </TooltipProvider>
   )
 }
