@@ -9,6 +9,9 @@
   provenance, caps fields, and rejects unsupported status or amount claims.
   Chat renders the matched result and optional public source link. The actual
   action or lookup remains with the Gateway tool.
+- Complete structured connected-account results create cards immediately.
+  Browser and web results expose a same-turn evidence ID; the model can arrange
+  a card from that result, and the Gateway checks every fact before display.
 
 ## 2026-09-18 — Chat failure and navigation polish
 

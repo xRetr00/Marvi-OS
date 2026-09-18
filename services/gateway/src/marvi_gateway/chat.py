@@ -1461,6 +1461,8 @@ class Chat:
                 widget = validate_evidenced_widget(arguments, evidence or {})
             except ValueError as exc:
                 return self._tool_failed(name, arguments, str(exc))
+            if widget.get("provenance") and evidence is not None:
+                evidence[arguments["evidence_id"]]["shown"] = True
             return {
                 "text": json.dumps(widget["data"], ensure_ascii=False),
                 "widget": widget,
@@ -1531,8 +1533,11 @@ class Chat:
         evidence_note = ""
         if evidence is not None and result is not None:
             evidence_id = uuid4().hex
-            evidence[evidence_id] = {"tool": name, "result": external_payload(result)}
+            evidence[evidence_id] = {"tool": name, "result": external_payload(result), "shown": bool(widget and widget.get("kind") in {"receipt", "cart", "order_status", "booking", "stays", "flight_tracker"})}
             evidence_note = f"Successful tool result evidence ID: {evidence_id}.\n"
+            if widget and widget.get("kind") in {"receipt", "cart", "order_status", "booking", "stays", "flight_tracker"}:
+                widget["provenance"] = {"tool": name, "evidence_id": evidence_id}
+                evidence_note += "A matching card was already shown for this result.\n"
         return {
             "text": evidence_note
             + (external_text(result) or wrap_external(f"tool:{name}", result).text),

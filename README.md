@@ -69,6 +69,9 @@ When a connected tool returns relevant data, Chat can show structured receipts,
 carts, order progress, reservations, stays, and flights. The Gateway ties each
 card's facts to that tool result. The underlying account or browser tool does
 the task or lookup; drawing the card performs no second action.
+Complete structured account results can appear as cards immediately. For page
+or browser results, Marvi can select the relevant facts and the Gateway checks
+them against the same turn's tool result before showing a card.
 
 Voice is being qualified against real speaker and microphone behavior. Local wake detection, speech recognition, synthesis, interruption handling, and a local LiveKit session are implemented; the [voice phase](docs/phases/03-full-duplex-voice.md) records the remaining streaming and soak gates.
 

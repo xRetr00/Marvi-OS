@@ -85,7 +85,9 @@ def test_successful_tool_result_can_become_a_factual_card(tmp_path) -> None:
     first = chat._run_tool("account_tool_execute", {"tool": "orders.get"}, evidence=evidence)
     evidence_id = next(iter(evidence))
     assert evidence_id in first["text"]
-    shown = chat._run_tool(
+    assert first["widget"]["kind"] == "order_status"
+    assert first["widget"]["provenance"]["evidence_id"] == evidence_id
+    duplicate = chat._run_tool(
         "present_widget",
         {
             "kind": "order_status",
@@ -95,8 +97,23 @@ def test_successful_tool_result_can_become_a_factual_card(tmp_path) -> None:
         },
         evidence=evidence,
     )
-    assert shown["widget"]["data"]["status"] == "Shipped"
-    assert shown["widget"]["provenance"]["tool"] == "account_tool_execute"
+    assert duplicate["failed"] is True
+    page_root = tmp_path / "page"
+    page_root.mkdir()
+    page_chat = chat_with(
+        page_root, ANSWER,
+        dispatch=lambda name, args: {"status": "ok", "result": {"text": "Order A123: Shipped"}},
+    )
+    page_evidence: dict = {}
+    page_chat._run_tool("browser_action", {"action": "read"}, evidence=page_evidence)
+    page_id = next(iter(page_evidence))
+    shown = page_chat._run_tool(
+        "present_widget",
+        {"kind": "order_status", "title": "Order update", "evidence_id": page_id,
+         "data": {"order_id": "A123", "status": "Shipped"}},
+        evidence=page_evidence,
+    )
+    assert shown["widget"]["provenance"]["tool"] == "browser_action"
     refused = chat._run_tool(
         "present_widget",
         {

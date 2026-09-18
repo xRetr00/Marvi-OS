@@ -237,6 +237,13 @@ def test_transaction_card_must_match_a_tool_result_from_this_turn() -> None:
         validate_evidenced_widget(arguments, {})
 
 
+def test_structured_connected_account_result_automatically_gets_a_card() -> None:
+    order = {"order_id": "A123", "status": "Shipped", "source_url": "https://example.com/orders/A123"}
+    assert widget_for_tool("account_tool_execute", {"tool": "ORDERS_GET", "result": order})["kind"] == "order_status"
+    assert widget_for_tool("account_tool_execute", {"tool": "ORDERS_GET", "result": {"status": "Shipped"}}) is None
+    assert widget_for_tool("browser_status", order) is None
+
+
 def test_context_reports_provider_usage_without_estimating(tmp_path: Path) -> None:
     store = ChatStore(tmp_path / "chat.sqlite3")
     store.append("user", "hello")

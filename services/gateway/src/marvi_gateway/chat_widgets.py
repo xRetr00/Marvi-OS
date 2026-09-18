@@ -118,6 +118,8 @@ def validate_evidenced_widget(
     if not isinstance(evidence_id, str) or evidence_id not in evidence:
         raise ValueError("this card needs an evidence ID from a successful tool in this turn")
     source = evidence[evidence_id]
+    if source.get("shown"):
+        raise ValueError("a matching card was already shown for this tool result")
     # Compare against the result, not against the user's prompt or the model's
     # own arguments. A URL alone does not verify the status or amount.
     haystack = " ".join(
@@ -144,6 +146,22 @@ def validate_evidenced_widget(
 def widget_for_tool(name: str, result: Any) -> dict[str, Any] | None:
     """Turn known structured tool evidence into a deterministic widget."""
     payload = external_payload(result)
+    if name == "account_tool_execute" and isinstance(payload, dict):
+        # Composio writes wrap the service response in `result`; reads arrive
+        # in the external-data envelope. Only complete, recognizable records
+        # get cards. An arbitrary account response is left to the agent.
+        record = payload.get("result", payload)
+        if isinstance(record, dict):
+            record = record.get("data", record)
+        if isinstance(record, dict):
+            kind = _structured_card_kind(record)
+            if kind:
+                try:
+                    return validate_widget(
+                        {"kind": kind, "title": kind.replace("_", " ").title(), "data": record}
+                    )
+                except ValueError:
+                    pass
     if name == "web_search" and isinstance(payload, list):
         items = []
         for row in payload[:MAX_ITEMS]:
@@ -173,6 +191,23 @@ def widget_for_tool(name: str, result: Any) -> dict[str, Any] | None:
                 },
             }
         )
+    return None
+
+
+def _structured_card_kind(record: dict[str, Any]) -> str | None:
+    keys = set(record)
+    if {"flight", "origin", "destination", "status"} <= keys:
+        return "flight_tracker"
+    if {"order_id", "status"} <= keys:
+        return "order_status"
+    if {"venue", "date", "time"} <= keys:
+        return "booking"
+    if {"merchant", "total", "items"} <= keys:
+        return "receipt" if str(record.get("status", "")).lower() in {"paid", "purchased", "completed"} else "cart"
+    if {"total", "items"} <= keys:
+        return "cart"
+    if {"name", "location", "price"} <= keys:
+        return "stays"
     return None
 
 

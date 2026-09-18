@@ -7,6 +7,9 @@ fact with that result, caps fields, drops unknown fields and private URLs, and
 persists structured data plus tool provenance for replay. The card identifies
 the source tool and links to a public source when present. Rendering a card
 does not itself perform a purchase, reservation, or live lookup.
+Complete structured account results create a card as the tool returns. For
+unstructured browser or web results, the agent may compose a card using that
+result's evidence ID; the Gateway refuses unsupported facts and duplicate cards.
 
 Chat failures occupy one compact danger-tinted card in the failed turn, with a
 plain-language summary, expandable technical detail, and a retry action. Raw
