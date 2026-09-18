@@ -158,10 +158,9 @@ The persona rule that closed most of it is written about the past tense rather
 than about tools, because that is the shape of it: the sentence reports
 something finished and nothing finished.
 
-### `tool_call`, from Hermes Agent
+### `tool_call`
 
-`D:\hermes-agent` pairs `tool_search` with a `tool_call` bridge rather than
-making the model do a two-step: it passes a name and arguments in one call and
+The bridge pairs `tool_search` with `tool_call`, passing a name and arguments in one call.
 `resolve_underlying_call` unwraps and dispatches. Unknown tools come back as a
 recoverable result -- "'X' is not available in this session. Use tool_search to
 find tools you can call." -- rather than a hard failure, and `_repair_tool_call`

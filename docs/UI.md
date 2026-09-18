@@ -39,8 +39,7 @@ without a cursor target continue to identify activity through the Island.
 2026-09-08 scope correction: the primary Browser experience must embed the
 agent-controlled guest inside the desktop app using an Electron main-owned
 WebContentsView. The implemented separate Chromium window and control page
-are fallback groundwork. See the [Hermes review](HERMES-DESKTOP-BROWSER-REVIEW.md)
-for host, profile, privacy, and acceptance boundaries. The embedded guest is
+as fallback groundwork. The embedded guest is
 implemented and under qualification; the historical native-window contract below
 describes the explicit fallback. The Browser page now places the real guest and
 keeps it alive when the control surface is hidden.

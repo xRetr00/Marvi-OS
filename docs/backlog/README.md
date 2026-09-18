@@ -1,7 +1,6 @@
 # Backlog
 
-Features Marvi does not have yet, found by comparing Marvi OS with Hermes Agent,
-OpenClaw and OpenHuman on 2026-09-16, each with a plan. It is not a promise and
+Features Marvi does not have yet, compared with OpenClaw and OpenHuman on 2026-09-16, each with a plan. It is not a promise and
 not a phase: an item becomes work when it gets a `docs/phases/NN-*.md` file with
 acceptance gates, the way the Jobs board became [Phase 17](../phases/17-kanban.md).
 
@@ -25,7 +24,7 @@ what was checked beyond them.
 | 1 | File checkpoints: `file_write`/`file_edit`/`file_delete` keep a copy first; `file_checkpoints` and `file_restore` tools | `checkpoints.py`, `workspace.py` | `test_checkpoints.py` | — |
 | 2 | Clipboard tools: `clipboard_read` (enveloped as untrusted), `clipboard_write` | `desk.py` | `test_desk.py` | real Win32 read on the dev host; write not run there because the clipboard held non-text data |
 | 3 | Media keys: `media_control` (play/pause, next, previous, stop, volume, mute) | `desk.py` | `test_desk.py` | not pressed on the dev host (would pause the owner's audio) |
-| 4 | Plugin `pre_tool_call` / `post_tool_call` hooks (Hermes names; observers) | `tools.py`, `plugins.py` | `test_tool_hooks.py` | — |
+| 4 | Plugin `pre_tool_call` / `post_tool_call` hooks | `tools.py`, `plugins.py` | `test_tool_hooks.py` | — |
 | 5 | Local-only mode: `MARVI_LOCAL_ONLY=1` refuses every cloud model call, voice included | `providers/client.py` | `test_provider_client.py` | — |
 | 6 | Presenting / fullscreen hold: proactive speech and the Island wait while Windows says not to interrupt | `focus.py`, `policy.py`, `pending.py` | `test_windows_busy.py` | real `SHQueryUserNotificationState` read on the dev host |
 | 7 | Chat search: `GET /chat/search` and `chat_search` tool over every thread | `chat.py`, `app.py` | `test_chat_search.py` | — |

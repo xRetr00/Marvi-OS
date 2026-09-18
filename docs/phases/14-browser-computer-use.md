@@ -17,7 +17,6 @@ Windows-MCP is not a selected dependency.
 ## Scope correction — embedded desktop browser, 2026-09-08
 
 The user requires the agent-controlled browser inside the desktop app. The
-[Hermes v0.21.0 source review](../HERMES-DESKTOP-BROWSER-REVIEW.md) records the
 miss in the native-window choice and revised delivery gates. An Electron
 main-owned WebContentsView is required for the primary desktop experience.
 The native Playwright workspace below is groundwork and an explicit fallback;
@@ -465,7 +464,6 @@ the separate desktop architecture review with cua-driver among the candidates.
 ## Sources and planning evidence
 
 - [Current architecture review](../BROWSER-ARCHITECTURE-REVIEW.md).
-- [Hermes browser experience](https://hermes-agent.nousresearch.com/docs/user-guide/features/browser).
 - [Browser Use CLI](https://docs.browser-use.com/open-source/browser-use-cli).
 - [Browser Harness](https://github.com/browser-use/browser-harness).
 - [Playwright persistent context](https://playwright.dev/python/docs/api/class-browsertype#browser-type-launch-persistent-context).

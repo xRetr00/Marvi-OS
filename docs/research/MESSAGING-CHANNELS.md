@@ -11,8 +11,7 @@ writing protocol code ourselves?
 (long polling, a WebSocket, or a linked device). That means no public webhook,
 no tunnel, and no cloud relay, so it fits Marvi's local-only rule. Each
 channel is a thin adapter in Gateway built on one maintained library.
-[Hermes Agent](https://github.com/NousResearch/hermes-agent) (MIT, Python)
-already ships all five, so we should use it as our reference implementation.
+The five channels can be built with maintained libraries.
 
 ## The five channels
 
@@ -49,8 +48,7 @@ regional and can be added later as the same kind of adapter.
 
 - Enable the **Message Content** privileged intent in the developer portal,
   or DM and message text arrive empty.
-- Install without `[voice]`. Hermes notes that `discord.py[voice]` 2.7.1 pins
-  `pynacl<1.6`, which has known CVEs. We don't need Discord voice.
+- Install without the `[voice]` extra; Discord voice is outside this plan.
 - **Streaming:** edit one message. Edits are rate-limited to about 5 per 5 s
   per channel, so throttle to one edit per ~1 s.
 - **Confirm mode:** buttons through `discord.ui.View`.
@@ -69,17 +67,14 @@ regional and can be added later as the same kind of adapter.
 
 ### 4. Signal
 
-- There is no official bot API. `signal-cli` is the de-facto standard, and
-  Hermes and OpenClaw both use it.
+- There is no official bot API. `signal-cli` is the de-facto standard.
 - Run `signal-cli daemon --http 127.0.0.1:<port>` as a Gateway-supervised
   sidecar. Inbound arrives on an SSE stream and outbound goes over JSON-RPC 2.0.
-  No Python SDK is needed: Hermes's `gateway/platforms/signal.py` does this
-  with plain `httpx`.
+- A thin `httpx` adapter can call it.
 - **Windows cost:** it needs **JRE 25**. The native `libsignal` is bundled for
   Windows, but the GraalVM native build is Linux-only, so we would ship or
   locate a Temurin 25 JRE.
-- Signal rate-limits new senders. Hermes has a separate
-  `signal_rate_limit.py` for backoff and pacing, so copy that behaviour.
+- Rate-limit new senders with backoff and pacing.
 
 ### 5. WhatsApp (last, opt-in, with a warning in the UI)
 
@@ -92,10 +87,8 @@ regional and can be added later as the same kind of adapter.
   - **`neonize`** (recommended): pure `pip install`, a whatsmeow Go core, an
     async API, and `win_amd64` wheels (0.4.3.post0, 2026-07-12). It fits the
     Python Gateway with no Node sidecar.
-  - **Baileys** `7.0.0-rc14` (Node): this is what Hermes (`scripts/whatsapp-bridge`)
-    and OpenClaw use. It is more battle-tested, but it adds a Node process and
-    a local HTTP bridge. Keep it as the fallback if neonize breaks. Hermes
-    issue #7274 proposes the same neonize switch.
+  - **Baileys** `7.0.0-rc14` (Node): a fallback if neonize breaks, though it adds
+    a Node process and a local HTTP bridge.
 - **Risk:** automating a personal account breaks WhatsApp's ToS, and the
   account can be banned. Default to a dedicated number, or to "message
   yourself" self-chat only on the user's own number.
@@ -122,10 +115,9 @@ flowchart LR
   renderer only shows status and handles setup (QR codes, tokens).
 - **One small seam:** a normalized `ChannelMessage` and an adapter with
   `start()`, `stop()`, and `send()`. Don't build a plugin system until a sixth
-  channel shows up. Hermes's `BasePlatformAdapter` is 4k lines, so copy its
-  behaviours, not its size.
-- **Deny by default:** add per-channel owner allowlists, plus Hermes-style DM
-  pairing for new senders (8-character code, 1-hour expiry, 3 pending max,
+  channel needs one.
+- **Deny by default:** add per-channel owner allowlists and DM pairing for new
+  senders (8-character code, 1-hour expiry, 3 pending max,
   rate-limited, never logged). Approval happens on the Dynamic Island, not in
   chat.
 - **Sessions:** use the key `platform:chat_id`. Cross-channel continuity (start
@@ -155,7 +147,7 @@ Messaging channels are the most exposed input surface an agent has.
    confirmation for every externally visible action.
 3. **Groups are off by default.** When enabled, respond only to mentions, and
    only when the owner is the one mentioning.
-4. **Redact phone numbers and IDs** in logs (Hermes `agent/redact.py`).
+4. **Redact phone numbers and IDs** in logs.
 5. **Reconnect with exponential backoff and jitter.** Deduplicate inbound
    events and ignore the bot's own echoes to avoid reply loops.
 
@@ -164,9 +156,7 @@ Messaging channels are the most exposed input surface an agent has.
 | Option | Why not |
 |---|---|
 | Vercel Chat SDK (`chat` + `@chat-adapter/*`) | It's TypeScript and webhook-first, so it needs a public URL, and it would put agent sessions outside Gateway. It's good for serverless bots, but wrong for a local Python gateway. |
-| Matrix + mautrix bridges | One protocol would cover everything, but it needs a homeserver plus a bridge per network. Hermes notes that `mautrix[encryption]` (python-olm) has no native Windows build. |
 | WhatsApp Cloud API | Bans general AI assistants since 2026-01-15, and needs a public webhook. |
-| Importing Hermes or OpenClaw wholesale | Each is a whole agent runtime. Use them as reference and port single adapters with provenance in `docs/UPSTREAM.md`. |
 | Apprise | It only sends notifications and can't receive. Not needed until outbound-only push is wanted. |
 | Composio for chat transport | Composio acts on the user's accounts. It isn't a bot endpoint the user talks to. |
 
@@ -247,13 +237,6 @@ signal-cli -a +<number> daemon --http 127.0.0.1:<port>
 ## Sources
 
 Reference implementations
-- Hermes Agent messaging gateway: https://hermes-agent.nousresearch.com/docs/user-guide/messaging/
-  - adapter checklist: `gateway/platforms/ADDING_A_PLATFORM.md`
-  - pairing: `gateway/pairing.py`
-  - Signal adapter: `gateway/platforms/signal.py`
-  - WhatsApp bridge: `scripts/whatsapp-bridge`
-  - pins: `pyproject.toml`
-- Hermes WhatsApp → neonize proposal: https://github.com/NousResearch/hermes-agent/issues/7274
 - OpenClaw channels: https://openclawlab.com/en/docs/channels/
 
 Libraries

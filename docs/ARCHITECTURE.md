@@ -25,8 +25,7 @@ session selection and cursor configuration are not delegated to the model.
 The unchanged upstream overlay draws the pointer/badge and fades it when idle.
 Stop/private input ends that session inside the existing handoff contract.
 
-The [Hermes Desktop review](HERMES-DESKTOP-BROWSER-REVIEW.md) revises the primary
-browser host to an Electron main-owned WebContentsView. That host and its narrow
+The primary browser host is an Electron main-owned WebContentsView. That host and its narrow
 Gateway adapter are implemented under qualification; the native backend is
 an explicit fallback under qualification. The two engines must not share a live
 profile directory or silently exchange a running task.

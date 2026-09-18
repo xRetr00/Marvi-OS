@@ -41,11 +41,16 @@ every word of it.
 
 ### M2. Hooks that can refuse, and more of them
 
-`pre_tool_call` may now return `{"action": "block", "message": …}` (Hermes'
-shape) and the call is refused with that reason, recorded like any other
-failure. A hook that *crashes* refuses too — a guardrail that failed has not
-consented. It narrows only: confirmation, the room's sleep rule and every other
-guard still run, so a hook can never approve anything.
+`pre_tool_call` may return `{"action": "block", "message": …}` and the call is refused with that reason, recorded like any other
+failure. A granted hook that *crashes* refuses too — a guardrail that failed
+has not consented. It narrows only: confirmation, the room's sleep rule and
+every other guard still run, so a hook can never approve anything.
+
+**Blocking is a grant, not a claim.** Installing a plugin does not hand it a
+veto over Marvi's tools: it watches until the user names it in
+`MARVI_HOOK_GUARDS`, and until then a block it returns is logged once — with
+the setting that would allow it — and ignored. Same rule as `register_tool`,
+which has always been a request rather than a grant.
 
 Four more events: `pre_turn`, `post_turn`, `on_memory_write`,
 `on_confirmation`, raised from the turn, the memory store and the confirmation

@@ -558,7 +558,6 @@ currently has none of them upstream of `deliberate()`:
   one logical event (a webhook firing several times while an object
   converges to its final state) into a single agent invocation, at the
   route/event-type level rather than inside the agent
-  ([github.com/NousResearch/hermes-agent#20201](https://github.com/NousResearch/hermes-agent/issues/20201)).
 - **Deduplication** — before invoking the model, check a persistent
   seen-event store by event id; on a repeat, replay the stored decision
   instead of re-running the model, which matters specifically for LLMs

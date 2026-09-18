@@ -183,8 +183,6 @@ blocking one.
 
 | Source | License | Taken |
 |---|---|---|
-| [Hermes Agent delegation](https://hermes-agent.nousresearch.com/docs/user-guide/features/delegation) | MIT | The contract: fresh child context, inherited tools minus a blocked set, summary-only return, `completed/failed/interrupted` with an exit reason, stop and steer, progress-based stall detection. Design only; Hermes's `AIAgent` is not vendored. |
-| [Hermes Kanban](https://github.com/nousresearch/hermes-agent/blob/main/website/docs/user-guide/features/kanban.md) | MIT | Schema and states for [Phase 17](17-kanban.md). |
 | [OpenHuman agent harness](https://tinyhumans.gitbook.io/openhuman/developing/architecture/agent-harness.md) | **GPL-3.0** | Ideas only, no code: `AwaitingUser`/`Incomplete` result states, circuit breaker after three identical tool failures, per-agent tool scopes. |
 | [OpenClaw sub-agents](https://docs.openclaw.ai/tools/subagents) | MIT | Always non-blocking spawn with an announce on completion — already Marvi's `delegated.py` shape. |
 | [Agent Client Protocol](https://agentclientprotocol.com/get-started/agents) | Apache-2.0 SDK | Later milestone 16D: one client for Claude Code, Codex, OpenCode, Gemini CLI. |
@@ -369,8 +367,8 @@ browser workspace, not mocks.
   single tool policy. It supersedes ADR-020: that decision rejected re-coupling
   the ambient runtime to Marvi Agent's core; sub-agents share Marvi's policy
   and add no second core.
-- `UPSTREAM.md` — Hermes Agent (design), OpenHuman (design, GPL, no code),
-  Piebald prompt collection (adapted text, commit pin).
+- `UPSTREAM.md` — OpenHuman (design, GPL, no code) and the Piebald prompt
+  collection (adapted text, commit pin).
 - `ARCHITECTURE.md`, `UI.md` (Island label), `README.md`,
   `skills/delegating-to-a-coding-agent`, `skills/marvi-agent`,
   `docs/phases/README.md`.

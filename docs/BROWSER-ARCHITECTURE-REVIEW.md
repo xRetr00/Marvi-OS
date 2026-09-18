@@ -1,7 +1,6 @@
 # Browser architecture review
 
-Follow-up: the [Hermes Desktop v0.21.0 review](HERMES-DESKTOP-BROWSER-REVIEW.md)
-records the 2026-09-08 embedded-browser scope correction. The original review
+The 2026-09-08 embedded-browser scope correction supersedes this review. The original review
 below is historical; the native workspace does not meet the new in-app host gate.
 
 Reviewed 2026-09-07, before preparing the replacement browser plan. Local
@@ -67,14 +66,11 @@ private input, or user takeover. No test run was performed during this review:
 the Gateway project-local virtual environment was absent, and installing a test
 environment is unnecessary for a documentation-only milestone.
 
-## Hermes and upstream findings
+## Browser findings
 
-Hermes documents a headed browser that stays open between turns for watching
-and manual sign-in intervention. Its default driver, when available, is Browser
-Use CLI via `browser_exec`; browser source and driver are separate choices.
-Profile persistence is distinct from keeping a live window open. Its default
-inactivity cleanup is unsuitable for an unlimited human login wait without
-adaptation. [Hermes browser documentation](https://hermes-agent.nousresearch.com/docs/user-guide/features/browser)
+The browser plan needs a visible window, manual sign-in intervention, and
+durable profiles. Profile persistence is distinct from keeping a live window
+open. Inactivity cleanup must allow an unlimited human login wait.
 
 Browser Use's current CLI is backed by Browser Harness, accepts Python, and can
 connect to a supplied CDP endpoint. This supports evaluating a Marvi-managed

@@ -62,8 +62,7 @@ relay; anything that needs a public URL.
 
 ## B3. Sandboxed code execution
 
-**Why.** `terminal_run` runs on the host with the user's rights. Hermes has a
-Python `execute_code` plus Docker/SSH/Modal backends; OpenClaw has sandboxing.
+**Why.** `terminal_run` runs on the host with the user's rights. OpenClaw has sandboxing.
 Marvi has no place to run code it does not trust.
 
 **Upstream.** Windows Job Objects (limits, kill-on-close) and AppContainer
@@ -89,18 +88,16 @@ host, and a normal pandas script runs.
 
 **Why.** Shipped checkpoints cover Marvi's file tools only. A `terminal_run`
 `git reset --hard`, `rm`, `Move-Item` or `>` redirect still destroys work with
-no copy. Hermes snapshots before destructive commands into one shared shadow git
-store (`~/.hermes/checkpoints`), never touching the project's own `.git`.
+no copy.
 
-**Upstream.** Git itself (already required); Hermes' checkpoint manager as the
-design reference (MIT).
+**Upstream.** Git itself (already required).
 
 **Plan.**
 1. A shadow repository under `%LOCALAPPDATA%\Marvi OS\checkpoints\store`, one
    worktree per workspace root, `GIT_DIR`/`GIT_WORK_TREE` so the user's repo is
    untouched; honour `.gitignore`, cap file size.
-2. Classify destructive commands (the Hermes list, plus PowerShell verbs
-   `Remove-Item`, `Move-Item`, `Set-Content`, `Out-File`, `Clear-Content`).
+2. Classify destructive commands, including PowerShell verbs
+   `Remove-Item`, `Move-Item`, `Set-Content`, `Out-File`, `Clear-Content`.
 3. Snapshot before them; `file_checkpoints` lists both kinds; `file_restore`
    restores a file or the whole tree, with a diff preview first.
 4. Migrate the flat-file checkpoints into the store; keep the tools' names.

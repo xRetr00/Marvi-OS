@@ -11,8 +11,7 @@ history, and can be commented on, unblocked or cancelled by the owner.
 
 ## Source
 
-Adapted from [Hermes Kanban](https://github.com/nousresearch/hermes-agent/blob/main/website/docs/user-guide/features/kanban.md)
-(MIT): SQLite rows as the source of truth, append-only runs, comments and
+Design: SQLite rows as the source of truth, append-only runs, comments and
 events, and a dispatcher inside the gateway. Recorded in `UPSTREAM.md` when
 built. OpenHuman's board (GPL-3.0) is a design reference only.
 

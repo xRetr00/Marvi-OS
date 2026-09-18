@@ -69,8 +69,7 @@ now pins it per test, as it already pinned YOLO for exactly this reason.
 
 ## 2026-09-16 — Backlog recorded; ten quick wins shipped
 
-- Compared Marvi OS with Hermes Agent, OpenClaw and OpenHuman and recorded every
-  missing feature except messaging channels, with a plan each, in
+- Recorded missing features except messaging channels, with a plan each, in
   [`docs/backlog/`](backlog/README.md) (big, medium, small).
 - Shipped ten small items from it, each with tests: file checkpoints and
   `file_restore`; `clipboard_read`/`clipboard_write`; `media_control`; plugin
@@ -173,8 +172,7 @@ now pins it per test, as it already pinned YOLO for exactly this reason.
 ## 2026-09-11 — Sub-agents: Harvi, Jarvi and Talos
 
 - Added `marvi_gateway/subagents.py`: background sub-agent jobs over the
-  existing provider client and audited dispatch, with the Hermes-style contract
-  (fresh context, blocked tools, summary-only report, final tool-free round,
+  with fresh context, blocked tools, a summary-only report, a final tool-free round,
   three-identical-failures breaker, 450 s stall, stop, steer, 3 jobs / one
   Jarvi / one Talos). Confirmation parks a job as `awaiting_approval`; the
   Island, Telegram and `delegate_approve` all settle it through the existing
@@ -305,12 +303,10 @@ counts and remaining live UI acceptance are recorded in Phase 15.
   established from those lines. Added credential-free browser state/stage/error
   logging instead of treating the absence of errors as proof of success.
 
-## 2026-09-08 — browser redirect qualification and Hermes Desktop correction
+## 2026-09-08 — browser redirect qualification and embedded browser scope
 
-- Verified Hermes v0.21.0 at `29112bef099274229cadff79cdff7bf7b99c4b77`:
-  persistent Electron webview, agent read/action bridge, native input, pop-out.
-  Recorded the missed embedded-browser requirement and main-owned WebContentsView
-  delivery gates. No Hermes code copied; embedded runtime remains unimplemented.
+- Recorded the embedded-browser requirement and main-owned WebContentsView
+  delivery gates.
 - Qualified authenticated pproxy 2.7.9 transport after rejecting proxy.py's
   Windows timeout behavior. DNS admission passes the validated numeric address
   to the upstream connector, covering redirect chains omitted by page routing.
@@ -344,8 +340,7 @@ counts and remaining live UI acceptance are recorded in Phase 15.
   Gateway dispatch, timeouts, setup, model observations, audit, and desktop seams.
 - Replaced the earlier combined plan with six browser-only milestones centered
   on a visible workspace, saved profiles, private login, takeover and resume.
-- Evaluated Hermes's browser experience and Browser Use/Harness documentation
-  and source; recorded isolated-environment requirements and unproven execution,
+- Evaluated Browser Use/Harness documentation and source; recorded isolated-environment requirements and unproven execution,
   observation and cancellation boundaries. No driver installed or selected as
   production-ready.
 - Deferred computer-use planning until browser delivery; cua-driver and other
