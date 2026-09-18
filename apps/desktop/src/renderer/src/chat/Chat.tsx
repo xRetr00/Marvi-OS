@@ -88,6 +88,7 @@ export function Chat({ onExit }: { onExit: () => void }): React.JSX.Element {
           <div className="chat-body-area">
             <div className="chat-main">
               <Thread
+                messages={chat.messages}
                 readAloud={{
                   available: readAloud.available,
                   readingId: readAloud.readingId,

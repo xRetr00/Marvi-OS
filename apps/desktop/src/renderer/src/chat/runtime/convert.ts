@@ -219,7 +219,7 @@ function convertAttachment(
 }
 
 function statusFor(message: ChatMessage): UiMessage['status'] {
-  if (message.role === 'error') {
+  if (message.role === 'error' || (message.role === 'assistant' && /^No provider could start a stream[;:]/i.test(message.content))) {
     return { type: 'incomplete', reason: 'error', error: message.content }
   }
   if (message.meta.streaming) return { type: 'running' }
@@ -271,7 +271,8 @@ export function convertMessage(message: ChatMessage): UiMessage {
     }
   }
 
-  message.parts.forEach((part, index) => {
+  const failed = statusFor(message)?.type === 'incomplete'
+  ;(failed ? [] : message.parts).forEach((part, index) => {
     const converted = convertPart(part, message, index)
     if (!converted) return
     if (isUser && !USER_PART_TYPES.has(converted.type)) return
@@ -281,7 +282,7 @@ export function convertMessage(message: ChatMessage): UiMessage {
   // A message whose parts produced nothing renderable still has to occupy a
   // row -- an assistant message mid-stream has no parts yet, and dropping it
   // would make the thinking indicator flicker in and out.
-  if (!content.length && message.content) content.push({ type: 'text', text: message.content })
+  if (!failed && !content.length && message.content) content.push({ type: 'text', text: message.content })
 
   const attachments = isUser ? message.attachments.map(convertAttachment) : []
 

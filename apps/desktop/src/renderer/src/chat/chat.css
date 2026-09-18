@@ -3547,6 +3547,47 @@
   line-height: 1.5;
 }
 
+.chat-failure {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  max-width: 680px;
+  padding: 13px 14px;
+  border: 1px solid color-mix(in srgb, var(--ui-danger) 42%, var(--ui-stroke-secondary));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--ui-danger) 7%, var(--ui-bg));
+  color: var(--ui-danger);
+}
+
+.chat-failure-content { flex: 1; min-width: 0; }
+.chat-failure strong { display: block; font-size: 12px; }
+.chat-failure p { margin: 4px 0 0; color: var(--ui-text-secondary); font-size: 11px; line-height: 1.55; overflow-wrap: anywhere; }
+.chat-failure details { margin-top: 9px; font-size: 10px; }
+.chat-failure summary { cursor: pointer; }
+.chat-failure pre { max-height: 130px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ui-text-tertiary); }
+.chat-failure-retry { flex: none; padding: 5px 9px; border: 1px solid currentColor; border-radius: 6px; background: transparent; color: var(--ui-danger); font: inherit; font-size: 10px; cursor: pointer; }
+.chat-failure-retry:hover { background: color-mix(in srgb, var(--ui-danger) 12%, transparent); }
+
+.chat-conversation-map {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+  max-height: min(65vh, 420px);
+  overflow-y: auto;
+  transform: translateY(-50%);
+}
+.chat-map-tick { flex: none; width: 22px; height: 10px; padding: 3px 0; border: 0; background: transparent; cursor: pointer; }
+.chat-map-tick::after { display: block; width: 10px; height: 2px; margin-left: auto; border-radius: 2px; background: var(--ui-stroke-primary); content: ''; }
+.chat-map-tick.is-visible::after { width: 15px; background: var(--ui-text-tertiary); }
+.chat-map-tick.is-active::after { width: 22px; background: var(--ui-accent); }
+.chat-map-tick:focus-visible { outline: 1px solid var(--ui-accent); }
+@media (max-width: 900px) { .chat-conversation-map { display: none; } }
+
 .chat-working {
   padding-block: 7px 10px;
 }

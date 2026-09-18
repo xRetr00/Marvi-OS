@@ -27,6 +27,7 @@ import { formatTime } from '../time'
 import { AttachmentPreview } from '../components/AttachmentPreview'
 import { CopyMessageAction } from '../components/MessageAction'
 import { AssistantParts } from './AssistantParts'
+import { MessageError } from './MessageError'
 import { messageText } from './message-text'
 import { MESSAGE_PART_COMPONENTS } from './parts'
 import type { ReadAloud } from './parts'
@@ -71,6 +72,7 @@ export function UserMessage({ message }: { message: MessageState }): React.JSX.E
       className="chat-turn chat-user"
       data-role="user"
       data-slot="chat-user-message"
+      data-message-id={message.id}
     >
       <span className="sr-only">YOU</span>
       <div className="chat-user-surface" data-slot="chat-user-surface">
@@ -169,16 +171,13 @@ export function AssistantMessage({
       aria-busy={streaming ? 'true' : undefined}
       aria-label="Marvi response"
       className={failed ? 'chat-turn chat-assistant chat-failed' : 'chat-turn chat-assistant'}
+      data-message-id={message.id}
     >
       <MarviAvatar className="chat-turn-avatar" />
       <div className="chat-turn-column">
         <span className="sr-only">MARVI</span>
         <AssistantParts message={message} />
-        <MessagePrimitive.Error>
-          <div className="chat-error-body" role="alert">
-            <ErrorText message={message} />
-          </div>
-        </MessagePrimitive.Error>
+        {failed ? <MessageError error={String(message.status.error ?? '')} /> : null}
         <TooltipProvider>
           <div className="chat-turn-foot">
             <div className="chat-turn-actions">
@@ -220,8 +219,3 @@ export function AssistantMessage({
   )
 }
 
-function ErrorText({ message }: { message: MessageState }): React.JSX.Element | null {
-  const status = message.status
-  if (!status || status.type !== 'incomplete') return null
-  return <>{String(status.error ?? 'Something went wrong.')}</>
-}
