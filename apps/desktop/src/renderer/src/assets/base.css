@@ -67,6 +67,7 @@
   --ui-font-body: 'JetBrains Mono', 'Cascadia Mono', Consolas, monospace;
   --ui-font-display: 'Collapse', 'JetBrains Mono', sans-serif;
   --ui-font-mono: 'JetBrains Mono', 'Cascadia Mono', Consolas, monospace;
+  --ui-font-serif: 'Newsreader Variable', Georgia, serif;
   font-family: var(--ui-font-body);
   color: #e7e7e3;
   background: transparent;

@@ -30,6 +30,7 @@ import {
   Pencil,
   Plus,
   RefreshCw,
+  Workflow,
   ScanEye,
   ScanLine,
   Search,
@@ -92,6 +93,7 @@ export type AbstractIconName =
   | 'microphone'
   | 'speaker'
   | 'regenerate'
+  | 'workflows'
 
 /**
  * Semantic names are stable Marvi UI contracts; the drawings come entirely
@@ -143,7 +145,8 @@ export const ABSTRACT_ICONS: Readonly<Record<AbstractIconName, LucideIcon>> = Ob
   paperclip: Paperclip,
   microphone: Mic,
   speaker: Volume2,
-  regenerate: RefreshCw
+  regenerate: RefreshCw,
+  workflows: Workflow
 })
 
 export function AbstractIcon({

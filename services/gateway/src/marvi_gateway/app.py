@@ -23,6 +23,7 @@ from livekit import api
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
+from . import automations as automations_module
 from . import (
     auxiliary,
     breadcrumb,
@@ -56,7 +57,6 @@ from . import (
 from . import doctor as doctor_module
 from . import plugins as plugins_module
 from . import room as room_module
-from . import automations as automations_module
 from . import runs as runs_module
 from . import schedule as schedule_module
 from . import setup as setup_module
@@ -1282,6 +1282,13 @@ def create_app(
     # without the tool stack has no worker to hand a turn to.
     rememberer: remembering.Rememberer | None = None
     location_service = LocationService()
+    from .jobs import JobsStore
+
+    jobs_store = JobsStore()
+    # A card that says "running" when nothing is running is the most misleading
+    # thing a board can show, and a crash leaves exactly that.
+    jobs_store.recover()
+    rules = automations_module.Automations()
     if tools is not None:
         tool_registry = tools
     else:
@@ -1342,17 +1349,10 @@ def create_app(
         from .imagery import register_image_tools
 
         register_image_tools(tool_registry, provider_client)
-        from .automations import Automations
-        from .jobs import JobsStore, register_job_tools
+        from .jobs import register_job_tools
         from .sandbox import register_sandbox_tools
 
-        jobs_store = JobsStore()
-        # A card that says "running" when nothing is running is the most
-        # misleading thing a board can show, and a crash leaves exactly that.
-        jobs_store.recover()
         register_job_tools(tool_registry, jobs_store)
-        rules = Automations()
-
         register_sandbox_tools(tool_registry)
         from .trimming import register_more_tool
 

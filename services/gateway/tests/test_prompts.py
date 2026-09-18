@@ -39,6 +39,9 @@ STILL_IN_CODE: set[tuple[str, str]] = {
     ("terminal_ui.py", "MARVI_ART"),
     # The /help reply the Telegram bot sends a person. Never shown to a model.
     ("telegram.py", "HELP"),
+    # Python source, injected into the sandboxed child before its code runs.
+    # A model never reads it; the interpreter does.
+    ("sandbox.py", "PREAMBLE"),
 }
 
 #: Below this, a string constant is a message or a label rather than a prompt.

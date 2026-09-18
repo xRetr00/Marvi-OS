@@ -36,7 +36,6 @@ two seconds is a board nobody can read while it changes.
 
 from __future__ import annotations
 
-import json
 import sqlite3
 import threading
 from datetime import UTC, datetime

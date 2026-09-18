@@ -318,7 +318,7 @@ const NAV_ICONS: Record<Page, AbstractIconName> = {
   Mind: 'mind',
   Skills: 'skills',
   Cronjobs: 'schedules',
-  Workflows: 'schedules',
+  Workflows: 'workflows',
   Connectors: 'connectors',
   Channels: 'channels',
   MCP: 'mcp',
