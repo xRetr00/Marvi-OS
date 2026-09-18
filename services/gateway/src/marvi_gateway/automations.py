@@ -260,7 +260,10 @@ class Automations:
             if not matches({"match": json.dumps(rule["match"])}, event):
                 continue
             if self._too_often(rule["id"]):
-                self._record(rule["id"], trigger, False, f"more than {MAX_PER_HOUR} times in an hour")
+                self._record(
+                    rule["id"], trigger, False,
+                    f"rate limited: more than {MAX_PER_HOUR} times in an hour",
+                )
                 done.append({"id": rule["id"], "ok": False, "detail": "rate limited"})
                 continue
             if self.call is None:

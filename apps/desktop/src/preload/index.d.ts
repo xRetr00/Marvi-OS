@@ -13,6 +13,10 @@ import type {
   BrowserStatus
 } from '../shared/browser'
 import type {
+  AutomationPage,
+  AutomationRule,
+  JobBoard,
+  JobCard,
   FaceLibrary,
   AuxiliaryPage,
   AssistantState,
@@ -247,6 +251,28 @@ export interface MarviDesktopApi {
   copyText: (text: string) => Promise<boolean>
   openMaintenanceTerminal: (action: MaintenanceAction) => Promise<boolean>
   getSchedules: () => Promise<SchedulePage | null>
+  /** The board. With `after`, the Gateway holds the request until it changes. */
+  getJobs: (after?: number) => Promise<JobBoard | null>
+  getJob: (id: string) => Promise<JobCard | null>
+  addJob: (body: { title: string; body?: string; assignee?: string }) => Promise<JobCard | null>
+  updateJob: (
+    id: string,
+    body: { status?: string; reason?: string; title?: string; body?: string }
+  ) => Promise<JobCard | null>
+  commentOnJob: (id: string, body: string) => Promise<{ steered: boolean } | null>
+  getAutomations: () => Promise<AutomationPage | null>
+  addAutomation: (body: {
+    name: string
+    trigger: string
+    action: string
+    arguments?: Record<string, unknown>
+    match?: Record<string, unknown>
+    enabled?: boolean
+  }) => Promise<AutomationRule | null>
+  setAutomationEnabled: (id: string, enabled: boolean) => Promise<AutomationRule | null>
+  removeAutomation: (id: string) => Promise<{ removed: boolean } | null>
+  /** Fire one rule by hand, with a made-up event: the dry run. */
+  runAutomation: (id: string, event: Record<string, unknown>) => Promise<unknown>
   getBrowser: () => Promise<BrowserStatus>
   getComputer: (after?: number) => Promise<import('../shared/computer').ComputerStatus>
   getAgents: (after?: number) => Promise<import('../shared/agents').AgentsFeed | null>
