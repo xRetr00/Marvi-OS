@@ -143,27 +143,71 @@ def test_widget_vocabulary_rejects_executable_or_private_content() -> None:
 @pytest.mark.parametrize(
     ("kind", "data"),
     [
-        ("receipt", {"merchant": "Shop", "total": "$12", "items": [{"name": "Cable", "quantity": "1", "price": "$12"}]}),
+        (
+            "receipt",
+            {
+                "merchant": "Shop",
+                "total": "$12",
+                "items": [{"name": "Cable", "quantity": "1", "price": "$12"}],
+            },
+        ),
         ("cart", {"total": "$12", "items": [{"name": "Cable", "price": "$12"}]}),
-        ("order_status", {"order_id": "A123", "status": "In transit", "events": [{"at": "Today", "label": "Shipped"}]}),
+        (
+            "order_status",
+            {
+                "order_id": "A123",
+                "status": "In transit",
+                "events": [{"at": "Today", "label": "Shipped"}],
+            },
+        ),
         ("booking", {"venue": "Cafe", "date": "Oct 1", "time": "19:00", "party_size": "2"}),
         ("stays", {"name": "Riverside Loft", "location": "Paris", "price": "$120"}),
-        ("flight_tracker", {"flight": "AB123", "origin": "IST", "destination": "LHR", "status": "On time"}),
+        (
+            "flight_tracker",
+            {"flight": "AB123", "origin": "IST", "destination": "LHR", "status": "On time"},
+        ),
     ],
 )
 def test_commerce_and_travel_widget_contracts(kind: str, data: dict) -> None:
-    widget = validate_widget({"kind": kind, "title": kind, "data": {**data, "source_url": "https://example.com/details", "unexpected": "ignore"}})
+    widget = validate_widget(
+        {
+            "kind": kind,
+            "title": kind,
+            "data": {**data, "source_url": "https://example.com/details", "unexpected": "ignore"},
+        }
+    )
     assert widget["kind"] == kind
     assert widget["data"]["source_url"] == "https://example.com/details"
     assert "unexpected" not in widget["data"]
-    assert validate_widget({"kind": kind, "title": kind, "data": {**data, "source_url": "http://127.0.0.1/private"}})["data"]["source_url"] == ""
+    assert (
+        validate_widget(
+            {
+                "kind": kind,
+                "title": kind,
+                "data": {**data, "source_url": "http://127.0.0.1/private"},
+            }
+        )["data"]["source_url"]
+        == ""
+    )
 
 
 def test_transaction_cards_require_real_fields() -> None:
     with pytest.raises(ValueError):
-        validate_widget({"kind": "receipt", "title": "Done", "data": {"merchant": "Shop", "total": "$12", "items": []}})
+        validate_widget(
+            {
+                "kind": "receipt",
+                "title": "Done",
+                "data": {"merchant": "Shop", "total": "$12", "items": []},
+            }
+        )
     with pytest.raises(ValueError):
-        validate_widget({"kind": "flight_tracker", "title": "Flight", "data": {"flight": "AB123", "status": "On time"}})
+        validate_widget(
+            {
+                "kind": "flight_tracker",
+                "title": "Flight",
+                "data": {"flight": "AB123", "status": "On time"},
+            }
+        )
 
 
 def test_context_reports_provider_usage_without_estimating(tmp_path: Path) -> None:

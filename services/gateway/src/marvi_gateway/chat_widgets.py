@@ -191,7 +191,9 @@ def _public_url(value: Any) -> bool:
         return True
 
 
-def _items(data: dict[str, Any], keys: tuple[str, ...], limit: int = MAX_ITEMS) -> list[dict[str, str]]:
+def _items(
+    data: dict[str, Any], keys: tuple[str, ...], limit: int = MAX_ITEMS
+) -> list[dict[str, str]]:
     clean: list[dict[str, str]] = []
     rows = data.get("items")
     if not isinstance(rows, list):
@@ -243,15 +245,15 @@ def _timeline(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def _weather(data: dict[str, Any]) -> dict[str, Any]:
-    return {key: _text(data.get(key), 200) for key in ("location", "temperature", "condition", "detail")}
+    return {
+        key: _text(data.get(key), 200) for key in ("location", "temperature", "condition", "detail")
+    }
 
 
 def _gallery(data: dict[str, Any]) -> dict[str, Any]:
     rows = _items(data, ("url", "attachment_id", "alt"), 12)
     return {
-        "items": [
-            row for row in rows if row.get("attachment_id") or _public_url(row.get("url"))
-        ]
+        "items": [row for row in rows if row.get("attachment_id") or _public_url(row.get("url"))]
     }
 
 
@@ -268,7 +270,9 @@ def _status(data: dict[str, Any]) -> dict[str, Any]:
     return {"items": _items(data, ("label", "detail", "status"), 24)}
 
 
-def _fields(data: dict[str, Any], required: tuple[str, ...], optional: tuple[str, ...]) -> dict[str, Any]:
+def _fields(
+    data: dict[str, Any], required: tuple[str, ...], optional: tuple[str, ...]
+) -> dict[str, Any]:
     clean = {key: _text(data.get(key), 200) for key in (*required, *optional)}
     for key in required:
         if not clean[key]:
@@ -301,12 +305,18 @@ def _cart(data: dict[str, Any]) -> dict[str, Any]:
 
 def _order_status(data: dict[str, Any]) -> dict[str, Any]:
     clean = _fields(data, ("order_id", "status"), ("merchant", "eta", "updated_at"))
-    clean["events"] = _items({"items": data["events"]}, ("at", "label", "detail"), 12) if isinstance(data.get("events"), list) and data["events"] else []
+    clean["events"] = (
+        _items({"items": data["events"]}, ("at", "label", "detail"), 12)
+        if isinstance(data.get("events"), list) and data["events"]
+        else []
+    )
     return clean
 
 
 def _booking(data: dict[str, Any]) -> dict[str, Any]:
-    return _fields(data, ("venue", "date", "time"), ("party_size", "status", "reference", "address"))
+    return _fields(
+        data, ("venue", "date", "time"), ("party_size", "status", "reference", "address")
+    )
 
 
 def _stays(data: dict[str, Any]) -> dict[str, Any]:
