@@ -192,7 +192,11 @@ class Meetings:
             )
             self._db.commit()
             try:
-                self._live = _Recording(identifier, where)
+                # The guard calls back in here rather than into the recorder,
+                # so a meeting that ran out of hours ends properly -- stopped,
+                # transcribed and written up -- instead of having its audio cut
+                # while the card still says "recording" for ever.
+                self._live = _Recording(identifier, where, lambda: self._ran_long(identifier))
                 self._live.start()
             except Exception as exc:
                 self._live = None
@@ -200,6 +204,13 @@ class Meetings:
                 raise MeetingError(f"the recording could not start: {exc}") from exc
         log.info("recording meeting %s", identifier)
         return self.get(identifier)
+
+    def _ran_long(self, meeting_id: str) -> None:
+        """Six hours. Somebody forgot, and a forgotten recording is the failure
+        that matters here."""
+        log.info("meeting %s hit the recording limit and was stopped", meeting_id)
+        with contextlib.suppress(MeetingError):
+            self.stop(meeting_id)
 
     def now(self) -> dict[str, Any]:
         """What the indicator draws. Always answers, even when nothing runs."""
@@ -268,7 +279,18 @@ class Meetings:
             if not source.exists():
                 continue
             for at, pcm in windows(source):
-                said = (self.transcribe(pcm) or "").strip()
+                # One window at a time, and one window's failure costs one
+                # window. The local recogniser is known to die mid-stream, and
+                # losing an hour of somebody's meeting because minute
+                # thirty-two upset it is not a trade worth making. The gap is
+                # recorded rather than papered over, so the transcript says
+                # where it stopped hearing.
+                try:
+                    said = (self.transcribe(pcm) or "").strip()
+                except Exception as exc:
+                    log.info("a window at %ss did not transcribe: %s", at, str(exc)[:160])
+                    found.append((at, speaker, "[Marvi could not transcribe this part]"))
+                    continue
                 if said:
                     found.append((at, speaker, said))
         # By when it was said, so the transcript reads as the meeting happened
@@ -462,9 +484,10 @@ def windows(source: Path) -> list[tuple[int, bytes]]:
 class _Recording:
     """Two streams and two WAV files, for as long as the meeting lasts."""
 
-    def __init__(self, identifier: str, folder: Path) -> None:
+    def __init__(self, identifier: str, folder: Path, on_too_long: Callable[[], None]) -> None:
         self.id = identifier
         self.folder = folder
+        self._on_too_long = on_too_long
         self.started = datetime.now(UTC)
         self._files: dict[str, wave.Wave_write] = {}
         self._captures: list[audiocapture.Capture] = []
@@ -501,7 +524,7 @@ class _Recording:
             self._captures.append(capture)
         # A recording nobody stopped is the failure that matters here, so it
         # stops itself rather than filling a disk overnight.
-        self._guard = threading.Timer(MAX_SECONDS, self.stop)
+        self._guard = threading.Timer(MAX_SECONDS, self._on_too_long)
         self._guard.daemon = True
         self._guard.start()
 

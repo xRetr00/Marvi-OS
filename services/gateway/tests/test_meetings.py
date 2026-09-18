@@ -267,3 +267,74 @@ def test_the_speakers_and_the_microphone_are_both_really_recorded(tmp_path) -> N
     spectrum = numpy.abs(numpy.fft.rfft(middle))
     loudest = numpy.fft.rfftfreq(middle.size, 1 / audiocapture.TARGET_RATE)[spectrum.argmax()]
     assert 430 < loudest < 450, f"the loopback heard {loudest:.0f} Hz, not the tone"
+
+
+def test_a_recording_nobody_stopped_ends_properly(tmp_path, monkeypatch) -> None:
+    """The six-hour guard used to cut the audio and leave the card saying
+    "recording" for ever -- which is the one stale state that makes the
+    indicator a lie in the direction that matters."""
+    import marvi_gateway.meetings as module
+
+    monkeypatch.setattr(module, "MAX_SECONDS", 0.2)
+    monkeypatch.setattr(module.audiocapture, "available", lambda: (True, ""))
+    monkeypatch.setattr(module.audiocapture, "Capture", _Deaf)
+    store = _store(tmp_path)
+    store.accept_consent()
+    store.transcribe = lambda pcm: ""
+
+    started = store.start("Forgotten")
+    assert store.now()["recording"] is True
+
+    for _ in range(100):
+        if not store.now()["recording"]:
+            break
+        __import__("time").sleep(0.05)
+
+    assert store.now() == {"recording": False}
+    assert store.get(started["id"])["state"] in ("transcribing", "ready")
+
+
+class _Deaf:
+    """A capture device that starts, hears nothing, and stops."""
+
+    def __init__(self, speakers: bool, on_pcm) -> None:
+        self.speakers = speakers
+        self.peak = 0
+        self.frames = 0
+
+    def start(self, wait: float = 5.0) -> None:
+        return None
+
+    def stop(self) -> None:
+        return None
+
+
+def test_one_window_failing_does_not_cost_the_meeting(tmp_path) -> None:
+    """The local recogniser is known to die mid-stream. Losing an hour of
+    somebody's meeting because minute thirty-two upset it is not a trade worth
+    making, and a silent gap is worse than a marked one."""
+    store = _store(tmp_path)
+    folder = tmp_path / "one"
+    folder.mkdir()
+    with wave.open(str(folder / "speakers.wav"), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(audiocapture.TARGET_RATE)
+        handle.writeframes(
+            (SILENCE_PEAK * 4).to_bytes(2, "little", signed=True)
+            * audiocapture.TARGET_RATE * WINDOW_SECONDS * 3
+        )
+    answers = iter(["the first bit", RuntimeError("speech runtime closed"), "the last bit"])
+
+    def flaky(_pcm: bytes) -> str:
+        got = next(answers)
+        if isinstance(got, Exception):
+            raise got
+        return got
+
+    store.transcribe = flaky
+    turns = store._turns(folder)
+
+    assert [text for _, _, text in turns] == [
+        "the first bit", "[Marvi could not transcribe this part]", "the last bit"
+    ]

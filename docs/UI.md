@@ -752,6 +752,30 @@ Plugins is for third-party/extension plugins and is presently an empty shell —
 Settings > Plugins remains the page for Marvi's own bundled services (Smart
 Room and others).
 
+## Meetings view and the recording indicator
+
+Context > Meetings is where a meeting is recorded and read back. One control on
+the page opens a microphone, and the first time anybody presses it a dialog
+shows the recording notice, which has to be accepted once. Marvi can offer to
+take notes on a calendar meeting with a video link; the offer carries the same
+control and never starts anything itself.
+
+**The indicator is a contract.** While a meeting is being recorded, a red dot
+and a running clock sit in the status bar on every page, not only on Meetings.
+It is the only red element in the shell and the only animated one, and it is
+absent -- not grey, not a placeholder -- whenever nothing is being recorded, so
+its presence is the signal. It also reports whether each side is actually being
+heard, because recording with a muted microphone looks exactly like recording
+until the transcript comes back with one voice in it. Under reduced motion it
+stops pulsing and stays red.
+
+A meeting still being transcribed says so rather than showing an empty summary,
+which would read as a meeting where nothing was said. A finished one shows the
+summary, what was decided, what is owed -- each of which is already a card on
+the jobs board -- and the transcript as timed turns, marked You or Them by which
+stream carried them. Forgetting a meeting deletes its recordings with it and
+says so; there is no bin.
+
 ## Workflows view
 
 Capabilities > Workflows is one page for the two halves of "Marvi did something

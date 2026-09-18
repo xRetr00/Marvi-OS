@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import base64
+import collections
 import io
 import json
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -415,3 +418,162 @@ def test_dictation_follows_the_selected_recogniser(
     # Kyutai has no dictation path.
     monkeypatch.setenv("MARVI_STT_ENGINE", "kyutai-1b")
     assert dictation.engine() == "nemotron-3.5"
+
+
+class _StderrPipe:
+    """A pipe with a fixed buffer, which is what the worker actually gets.
+
+    Windows hands an anonymous pipe a 4 KiB buffer unless it is asked for
+    more. A writer that fills it blocks inside the write until somebody reads,
+    and a worker blocked there cannot answer on stdout either. So this blocks
+    too, and only gives up -- reporting a worker that is now wedged -- when
+    nothing has drained it for a while.
+    """
+
+    CAPACITY = 4096
+    PATIENCE = 5.0
+
+    def __init__(self) -> None:
+        self._lines: collections.deque[str] = collections.deque()
+        self._bytes = 0
+        self._closed = False
+        self._ready = threading.Condition()
+
+    def write(self, text: str) -> bool:
+        """False once the buffer has stayed full: a worker stuck mid-write."""
+        deadline = time.monotonic() + self.PATIENCE
+        with self._ready:
+            while self._bytes + len(text) > self.CAPACITY:
+                if self._closed or not self._ready.wait(
+                    timeout=max(0.0, deadline - time.monotonic())
+                ):
+                    return False
+            self._lines.append(text)
+            self._bytes += len(text)
+            self._ready.notify_all()
+            return True
+
+    def readline(self) -> str:
+        with self._ready:
+            while not self._lines and not self._closed:
+                self._ready.wait()
+            if not self._lines:
+                return ""
+            line = self._lines.popleft()
+            self._bytes -= len(line)
+            self._ready.notify_all()
+            return line
+
+    def close(self) -> None:
+        with self._ready:
+            self._closed = True
+            self._ready.notify_all()
+
+
+#: What parakeet.cpp writes per half second of audio, near enough: it narrates
+#: every CUDA graph compute, and this is the line it writes. Measured at about
+#: 500 bytes a second on an RTX 3060, so a 4 KiB pipe fills after eight.
+_NOISE = "ggml_backend_cuda_graph_compute: CUDA graph warmup complete\n" * 4
+
+
+class _ChattyStdout:
+    def __init__(self) -> None:
+        self.lines = [json.dumps({"ok": True, "kind": "ready", "text": "en-US"}) + "\n"]
+
+    def readline(self) -> str:
+        return self.lines.pop(0) if self.lines else ""
+
+
+class _ChattyStdin:
+    """A worker that talks to stderr as it works, and stops dead when it fills."""
+
+    def __init__(self, process: _ChattyProcess) -> None:
+        self.process = process
+
+    def write(self, value: str) -> None:
+        if self.process.stuck or not self.process.stderr.write(_NOISE):
+            # Blocked mid-write. No reply reaches stdout, now or ever.
+            self.process.stuck = True
+            return
+        request = json.loads(value)
+        kind = "partial" if request["op"] == "audio" else "final"
+        self.process.stdout.lines.append(
+            json.dumps({"ok": True, "kind": kind, "text": "a transcript"}) + "\n"
+        )
+
+    def flush(self) -> None:
+        return None
+
+
+class _ChattyProcess:
+    def __init__(self) -> None:
+        self.stderr = _StderrPipe()
+        self.stdout = _ChattyStdout()
+        self.stdin = _ChattyStdin(self)
+        self.returncode = None
+        self.stuck = False
+
+    def poll(self) -> int | None:
+        return self.returncode
+
+    def terminate(self) -> None:
+        self.returncode = 0
+        self.stderr.close()
+
+    def wait(self, timeout: int | None = None) -> int:
+        del timeout
+        return 0
+
+    def kill(self) -> None:
+        self.returncode = -1
+        self.stderr.close()
+
+
+def test_dictation_survives_a_worker_that_fills_the_stderr_pipe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A long dictation used to die at the pipe, not in the recogniser.
+
+    Nothing read the worker's stderr, so once parakeet.cpp had narrated about
+    4 KiB of CUDA graph computes -- eight to twelve seconds of audio -- the
+    worker blocked inside its own write and went silent on stdout. The Gateway
+    reported "speech runtime closed: ggml_cuda_init: ...", which is the top of
+    the stderr that had been backing up since startup rather than any crash.
+
+    Thirty seconds of audio here, which is well past where it used to stop.
+    """
+    monkeypatch.setattr(dictation, "worker_command", lambda: ["python", "worker.py"])
+    monkeypatch.setattr(dictation, "engine", lambda: "nemotron-3.5")
+    process = _ChattyProcess()
+    manager = dictation.DictationManager(popen=lambda argv, **_: process)
+
+    session_id = manager.start()
+    chunk = base64.b64encode(bytes(dictation.CHUNK_BYTES)).decode()
+    for _ in range(60):  # 60 half-second chunks: thirty seconds of audio
+        manager.audio(session_id, chunk)
+    assert not process.stuck, "the worker blocked writing stderr nobody was reading"
+    assert manager.stop(session_id)["text"] == "a transcript", (
+        "the recogniser's final pass has to survive a clip this long"
+    )
+
+
+def test_dictation_explains_a_dead_worker_without_waiting_on_its_stderr(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The detail still has to arrive, and `stderr.read()` would never return.
+
+    Reading stderr to the end is only safe once the worker has closed it. One
+    that is merely wedged never does, so the detail comes from what has
+    already been drained.
+    """
+    monkeypatch.setattr(dictation, "worker_command", lambda: ["python", "worker.py"])
+    monkeypatch.setattr(dictation, "engine", lambda: "nemotron-3.5")
+    process = _ChattyProcess()
+    manager = dictation.DictationManager(popen=lambda argv, **_: process)
+    session_id = manager.start()
+    process.stderr.write("CUDA error: out of memory\n")
+    process.stuck = True  # it died; nothing more reaches stdout
+
+    with pytest.raises(dictation.DictationError) as caught:
+        manager.stop(session_id)
+    assert "out of memory" in str(caught.value)

@@ -44,13 +44,13 @@ export function MeetingsPage(): React.JSX.Element {
     return () => window.clearInterval(timer)
   }, [load])
 
-  const start = async (): Promise<void> => {
+  const start = async (named?: string): Promise<void> => {
     setError('')
     if (!page?.consent.accepted) {
       setNotice(true)
       return
     }
-    const began = await window.marvi?.startMeeting(title.trim())
+    const began = await window.marvi?.startMeeting((named ?? title).trim())
     if (!began) setError('Marvi could not start recording. Check the microphone and speakers.')
     setTitle('')
     void load()
@@ -91,6 +91,26 @@ export function MeetingsPage(): React.JSX.Element {
         <p className="cron-warn">{page.why_not || 'This machine cannot record a meeting.'}</p>
       ) : null}
       {error ? <p className="cron-warn">{error}</p> : null}
+
+      {/* The offer. It carries the same control as everything else here --
+          Marvi asks, and the person still presses the button. */}
+      {!live && page?.offer ? (
+        <div className="mt-offer">
+          <div>
+            <strong>{page.offer.title}</strong>
+            <span>starts about now. Take notes?</span>
+          </div>
+          <button
+            className="cron-new"
+            disabled={!page.can_record}
+            onClick={() => void start(page.offer?.title)}
+            type="button"
+          >
+            <Disc aria-hidden="true" />
+            Record it
+          </button>
+        </div>
+      ) : null}
 
       <section className="mt-start">
         {live ? (

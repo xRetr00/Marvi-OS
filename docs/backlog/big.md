@@ -60,7 +60,7 @@ device ends its session within one second.
 **Not planned.** Native app-store apps; push notifications through a vendor
 relay; anything that needs a public URL.
 
-## B3. Sandboxed code execution — shipped 2026-09-18
+## B3. Sandboxed code execution — shipped 2026-09-19
 
 **Why.** `terminal_run` runs on the host with the user's rights. OpenClaw has sandboxing.
 Marvi has no place to run code it does not trust.
@@ -90,13 +90,33 @@ and the tree at four processes; the child runs `python -I` in a scratch
 directory that is deleted after, with a preamble that removes `socket`, and its
 output comes back enveloped as untrusted.
 
-**One thing the plan promised that this does not.** The AppContainer token. A
-Job Object limits *resources*; it is not a security boundary, and code in one
-can still read `%USERPROFILE%`. The tool's description and its module docstring
-both say so in those words rather than implying a sandbox it does not have.
-Reaching the rest of the acceptance -- the script that tries to read the home
-directory being stopped by the OS -- needs the AppContainer token, and that is
-the next piece of this item rather than a detail of it.
+**The AppContainer, 2026-09-19.** `lowbox.py`. A lowbox token with no
+capabilities, launched through `CreateProcessW` with
+`PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES`, so the kernel refuses the handle
+rather than a wrapper refusing the call. Every gate in the acceptance was met on
+the owner's host against the packaged interpreter:
+
+| What the snippet tried | What happened |
+| --- | --- |
+| List `%USERPROFILE%` | `PermissionError: [WinError 5] Access is denied` |
+| Read `D:\Marvi-OS\README.md` | `PermissionError: [Errno 13]` |
+| Write `C:\Users\xRetro\marvi-escape.txt` | `PermissionError`, and the file does not exist afterwards |
+| `connect()` to 1.1.1.1:443 through `ctypes`, bypassing the interpreter guard | `WSAEACCES (10013)` -- the firewall, not Python |
+| `bytearray(8 GB)` | `MemoryError` from the Job Object |
+| A pandas script | ran; pandas 3.0.5 imported, wrote its file |
+
+**It does not always engage, and it always says which.** A Python installed for
+every user cannot be granted to the container -- changing a DACL under
+`C:\Program Files` needs rights Marvi does not ask for -- so on a machine like
+that this falls back to the Job Object alone and the result says
+`isolation: job` with the reason. The packaged product is unaffected: its
+interpreter is under `%LOCALAPPDATA%` and `%APPDATA%`, which the owner owns.
+
+Two things cost an hour each and are in the tests rather than in a comment: a
+container launch needs the profile variables in its environment or
+`CreateProcessW` answers `ERROR_ENVVAR_NOT_FOUND` with no hint why, and
+`icacls /T` silently drops an ACE carrying `(OI)(CI)` when it reaches a file,
+so granting a tree takes two passes.
 
 ## B4. Command checkpoints (*extends #1*) — shipped 2026-09-18
 
@@ -128,7 +148,7 @@ the user's own `.git` gains nothing. `looks_destructive` classifies the
 PowerShell verbs as well as the Unix ones; `file_checkpoints` lists file and
 tree snapshots together and `file_restore` takes either kind.
 
-## B5. Meeting assistant
+## B5. Meeting assistant — shipped 2026-09-19
 
 **Why.** OpenHuman joins Meet/Zoom/Teams and transcribes. Marvi sees the
 calendar and nothing of the meeting.
@@ -153,6 +173,43 @@ usable, with voice latency unaffected during the call.
 
 **Not planned.** A bot that joins the call as a participant; cloud
 transcription; recording without the indicator.
+
+**Shipped.** `audiocapture.py`, `meetings.py`, the `/meetings` routes, the
+Meetings page, the status-bar indicator, `test_meetings.py`.
+
+**Loopback is ctypes, not the audio library.** `sounddevice` is already a
+dependency and its API has the option, but the PortAudio it ships
+(V19.7.0-devel) does not carry the flag -- `WasapiSettings(loopback=True)` is a
+`TypeError`, not a recording. So WASAPI directly, the same way `desk.py` reaches
+the volume control, with the microphone on the same path so there is one
+mechanism rather than two. Verified by playing a 440 Hz tone and measuring the
+captured spectrum: 440.0 Hz, which a stream that silently records nothing
+cannot produce.
+
+**Recorded live, transcribed afterwards.** The plan said transcription in
+chunks; the acceptance said voice latency must be unaffected during the call.
+Two 0.6B recognisers running for thirty minutes on the card that is also
+carrying the voice session cannot honour the second. So the call costs two WAV
+writers, and the work-up happens when it ends -- each side cut into 30-second
+windows, silence skipped, windows interleaved by timestamp. Speaker turns come
+from *which stream it arrived on*, which is exact rather than inferred.
+
+**The offer is on the Meetings page, not the Island.** The plan said the Island;
+what shipped is a card on the page the status-bar indicator already points at,
+carrying the same Record control. It is fed from the calendar cache the Voice
+page fills and **never fetches**: this route is polled while the page is open,
+and a calendar lookup is a request to somebody else's API. A cold cache means
+no offer, which is the right way round -- a missing offer is a convenience
+nobody got, and a fetch per poll is a bill. The Island version is a smaller
+piece of work on top of , which is built and tested.
+
+**Two defects in the existing recogniser were found doing this**, both fatal in
+the same unhelpful way -- the worker dies and the caller sees only "speech
+runtime closed". It cannot take a 64 KiB chunk (16,000 bytes goes through), and
+it dies on flush past about twelve seconds of audio. Both were reaching Telegram
+voice notes and chat dictation too. `transcribe_for_channel` now feeds
+`dictation.CHUNK_BYTES` and keeps the last cumulative partial when flush dies;
+the runtime itself still needs fixing.
 
 ## B6. Automations and inbound webhooks — shipped 2026-09-18
 
@@ -254,6 +311,117 @@ should be said rather than faked: the desktop companion under Wayland, OS
 geolocation on Linux, and any capability that would need a kernel extension.
 Windows stays the reference platform -- it is the one the owner runs, and the
 one the evidence in `docs/` is from.
+
+## B8. The product in another language, starting with Arabic
+
+**Why.** Marvi already lets you choose what she *listens* for and what she
+*answers* in -- `language.py`, Understand and Speak. That is the conversation.
+It is not the product: every label, every button, every settings page and every
+error is English, hard-coded in the file that draws it. The owner wants the
+whole thing in Arabic, and Arabic first deliberately, because it is the one
+that breaks the most assumptions. Anything that survives Arabic will survive
+French.
+
+**What "another language" actually means here.** Marvi has three kinds of text
+and they need three different answers. Conflating them is how this goes wrong:
+
+| Kind | Where | What it needs |
+| --- | --- | --- |
+| **Model-facing** | `prompts/`, tool descriptions, `describes` | **Stays English.** These are instructions to a model that reads English best, and translating them costs accuracy for nothing -- the *answer* is what the user reads, and that is settled by `language.reply_instruction()`. |
+| **UI chrome** | ~100 files under `apps/desktop/src/renderer` | A catalogue, and the mechanical work of getting the strings out of the JSX. |
+| **Marvi's own words** | her replies, what she speaks, `announce.py`, error text that reaches a person | The model already writes these in the Speak language. What does not is the prose the Gateway composes itself, and that is a smaller list than it looks. |
+
+**Why Arabic is the hard one.** Not the translation. Nine things, and the first
+four are why "just add a strings file" is not the plan:
+
+1. **Direction.** Every layout in the app is authored left to right, in
+   physical CSS -- `margin-left`, `padding-right`, `text-align: left`,
+   `left: 0`. An RTL document needs the logical forms (`margin-inline-start`,
+   `inset-inline-start`), and that is a sweep of `main.css`, not a switch.
+   The Dynamic Island, the sidebar, the chat gutter and the status bar all have
+   a handed geometry that has to mirror.
+2. **Bidi.** Arabic text with a Latin run inside it -- a file path, a model
+   name, `code_run`, a URL -- reorders on screen unless each run is isolated.
+   Marvi's UI is full of exactly that mix. Without `<bdi>` or the isolate
+   characters, a path inside an Arabic sentence renders with its parts in the
+   wrong order, and it looks like a bug in the path rather than in the text.
+3. **Shaping and fonts.** Arabic letters join, and the three fonts Marvi ships
+   -- the display face, the body face and `--ui-font-mono` (JetBrains Mono /
+   Geist Mono) -- have no Arabic coverage at all. Monospace is the sharp one:
+   there is no good monospaced Arabic, so a transcript or a tool result in a
+   mono block needs a paired Arabic face and a decision about what "monospace"
+   means when half the line cannot be.
+4. **Numerals and formats.** Arabic-Indic digits (٠١٢٣) or Western, per locale
+   and sometimes per user; `Intl.NumberFormat` and `Intl.DateTimeFormat` with
+   the right locale rather than the hand-rolled formatting the pages do now.
+   Times, durations and "3 minutes ago" all go through this.
+5. **Recognition.** Arabic is **not** in `parakeet-tdt-0.6b-v3`'s 25 languages
+   (see `language.RECOGNISED`) and `nemotron-3.5` is English. There is no
+   Arabic speech recognition in Marvi today, and no setting can pretend
+   otherwise. A model has to be chosen, measured and packaged.
+6. **Voice.** Kokoro has no Arabic voice, and `language.speakable()` already
+   refuses to offer a language it has no voice for -- correctly, because the
+   alternative is English phonemes reading Arabic words. Same story: choose,
+   measure, package.
+7. **Wake word.** The wake model is trained on English pronunciations of the
+   name. An Arabic speaker saying it is a different sound, and the false-reject
+   rate is the whole feature.
+8. **Search and memory.** The FTS5 index tokenises on whitespace and ASCII
+   folding; Arabic needs its own normalisation (alef forms, tatweel,
+   diacritics) or search finds nothing a person would expect it to.
+9. **Calendars.** Hijri dates exist and are used. Out of scope for the first
+   pass, and worth saying so rather than discovering it in a bug report.
+
+**Upstream.** No new framework. `Intl` is in the platform and `dir="rtl"` is in
+the platform; a translation catalogue is a JSON file and a lookup, and
+`react-i18next` would be a dependency for a `t()` function Marvi can write in
+fifteen lines. Fonts: Noto Sans Arabic and Noto Kufi Arabic (SIL OFL), vendored
+like the existing faces. For recognition and voice the candidates to measure
+are `whisper-large-v3` and Meta's MMS for ASR, and XTTS-v2 or a Piper Arabic
+voice for TTS -- each on the RTX 3060 budget, against the latency gates the
+voice phases already set, and recorded in `UPSTREAM.md` before anything ships.
+
+**Plan.** The order matters: the mechanical part is worth nothing until the
+layout part works, and doing it the other way round means translating into a
+UI that then has to be rebuilt.
+
+1. **Make the shell right-to-left with no translation at all.** A setting that
+   sets `dir` on the document, the physical-to-logical sweep of `main.css`,
+   mirrored icons where handedness means something (back, forward, the panel
+   toggle), and `<bdi>` around every path, identifier and model name. Read the
+   whole app in English-in-RTL and fix what tips over. Nothing is translated at
+   this step and that is the point: it isolates the layout bugs from the
+   language ones.
+2. **A catalogue and a `t()`.** One JSON per language, one flat lookup, English
+   as the fallback for a missing key, and a test that fails on a key missing
+   from a shipped language. Extraction is the long tail -- do it page by page,
+   starting with the ones a person sees first.
+3. **Formats through `Intl`.** Numbers, dates, durations and relative times,
+   with the locale from the same setting. Replace the hand-rolled formatting
+   rather than wrapping it.
+4. **Marvi's own prose.** Audit what the Gateway composes itself and reaches a
+   person -- `announce.py`, the settings copy the window shows verbatim, the
+   error text from tools. Route those through the catalogue; leave everything
+   model-facing in English and say so in `AGENTS.md`.
+5. **Arabic search.** Normalise alef forms, strip tatweel and diacritics in the
+   FTS5 tokeniser path, and test that a word typed without diacritics finds the
+   one stored with them.
+6. **Then the voice, as its own piece of work.** ASR and TTS models chosen on
+   measured gates, not on a model card. Until they land, Arabic is a *reading*
+   language in Marvi and the settings page says exactly that -- the same
+   honesty `language.py` already applies to Understand.
+
+**Done when.** The whole window reads right to left in Arabic with no Latin
+text stranded in the wrong order, a mixed Arabic-and-path sentence renders
+correctly, numbers and dates are in the chosen locale, search finds an Arabic
+word typed without its diacritics, and every string a person can reach is
+either translated or falls back to English visibly rather than showing a key.
+Voice has its own gates and its own phase.
+
+**Not planned.** Translating prompts or tool descriptions. A right-to-left
+*code* editor. Hijri calendars. Machine-translating the catalogue -- a wrong
+label in a settings page is worse than an English one, and the owner speaks
+the language.
 
 ## Rejected
 

@@ -82,7 +82,7 @@ from .computer import ComputerUse, computer_router, register_computer_tools
 from .credentials import register_secret_tool
 from .curiosity import Curiosity, seed_identity
 from .deliberate import deliberator_from_env
-from .dictation import DictationError, DictationManager
+from .dictation import CHUNK_BYTES, DictationError, DictationManager
 from .identity import IdentityFiles, plan_warning, register_identity_tools
 from .ingest import AccountIngest
 from .initiative import Initiative
@@ -2379,25 +2379,26 @@ def create_app(
     def transcribe_for_channel(pcm: bytes) -> str:
         """A voice note, or one window of a meeting, through the local recogniser.
 
-        The partials are kept as they arrive, and that is not belt and braces.
-        The installed `nemotron-3.5` runtime **dies on flush once it has been
-        fed more than about twelve seconds** -- measured on this host: two and
-        six seconds flush cleanly, twelve kills the worker and the exception
-        that reaches here says only "speech runtime closed". Anything longer
-        than a short voice note hit it, and lost the whole recording rather
-        than the last word of it.
+        This used to be written up as two limits of the `nemotron-3.5`
+        runtime: that it could not take a 64 KiB chunk, and that it died on
+        flush past about twelve seconds. Neither is real. Both were the
+        Gateway failing to read the worker's stderr, so the pipe filled and
+        the worker went silent mid-session; see `WORKER_STDERR_LINES` in
+        `dictation`. Drained, the same host flushes thirty seconds in 0.1 s at
+        either chunk size.
 
-        Each partial is the cumulative text so far, so the last one heard is
-        everything the recogniser had. Flush is still asked for first, because
-        it does a final pass the partials have not had; when it dies, the last
-        partial is the answer rather than nothing.
+        The partials are still kept as they arrive, and flush is still asked
+        for first. Flush does a final pass the partials have not had, and each
+        partial is the cumulative text so far -- so if the worker ever does
+        die for a reason that is its own, the last one heard is everything it
+        had, which beats returning nothing.
         """
         if not dictation.available():
             raise DictationError("the local speech recogniser is not installed")
         session = dictation.start()
         heard = ""
         try:
-            step = 64 * 1024
+            step = CHUNK_BYTES
             for start in range(0, len(pcm), step):
                 partial = dictation.audio(
                     session, base64.b64encode(pcm[start : start + step]).decode()
@@ -4504,7 +4505,23 @@ def create_app(
             "consent": meetings.consent(),
             "can_record": can,
             "why_not": why,
+            "offer": _meeting_to_offer(),
         }
+
+    def _meeting_to_offer() -> dict[str, Any] | None:
+        """A calendar meeting starting now, if one is already known about.
+
+        Reads the Voice page's calendar cache and never fetches. This route is
+        polled while the Meetings page is open, and a calendar lookup is a
+        network call to somebody else's API -- so an offer appears when Marvi
+        happens to know, and never costs a request of its own. A cold cache
+        means no offer, which is the right way round: a missing offer is a
+        convenience nobody got, and a fetch per poll is a bill.
+        """
+        if not calendar_cache:
+            return None
+        _, newest = max(calendar_cache.values(), key=lambda entry: entry[0])
+        return meetings_module.due(list(newest.get("events") or []))
 
     @app.get("/meetings/{meeting_id}")
     async def read_meeting(meeting_id: str) -> dict[str, Any]:

@@ -1633,4 +1633,10 @@ export interface MeetingsPage {
   consent: { notice: string; accepted: boolean; accepted_at: string }
   can_record: boolean
   why_not: string
+  /**
+   * A calendar meeting starting about now, if Marvi already knew about one.
+   * Null when she does not -- the Gateway never fetches a calendar to answer
+   * this, so a cold cache means no offer rather than a request per poll.
+   */
+  offer: { id: string; title: string } | null
 }

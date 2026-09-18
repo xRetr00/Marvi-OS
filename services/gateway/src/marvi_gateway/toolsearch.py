@@ -101,6 +101,9 @@ AREAS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     # query that finds nothing. It is asked for by what it does.
     ("the rest of a shortened result", "more", ("tool_more",)),
     ("pictures", "image", ()),
+    ("meetings and their notes", "meeting", ()),
+    ("the jobs board", "job", ("jobs_board",)),
+    ("running a snippet of code", "code", ("code_run",)),
 )
 
 

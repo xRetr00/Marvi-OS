@@ -52,6 +52,37 @@ No new dependency. See [`docs/backlog/`](backlog/README.md).
   which is not a dependency; the notification listener additionally needs
   package identity. Both are recorded as blocked in `docs/backlog/small.md`.
 
+## The sandbox boundary and the meeting recorder — 2026-09-19
+
+No new dependency. Two more OS interfaces through `ctypes`, both documented
+Win32 with a compatibility promise, unlike the WNF read recorded below.
+
+- **AppContainer** (`lowbox.py`): `CreateAppContainerProfile` and
+  `DeriveAppContainerSidFromAppContainerName` from `userenv.dll`, and
+  `CreateProcessW` with `PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES` and a
+  `SECURITY_CAPABILITIES` carrying **no capabilities**. Permissions are granted
+  with `icacls` rather than `SetEntriesInAcl`: the same operation in one line a
+  person can read, run by hand and undo. Two behaviours worth recording because
+  neither is in the obvious place in the documentation -- a container launch
+  fails with `ERROR_ENVVAR_NOT_FOUND` unless the profile variables are in its
+  environment block, and `icacls /T` drops an ACE carrying `(OI)(CI)` when it
+  reaches a file, so granting an existing tree takes a second pass.
+- **WASAPI loopback** (`audiocapture.py`): `IMMDeviceEnumerator`,
+  `IAudioClient` with `AUDCLNT_STREAMFLAGS_LOOPBACK`, and
+  `IAudioCaptureClient`, called by vtable slot the same way `desk.py` reaches
+  the volume control. This is *not* a preference over `sounddevice`, which is
+  already a dependency: the PortAudio that ships with it (V19.7.0-devel,
+  checked on this host) does not carry the loopback flag, so
+  `WasapiSettings(loopback=True)` raises `TypeError`. Shipping a different
+  PortAudio to get one flag would be a binary to vendor, audit and keep current.
+- **numpy** is used by both the capture conversion and the silence check. It is
+  already installed as a transitive dependency of `sounddevice`; it is used
+  here deliberately rather than incidentally, and `audiocapture.available()`
+  answers false with a reason if it is ever absent.
+- Kokoro has no Arabic voice and `parakeet-tdt-0.6b-v3` does not recognise
+  Arabic, which is why B8 treats voice as its own piece of work rather than a
+  setting. Candidates to measure are recorded in that plan, not adopted.
+
 ## Big backlog tier: B3, B4, B6 and the jobs board — 2026-09-18
 
 No new dependency. Four subsystems, all built on things already required.

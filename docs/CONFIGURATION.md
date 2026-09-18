@@ -89,10 +89,12 @@ quietly ignored.
 | `MARVI_INSTALL_ROOT` | `%LOCALAPPDATA%\Marvi-OS` |
 | `MARVI_IDENTITY_DIR` | `%LOCALAPPDATA%\Marvi OS` |
 
-Three stores have no variable because nothing has needed to move them: the
-jobs board (`jobs.sqlite3`), the automation rules (`automations.sqlite3`), and
-the workspace snapshot store (`checkpoints\store`, one bare git repository
-per workspace root). All three sit beside the files above, under `MARVI_HOME`.
+Four stores have no variable because nothing has needed to move them: the
+jobs board (`jobs.sqlite3`), the automation rules (`automations.sqlite3`),
+meeting notes (`meetings.sqlite3`, with the recordings themselves under
+`meetings\<id>\`), and the workspace snapshot store (`checkpoints\store`, one
+bare git repository per workspace root). All sit beside the files above, under
+`MARVI_HOME`.
 
 ### Logging and identity
 
@@ -142,6 +144,7 @@ be able to switch proactivity off by accident, or leave the budget uncapped.
 |---|---|---|
 | `MARVI_PRIVACY_MODE` | off | one switch: refuses every tool that reaches the network (web, accounts, calendar, email, Telegram), keeps the Telegram bridge disconnected, forces the local memory store, skips update checks, and implies `MARVI_LOCAL_ONLY`. Editable in Settings > Preferences; your own MCP servers are not gated |
 | `MARVI_LOCAL_ONLY` | off | every model call must go to a local provider (Ollama, LM Studio, llama.cpp); cloud providers are refused. Model calls only |
+| `MARVI_SANDBOX_APPCONTAINER` | on | run `code_run` inside a Windows AppContainer, where the kernel refuses every file outside its scratch directory and the firewall drops every connection. Off falls back to the Job Object's time, memory and process limits alone, and the tool's result says which one ran. It also falls back by itself, with a reason, when the interpreter is one an ordinary user cannot grant the container access to |
 | `MARVI_HOOK_GUARDS` | unset | plugins allowed to *refuse* a tool call from a `pre_tool_call` hook, comma separated (`*` for all). Unset, every plugin hook only watches; a block it returns is logged once and ignored |
 | `<PROVIDER>_API_KEY_2` … `_9` | unset | more keys for the same provider. A rate-limited or rejected key moves to the next before the provider is stood down |
 | `MARVI_TOOL_RESULT_CAP` | 12000 | characters one tool result may put in front of the model; the rest is read with `tool_more`. `0` switches trimming off |

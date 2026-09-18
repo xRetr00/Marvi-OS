@@ -13,6 +13,11 @@ def registry(monkeypatch):
     held = {"text": "copied words"}
     pressed: list[int] = []
     monkeypatch.setattr(desk, "read_text", lambda: held["text"])
+    # Pictures too, since  learnt to look for one: without this
+    # the empty-clipboard test reads *this machine's* clipboard and fails on
+    # any developer who happens to have copied a screenshot -- which is what
+    # the file's first line promises not to do.
+    monkeypatch.setattr(desk, "read_image", lambda: held.get("image"))
     monkeypatch.setattr(desk, "write_text", lambda text: held.update(text=text))
     monkeypatch.setattr(desk, "press", pressed.append)
     registry = ToolRegistry()

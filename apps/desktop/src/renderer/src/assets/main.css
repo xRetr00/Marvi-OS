@@ -15262,3 +15262,29 @@ html[data-appearance='claude-code-dark'] .control-row {
   font-size: 10px;
   line-height: 1.55;
 }
+
+.mt-offer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 12px;
+  padding: 11px 13px;
+  border: 1px dashed var(--ui-stroke-secondary);
+  border-radius: 8px;
+}
+
+.mt-offer > div {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+}
+
+.mt-offer strong {
+  color: var(--ui-text-primary);
+  font-size: 11px;
+}
+
+.mt-offer span {
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+}

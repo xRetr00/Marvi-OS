@@ -1,5 +1,46 @@
 # Implementation Log
 
+## 2026-09-19 — The sandbox became a boundary, and Marvi takes meeting notes
+
+- **B3 finished** (`lowbox.py`). The Job Object was never a security boundary
+  and said so; now there is an AppContainer behind it, and the difference is
+  that the kernel refuses the handle rather than a wrapper refusing the call.
+  Measured on the owner's host: reading the home directory, reading a project
+  file, writing outside the scratch directory and opening a socket through raw
+  `ctypes` all fail, and pandas still runs. **It does not always engage** -- a
+  Python installed for every user cannot be granted to the container -- and the
+  result says `isolation: appcontainer` or `isolation: job` with the reason,
+  because a sandbox that quietly stops being a boundary is worse than one that
+  never claimed to be.
+- **B5** (`audiocapture.py`, `meetings.py`). Both sides of a call: the
+  microphone for the owner, WASAPI loopback for everyone else. Loopback is
+  ctypes because the PortAudio that ships with `sounddevice` does not carry the
+  flag, and the capture is proved by playing a 440 Hz tone and measuring 440.0
+  Hz back rather than by trusting a mock.
+- **Recorded live, transcribed afterwards**, against the plan's wording and for
+  the plan's own acceptance: two recognisers running through a thirty-minute
+  call is how "voice latency unaffected" stops being true. Windows of thirty
+  seconds, silence skipped, both sides interleaved by timestamp -- so the
+  speaker is *which stream it arrived on*, which is exact rather than inferred.
+- **Marvi never starts a recording.** `due()` finds a calendar meeting worth
+  offering; `start()` is the only thing that opens a microphone, and it refuses
+  until the owner has read a notice about recording other people and accepted
+  it once. An indicator sits in the status bar for the whole session and says
+  whether each side is actually being heard, because recording with a muted
+  microphone looks exactly like recording.
+- **Two defects in the existing speech runtime, found by using it properly**:
+  it dies on a 64 KiB chunk, and it dies on flush past about twelve seconds.
+  Both were silently truncating Telegram voice notes and chat dictation.
+  Worked around in the shared helper -- smaller chunks, and the last cumulative
+  partial kept when flush dies -- and raised for a real fix.
+- **B8 planned**: the product in another language, Arabic first because it
+  breaks the most assumptions. The plan separates the three kinds of text Marvi
+  has (model-facing stays English), and puts the right-to-left sweep *before*
+  any translation, because translating into a layout that then has to be
+  rebuilt is the expensive order.
+- Desktop suite green; Gateway suite pending a concurrent refactor of
+  `dictation.py` landing.
+
 ## 2026-09-18 — Three big items, the board, and the Workflows page
 
 - **B4, workspace snapshots** (`treecheck.py`). `terminal_run` classifies its

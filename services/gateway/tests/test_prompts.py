@@ -42,6 +42,10 @@ STILL_IN_CODE: set[tuple[str, str]] = {
     # Python source, injected into the sandboxed child before its code runs.
     # A model never reads it; the interpreter does.
     ("sandbox.py", "PREAMBLE"),
+    # The recording notice a person reads and accepts once. Written for them,
+    # never shown to a model -- and one of the strings B8 will have to
+    # translate, which a file in prompts/ would not help with.
+    ("meetings.py", "CONSENT"),
 }
 
 #: Below this, a string constant is a message or a label rather than a prompt.
