@@ -160,8 +160,73 @@ restart, and show their runs.
 
 **Not planned.** A visual flow editor; branching workflows; public webhooks.
 
+## B7. macOS and Linux builds
+
+**Why.** The owner wants Marvi on macOS and Linux alongside Windows, not
+instead of it. This reverses the entry that used to sit under Rejected, so the
+first item below is a contract change rather than code: `AGENTS.md` opens with
+"an always-on **Windows** voice and vision assistant", and until the owner
+edits that line, everything here is a plan and nothing is a commitment.
+
+**What is actually in the way.** Not the Electron app -- that is portable
+already, and `electron-builder.yml` has carried `mac`, `dmg`, `linux` and
+`appImage` blocks since the template. What is in the way is everything that
+reaches the machine:
+
+| What | Where | On another OS |
+| --- | --- | --- |
+| Wake word host | `apps/wake-host` (Rust, `windows-sys`) | The ONNX model and the audio loop are portable; the tray, the single-instance mutex and the session hooks are not. |
+| Desktop companion | `apps/pet-host` (Rust, `windows-sys`) | A click-through always-on-top layered window. macOS wants `NSWindow` with `ignoresMouseEvents`; Wayland has no equivalent at all, so X11 only or nothing. |
+| Location | `apps/location-host` (Rust, WinRT `Devices.Geolocation`) | macOS has Core Location. Linux has no OS geolocation; it would stay IP-only, which is what this machine already does. |
+| Updater | `apps/updater` (Tauri) + NSIS handoff | A `.app` updates by replacing a bundle; an AppImage by replacing a file; a `.deb` by the distro's package manager, which Marvi must not fight. Three different stories, none of them the NSIS one. |
+| App focus, idle, quiet hours | `focus.py`, `desk.py` | `SHQueryUserNotificationState`, WNF and `keybd_event` have no portable equivalent. macOS: `NSWorkspace` + `CGDisplay`; Linux: whatever the desktop exposes, which is not a promise. |
+| Volume, media keys | `desk.py` (Core Audio COM) | macOS: `AudioToolbox`. Linux: PulseAudio/PipeWire over D-Bus. |
+| Sandbox limits | `sandbox.py` (Job Objects) | `setrlimit` on both, which is *simpler* than the Windows path. |
+| Local secrets | Electron `safeStorage` | Already portable: Keychain on macOS, libsecret on Linux. Nothing to do but test that libsecret is actually present.
+| Global hotkeys | `main/hotkeys.ts` | Electron `globalShortcut` is portable, but macOS refuses to register until Accessibility is granted, and Wayland refuses full stop. |
+| Computer use | Cua | Has macOS and Linux backends; this is the one native capability that gets *easier*. |
+| Build and release | `scripts/*.ps1` | PowerShell Core runs everywhere, but code signing does not: macOS needs a Developer ID and notarisation, and unsigned is a Gatekeeper wall rather than a warning. |
+
+**Plan.** In the order that keeps a half-finished port honest rather than
+mysteriously broken:
+
+1. **Say what a platform is.** One capability table the Gateway serves and the
+   window reads, so a missing capability is a greyed control that says "not on
+   macOS" rather than a tool that fails at the moment of use. Nothing else in
+   this list should start before this does.
+2. **Split the platform code behind it.** `focus.py`, `desk.py`, `parent.py`,
+   `workspace.py`, `sandbox.py` and `wake.py` each grow a `_windows.py` and a
+   `_posix.py` beside a small interface. The Windows path must not change
+   behaviour: the port is a refactor first, and a refactor that breaks the
+   working platform to reach a new one has traded down.
+3. **Linux first, not macOS.** CI can run it, an AppImage needs no signing
+   authority, and `setrlimit` and D-Bus are the least surprising of the two
+   sets. Target X11 for the companion and say so; Wayland is a separate
+   decision, not a bug report.
+4. **macOS second, entitlements first.** Camera, microphone, Accessibility and
+   Screen Recording are four separate prompts and the app is useless until all
+   four are answered. Setup has to ask for them in order and verify each,
+   because a denied prompt on macOS is silent.
+5. **Updater per platform.** macOS: Sparkle-style bundle replacement, signed.
+   Linux: AppImage replacement for AppImage, and *nothing* for `.deb` -- a
+   packaged Marvi is the distro's to update, and an app that fights its package
+   manager is a bug.
+6. **CI that builds all three** on every tag, with the platform test suite
+   green on each. A platform nobody builds on a schedule is a platform that is
+   already broken.
+
+**Done when.** A fresh macOS and a fresh Ubuntu host each run Setup, hold a
+voice conversation, approve a sensitive tool, and survive a restart with the
+jobs board intact -- and every capability the host does not have is greyed out
+with a reason before it is reached, rather than failing when it is.
+
+**Not planned.** Feature parity as a promise. Some things do not port and
+should be said rather than faked: the desktop companion under Wayland, OS
+geolocation on Linux, and any capability that would need a kernel extension.
+Windows stays the reference platform -- it is the one the owner runs, and the
+one the evidence in `docs/` is from.
+
 ## Rejected
 
-- **macOS/Linux builds.** Native Windows is the product contract (`AGENTS.md`).
 - **The Jobs board** is not here because it already has a plan:
   [Phase 17](../phases/17-kanban.md).
