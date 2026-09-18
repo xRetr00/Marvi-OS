@@ -1341,6 +1341,9 @@ def create_app(
         from .imagery import register_image_tools
 
         register_image_tools(tool_registry, provider_client)
+        from .sandbox import register_sandbox_tools
+
+        register_sandbox_tools(tool_registry)
         from .trimming import register_more_tool
 
         register_more_tool(tool_registry)

@@ -821,6 +821,10 @@ class Workspace:
             "exit_code": completed.returncode,
             "stdout": (completed.stdout or "")[:MAX_OUTPUT_CHARS],
             "stderr": (completed.stderr or "")[:MAX_OUTPUT_CHARS],
+            # Said in the result rather than kept quiet: knowing the workspace
+            # was snapshotted first is what makes a destructive command
+            # something a person can undo rather than regret.
+            **({"snapshot": snapshot["id"]} if snapshot else {}),
         }
 
     def _start_background(
@@ -1000,7 +1004,7 @@ def register_workspace_tools(registry, workspace: Workspace) -> None:
     def file_checkpoints(path: str = "", limit: int = 20) -> dict[str, Any]:
         return {"checkpoints": workspace.list_checkpoints(path, limit)}
 
-    def file_restore(path: str, checkpoint: str = "") -> dict[str, Any]:
+    def file_restore(path: str = "", checkpoint: str = "") -> dict[str, Any]:
         return workspace.restore(path, checkpoint)
 
     def terminal_run(
@@ -1134,14 +1138,15 @@ def register_workspace_tools(registry, workspace: Workspace) -> None:
         ),
         ToolSpec(
             name="file_restore",
-            description="Put a file back the way it was before Marvi changed it.",
-            arguments={"path": str},
-            optional={"checkpoint": str},
+            description="Put a file, or the whole workspace, back the way it was.",
+            arguments={},
+            optional={"path": str, "checkpoint": str},
             sensitive=True,
             handler=file_restore,
             describes={
-                "path": "The file to put back.",
-                "checkpoint": "The checkpoint id from file_checkpoints. Leave out for the newest one.",
+                "path": "The file to put back. Leave out with a workspace snapshot id to "
+                "restore the whole tree.",
+                "checkpoint": "The id from file_checkpoints. Leave out for this file's newest copy.",
             },
         ),
         ToolSpec(

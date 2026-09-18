@@ -133,7 +133,21 @@ def _prepare(root: Path) -> Path | None:
         return git_dir
     git_dir.parent.mkdir(parents=True, exist_ok=True)
     try:
-        _run(git_dir, root, "init", "--quiet", "--bare", str(git_dir))
+        # Without a work tree in the environment: `git init --bare` refuses to
+        # run at all while `GIT_WORK_TREE` is set, which is the first thing
+        # this tried and the reason it created nothing.
+        subprocess.run(
+            ["git", "init", "--quiet", "--bare", str(git_dir)],
+            env={**os.environ, "GIT_CONFIG_NOSYSTEM": "1", "HOME": str(store())},
+            capture_output=True,
+            text=True,
+            timeout=TIMEOUT,
+            check=True,
+        )
+        # Bare on disk, but it has a work tree: the project. Git needs telling,
+        # or every later command refuses with "this operation must be run in a
+        # work tree".
+        _run(git_dir, root, "config", "core.bare", "false")
         # `core.excludesFile` off: the user's global ignore rules are theirs,
         # and a snapshot that silently skipped files because of a setting in
         # their home directory would be a restore that silently loses them.

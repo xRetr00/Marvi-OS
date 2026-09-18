@@ -1,9 +1,10 @@
 <!--
 name: "Tool: file_checkpoints"
-description: "List the copies kept before Marvi's file tools changed a file."
+description: "The copies Marvi kept before changing files, and before risky commands."
 -->
-List the copies Marvi kept of files just before file_write, file_edit, file_delete or
-file_restore changed them, newest first. Read it before file_restore, and when the user
-asks what you changed or whether something can be put back. Only Marvi's own file tools
-make checkpoints: a change made by a terminal command, another program or the user has
-none, so an empty list means "no copy", not "nothing changed".
+List what can be put back, newest first: copies of single files taken before file_write,
+file_edit or file_delete, and whole-workspace snapshots taken before a terminal command
+that could lose work. Each row says which kind it is and what prompted it. Read this
+before file_restore, and when the user asks whether something can be undone. Only Marvi's
+own tools and commands make these: a change made by another program or by the user by
+hand has none, so an empty list means "no copy", not "nothing changed".
