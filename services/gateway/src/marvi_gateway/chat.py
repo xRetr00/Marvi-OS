@@ -39,10 +39,11 @@ from uuid import uuid4
 
 from . import hooks, inline_ask, language, latency, mentions, runs, selfaware, tool_call_prose
 from .chat_widgets import (
+    external_payload,
     external_text,
     present_tool_schema,
     source_parts,
-    validate_widget,
+    validate_evidenced_widget,
     widget_for_tool,
 )
 from .curiosity import Curiosity, handle_tool, obvious_facts
@@ -1421,7 +1422,8 @@ class Chat:
         return gap
 
     def _run_tool(
-        self, name: str, arguments: Any, thread_id: str = DEFAULT_THREAD_ID
+        self, name: str, arguments: Any, thread_id: str = DEFAULT_THREAD_ID,
+        evidence: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Dispatch one tool call and describe what happened.
 
@@ -1457,7 +1459,7 @@ class Chat:
 
         if name == "present_widget":
             try:
-                widget = validate_widget(arguments)
+                widget = validate_evidenced_widget(arguments, evidence or {})
             except ValueError as exc:
                 return self._tool_failed(name, arguments, str(exc))
             return {
@@ -1527,9 +1529,14 @@ class Chat:
             result=str(result)[:2000],
         )
         widget = widget_for_tool(name, result)
+        evidence_note = ""
+        if evidence is not None and result is not None:
+            evidence_id = uuid4().hex
+            evidence[evidence_id] = {"tool": name, "result": external_payload(result)}
+            evidence_note = f"Successful tool result evidence ID: {evidence_id}.\n"
         return {
-            "text": external_text(result)
-            or wrap_external(f"tool:{name}", result).text,
+            "text": evidence_note + (external_text(result)
+            or wrap_external(f"tool:{name}", result).text),
             "widget": widget,
             # A tool that made a file -- a generated image, a chart, an export
             # -- hands it over here. See `produced`.
@@ -1884,6 +1891,7 @@ class Chat:
         answered_model = model or ""
         usage = {"input": 0, "output": 0, "cached_input": 0, "billable": 0}
         widgets: list[dict[str, Any]] = []
+        evidence: dict[str, Any] = {}
         #: Files the tools made this turn, as attachment parts. See `_keep_produced`.
         produced: list[dict[str, Any]] = []
         # Kept across tool rounds, because the thinking that led to a tool call
@@ -2154,7 +2162,7 @@ class Chat:
                             call_id=call.get("id"),
                         )
                         continue
-                outcome = self._run_tool(name, call.get("arguments") or "{}", thread_id)
+                outcome = self._run_tool(name, call.get("arguments") or "{}", thread_id, evidence)
                 if outcome.get("widget"):
                     widgets.append(outcome["widget"])
                     yield {"widget": outcome["widget"]}
@@ -2255,6 +2263,7 @@ class Chat:
         used: list[str] = []
         tokens = 0
         widgets: list[dict[str, Any]] = []
+        evidence: dict[str, Any] = {}
         #: Files the tools made this turn, as attachment parts. See `_keep_produced`.
         produced: list[dict[str, Any]] = []
 
@@ -2361,7 +2370,7 @@ class Chat:
             for call in calls:
                 name = str(call.get("name") or "")
                 arguments = call.get("arguments") or {}
-                outcome = self._run_tool(name, arguments, thread_id)
+                outcome = self._run_tool(name, arguments, thread_id, evidence)
                 used.append(name)
                 if outcome.get("widget"):
                     widgets.append(outcome["widget"])

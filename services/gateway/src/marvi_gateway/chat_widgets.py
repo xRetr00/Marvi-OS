@@ -67,6 +67,10 @@ def present_tool_schema() -> dict[str, Any]:
                         "tool evidence. Other kinds retain their existing data shapes."
                     ),
                 },
+                "evidence_id": {
+                    "type": "string",
+                    "description": "For receipt, cart, order_status, booking, stays, and flight_tracker: the evidence ID returned by a successful tool in this same turn. Required for these kinds. Every displayed fact must occur in that tool result.",
+                },
             },
             "required": ["kind", "title", "data"],
             "additionalProperties": False,
@@ -94,6 +98,39 @@ def validate_widget(arguments: Any) -> dict[str, Any]:
         "status": "complete",
         "data": clean,
     }
+
+
+EVIDENCE_KINDS = frozenset(
+    {"receipt", "cart", "order_status", "booking", "stays", "flight_tracker"}
+)
+
+
+def validate_evidenced_widget(arguments: dict[str, Any], evidence: dict[str, Any]) -> dict[str, Any]:
+    """Bind factual cards to a successful tool result from this turn."""
+    widget = validate_widget(arguments)
+    if widget["kind"] not in EVIDENCE_KINDS:
+        return widget
+    evidence_id = arguments.get("evidence_id")
+    if not isinstance(evidence_id, str) or evidence_id not in evidence:
+        raise ValueError("this card needs an evidence ID from a successful tool in this turn")
+    source = evidence[evidence_id]
+    # Compare against the result, not against the user's prompt or the model's
+    # own arguments. A URL alone does not verify the status or amount.
+    haystack = " ".join(json.dumps(source, ensure_ascii=False, default=str).casefold().split())
+    def check(value: Any) -> None:
+        if isinstance(value, dict):
+            for item in value.values():
+                check(item)
+        elif isinstance(value, list):
+            for item in value:
+                check(item)
+        elif isinstance(value, str) and value.strip():
+            needle = " ".join(value.casefold().split())
+            if needle not in haystack:
+                raise ValueError("a card fact is not present in the referenced tool result")
+    check(widget["data"])
+    widget["provenance"] = {"tool": source["tool"], "evidence_id": evidence_id}
+    return widget
 
 
 def widget_for_tool(name: str, result: Any) -> dict[str, Any] | None:
