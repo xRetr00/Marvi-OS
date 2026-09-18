@@ -374,6 +374,9 @@ const marvi = {
   openMaintenanceTerminal: (action: MaintenanceAction): Promise<boolean> =>
     ipcRenderer.invoke('marvi:open-maintenance-terminal', action),
   getSchedules: (): Promise<SchedulePage | null> => ipcRenderer.invoke('marvi:get-schedules'),
+  /** Fold what scrolled out of this conversation into its running summary. */
+  compactThread: (id: string): Promise<{ folded: boolean; summary: string } | null> =>
+    ipcRenderer.invoke('marvi:compact-thread', id),
   /** The board. With `after`, the Gateway holds the request until it changes. */
   getJobs: (after?: number): Promise<JobBoard | null> =>
     ipcRenderer.invoke('marvi:get-jobs', after),

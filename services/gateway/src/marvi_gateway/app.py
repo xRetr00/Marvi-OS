@@ -2508,6 +2508,24 @@ def create_app(
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
+    @app.post("/chat/threads/{thread_id}/compact")
+    async def chat_thread_compact(thread_id: str, http_request: Request) -> dict[str, Any]:
+        """Fold what has scrolled out of the window into the running summary.
+
+        This happens by itself after a turn. The reason to ask for it by hand
+        is the moment before a long one: the window is about to be the thing
+        that decides what Marvi can see, and folding first is cheaper than
+        discovering afterwards that the beginning of the conversation fell off.
+
+        It is cheap and safe to call twice -- `compact()` returns immediately
+        unless turns have actually fallen out since the last time.
+        """
+        localauth.guard(http_request)
+        if chat is None:
+            raise HTTPException(status_code=503, detail="chat is not available")
+        summary = await anyio.to_thread.run_sync(lambda: chat.compact(thread_id))
+        return {"folded": bool(summary), "summary": summary}
+
     @app.get("/chat/search")
     async def chat_search(q: str = "", limit: int = 20) -> dict[str, Any]:
         return {"results": chat.store.search(q, limit) if chat is not None else []}

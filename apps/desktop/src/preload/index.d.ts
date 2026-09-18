@@ -251,6 +251,8 @@ export interface MarviDesktopApi {
   copyText: (text: string) => Promise<boolean>
   openMaintenanceTerminal: (action: MaintenanceAction) => Promise<boolean>
   getSchedules: () => Promise<SchedulePage | null>
+  /** Fold what scrolled out of this conversation into its running summary. */
+  compactThread: (id: string) => Promise<{ folded: boolean; summary: string } | null>
   /** The board. With `after`, the Gateway holds the request until it changes. */
   getJobs: (after?: number) => Promise<JobBoard | null>
   getJob: (id: string) => Promise<JobCard | null>

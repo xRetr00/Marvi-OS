@@ -2539,6 +2539,14 @@ function startApp(): void {
     ipcMain.handle('marvi:get-schedules', () => gatewayJson('/schedules'))
     // The board, and the rules that fill it. `/jobs?after=` is a long poll the
     // Gateway holds for 25s, so this one waits longer than the usual 10.
+    // Folding a long conversation calls a model, so it gets minutes.
+    ipcMain.handle('marvi:compact-thread', (_event, id) =>
+      gatewayJson(
+        `/chat/threads/${encodeURIComponent(String(id))}/compact`,
+        { method: 'POST' },
+        3 * 60_000
+      )
+    )
     ipcMain.handle('marvi:get-jobs', (_event, after?: number) =>
       typeof after === 'number' && after >= 0
         ? gatewayJson(`/jobs?after=${encodeURIComponent(String(after))}`, undefined, 40_000)
