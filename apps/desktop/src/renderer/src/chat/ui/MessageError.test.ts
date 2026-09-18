@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { describeFailure } from './MessageError'
+import { describeFailure } from './describeFailure'
 
 describe('describeFailure', () => {
   it('extracts a useful credit message from a provider payload', () => {

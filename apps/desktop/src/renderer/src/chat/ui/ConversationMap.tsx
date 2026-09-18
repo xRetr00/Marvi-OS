@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ChatMessage } from '../types'
 
-export function ConversationMap({ messages }: { messages: readonly ChatMessage[] }): React.JSX.Element | null {
+export function ConversationMap({
+  messages
+}: {
+  messages: readonly ChatMessage[]
+}): React.JSX.Element | null {
   const turns = useMemo(() => messages.filter((message) => message.role === 'user'), [messages])
   const [active, setActive] = useState<number | null>(null)
   const [visible, setVisible] = useState<Set<number>>(new Set())
@@ -14,8 +18,9 @@ export function ConversationMap({ messages }: { messages: readonly ChatMessage[]
       const seen = new Set<number>()
       let current: number | null = null
       for (const turn of turns) {
-        const node = Array.from(viewport.querySelectorAll<HTMLElement>('[data-message-id]'))
-          .find((item) => item.dataset.messageId === String(turn.id))
+        const node = Array.from(viewport.querySelectorAll<HTMLElement>('[data-message-id]')).find(
+          (item) => item.dataset.messageId === String(turn.id)
+        )
         if (!node) continue
         const rect = node.getBoundingClientRect()
         if (rect.bottom > box.top && rect.top < box.bottom) seen.add(turn.id)
@@ -40,8 +45,9 @@ export function ConversationMap({ messages }: { messages: readonly ChatMessage[]
           key={turn.id}
           onClick={() => {
             const viewport = document.querySelector<HTMLElement>('.chat-log')
-            const node = Array.from(viewport?.querySelectorAll<HTMLElement>('[data-message-id]') ?? [])
-              .find((item) => item.dataset.messageId === String(turn.id))
+            const node = Array.from(
+              viewport?.querySelectorAll<HTMLElement>('[data-message-id]') ?? []
+            ).find((item) => item.dataset.messageId === String(turn.id))
             node?.scrollIntoView({ behavior: 'smooth', block: 'start' })
           }}
           title={turn.content.slice(0, 160)}

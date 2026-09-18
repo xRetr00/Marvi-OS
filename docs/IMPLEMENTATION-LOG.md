@@ -1,5 +1,15 @@
 # Implementation Log
 
+## 2026-09-18 — Chat failure and navigation polish
+
+- Provider startup errors and stored error rows now render as a single compact
+  failure card with a plain summary, expandable technical payload, and retry.
+- Chat has a right-gutter map for long threads, with active/visible markers and
+  click-to-turn navigation. The outside coder roster and job cards use the
+  installed TheSVG Claude Code and Codex marks.
+- Desktop web typecheck and 49 focused chat/agent tests passed. Visual and live
+  provider validation remain to be run in the packaged app.
+
 ## 2026-09-18 — The medium tier finished, and a veto made opt-in
 
 - **Hook refusal is a grant, not a claim.** Installing a plugin no longer hands

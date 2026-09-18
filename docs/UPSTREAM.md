@@ -1,5 +1,16 @@
 # Upstream Reuse Ledger
 
+## Chat UI references — 2026-09-18
+
+- [assistant-ui Error state](https://www.assistant-ui.com/elements/error-state)
+  and [Conversation map](https://www.assistant-ui.com/elements/conversation-map):
+  MIT documentation patterns, consulted 2026-09-18. Marvi adapts the compact
+  failure and turn-rail behavior around its existing `@assistant-ui/react`
+  0.15.18 runtime and CSS. No reference source was copied; update by reviewing
+  the upstream elements when the runtime is upgraded.
+- `@thesvg/react` 3.3.1 supplies the Claude Code and Codex marks through
+  per-icon imports, under the existing external-service brand entry below.
+
 ## Backlog quick wins — 2026-09-16
 
 No new dependency. See [`docs/backlog/`](backlog/README.md).

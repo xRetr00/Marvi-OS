@@ -8,6 +8,11 @@ surface and its native-window behavior can be proven without the voice engine.
 
 ## Delivered
 
+September 18 chat polish: provider failures show a retryable summary with
+technical details on demand, long threads have a turn map, and the external
+coder roster uses TheSVG Claude Code and Codex marks. Desktop web typecheck
+and 49 focused tests passed; packaged-app visual validation is pending.
+
 September 10 Voice refinement preserves the dotted orb rather than replacing
 its identity: fourth-coordinate deformation adds voice-driven folds and twists.
 The isolated renderer was visually checked; 22 orb tests and web typecheck pass.

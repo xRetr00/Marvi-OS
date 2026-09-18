@@ -178,9 +178,20 @@ export function AgentAvatar({
   }, [seed, size, animated, agentKey])
 
   if (agentKey === 'claude' || agentKey === 'codex') {
-    return <span aria-label={label ?? agentKey} className="agent-brand-logo" role="img" style={{ height: size, width: size }}>
-      {agentKey === 'claude' ? <ClaudeCode aria-hidden="true" variant="color" width={size * 0.68} height={size * 0.68} /> : <Codex aria-hidden="true" variant="dark" width={size * 0.68} height={size * 0.68} />}
-    </span>
+    return (
+      <span
+        aria-label={label ?? agentKey}
+        className="agent-brand-logo"
+        role="img"
+        style={{ height: size, width: size }}
+      >
+        {agentKey === 'claude' ? (
+          <ClaudeCode aria-hidden="true" variant="color" width={size * 0.68} height={size * 0.68} />
+        ) : (
+          <Codex aria-hidden="true" variant="dark" width={size * 0.68} height={size * 0.68} />
+        )}
+      </span>
+    )
   }
 
   return (

@@ -61,6 +61,10 @@ Use a wake phrase or a global shortcut to begin. Marvi's voice experience is bui
 
 Prefer a keyboard? The control center has Chat for longer threads, attachments, images, dictation, source references, and read-aloud. You can move between a quick spoken request and a more detailed written one without changing assistants.
 
+Chat shows provider failures in a retryable card and offers a conversation map
+for navigating longer threads. The Sub-agents panel identifies Claude Code and
+Codex with their respective logos.
+
 Voice is being qualified against real speaker and microphone behavior. Local wake detection, speech recognition, synthesis, interruption handling, and a local LiveKit session are implemented; the [voice phase](docs/phases/03-full-duplex-voice.md) records the remaining streaming and soak gates.
 
 ### See only what matters
