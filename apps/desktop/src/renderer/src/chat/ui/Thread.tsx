@@ -19,6 +19,8 @@ import { ThreadPrimitive } from '@assistant-ui/react'
 import { AbstractIcon } from '../../components/abstract-icon'
 import { marviLogo } from '../../components/ui/marvi-logo'
 import { AssistantMessage, UserEditComposer, UserMessage } from './Messages'
+import { ConversationMap } from './ConversationMap'
+import type { ChatMessage } from '../types'
 import type { ReadAloud } from './parts'
 
 /** The three openers on an empty thread. Prompts, not instructions. */
@@ -52,7 +54,7 @@ function EmptyState(): React.JSX.Element {
   )
 }
 
-export function Thread({ readAloud }: { readAloud?: ReadAloud }): React.JSX.Element {
+export function Thread({ readAloud, messages }: { readAloud?: ReadAloud; messages: readonly ChatMessage[] }): React.JSX.Element {
   return (
     <ThreadPrimitive.Root className="chat-thread-viewport">
       <ThreadPrimitive.Viewport className="chat-log">
@@ -77,6 +79,7 @@ export function Thread({ readAloud }: { readAloud?: ReadAloud }): React.JSX.Elem
           </ThreadPrimitive.Messages>
         </div>
       </ThreadPrimitive.Viewport>
+      <ConversationMap messages={messages} />
       {/* Absolutely positioned against the viewport, and hidden by CSS while
           the thread is already at the bottom -- the primitive disables itself
           rather than unmounting. */}
