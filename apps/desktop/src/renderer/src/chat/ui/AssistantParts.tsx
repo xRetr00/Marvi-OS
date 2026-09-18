@@ -12,7 +12,8 @@
  * dispatched by tool name below instead.
  */
 
-import { ImageGeneration, prettySize } from '../components/ImageGeneration'
+import { ImageGeneration } from '../components/ImageGeneration'
+import { prettySize } from '../image-size'
 import type { MessageState, ToolCallMessagePartProps } from '@assistant-ui/react'
 import { MessagePrimitive } from '@assistant-ui/react'
 

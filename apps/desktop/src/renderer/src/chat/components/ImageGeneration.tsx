@@ -32,11 +32,4 @@ export function ImageGeneration({
   )
 }
 
-/** `1024x1024` as the size a person reads. Anything unexpected is left alone. */
-export function prettySize(size: unknown): string {
-  const raw = typeof size === 'string' ? size.trim() : ''
-  const match = /^(\d+)\s*[x×]\s*(\d+)$/i.exec(raw)
-  return match ? `${match[1]} × ${match[2]}` : raw || '1024 × 1024'
-}
-
 export default ImageGeneration

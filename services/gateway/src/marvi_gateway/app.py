@@ -16,9 +16,6 @@ from typing import Any, Literal
 from urllib.parse import urlparse
 from uuid import uuid4
 
-from . import openai_api
-from . import runs as runs_module
-
 import anyio
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
@@ -38,6 +35,7 @@ from . import (
     localauth,
     mcp_store,
     observations,
+    openai_api,
     parent,
     paths,
     reading,
@@ -58,6 +56,7 @@ from . import (
 from . import doctor as doctor_module
 from . import plugins as plugins_module
 from . import room as room_module
+from . import runs as runs_module
 from . import schedule as schedule_module
 from . import setup as setup_module
 from .account_triggers import AccountTriggerIngest

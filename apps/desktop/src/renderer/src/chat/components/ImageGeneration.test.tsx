@@ -1,7 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 
-import { ImageGeneration, prettySize } from './ImageGeneration'
+import { ImageGeneration } from './ImageGeneration'
+import { prettySize } from '../image-size'
 
 describe('a picture being drawn', () => {
   it('stands in for the image, with the prompt and the size', () => {
