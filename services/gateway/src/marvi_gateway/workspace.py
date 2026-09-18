@@ -29,7 +29,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from . import checkpoints, credentials
+from . import checkpoints, credentials, treecheck
 from .filepolicy import Access, PathRefusedError
 from .untrusted import wrap_external
 
@@ -196,6 +196,11 @@ def _decode(raw: bytes) -> tuple[str, bytes]:
     if raw.startswith(BOM):
         return raw[len(BOM) :].decode("utf-8", "replace"), BOM
     return raw.decode("utf-8", "replace"), b""
+
+
+def _is_tree(root: Path, checkpoint: str) -> bool:
+    """Whether this id names a whole-workspace snapshot rather than a file copy."""
+    return any(row["id"] == checkpoint for row in treecheck.listing(root, treecheck.KEEP))
 
 
 def _checkpointed(row: dict[str, Any] | None) -> dict[str, Any]:
@@ -716,13 +721,33 @@ class Workspace:
     # -- checkpoints --------------------------------------------------------
 
     def list_checkpoints(self, relative: str = "", limit: int = 20) -> list[dict[str, Any]]:
+        """Both kinds, newest first: the file copies and the whole-tree snapshots."""
         target = self.resolve(relative) if relative else None
-        return [
-            {**row, "path": self.shown(Path(row["path"]))}
+        rows = [
+            {**row, "kind": row.get("kind", "file"), "path": self.shown(Path(row["path"]))}
             for row in checkpoints.listing(target, limit)
         ]
+        if self.root is not None:
+            rows += treecheck.listing(self.root, limit)
+        return sorted(rows, key=lambda row: str(row.get("at", "")), reverse=True)[: max(1, limit)]
 
-    def restore(self, relative: str, checkpoint: str = "") -> dict[str, Any]:
+    def restore(self, relative: str = "", checkpoint: str = "") -> dict[str, Any]:
+        """Put a file, or the whole workspace, back.
+
+        A checkpoint id that names a tree snapshot restores from git; one that
+        names a file copy restores that file. The caller does not have to know
+        which it has -- which matters, because the model reading
+        `file_checkpoints` sees both kinds in one list.
+        """
+        if self.root is not None and checkpoint and _is_tree(self.root, checkpoint):
+            try:
+                return treecheck.restore(self.root, checkpoint, relative)
+            except FileNotFoundError as exc:
+                raise WorkspaceRefusedError(str(exc)) from exc
+        if not relative:
+            raise WorkspaceRefusedError(
+                "say which file to restore, or give a workspace snapshot id"
+            )
         target = self.resolve(relative, write=True)
         try:
             restored = checkpoints.restore(target, checkpoint)
@@ -763,6 +788,12 @@ class Workspace:
             raise WorkspaceRefusedError(
                 f"{shell!r} is not a shell here. Use one of: {', '.join(sorted(SHELLS))}."
             )
+        # A command that can lose work gets the workspace committed to the
+        # shadow store first. Generous about what counts: a snapshot before a
+        # harmless command costs kilobytes, missing one costs the work.
+        snapshot = None
+        if treecheck.looks_destructive(command):
+            snapshot = treecheck.snapshot(self.root, command)
         argv, use_shell = _shell_command(chosen, command)
         if background:
             return self._start_background(command, chosen, argv, use_shell)
