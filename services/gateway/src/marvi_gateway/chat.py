@@ -37,7 +37,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from . import hooks, inline_ask, language, latency, mentions, selfaware, tool_call_prose
+from . import hooks, inline_ask, language, latency, mentions, runs, selfaware, tool_call_prose
 from .chat_widgets import (
     external_text,
     present_tool_schema,
@@ -1519,6 +1519,13 @@ class Chat:
         # A tool result can carry text somebody else wrote, so it comes back
         # enveloped rather than inlined as trusted narration.
         result = outcome.get("result")
+        runs.step(
+            getattr(self, "_trace", ""),
+            "tool",
+            name=name,
+            args=json.dumps(arguments, default=str)[:400] if isinstance(arguments, dict) else "",
+            result=str(result)[:2000],
+        )
         widget = widget_for_tool(name, result)
         return {
             "text": external_text(result)
@@ -1692,6 +1699,12 @@ class Chat:
         hooks.shared.fire(
             "pre_turn", surface=surface, text=(message or "").strip(), thread_id=thread_id
         )
+        # One id for everything this turn does, so it can be read back in order
+        # and replayed against another model. See `runs.py`.
+        trace = runs.new_trace()
+        self._trace = trace
+        runs.step(trace, "asked", surface=surface, text=(message or "").strip()[:2000],
+                  thread=thread_id)
         tokens, error = 0, ""
         try:
             for event in self._send_stream(
@@ -1715,6 +1728,8 @@ class Chat:
             error = f"{type(exc).__name__}: {exc}"
             raise
         finally:
+            runs.step(trace, "answered", tokens=tokens, error=error)
+            self._trace = ""
             hooks.shared.fire(
                 "post_turn", surface=surface, thread_id=thread_id, tokens=tokens, error=error
             )

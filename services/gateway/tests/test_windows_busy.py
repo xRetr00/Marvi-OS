@@ -69,8 +69,9 @@ def test_focus_assist_is_read_timidly(monkeypatch) -> None:
 
     def reading(status: int, payload: bytes):
         def query(_name, _a, _b, _stamp, buffer, size):
+            # Both arrive as `byref(...)`; `_obj` is the thing behind them.
             for index, byte in enumerate(payload):
-                buffer[index] = byte
+                buffer._obj[index] = byte
             size._obj.value = len(payload)
             return status
 

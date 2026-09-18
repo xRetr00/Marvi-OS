@@ -17,6 +17,7 @@ from urllib.parse import urlparse
 from uuid import uuid4
 
 from . import openai_api
+from . import runs as runs_module
 
 import anyio
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -1341,6 +1342,9 @@ def create_app(
         from .imagery import register_image_tools
 
         register_image_tools(tool_registry, provider_client)
+        from .trimming import register_more_tool
+
+        register_more_tool(tool_registry)
         # Registered last so it can see everything registered before it, and
         # given the builder rather than a snapshot: plugins and MCP servers add
         # tools after this line, and a search that could not find them would be
@@ -4265,6 +4269,38 @@ def create_app(
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         runtime_store.audit("restored", "file_restore", {"path": row["path"], "checkpoint": checkpoint_id})
         return restored
+
+    @app.get("/runs")
+    async def list_runs(limit: int = 20) -> dict[str, Any]:
+        """The most recent turns, with what each one did. See `runs.py`."""
+        return {"runs": runs_module.traces(max(1, min(limit, 100)))}
+
+    @app.get("/runs/{trace}")
+    async def read_run(trace: str) -> dict[str, Any]:
+        rows = runs_module.journal(trace)
+        if not rows:
+            raise HTTPException(status_code=404, detail="no such run")
+        return {"trace": trace, "steps": rows}
+
+    @app.post("/runs/{trace}/replay")
+    async def replay_run(trace: str, body: dict[str, Any], http_request: Request) -> dict[str, Any]:
+        """Run a recorded turn against a model again, executing nothing.
+
+        Guarded like the other direct actions: a replay spends a model call,
+        and the recording it reads is the user's own conversation.
+        """
+        localauth.guard(http_request)
+        answer = await anyio.to_thread.run_sync(
+            lambda: runs_module.replay(
+                provider_client,
+                trace,
+                str(body.get("model") or ""),
+                str(body.get("provider") or ""),
+            )
+        )
+        if answer.get("error"):
+            raise HTTPException(status_code=404, detail=answer["error"])
+        return answer
 
     @app.get("/memory", response_model=MemoryPage)
     async def memory_page(limit: int = 50) -> MemoryPage:

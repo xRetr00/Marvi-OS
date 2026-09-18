@@ -97,6 +97,10 @@ AREAS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("the clipboard", "clipboard", ()),
     ("music and volume", "media", ()),
     ("past conversations", "chat", ()),
+    # "tool" is a stop word, so the orphan grouping gave `tool_more` a
+    # query that finds nothing. It is asked for by what it does.
+    ("the rest of a shortened result", "more", ("tool_more",)),
+    ("pictures", "image", ()),
 )
 
 

@@ -277,6 +277,7 @@ class ToolRegistry:
         started = time.perf_counter()
         failed = ""
         result: Any = None
+        trimmed = 0
         from . import privacy
 
         # Privacy mode, in one place rather than in nine handlers: everything
@@ -299,6 +300,13 @@ class ToolRegistry:
             from .browser_privacy import capture_barrier
             with capture_barrier.observe():
                 result = spec.handler(**arguments)
+            # One result must not swamp the conversation it lands in. What is
+            # cut stays readable through `tool_more`; see `trimming.py`.
+            from . import trimming
+
+            result, cut = trimming.apply(spec.name, result)
+            if cut:
+                trimmed = cut
             return result
         except Exception as exc:
             failed = f"{type(exc).__name__}: {exc}"
@@ -318,4 +326,7 @@ class ToolRegistry:
                 # doing anything about oversized tool output starts with
                 # knowing which tools produce it.
                 chars=_result_size(result),
+                # What the cap saved, so the caps themselves can be argued
+                # with from rows rather than from taste.
+                trimmed=trimmed,
             )
