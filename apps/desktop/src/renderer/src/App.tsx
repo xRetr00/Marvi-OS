@@ -120,6 +120,7 @@ import { CapabilityPluginsPanel } from './components/capabilities/CapabilityPlug
 import { ActivityPage } from './components/activity-page'
 import { MemoryHealth } from './components/memory-health'
 import { CronjobsPage } from './components/cronjobs-page'
+import { WorkflowsPage } from './components/workflows/workflows-page'
 import { BrowserPage } from './components/browser-page'
 import { PersonaPicker } from './components/persona-picker'
 import { ResourcesPage } from './components/resources-page'
@@ -253,7 +254,7 @@ const NAV_GROUPS = [
   { label: 'Cortex', items: ['DMN', 'Graph', 'Mind'] },
   {
     label: 'Capabilities',
-    items: ['Skills', 'Cronjobs', 'Connectors', 'Channels', 'MCP', 'Plugins']
+    items: ['Skills', 'Cronjobs', 'Workflows', 'Connectors', 'Channels', 'MCP', 'Plugins']
   }
 ] as const
 
@@ -297,6 +298,7 @@ const NAV_CODES: Record<Page, string> = {
   Mind: 'MI',
   Skills: 'SK',
   Cronjobs: 'CJ',
+  Workflows: 'WF',
   Connectors: 'CN',
   Channels: 'CL',
   MCP: 'MC',
@@ -316,6 +318,7 @@ const NAV_ICONS: Record<Page, AbstractIconName> = {
   Mind: 'mind',
   Skills: 'skills',
   Cronjobs: 'schedules',
+  Workflows: 'schedules',
   Connectors: 'connectors',
   Channels: 'channels',
   MCP: 'mcp',
@@ -916,6 +919,8 @@ function MainSurface(): React.JSX.Element {
                     <ResourcesPage />
                   ) : page === 'Cronjobs' ? (
                     <CronjobsPage />
+                  ) : page === 'Workflows' ? (
+                    <WorkflowsPage />
                   ) : page === 'Skills' ? (
                     <SkillsPanel />
                   ) : page === 'Connectors' ? (
@@ -5042,6 +5047,7 @@ function PagePanel({ page }: { page: Page }): React.JSX.Element {
     Room: '',
     Activity: 'Local event and tool history.',
     Cronjobs: '',
+    Workflows: '',
     Resources: '',
     DMN: "Marvi's identity and your standing preferences.",
     Graph: 'What Marvi knows, and how it connects.',

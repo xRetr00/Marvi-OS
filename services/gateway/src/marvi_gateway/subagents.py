@@ -57,6 +57,7 @@ work: that is on disk and in git. Phase 17 makes the record durable.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import random
@@ -166,6 +167,10 @@ class Job:
     exit_reason: str = ""
     summary: str = ""
     progress: str = ""
+    #: The durable card this job is shown as, and the attempt row for it.
+    #: Empty when there is no board -- a test, or an older install.
+    card_id: str = ""
+    run_id: int = 0
     token: str = ""
     action: str = ""
     tokens: int = 0
@@ -264,7 +269,11 @@ class Runner:
         settle: Callable[[str, bool], dict[str, Any]] | None = None,
         granted: Callable[[str, dict[str, Any]], dict[str, Any]] | None = None,
         prompts_root: Path | None = None,
+        board: Any = None,
     ) -> None:
+        #: The durable board, when the Gateway built one. Optional on purpose:
+        #: a sub-agent that cannot be carded still runs.
+        self.board = board
         self.client = client
         self.schemas = schemas
         self.dispatch = dispatch
@@ -352,6 +361,7 @@ class Runner:
             )
             self._jobs[job.id] = job
             self._watch()
+        self._card(job)
         self._publish()
 
         system = definition.render()
@@ -819,6 +829,30 @@ class Runner:
             job.thread.join(timeout)
         return job
 
+    def _card(self, job: Job) -> None:
+        """Put this job on the board, if there is one.
+
+        The board is durable and the registry above is not, so a card is what
+        survives a restart. Never fatal: a job that could not be carded still
+        runs, and the board simply does not know about it.
+        """
+        if self.board is None:
+            return
+        try:
+            card = self.board.add(
+                job.task[:200],
+                job.task,
+                assignee=job.agent,
+                mode=job.mode,
+                created_by="marvi",
+                job_id=job.id,
+                status="todo",
+            )
+            job.card_id = card["id"]
+            job.run_id = self.board.start_run(card["id"])
+        except Exception as exc:  # pragma: no cover - the board is optional
+            log.warning("could not put %s on the board: %s", job.id, str(exc)[:160])
+
     def _end(self, job: Job, state: str, reason: str, summary: str) -> None:
         with self._lock:
             if job.finished_at:
@@ -826,6 +860,14 @@ class Runner:
             job.state, job.exit_reason, job.summary = state, reason, summary
             job.finished_at = time.time()
             job.progress = ""
+        if self.board is not None and getattr(job, "run_id", 0):
+            with contextlib.suppress(Exception):
+                self.board.finish_run(
+                    job.run_id,
+                    reason or state,
+                    summary,
+                    status="done" if state == "completed" else "failed",
+                )
         self._note(job, "end", summary[:300], state=state, reason=reason)
         log.info(
             "sub-agent finished",

@@ -1530,3 +1530,64 @@ export interface FaceLibrary {
     nearest?: { name?: string; score?: number }
   }[]
 }
+
+/**
+ * The jobs board. Every card the Gateway holds, grouped by the state it is in.
+ *
+ * `revision` is what the window sends back as `?after=`, so the next request
+ * blocks until something actually changes rather than repainting on a timer.
+ */
+export interface JobBoard {
+  revision: number
+  total: number
+  columns: Record<string, JobCard[]>
+}
+
+/** One card. The list form omits `runs`/`comments`/`events`; the drawer has them. */
+export interface JobCard {
+  id: string
+  title: string
+  body: string
+  assignee: string
+  mode: string
+  status: string
+  /** Why it is blocked or failed: `needs_input`, `dependency`, `stalled`, `restart`. */
+  reason: string
+  created_by: string
+  created_at: string
+  updated_at: string
+  runs?: {
+    id: number
+    started_at: string
+    finished_at: string
+    exit_reason: string
+    summary: string
+    tokens: number
+  }[]
+  comments?: { id: number; author: string; body: string; at: string; steered: number }[]
+  events?: { id: number; kind: string; detail: string; at: string }[]
+}
+
+/** "When X happens, do Y" -- written by the user, never switched on by Marvi. */
+export interface AutomationRule {
+  id: string
+  name: string
+  trigger: string
+  match: Record<string, unknown>
+  action: string
+  arguments: Record<string, unknown>
+  enabled: boolean
+  /** Only a webhook rule has one; it is the whole authentication for `/hooks/{id}`. */
+  secret: string
+  proposed_by: string
+  created_at: string
+  last_run: string
+  last_result: string
+  runs: number
+  history: { id: number; at: string; trigger_by: string; ok: number; detail: string }[]
+}
+
+export interface AutomationPage {
+  automations: AutomationRule[]
+  triggers: string[]
+}
