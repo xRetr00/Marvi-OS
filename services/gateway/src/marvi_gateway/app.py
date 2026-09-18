@@ -2377,18 +2377,44 @@ def create_app(
         return {**ran, **facts}
 
     def transcribe_for_channel(pcm: bytes) -> str:
-        """A voice note through the same local recogniser as Chat dictation."""
+        """A voice note, or one window of a meeting, through the local recogniser.
+
+        The partials are kept as they arrive, and that is not belt and braces.
+        The installed `nemotron-3.5` runtime **dies on flush once it has been
+        fed more than about twelve seconds** -- measured on this host: two and
+        six seconds flush cleanly, twelve kills the worker and the exception
+        that reaches here says only "speech runtime closed". Anything longer
+        than a short voice note hit it, and lost the whole recording rather
+        than the last word of it.
+
+        Each partial is the cumulative text so far, so the last one heard is
+        everything the recogniser had. Flush is still asked for first, because
+        it does a final pass the partials have not had; when it dies, the last
+        partial is the answer rather than nothing.
+        """
         if not dictation.available():
             raise DictationError("the local speech recogniser is not installed")
         session = dictation.start()
+        heard = ""
         try:
             step = 64 * 1024
             for start in range(0, len(pcm), step):
-                dictation.audio(session, base64.b64encode(pcm[start : start + step]).decode())
-            return str(dictation.stop(session).get("text") or "")
+                partial = dictation.audio(
+                    session, base64.b64encode(pcm[start : start + step]).decode()
+                )
+                heard = str(partial.get("text") or "") or heard
         except Exception:
             dictation.cancel(session)
             raise
+        try:
+            # `stop` pops the session and terminates the worker either way, so
+            # there is nothing left to cancel when it raises.
+            return str(dictation.stop(session).get("text") or "") or heard
+        except DictationError as exc:
+            get_logger("gateway").info(
+                "the recogniser died on flush; keeping what it had heard: %s", str(exc)[:120]
+            )
+            return heard
 
     if chat is not None:
         telegram_bridge = TelegramBridge(
