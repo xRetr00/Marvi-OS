@@ -126,6 +126,7 @@ individual path still has its own override — `MARVI_LOG_DIR`,
 | `MARVI_DAILY_TOKEN_BUDGET` | 200000 | tokens of background thinking per day |
 | `MARVI_SPEAK_WHEN_AWAY` | off | speak to an empty room |
 | `MARVI_RESPECT_WINDOWS_BUSY` | on | hold proactive speech and the Island while Windows reports presenting or a fullscreen app; alarms still pass |
+| `MARVI_READ_FOCUS_ASSIST` | on | also read Focus Assist, from undocumented kernel state. A definite profile counts; anything unclear changes nothing |
 
 Bad values are **clamped rather than obeyed**: a typo in a config file must not
 be able to switch proactivity off by accident, or leave the budget uncapped.
@@ -138,6 +139,8 @@ be able to switch proactivity off by accident, or leave the budget uncapped.
 | `MARVI_LOCAL_ONLY` | off | every model call must go to a local provider (Ollama, LM Studio, llama.cpp); cloud providers are refused. Model calls only |
 | `MARVI_HOOK_GUARDS` | unset | plugins allowed to *refuse* a tool call from a `pre_tool_call` hook, comma separated (`*` for all). Unset, every plugin hook only watches; a block it returns is logged once and ignored |
 | `<PROVIDER>_API_KEY_2` … `_9` | unset | more keys for the same provider. A rate-limited or rejected key moves to the next before the provider is stood down |
+| `MARVI_TOOL_RESULT_CAP` | 12000 | characters one tool result may put in front of the model; the rest is read with `tool_more`. `0` switches trimming off |
+| `MARVI_<PROVIDER>_IMAGE_MODEL` | `gpt-image-1` | which model `image_generate` asks for |
 | `MARVI_SUMMON_HOTKEY` | `Alt+Shift+M` | the *default* summon shortcut only. Shortcuts are edited in the shortcuts window (title-bar key, or Settings → Preferences) and stored in `%LOCALAPPDATA%\Marvi OS\hotkeys.json`, which wins over this. `off` disables the default |
 | `MARVI_GATEWAY_URL` | `http://127.0.0.1:8765` | also where `marvi mcp serve` sends its calls |
 
