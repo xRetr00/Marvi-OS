@@ -17,6 +17,7 @@ import {
   islandPresentationKey
 } from './island-presentation'
 import { DEFAULT_ASSISTANT_STATE } from '../../../shared/runtime'
+import { setInterfaceLocale } from '../store/locale'
 
 describe('DynamicIsland', () => {
   const ANNOUNCEMENT = {
@@ -78,8 +79,34 @@ describe('DynamicIsland', () => {
 
     expect(html).toContain('data-announcement-active="true"')
     expect(html).toContain('REMINDER · NOW')
-    expect(html).toContain('<strong>The reminder is due.</strong>')
+    expect(html).toContain('<strong dir="auto">The reminder is due.</strong>')
     expect(html).not.toContain('Marvi has something')
+  })
+
+  it('translates confirmation controls without changing model supplied action text', () => {
+    setInterfaceLocale('ar')
+    try {
+      const html = renderToStaticMarkup(
+        <DynamicIsland
+          state={{
+            ...DEFAULT_ASSISTANT_STATE,
+            phase: 'confirmation',
+            confirmation: {
+              token: 'test',
+              tool: 'file_delete',
+              arguments: {},
+              action: 'Delete C:\\work\\notes.txt',
+              detail: 'This file will be removed.'
+            }
+          }}
+        />
+      )
+      expect(html).toContain('موافقة')
+      expect(html).toContain('رفض')
+      expect(html).toContain('dir="auto">Delete C:')
+    } finally {
+      setInterfaceLocale('en')
+    }
   })
 
   it('keeps a held announcement accessible when it collapses to its orb', () => {

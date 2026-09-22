@@ -31,23 +31,32 @@ import { MessageError } from './MessageError'
 import { messageText } from './message-text'
 import { MESSAGE_PART_COMPONENTS } from './parts'
 import type { ReadAloud } from './parts'
+import { useStore } from '@nanostores/react'
+import { $interfaceLocale, t } from '../../store/locale'
 
 function createdAt(message: MessageState): string {
   return (message.createdAt ?? new Date()).toISOString()
 }
 function BranchPicker({ className }: { className?: string }): React.JSX.Element {
+  const locale = useStore($interfaceLocale)
   return (
     <BranchPickerPrimitive.Root
       className={className ? `chat-branches ${className}` : 'chat-branches'}
       hideWhenSingleBranch
     >
-      <BranchPickerPrimitive.Previous aria-label="Previous version" className="chat-branch-step">
+      <BranchPickerPrimitive.Previous
+        aria-label={t('Previous version', locale)}
+        className="chat-branch-step"
+      >
         <AbstractIcon name="back" size={12} />
       </BranchPickerPrimitive.Previous>
       <span className="chat-branch-count">
         <BranchPickerPrimitive.Number /> / <BranchPickerPrimitive.Count />
       </span>
-      <BranchPickerPrimitive.Next aria-label="Next version" className="chat-branch-step">
+      <BranchPickerPrimitive.Next
+        aria-label={t('Next version', locale)}
+        className="chat-branch-step"
+      >
         <AbstractIcon name="forward" size={12} />
       </BranchPickerPrimitive.Next>
     </BranchPickerPrimitive.Root>
@@ -65,15 +74,16 @@ function BranchPicker({ className }: { className?: string }): React.JSX.Element 
  * slack and gives the action row somewhere to live.
  */
 export function UserMessage({ message }: { message: MessageState }): React.JSX.Element {
+  const locale = useStore($interfaceLocale)
   return (
     <MessagePrimitive.Root
-      aria-label="Your message"
+      aria-label={t('Your message', locale)}
       className="chat-turn chat-user"
       data-role="user"
       data-slot="chat-user-message"
       data-message-id={message.id}
     >
-      <span className="sr-only">YOU</span>
+      <span className="sr-only">{t('YOU', locale)}</span>
       <div className="chat-user-surface" data-slot="chat-user-surface">
         <div className="chat-body chat-user-text">
           <MessagePrimitive.Parts components={MESSAGE_PART_COMPONENTS} />
@@ -106,9 +116,9 @@ export function UserMessage({ message }: { message: MessageState }): React.JSX.E
             <span className="chat-message-age">{formatTime(createdAt(message))}</span>
             <BranchPicker />
             <ActionBarPrimitive.Root className="chat-action-bar">
-              <UiTooltip label="Edit and branch from this message">
+              <UiTooltip label={t('Edit and branch from this message', locale)}>
                 <ActionBarPrimitive.Edit
-                  aria-label="Edit message"
+                  aria-label={t('Edit message', locale)}
                   className="chat-message-action"
                   type="button"
                 >
@@ -121,7 +131,7 @@ export function UserMessage({ message }: { message: MessageState }): React.JSX.E
                   window it rejects and the button does nothing at all. The
                   main process owns a real clipboard, and this is the same path
                   the code blocks in a reply already use. */}
-              <CopyMessageAction content={messageText(message)} label="Copy message" />
+              <CopyMessageAction content={messageText(message)} label={t('Copy message', locale)} />
             </ActionBarPrimitive.Root>
           </div>
         </TooltipProvider>
@@ -140,13 +150,18 @@ export function UserMessage({ message }: { message: MessageState }): React.JSX.E
  * three components the main composer uses.
  */
 export function UserEditComposer(): React.JSX.Element {
+  const locale = useStore($interfaceLocale)
   return (
     <MessagePrimitive.Root className="chat-turn chat-user is-editing">
       <ComposerPrimitive.Root className="chat-user-surface chat-message-edit">
-        <ComposerPrimitive.Input aria-label="Edit message" autoFocus />
+        <ComposerPrimitive.Input aria-label={t('Edit message', locale)} autoFocus dir="auto" />
         <div className="chat-message-edit-actions">
-          <ComposerPrimitive.Cancel className="chat-edit-cancel">CANCEL</ComposerPrimitive.Cancel>
-          <ComposerPrimitive.Send className="chat-edit-send">SEND EDIT</ComposerPrimitive.Send>
+          <ComposerPrimitive.Cancel className="chat-edit-cancel">
+            {t('CANCEL', locale)}
+          </ComposerPrimitive.Cancel>
+          <ComposerPrimitive.Send className="chat-edit-send">
+            {t('SEND EDIT', locale)}
+          </ComposerPrimitive.Send>
         </div>
       </ComposerPrimitive.Root>
     </MessagePrimitive.Root>
@@ -160,6 +175,7 @@ export function AssistantMessage({
   message: MessageState
   readAloud?: ReadAloud
 }): React.JSX.Element {
+  const locale = useStore($interfaceLocale)
   const streaming = message.status?.type === 'running'
   const failed = message.status?.type === 'incomplete' && message.status.reason === 'error'
   const text = messageText(message)
@@ -168,7 +184,7 @@ export function AssistantMessage({
   return (
     <MessagePrimitive.Root
       aria-busy={streaming ? 'true' : undefined}
-      aria-label="Marvi response"
+      aria-label={t('Marvi response', locale)}
       className={failed ? 'chat-turn chat-assistant chat-failed' : 'chat-turn chat-assistant'}
       data-message-id={message.id}
     >
@@ -183,9 +199,14 @@ export function AssistantMessage({
               <span className="chat-message-age">{formatTime(createdAt(message))}</span>
               <BranchPicker />
               {readAloud?.available && !streaming && text ? (
-                <UiTooltip label={readAloud.readingId === id ? 'Stop reading' : 'Read aloud'}>
+                <UiTooltip
+                  label={t(readAloud.readingId === id ? 'Stop reading' : 'Read aloud', locale)}
+                >
                   <button
-                    aria-label={readAloud.readingId === id ? 'Stop reading' : 'Read aloud'}
+                    aria-label={t(
+                      readAloud.readingId === id ? 'Stop reading' : 'Read aloud',
+                      locale
+                    )}
                     aria-pressed={readAloud.readingId === id}
                     className="chat-message-action"
                     onClick={() => readAloud.toggle(id, text)}
@@ -199,16 +220,16 @@ export function AssistantMessage({
                 </UiTooltip>
               ) : null}
               <ActionBarPrimitive.Root className="chat-action-bar" hideWhenRunning>
-                <UiTooltip label="Regenerate on a new branch">
+                <UiTooltip label={t('Regenerate on a new branch', locale)}>
                   <ActionBarPrimitive.Reload
-                    aria-label="Regenerate response"
+                    aria-label={t('Regenerate response', locale)}
                     className="chat-message-action"
                     type="button"
                   >
                     <AbstractIcon name="regenerate" size={14} />
                   </ActionBarPrimitive.Reload>
                 </UiTooltip>
-                <CopyMessageAction content={text} label="Copy response" />
+                <CopyMessageAction content={text} label={t('Copy response', locale)} />
               </ActionBarPrimitive.Root>
             </div>
           </div>
@@ -217,4 +238,3 @@ export function AssistantMessage({
     </MessagePrimitive.Root>
   )
 }
-

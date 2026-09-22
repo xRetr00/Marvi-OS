@@ -11,6 +11,9 @@ Reply with one JSON object and nothing else:
 
 Any of the three may be empty, and usually at least one is.
 
+Write conclusion subjects and bodies, and link predicates, in English. Preserve
+people's names, product names, and exact identifiers.
+
 conclusions -- things that are true given several of these memories but are stated in none of them. Each must name at least two memory ids in "from". A conclusion drawn from one memory is that memory reworded, which is worth nothing. Do not restate, summarise, or combine memories that simply agree. Prefer few and specific over many and vague.
 
 links -- the people, places, projects and things these memories are about, and how they relate. Subject and object are short names, not sentences. The predicate is a verb phrase: 'works on', 'lives in', 'prefers', 'is the developer of'. This is how the assistant's graph of who and what gets built, so name the same thing the same way every time.

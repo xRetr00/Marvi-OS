@@ -355,31 +355,17 @@ four are why "just add a strings file" is not the plan:
    and sometimes per user; `Intl.NumberFormat` and `Intl.DateTimeFormat` with
    the right locale rather than the hand-rolled formatting the pages do now.
    Times, durations and "3 minutes ago" all go through this.
-5. **Recognition.** Arabic is **not** in `parakeet-tdt-0.6b-v3`'s 25 languages
-   (see `language.RECOGNISED`) and `nemotron-3.5` is English. There is no
-   Arabic speech recognition in Marvi today, and no setting can pretend
-   otherwise. A model has to be chosen, measured and packaged.
-6. **Voice.** Kokoro has no Arabic voice, and `language.speakable()` already
-   refuses to offer a language it has no voice for -- correctly, because the
-   alternative is English phonemes reading Arabic words. Same story: choose,
-   measure, package.
-7. **Wake word.** The wake model is trained on English pronunciations of the
-   name. An Arabic speaker saying it is a different sound, and the false-reject
-   rate is the whole feature.
-8. **Search and memory.** The FTS5 index tokenises on whitespace and ASCII
-   folding; Arabic needs its own normalisation (alef forms, tatweel,
-   diacritics) or search finds nothing a person would expect it to.
-9. **Calendars.** Hijri dates exist and are used. Out of scope for the first
+5. **Memory.** Arabic memory storage and search are outside this feature. The
+   memory agent may understand Arabic input and store facts in English through
+   the existing pipeline.
+6. **Calendars.** Hijri dates exist and are used. Out of scope for the first
    pass, and worth saying so rather than discovering it in a bug report.
 
 **Upstream.** No new framework. `Intl` is in the platform and `dir="rtl"` is in
 the platform; a translation catalogue is a JSON file and a lookup, and
 `react-i18next` would be a dependency for a `t()` function Marvi can write in
-fifteen lines. Fonts: Noto Sans Arabic and Noto Kufi Arabic (SIL OFL), vendored
-like the existing faces. For recognition and voice the candidates to measure
-are `whisper-large-v3` and Meta's MMS for ASR, and XTTS-v2 or a Piper Arabic
-voice for TTS -- each on the RTX 3060 budget, against the latency gates the
-voice phases already set, and recorded in `UPSTREAM.md` before anything ships.
+fifteen lines. Noto Sans Arabic is supplied locally under SIL OFL. Speech
+recognition, synthesis, and wake-word localization are outside this feature.
 
 **Plan.** The order matters: the mechanical part is worth nothing until the
 layout part works, and doing it the other way round means translating into a
@@ -392,7 +378,7 @@ UI that then has to be rebuilt.
    whole app in English-in-RTL and fix what tips over. Nothing is translated at
    this step and that is the point: it isolates the layout bugs from the
    language ones.
-2. **A catalogue and a `t()`.** One JSON per language, one flat lookup, English
+2. **A catalogue and a `t()`.** One catalogue per language, one flat lookup, English
    as the fallback for a missing key, and a test that fails on a key missing
    from a shipped language. Extraction is the long tail -- do it page by page,
    starting with the ones a person sees first.
@@ -403,20 +389,14 @@ UI that then has to be rebuilt.
    person -- `announce.py`, the settings copy the window shows verbatim, the
    error text from tools. Route those through the catalogue; leave everything
    model-facing in English and say so in `AGENTS.md`.
-5. **Arabic search.** Normalise alef forms, strip tatweel and diacritics in the
-   FTS5 tokeniser path, and test that a word typed without diacritics finds the
-   one stored with them.
-6. **Then the voice, as its own piece of work.** ASR and TTS models chosen on
-   measured gates, not on a model card. Until they land, Arabic is a *reading*
-   language in Marvi and the settings page says exactly that -- the same
-   honesty `language.py` already applies to Understand.
+5. **Scope boundary.** The interface locale is separate from Understand and
+   Speak. This work does not change speech or the English memory pipeline.
 
 **Done when.** The whole window reads right to left in Arabic with no Latin
 text stranded in the wrong order, a mixed Arabic-and-path sentence renders
-correctly, numbers and dates are in the chosen locale, search finds an Arabic
-word typed without its diacritics, and every string a person can reach is
+correctly, numbers and dates are in the chosen locale, and every string a person can reach is
 either translated or falls back to English visibly rather than showing a key.
-Voice has its own gates and its own phase.
+Speech and memory are outside this feature.
 
 **Not planned.** Translating prompts or tool descriptions. A right-to-left
 *code* editor. Hijri calendars. Machine-translating the catalogue -- a wrong

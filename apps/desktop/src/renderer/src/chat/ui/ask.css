@@ -435,7 +435,6 @@
   opacity: 0.94;
 }
 
-
 /* -- the live activity line ----------------------------------------------- */
 
 /* Small, dim, and shimmering. Nothing else.
@@ -631,7 +630,7 @@
   font-size: 9px;
   font-weight: 400;
   letter-spacing: 0.1em;
-  text-align: left;
+  text-align: start;
   text-transform: uppercase;
   white-space: nowrap;
 }
@@ -760,7 +759,7 @@
 .chat-timeline li > span::before {
   position: absolute;
   top: 5px;
-  left: 3px;
+  inset-inline-start: 3px;
   width: 5px;
   height: 5px;
   border-radius: 50%;
@@ -773,7 +772,7 @@
   top: 13px;
   bottom: -4px;
   height: auto;
-  left: 5px;
+  inset-inline-start: 5px;
   width: 1px;
   background: var(--ui-stroke-tertiary);
   content: '';
@@ -840,24 +839,109 @@
   margin: 2px 0 6px;
 }
 
-.chat-transaction-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
-.chat-transaction-origin { color: var(--ui-text-tertiary); font-size: 8px; letter-spacing: .1em; white-space: nowrap; }
-.chat-transaction-title { display: block; margin: 2px 0 10px; color: var(--ui-text-primary); font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
-.chat-transaction-subtitle { margin: 0 0 9px; color: var(--ui-text-secondary); font-size: 11px; line-height: 1.55; }
-.chat-transaction-items { margin: 0 0 9px; padding: 0; list-style: none; border-top: 1px solid var(--ui-stroke-tertiary); }
-.chat-transaction-items li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--ui-stroke-tertiary); font-size: 11px; }
-.chat-transaction-items small { color: var(--ui-text-tertiary); }
-.chat-transaction-items strong { font-weight: 500; white-space: nowrap; }
-.chat-transaction-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px 16px; margin: 0 0 10px; }
-.chat-transaction-field dt { color: var(--ui-text-tertiary); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
-.chat-transaction-field dd { margin: 2px 0 0; color: var(--ui-text-primary); font-size: 11px; overflow-wrap: anywhere; }
-.chat-transaction-card > a { display: inline-block; margin-top: 4px; color: var(--ui-accent); font-size: 10px; text-decoration: none; }
-.chat-transaction-card > a:hover { text-decoration: underline; }
-.chat-transaction-events { margin: 0 0 8px; padding: 0 0 0 14px; border-left: 1px solid var(--ui-stroke-secondary); list-style: none; }
-.chat-transaction-events li { display: grid; gap: 2px; padding: 4px 0; font-size: 10px; }
-.chat-transaction-events time, .chat-transaction-events small { color: var(--ui-text-tertiary); }
-.chat-flight-route { display: flex; align-items: center; gap: 12px; margin: 0 0 13px; color: var(--ui-text-primary); font-size: 15px; font-weight: 600; }
-.chat-flight-route span:nth-child(2) { color: var(--ui-accent); }
+.chat-transaction-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+.chat-transaction-origin {
+  color: var(--ui-text-tertiary);
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+.chat-transaction-title {
+  display: block;
+  margin: 2px 0 10px;
+  color: var(--ui-text-primary);
+  font-size: 15px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.chat-transaction-subtitle {
+  margin: 0 0 9px;
+  color: var(--ui-text-secondary);
+  font-size: 11px;
+  line-height: 1.55;
+}
+.chat-transaction-items {
+  margin: 0 0 9px;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--ui-stroke-tertiary);
+}
+.chat-transaction-items li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--ui-stroke-tertiary);
+  font-size: 11px;
+}
+.chat-transaction-items small {
+  color: var(--ui-text-tertiary);
+}
+.chat-transaction-items strong {
+  font-weight: 500;
+  white-space: nowrap;
+}
+.chat-transaction-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px 16px;
+  margin: 0 0 10px;
+}
+.chat-transaction-field dt {
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.chat-transaction-field dd {
+  margin: 2px 0 0;
+  color: var(--ui-text-primary);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.chat-transaction-card > a {
+  display: inline-block;
+  margin-top: 4px;
+  color: var(--ui-accent);
+  font-size: 10px;
+  text-decoration: none;
+}
+.chat-transaction-card > a:hover {
+  text-decoration: underline;
+}
+.chat-transaction-events {
+  margin: 0 0 8px;
+  padding: 0 0 0 14px;
+  border-inline-start: 1px solid var(--ui-stroke-secondary);
+  list-style: none;
+}
+.chat-transaction-events li {
+  display: grid;
+  gap: 2px;
+  padding: 4px 0;
+  font-size: 10px;
+}
+.chat-transaction-events time,
+.chat-transaction-events small {
+  color: var(--ui-text-tertiary);
+}
+.chat-flight-route {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 13px;
+  color: var(--ui-text-primary);
+  font-size: 15px;
+  font-weight: 600;
+}
+.chat-flight-route span:nth-child(2) {
+  color: var(--ui-accent);
+}
 
 .chat-work-head {
   display: inline-flex;
@@ -904,7 +988,7 @@
   margin: 4px 0 2px 5px;
   padding: 2px 0 2px 16px;
   list-style: none;
-  border-left: 1px solid var(--ui-stroke-tertiary);
+  border-inline-start: 1px solid var(--ui-stroke-tertiary);
 }
 
 .chat-work-step {
@@ -945,7 +1029,7 @@
   background: none;
   color: inherit;
   font: inherit;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 

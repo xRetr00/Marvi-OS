@@ -6,6 +6,8 @@ import type { ChatThread } from '../../../../shared/runtime'
 import { AbstractIcon } from '../../components/abstract-icon'
 import { TooltipProvider, UiTooltip } from '../../components/ui/tooltip'
 import { formatRelative } from '../time'
+import { $interfaceLocale, formatNumber, t } from '../../store/locale'
+import { useStore } from '@nanostores/react'
 import { MessageMatches } from './MessageMatches'
 
 export function Sessions({
@@ -33,6 +35,7 @@ export function Sessions({
   exportDisabled: boolean
   timing: ReactNode
 }): React.JSX.Element {
+  const locale = useStore($interfaceLocale)
   const [editing, setEditing] = useState<string | null>(null)
   const [title, setTitle] = useState('')
   const [query, setQuery] = useState('')
@@ -58,7 +61,7 @@ export function Sessions({
               }}
             >
               <input
-                aria-label="Thread title"
+                aria-label={t('Thread title', locale)}
                 autoFocus
                 value={title}
                 onBlur={() => setEditing(null)}
@@ -73,17 +76,20 @@ export function Sessions({
                 <span className="chat-session-dot" aria-hidden="true" />
               )}
               <span className="chat-session-copy">
-                <span className="chat-session-title">{session.title}</span>
+                <span className="chat-session-title" dir="auto">
+                  {session.title}
+                </span>
                 <span className="chat-session-meta">
-                  {session.message_count} msgs · {formatRelative(session.updated_at)}
+                  {formatNumber(session.message_count, locale)} {t('msgs', locale)} ·{' '}
+                  {formatRelative(session.updated_at)}
                 </span>
               </span>
             </button>
           )}
           <div className="chat-session-actions">
-            <UiTooltip label="Rename thread">
+            <UiTooltip label={t('Rename thread', locale)}>
               <button
-                aria-label="Rename thread"
+                aria-label={t('Rename thread', locale)}
                 type="button"
                 onClick={() => {
                   setTitle(session.title)
@@ -93,26 +99,30 @@ export function Sessions({
                 <AbstractIcon name="edit" size={13} />
               </button>
             </UiTooltip>
-            <UiTooltip label="Archive thread">
+            <UiTooltip label={t('Archive thread', locale)}>
               <button
-                aria-label="Archive thread"
+                aria-label={t('Archive thread', locale)}
                 type="button"
                 onClick={() => onArchive(session.id)}
               >
                 <AbstractIcon name="archive" size={13} />
               </button>
             </UiTooltip>
-            <UiTooltip label="Export as Markdown">
+            <UiTooltip label={t('Export as Markdown', locale)}>
               <button
-                aria-label="Export thread as Markdown"
+                aria-label={t('Export thread as Markdown', locale)}
                 type="button"
                 onClick={() => void window.marvi?.exportChatThread(session.id)}
               >
                 <AbstractIcon name="download" size={13} />
               </button>
             </UiTooltip>
-            <UiTooltip label="Delete thread">
-              <button aria-label="Delete thread" type="button" onClick={() => onDelete(session.id)}>
+            <UiTooltip label={t('Delete thread', locale)}>
+              <button
+                aria-label={t('Delete thread', locale)}
+                type="button"
+                onClick={() => onDelete(session.id)}
+              >
                 <AbstractIcon name="close" size={13} />
               </button>
             </UiTooltip>
@@ -124,21 +134,25 @@ export function Sessions({
 
   return (
     <TooltipProvider>
-      <aside className="chat-sessions" aria-label="Chat sessions" data-shell-context="sidebar">
+      <aside
+        className="chat-sessions"
+        aria-label={t('Chat sessions', locale)}
+        data-shell-context="sidebar"
+      >
         <header className="chat-sidebar-head">
           <button className="chat-sidebar-home" type="button" onClick={onExit}>
             <AbstractIcon name="back" size={14} />
             <span>
               <strong>MARVI</strong>
-              <small>CHAT</small>
+              <small>{t('Chat', locale)}</small>
             </span>
           </button>
-          <UiTooltip label="Start a new conversation">
+          <UiTooltip label={t('Start a new conversation', locale)}>
             <button
               className="chat-sidebar-new-icon"
               type="button"
               onClick={onNew}
-              aria-label="New conversation"
+              aria-label={t('New conversation', locale)}
             >
               <AbstractIcon name="plus" size={15} />
             </button>
@@ -146,14 +160,14 @@ export function Sessions({
         </header>
 
         <button className="chat-new" type="button" onClick={onNew}>
-          <AbstractIcon name="plus" size={14} /> NEW CHAT
+          <AbstractIcon name="plus" size={14} /> {t('NEW CHAT', locale)}
         </button>
 
         <label className="chat-session-search">
           <AbstractIcon name="search" size={13} />
           <input
-            aria-label="Search conversations"
-            placeholder="Search conversations"
+            aria-label={t('Search conversations', locale)}
+            placeholder={t('Search conversations', locale)}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
@@ -164,12 +178,12 @@ export function Sessions({
         {recent.length > 0 || telegram.length === 0 ? (
           <>
             <div className="chat-sessions-label">
-              <span>RECENT</span>
-              <span>{recent.length}</span>
+              <span>{t('RECENT', locale)}</span>
+              <span>{formatNumber(recent.length, locale)}</span>
             </div>
             {recent.length === 0 ? (
               <span className="chat-sessions-empty">
-                {sessions.length ? 'NO MATCHING CONVERSATIONS' : 'NO CONVERSATIONS YET'}
+                {t(sessions.length ? 'NO MATCHING CONVERSATIONS' : 'NO CONVERSATIONS YET', locale)}
               </span>
             ) : (
               list(recent)
@@ -178,33 +192,33 @@ export function Sessions({
         ) : null}
 
         {telegram.length > 0 ? (
-          <section aria-label="Telegram conversations" className="chat-session-group">
+          <section aria-label={t('Telegram conversations', locale)} className="chat-session-group">
             <div className="chat-sessions-label">
               <span className="chat-sessions-channel">
                 <TelegramLogo aria-hidden="true" className="chat-session-logo" />
                 TELEGRAM
               </span>
-              <span>{telegram.length}</span>
+              <span>{formatNumber(telegram.length, locale)}</span>
             </div>
             {list(telegram)}
           </section>
         ) : null}
         {timing}
         <footer className="chat-sidebar-foot">
-          <UiTooltip label="Export conversation as Markdown">
+          <UiTooltip label={t('Export conversation as Markdown', locale)}>
             <button
-              aria-label="Export conversation as Markdown"
+              aria-label={t('Export conversation as Markdown', locale)}
               disabled={exportDisabled}
               onClick={onExport}
               type="button"
             >
               <AbstractIcon name="download" size={14} />
-              EXPORT
+              {t('EXPORT', locale)}
             </button>
           </UiTooltip>
           <button onClick={onExit} type="button">
             <AbstractIcon name="back" size={14} />
-            CONTROL CENTER
+            {t('CONTROL CENTER', locale)}
           </button>
         </footer>
       </aside>

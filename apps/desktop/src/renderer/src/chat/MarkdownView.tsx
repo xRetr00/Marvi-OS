@@ -12,7 +12,7 @@ export function Markdown({ content }: { content: string }): React.JSX.Element | 
   if (!content.trim()) return null
   const markdown = normalizeMathDelimiters(content)
   return (
-    <div className="chat-markdown">
+    <div className="chat-markdown" dir="auto">
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[rehypeKatex]}
@@ -24,6 +24,8 @@ export function Markdown({ content }: { content: string }): React.JSX.Element | 
           h1: ({ children }) => <h1 className="chat-md-h1">{children}</h1>,
           h2: ({ children }) => <h2 className="chat-md-h2">{children}</h2>,
           h3: ({ children }) => <h3 className="chat-md-h3">{children}</h3>,
+          p: ({ children }) => <p dir="auto">{children}</p>,
+          li: ({ children }) => <li dir="auto">{children}</li>,
           hr: () => <hr className="chat-md-rule" />,
           table: ({ children }) => (
             <div className="chat-table-scroll">
@@ -50,7 +52,7 @@ function SafeLink({ href, children, ...props }: ComponentPropsWithoutRef<'a'>): 
       rel="noreferrer noopener"
       target={external ? '_blank' : undefined}
     >
-      {children}
+      <bdi dir="auto">{children}</bdi>
     </a>
   )
 }

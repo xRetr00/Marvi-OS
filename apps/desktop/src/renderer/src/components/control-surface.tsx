@@ -1,5 +1,11 @@
 import type { ComponentType, ReactNode, SVGProps } from 'react'
 import type { LucideIcon } from 'lucide-react'
+import { useStore } from '@nanostores/react'
+import { $interfaceLocale, t } from '../store/locale'
+
+function localized(node: ReactNode, locale: 'en' | 'ar'): ReactNode {
+  return typeof node === 'string' ? t(node, locale) : node
+}
 
 /** A Lucide glyph, or a brand mark from `@thesvg/react` where the real logo matters. */
 type SectionIcon = LucideIcon | ComponentType<SVGProps<SVGSVGElement>>
@@ -17,11 +23,12 @@ export function ControlPage({
   description?: ReactNode
   title: string
 }): React.JSX.Element {
+  const locale = useStore($interfaceLocale)
   return (
     <section className={`control-page ${className}`.trim()}>
       <header className="control-page-head">
-        <h2>{title}</h2>
-        {description ? <p>{description}</p> : null}
+        <h2>{t(title, locale)}</h2>
+        {description ? <p>{localized(description, locale)}</p> : null}
       </header>
       <div className="control-page-body">{children}</div>
     </section>
@@ -43,14 +50,15 @@ export function ControlSection({
   icon?: SectionIcon
   title: string
 }): React.JSX.Element {
+  const locale = useStore($interfaceLocale)
   return (
     <section className={`control-section ${className}`.trim()}>
       <header className="control-section-head">
         <div className="control-section-title">
           {Icon ? <Icon aria-hidden="true" /> : null}
           <div>
-            <h3>{title}</h3>
-            {description ? <p>{description}</p> : null}
+            <h3>{t(title, locale)}</h3>
+            {description ? <p>{localized(description, locale)}</p> : null}
           </div>
         </div>
         {action ? <div className="control-section-action">{action}</div> : null}
@@ -73,13 +81,14 @@ export function ControlRow({
   icon?: LucideIcon
   title: ReactNode
 }): React.JSX.Element {
+  const locale = useStore($interfaceLocale)
   return (
     <div className="control-row">
       <div className="control-row-copy">
         {Icon ? <Icon aria-hidden="true" /> : null}
         <div>
-          <strong>{title}</strong>
-          {description ? <p>{description}</p> : null}
+          <strong>{localized(title, locale)}</strong>
+          {description ? <p>{localized(description, locale)}</p> : null}
           {children}
         </div>
       </div>
@@ -95,7 +104,8 @@ export function ControlPill({
   children: ReactNode
   tone?: Tone
 }): React.JSX.Element {
-  return <span className={`control-pill is-${tone}`}>{children}</span>
+  const locale = useStore($interfaceLocale)
+  return <span className={`control-pill is-${tone}`}>{localized(children, locale)}</span>
 }
 
 export function ControlEmpty({
@@ -109,11 +119,12 @@ export function ControlEmpty({
   icon?: LucideIcon
   title: string
 }): React.JSX.Element {
+  const locale = useStore($interfaceLocale)
   return (
     <div className="control-empty">
       {Icon ? <Icon aria-hidden="true" /> : null}
-      <strong>{title}</strong>
-      <p>{description}</p>
+      <strong>{t(title, locale)}</strong>
+      <p>{localized(description, locale)}</p>
       {action}
     </div>
   )
@@ -127,13 +138,14 @@ export function ControlButton({
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
   destructive?: boolean
 }): React.JSX.Element {
+  const locale = useStore($interfaceLocale)
   return (
     <button
       className={`control-button${destructive ? ' is-destructive' : ''} ${className}`.trim()}
       type="button"
       {...props}
     >
-      {children}
+      {localized(children, locale)}
     </button>
   )
 }

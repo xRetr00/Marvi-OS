@@ -145,7 +145,7 @@ div.bx-tab {
 .bx-url:focus {
   border-color: var(--ui-stroke-secondary);
   background: var(--ui-bg-secondary);
-  text-align: left;
+  text-align: start;
   outline: none;
 }
 
@@ -203,7 +203,7 @@ div.bx-tab {
 .bx-menu {
   position: absolute;
   top: 38px;
-  right: 8px;
+  inset-inline-end: 8px;
   z-index: 5;
   display: flex;
   flex-direction: column;
@@ -218,7 +218,7 @@ div.bx-tab {
 
 .bx-menu button {
   padding: 7px 10px;
-  text-align: left;
+  text-align: start;
   border: 0;
   border-radius: 7px;
   background: transparent;

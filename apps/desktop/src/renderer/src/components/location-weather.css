@@ -57,11 +57,11 @@
   font-size: 12px;
 }
 .weather-context {
-  margin-left: auto;
+  margin-inline-start: auto;
   display: flex;
   flex-direction: column;
   gap: 7px;
-  text-align: right;
+  text-align: end;
   max-width: 40%;
   font-size: 11px;
   color: var(--ui-text-secondary);
@@ -98,14 +98,14 @@
   gap: 8px 6px;
   padding: 0 12px;
   font-size: 11px;
-  border-left: 1px solid var(--ui-stroke-tertiary);
+  border-inline-start: 1px solid var(--ui-stroke-tertiary);
 }
 .weather-days > div:first-child {
   border: 0;
-  padding-left: 0;
+  padding-inline-start: 0;
 }
 .weather-days > div:last-child {
-  padding-right: 0;
+  padding-inline-end: 0;
 }
 .weather-days svg {
   width: 16px;
@@ -203,7 +203,7 @@
 }
 .map-hint {
   position: absolute;
-  left: 50%;
+  inset-inline-start: 50%;
   bottom: 10px;
   transform: translateX(-50%);
   padding: 4px 9px;
@@ -268,7 +268,7 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  text-align: left;
+  text-align: start;
   overflow-wrap: anywhere;
 }
 .location-pins svg {
@@ -277,7 +277,7 @@
   flex: none;
 }
 .location-pins small {
-  margin-left: auto;
+  margin-inline-start: auto;
   font-size: 9px;
   color: var(--ui-accent);
 }
@@ -305,9 +305,9 @@
 }
 .map-unavailable {
   position: absolute;
-  left: 8px;
+  inset-inline-start: 8px;
   top: 8px;
-  right: 8px;
+  inset-inline-end: 8px;
   padding: 5px;
   font-size: 10px;
   background: var(--ui-bg-secondary);
@@ -440,7 +440,7 @@
 .location-results button {
   display: flex;
   gap: 8px;
-  text-align: left;
+  text-align: start;
 }
 .location-results svg {
   width: 14px;
@@ -471,9 +471,9 @@
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   color: var(--ui-text-primary);
-  padding-right: 12px;
-  border-right: 1px solid var(--ui-stroke-secondary);
-  margin-right: 10px;
+  padding-inline-end: 12px;
+  border-inline-end: 1px solid var(--ui-stroke-secondary);
+  margin-inline-end: 10px;
   letter-spacing: 0.03em;
 }
 @media (max-width: 1000px) {

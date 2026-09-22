@@ -29,6 +29,8 @@ import { MentionSuggestions } from '../components/MentionSuggestions'
 import { PendingAttachment } from '../components/PendingAttachment'
 import { SessionModel } from './SessionModel'
 import { useDictation } from '../useDictation'
+import { useStore } from '@nanostores/react'
+import { $interfaceLocale, t } from '../../store/locale'
 
 export function Composer({
   available,
@@ -52,6 +54,7 @@ export function Composer({
   threadId?: string
   onNewThread?: () => void
 }): React.JSX.Element {
+  const locale = useStore($interfaceLocale)
   const fileInput = useRef<HTMLInputElement | null>(null)
   const [focused, setFocused] = useState(false)
   const composer = unstable_useComposerInput()
@@ -186,9 +189,9 @@ export function Composer({
                     event.target.value = ''
                   }}
                 />
-                <UiTooltip label="Attach images or documents">
+                <UiTooltip label={t('Attach images or documents', locale)}>
                   <button
-                    aria-label="Attach images or documents"
+                    aria-label={t('Attach images or documents', locale)}
                     className="chat-compose-tool"
                     disabled={busy}
                     onClick={() => fileInput.current?.click()}
@@ -199,12 +202,16 @@ export function Composer({
                 </UiTooltip>
               </div>
               <ComposerPrimitive.Input
-                aria-label="Message Marvi"
+                aria-label={t('Message Marvi', locale)}
+                dir="auto"
                 enterKeyHint="send"
                 maxRows={9}
                 onBlur={() => setFocused(false)}
                 onFocus={() => setFocused(true)}
-                placeholder={available ? 'Send a message…' : 'Connect a provider to chat'}
+                placeholder={t(
+                  available ? 'Send a message…' : 'Connect a provider to chat',
+                  locale
+                )}
                 rows={1}
               />
               <div className="chat-compose-controls">
@@ -244,12 +251,15 @@ export function Composer({
                 {/* While a reply is streaming the same corner stops it. A turn
                   nobody wants any more is still generating and still billed. */}
                 <ThreadPrimitive.If running>
-                  <ComposerPrimitive.Cancel aria-label="Stop" className="chat-send is-stop">
+                  <ComposerPrimitive.Cancel
+                    aria-label={t('Stop', locale)}
+                    className="chat-send is-stop"
+                  >
                     <AbstractIcon name="stop" size={16} />
                   </ComposerPrimitive.Cancel>
                 </ThreadPrimitive.If>
                 <ThreadPrimitive.If running={false}>
-                  <ComposerPrimitive.Send aria-label="Send" className="chat-send">
+                  <ComposerPrimitive.Send aria-label={t('Send', locale)} className="chat-send">
                     <AbstractIcon name="send" size={16} />
                   </ComposerPrimitive.Send>
                 </ThreadPrimitive.If>

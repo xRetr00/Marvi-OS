@@ -70,7 +70,7 @@
 }
 
 .stream-count {
-  margin-left: auto;
+  margin-inline-start: auto;
   font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
   font-size: 10px;
   color: var(--ui-text-secondary);

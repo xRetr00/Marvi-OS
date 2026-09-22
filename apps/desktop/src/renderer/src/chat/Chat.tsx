@@ -15,6 +15,7 @@ import { downloadTranscript } from './transcript'
 import { MessageTiming } from '../components/message-timing'
 import { $sessionMetrics, sessionTimingStats } from '../store/session-metrics'
 import { setChatContextStatus } from '../store/chat-context'
+import { $interfaceLocale, t } from '../store/locale'
 
 /**
  * The typed conversation surface. Same Marvi as the voice session — same
@@ -28,6 +29,7 @@ import { setChatContextStatus } from '../store/chat-context'
  * that a thread list has no place for.
  */
 export function Chat({ onExit }: { onExit: () => void }): React.JSX.Element {
+  const interfaceLocale = useStore($interfaceLocale)
   const sessionMetrics = useStore($sessionMetrics)
   const chat = useChat()
   const runtime = useMarviRuntime(chat)
@@ -70,7 +72,7 @@ export function Chat({ onExit }: { onExit: () => void }): React.JSX.Element {
         exportDisabled={chat.messages.length === 0}
         timing={
           <MessageTiming
-            aria-label="Chat session metrics"
+            aria-label={t('Chat session metrics', interfaceLocale)}
             className="chat-sidebar-timing"
             stats={sessionTimingStats(sessionMetrics)}
             streaming={chat.busy}
@@ -81,7 +83,7 @@ export function Chat({ onExit }: { onExit: () => void }): React.JSX.Element {
         <section className="chat-page">
           {!chat.available ? (
             <div className="chat-unavailable">
-              NO PROVIDER CONNECTED — OPEN PROVIDERS TO CONNECT ONE
+              {t('NO PROVIDER CONNECTED — OPEN PROVIDERS TO CONNECT ONE', interfaceLocale)}
             </div>
           ) : null}
 

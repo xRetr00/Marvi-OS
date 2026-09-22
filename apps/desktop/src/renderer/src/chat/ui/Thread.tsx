@@ -22,6 +22,8 @@ import { AssistantMessage, UserEditComposer, UserMessage } from './Messages'
 import { ConversationMap } from './ConversationMap'
 import type { ChatMessage } from '../types'
 import type { ReadAloud } from './parts'
+import { useStore } from '@nanostores/react'
+import { $interfaceLocale, t } from '../../store/locale'
 
 /** The three openers on an empty thread. Prompts, not instructions. */
 const STARTER_PROMPTS = [
@@ -31,6 +33,7 @@ const STARTER_PROMPTS = [
 ] as const
 
 function EmptyState(): React.JSX.Element {
+  const locale = useStore($interfaceLocale)
   return (
     <div className="chat-empty">
       {/* Branding, and the only place it appears at this size: an empty thread
@@ -40,13 +43,17 @@ function EmptyState(): React.JSX.Element {
       <div className="chat-empty-mark" aria-hidden="true">
         <span>MARVI</span>
       </div>
-      <h2>What should we work through?</h2>
-      <p>One assistant across voice, memory, tools, and the room.</p>
-      <div className="chat-starters" aria-label="Starter prompts">
+      <h2>{t('What should we work through?', locale)}</h2>
+      <p>{t('One assistant across voice, memory, tools, and the room.', locale)}</p>
+      <div className="chat-starters" aria-label={t('Starter prompts', locale)}>
         {STARTER_PROMPTS.map((prompt) => (
-          <ThreadPrimitive.Suggestion key={prompt.code} method="replace" prompt={prompt.text}>
-            <span>{prompt.code}</span>
-            {prompt.text}
+          <ThreadPrimitive.Suggestion
+            key={prompt.code}
+            method="replace"
+            prompt={t(prompt.text, locale)}
+          >
+            <span>{t(prompt.code, locale)}</span>
+            {t(prompt.text, locale)}
           </ThreadPrimitive.Suggestion>
         ))}
       </div>
@@ -54,7 +61,14 @@ function EmptyState(): React.JSX.Element {
   )
 }
 
-export function Thread({ readAloud, messages }: { readAloud?: ReadAloud; messages: readonly ChatMessage[] }): React.JSX.Element {
+export function Thread({
+  readAloud,
+  messages
+}: {
+  readAloud?: ReadAloud
+  messages: readonly ChatMessage[]
+}): React.JSX.Element {
+  const locale = useStore($interfaceLocale)
   return (
     <ThreadPrimitive.Root className="chat-thread-viewport">
       <ThreadPrimitive.Viewport className="chat-log">
@@ -84,7 +98,7 @@ export function Thread({ readAloud, messages }: { readAloud?: ReadAloud; message
           the thread is already at the bottom -- the primitive disables itself
           rather than unmounting. */}
       <ThreadPrimitive.ScrollToBottom
-        aria-label="Scroll to latest message"
+        aria-label={t('Scroll to latest message', locale)}
         className="chat-scroll-bottom"
       >
         <AbstractIcon name="down" size={16} />

@@ -136,6 +136,7 @@ import {
 } from './components/capabilities/capability-library'
 import { ContextStatus } from './chat/components/ContextStatus'
 import { $chatContextStatus } from './store/chat-context'
+import { $interfaceLocale, setInterfaceLocale, t } from './store/locale'
 import { $recognisers, chooseRecogniser, refreshRecognisers } from './store/recognisers'
 
 function stateTone(state: string | undefined): 'neutral' | 'ready' | 'warning' | 'danger' {
@@ -372,6 +373,7 @@ interface BuildInfo {
 }
 
 function MainSurface(): React.JSX.Element {
+  const interfaceLocale = useStore($interfaceLocale)
   const voice = useStore($voiceState)
   const runtime = useStore($runtimeState)
   // For the header's status, which is the same session state the field shows.
@@ -796,27 +798,31 @@ function MainSurface(): React.JSX.Element {
                   {!collapsed ? (
                     <span className="brand-copy">
                       <strong>MARVI</strong>
-                      <small>LOCAL INTELLIGENCE</small>
+                      <small>{t('LOCAL INTELLIGENCE', interfaceLocale)}</small>
                     </span>
                   ) : null}
                 </header>
 
-                <nav aria-label="Main navigation">
+                <nav aria-label={t('Main navigation', interfaceLocale)}>
                   {NAV_GROUPS.map((group) => (
                     <div className="nav-group" key={group.label}>
                       {!collapsed ? (
-                        <h2 className="nav-group-label">{group.label.toUpperCase()}</h2>
+                        <h2 className="nav-group-label">
+                          {t(group.label, interfaceLocale).toUpperCase()}
+                        </h2>
                       ) : null}
                       {group.items.map((item) => (
-                        <UiTooltip key={item} label={item} side="right">
+                        <UiTooltip key={item} label={t(item, interfaceLocale)} side="right">
                           <button
                             className={page === item ? 'nav-item active' : 'nav-item'}
-                            aria-label={item}
+                            aria-label={t(item, interfaceLocale)}
                             aria-current={page === item ? 'page' : undefined}
                             onClick={() => navigate(item)}
                           >
                             <AbstractIcon className="nav-icon" name={NAV_ICONS[item]} size={17} />
-                            {!collapsed ? <span className="nav-label">{item}</span> : null}
+                            {!collapsed ? (
+                              <span className="nav-label">{t(item, interfaceLocale)}</span>
+                            ) : null}
                             {!collapsed ? (
                               <span className="nav-code">{NAV_CODES[item]}</span>
                             ) : null}
@@ -5109,6 +5115,7 @@ function SettingsShell({
   onHotkeys: () => void
   onClose: () => void
 }): React.JSX.Element {
+  const interfaceLocale = useStore($interfaceLocale)
   const voiceOpen = (SETTINGS_VOICE_PAGES as readonly string[]).includes(page)
   const appearanceOpen = (SETTINGS_APPEARANCE_PAGES as readonly string[]).includes(page)
 
@@ -5129,10 +5136,15 @@ function SettingsShell({
       }}
       role="presentation"
     >
-      <div aria-label="Settings" aria-modal="true" className="settings-frame" role="dialog">
-        <UiTooltip label="Close settings" side="left">
+      <div
+        aria-label={t('Settings', interfaceLocale)}
+        aria-modal="true"
+        className="settings-frame"
+        role="dialog"
+      >
+        <UiTooltip label={t('Close settings', interfaceLocale)} side="left">
           <button
-            aria-label="Close settings"
+            aria-label={t('Close settings', interfaceLocale)}
             className="settings-close"
             onClick={onClose}
             type="button"
@@ -5140,7 +5152,7 @@ function SettingsShell({
             <AbstractIcon name="close" size={14} />
           </button>
         </UiTooltip>
-        <nav className="settings-rail" aria-label="Settings sections">
+        <nav className="settings-rail" aria-label={t('Settings sections', interfaceLocale)}>
           {SETTINGS_GROUPS.map((group, index) => (
             <div
               className={group.gapBefore ? 'settings-group has-gap' : 'settings-group'}
@@ -5156,7 +5168,7 @@ function SettingsShell({
                       type="button"
                     >
                       <AbstractIcon name={SETTINGS_ICONS[item]} size={16} />
-                      <span>Voice</span>
+                      <span>{t('Voice', interfaceLocale)}</span>
                       <span aria-hidden="true" className="settings-nav-chevron">
                         {voiceOpen ? '−' : '+'}
                       </span>
@@ -5176,7 +5188,7 @@ function SettingsShell({
                             type="button"
                           >
                             <AbstractIcon name={SETTINGS_ICONS[voicePage]} size={16} />
-                            <span>{voicePage}</span>
+                            <span>{t(voicePage, interfaceLocale)}</span>
                           </button>
                         ))}
                       </div>
@@ -5191,7 +5203,7 @@ function SettingsShell({
                       type="button"
                     >
                       <AbstractIcon name={SETTINGS_ICONS[item]} size={16} />
-                      <span>Appearance</span>
+                      <span>{t('Appearance', interfaceLocale)}</span>
                       <span aria-hidden="true" className="settings-nav-chevron">
                         {appearanceOpen ? '−' : '+'}
                       </span>
@@ -5211,7 +5223,7 @@ function SettingsShell({
                             type="button"
                           >
                             <AbstractIcon name={SETTINGS_ICONS[appearancePage]} size={16} />
-                            <span>{appearancePage}</span>
+                            <span>{t(appearancePage, interfaceLocale)}</span>
                           </button>
                         ))}
                       </div>
@@ -5226,7 +5238,7 @@ function SettingsShell({
                     type="button"
                   >
                     <AbstractIcon name={SETTINGS_ICONS[item]} size={16} />
-                    <span>{item}</span>
+                    <span>{t(item, interfaceLocale)}</span>
                   </button>
                 )
               )}
@@ -6533,6 +6545,7 @@ function PreferencesPanel({
   runtime: RuntimeStatus
   onHotkeys: () => void
 }): React.JSX.Element {
+  const interfaceLocale = useStore($interfaceLocale)
   const setYolo = (enabled: boolean): void => {
     void window.marvi?.setYolo(enabled).then(applyRuntimeState)
   }
@@ -6542,16 +6555,40 @@ function PreferencesPanel({
 
   return (
     <ControlPage
-      aria-label="Marvi OS settings"
+      aria-label={t('Marvi OS settings', interfaceLocale)}
       className="settings-page"
-      description="Manage local services, action approval, and connected devices."
-      title="Preferences"
+      description={t(
+        'Manage local services, action approval, and connected devices.',
+        interfaceLocale
+      )}
+      title={t('Preferences', interfaceLocale)}
     >
+      <ControlSection icon={Languages} title={t('Language', interfaceLocale)}>
+        <ControlRow
+          title={t('Interface language', interfaceLocale)}
+          description={t(
+            'Arabic changes the app and chat interface. Speech language is configured separately.',
+            interfaceLocale
+          )}
+          action={
+            <Picker
+              options={[
+                { value: 'en', label: 'English' },
+                { value: 'ar', label: 'العربية' }
+              ]}
+              value={interfaceLocale}
+              onChange={(next) => setInterfaceLocale(next === 'ar' ? 'ar' : 'en')}
+            />
+          }
+        />
+      </ControlSection>
       <ControlSection className="settings-services" icon={Server} title="Runtime">
         <div>
           <p>
-            Marvi starts these itself. When one will not start, the reason is its own output — shown
-            here rather than discarded.
+            {t(
+              'Marvi starts these itself. When one will not start, the reason is its own output — shown here rather than discarded.',
+              interfaceLocale
+            )}
           </p>
         </div>
         <ServiceHealth compact />
@@ -6561,10 +6598,13 @@ function PreferencesPanel({
         <ControlRow
           action={
             <button className="mode-switch" onClick={onHotkeys} type="button">
-              Open
+              {t('Open', interfaceLocale)}
             </button>
           }
-          description="Talk to Marvi, stop her, open Chat or show the window — from anywhere in Windows, whether or not Marvi has focus."
+          description={t(
+            'Talk to Marvi, stop her, open Chat or show the window — from anywhere in Windows, whether or not Marvi has focus.',
+            interfaceLocale
+          )}
           title="Global shortcuts"
         />
       </ControlSection>
@@ -6579,10 +6619,16 @@ function PreferencesPanel({
               role="switch"
               type="button"
             >
-              {runtime.assistant.yolo ? 'YOLO · auto accept' : 'Confirm · ask me'}
+              {t(
+                runtime.assistant.yolo ? 'YOLO · auto accept' : 'Confirm · ask me',
+                interfaceLocale
+              )}
             </button>
           }
-          description="Confirm asks before actions when the model decides approval is needed. YOLO bypasses every prompt."
+          description={t(
+            'Confirm asks before actions when the model decides approval is needed. YOLO bypasses every prompt.',
+            interfaceLocale
+          )}
           title="Action approval"
         />
       </ControlSection>
@@ -6597,10 +6643,16 @@ function PreferencesPanel({
               role="switch"
               type="button"
             >
-              {runtime.assistant.privacy ? 'On · nothing leaves' : 'Off · normal'}
+              {t(
+                runtime.assistant.privacy ? 'On · nothing leaves' : 'Off · normal',
+                interfaceLocale
+              )}
             </button>
           }
-          description="Switches off web search, connected accounts, Telegram, hosted memory and update checks, and requires a local model for every call. Your own MCP servers are not affected."
+          description={t(
+            'Switches off web search, connected accounts, Telegram, hosted memory and update checks, and requires a local model for every call. Your own MCP servers are not affected.',
+            interfaceLocale
+          )}
           title="Keep everything on this machine"
         />
       </ControlSection>

@@ -75,6 +75,35 @@
   text-rendering: geometricPrecision;
 }
 
+html[lang='ar'] .chat-sessions {
+  animation-name: chat-drawer-in-rtl;
+}
+
+@keyframes chat-drawer-in-rtl {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+html[lang='ar'] pre,
+html[lang='ar'] code,
+html[lang='ar'] .nav-code,
+html[lang='ar'] input[type='url'] {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+html[lang='ar'] input,
+html[lang='ar'] textarea,
+html[lang='ar'] .chat-message-content {
+  unicode-bidi: plaintext;
+}
+
 html[data-font='anthropic-sans'] {
   --ui-font-body: 'Anthropic Sans', 'Segoe UI', sans-serif;
   --ui-font-display: 'Anthropic Sans', 'Segoe UI', sans-serif;
@@ -99,6 +128,12 @@ html[data-font='geist-mono'] {
   --ui-font-body: 'Geist Mono Variable', 'Cascadia Mono', monospace;
   --ui-font-display: 'Geist Mono Variable', 'Cascadia Mono', monospace;
   --ui-font-mono: 'Geist Mono Variable', 'Cascadia Mono', monospace;
+}
+
+html[lang='ar'] {
+  --ui-font-body: 'Noto Sans Arabic Variable', 'Segoe UI', sans-serif;
+  --ui-font-display: 'Noto Sans Arabic Variable', 'Segoe UI', sans-serif;
+  --ui-font-mono: 'JetBrains Mono', 'Noto Sans Arabic Variable', monospace;
 }
 
 * {

@@ -1,5 +1,19 @@
 # Implementation Log
 
+## 2026-09-22 — Arabic interface groundwork
+
+- Added a persisted English/Arabic interface preference, cross-window sync,
+  document direction and language, Noto Sans Arabic, CSS logical spacing and
+  borders, and Arabic number/date/relative-time helpers.
+- Translated the navigation, settings rail, language control, and the primary
+  Chat session/composer controls. English remains the fallback for untranslated
+  interface text. Full catalogue extraction, Gateway-authored prose, and visual
+  RTL review remain open, so B8 has not met its acceptance boundary.
+- Speech and memory localization were removed from B8 scope at the owner's
+  request. Memory extraction, distillation, and dreaming now instruct their
+  models to write English facts from input in any language through the existing pipeline; the
+  Arabic exchange boundary is covered by the Gateway remembering test.
+
 ## 2026-09-19 — The sandbox became a boundary, and Marvi takes meeting notes
 
 - **B3 finished** (`lowbox.py`). The Job Object was never a security boundary

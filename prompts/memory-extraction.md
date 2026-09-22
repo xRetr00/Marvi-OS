@@ -9,6 +9,10 @@ Reply with a JSON array and nothing else. Each element is one operation:
   {"op":"delete","id":12}
 An empty array is the right answer most of the time. Reply [] unless the exchange contains something durably true about the user, their world, or their standing preferences.
 
+Understand the exchange in the language the user wrote it. Write `subject` and
+`body` in English so the existing memory store and retrieval pipeline stays
+consistent. Preserve people's names, product names, and exact identifiers.
+
 What counts. All of these are worth storing:
   "I got a Keychron K2" -> the user owns a Keychron K2 keyboard
   "my sister Nour is visiting" -> the user has a sister named Nour

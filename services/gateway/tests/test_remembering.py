@@ -57,6 +57,17 @@ def test_add_stores_a_fact(store) -> None:
     assert "black" in store.recent(limit=5)[0]["body"]
 
 
+def test_arabic_exchange_keeps_the_existing_english_memory_pipeline(store) -> None:
+    model = Model('[{"op":"add","subject":"keyboard","body":"The user owns a Keychron K2 keyboard.","kind":"semantic"}]')
+
+    done = remembering.extract(store, model, "اشتريت لوحة مفاتيح Keychron K2", "ممتاز.")
+
+    assert done["add"] == 1
+    assert "Keychron K2" in store.recent(limit=5)[0]["body"]
+    assert "Write `subject` and" in model.calls[0]["messages"][0]["content"]
+    assert "in English" in model.calls[0]["messages"][0]["content"]
+
+
 def test_update_replaces_rather_than_joins(store) -> None:
     """The whole point. A correction that is added sits beside the thing it was
     meant to replace, and both come back on recall."""

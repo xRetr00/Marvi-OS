@@ -5,6 +5,7 @@ import { $appearanceStyle } from '../store/appearance'
 import { Orb } from '../orb/Orb'
 import { accentFor, orbStateFor } from '../orb/phase'
 import { announcementSourceLabel } from './island-presentation'
+import { $interfaceLocale, t } from '../store/locale'
 
 export function DynamicIsland({
   state,
@@ -18,6 +19,7 @@ export function DynamicIsland({
   onConfirmationDecision?: (decision: 'approve' | 'deny') => void
 }): React.JSX.Element {
   const appearance = useStore($appearanceStyle)
+  const locale = useStore($interfaceLocale)
   // A background room event expands the seed briefly and collapses on its own.
   // It is announced politely and never becomes interactive, so it cannot pull
   // focus away from whatever the user is doing.
@@ -30,7 +32,7 @@ export function DynamicIsland({
         data-expanded={expanded}
         role="status"
         aria-live="polite"
-        aria-label={`Room: ${state.roomEvent.summary}`}
+        aria-label={`${t('Room', locale)}: ${state.roomEvent.summary}`}
       >
         <Orb
           state={orbStateFor('ready')}
@@ -42,8 +44,8 @@ export function DynamicIsland({
         />
         {expanded ? (
           <div className="island-copy">
-            <small>ROOM</small>
-            <strong>{state.roomEvent.summary}</strong>
+            <small>{t('ROOM', locale)}</small>
+            <strong dir="auto">{state.roomEvent.summary}</strong>
           </div>
         ) : null}
       </div>
@@ -54,7 +56,7 @@ export function DynamicIsland({
     return (
       <div className="dynamic-island island-seed" data-phase="ready" role="status">
         <span className="island-seed-line" aria-hidden="true" />
-        <span className="sr-only">Marvi OS ready</span>
+        <span className="sr-only">{t('Marvi OS ready', locale)}</span>
       </div>
     )
   }
@@ -65,12 +67,12 @@ export function DynamicIsland({
         className="dynamic-island island-confirmation"
         data-phase="confirmation"
         role="alertdialog"
-        aria-label="Action confirmation"
+        aria-label={t('Action confirmation', locale)}
       >
         <div className="confirmation-copy">
-          <small>CONFIRM</small>
-          <strong>{state.confirmation.action}</strong>
-          <span>{state.confirmation.detail}</span>
+          <small>{t('CONFIRM', locale)}</small>
+          <strong dir="auto">{state.confirmation.action}</strong>
+          <span dir="auto">{state.confirmation.detail}</span>
         </div>
         <div className="confirmation-actions">
           <button
@@ -78,7 +80,7 @@ export function DynamicIsland({
             type="button"
             onClick={() => onConfirmationDecision?.('deny')}
           >
-            DENY
+            {t('DENY', locale)}
           </button>
           <button
             className="confirm-primary"
@@ -86,7 +88,7 @@ export function DynamicIsland({
             type="button"
             onClick={() => onConfirmationDecision?.('approve')}
           >
-            {confirmationPending ? 'WAIT…' : 'APPROVE'}
+            {t(confirmationPending ? 'WAIT…' : 'APPROVE', locale)}
           </button>
         </div>
       </div>
@@ -96,8 +98,8 @@ export function DynamicIsland({
   const reactive = state.phase === 'listening' || state.phase === 'speaking'
   const announcement = state.phase === 'announcing' ? state.announcement : null
   const label = announcement
-    ? `${announcementSourceLabel(announcement.source)} · NOW`
-    : ISLAND_PHASE_LABEL[state.phase]
+    ? `${announcementSourceLabel(announcement.source)} · ${t('NOW', locale)}`
+    : t(ISLAND_PHASE_LABEL[state.phase], locale)
   const caption = announcement?.text ?? state.caption
   const detail = announcement ? null : state.detail
 
@@ -122,14 +124,14 @@ export function DynamicIsland({
       {expanded ? (
         <div className="island-copy">
           <small>{label}</small>
-          <strong>{caption}</strong>
-          {detail ? <span>{detail}</span> : null}
+          <strong dir="auto">{caption}</strong>
+          {detail ? <span dir="auto">{detail}</span> : null}
         </div>
       ) : (
         <small className="island-compact-label" aria-hidden="true">
           {announcement
             ? announcementSourceLabel(announcement.source)
-            : ISLAND_PHASE_LABEL[state.phase]}
+            : t(ISLAND_PHASE_LABEL[state.phase], locale)}
         </small>
       )}
     </div>
